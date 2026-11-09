@@ -158,11 +158,13 @@ const https = z
   .regex(/^https:\/\//);
 /**
  * Text of at most `max` UTF-16 code units (the fetcher counts the same way). Zod's own `.max` counts
- * code points, so an emoji-heavy string could pass it while exceeding the column budget.
+ * code points, so an emoji-heavy string could pass it while exceeding the column budget; `.max` stays
+ * for the OpenAPI maxLength.
  */
 const utf16Text = (max: number) =>
   z
     .string()
+    .max(max)
     .refine((value) => value.length <= max, `at most ${max} UTF-16 units`);
 const label = (max: number) => utf16Text(max).trim().min(1);
 const macroId = z.string().regex(/^[A-Z0-9_]{1,40}$/);
