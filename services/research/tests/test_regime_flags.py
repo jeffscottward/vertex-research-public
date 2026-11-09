@@ -58,13 +58,6 @@ class TestStatistics:
         with pytest.raises(ValueError):
             events.binomial_tail(1, 3, 1.5)
 
-    def test_spearman_uses_ranks_and_mean_ranks_for_ties(self):
-        assert events.spearman([1, 2, 3], [10, 200, 3000]) == pytest.approx(1.0)
-        assert events.spearman([1, 2, 3], [3, 2, 1]) == pytest.approx(-1.0)
-        # ranks 1.5, 1.5, 3 against 1, 2, 3: 1.5 / sqrt(1.5 * 2)
-        assert events.spearman([1, 1, 2], [1, 2, 3]) == pytest.approx(1.5 / math.sqrt(3.0))
-        assert events.spearman([1, 1, 1], [1, 2, 3]) == 0.0
-
     def test_p_values_are_one_sided(self):
         assert events.spearman_p(0.0, 50) == pytest.approx(0.5)
         assert events.spearman_p(0.5, 50) < 0.001
@@ -72,6 +65,11 @@ class TestStatistics:
         assert events.mean_below_p([0.0, 2.0], [10.0, 12.0]) < 1e-6
         assert events.mean_below_p([10.0, 12.0], [0.0, 2.0]) > 1 - 1e-6
         assert events.mean_below_p([1.0, 3.0], [1.0, 3.0]) == pytest.approx(0.5)
+        assert events.mean_below_p([1.0, 1.0], [1.0, 1.0]) == 0.5  # no variation on either side
+
+    def test_a_mean_comparison_needs_two_values_a_side(self):
+        with pytest.raises(ValueError):
+            events.mean_below_p([1.0], [1.0, 2.0])
 
     def test_benjamini_hochberg_counts_the_step_up_rejections(self):
         # ranks 1 to 4 allow 0.0125, 0.025, 0.0375, 0.05: the third value passes, so the first three count
@@ -134,6 +132,12 @@ class TestZigzag:
         closes = [100, 111, 99, 95, 106, 120, 107, 108]
         assert analog.zigzag_tops(closes) == [analog.Top(index=1, confirmed=2), analog.Top(index=5, confirmed=6)]
 
+    def test_a_bottom_is_measured_from_the_lowest_close_since_the_top(self):
+        # the low is 99 on the day the top is confirmed, not the 100 after it: 109.5 >= 1.1 * 99 confirms
+        # the bottom, so 109.5 is the next high and 98 <= 0.9 * 109.5 confirms it as a top
+        closes = [100, 111, 99, 100, 109.5, 98]
+        assert analog.zigzag_tops(closes) == [analog.Top(index=1, confirmed=2), analog.Top(index=4, confirmed=5)]
+
     def test_first_pivot_can_be_a_top(self):
         assert analog.zigzag_tops([100, 95, 89]) == [analog.Top(index=0, confirmed=2)]
 
@@ -193,6 +197,9 @@ class TestAnalog:
         # day 2: one of two earlier days is smaller (not below 50%); day 3: none; day 4: all four
         assert analog.top_like([3.0, 1.0, 2.0, 0.5, 5.0], min_history=2, share=0.5) == [None, None, False, True, False]
 
+    def test_an_equal_earlier_distance_is_not_smaller(self):
+        assert analog.top_like([1.0, 1.0, 1.0], min_history=2, share=0.5) == [None, None, True]
+
 
 WEDNESDAYS = [date(2024, 1, 3) + timedelta(weeks=i) for i in range(6)]
 
@@ -240,6 +247,13 @@ class TestLiquidityStates:
         assert (first, held) == (3, [0, 0, 0, 1])
         with pytest.raises(ValueError):
             liquidity.held_positions([None, None, True])
+
+    def test_cash_earns_the_yield_of_the_day_before(self):
+        days = TRADING[:4]  # 8, 9, 10 and 11 January
+        found = liquidity.cash_returns(days, [date(2024, 1, 8), date(2024, 1, 10)], [2.52, 5.04])
+        # no yield before the first day; the 9th has no yield, so the 10th still earns the yield of the 8th
+        assert found == pytest.approx([0.0, 0.0001, 0.0001, 0.0002])
+        assert liquidity.cash_returns(days, [date(2024, 1, 10)], [5.04]) == pytest.approx([0.0, 0.0, 0.0, 0.0002])
 
     def test_timing_counts_trades_and_starts_invested(self):
         asset, cash, held = [0.01, 0.02, -0.03, 0.04], [0.001] * 4, [0, 0, 0, 1]
@@ -294,20 +308,30 @@ class TestSeasonal:
         assert cells[(10, 0)].n == 2  # 2000 and 2004
         assert cells[(12, 1)].n == 1  # 2005-12 to 2006-12 is not complete: no bar after 2006-12
 
+    def test_scan_counts_only_gains_as_positive(self):
+        days, closes = monthly_series(2000, 2006, lambda year: 0.99**12 if year % 2 else 1.0)
+        cells = {(cell.month, cell.phase): cell for cell in seasonal.scan(days, closes, 2000, 2006)}
+        assert (cells[(10, 1)].n, cells[(10, 1)].positives) == (2, 0)  # 2001 and 2005 fall
+        assert (cells[(10, 0)].n, cells[(10, 0)].positives) == (2, 0)  # 2000 and 2004 are flat: no gain
+
 
 def a_group(n: int, hits: int, mean_fwd: float = 0.0) -> events.Group:
     return events.Group(n=n, hits=hits, hit_rate=hits / n, mean_fwd=mean_fwd, median_fwd=mean_fwd,
                         mean_mdd=-0.05, smallest_drop=-0.01)
 
 
-def a_stretched(n: int, hits: int, mean_fwd: float, base_rate: float = 0.4, base_fwd: float = 0.01,
-                grid_above: bool = True) -> study.StretchedStudy:
-    """A study whose primary cell has ``n`` complete episodes; the other cells sit above or below the base."""
-    base = a_group(100, round(100 * base_rate))
+def a_stretched(n: int, hits: int, mean_fwd: float, base_fwd: float = 0.01,
+                others: tuple[tuple[int, int, int], ...] = ((53, 10, 10),)) -> study.StretchedStudy:
+    """A study whose primary cell has ``n`` complete episodes and a base hit rate of 0.4.
+
+    ``others`` gives the 53 other cells as (cells, complete episodes, hits).
+    """
+    base = a_group(100, 40)
+    rest = [a_group(episodes, cell_hits) for count, episodes, cell_hits in others for _ in range(count)]
+    assert len(rest) == 53
     cells = []
     for definition in stretched.GRID:
-        primary = definition == stretched.PRIMARY
-        result = (a_group(n, hits, mean_fwd) if primary else a_group(10, 10 if grid_above else 0)) if n else None
+        result = (a_group(n, hits, mean_fwd) if definition == stretched.PRIMARY else rest.pop()) if n else None
         p_value = events.binomial_tail(result.hits, result.n, base.hit_rate) if result else None
         cells.append(study.StretchedCell(definition=definition, signal_days=n, episodes=(), result=result,
                                          base=base, p_value=p_value))
@@ -332,9 +356,19 @@ class TestStretchedVerdict:
     def test_fail_when_the_forward_return_is_not_below_all_days(self):
         assert study.stretched_verdict(a_stretched(10, 10, 0.02), a_stretched(6, 6, -0.05)) == study.FAIL
 
-    def test_fail_when_most_grid_cells_are_not_above_their_base_rate(self):
-        sample = a_stretched(10, 10, -0.05, grid_above=False)
-        assert study.stretched_verdict(sample, a_stretched(6, 6, -0.05)) == study.FAIL
+    def test_eight_episodes_and_five_holdout_episodes_are_enough(self):
+        assert study.stretched_verdict(a_stretched(8, 8, -0.05), a_stretched(5, 3, -0.02)) == study.PASS
+
+    def test_half_of_the_grid_cells_above_their_base_rate_is_enough(self):
+        holdout = a_stretched(6, 6, -0.05)
+        half = a_stretched(10, 10, -0.05, others=((26, 10, 10), (27, 10, 0)))  # 27 of 54 with the primary cell
+        assert study.stretched_verdict(half, holdout) == study.PASS
+        fewer = a_stretched(10, 10, -0.05, others=((25, 10, 10), (28, 10, 0)))
+        assert study.stretched_verdict(fewer, holdout) == study.FAIL
+
+    def test_grid_cells_with_few_episodes_do_not_count(self):
+        sample = a_stretched(10, 10, -0.05, others=((10, 10, 10), (43, 7, 0)))
+        assert study.stretched_verdict(sample, a_stretched(6, 6, -0.05)) == study.PASS
 
 
 class TestStretchedStudy:
@@ -402,6 +436,7 @@ class TestAnalogStudy:
         assert [(day.index, day.nearest, day.top_like) for day in full.days] == \
                [(day.index, day.nearest, day.top_like) for day in short.days]
         assert full.days[-1].outcome is not None and short.days[-1].outcome is None
+        assert full.tops == short.tops == 25  # the tops confirmed by the cut, not the 40 of the whole series
 
 
 def an_analog(top: events.Group | None, others: events.Group | None, rho: float = 0.3, rho_p: float = 0.01) -> study.AnalogStudy:
@@ -420,6 +455,11 @@ class TestAnalogVerdict:
         assert study.analog_verdict(self.GOOD, [self.GOOD] * 6, an_analog(a_group(6, 2), a_group(30, 12))) == study.FAIL
         assert study.analog_verdict(self.GOOD, [self.GOOD] * 6, an_analog(a_group(4, 4), a_group(30, 12))) == study.INCONCLUSIVE
 
+    def test_eight_top_like_days_five_in_the_holdout_and_half_of_the_variants_are_enough(self):
+        eight = an_analog(a_group(8, 8, -0.03), a_group(80, 32, 0.01))
+        five = an_analog(a_group(5, 3), a_group(30, 12))
+        assert study.analog_verdict(eight, [self.GOOD] * 3 + [self.WEAK] * 3, five) == study.PASS
+
     def test_few_top_like_days_are_inconclusive(self):
         few = an_analog(a_group(7, 7, -0.03), a_group(80, 32, 0.01))
         assert study.analog_verdict(few, [few], self.GOOD) == study.INCONCLUSIVE
@@ -428,7 +468,7 @@ class TestAnalogVerdict:
     def test_fail_on_any_missing_in_sample_check(self):
         holdout = an_analog(a_group(6, 4), a_group(30, 12))
         assert study.analog_verdict(self.WEAK, [self.GOOD] * 6, holdout) == study.FAIL  # hit rate not above
-        no_rank = replace(self.GOOD, rho=-0.1, rho_p=0.9)
+        no_rank = replace(self.GOOD, rho=0.02, rho_p=0.4)
         assert study.analog_verdict(no_rank, [self.GOOD] * 6, holdout) == study.FAIL
         better_return = an_analog(a_group(20, 16, 0.02), a_group(80, 32, 0.01))
         assert study.analog_verdict(better_return, [self.GOOD] * 6, holdout) == study.FAIL
@@ -473,6 +513,9 @@ class TestLiquidityStudy:
         assert study.liquidity_verdict(found) == study.PASS
         assert found.full.rule.trades > 4
         assert found.halves[0].end < found.halves[1].start
+        days = found.full.rule.days
+        assert (found.halves[0].rule.days, found.halves[1].rule.days) == ((days + 1) // 2, days // 2)
+        assert found.weeks_on + found.weeks_off == 24  # every fourth of the 104 weeks, from week 4 to week 96
         assert [era.label for era in found.eras] == ["2020"]  # an era without days is left out
 
     def test_a_flag_that_marks_the_rises_fails(self):
@@ -493,6 +536,55 @@ class TestLiquidityStudy:
         assert period(stats(1.0, -0.1), stats(0.5, -0.2)).better is True
         assert period(stats(1.0, -0.3), stats(0.5, -0.2)).better is False
         assert period(stats(0.4, -0.1), stats(0.5, -0.2)).better is False
+        assert period(stats(1.0, -0.2), stats(0.5, -0.2)).better is False  # an equal drawdown is not smaller
+        assert period(stats(0.5, -0.1), stats(0.5, -0.2)).better is False  # an equal Sharpe ratio is not higher
+
+
+def stepped_closes(steps: dict[range, float], count: int) -> list[float]:
+    """Closes from 100 that change by the factor of the range a day is in, and stay flat elsewhere."""
+    closes = [100.0]
+    for d in range(1, count):
+        closes.append(closes[-1] * next((step for days, step in steps.items() if d in days), 1.0))
+    return closes
+
+
+class TestLiquidityStudyNumbers:
+    """21 weeks from Wednesday 2024-01-03 on weekdays without holidays: week i is known at day 5 i + 5.
+
+    The flag is on for weeks 4 to 7 and 12 to 15 (state on at the closes of days 25 to 44 and 65 to 84).
+    """
+
+    DAYS = weekdays(date(2024, 1, 1), 110)
+    WEEKS = [liquidity.Week(day=date(2024, 1, 3) + timedelta(weeks=i), net=1.0,
+                            change=None if i < 4 else -0.01 if i in (4, 5, 6, 7, 12, 13, 14, 15) else 0.01) for i in range(21)]
+    # the price close moves in the four sampled periods only; the adjusted close gains 1% every day
+    CLOSES = stepped_closes({range(26, 46): 1.005, range(46, 66): 0.99, range(66, 86): 1.002, range(86, 106): 0.996}, 110)
+    ADJUSTED = [50.0 * 1.01**d for d in range(110)]
+    CASH = [0.0001 * (d % 3) for d in range(110)]
+
+    def test_timing_uses_the_adjusted_close_and_the_cash_of_the_same_day(self):
+        found = study.liquidity_study(self.DAYS, self.CLOSES, self.ADJUSTED, self.CASH, self.WEEKS)
+        out = [*range(26, 46), *range(66, 86)]  # the state of the day before is on
+        assert found.full.start == self.DAYS[26] and found.full.end == self.DAYS[109]
+        assert (found.full.rule.days, found.full.rule.trades) == (84, 4)
+        assert found.full.rule.fraction_out == pytest.approx(40 / 84)
+        cash = math.prod(1.0 + self.CASH[d] for d in out)
+        assert found.full.rule.final_wealth == pytest.approx(cash * 1.01**44 * (1 - liquidity.COST) ** 4, rel=1e-12)
+        assert found.full.hold.final_wealth == pytest.approx(1.01**84, rel=1e-12)
+
+    def test_event_comparison_uses_the_price_close_between_two_availability_days(self):
+        found = study.liquidity_study(self.DAYS, self.CLOSES, self.ADJUSTED, self.CASH, self.WEEKS)
+        assert (found.weeks_on, found.weeks_off) == (2, 2)  # weeks 4 and 12 against weeks 8 and 16
+        assert found.mean_on == pytest.approx((1.005**20 - 1 + 1.002**20 - 1) / 2)
+        assert found.mean_off == pytest.approx((0.99**20 - 1 + 0.996**20 - 1) / 2)
+        assert found.p_value > 0.5  # the flag-on weeks did better here
+
+    def test_no_comparison_without_two_weeks_a_side(self):
+        never = [replace(week, change=None if week.change is None else 0.01) for week in self.WEEKS]
+        found = study.liquidity_study(self.DAYS, self.CLOSES, self.ADJUSTED, self.CASH, never)
+        assert (found.weeks_on, found.mean_on, found.p_value) == (0, None, None)
+        assert found.full.rule.trades == 0
+        assert study.liquidity_verdict(found) == study.FAIL
 
 
 class TestSeasonalStudy:
@@ -511,7 +603,15 @@ class TestSeasonalStudy:
         assert all(midterm == pytest.approx(0.10) and other < 0 for _, midterm, other in found.halves)
         assert [item.year for item in found.holdout] == [1930, 1934, 1938, 1942, 1946]
         assert len(found.cells) == 48
+        assert found.missing == 0
         assert study.seasonal_verdict(found) == study.PASS
+
+    def test_a_series_without_every_window_cannot_pass(self):
+        first = self.DAYS.index(date(1935, 1, 28))  # no bars for the windows of 1930 and 1934
+        found = study.seasonal_study(self.DAYS[first:], self.CLOSES[first:])
+        assert (len(found.holdout), found.missing) == (3, 2)
+        assert study.seasonal_verdict(found) == study.FAIL
+        assert study.seasonal_verdict(replace(study.seasonal_study(self.DAYS, self.CLOSES), missing=1)) == study.FAIL
 
     def test_verdict_fails_on_one_negative_midterm_window_or_a_weak_holdout(self):
         found = study.seasonal_study(self.DAYS, self.CLOSES)

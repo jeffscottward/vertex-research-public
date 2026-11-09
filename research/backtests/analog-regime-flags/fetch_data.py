@@ -9,6 +9,7 @@ Run (rig):
 Output:
 * <NAME>.csv with the header date,close,adj_close: Yahoo daily bars (auto_adjust=False) of QQQ, SPY,
   ^NDX (NDX.csv), ^GSPC (GSPC.csv) and ^IRX (IRX.csv). `close` is split-adjusted without dividends.
+  A missing value stays blank.
 * <SERIES>.csv with the header date,value: FRED fredgraph.csv of WALCL, WDTGAL and RRPONTSYD. A blank
   value (no observation) stays blank.
 * manifest.json: row counts, date ranges and SHA-256 of every file.
@@ -43,10 +44,10 @@ def fetch_yahoo(name: str, symbol: str, out: Path) -> Path:
     with path.open("w") as fh:
         fh.write("date,close,adj_close\n")
         for ts, row in frame.iterrows():
-            close, adjusted = float(row["Close"]), float(row["Adj Close"])
-            if math.isnan(close) or math.isnan(adjusted):
-                continue
-            fh.write(f"{ts.date().isoformat()},{close!r},{adjusted!r}\n")
+            # a missing value stays blank: the runner drops and counts that bar (rule G4)
+            close, adjusted = ("" if math.isnan(value) else repr(value)
+                               for value in (float(row["Close"]), float(row["Adj Close"])))
+            fh.write(f"{ts.date().isoformat()},{close},{adjusted}\n")
     return path
 
 

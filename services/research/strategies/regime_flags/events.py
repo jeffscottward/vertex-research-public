@@ -67,33 +67,6 @@ def normal_tail(z: float) -> float:
     return 1.0 - statistics.NormalDist().cdf(z)
 
 
-def _ranks(values: Sequence[float]) -> list[float]:
-    order = sorted(range(len(values)), key=values.__getitem__)
-    ranks = [0.0] * len(values)
-    i = 0
-    while i < len(order):
-        j = i
-        while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
-            j += 1
-        for k in range(i, j + 1):
-            ranks[order[k]] = (i + j) / 2.0 + 1.0  # tied values share the mean rank
-        i = j + 1
-    return ranks
-
-
-def spearman(xs: Sequence[float], ys: Sequence[float]) -> float:
-    """Spearman rank correlation; 0 when one side has no variation."""
-    if len(xs) != len(ys) or len(xs) < 2:
-        raise ValueError("need two series of equal length, at least 2 long")
-    rx, ry = _ranks(xs), _ranks(ys)
-    mx, my = statistics.fmean(rx), statistics.fmean(ry)
-    sxx = math.fsum((a - mx) ** 2 for a in rx)
-    syy = math.fsum((b - my) ** 2 for b in ry)
-    if sxx == 0.0 or syy == 0.0:
-        return 0.0
-    return math.fsum((a - mx) * (b - my) for a, b in zip(rx, ry, strict=True)) / math.sqrt(sxx * syy)
-
-
 def spearman_p(rho: float, n: int) -> float:
     """One-sided p-value of a positive rank correlation, normal approximation (rule O6)."""
     return normal_tail(rho * math.sqrt(n - 1))

@@ -6,9 +6,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
+from ..rvol_intraday import spearman  # the repository's rank correlation (mean ranks for ties)
 from ..sma_timing import Stats
 from . import analog, liquidity, seasonal, stretched
-from .events import Group, Outcome, binomial_tail, group, mean_below_p, outcome, outcomes, spearman, spearman_p
+from .events import Group, Outcome, binomial_tail, group, mean_below_p, outcome, outcomes, spearman_p
 
 PASS, FAIL, INCONCLUSIVE = "PASS", "FAIL", "INCONCLUSIVE"
 ALPHA = 0.05
@@ -110,7 +111,7 @@ class SampleDay:
 class AnalogStudy:
     length: int
     reversal: float
-    tops: int
+    tops: int  # confirmed on or before the last sample day allowed
     days: tuple[SampleDay, ...]
     top_like: Group | None
     others: Group | None
@@ -140,12 +141,10 @@ def analog_study(closes: Sequence[float], length: int = analog.PATH, reversal: f
     top_like = group([own for day, own in counted if day.top_like])
     others = group([own for day, own in counted if not day.top_like])
     p_value = binomial_tail(top_like.hits, top_like.n, others.hit_rate) if top_like and others else None
-    rho = rho_p = None
-    if len(counted) >= 3:
-        rho = spearman([day.analog_outcome.fwd for day, _ in counted], [own.fwd for _, own in counted])
-        rho_p = spearman_p(rho, len(counted))
-    return AnalogStudy(length=length, reversal=reversal, tops=len(tops), days=tuple(days), top_like=top_like,
-                       others=others, p_value=p_value, rho=rho, rho_p=rho_p)
+    rho = spearman([day.analog_outcome.fwd for day, _ in counted], [own.fwd for _, own in counted])
+    rho_p = None if rho is None else spearman_p(rho, len(counted))
+    return AnalogStudy(length=length, reversal=reversal, tops=sum(1 for top in tops if top.confirmed <= last),
+                       days=tuple(days), top_like=top_like, others=others, p_value=p_value, rho=rho, rho_p=rho_p)
 
 
 def analog_verdict(primary: AnalogStudy, variants: Sequence[AnalogStudy], holdout: AnalogStudy) -> str:
@@ -153,8 +152,7 @@ def analog_verdict(primary: AnalogStudy, variants: Sequence[AnalogStudy], holdou
         return INCONCLUSIVE
     in_sample = (primary.p_value is not None and primary.p_value <= ALPHA
                  and primary.others is not None and primary.top_like.mean_fwd < primary.others.mean_fwd
-                 and primary.rho is not None and primary.rho > 0.0
-                 and primary.rho_p is not None and primary.rho_p <= ALPHA
+                 and primary.rho_p is not None and primary.rho_p <= ALPHA  # one-sided: this implies rho > 0
                  and 2 * sum(1 for variant in variants if variant.above_others) >= len(variants))
     if not in_sample:
         return FAIL
@@ -187,9 +185,9 @@ class LiquidityStudy:
     eras: tuple[Period, ...]
     weeks_on: int  # C10: the sampled weeks with the flag on
     weeks_off: int
-    mean_on: float
-    mean_off: float
-    p_value: float  # one-sided: the flag-on mean is below the flag-off mean
+    mean_on: float | None  # None without a week on that side
+    mean_off: float | None
+    p_value: float | None  # one-sided: the flag-on mean is below the flag-off mean; None under 2 weeks a side
 
 
 def liquidity_study(days: Sequence[date], closes: Sequence[float], adjusted: Sequence[float],
@@ -221,10 +219,13 @@ def liquidity_study(days: Sequence[date], closes: Sequence[float], adjusted: Seq
     return LiquidityStudy(threshold=threshold, full=period("full", 0, len(asset)),
                           halves=(period("first half", 0, half), period("second half", half, len(asset))),
                           eras=tuple(found_eras), weeks_on=len(on), weeks_off=len(off),
-                          mean_on=statistics.fmean(on), mean_off=statistics.fmean(off), p_value=mean_below_p(on, off))
+                          mean_on=statistics.fmean(on) if on else None, mean_off=statistics.fmean(off) if off else None,
+                          p_value=mean_below_p(on, off) if min(len(on), len(off)) >= 2 else None)
 
 
 def liquidity_verdict(study: LiquidityStudy) -> str:
+    if study.mean_on is None or study.mean_off is None or study.p_value is None:
+        return FAIL  # the event comparison of rule C10 cannot be made
     passed = (all(half.better for half in study.halves)
               and study.mean_on < study.mean_off and study.p_value <= ALPHA)
     return PASS if passed else FAIL
@@ -243,6 +244,7 @@ class SeasonalStudy:
     halves: tuple[tuple[str, float, float], ...]  # label, midterm mean, non-midterm mean (rule D7)
     holdout: tuple[seasonal.Window, ...]
     cells: tuple[seasonal.Cell, ...]
+    missing: int  # midterm and holdout windows the series does not hold in full
 
     @property
     def positives(self) -> int:
@@ -253,7 +255,9 @@ def seasonal_study(days: Sequence[date], closes: Sequence[float], month: int = 1
                    last_year: int = 2025, split_year: int = 1986,
                    holdout_years: Sequence[int] = (1930, 1934, 1938, 1942, 1946)) -> SeasonalStudy:
     years = range(first_year, last_year + 1)
-    midterm = seasonal.windows(days, closes, [y for y in years if y % 4 == seasonal.MIDTERM], month)
+    midterm_years = [y for y in years if y % 4 == seasonal.MIDTERM]
+    midterm = seasonal.windows(days, closes, midterm_years, month)
+    holdout = seasonal.windows(days, closes, holdout_years, month)
     others = seasonal.windows(days, closes, [y for y in years if y % 4 != seasonal.MIDTERM], month)
     base_rate = sum(1 for item in others if item.change > 0.0) / len(others)
     positives = sum(1 for item in midterm if item.change > 0.0)
@@ -266,12 +270,13 @@ def seasonal_study(days: Sequence[date], closes: Sequence[float], month: int = 1
                        statistics.fmean(item.change for item in others if low <= item.year <= high)))
     return SeasonalStudy(month=month, midterm=tuple(midterm), others=tuple(others), base_rate=base_rate,
                          p_value=p_value, adjusted_p=min(1.0, p_value * BONFERRONI), halves=tuple(halves),
-                         holdout=tuple(seasonal.windows(days, closes, holdout_years, month)),
-                         cells=tuple(seasonal.scan(days, closes, first_year, last_year)))
+                         holdout=tuple(holdout), cells=tuple(seasonal.scan(days, closes, first_year, last_year)),
+                         missing=len(midterm_years) - len(midterm) + len(holdout_years) - len(holdout))
 
 
 def seasonal_verdict(study: SeasonalStudy) -> str:
-    passed = (study.positives == len(study.midterm)
+    passed = (study.missing == 0
+              and study.positives == len(study.midterm)
               and study.adjusted_p <= ALPHA
               and all(midterm > other for _, midterm, other in study.halves)
               and sum(1 for item in study.holdout if item.change > 0.0) >= HOLDOUT_POSITIVES)

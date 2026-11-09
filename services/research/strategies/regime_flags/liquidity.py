@@ -82,6 +82,18 @@ def held_positions(states: Sequence[bool | None]) -> tuple[int, list[int]]:
     return first + 1, [0 if states[d - 1] else 1 for d in range(first + 1, len(states))]
 
 
+def cash_returns(days: Sequence[date], yield_days: Sequence[date], yields: Sequence[float]) -> list[float]:
+    """Rule C6: per trading day, the last bill yield (percent a year) known the day before, over 252 days.
+
+    0 for the first day and while no yield is known.
+    """
+    out = [0.0]
+    for d in range(1, len(days)):
+        index = bisect.bisect_right(yield_days, days[d - 1]) - 1
+        out.append(yields[index] / 100.0 / 252.0 if index >= 0 else 0.0)
+    return out
+
+
 def timed(asset: Sequence[float], cash: Sequence[float], held: Sequence[int], cost: float = COST,
           start: int = 0, end: int | None = None) -> tuple[Stats, Stats]:
     """Timing rule and buy-and-hold statistics over days [start, end) of the window (rule C9).

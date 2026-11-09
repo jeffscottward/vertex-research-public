@@ -18,6 +18,7 @@ import argparse
 import bisect
 import csv
 import json
+import math
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -50,11 +51,12 @@ class Bars:
 
 
 def load_bars(path: Path, positive: bool = True) -> Bars:
+    """Rule G4: a bar with a missing value, or with a non-positive price, is dropped and counted."""
     days, closes, adjusted, dropped = [], [], [], 0
     with path.open() as fh:
         for row in csv.DictReader(fh):
-            close, adj = float(row["close"]), float(row["adj_close"])
-            if positive and (close <= 0.0 or adj <= 0.0):  # rule G4
+            close, adj = (float(row[key]) if row[key] else math.nan for key in ("close", "adj_close"))
+            if not (math.isfinite(close) and math.isfinite(adj)) or (positive and min(close, adj) <= 0.0):
                 dropped += 1
                 continue
             days.append(date.fromisoformat(row["date"]))
@@ -66,15 +68,6 @@ def load_bars(path: Path, positive: bool = True) -> Bars:
 def load_fred(path: Path) -> dict[date, float]:
     with path.open() as fh:
         return {date.fromisoformat(row["date"]): float(row["value"]) for row in csv.DictReader(fh) if row["value"]}
-
-
-def cash_returns(days: Sequence[date], irx: Bars) -> list[float]:
-    """Rule C6: the 13-week bill yield of the day before, per trading day; 0 before the first yield."""
-    out = [0.0]
-    for d in range(1, len(days)):
-        index = irx.at(days[d - 1])
-        out.append(irx.closes[index] / 100.0 / 252.0 if index >= 0 else 0.0)
-    return out
 
 
 # Formatting ---------------------------------------------------------------------------------------
@@ -228,12 +221,13 @@ def analog_section(qqq: Bars, ndx: Bars) -> tuple[dict, list[str]]:
     lines += table(["Analog day", "Top", "Days after the top", "Distance", "`fwd` after the analog day", "`mdd` after it"],
                    [[qqq.days[item.day].isoformat(), qqq.days[item.top].isoformat(), str(item.offset), num(item.distance, 4),
                      pct(outcome(qqq.closes, item.day).fwd), pct(outcome(qqq.closes, item.day).mdd)] for item in nearest])
-    top_2025 = next((top for top in tops if qqq.days[top.index].year == 2025 and top.index <= claimed <= top.index + analog.MAX_OFFSET), None)
-    lines += [f"{claimed_day} has rank {rank} of {len(order)} candidates"
-              + (f" (distance {num(order[rank - 1].distance, 4)}; its top is {qqq.days[top_2025.index]}, "
-                 f"{claimed - top_2025.index} trading days earlier)." if rank and top_2025 else
-                 "." if rank else " (it is not a candidate: no confirmed 10% top within 10 days before it)."), "",
-              f"Verdict B: **{verdict}**", ""]
+    match = next((item for item in order if item.day == claimed), None)
+    if match is None:
+        claim_text = f"{claimed_day} is not a candidate: no confirmed 10% top within 10 trading days before it."
+    else:
+        claim_text = (f"{claimed_day} has rank {rank} of {len(order)} candidates (distance {num(match.distance, 4)}; "
+                      f"its top is {qqq.days[match.top]}, {match.offset} trading days earlier).")
+    lines += [claim_text, "", f"Verdict B: **{verdict}**", ""]
     data = {"verdict": verdict, "variants": {f"{length}/{reversal}": asdict(found) for (length, reversal), found in variants.items()},
             "holdout": asdict(holdout), "claim": {"rank": rank, "candidates": len(order), "nearest": [asdict(item) for item in nearest]},
             "top_dates": [qqq.days[top.index].isoformat() for top in tops]}
@@ -251,7 +245,8 @@ def period_row(asset: str, threshold: float, period: study.Period) -> list[str]:
 
 def liquidity_section(assets: dict[str, Bars], irx: Bars, walcl: dict, tga: dict, rrp: dict) -> tuple[dict, list[str]]:
     weeks, dropped = liquidity.net_liquidity(walcl, tga, rrp)
-    studies = {(name, threshold): study.liquidity_study(bars.days, bars.closes, bars.adjusted, cash_returns(bars.days, irx),
+    studies = {(name, threshold): study.liquidity_study(bars.days, bars.closes, bars.adjusted,
+                                                        liquidity.cash_returns(bars.days, irx.days, irx.closes),
                                                         weeks, threshold, ERAS)
                for name, bars in assets.items() for threshold in liquidity.THRESHOLDS}
     primary = studies[("QQQ", 0.0)]
@@ -324,7 +319,10 @@ def readings_section(qqq: Bars, gspc: Bars, walcl: dict, tga: dict, rrp: dict) -
     known = [week for week in weeks if liquidity.known_at(qqq.days, week.day) is not None and week.change is not None]
     week = known[-1]
     earlier = weeks[weeks.index(week) - liquidity.WEEKS]
-    start = seasonal.anchor(gspc.days, 2026, 10)
+    year = gspc.days[-1].year - (gspc.days[-1].year - seasonal.MIDTERM) % 4  # the latest midterm year
+    start = seasonal.anchor(gspc.days, year, 10)
+    if start is not None and seasonal.anchor(gspc.days, year + 1, 10) is not None:
+        start = None  # that window is complete
     rows = [
         ["A stretched + calm", f"run {pct(found.run[last])}, stretch {pct(found.stretch[last])}, vol {pct(found.vol[last])}, "
                                f"{int(found.since_high[last])} trading days since the record close",
@@ -337,7 +335,7 @@ def readings_section(qqq: Bars, gspc: Bars, walcl: dict, tga: dict, rrp: dict) -
          "on (drain)" if liquidity.drain(week) else "off"],
         ["D midterm window", f"opened at the {gspc.days[start]} close ({num(gspc.closes[start])}); "
                              f"{pct(gspc.closes[-1] / gspc.closes[start] - 1)} to {gspc.days[-1]}" if start is not None else "not open",
-         "open until the last close on or before 2027-10-31" if start is not None else "not open"],
+         f"open until the last close on or before {year + 1}-10-31" if start is not None else "not open"],
     ]
     lines = [f"### Readings at the last bar ({qqq.days[last]})", "",
              "Descriptive only. A reading is not a signal: see the verdicts.", ""]
@@ -353,7 +351,7 @@ def main() -> None:
     args = parser.parse_args()
     data: Path = args.data.expanduser()
     bars = {name: load_bars(data / f"{name}.csv") for name in ("QQQ", "SPY", "NDX", "GSPC")}
-    irx = load_bars(data / "IRX.csv", positive=False)
+    irx = load_bars(data / "IRX.csv", positive=False)  # a yield of 0 or below is valid
     walcl, tga, rrp = (load_fred(data / f"{series}.csv") for series in ("WALCL", "WDTGAL", "RRPONTSYD"))
     manifest = json.loads((data / "manifest.json").read_text())
 
@@ -364,10 +362,11 @@ def main() -> None:
     r_data, r_lines = readings_section(bars["QQQ"], bars["GSPC"], walcl, tga, rrp)
     verdicts = {"A": a_data["verdict"], "B": b_data["verdict"], "C": c_data["verdict"], "D": d_data["verdict"]}
 
+    dropped = {f"{name}.csv": found.dropped for name, found in (*bars.items(), ("IRX", irx))}
     lines = ["### Data", ""]
     lines += table(["File", "Rows", "First", "Last", "Dropped bars (rule G4)", "SHA-256 (first 12)"],
                    [[name, str(entry["rows"]), entry["first"], entry["last"],
-                     str(bars[name.removesuffix(".csv")].dropped) if name.removesuffix(".csv") in bars else "n/a",
+                     str(dropped[name]) if name in dropped else "n/a",
                      f"`{entry['sha256'][:12]}`"]
                     for name, entry in manifest.items()])
     lines += a_lines + b_lines + c_lines + d_lines + r_lines

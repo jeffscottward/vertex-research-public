@@ -142,7 +142,7 @@ The tables from "Data" to "Readings at the last bar" are the output of `run.py` 
 |SPY.csv|8502|1993-01-29|2026-11-06|0|`1634fab0345a`|
 |NDX.csv|10356|1985-10-01|2026-11-06|0|`db0ccb160809`|
 |GSPC.csv|24831|1927-12-30|2026-11-06|0|`d16b2ecebf08`|
-|IRX.csv|16698|1960-01-04|2026-11-06|n/a|`f214f269c1d0`|
+|IRX.csv|16698|1960-01-04|2026-11-06|0|`f214f269c1d0`|
 |WALCL.csv|1247|2002-12-18|2026-11-04|n/a|`939724feb453`|
 |WDTGAL.csv|1247|2002-12-18|2026-11-04|n/a|`a0964d0c7dd3`|
 |RRPONTSYD.csv|6196|2003-02-07|2026-11-06|n/a|`bef48570f482`|
@@ -227,7 +227,7 @@ Verdict A: **INCONCLUSIVE**
 |Sample|Tops|Sample days (counted)|Top-like hits|Other days hits|p (Test 1)|Mean `fwd`, top-like|Mean `fwd`, others|ρ (Test 2)|p (Test 2)|
 |---|---|---|---|---|---|---|---|---|---|
 |QQQ, path 63, zigzag 10%|56|223 (202)|20/93 (22%)|38/109 (35%)|0.9982|1.6%|2.2%|−0.01|0.5579|
-|`^NDX` holdout to 1999-03-09|80|89 (69)|5/16 (31%)|18/53 (34%)|0.6802|1.5%|4.3%|0.09|0.2258|
+|`^NDX` holdout to 1999-03-09|20|89 (69)|5/16 (31%)|18/53 (34%)|0.6802|1.5%|4.3%|0.09|0.2258|
 
 The distance to the nearest analog falls as the library of tops grows, so rule B8 marks more than 20% of the later days as top-like.
 
@@ -383,7 +383,7 @@ No flag is used. No flag is connected to an engine, to the regime composite or t
 
 ## What the tests say about the four claims
 
-- Claim 1 ("10 out of 10"). No cell of the grid gives ten episodes that are all hits. Rule A6 did signal on 2026-10-02, 2026-10-05 and 2026-10-06, the week of the top, and that episode is a hit already. But the earlier signals of the same rule were hits no more often than any day near a record. The cells with the highest hit rate on QQQ (run ≥ 25%, vol ≤ 18%: 8 of 10 and 9 of 11) have 2 hits in 11 episodes on the `^NDX` holdout, below the holdout base rate, and a mean `fwd` of +4.1% there. The pattern depends on the thresholds and on the period. One correct call in 2026 is not evidence for it.
+- Claim 1 ("10 out of 10"). No cell of the grid gives ten episodes that are all hits. Rule A6 did signal on 2026-10-02, 2026-10-05 and 2026-10-06, the three trading days up to the record close of 2026-10-06, and that episode is a hit already. But the earlier signals of the same rule were hits no more often than any day near a record. The cells with the highest hit rate on QQQ (run ≥ 25%, vol ≤ 18%: 8 of 10 and 9 of 11) have 2 hits in 11 episodes on the `^NDX` holdout, below the holdout base rate, and a mean `fwd` of +4.1% there. The pattern depends on the thresholds and on the period. One correct call in 2026 is not evidence for it.
 - Claim 2 (nearest analog). The finder agrees with the author on the top: for 2026-11-03 the nearest analog is 2025-03-04, nine trading days after the top of 2025-02-19. The author's day, 2025-02-25, has rank 21 of 583. But over 27 years the resemblance told nothing about the next six weeks, in all six variants and on the holdout.
 - Claim 3 (net liquidity). Our series gives a fall of USD 18 billion (−0.31%) for the four weeks to 2026-10-28, and USD 37 billion with the weekly-average Treasury account (`WTREGEN`, checked after the run). The author's USD 48 billion was not reproduced; the sign agrees. Large drains (`Δ4 ≤ −1%`, `≤ −2%`) were followed by lower four-week QQQ returns (p about 0.03 each, not corrected for four thresholds). No threshold gave a timing rule that beat buy-and-hold in the second half. A drain is context, not a switch.
 - Claim 4 ("19 out of 19"). The count is correct and the effect has the same direction in both halves. It is one of 48 comparable cells, a second cell (July, midterm) is also 19 of 19, and "since 1950" leaves out 1930 to 1931 (−38.4%) and 1938 to 1939 (−2.6%). The window also holds large falls: −33.2% inside 1986 to 1987. It does not carry a position.
@@ -391,8 +391,10 @@ No flag is used. No flag is connected to an engine, to the regime composite or t
 ## Deviations
 
 - Before the first run (commit `50c23daf`): rule A6 said "the first 200 days of a series have no signal". SMA200 is defined from the 200th day, so the text now says "a day with fewer than 200 closes up to it has no signal".
-- Rule G4 is applied to the price series. `^IRX` is a yield: a value of 0 or below is valid and is kept.
+- Rule G4 is applied to the price series. `^IRX` is a yield: a value of 0 or below is valid and is kept. The runner counts the dropped bars (the "Data" table); no file has one.
+- Rule C8 says the window starts on "the first day with a known state". Rule C5 takes the position of a day from the state of the day before, so the window starts one trading day later: the first state is known at the 2003-01-21 close and the first return is that of 2003-01-22.
 - Added after the run and marked as such: the holdout rows of the best grid cells and the note on the open episode (test A), the sentence on the share of top-like days (test B), the `WTREGEN` check of claim 3. None of them changes a verdict.
+- Fixed after the first review, with no change to a verdict or to another number: the "Tops" column of the test B holdout row counted the tops of the whole `^NDX` series (80); it now counts the tops confirmed by 1999-03-09 (20). The rank correlation now uses the function of `strategies/rvol_intraday.py`; the values are equal.
 
 ## Limits
 
@@ -401,5 +403,5 @@ No flag is used. No flag is connected to an engine, to the regime composite or t
 - Test B: the distance to the nearest analog falls as the library of tops grows. Rule B8 therefore marks 46% of the counted days as top-like, not 20%. A rule that corrects for the library size was not tested.
 - Test C: `RRPONTSYD` has 92 values before 2013-09-23, so before that date net liquidity is in effect `WALCL − WDTGAL`. Cash earns the bill yield of the day before. No tax.
 - Test D: `^GSPC` before 1957 is the back-filled index of fewer stocks. It is a price index: no window includes dividends, midterm or not.
-- All tests: Yahoo and FRED data as fetched on 2026-11-09; FRED series are revised. The p-values are not corrected across the four tests.
+- All tests: Yahoo and FRED data as fetched on 2026-11-09; FRED series are revised. A second fetch on the same day gave the same `close` values and `adj_close` values of QQQ and SPY that differ by about 1e-6 (Yahoo recomputes them), so the file hashes of a later fetch differ. The p-values are not corrected across the four tests.
 - A completed backtest does not authorize a trade.
