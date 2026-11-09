@@ -63,9 +63,10 @@ jobs:
       # docs-only light-lane PRs (which skip the operations tests) are scanned too. On a PR it also
       # scans every line the PR's commits add, not only the final tree.
       - name: Scan for real tailnet names
+        id: public-names
         env:
           RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || '' }}
-        run: node scripts/ci/public-names.ts ${RANGE}
+        run: node scripts/public-names.ts "${RANGE}"
 
       - name: Plan lanes
         id: plan
