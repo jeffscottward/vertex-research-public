@@ -85,3 +85,17 @@ docs/features/<name>.md                           feature doc
 The generator also updates `.darkfactory/features.json`, `apps/web/src/features/generated-navigation.ts`, `packages/db/migrations/meta/_journal.json` and the `*-registry.ts` files under `packages/api/src/generated/` and `packages/db/src/generated/`; never edit those by hand. Paths under `generated/` and `generated-navigation.ts` are excluded from coverage, so keep hand-written logic out of them.
 
 Put view-model mapping (contract output → plain, pre-formatted props) in the feature folder as pure functions with their own unit test, not in the page or in `packages/ui`; the component takes only the model. Reference: `apps/web/src/components/portal/portfolio-monitor-model.ts`.
+
+## Migration numbers
+
+A migration takes the next free number on the branch where it is written (`NNNN_<snake_case>.sql`, its journal entry, `meta/NNNN_snapshot.json` and `packages/db/rollback/<tag>.down.sql`). When another branch with a migration merges first, both took the same number and `git merge` of the base stops on `meta/_journal.json` (and on `meta/NNNN_snapshot.json` when both have one). Then run:
+
+```sh
+git merge origin/vertex/rebuild-darkfactory-20260921   # stops on the journal conflict
+pnpm db:renumber                                        # resolves it and stages the result
+git commit --no-edit
+```
+
+`db:renumber` keeps the base's migrations as they are and moves this branch's new ones behind them: next free numbers, `when` newer than the base's last entry (Drizzle skips an entry whose `when` is not newer than the last applied one), renamed SQL, snapshot and rollback files, every tracked reference to the old tag rewritten, and each snapshot's `prevId` pointing at the snapshot before it. It prints the lines that still name the old number in prose (`check the old number: ...`); fix those by hand, and re-run a generator whose output embeds the number. A second run changes nothing.
+
+A migration's own test checks its SQL and rollback, not its place in the journal: `packages/db/src/server/migration-journal.test.ts` checks the order, so do not pin the previous or next journal entry, or a list of later tags, in a feature test.
