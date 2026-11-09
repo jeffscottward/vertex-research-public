@@ -7,16 +7,18 @@ import { parse } from "yaml";
 // change without weakening the pipeline.
 
 interface Step {
+  if?: string;
+  name?: string;
   run?: string;
   uses?: string;
   with?: Record<string, unknown>;
 }
 interface Job {
   name?: string;
+  "runs-on"?: unknown;
   steps?: Step[];
   strategy?: { matrix?: Record<string, unknown> };
   uses?: string;
-  "runs-on"?: unknown;
 }
 interface Workflow {
   jobs: Record<string, Job>;
@@ -212,6 +214,24 @@ describe("GitHub workflow invariants", () => {
       expect(trigger?.["paths-ignore"]).toBeUndefined();
       expect(trigger?.["paths"]).toBeUndefined();
     }
+  });
+
+  it("scans tailnet names in the always-on Changes job, before lane planning", () => {
+    const ci = workflows.find(({ file }) => file === "ci.yml")!;
+    const changes = ci.workflow.jobs["changes"] as Job & { if?: string };
+    expect(changes.if).toBeUndefined();
+    const names = (changes.steps ?? []).map((step) => step.name);
+    const scan = (changes.steps ?? []).find(
+      (step) => step.name === "Scan for real tailnet names"
+    )!;
+    expect(scan.run).toBe("node scripts/ci/public-names.ts ${RANGE}");
+    expect(scan.if).toBeUndefined();
+    expect(names.indexOf("Scan for real tailnet names")).toBeLessThan(
+      names.indexOf("Plan lanes")
+    );
+    const checkout = (changes.steps ?? [])[0]!;
+    expect(checkout.with?.["fetch-depth"]).toBe(0);
+    expect(checkout.with?.["sparse-checkout"]).toBeUndefined();
   });
 
   return it("keeps the job names that required status checks reference", () => {

@@ -1,56 +1,18 @@
 import { execFile } from "node:child_process";
-import { readFile, readlink } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
+import { realTailnetLabels, scanRange, scanTracked } from "./public-names.ts";
 
-// Public-repository gate (card vertex-tailnet-rotate, 2026-11-07): a real tailnet DNS name leaked once
-// through docs in git history. Every tracked file may name a Tailscale MagicDNS host only with a
-// placeholder tailnet label; any other `*.ts.net` tailnet label fails this test.
+// Public-repository gate (card vertex-tailnet-rotate): see scripts/ci/public-names.ts. CI also runs that
+// script in the always-on "Changes" job so docs-only (light-lane) PRs are scanned.
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const execFileAsync = promisify(execFile);
-
-/** Placeholder tailnet labels (the label directly before `.ts.net`). Never add a real one. */
-const PLACEHOLDER_TAILNETS: Readonly<Record<string, true>> = {
-  example: true,
-  "example-tailnet": true,
-  h: true,
-  tail1: true,
-  tail000000: true,
-  tailnet: true,
-};
-
-// The tailnet label is the DNS label right before `.ts.net`; `\.` escapes (regex sources) count as dots.
-const NAME = /(?<![a-z0-9-])([a-z0-9-]+)\\?\.ts\\?\.net(?![a-z0-9-])/gi;
-const MAX_BYTES = 64 * 1024 * 1024;
-
-/** Every `*.ts.net` tailnet label in `text` that is not a placeholder. */
-function realTailnetLabels(text: string): string[] {
-  const hits: string[] = [];
-  for (const match of text.matchAll(NAME)) {
-    const label = (match[1] ?? "").toLowerCase();
-    if (!Object.hasOwn(PLACEHOLDER_TAILNETS, label)) hits.push(label);
-  }
-  return hits;
-}
-
-async function trackedFiles(): Promise<Array<{ file: string; link: boolean }>> {
-  // `-s` shows the mode: submodules (gitlinks, mode 160000) are directories, not files to scan.
-  const { stdout } = await execFileAsync("git", ["ls-files", "-z", "-s"], {
-    cwd: root,
-    maxBuffer: 256 * 1024 * 1024,
-  });
-  return stdout
-    .split("\0")
-    .filter(Boolean)
-    .filter((entry) => !entry.startsWith("160000 "))
-    .map((entry) => ({
-      file: entry.slice(entry.indexOf("\t") + 1),
-      link: entry.startsWith("120000 "),
-    }));
-}
 
 describe("public tailnet names", () => {
   it("recognises real and placeholder tailnet labels", () => {
@@ -80,35 +42,48 @@ describe("public tailnet names", () => {
   it(
     "no tracked file names a real tailnet",
     async () => {
-      const offenders: string[] = [];
-      for (const { file, link } of await trackedFiles()) {
-        const inPath = realTailnetLabels(file).length;
-        let data: Buffer;
-        try {
-          // A tracked symlink stores only its target path; scan that text, never follow it.
-          data = link
-            ? Buffer.from(await readlink(`${root}${file}`))
-            : await readFile(`${root}${file}`);
-        } catch (error) {
-          // Deleted in the working tree: nothing to scan. Anything else (EACCES, EISDIR) must not hide a file.
-          if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-          throw error;
-        }
-        // Too large to scan is a failure, not a pass. latin1 keeps every byte (binaries); dropping NUL bytes
-        // makes UTF-16 text readable as well.
-        const inText =
-          data.length > MAX_BYTES
-            ? 1
-            : realTailnetLabels(data.toString("latin1").replaceAll("\0", ""))
-                .length;
-        // Report the file and a count only, never the name itself.
-        if (inPath + inText > 0)
-          offenders.push(
-            `file #${offenders.length + 1} (${inPath + inText})${inPath ? "" : `: ${file}`}`
-          );
-      }
-      expect(offenders).toEqual([]);
+      expect(await scanTracked(root)).toEqual([]);
     },
     scaledTimeout(120_000)
+  );
+
+  it(
+    "flags a real name added anywhere in a commit range, even if removed later",
+    async () => {
+      const dir = await mkdtemp(join(tmpdir(), "public-names-"));
+      const run = (...args: string[]) =>
+        execFileAsync(
+          "git",
+          [
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "commit.gpgsign=false",
+            ...args,
+          ],
+          { cwd: dir }
+        );
+      const sha = async () => (await run("rev-parse", "HEAD")).stdout.trim();
+      await run("init", "-q");
+      await writeFile(join(dir, "a.md"), "rig.tailnet.ts.net\n");
+      await run("add", ".");
+      await run("commit", "-qm", "base");
+      const base = await sha();
+      await writeFile(join(dir, "a.md"), `rig.${"tail9f3a21"}.ts.net\n`);
+      await run("commit", "-qam", "leak");
+      await writeFile(join(dir, "a.md"), "rig.tailnet.ts.net\n");
+      await run("commit", "-qam", "fix");
+      const head = await sha();
+      expect(await scanTracked(`${dir}/`)).toEqual([]);
+      const hits = await scanRange(dir, `${base}..${head}`);
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toMatch(/^commit [0-9a-f]{12} \(1\)$/);
+      await expect(scanRange(dir, "main; rm -rf /")).rejects.toThrow(
+        /bad commit range/
+      );
+    },
+    scaledTimeout(30_000)
   );
 });
