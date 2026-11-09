@@ -510,6 +510,22 @@ describe("runRenumber", () => {
     ]);
   });
 
+  it("refuses to run during a rebase, where the conflict stages are swapped", () => {
+    const root = createRepository();
+    expect(() => git(root, "rebase", "-q", "main")).toThrow();
+    expect(unmergedPaths(root)).toContain(JOURNAL);
+    expect(run(root)).toEqual({
+      code: 1,
+      stdout: [],
+      stderr: [
+        "db:renumber: a rebase is in progress. Run `git rebase --abort`, then `git merge <base>` and db:renumber.",
+      ],
+    });
+    expect(existsSync(join(root, "packages/db/migrations/0002_mine.sql"))).toBe(
+      true
+    );
+  });
+
   it("refuses two branch migrations that share a number and its snapshot", () => {
     const root = createRepository({ sharedNumber: true });
     mergeMain(root);

@@ -13,7 +13,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 
@@ -504,6 +504,23 @@ const renumber = (
   return report(workspace, plan.moves, io);
 };
 
+/**
+ * During a rebase, conflict stage 2 is the upstream and stage 3 the replayed commit (the reverse of a
+ * merge), MERGE_HEAD is unset, and a rename would also hit every later commit that edits the file.
+ */
+const assertNoRebase = (git: Git, root: string): void => {
+  const rebasing = ["rebase-merge", "rebase-apply"].some((name) =>
+    existsSync(
+      resolve(root, git.output(["rev-parse", "--git-path", name]).trim())
+    )
+  );
+  if (rebasing) {
+    throw new RenumberError(
+      "a rebase is in progress. Run `git rebase --abort`, then `git merge <base>` and db:renumber."
+    );
+  }
+};
+
 const defaultBase = (git: Git): string => {
   if (git.run(["rev-parse", "-q", "--verify", "MERGE_HEAD"]).ok) {
     return "MERGE_HEAD";
@@ -544,6 +561,7 @@ export const runRenumber = (
       .output(["rev-parse", "--show-toplevel"])
       .trim();
     const git = createGit(root);
+    assertNoRebase(git, root);
     return renumber(git, root, options.base ?? defaultBase(git), io);
   } catch (error) {
     if (error instanceof RenumberError) {
