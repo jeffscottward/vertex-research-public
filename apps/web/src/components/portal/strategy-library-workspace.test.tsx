@@ -762,6 +762,21 @@ describe("strategy library helpers", () =>
       "Regime",
       "Unsorted",
     ]);
+    // A section with a high-priority strategy comes first, also the unsorted one.
+    expect(
+      groupBySection(
+        rows().map((row) =>
+          row.id === "s-jump" ? { ...row, priority: "high" as const } : row
+        )
+      ).map((group) => group.label)
+    ).toEqual(["Regime", "Options", "Unsorted"]);
+    expect(
+      groupBySection(
+        rows().map((row) =>
+          row.section === null ? { ...row, priority: "high" as const } : row
+        )
+      ).map((group) => group.label)
+    ).toEqual(["Unsorted", "Options", "Regime"]);
     expect(descriptionLinks(null)).toEqual([]);
     expect(
       descriptionLinks(

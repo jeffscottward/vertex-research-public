@@ -101,7 +101,11 @@ export type SectionGroup = Readonly<{
   rows: StrategySummaryOutput[];
 }>;
 
-// Groups keep the server order inside each section; sections sort by name with Unsorted last.
+const hasHighPriority = (rows: readonly StrategySummaryOutput[]): boolean =>
+  rows.some((row) => row.priority === "high");
+
+// Groups keep the server order inside each section. A section that holds a high-priority strategy
+// comes first; then sections sort by name with Unsorted last.
 export const groupBySection = (
   rows: readonly StrategySummaryOutput[]
 ): SectionGroup[] => {
@@ -111,7 +115,10 @@ export const groupBySection = (
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
   return [...groups.entries()]
-    .sort(([left], [right]) => {
+    .sort(([left, leftRows], [right, rightRows]) => {
+      const byPriority =
+        Number(hasHighPriority(rightRows)) - Number(hasHighPriority(leftRows));
+      if (byPriority !== 0) return byPriority;
       if (left === "") return 1;
       if (right === "") return -1;
       return left.localeCompare(right, "en", { sensitivity: "base" });
