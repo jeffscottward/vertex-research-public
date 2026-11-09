@@ -234,6 +234,19 @@ def liquidity_verdict(study: LiquidityStudy) -> str:
 # Test D -----------------------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
+class Half:
+    """Rule D7: mean window return by start year; None without a window on that side."""
+
+    label: str
+    midterm: float | None
+    others: float | None
+
+    @property
+    def midterm_above(self) -> bool:
+        return self.midterm is not None and self.others is not None and self.midterm > self.others
+
+
+@dataclass(frozen=True, slots=True)
 class SeasonalStudy:
     month: int
     midterm: tuple[seasonal.Window, ...]
@@ -241,10 +254,10 @@ class SeasonalStudy:
     base_rate: float  # share of positive non-midterm windows (rule D4)
     p_value: float
     adjusted_p: float  # rule D5
-    halves: tuple[tuple[str, float, float], ...]  # label, midterm mean, non-midterm mean (rule D7)
+    halves: tuple[Half, ...]
     holdout: tuple[seasonal.Window, ...]
     cells: tuple[seasonal.Cell, ...]
-    missing: int  # midterm and holdout windows the series does not hold in full
+    missing: int  # windows of the start years and of the holdout that the series does not hold in full
 
     @property
     def positives(self) -> int:
@@ -259,25 +272,27 @@ def seasonal_study(days: Sequence[date], closes: Sequence[float], month: int = 1
     midterm = seasonal.windows(days, closes, midterm_years, month)
     holdout = seasonal.windows(days, closes, holdout_years, month)
     others = seasonal.windows(days, closes, [y for y in years if y % 4 != seasonal.MIDTERM], month)
+    if not midterm or not others:
+        raise ValueError("the series holds no complete midterm window or no complete non-midterm window")
     base_rate = sum(1 for item in others if item.change > 0.0) / len(others)
     positives = sum(1 for item in midterm if item.change > 0.0)
     p_value = binomial_tail(positives, len(midterm), base_rate)
-    halves = []
-    for label, low, high in ((f"{first_year}-{split_year}", first_year, split_year),
-                             (f"{split_year + 1}-{last_year}", split_year + 1, last_year)):
-        halves.append((label,
-                       statistics.fmean(item.change for item in midterm if low <= item.year <= high),
-                       statistics.fmean(item.change for item in others if low <= item.year <= high)))
+    def mean(items: Sequence[seasonal.Window], low: int, high: int) -> float | None:
+        changes = [item.change for item in items if low <= item.year <= high]
+        return statistics.fmean(changes) if changes else None
+
+    halves = [Half(label=f"{low}-{high}", midterm=mean(midterm, low, high), others=mean(others, low, high))
+              for low, high in ((first_year, split_year), (split_year + 1, last_year))]
     return SeasonalStudy(month=month, midterm=tuple(midterm), others=tuple(others), base_rate=base_rate,
                          p_value=p_value, adjusted_p=min(1.0, p_value * BONFERRONI), halves=tuple(halves),
                          holdout=tuple(holdout), cells=tuple(seasonal.scan(days, closes, first_year, last_year)),
-                         missing=len(midterm_years) - len(midterm) + len(holdout_years) - len(holdout))
+                         missing=len(years) - len(midterm) - len(others) + len(holdout_years) - len(holdout))
 
 
 def seasonal_verdict(study: SeasonalStudy) -> str:
     passed = (study.missing == 0
               and study.positives == len(study.midterm)
               and study.adjusted_p <= ALPHA
-              and all(midterm > other for _, midterm, other in study.halves)
+              and all(half.midterm_above for half in study.halves)
               and sum(1 for item in study.holdout if item.change > 0.0) >= HOLDOUT_POSITIVES)
     return PASS if passed else FAIL

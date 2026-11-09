@@ -6,10 +6,38 @@ from dataclasses import replace
 from datetime import date, timedelta
 
 import pytest
-from strategies.regime_flags import analog, events, liquidity, seasonal, stretched, study
+from strategies.regime_flags import analog, data, events, liquidity, seasonal, stretched, study
 from strategies.sma_timing import Stats
 
 NAN = math.nan
+
+
+class TestData:
+    def write(self, tmp_path, rows: list[str]):
+        path = tmp_path / "X.csv"
+        path.write_text("date,close,adj_close\n" + "\n".join(rows) + "\n")
+        return path
+
+    def test_a_bar_with_a_missing_or_non_positive_price_is_dropped_and_counted(self, tmp_path):
+        path = self.write(tmp_path, ["2024-01-02,10.0,9.5", "2024-01-03,,9.6", "2024-01-04,nan,9.7", "2024-01-05,0.0,9.8",
+                                     "2024-01-08,10.4,-1.0", "2024-01-09,10.5,inf", "2024-01-10,11.0,10.5"])
+        found = data.load_bars(path)
+        assert found.days == [date(2024, 1, 2), date(2024, 1, 10)]
+        assert (found.closes, found.adjusted, found.dropped) == ([10.0, 11.0], [9.5, 10.5], 5)
+
+    def test_a_yield_series_keeps_zero_and_negative_values(self, tmp_path):
+        path = self.write(tmp_path, ["2024-01-02,0.0,0.0", "2024-01-03,-0.01,-0.01", "2024-01-04,,"])
+        found = data.load_bars(path, positive=False)
+        assert (found.closes, found.dropped) == ([0.0, -0.01], 1)
+
+    def test_at_is_the_last_bar_on_or_before_a_day(self, tmp_path):
+        found = data.load_bars(self.write(tmp_path, ["2024-01-02,1.0,1.0", "2024-01-04,2.0,2.0"]))
+        assert [found.at(date(2024, 1, d)) for d in (1, 2, 3, 4, 5)] == [-1, 0, 0, 1, 1]
+
+    def test_a_series_file_gives_only_the_days_with_a_value(self, tmp_path):
+        path = tmp_path / "S.csv"
+        path.write_text("date,value\n2024-01-03,100.5\n2024-01-04,\n2024-01-05,0.0\n")
+        assert data.load_series(path) == {date(2024, 1, 3): 100.5, date(2024, 1, 5): 0.0}
 
 
 class TestOutcome:
@@ -473,6 +501,8 @@ class TestAnalogVerdict:
         better_return = an_analog(a_group(20, 16, 0.02), a_group(80, 32, 0.01))
         assert study.analog_verdict(better_return, [self.GOOD] * 6, holdout) == study.FAIL
         assert study.analog_verdict(self.GOOD, [self.GOOD] * 2 + [self.WEAK] * 4, holdout) == study.FAIL
+        undefined = replace(self.GOOD, rho=None, rho_p=None)  # a side without variation has no rank correlation
+        assert study.analog_verdict(undefined, [self.GOOD] * 6, holdout) == study.FAIL
 
 
 def weekdays(first: date, count: int) -> list[date]:
@@ -599,8 +629,8 @@ class TestSeasonalStudy:
         assert found.base_rate == pytest.approx(19 / 57)
         assert found.p_value == pytest.approx((19 / 57) ** 19)
         assert found.adjusted_p == pytest.approx(48 * (19 / 57) ** 19)
-        assert [label for label, _, _ in found.halves] == ["1950-1986", "1987-2025"]
-        assert all(midterm == pytest.approx(0.10) and other < 0 for _, midterm, other in found.halves)
+        assert [half.label for half in found.halves] == ["1950-1986", "1987-2025"]
+        assert all(half.midterm == pytest.approx(0.10) and half.others < 0 for half in found.halves)
         assert [item.year for item in found.holdout] == [1930, 1934, 1938, 1942, 1946]
         assert len(found.cells) == 48
         assert found.missing == 0
@@ -613,6 +643,17 @@ class TestSeasonalStudy:
         assert study.seasonal_verdict(found) == study.FAIL
         assert study.seasonal_verdict(replace(study.seasonal_study(self.DAYS, self.CLOSES), missing=1)) == study.FAIL
 
+    def test_a_series_that_starts_late_counts_every_missing_window(self):
+        first = self.DAYS.index(date(1990, 1, 28))  # the first complete window starts in October 1990
+        found = study.seasonal_study(self.DAYS[first:], self.CLOSES[first:])
+        assert found.missing == 40 + 5  # the start years 1950 to 1989 and the five holdout years
+        assert (found.halves[0].midterm, found.halves[0].others) == (None, None)
+        assert study.seasonal_verdict(found) == study.FAIL
+
+    def test_a_series_without_a_complete_window_is_rejected(self):
+        with pytest.raises(ValueError):
+            study.seasonal_study(self.DAYS[-6:], self.CLOSES[-6:])
+
     def test_verdict_fails_on_one_negative_midterm_window_or_a_weak_holdout(self):
         found = study.seasonal_study(self.DAYS, self.CLOSES)
         lost = replace(found.midterm[0], change=-0.01)
@@ -620,5 +661,7 @@ class TestSeasonalStudy:
         weak = tuple(replace(item, change=-0.05) for item in found.holdout[:2]) + found.holdout[2:]
         assert study.seasonal_verdict(replace(found, holdout=weak)) == study.FAIL
         assert study.seasonal_verdict(replace(found, adjusted_p=0.2)) == study.FAIL
-        flat = tuple((label, 0.01, 0.02) for label, _, _ in found.halves)
-        assert study.seasonal_verdict(replace(found, halves=flat)) == study.FAIL
+        lower = (found.halves[0], replace(found.halves[1], midterm=0.01, others=0.02))
+        assert study.seasonal_verdict(replace(found, halves=lower)) == study.FAIL
+        equal = (found.halves[0], replace(found.halves[1], midterm=0.02, others=0.02))
+        assert study.seasonal_verdict(replace(found, halves=equal)) == study.FAIL

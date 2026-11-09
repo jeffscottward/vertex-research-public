@@ -15,16 +15,15 @@ written outside the repository (the repository takes no JSON data files).
 from __future__ import annotations
 
 import argparse
-import bisect
-import csv
+import calendar
 import json
-import math
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 
 from strategies.regime_flags import analog, liquidity, seasonal, stretched, study
+from strategies.regime_flags.data import Bars, load_bars, load_series
 from strategies.regime_flags.events import HIT, HORIZON, Group, benjamini_hochberg, binomial_tail, outcome
 
 HOLDOUT_END = date(1999, 3, 9)  # rule A1: the last event day of the ^NDX holdout
@@ -36,38 +35,6 @@ ERAS = (("before 2008-09", date(1900, 1, 1), date(2008, 8, 31)),
 VARIANTS = tuple((length, reversal) for length in (42, 63, 126) for reversal in (0.10, 0.15))
 MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
 PHASES = {0: "election", 1: "post-election", 2: "midterm", 3: "pre-election"}
-
-
-@dataclass(frozen=True, slots=True)
-class Bars:
-    days: list[date]
-    closes: list[float]
-    adjusted: list[float]
-    dropped: int
-
-    def at(self, day: date) -> int:
-        """Index of the last bar on or before ``day``."""
-        return bisect.bisect_right(self.days, day) - 1
-
-
-def load_bars(path: Path, positive: bool = True) -> Bars:
-    """Rule G4: a bar with a missing value, or with a non-positive price, is dropped and counted."""
-    days, closes, adjusted, dropped = [], [], [], 0
-    with path.open() as fh:
-        for row in csv.DictReader(fh):
-            close, adj = (float(row[key]) if row[key] else math.nan for key in ("close", "adj_close"))
-            if not (math.isfinite(close) and math.isfinite(adj)) or (positive and min(close, adj) <= 0.0):
-                dropped += 1
-                continue
-            days.append(date.fromisoformat(row["date"]))
-            closes.append(close)
-            adjusted.append(adj)
-    return Bars(days, closes, adjusted, dropped)
-
-
-def load_fred(path: Path) -> dict[date, float]:
-    with path.open() as fh:
-        return {date.fromisoformat(row["date"]): float(row["value"]) for row in csv.DictReader(fh) if row["value"]}
 
 
 # Formatting ---------------------------------------------------------------------------------------
@@ -124,7 +91,7 @@ def stretched_section(qqq: Bars, ndx: Bars) -> tuple[dict, list[str]]:
               if t > cut - 5]
     lines = ["### Test A: stretched + calm", ""]
     rows = []
-    for label, bars, found in (("QQQ 1999-03-10 to 2026-11-06", qqq, sample), ("`^NDX` holdout to 1999-03-09", ndx, holdout)):
+    for label, found in ((f"QQQ {qqq.days[0]} to {qqq.days[-1]}", sample), (f"`^NDX` holdout to {HOLDOUT_END}", holdout)):
         cell = found.primary
         rows.append([label, str(cell.signal_days), f"{len(cell.episodes)} ({cell.complete})", rate(cell.result),
                      rate(cell.base), rate(found.base_all), p_text(cell.p_value),
@@ -139,7 +106,7 @@ def stretched_section(qqq: Bars, ndx: Bars) -> tuple[dict, list[str]]:
                              *episode_outcome(bars, item)] for item in found.primary.episodes])
     wide = [cell for cell in sample.cells if cell.complete >= study.MIN_EVENTS]
     tested = [cell for cell in sample.cells if cell.p_value is not None]
-    lines += [f"Grid (rule A9), QQQ: {len(wide)} of 54 cells have {study.MIN_EVENTS} or more complete episodes; "
+    lines += [f"Grid (rule A9), QQQ: {len(wide)} of {len(sample.cells)} cells have {study.MIN_EVENTS} or more complete episodes; "
               f"{sum(1 for cell in wide if cell.above_base)} of them have a hit rate above their base rate. "
               f"{sum(1 for cell in tested if cell.p_value <= study.ALPHA)} of the {len(tested)} cells with an episode have "
               f"p ≤ 0.05 before a correction; "
@@ -173,8 +140,8 @@ def stretched_section(qqq: Bars, ndx: Bars) -> tuple[dict, list[str]]:
                   f"{p_text(binomial_tail(hits, n, sample.primary.base.hit_rate))}.", ""]
     lines += [f"Claim check (rule A10), data cut at {CLAIM_CUT}: rule A6 gives {len(claim.primary.episodes)} episodes, "
               f"{claim.primary.complete} complete, {claim.primary.result.hits if claim.primary.result else 0} hits. "
-              f"Cells with exactly ten complete episodes that are all hits: {len(ten)} of 54. "
-              f"Signal days of rule A6 from 2026-09-30 to {CLAIM_CUT}: {', '.join(recent) if recent else 'none'}.", "",
+              f"Cells with exactly ten complete episodes that are all hits: {len(ten)} of {len(claim.cells)}. "
+              f"Signal days of rule A6 from {qqq.days[cut - 4]} to {CLAIM_CUT}: {', '.join(recent) if recent else 'none'}.", "",
               f"Verdict A: **{verdict}**", ""]
     data = {"verdict": verdict, "sample": asdict(sample), "holdout": asdict(holdout), "claim_cut": asdict(claim),
             "cells_ten_of_ten": [asdict(item) for item in ten], "recent_signal_days": recent,
@@ -201,7 +168,7 @@ def analog_section(qqq: Bars, ndx: Bars) -> tuple[dict, list[str]]:
               "Mean `fwd`, top-like", "Mean `fwd`, others", "ρ (Test 2)", "p (Test 2)"]
     lines = ["### Test B: nearest analog of a past top", ""]
     lines += table(header, [analog_row("QQQ, path 63, zigzag 10%", primary),
-                            analog_row("`^NDX` holdout to 1999-03-09", holdout)])
+                            analog_row(f"`^NDX` holdout to {HOLDOUT_END}", holdout)])
     lines += ["The distance to the nearest analog falls as the library of tops grows, so rule B8 marks more than 20% of the "
               "later days as top-like.", "", "Variants (rule B11), QQQ:", ""]
     lines += table(header, [analog_row(f"path {length}, zigzag {pct(reversal, 0)}", found)
@@ -281,14 +248,15 @@ def seasonal_section(gspc: Bars) -> tuple[dict, list[str]]:
     verdict = study.seasonal_verdict(found)
     mean = lambda items: sum(item.change for item in items) / len(items)
     other_positives = sum(1 for item in found.others if item.change > 0.0)
+    start_years = sorted(item.year for item in (*found.midterm, *found.others))
     holdout_positives = sum(1 for item in found.holdout if item.change > 0.0)
     lines = ["### Test D: midterm election seasonal", "",
              f"Claim (rule D3): {found.positives} of {len(found.midterm)} midterm windows are positive; mean {pct(mean(found.midterm))}. "
-             f"Non-midterm windows 1950 to 2025: {other_positives} of {len(found.others)} positive "
+             f"Non-midterm windows {start_years[0]} to {start_years[-1]}: {other_positives} of {len(found.others)} positive "
              f"({pct(found.base_rate, 0)}); mean {pct(mean(found.others))}. "
              f"Binomial p = {p_text(found.p_value)}; times 48 = {p_text(found.adjusted_p)}.", ""]
     lines += table(["Start years", "Midterm mean", "Non-midterm mean"],
-                   [[label, pct(midterm), pct(other)] for label, midterm, other in found.halves])
+                   [[half.label, pct(half.midterm), pct(half.others)] for half in found.halves])
     lines += table(["Sample", "Start", "End", "Return", "Largest fall inside"],
                    [["holdout" if item in found.holdout else "claim", item.start.isoformat(), item.end.isoformat(),
                      pct(item.change), pct(item.drawdown)] for item in (*found.holdout, *found.midterm)])
@@ -296,7 +264,7 @@ def seasonal_section(gspc: Bars) -> tuple[dict, list[str]]:
     order = sorted(found.cells, key=lambda cell: (-cell.positives / cell.n, -cell.mean))
     claim_cell = next(cell for cell in found.cells if (cell.month, cell.phase) == (found.month, seasonal.MIDTERM))
     lines += [f"Scan (rule D6): {len(perfect)} of {len(found.cells)} cells have only positive windows. "
-              f"The claim's cell (October, midterm) has rank {order.index(claim_cell) + 1} by share positive, then by mean. "
+              f"The claim's cell ({calendar.month_name[found.month]}, midterm) has rank {order.index(claim_cell) + 1} by share positive, then by mean. "
               f"Holdout (rule D8): {holdout_positives} of {len(found.holdout)} positive. The ten best cells:", ""]
     lines += table(["Start month end", "Cycle year of the start", "Positive", "Mean"],
                    [[MONTHS[cell.month - 1], PHASES[cell.phase], f"{cell.positives}/{cell.n}", pct(cell.mean)] for cell in order[:10]])
@@ -352,7 +320,7 @@ def main() -> None:
     data: Path = args.data.expanduser()
     bars = {name: load_bars(data / f"{name}.csv") for name in ("QQQ", "SPY", "NDX", "GSPC")}
     irx = load_bars(data / "IRX.csv", positive=False)  # a yield of 0 or below is valid
-    walcl, tga, rrp = (load_fred(data / f"{series}.csv") for series in ("WALCL", "WDTGAL", "RRPONTSYD"))
+    walcl, tga, rrp = (load_series(data / f"{series}.csv") for series in ("WALCL", "WDTGAL", "RRPONTSYD"))
     manifest = json.loads((data / "manifest.json").read_text())
 
     a_data, a_lines = stretched_section(bars["QQQ"], bars["NDX"])
