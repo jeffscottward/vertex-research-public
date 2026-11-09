@@ -28,7 +28,8 @@ from datetime import date
 from pathlib import Path
 
 from . import metrics as m
-from .data import IBKR, IBKR_DATA_ENV, SPREAD_MEASURED, data_hash, data_root, ibkr_files, ibkr_spread, load_bars
+from .data import (IBKR, IBKR_DATA_ENV, SPREAD_MEASURED, data_hash, data_root, ibkr_cut_ms, ibkr_files, ibkr_spread,
+                   load_bars, read_side)
 from .definition import ZAB, ZAB_1X, ZAB_SENSITIVITY, Params, params_to_json
 from .runner import CAPITAL, ENGINE_ID
 from .study import GATE, Results, _run_all, finite, leg_id
@@ -181,6 +182,16 @@ def require_own_spread(key: str, root: str | None) -> float:
     return spread
 
 
+def require_spread_in_sample(key: str, bars, root: str | None) -> None:
+    """The BID_ASK bars the spread uses (at or before the SPY cut) lie in the market's own in-sample part, as the
+    pre-registration states; refused when the market's bars start before SPY's and the windows differ."""
+    own_cut = bars.t[0] + (bars.t[-1] - bars.t[0]) * m.IS_FRACTION
+    cut = ibkr_cut_ms(root)
+    used = [t for t in read_side(ibkr_files(key, root)[1]) if t <= cut]
+    if used and max(used) > own_cut:
+        raise RuntimeError(f"{key}: spread sample bars run to {max(used)}, after the market's own in-sample cut {own_cut}")
+
+
 def run(ran: str, markets: Sequence[str] = MARKETS, *, root: str | None = None, workers: int = 8,
         detail_path: Path | None = None, log: Log = _log) -> dict:
     date.fromisoformat(ran)
@@ -195,6 +206,7 @@ def run(ran: str, markets: Sequence[str] = MARKETS, *, root: str | None = None, 
         bars = load_bars(key, root, source=IBKR)
         if abs(bars.spread_bps - spreads[key]) > 1e-9:
             raise RuntimeError(f"{key}: loaded spread {bars.spread_bps} differs from the measured {spreads[key]}")
+        require_spread_in_sample(key, bars, root)
         log(f"data {key}: {len(bars.t)} five-minute bars, spread {bars.spread_bps:.3f} bps (own sample)")
     jobs = plan(markets)
     log(f"{len(jobs)} Nautilus leg runs on {workers} workers")

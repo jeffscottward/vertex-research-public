@@ -84,6 +84,16 @@ class PlanTest(unittest.TestCase):
         with unittest.mock.patch.object(zab_study, "ibkr_spread", lambda key, root: (0.4, zab_study.SPREAD_MEASURED)):
             self.assertEqual(zab_study.require_own_spread("IWM", None), 0.4)
 
+    def test_the_spread_sample_must_lie_in_the_markets_own_in_sample_part(self) -> None:
+        bars = unittest.mock.Mock(t=(0.0, 1000.0))  # own in-sample cut at 600
+        sample = {100: None, 550: None, 700: None, 900: None}
+        with unittest.mock.patch.object(zab_study, "read_side", lambda path: sample):
+            with unittest.mock.patch.object(zab_study, "ibkr_cut_ms", lambda root: 600.0):
+                zab_study.require_spread_in_sample("IWM", bars, None)  # uses 100 and 550
+            with unittest.mock.patch.object(zab_study, "ibkr_cut_ms", lambda root: 800.0):
+                with self.assertRaises(RuntimeError):
+                    zab_study.require_spread_in_sample("IWM", bars, None)  # 700 is out of sample
+
 
 class GateTest(unittest.TestCase):
     def test_gate_thresholds(self) -> None:
@@ -180,6 +190,7 @@ class WiringTest(unittest.TestCase):
         bars = unittest.mock.Mock(t=(1, 2, 3), spread_bps=0.5)
         with unittest.mock.patch.object(zab_study, "require_inputs", lambda *a: None), \
                 unittest.mock.patch.object(zab_study, "require_own_spread", lambda *a: 0.5), \
+                unittest.mock.patch.object(zab_study, "require_spread_in_sample", lambda *a: None), \
                 unittest.mock.patch.object(zab_study, "load_bars", lambda *a, **k: bars), \
                 unittest.mock.patch.object(zab_study, "data_hash", lambda *a: "sha256:x"), \
                 unittest.mock.patch.object(zab_study, "_run_all", run_all):

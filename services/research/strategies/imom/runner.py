@@ -3,7 +3,8 @@ engine (research only, no orders).
 
 Costs: the measured median bid/ask spread of the market (half per side, data.py), 1 bp slippage per
 side, and for the ETF twins the IBKR Pro Fixed US stock commission and regulatory fees (existing preset). Source
-`ibkr`: the in-sample IBKR BID_ASK median spread (half per side) and 0.25 bp slippage per side, same commission preset.
+`ibkr`: the in-sample IBKR BID_ASK median spread (half per side) and 0.25 bp slippage per side, same commission preset;
+a job's slippage override replaces it (the pre-registered ZAB study runs at 1 bp, zab_study.py).
 The cost stress doubles spread and slippage. Starting capital 100,000 USD per leg. No overnight financing:
 every position is flat at the 16:00 close (market-on-close fill at the last regular bar's close).
 """
