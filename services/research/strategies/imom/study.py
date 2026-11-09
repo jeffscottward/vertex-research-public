@@ -498,6 +498,7 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
                        "lossShare": mc.get("lossShare"), "paths": mc.get("paths"), "trades": mc.get("trades"),
                        "seed": m.MC_SEED},
         "deflatedSharpe": {"prob": dsr["probability"], "trials": dsr["trials"], **dsr,
+                           "scope": "distinct configurations tried on the primary market (US500)",
                            "configurations": [label for label, _ in configs.values()]},
         "comparison": [{"name": r["name"], "sharpe": r["sharpe"], "cagr": r["cagr"], "maxDd": r["maxDrawdown"],
                         "source": r.get("source", "this study"), "kind": r["kind"]} for r in comparison + ld_rows],
@@ -623,8 +624,11 @@ def notes(detail: dict, curves: Mapping, keys: Sequence[str]) -> str:
         "not tick delta. Dukascopy volume is tick volume.",
         "Options are priced from a daily IV index with a fixed smile; no intraday option quotes exist here, so the "
         "options form is a model, not a replay. One spread per market and day (later ZAB re-entries ignored).",
-        "The deflated Sharpe counts every distinct configuration tried on the primary market (all strategies, "
-        "sensitivity rows and walk-forward grid points).",
+        "The deflated Sharpe trial count covers the primary market's configurations only (all strategies, "
+        "sensitivity rows and walk-forward grid points on US500); runs on other markets are not counted.",
+        "Spread costs use the median spread of the in-sample part only. Option exits reuse the previous close's IV; "
+        "expiry is the nearest Friday weekly (deviation from 'nearest expiry'). Sessions opening > 30 % from the "
+        "previous close are dropped (USO split).",
         f"Markets: {', '.join(keys)}." + (f" Missing data: {', '.join(detail['missingMarkets'])}."
                                           if detail["missingMarkets"] else ""),
         "Full per-market tables, daily equity and drawdown: the detail JSON of the run (report artifact).",

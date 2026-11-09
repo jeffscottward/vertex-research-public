@@ -8,9 +8,11 @@ New York. The data is not in the repository: it is not ours to redistribute.
 
 A one-minute mid bar is the average of the bid and ask candles field by field (high and low widened to
 hold the open and close); its volume is the bid volume. The spread cost of a market is the median
-close bid/ask spread in basis points of the mid. Mid bars are aggregated to 5-minute bars aligned to
+close bid/ask spread in basis points of the mid over the
+in-sample part (first 60 % of the time) only. Mid bars are aggregated to 5-minute bars aligned to
 09:30 New York (bar time = UTC ms of the bar open). Session days are New York dates. Dropped: NYSE
-holidays and special closures, and sessions with fewer than 30 five-minute bars. NYSE early-close days
+holidays and special closures, sessions with fewer than 30 five-minute bars, and sessions that open more than
+30 % away from the previous close (splits such as USO 1:8 in April 2020, or bad prints). NYSE early-close days
 (13:00) keep their bars up to 13:00 only (42 bars), so no 15:30 decision exists on those days.
 """
 from __future__ import annotations
@@ -39,7 +41,11 @@ OPEN_MINUTE = 9 * 60 + 30
 CLOSE_MINUTE = 16 * 60
 EARLY_CLOSE_MINUTE = 13 * 60
 MIN_SESSION_BARS = 30
-CACHE_VERSION = 1
+# A session whose open is more than 30 % away from the previous close is a split or data error (USO 1:8 in
+# April 2020); it is dropped.
+MAX_GAP = 0.30
+IS_FRACTION = 0.6
+CACHE_VERSION = 2
 # NYSE full-day closures outside the regular holiday rules (Hurricane Sandy, national days of mourning).
 SPECIAL_CLOSURES = frozenset({date(2012, 10, 29), date(2012, 10, 30), date(2018, 12, 5), date(2025, 1, 9)})
 
@@ -132,17 +138,23 @@ def read_side(path: Path) -> dict[int, Minute]:
     return rows
 
 
-def mid_minutes(bid: Mapping[int, Minute], ask: Mapping[int, Minute]) -> tuple[list[tuple[int, Minute]], float]:
-    """Mid one-minute bars on the timestamps both sides have (volume = bid volume) and the median spread in bps."""
+def mid_minutes(bid: Mapping[int, Minute], ask: Mapping[int, Minute],
+                is_fraction: float = IS_FRACTION) -> tuple[list[tuple[int, Minute]], float]:
+    """Mid one-minute bars on the timestamps both sides have (volume = bid volume) and the median close spread in
+    bps over the in-sample part only (the first `is_fraction` of the time), so the cost model has no look-ahead."""
     out: list[tuple[int, Minute]] = []
-    spreads: list[float] = []
+    spreads: list[tuple[int, float]] = []
     for t in sorted(set(bid) & set(ask)):
         b, a = bid[t], ask[t]
         o, h, low, c = ((b[i] + a[i]) / 2 for i in range(4))
         out.append((t, (o, max(o, h, c), min(o, low, c), c, b[4])))
         if c > 0 and a[3] >= b[3]:
-            spreads.append((a[3] - b[3]) / c * BPS)
-    return out, (statistics.median(spreads) if spreads else 0.0)
+            spreads.append((t, (a[3] - b[3]) / c * BPS))
+    if not out:
+        return out, 0.0
+    cut = out[0][0] + (out[-1][0] - out[0][0]) * is_fraction
+    in_sample = [x for t, x in spreads if t <= cut]
+    return out, (statistics.median(in_sample) if in_sample else 0.0)
 
 
 def is_closed(day: date) -> bool:
@@ -200,9 +212,14 @@ def aggregate(minutes: Iterable[tuple[int, Minute]], spread_bps: float = 0.0) ->
         else:
             bars.append([float(start), o, h, low, c, v])
     cols: list[list[float]] = [[], [], [], [], [], []]
+    prev_close: float | None = None
     for day in sorted(sessions):
         bars = sessions[day]
         if len(bars) < MIN_SESSION_BARS:
+            continue
+        gap_out = prev_close is not None and prev_close > 0 and abs(bars[0][1] / prev_close - 1) > MAX_GAP
+        prev_close = bars[-1][4]
+        if gap_out:
             continue
         for bar in bars:
             for index in range(6):

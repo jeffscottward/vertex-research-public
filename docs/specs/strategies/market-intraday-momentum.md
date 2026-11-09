@@ -62,6 +62,24 @@ drawdown >= -35 %; >= 75 % of the parameter changes keep Sharpe > 0; Sharpe > 0 
 - no edge: OOS Sharpe <= 0, or deflated Sharpe probability < 0.5, or at most 2 gates pass.
 - needs more data: anything else (also fewer than 100 trades on the primary).
 
+## Deviations (before the first run, from the fresh-context review of the runner)
+
+- Option expiry: the nearest Friday weekly with at least 1 trading day left (Thursday when the Friday is an NYSE holiday),
+  not any nearest expiry; Monday and Wednesday weeklies are not modeled.
+- Option exits at 16:00 are priced with the same previous-close IV index and T-bill rate as the entry (no intraday IV
+  exists); only the spot and the time to expiry move. A trade is skipped ("stale IV") when that previous row is more
+  than 5 calendar days older than the entry day.
+- One spread per signal market and day: a ZAB re-entry later the same day opens no second spread (the form closes at
+  16:00, so a second spread would overlap the first).
+- The spread cost of each market is the median close bid/ask spread of the in-sample part (first 60 % of the time) only.
+- Sessions whose open is more than 30 % away from the previous close are dropped (USO 1:8 reverse split, April 2020).
+- NYSE early-close days keep their bars up to 13:00 only, so GHLZ and BIAS do not trade them (the paper drops half days).
+- Each strategy is a long and a short DSL leg, each run on 100,000 USD; the study sums the two legs' daily returns (the
+  legs never hold at the same time).
+- The deflated Sharpe trial count covers the primary market's distinct configurations (28: five strategies, twenty
+  one-at-a-time changes, four extra walk-forward grid points); runs on other markets are not counted.
+- The strategy-backtest study contract holds up to 80 runs per form (was 40) to list five strategies on fourteen markets.
+
 ## Code and tests
 
 - `services/research/strategies/imom/` (data, definition, runner, metrics reuse, study, rules); tests in

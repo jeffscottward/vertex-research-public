@@ -11,7 +11,11 @@ ignored). Rules, as pre-registered (docs/specs/strategies/market-intraday-moment
   on the expiry day / 365 days.
 - Strikes: qc_ports.book.choose_strikes (long leg nearest 0.50 delta on the strike grid, short leg 1 sigma
   of the remaining time further out); Black-Scholes with the qc_ports smile on the IV-index proxy of the
-  PREVIOUS session close and the previous close's T-bill rate (no look-ahead); dividend yield per ETF.
+  PREVIOUS session close and the previous close's T-bill rate (no look-ahead); dividend yield per ETF. That row
+  must be at most 5 calendar days older than the entry day, else no trade ("stale IV"). The 16:00 exit is priced
+  with the same previous-close IV and rate (no intraday IV exists), only the spot and time to expiry move.
+- Expiry deviates from the pre-registered "nearest expiry with >= 1 trading day left": the nearest FRIDAY weekly
+  is used (Monday/Wednesday weeklies are not modeled), recorded in the spec's Deviations.
 - Costs: $0.65 per contract and half the modeled bid/ask per leg (qc_ports.options.leg_cost), exit cost
   capped at the worst case (qc_ports.book.worst_exit_cost); max loss per contract = debit + costs.
 - Sizing: contracts so the max loss is 2 % of equity (qc_ports.book.contracts_for, in both ledgers).
@@ -38,6 +42,8 @@ LONG_DELTA = 0.5
 WIDTH_SIGMA = 1.0
 MAX_LOSS_PCT = 2.0
 SYNTHETIC_EPOCH = date(2000, 1, 1)
+# The previous IV-index / T-bill row may be at most this many calendar days older than the entry day.
+MAX_IV_AGE_DAYS = 5
 
 
 @dataclass(frozen=True)
@@ -126,6 +132,8 @@ def price_event(event: OptionEvent, etf: EtfClock, market: Market) -> Spread | s
     prev = previous_index(market, day)
     if prev is None:
         return "no previous close"
+    if (date.fromisoformat(day) - date.fromisoformat(market.dates[prev])).days > MAX_IV_AGE_DAYS:
+        return "stale IV"
     level, rate = market.iv_index[prev], market.rate[prev]
     if level is None:
         return "no IV"

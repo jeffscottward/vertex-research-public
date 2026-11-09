@@ -50,8 +50,11 @@ GAPS: list[dict[str, str]] = [
      "13:00, so GHLZ and BIAS do not trade them (the paper drops half days); sessions with < 30 bars dropped."},
     {"gap": "Fills", "choice": "Signals at a bar close fill at the next 5-minute bar open; the 16:00 exit is a "
      "market-on-close fill at the last regular bar's close."},
-    {"gap": "Costs (underlying)", "choice": "Measured median Dukascopy spread (half per side) + 1 bp slippage per side; "
-     "ETFs add IBKR Pro Fixed commission and fees. No financing (never held overnight)."},
+    {"gap": "Costs (underlying)", "choice": "Median Dukascopy close spread measured over the in-sample part (first 60 % "
+     "of the time) only, half per side, + 1 bp slippage per side; ETFs add IBKR Pro Fixed commission and fees. No "
+     "financing (never held overnight)."},
+    {"gap": "Splits and bad prints", "choice": "A session whose open is more than 30 % away from the previous close is "
+     "dropped (USO 1:8 reverse split, April 2020); the next session compares with that session's close."},
     {"gap": "Short side", "choice": "Each strategy is a long and a short DSL leg run separately on 100,000 USD; the "
      "daily returns of the two legs are summed (they never hold at the same time)."},
     {"gap": "Bias factor definitions (not shown)", "choice": "Initial Move = sign of 09:30-10:00 return; VWAP = price vs "
@@ -66,8 +69,12 @@ GAPS: list[dict[str, str]] = [
      "delta, short 1 sigma away), nearest Friday weekly with >= 1 trading day left, opened at the entry, closed at "
      "16:00; max loss 2 % of equity; one spread per market and day."},
     {"gap": "Option prices (no intraday option or IV history)", "choice": "Black-Scholes with the qc_ports smile on the "
-     "IV-index proxy and T-bill rate of the previous close; $0.65 per contract + modeled half spread per leg; "
-     "booked by Nautilus with a ledger cross-check."},
+     "IV-index proxy and T-bill rate of the previous close (no trade when that row is > 5 calendar days old), also "
+     "for the 16:00 exit; $0.65 per contract + modeled half spread per leg; Nautilus with a ledger cross-check."},
+    {"gap": "Option expiry", "choice": "Nearest Friday weekly with >= 1 trading day left (Thursday when Friday is a "
+     "holiday), not any nearest expiry: Monday/Wednesday weeklies are not modeled (deviation, see the spec)."},
+    {"gap": "Deflated Sharpe scope", "choice": "Trial count = every distinct configuration tried on the primary market "
+     "(5 strategies, 20 one-at-a-time changes, 4 extra walk-forward points: 28); other markets are not counted."},
     {"gap": "Leverage", "choice": "GHLZ and BIAS 1x notional; ZAB volatility target capped at 4x as published, plus a "
      "1x variant."},
     {"gap": "Out-of-sample", "choice": "Pre-registered (commit 3131469c): first 60 % of the time in-sample, last 40 % "
