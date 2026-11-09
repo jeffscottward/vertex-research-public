@@ -12,6 +12,7 @@ build/
 .alchemy/
 .cache/
 coverage/
+.coverage
 playwright-report/
 test-results/
 graphify-out/
