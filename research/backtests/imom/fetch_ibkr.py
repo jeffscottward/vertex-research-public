@@ -30,9 +30,9 @@ REMOTE = (
 )
 
 
-def request(symbol: str, end: datetime) -> list[dict]:
+def request(symbol: str, end: datetime, what: str = "TRADES", days: int = PAGE_DAYS) -> list[dict]:
     query = (f"symbol={symbol}&secType=STK&exchange=SMART&currency=USD&barSize=5%20mins"
-             f"&duration={PAGE_DAYS}%20D&whatToShow=TRADES&useRTH=1&endDateTime={end:%Y%m%d-%H:%M:%S}")
+             f"&duration={days}%20D&whatToShow={what}&useRTH=1&endDateTime={end:%Y%m%d-%H:%M:%S}")
     for attempt in range(3):
         proc = subprocess.run(["ssh", "quantvps", REMOTE.format(query=query)], capture_output=True, text=True, timeout=180)
         try:
@@ -83,9 +83,38 @@ def fetch_symbol(symbol: str) -> None:
     print(f"{symbol}: done ({len(rows)} bars)", flush=True)
 
 
+def fetch_spreads(symbol: str, first_year: int) -> None:
+    """BID_ASK sample: the first full Monday-Friday week of each calendar quarter (open = time-average bid,
+    close = time-average ask of each 5-minute bar). Output: ibkr5m/<SYMBOL>-bidask.csv.gz, same columns."""
+    path = OUT / f"{symbol}-bidask.csv.gz"
+    rows = load(path)
+    done = {datetime.fromtimestamp(t / 1000, UTC).strftime("%Y-%m") for t in rows}
+    now = datetime.now(UTC)
+    for year in range(first_year, now.year + 1):
+        for month in (1, 4, 7, 10):
+            start = datetime(year, month, 1, tzinfo=UTC)
+            while start.weekday() != 0:  # first Monday of the quarter
+                start += timedelta(days=1)
+            end = start + timedelta(days=4, hours=21)
+            if end >= now or start.strftime("%Y-%m") in done:
+                continue
+            bars = request(symbol, end, "BID_ASK", 5)
+            for b in bars:
+                t = int(b["t"]) * 1000
+                rows[t] = [str(t), repr(b["o"]), repr(b["h"]), repr(b["l"]), repr(b["c"]), "0"]
+            save(path, rows)
+            print(f"{symbol} spreads {start:%Y-%m-%d}: {len(bars)} bars", flush=True)
+            time.sleep(SPACING_S)
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    for symbol in sys.argv[1:] or ["SPY", "QQQ", "IWM", "DIA", "GLD", "SLV", "USO"]:
+    args = sys.argv[1:]
+    if args and args[0] == "--spreads":
+        for symbol in args[2:] or ["SPY"]:
+            fetch_spreads(symbol.upper(), int(args[1]))
+        return 0
+    for symbol in args or ["SPY", "QQQ", "IWM", "DIA", "GLD", "SLV", "USO"]:
         fetch_symbol(symbol.upper())
     return 0
 
