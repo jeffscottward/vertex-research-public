@@ -291,3 +291,44 @@ def test_ruin_closes_the_position_at_the_close():
     assert math.isclose(result.trades[0]["exitPrice"], 99.5, rel_tol=PRICE_REL_TOL)
     cash = -19 + 0.19 * 99.5 * 0.95
     assert all(math.isclose(value, cash, rel_tol=EQUITY_REL_TOL) for value in result.equity[1:])
+
+
+# Day 3 closes early at 11:00 (30-minute bars, session 09:30-11:30, entries 10:00-11:00). volTarget
+# has no leverage until day 2's last bar; day 3's 10:00 signal sells short at the 10:00 open (100)
+# with leverage 0.1 / sqrt(0.02) and the market-on-close order buys back at the 11:00 close (98).
+NY_0930 = 1_767_623_400_000
+MINUTE_MS = 60_000
+
+
+def _intraday_short_bars() -> Bars:
+    rows = [(day, slot, close) for day, close in ((0, 100), (1, 110), (2, 99)) for slot in range(4)]
+    rows += [(3, 0, 100), (3, 1, 100), (3, 2, 98)]
+    opens = [100.0 if day == 3 else close for day, _slot, close in rows]
+    return Bars.from_columns({
+        "t": [NY_0930 + day * DAY_MS + slot * 30 * MINUTE_MS for day, slot, _close in rows],
+        "o": opens, "h": [close + 1 for *_rest, close in rows], "l": [close - 1 for *_rest, close in rows],
+        "c": [close for *_rest, close in rows],
+    })
+
+
+@needs_nautilus
+def test_vol_target_short_exits_market_on_close_on_an_early_close_day():
+    definition = {
+        "version": 1, "name": "short volTarget", "side": "short",
+        "entry": {"all": [
+            {"left": {"type": "price", "field": "close"}, "op": ">", "right": {"type": "const", "value": 0}},
+        ]},
+        "intraday": {"timezone": "America/New_York", "open": "09:30", "close": "11:30",
+                     "entryFrom": "10:00", "entryTo": "11:00"},
+        "sizing": {"mode": "volTarget", "targetPct": 10, "length": 2, "maxLeverage": 5},
+    }
+    spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0}
+    result = engine.run_spec(_intraday_short_bars(), spec)
+    assert [(t["entryIndex"], t["exitIndex"], t["exitReason"]) for t in result.trades] == [(13, 14, "sessionClose")]
+    trade = result.trades[0]
+    assert math.isclose(trade["entryPrice"], 100.0, rel_tol=PRICE_REL_TOL)
+    assert math.isclose(trade["exitPrice"], 98.0, rel_tol=PRICE_REL_TOL)
+    leverage = 0.1 / math.sqrt(0.02)
+    assert math.isclose(trade["pnl"], leverage * 0.02, rel_tol=EQUITY_REL_TOL)
+    assert math.isclose(result.equity[14], 1 + leverage * 0.02, rel_tol=EQUITY_REL_TOL)
+    assert result.to_json()["modelVersion"] == engine.MODEL_VERSION == 3

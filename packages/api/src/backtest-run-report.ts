@@ -86,6 +86,7 @@ export type BacktestRunReportTrade = Readonly<{
     | "stop"
     | "target"
     | "end"
+    | "sessionClose"
     | (typeof OPTIONS_EXIT_REASONS)[number];
   balanceAfter: number;
   /** Only with a cost profile: charges of both legs and the P&L before them, in money. */

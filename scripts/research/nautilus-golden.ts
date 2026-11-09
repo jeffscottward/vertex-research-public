@@ -33,7 +33,9 @@ import {
   StrategyDefinitionSchema,
   type StrategyExprInput,
   StrategyExprSchema,
+  type StrategyIntraday,
   type StrategyServerSupport,
+  type StrategySessionIndicatorExpr,
   serverStrategyRefusal,
 } from "../../packages/api/src/strategy-dsl.ts";
 import {
@@ -42,6 +44,8 @@ import {
   compileStrategy,
   evaluateStrategyExpression,
   exponentialMean,
+  type IntradaySessions,
+  intradaySessions,
   nyseHolidays,
   realizedVolatility,
   relativeStrength,
@@ -52,6 +56,8 @@ import {
   type StrategySeriesContext,
   type StrategySeriesInput,
   StrategyUnsupportedError,
+  sessionIndicatorSeries,
+  volTargetLeverage,
 } from "../../packages/api/src/strategy-dsl-compile.ts";
 
 const BAR_COUNT = 500;
@@ -345,6 +351,215 @@ const reelDefinitions: { id: string; definition: Json; symbol: string }[] = [
   { definition: LD34, id: "reel:ld34", symbol: "SPY" },
   { definition: MIXED_DAILY, id: "reel:mixedDaily", symbol: "hourly" },
 ];
+
+// Intraday sessions: the `intraday` block, side "short", sessionReturn, noiseBand, vwap and
+// volTarget sizing. GHLZ and ZAB are the reel study definitions
+// (docs/specs/strategies/market-intraday-momentum.md) as written there.
+
+const MINUTE_MS = 60_000;
+const DAY_MS = 86_400_000;
+/** 2023 New York daylight saving time: from March 12 to November 5 (UTC dates). */
+const EDT_FROM = Date.UTC(2023, 2, 12);
+const EDT_TO = Date.UTC(2023, 10, 5);
+/** NYSE 13:00 closes of 2023 inside the set. */
+const EARLY_CLOSES: Readonly<Record<string, true>> = {
+  "2023-07-03": true,
+  "2023-11-24": true,
+};
+/** The day without its 09:55 bar, so its 10:00 price is missing. */
+const MISSING_BAR_DAY = "2023-02-14";
+const MISSING_BAR_MINUTE = 9 * 60 + 55;
+
+/**
+ * 5-minute bars on every NYSE trading day from 2023-01-03 to 2023-11-30 (New York time): three
+ * pre-market bars from 09:15, the regular session 09:30 to 16:00 and two after-hours bars to
+ * 16:10; on the 13:00 early closes the bars stop at 13:00. Both daylight saving changes are inside,
+ * and MISSING_BAR_DAY lacks one bar. Each day opens with a gap and has its own drift; prices have
+ * 2 decimals.
+ */
+const sessionBars = (): BarColumns => {
+  const random = randomFrom(2018);
+  const round = (value: number) => Math.round(value * 100) / 100;
+  const columns: Columns = { c: [], h: [], l: [], o: [], t: [], v: [] };
+  let price = 400;
+  for (
+    let day = Date.UTC(2023, 0, 3);
+    day <= Date.UTC(2023, 10, 30);
+    day += DAY_MS
+  ) {
+    const weekday = new Date(day).getUTCDay();
+    const holidays = nyseHolidays(new Date(day).getUTCFullYear());
+    if (weekday === 0 || weekday === 6 || holidays.has(day / DAY_MS)) continue;
+    const iso = new Date(day).toISOString().slice(0, 10);
+    const behindUtc = day >= EDT_FROM && day < EDT_TO ? 4 : 5;
+    const end = EARLY_CLOSES[iso] === true ? 13 * 60 : 16 * 60 + 10;
+    price = round(price * (1 + (random() - 0.5) * 0.012));
+    const drift = (random() - 0.5) * 0.0008;
+    for (let minute = 9 * 60 + 15; minute < end; minute += 5) {
+      const open = price;
+      const close = round(open * (1 + drift + (random() - 0.5) * 0.003));
+      const high = round(Math.max(open, close) * (1 + random() * 0.001));
+      const low = round(Math.min(open, close) * (1 - random() * 0.001));
+      const regular = minute >= 9 * 60 + 30 && minute < 16 * 60;
+      const volume = Math.floor((regular ? 5000 : 500) * (1 + random()));
+      price = close;
+      if (iso === MISSING_BAR_DAY && minute === MISSING_BAR_MINUTE) continue;
+      columns.t.push(day + (minute + behindUtc * 60) * MINUTE_MS);
+      columns.o.push(open);
+      columns.h.push(high);
+      columns.l.push(low);
+      columns.c.push(close);
+      columns.v.push(volume);
+    }
+  }
+  return toBars(columns);
+};
+
+const NEW_YORK_SESSION = {
+  close: "16:00",
+  open: "09:30",
+  timezone: "America/New_York",
+};
+
+/** sessionReturn(from, to) compared with 0. */
+const returnSign = (from: string, to: string, op: ">" | "<") => ({
+  left: { from, name: "sessionReturn", to, type: "indicator" },
+  op,
+  right: { type: "const", value: 0 },
+});
+
+/** GHLZ (Gao, Han, Li, Zhou 2018): at 15:30 trade the sign of the return to 10:00, flat at 16:00. */
+const ghlz = (side: "long" | "short", extra: object = {}): Json => ({
+  entry: {
+    all: [returnSign("prevClose", "10:00", side === "long" ? ">" : "<")],
+  },
+  intraday: { ...NEW_YORK_SESSION, entryFrom: "15:30", entryTo: "15:30" },
+  name: `GHLZ intraday momentum ${side}`,
+  ...(side === "short" ? { side: "short" } : {}),
+  sizing: { mode: "allIn" },
+  stopLoss: { kind: "none" },
+  version: 1,
+  ...extra,
+});
+
+const noiseBand = (band: "upper" | "lower") => ({
+  band,
+  length: 14,
+  name: "noiseBand",
+  type: "indicator",
+});
+const closePrice = { field: "close", type: "price" };
+const vwap = { name: "vwap", type: "indicator" };
+
+/** ZAB (Zarattini, Aziz, Barbon 2024): noise-area breakout on a 30-minute grid, 2% vol target. */
+const zab = (side: "long" | "short"): Json => {
+  const band = noiseBand(side === "long" ? "upper" : "lower");
+  const into = side === "long" ? ">" : "<";
+  const back = side === "long" ? "<" : ">";
+  return {
+    entry: { all: [{ left: closePrice, op: into, right: band }] },
+    exit: {
+      any: [
+        { left: closePrice, op: back, right: band },
+        { left: closePrice, op: back, right: vwap },
+      ],
+    },
+    intraday: {
+      ...NEW_YORK_SESSION,
+      decisionEvery: 30,
+      entryFrom: "10:00",
+      entryTo: "15:30",
+    },
+    name: `ZAB noise-area ${side}`,
+    ...(side === "short" ? { side: "short" } : {}),
+    sizing: { length: 14, maxLeverage: 4, mode: "volTarget", targetPct: 2 },
+    stopLoss: { kind: "none" },
+    version: 1,
+  };
+};
+
+/** GHLZ r1 + r12: also the 15:00 to 15:30 return must have the same sign. */
+const GHLZ_R1_R12 = ghlz("long", {
+  entry: {
+    all: [
+      returnSign("prevClose", "10:00", ">"),
+      returnSign("15:00", "15:30", ">"),
+    ],
+  },
+  name: "GHLZ r1 + r12 long",
+});
+
+/** Session indicators and options the study definitions leave out: open anchor, multiple, vwap. */
+const SESSION_MIX: Json = {
+  entry: {
+    all: [
+      {
+        left: {
+          from: "open",
+          name: "sessionReturn",
+          to: "11:00",
+          type: "indicator",
+        },
+        op: ">",
+        right: { type: "const", value: 0.001 },
+      },
+      { left: closePrice, op: "crossesAbove", right: vwap },
+    ],
+  },
+  exit: {
+    any: [
+      {
+        left: closePrice,
+        op: "<",
+        right: { ...noiseBand("lower"), length: 5, multiple: 0.5 },
+      },
+    ],
+  },
+  intraday: { ...NEW_YORK_SESSION, entryFrom: "11:00", entryTo: "14:00" },
+  name: "Session mix",
+  stopLoss: { kind: "pct", pct: 0.4 },
+  takeProfit: { kind: "atr", length: 14, multiple: 3 },
+  version: 1,
+};
+
+const intradayDefinitions: { id: string; definition: Json; symbol: string }[] =
+  [
+    { definition: ghlz("long"), id: "intraday:ghlz:long", symbol: "session" },
+    { definition: ghlz("short"), id: "intraday:ghlz:short", symbol: "session" },
+    { definition: GHLZ_R1_R12, id: "intraday:ghlz:r1r12", symbol: "session" },
+    { definition: zab("long"), id: "intraday:zab:long", symbol: "session" },
+    { definition: zab("short"), id: "intraday:zab:short", symbol: "session" },
+    { definition: SESSION_MIX, id: "intraday:mix", symbol: "session" },
+    // Daily bars: refused (STRATEGY_INTRADAY_DAILY_UNSUPPORTED).
+    { definition: ghlz("long"), id: "intraday:ghlz:long", symbol: "SPY" },
+    // Off the 5-minute bar grid: refused (STRATEGY_INTRADAY_GRID_MISALIGNED).
+    {
+      definition: ghlz("long", {
+        intraday: { ...NEW_YORK_SESSION, entryFrom: "15:32", entryTo: "15:32" },
+      }),
+      id: "intraday:grid:entry",
+      symbol: "session",
+    },
+    {
+      definition: ghlz("long", {
+        intraday: {
+          ...NEW_YORK_SESSION,
+          decisionEvery: 7,
+          entryFrom: "15:30",
+          entryTo: "15:30",
+        },
+      }),
+      id: "intraday:grid:decisionEvery",
+      symbol: "session",
+    },
+    {
+      definition: ghlz("long", {
+        entry: { all: [returnSign("prevClose", "10:03", ">")] },
+      }),
+      id: "intraday:grid:sessionReturn",
+      symbol: "session",
+    },
+  ];
 
 const SMA_CROSS: InstantRule = { fast: 10, kind: "smaCross", slow: 30 };
 const BREAKOUT_TREND: InstantRule = {
@@ -1864,6 +2079,43 @@ export const orCaseError = <T>(
   }
 };
 
+/** JSON of a compiled strategy (Float64Array columns as lists). */
+const compiledToJson = (compiled: ReturnType<typeof compileStrategy>) => ({
+  exits: Array.from(compiled.exits),
+  signals: Array.from(compiled.signals),
+  stopDistance:
+    compiled.stopDistance === undefined ? null : list(compiled.stopDistance),
+  targetDistance:
+    compiled.targetDistance === undefined
+      ? null
+      : list(compiled.targetDistance),
+  ...(compiled.options === undefined ? {} : { options: compiled.options }),
+  ...(compiled.portfolio === undefined
+    ? {}
+    : { portfolio: compiled.portfolio }),
+  ...(compiled.management === undefined
+    ? {}
+    : {
+        management: {
+          ...compiled.management,
+          ...(compiled.management.trail === undefined
+            ? {}
+            : {
+                trail: {
+                  ...compiled.management.trail,
+                  atr: list(compiled.management.trail.atr),
+                },
+              }),
+        },
+      }),
+  ...(compiled.closeAt === undefined
+    ? {}
+    : { closeAt: Array.from(compiled.closeAt) }),
+  ...(compiled.leverage === undefined
+    ? {}
+    : { leverage: list(compiled.leverage) }),
+});
+
 const buildCompiled = (
   datasets: Record<string, BarColumns>,
   libraryDefinitions: readonly Readonly<{ definition: Json; id: string }>[],
@@ -1883,39 +2135,7 @@ const buildCompiled = (
         sectorQuadrants,
         seriesInputOf(series, seriesSymbol, calendar)
       );
-      return {
-        exits: Array.from(compiled.exits),
-        signals: Array.from(compiled.signals),
-        stopDistance:
-          compiled.stopDistance === undefined
-            ? null
-            : list(compiled.stopDistance),
-        targetDistance:
-          compiled.targetDistance === undefined
-            ? null
-            : list(compiled.targetDistance),
-        ...(compiled.options === undefined
-          ? {}
-          : { options: compiled.options }),
-        ...(compiled.portfolio === undefined
-          ? {}
-          : { portfolio: compiled.portfolio }),
-        ...(compiled.management === undefined
-          ? {}
-          : {
-              management: {
-                ...compiled.management,
-                ...(compiled.management.trail === undefined
-                  ? {}
-                  : {
-                      trail: {
-                        ...compiled.management.trail,
-                        atr: list(compiled.management.trail.atr),
-                      },
-                    }),
-              },
-            }),
-      };
+      return compiledToJson(compiled);
     });
   };
 
@@ -1957,6 +2177,14 @@ const buildCompiled = (
         ...compiledJson(definition, symbol),
       });
     }
+  }
+  for (const { id, definition, symbol } of intradayDefinitions) {
+    compiled.push({
+      definition,
+      id,
+      symbol,
+      ...compiledJson(definition, symbol),
+    });
   }
   for (const {
     calendar,
@@ -2303,6 +2531,31 @@ const buildEngine = (
     baseSpec({ definition: MIXED_DAILY, kind: "dsl" })
   );
 
+  // Intraday sessions: GHLZ and ZAB long and short, a short with a percent stop and target, and
+  // ZAB short with a cost profile (both legs of a short pay charges).
+  for (const { definition, id, symbol } of intradayDefinitions) {
+    if (symbol === "session" && !id.startsWith("intraday:grid:"))
+      dslCase(id, symbol, baseSpec({ definition, kind: "dsl" }));
+  }
+  dslCase(
+    "intraday:ghlz:short:stop",
+    "session",
+    baseSpec({
+      definition: ghlz("short", {
+        stopLoss: { kind: "pct", pct: 0.2 },
+        takeProfit: { kind: "pct", pct: 0.3 },
+      }),
+      kind: "dsl",
+    })
+  );
+  dslCase("intraday:zab:short:ibkr", "session", {
+    ...baseSpec({ definition: zab("short"), kind: "dsl" }),
+    costs: {
+      capital: 100_000,
+      profile: COST_PROFILE_PRESETS["ibkr-pro-tiered-us-stock"],
+    },
+  });
+
   return engine;
 };
 
@@ -2316,6 +2569,81 @@ const holidayDates = (): string[] => {
     for (const day of [...nyseHolidays(year)].sort((a, b) => a - b))
       dates.push(new Date(day * 86_400_000).toISOString().slice(0, 10));
   return dates;
+};
+
+/** Session indicator and volTarget series use the first SESSION_INDICATOR_BARS session bars. */
+const SESSION_INDICATOR_BARS = 4500;
+
+/** The New York sessions of intraday bars; throws for bars without two bars on one New York date. */
+export const requireIntradaySessions = (
+  bars: BarColumns,
+  intraday: StrategyIntraday
+): IntradaySessions => {
+  const sessions = intradaySessions(bars, intraday);
+  if (sessions === undefined) throw new Error("session bars must be intraday");
+  return sessions;
+};
+
+/** 7. Session indicators and volTarget leverage (intraday bars, and daily bars for volTarget). */
+const buildSessionIndicators = (
+  datasets: Record<string, BarColumns>
+): Json[] => {
+  const bars = head(datasets["session"] as BarColumns, SESSION_INDICATOR_BARS);
+  const intraday: StrategyIntraday = {
+    ...NEW_YORK_SESSION,
+    entryFrom: "10:00",
+    entryTo: "15:30",
+    timezone: "America/New_York",
+  };
+  const exprs: StrategySessionIndicatorExpr[] = [
+    { name: "vwap", type: "indicator" },
+    {
+      from: "prevClose",
+      name: "sessionReturn",
+      to: "10:00",
+      type: "indicator",
+    },
+    { from: "open", name: "sessionReturn", to: "11:00", type: "indicator" },
+    { from: "15:00", name: "sessionReturn", to: "15:30", type: "indicator" },
+    { band: "upper", length: 14, name: "noiseBand", type: "indicator" },
+    {
+      band: "lower",
+      length: 5,
+      multiple: 0.5,
+      name: "noiseBand",
+      type: "indicator",
+    },
+  ];
+  const sizing = { length: 14, maxLeverage: 4, targetPct: 2 };
+  const sessions = requireIntradaySessions(bars, intraday);
+  return [
+    ...exprs.map((expr) => ({
+      bars: SESSION_INDICATOR_BARS,
+      expr,
+      intraday,
+      symbol: "session",
+      values: list(sessionIndicatorSeries(bars, intraday, expr)),
+    })),
+    {
+      bars: SESSION_INDICATOR_BARS,
+      intraday,
+      sizing,
+      symbol: "session",
+      values: list(volTargetLeverage(bars, sizing, sessions)),
+    },
+    ...["session", "SPY"].map((symbol) => ({
+      bars: symbol === "SPY" ? BAR_COUNT : SESSION_INDICATOR_BARS,
+      intraday: null,
+      sizing,
+      symbol,
+      values: list(
+        volTargetLeverage(
+          symbol === "SPY" ? (datasets["SPY"] as BarColumns) : bars,
+          sizing
+        )
+      ),
+    })),
+  ];
 };
 
 /** 6. Server engine refusals: runStrategyDefinition (TS) and plan_run (Python) refuse alike. */
@@ -2372,6 +2700,7 @@ const buildGolden = (io: GoldenIo): string => {
     monthly: monthlyBars(),
     QQQ: readCsv(csv("QQQ-1d.csv"), BAR_COUNT),
     SPY: readCsv(csv("SPY-1d.csv"), BAR_COUNT),
+    session: sessionBars(),
   };
 
   // 2. Compiled DSL definitions.
@@ -2414,6 +2743,7 @@ const buildGolden = (io: GoldenIo): string => {
     sectorQuadrants,
     series,
     serverRefusals,
+    sessionIndicators: buildSessionIndicators(datasets),
   };
 
   return `${JSON.stringify(golden)}\n`;

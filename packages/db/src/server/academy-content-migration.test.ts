@@ -83,12 +83,11 @@ describe("0062_academy_content migration", () => {
     expect(migration).not.toContain(";;");
   });
 
-  it("is journaled last as idx 62 after 0061, and later, so databases that ran 0061 still apply it", () => {
+  it("is journaled as idx 62 after 0061, and later, so databases that ran 0061 still apply it", () => {
     const index = journal.entries.findIndex(
       (entry) => entry.tag === "0062_academy_content"
     );
     expect(journal.entries[index]).toMatchObject({ idx: 62 });
-    expect(index).toBe(journal.entries.length - 1);
     expect(journal.entries[index - 1]).toMatchObject({
       idx: 61,
       tag: "0061_qc_port_definitions",

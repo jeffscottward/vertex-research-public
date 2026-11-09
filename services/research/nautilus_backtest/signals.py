@@ -29,12 +29,14 @@ from .bars import (
     assert_signal_options,
     assert_window,
     calendar_intraday_unsupported,
+    intraday_daily_unsupported,
+    intraday_grid_misaligned,
     is_finite_number,
     options_timeframe_unsupported,
     options_unsupported,
     series_filters_unsupported,
 )
-from .costs import _js_max
+from .costs import _js_div, _js_max, _js_min
 
 NAN = math.nan
 FIELD_KEY = {"close": "c", "high": "h", "low": "l", "open": "o"}
@@ -56,6 +58,17 @@ OPERATORS = (">", ">=", "<", "<=", "crossesAbove", "crossesBelow", "breaksAbove"
 EVENT_OPERATORS = ("crossesAbove", "crossesBelow", "breaksAbove", "breaksBelow")
 # Indicator timeframes (STRATEGY_INDICATOR_TIMEFRAMES); a session day starts at 17:00 New York.
 INDICATOR_TIMEFRAMES = ("1d",)
+# Session indicators (STRATEGY_SESSION_INDICATORS): they need an intraday block.
+SESSION_INDICATORS = ("vwap", "sessionReturn", "noiseBand")
+NOISE_BANDS = ("upper", "lower")
+NOISE_BAND_MAX_LENGTH = 60
+SESSION_ANCHORS = ("prevClose", "open")
+SIDES = ("long", "short")
+INTRADAY_TIMEZONE = "America/New_York"
+INTRADAY_MAX_DECISION_MINUTES = 390
+VOL_TARGET_MIN_LENGTH = 2
+VOL_TARGET_MAX_LENGTH = 252
+_NEW_YORK_TIME = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9]")
 MAX_LEVERAGE = 50
 MINUTES_PER_DAY = 1440
 MINUTE_MS = 60_000
@@ -147,6 +160,10 @@ class Compiled:
     # TS PositionManagement: {"breakevenR"?: float, "trail"?: {"activateR", "multiple", "atr"}}
     # (atr: tuple, the DSL ATR of the signal bars), or None without a management block.
     management: dict[str, Any] | None = None
+    # With an intraday block: 1 on the last regular bar of each session day (market on close).
+    close_at: tuple[int, ...] | None = None
+    # With volTarget sizing: the leverage at each signal bar (vol_target_leverage).
+    leverage: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -161,6 +178,8 @@ class RunOptions:
     max_hold_bars: int | None = None
     # With risk_pct: cap the position cost at cash * max_leverage (1 to 50) instead of the cash.
     max_leverage: float | None = None
+    # "short" sells at the entry and buys back at the exit; None or "long" is long.
+    side: str | None = None
 
 
 # ---------------------------------------------------------------------------------------------
@@ -589,8 +608,9 @@ def compile_rule(bars: Bars, rule: Mapping[str, Any]) -> tuple[int, ...]:
 
 
 # Keys of each object the TS schema declares .strict() (unknown keys are an input error).
-_DEFINITION_KEYS = frozenset({"version", "name", "description", "entry", "exit", "filters", "management",
-                              "options", "portfolio", "session", "sizing", "stopLoss", "takeProfit"})
+_DEFINITION_KEYS = frozenset({"version", "name", "description", "entry", "exit", "filters", "intraday",
+                              "management", "options", "portfolio", "session", "side", "sizing", "stopLoss",
+                              "takeProfit"})
 _EXPR_KEYS = {
     "price": frozenset({"type", "field", "offset"}),
     "const": frozenset({"type", "value"}),
@@ -603,6 +623,13 @@ _EXPR_KEYS = {
     "seasonal": frozenset({"type", "of", "monthsAhead", "minCount"}),
 }
 _CONDITION_KEYS = frozenset({"left", "op", "right", "oncePerLevel"})
+# Session indicators take no length, source, offset or timeframe (noiseBand takes its own length).
+_SESSION_EXPR_KEYS = {
+    "vwap": frozenset({"type", "name"}),
+    "sessionReturn": frozenset({"type", "name", "from", "to"}),
+    "noiseBand": frozenset({"type", "name", "band", "length", "multiple"}),
+}
+_INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery"})
 _LEG_KEYS = frozenset({"entry", "exit", "filters", "options"})
 
 
@@ -611,6 +638,13 @@ def _strict(value: Mapping[str, Any], keys: frozenset[str], where: str) -> None:
     unknown = sorted(set(value) - keys)
     if unknown:
         raise InputError(f"Unknown key in {where}: {unknown[0]}")
+
+
+def _is_whole(value: Any, low: int, high: int) -> bool:
+    """A whole number from low to high; a float with no fraction counts (JSON has one number type)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return float(value).is_integer() and low <= value <= high
 
 
 def _whole(value: Any, name: str, low: int, high: int) -> int:
@@ -657,10 +691,54 @@ def _check_raw_expr_depth(expr: Any) -> None:
                 stack.append((node[key], depth + 1))
 
 
+def _new_york_time(value: Any, what: str) -> str:
+    """An HH:MM New York time (TS NewYorkTimeSchema)."""
+    if not (isinstance(value, str) and _NEW_YORK_TIME.fullmatch(value)):
+        raise InputError(f"{what}: Expected HH:MM (New York)")
+    return value
+
+
+def _is_session_indicator(expr: Mapping[str, Any]) -> bool:
+    """TS isSessionIndicator: vwap, sessionReturn and noiseBand."""
+    return expr.get("type") == "indicator" and expr.get("name") in SESSION_INDICATORS
+
+
+def _normalize_session_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
+    """vwap, sessionReturn and noiseBand expressions (no defaults are added)."""
+    name = expr["name"]
+    _strict(expr, _SESSION_EXPR_KEYS[name], f"{name} expression")
+    if name == "vwap":
+        return {"type": "indicator", "name": name}
+    if name == "sessionReturn":
+        origin = expr.get("from")
+        timed = origin not in SESSION_ANCHORS
+        if timed:
+            _new_york_time(origin, "sessionReturn from")
+        to = _new_york_time(expr.get("to"), "sessionReturn to")
+        if timed and not origin < to:
+            raise InputError("sessionReturn from must be before to")
+        return {"type": "indicator", "name": name, "from": origin, "to": to}
+    band = expr.get("band")
+    if band not in NOISE_BANDS:
+        raise InputError(f"Unknown noiseBand band: {band}")
+    length = expr.get("length")
+    if not _is_whole(length, 1, NOISE_BAND_MAX_LENGTH):
+        raise InputError(f"noiseBand length must be a whole number from 1 to {NOISE_BAND_MAX_LENGTH}")
+    normalized: dict[str, Any] = {"type": "indicator", "name": name, "band": band, "length": int(length)}
+    if "multiple" in expr:
+        multiple = expr["multiple"]
+        if not (is_finite_number(multiple) and 0 < multiple <= 100):
+            raise InputError("noiseBand multiple must be above 0 and at most 100")
+        normalized["multiple"] = float(multiple)
+    return normalized
+
+
 def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     """StrategyExprSchema defaults of one expression tree (idempotent); offsets default to 0."""
     _check_raw_expr_depth(expr)
     kind = expr.get("type")
+    if _is_session_indicator(expr):
+        return _normalize_session_expr(expr)
     if kind in _EXPR_KEYS:
         _strict(expr, _EXPR_KEYS[kind], f"{kind} expression")
     if kind == "price":
@@ -826,6 +904,9 @@ def _close_only(expr: Mapping[str, Any]) -> bool:
         return True
     if expr["type"] == "price":
         return expr["field"] == "close"
+    # Session indicators read a regular session of intraday bars, which a series does not have.
+    if _is_session_indicator(expr):
+        return False
     if expr["type"] == "indicator":
         return expr["source"] == "close" and expr["name"] not in NON_CLOSE_INDICATORS
     return False
@@ -1145,6 +1226,87 @@ def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_intraday(intraday: Any) -> dict[str, Any] | None:
+    """TS StrategyIntradaySchema; None without a block."""
+    if intraday is None:
+        return None
+    if not isinstance(intraday, Mapping):
+        raise InputError("intraday must be an object")
+    _strict(intraday, _INTRADAY_KEYS, "intraday")
+    if intraday.get("timezone") != INTRADAY_TIMEZONE:
+        raise InputError(f'intraday timezone must be "{INTRADAY_TIMEZONE}"')
+    times = {key: _new_york_time(intraday.get(key), f"intraday {key}")
+             for key in ("open", "close", "entryFrom", "entryTo")}
+    if not times["open"] < times["close"]:
+        raise InputError("intraday open must be before close")
+    if not times["open"] < times["entryFrom"] <= times["entryTo"] < times["close"]:
+        raise InputError(
+            "The entry window must be inside the session: open < entryFrom <= entryTo < close"
+        )
+    normalized: dict[str, Any] = {"timezone": INTRADAY_TIMEZONE, **times}
+    if "decisionEvery" in intraday:
+        every = intraday["decisionEvery"]
+        if not _is_whole(every, 1, INTRADAY_MAX_DECISION_MINUTES):
+            raise InputError(
+                f"intraday decisionEvery must be a whole number from 1 to {INTRADAY_MAX_DECISION_MINUTES}"
+            )
+        normalized["decisionEvery"] = int(every)
+    return normalized
+
+
+def _normalize_vol_target(sizing: Mapping[str, Any]) -> dict[str, Any]:
+    """TS VolTargetSizingSchema."""
+    _strict(sizing, frozenset({"mode", "targetPct", "length", "maxLeverage"}), "sizing")
+    target = sizing.get("targetPct")
+    length = sizing.get("length")
+    cap = sizing.get("maxLeverage")
+    if not (is_finite_number(target) and 0 < target <= 100):
+        raise InputError("volTarget targetPct must be above 0 and at most 100")
+    if not _is_whole(length, VOL_TARGET_MIN_LENGTH, VOL_TARGET_MAX_LENGTH):
+        raise InputError(
+            f"volTarget length must be a whole number from {VOL_TARGET_MIN_LENGTH} to {VOL_TARGET_MAX_LENGTH}"
+        )
+    if not (is_finite_number(cap) and 0 < cap <= MAX_LEVERAGE):
+        raise InputError(f"volTarget maxLeverage must be above 0 and at most {MAX_LEVERAGE}")
+    return {"mode": "volTarget", "targetPct": float(target), "length": int(length), "maxLeverage": float(cap)}
+
+
+def _session_indicator_in(expr: Mapping[str, Any]) -> str | None:
+    """TS sessionIndicatorIn: the name of the first session indicator in an expression tree."""
+    if _is_session_indicator(expr):
+        return expr["name"]
+    for child in _expr_children(expr):
+        name = _session_indicator_in(child)
+        if name is not None:
+            return name
+    return None
+
+
+def _check_intraday_and_side(
+    normalized: dict[str, Any], management: Any, options: Any
+) -> None:
+    """The definition refinements of side, intraday and volTarget (TS StrategyDefinitionSchema)."""
+    side = normalized["side"]
+    intraday = normalized["intraday"]
+    if options is not None and normalized["sizing"]["mode"] == "volTarget":
+        raise InputError("Option strategies size by options.maxLossPct; remove the volTarget sizing")
+    if side == "short" and management is not None:
+        raise InputError("management raises a long stop; a short definition takes no management")
+    if side == "short" and options is not None:
+        raise InputError("Option strategies take their direction from options.structure; remove side")
+    if intraday is not None and options is not None:
+        raise InputError("Option strategies run on daily bars; remove the intraday block")
+    if intraday is not None and any(item["type"] == "calendarWindow" for item in normalized["filters"]):
+        raise InputError("calendarWindow filters run on daily bars only; remove them or the intraday block")
+    if intraday is None:
+        conditions = (*normalized["entry"]["all"], *normalized["entry"].get("any", []), *normalized["exit"]["any"])
+        for condition in conditions:
+            for expr in (condition["left"], condition["right"]):
+                name = _session_indicator_in(expr)
+                if name is not None:
+                    raise InputError(f"{name} reads the intraday session; add an intraday block")
+
+
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     """Applies the StrategyDefinitionSchema defaults and rejects unknown names, operators and keys
     (the TS schema objects are strict; filter and options blocks keep their own checks)."""
@@ -1167,6 +1329,8 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
             if not (is_finite_number(max_leverage) and 1 <= max_leverage <= MAX_LEVERAGE):
                 raise InputError(f"maxLeverage must be from 1 to {MAX_LEVERAGE}")
             sizing["maxLeverage"] = float(max_leverage)
+    elif sizing.get("mode") == "volTarget":
+        sizing = _normalize_vol_target(sizing)
     elif sizing.get("mode") == "allIn":
         if "maxLeverage" in sizing:
             raise InputError("maxLeverage needs riskPct sizing")
@@ -1226,19 +1390,26 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
         ] + [select[key] for key in ("score", "tieBreak") if key in select]
         if any(_uses_bar_range_indicator(expr) for expr in exprs):
             raise InputError(MONTHLY_INDICATOR_MESSAGE)
-    return {
+    side = definition.get("side")
+    if side is not None and side not in SIDES:
+        raise InputError(f"Unknown side: {side}")
+    normalized = {
         "name": definition.get("name"),
         "entry": entry_out,
         "exit": {"any": exit_conditions},
         "filters": filters,
+        "intraday": _normalize_intraday(definition.get("intraday")),
         "management": management,
         "options": None if options is None else dict(options),
         "portfolio": normalized_portfolio,
         "session": None if session is None else {"startUtc": session["startUtc"], "endUtc": session["endUtc"]},
+        "side": side,
         "sizing": sizing,
         "stopLoss": stop_loss,
         "takeProfit": take_profit,
     }
+    _check_intraday_and_side(normalized, management, options)
+    return normalized
 
 
 def _column(bars: Bars, field: str) -> Sequence[float]:
@@ -1304,6 +1475,266 @@ def session_daily_bars(bars: Bars) -> tuple[Bars, list[int]]:
         v=None if bars.v is None else tuple(v),
     )
     return daily, day
+
+
+# Intraday sessions (strategy-dsl-compile.ts intradaySessions and the session indicators).
+
+
+@dataclass(frozen=True)
+class IntradaySessions:
+    """TS IntradaySessions: the regular-session layout of intraday bars for one intraday block."""
+
+    bars: Bars
+    # Bar duration in ms: the most common gap between bars of one New York date (ties: smaller).
+    duration: float
+    # Close time of each bar: ms after midnight of its New York date (bar time + duration).
+    close_ms: tuple[float, ...]
+    open_ms: float
+    # Session day of each regular bar (0, 1, ...), -1 for every other bar.
+    session: tuple[int, ...]
+    # 1 on the last regular bar of each session day.
+    last: tuple[int, ...]
+    day_open: tuple[float, ...]
+    day_close: tuple[float, ...]
+
+
+def intraday_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessions | None:
+    """TS intradaySessions: None when no two bars share a New York date (daily or longer bars)."""
+    size = len(bars.t)
+    offsets: dict[int, float] = {}
+    day: list[float] = [0.0] * size
+    local: list[float] = [0.0] * size
+    gaps: dict[float, int] = {}
+    for index in range(size):
+        t = bars.t[index]
+        shifted = t + _new_york_offset(t, offsets)
+        date_ = math.floor(shifted / DAY_MS)
+        day[index] = date_
+        local[index] = shifted - date_ * DAY_MS
+        if index > 0 and date_ == day[index - 1]:
+            gap = t - bars.t[index - 1]
+            if gap > 0:
+                gaps[gap] = gaps.get(gap, 0) + 1
+    duration = NAN
+    most = 0
+    for gap, count in gaps.items():
+        if count > most or (count == most and gap < duration):
+            duration = gap
+            most = count
+    if most == 0:
+        return None
+    open_ms = _minutes_of(intraday["open"]) * MINUTE_MS
+    close_limit = _minutes_of(intraday["close"]) * MINUTE_MS
+    close_ms = [0.0] * size
+    session = [-1] * size
+    last = [0] * size
+    day_open: list[float] = []
+    day_close: list[float] = []
+    last_day: float | None = None
+    last_index = -1
+    for index in range(size):
+        close = local[index] + duration
+        close_ms[index] = close
+        if not (local[index] >= open_ms and close <= close_limit):
+            continue
+        if day[index] != last_day:
+            if last_index >= 0:
+                last[last_index] = 1
+            last_day = day[index]
+            day_open.append(bars.o[index])
+            day_close.append(NAN)
+        session[index] = len(day_open) - 1
+        day_close[-1] = bars.c[index]
+        last_index = index
+    if last_index >= 0:
+        last[last_index] = 1
+    return IntradaySessions(
+        bars=bars, duration=duration, close_ms=tuple(close_ms), open_ms=open_ms, session=tuple(session),
+        last=tuple(last), day_open=tuple(day_open), day_close=tuple(day_close),
+    )
+
+
+def _intraday_gates(sessions: IntradaySessions, intraday: Mapping[str, Any]) -> tuple[list[int], list[int]]:
+    """TS intradayGates: (entry, exit) bars of the intraday block."""
+    size = len(sessions.session)
+    start = _minutes_of(intraday["entryFrom"]) * MINUTE_MS
+    end = _minutes_of(intraday["entryTo"]) * MINUTE_MS
+    every = intraday.get("decisionEvery")
+    grid = None if every is None else every * MINUTE_MS
+    entry = [0] * size
+    exit_ = [0] * size
+    for index in range(size):
+        if sessions.session[index] < 0:
+            continue
+        close = sessions.close_ms[index]
+        if grid is not None and math.fmod(close - sessions.open_ms, grid) != 0:
+            continue
+        exit_[index] = 1
+        if start <= close <= end and sessions.last[index] == 0:
+            entry[index] = 1
+    return entry, exit_
+
+
+def vwap_series(sessions: IntradaySessions) -> Series:
+    """TS vwapSeries: vwap since the first regular bar of each session day (running mean of the
+    typical prices while the summed volume is not above 0)."""
+    bars = sessions.bars
+    out = [NAN] * len(sessions.session)
+    current = -1
+    priced = volume = typical_sum = 0.0
+    count = 0
+    for index, day in enumerate(sessions.session):
+        if day < 0:
+            continue
+        if day != current:
+            current = day
+            priced = volume = typical_sum = 0.0
+            count = 0
+        typical = (bars.h[index] + bars.l[index] + bars.c[index]) / 3
+        traded = 0.0 if bars.v is None else bars.v[index]
+        priced += typical * traded
+        volume += traded
+        typical_sum += typical
+        count += 1
+        out[index] = priced / volume if volume > 0 else typical_sum / count
+    return out
+
+
+def session_return_series(sessions: IntradaySessions, origin: str, to: str) -> Series:
+    """TS sessionReturnSeries: price at `to` / price at `origin` - 1 from the bar closing at `to`."""
+    bars = sessions.bars
+    timed = origin not in SESSION_ANCHORS
+    if timed:
+        _align_to_grid("sessionReturn from", origin, _minutes_of(origin), sessions)
+    _align_to_grid("sessionReturn to", to, _minutes_of(to), sessions)
+    to_ms = _minutes_of(to) * MINUTE_MS
+    from_ms = _minutes_of(origin) * MINUTE_MS if timed else NAN
+    days = len(sessions.day_open)
+    target = [NAN] * days
+    anchor = [NAN] * days
+    for day in range(days):
+        if origin == "open":
+            anchor[day] = sessions.day_open[day]
+        elif origin == "prevClose" and day > 0:
+            anchor[day] = sessions.day_close[day - 1]
+    for index, day in enumerate(sessions.session):
+        if day < 0:
+            continue
+        if sessions.close_ms[index] == to_ms:
+            target[day] = bars.c[index]
+        if sessions.close_ms[index] == from_ms:
+            anchor[day] = bars.c[index]
+    out = [NAN] * len(sessions.session)
+    for index, day in enumerate(sessions.session):
+        if day < 0 or sessions.close_ms[index] < to_ms:
+            continue
+        out[index] = _js_div(target[day], anchor[day]) - 1
+    return out
+
+
+def noise_band_series(sessions: IntradaySessions, band: str, length: int, multiple: float) -> Series:
+    """TS noiseBandSeries: sigma = mean |close / session open - 1| at the same slot over the previous
+    `length` session days with a bar there; today's move never enters its own sigma."""
+    bars = sessions.bars
+    moves: dict[float, list[float]] = {}
+    out = [NAN] * len(sessions.session)
+    for index, day in enumerate(sessions.session):
+        if day < 0:
+            continue
+        history = moves.setdefault(sessions.close_ms[index] - sessions.open_ms, [])
+        sigma = NAN
+        if len(history) >= length:
+            total = 0.0
+            for at in range(len(history) - length, len(history)):
+                total += history[at]
+            sigma = total / length
+        open_ = sessions.day_open[day]
+        previous = sessions.day_close[day - 1] if day > 0 else NAN
+        if band == "upper":
+            out[index] = _js_max(open_, previous) * (1 + multiple * sigma)
+        else:
+            out[index] = _js_min(open_, previous) * (1 - multiple * sigma)
+        history.append(abs(_js_div(bars.c[index], open_) - 1))
+    return out
+
+
+def _session_indicator(sessions: IntradaySessions, expr: Mapping[str, Any]) -> Series:
+    name = expr["name"]
+    if name == "vwap":
+        return vwap_series(sessions)
+    if name == "sessionReturn":
+        return session_return_series(sessions, expr["from"], expr["to"])
+    return noise_band_series(sessions, expr["band"], expr["length"], expr.get("multiple", 1.0))
+
+
+def _session_key(expr: Mapping[str, Any]) -> str:
+    """Cache key of a session indicator (TS sessionIndicator)."""
+    name = expr["name"]
+    if name == "vwap":
+        return "vwap"
+    if name == "sessionReturn":
+        return f"sessionReturn:{expr['from']}:{expr['to']}"
+    return f"noiseBand:{expr['band']}:{expr['length']}:{float(expr.get('multiple', 1))}"
+
+
+def _align_to_grid(field: str, value: str | float, minutes: float, sessions: IntradaySessions) -> None:
+    """TS alignToGrid: refuses `minutes` that are not whole bar durations."""
+    if math.fmod(minutes * MINUTE_MS, sessions.duration) != 0:
+        raise intraday_grid_misaligned(field, value, sessions.duration)
+
+
+def _attach_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessions:
+    """TS attachSessions: refuses bars without two bars on one New York date, and open, close,
+    entryFrom, entryTo or decisionEvery that are not whole multiples of the bar duration."""
+    sessions = intraday_sessions(bars, intraday)
+    if sessions is None:
+        raise intraday_daily_unsupported()
+    for field in ("open", "close", "entryFrom", "entryTo"):
+        _align_to_grid(field, intraday[field], _minutes_of(intraday[field]), sessions)
+    every = intraday.get("decisionEvery")
+    if every is not None:
+        _align_to_grid("decisionEvery", every, every, sessions)
+    return sessions
+
+
+def session_indicator_series(bars: Bars, intraday: Mapping[str, Any], expr: Mapping[str, Any]) -> Series:
+    """TS sessionIndicatorSeries: one session indicator of the bars under an intraday block."""
+    return _session_indicator(_attach_sessions(bars, intraday), _normalize_session_expr(expr))
+
+
+def vol_target_leverage(
+    bars: Bars, sizing: Mapping[str, Any], sessions: IntradaySessions | None = None
+) -> Series:
+    """TS volTargetLeverage: min(maxLeverage, targetPct / 100 / sigma) of the session days completed
+    at each bar (sample standard deviation of the last `length` close-to-close returns)."""
+    size = len(bars.c)
+    if sessions is not None:
+        last = list(sessions.last)
+    else:
+        offsets: dict[int, float] = {}
+        dates = [math.floor((t + _new_york_offset(t, offsets)) / DAY_MS) for t in bars.t]
+        last = [1 if index == size - 1 or dates[index + 1] != date_ else 0 for index, date_ in enumerate(dates)]
+    length = sizing["length"]
+    closes: list[float] = []
+    out = [NAN] * size
+    leverage = NAN
+    for index in range(size):
+        if last[index] == 1:
+            closes.append(bars.c[index])
+            if len(closes) > length:
+                returns = [_js_div(closes[at], closes[at - 1]) - 1 for at in range(len(closes) - length, len(closes))]
+                total = 0.0
+                for value in returns:
+                    total += value
+                mean = total / length
+                squares = 0.0
+                for value in returns:
+                    squares += (value - mean) * (value - mean)
+                sigma = math.sqrt(squares / (length - 1))
+                # sigma 0 gives Infinity, so maxLeverage; a NaN close gives NaN (no entry).
+                leverage = _js_min(sizing["maxLeverage"], _js_div(sizing["targetPct"] / 100, sigma))
+        out[index] = leverage
+    return out
 
 
 @dataclass(frozen=True)
@@ -1467,14 +1898,21 @@ def _seasonal(
 
 class _Evaluator:
     """Evaluates expressions with a cache keyed like the TypeScript SeriesCache; tree nodes are
-    memoized by their canonical JSON. `frame` builds the series frame on first use."""
+    memoized by their canonical JSON. `frame` builds the series frame on first use; `sessions` is
+    the intraday layout the session indicators read."""
 
-    def __init__(self, bars: Bars, frame: Callable[[], _Frame] | None = None) -> None:
+    def __init__(
+        self,
+        bars: Bars,
+        frame: Callable[[], _Frame] | None = None,
+        sessions: IntradaySessions | None = None,
+    ) -> None:
         self.bars = bars
         self.cache: dict[str, Sequence[float]] = {}
         self._days: tuple[Bars, list[int]] | None = None
         self._frame_builder = frame
         self._frame: _Frame | None = None
+        self.sessions = sessions
 
     def _daily_indicator(self, expr: Mapping[str, Any]) -> Series:
         """TS dailyIndicator: highest and lowest read day D, every other indicator day D - 1."""
@@ -1563,6 +2001,15 @@ class _Evaluator:
             return _column(bars, expr["field"])
         if expr["type"] == "const":
             return [expr["value"]] * size
+        if _is_session_indicator(expr):
+            if self.sessions is None:
+                raise InputError(f"{expr['name']} reads the intraday session; add an intraday block")
+            key = _session_key(expr)
+            cached = self.cache.get(key)
+            if cached is None:
+                cached = _session_indicator(self.sessions, expr)
+                self.cache[key] = cached
+            return cached
         if expr.get("timeframe") is not None:
             key = _indicator_key(expr)
             cached = self.cache.get(key)
@@ -2076,7 +2523,10 @@ def compile_strategy(
     it, then are read at the bar dates."""
     normalized = normalize_definition(definition)
     size = len(bars.c)
-    evaluator = _Evaluator(bars, lambda: _series_frame(bars, context, symbol, calendar))
+    intraday = normalized["intraday"]
+    sessions = None if intraday is None else _attach_sessions(bars, intraday)
+    gates = None if sessions is None else _intraday_gates(sessions, intraday)
+    evaluator = _Evaluator(bars, lambda: _series_frame(bars, context, symbol, calendar), sessions)
     filters = _filter_masks(evaluator, normalized, sector_quadrants)
     entries = [_condition_series(evaluator, c) for c in normalized["entry"]["all"]] + filters
     exits = [_condition_series(evaluator, c) for c in normalized["exit"]["any"]]
@@ -2089,8 +2539,10 @@ def compile_strategy(
             not any_of or any(series[index] == 1 for series in any_of)
         ) and (
             session is None or _in_session(bars.t[index], session)
+        ) and (
+            gates is None or gates[0][index] == 1
         )
-        leave = any(series[index] == 1 for series in exits)
+        leave = any(series[index] == 1 for series in exits) and (gates is None or gates[1][index] == 1)
         if leave:
             exit_mask[index] = 1
         if enter:
@@ -2107,6 +2559,9 @@ def compile_strategy(
         if definition.get("portfolio") is None
         else ts_portfolio(definition["portfolio"]),
         management=_management(evaluator, normalized["management"]),
+        close_at=None if sessions is None else sessions.last,
+        leverage=(tuple(vol_target_leverage(bars, normalized["sizing"], sessions))
+                  if normalized["sizing"]["mode"] == "volTarget" else None),
     )
 
 
@@ -2184,12 +2639,13 @@ def server_refusal(
         types = list(dict.fromkeys(item["type"] for item in filters if _filter_reads(item)))
         what = f"the {', '.join(types)} filters" if types else "series expressions"
         return series_filters_unsupported(what)
-    if (
-        timeframe is not None
-        and timeframe not in DAILY_TIMEFRAMES
-        and any(item["type"] == "calendarWindow" for item in filters)
-    ):
+    if timeframe is None:
+        return None
+    daily = timeframe in DAILY_TIMEFRAMES
+    if not daily and any(item["type"] == "calendarWindow" for item in filters):
         return calendar_intraday_unsupported()
+    if daily and definition.get("intraday") is not None:
+        return intraday_daily_unsupported()
     return None
 
 
@@ -2237,7 +2693,8 @@ def plan_run(
             take_profit_pct=target["pct"] if target["kind"] == "pct" else 0,
             costs=costs,
             risk_pct=sizing["riskPct"] if sizing["mode"] == "riskPct" else None,
-            max_leverage=sizing.get("maxLeverage"),
+            max_leverage=sizing.get("maxLeverage") if sizing["mode"] == "riskPct" else None,
+            side=definition["side"],
         )
         size = assert_columns(bars)
     else:
@@ -2274,6 +2731,8 @@ __all__ = [
     "compile_strategy",
     "expression_values",
     "exponential_mean",
+    "IntradaySessions",
+    "intraday_sessions",
     "is_nyse_trading_day",
     "iv_rank_series",
     "nyse_holidays",
@@ -2286,6 +2745,11 @@ __all__ = [
     "resolve_series",
     "server_refusal",
     "session_daily_bars",
+    "session_indicator_series",
+    "noise_band_series",
+    "session_return_series",
+    "vol_target_leverage",
+    "vwap_series",
     "strategy_series_refs",
     "rolling_mean",
     "rolling_zscore",

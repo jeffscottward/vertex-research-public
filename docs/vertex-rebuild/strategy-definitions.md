@@ -26,9 +26,11 @@ A strategy definition is a small declarative description of a long-only strategy
 | `entry.all` | 0 to 8 conditions. The strategy enters when ALL are true on the signal bar. |
 | `entry.any` | Optional, 0 to 8 conditions, no default. When it is not empty, at least one of them must also be true on the signal bar. `entry.all` may be empty when `entry.any` is not; together they need at least one condition. |
 | `exit.any` | 0 to 8 conditions. An open position exits when ANY is true, also on bars where the entry conditions hold. While flat, entry wins when both are true. |
-| `sizing` | `{ "mode": "allIn" }` (default) or `{ "mode": "riskPct", "riskPct": 1 }`. Risk sizing needs a stop loss. The position loses about `riskPct` of equity when the stop fills, before costs and gaps, and is capped at the available cash. With the optional `"maxLeverage": 1..50` (riskPct only, no default) the cap is cash × `maxLeverage` instead (see [Stop management and leverage](#stop-management-and-leverage)). |
+| `side` | Optional `"long"` or `"short"`, no default; absent means long (see [Short side](#short-side)). |
+| `sizing` | `{ "mode": "allIn" }` (default), `{ "mode": "riskPct", "riskPct": 1 }` or `{ "mode": "volTarget", "targetPct": 2, "length": 14, "maxLeverage": 4 }` (see [Volatility-target sizing](#volatility-target-sizing-voltarget)). Risk sizing needs a stop loss. The position loses about `riskPct` of equity when the stop fills, before costs and gaps, and is capped at the available cash. With the optional `"maxLeverage": 1..50` (riskPct only, no default) the cap is cash × `maxLeverage` instead (see [Stop management and leverage](#stop-management-and-leverage)). |
 | `stopLoss`, `takeProfit` | `{ "kind": "none" }` (default), `{ "kind": "pct", "pct": 5 }` (percent of the entry price) or `{ "kind": "atr", "length": 14, "multiple": 2 }` (ATR at the signal bar times the multiple). While the ATR is not available yet (too few bars), the strategy does not enter. |
 | `management` | Optional stop management of an open position, no default: `{ "breakevenR": 2, "trail": { "activateR": 1, "length": 14, "multiple": 2 } }`, either part or both. Needs a stop loss and no `options` block (see [Stop management and leverage](#stop-management-and-leverage)). |
+| `intraday` | Optional New York regular session of intraday bars, no default (see [Intraday sessions](#intraday-sessions-intraday)). It enables the session indicators and the market-on-close exit. |
 | `session` | Optional `{ "startUtc": "13:30", "endUtc": "20:00" }`. Entries happen only on signal bars whose UTC time is in [start, end). A window can pass midnight. Exits are not limited. |
 | `filters` | Optional, 1 to 4 entry filters (see [Entry filters](#entry-filters)). Every filter must pass for an entry; exits are never blocked. |
 | `options` | Optional defined-risk option vertical traded on the signals (see [Options block](#options-block)). |
@@ -42,6 +44,7 @@ Expressions:
 - `{ "type": "price", "field": "open" | "high" | "low" | "close", "offset": 0..1000 (optional) }`
 - `{ "type": "const", "value": 30 }`
 - `{ "type": "indicator", "name": <name>, "length": 1..1000, "source": <price field, default close>, "offset": 0..1000 (optional), "timeframe": "1d" (optional) }`
+- Session indicators (need an `intraday` block, see [Session indicators](#session-indicators)): `{ "type": "indicator", "name": "vwap" }`, `{ "type": "indicator", "name": "sessionReturn", "from": "prevClose" | "open" | "HH:MM", "to": "HH:MM" }` and `{ "type": "indicator", "name": "noiseBand", "band": "upper" | "lower", "length": 1..60, "multiple": above 0 to 100 (optional, absent means 1) }`. They take no `length` (except `noiseBand`), `source`, `offset` or `timeframe`.
 
 Indicators: `sma`, `ema` (seeded with the simple average), `rsi` and `atr` (Wilder smoothing; `atr` ignores `source`), `highest` and `lowest` (of the `length` bars BEFORE the signal bar, a Donchian channel), `adx`, `rvol`, `zscore` and `realizedVol`. An indicator value is not available until enough bars exist. A comparison with a value that is not available is false.
 
@@ -93,6 +96,39 @@ With both parts the higher stop wins. Without a stop loss nothing moves, which i
 `sizing.maxLeverage` (1 to 50, riskPct only) caps the position cost at cash × `maxLeverage` instead of the cash. The borrowed part makes the unused cash negative; equity is that cash plus the position marked at the close. The TypeScript engine and the Nautilus engine charge no financing; the LD34 study runner (`services/research/strategies/ld34/metrics.py`) charges it in research.
 
 Ruin rule (both engines, every definition): when equity marked at a bar's close is at or below 0, an open position exits at that close with reason `stop`, and the run takes no further entries; equity stays at the cash left (which can be negative). With leverage this usually follows a gap through the stop: riskPct 10 with a stop 1 below an entry at 100 and `maxLeverage` 20 buys 0.1 units with 9 borrowed; a gap to 50 fills the stop at 50 and leaves equity at −4, after which the strategy no longer trades. Entry costs at high leverage can also take the marked equity below 0 before the stop is reached; then the position exits at the close.
+
+### Intraday sessions (`intraday`)
+
+```json
+{ "timezone": "America/New_York", "open": "09:30", "close": "16:00", "entryFrom": "10:00", "entryTo": "15:30", "decisionEvery": 30 }
+```
+
+All times are New York `HH:MM`; `timezone` must be `"America/New_York"`. `decisionEvery` (1 to 390 minutes) is optional with no default. The schema needs `open` < `close` and `open` < `entryFrom` <= `entryTo` < `close`.
+
+- Bar duration: the most common gap between bars of one New York date (a tie takes the smaller gap). A bar closes at its time + the duration.
+- Regular bars open at or after `open` and close at or before `close` (the close time uses the New York offset at the bar's open). Other bars (pre-market, after hours) never take an entry, never hold a position (the market-on-close exit closes it first) and are not available in the session indicators. A session day is the New York date of its regular bars.
+- Entries: only on regular bars closing in [`entryFrom`, `entryTo`], on the decision grid when `decisionEvery` is set (the bar close is a whole number of `decisionEvery` minutes after `open`), and never on the last regular bar of a session day.
+- Exit conditions count only on regular bars on the decision grid (every regular bar without `decisionEvery`). Stops and targets stay live on every bar.
+- Market on close (MOC): a position still open at the close of the last regular bar of its session day exits at that bar's close (exit reason `sessionClose`); that bar is held, so the API counts it when it recomputes a Nautilus result's exposure from the trades. On an early-close day (a day whose bars stop before `close`) the last regular bar present is the MOC bar, so the position exits at the early close. The session-last bar comes from the bars present in the data: there is no exchange calendar of early closes, so a day missing its final bars (a data gap) also exits at its last bar present, and an early close is only detected when the data stops early.
+- `filters` may not hold a `calendarWindow` filter, and `options` may not be set, with an `intraday` block.
+- The block needs intraday bars: a run whose bars have no two bars on one New York date (daily or weekly bars) is refused with `STRATEGY_INTRADAY_DAILY_UNSUPPORTED` (see [Where definitions run](#where-definitions-run)).
+- Times must sit on the bar grid: `open`, `close`, `entryFrom`, `entryTo` and every `HH:MM` time of a `sessionReturn` (minutes since midnight New York) and `decisionEvery` must each be a whole multiple of the bar duration (so the times are on the grid anchored at `open`). Otherwise compiling refuses with `STRATEGY_INTRADAY_GRID_MISALIGNED`; for example 60-minute bars refuse `open` 09:30.
+
+### Session indicators
+
+`vwap`, `sessionReturn` and `noiseBand` read only the regular bars of the current session day and are not available (NaN) on other bars. A definition that uses one without an `intraday` block is refused at validation (`<name> reads the intraday session; add an intraday block`, at the condition side's path). A `series` filter condition may not use them.
+
+- `vwap`: sum(typical × volume) / sum(volume) since the first regular bar of the session day, typical = (high + low + close) / 3. While the summed volume is 0, or the bars have no volume, it is the running mean of the typical prices.
+- `sessionReturn`: price at `to` / price at `from` − 1. `to` is the close of today's bar closing at `to`; `from` is `"prevClose"` (the last regular close of the previous session day), `"open"` (the open of today's first regular bar) or `"HH:MM"` (the close of today's bar closing then; must be before `to`). Not available before the bar closing at `to`, on the first session day with `"prevClose"`, and on a day without a bar closing at `to` or at the `from` time. From the `to` bar on it holds the same value to the end of the session day.
+- `noiseBand`: for each bar, sigma = mean of |close / session open − 1| at the same minutes since `open` over the previous `length` session days that have a bar then (days without a bar at that time are skipped, not counted as missing). `upper` = max(session open, previous session close) × (1 + `multiple` × sigma), `lower` = min(session open, previous session close) × (1 − `multiple` × sigma). Today's moves never enter today's sigma (no look-ahead). Not available until `length` earlier days have a bar at that time, and on the first session day (no previous close).
+
+### Volatility-target sizing (`volTarget`)
+
+`{ "mode": "volTarget", "targetPct": 2, "length": 14, "maxLeverage": 4 }`: `targetPct` (a daily volatility target, percent) above 0 and at most 100, `length` 2 to 252, `maxLeverage` above 0 and at most 50. At each entry the position cost is cash × leverage, leverage = min(`maxLeverage`, `targetPct` / 100 / sigma), read at the signal bar. sigma (daily: one return per session day, not annualized) is the sample standard deviation (ddof 1) of the last `length` close-to-close returns of completed session days; a day's close is its last regular bar with an `intraday` block, otherwise the last bar of its New York date. The leverage changes at that last bar, so a day uses the value known at the previous day's close. Until `length` + 1 day closes exist there is no leverage and no entry; a sigma of 0 gives `maxLeverage`. Leverage above 1 makes the unused cash negative, like `maxLeverage` with `riskPct`, and the ruin rule applies. An `options` block refuses `volTarget`.
+
+### Short side
+
+`"side": "short"` sells at the entry and buys back at the exit; P&L = units × (entry price − exit price). The sizing is that of a long of the same notional (allIn, riskPct with the stop distance above the entry, maxLeverage, volTarget). The percent stop is above the entry (entry × (1 + pct / 100)) and the percent target below it (entry × (1 − pct / 100), so `takeProfit.pct` must be below 100); ATR distances are added above for the stop and subtracted below for the target. The stop-first rule reads the bar's high: a bar that reaches the stop exits at the stop, a gap above it at the open. Costs are charged on the sale and the buy-back. A short definition may not have `management` (it raises a long stop) or an `options` block (the structure sets the direction).
 
 ### LD34 example
 
@@ -243,6 +279,8 @@ The 11 QuantConnect idea ports are portfolio definitions ([qc ports](../specs/st
 | `STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED` | An `options` block on any timeframe except `1d`. |
 | `STRATEGY_SERIES_FILTERS_UNSUPPORTED` | An `ivRank`, `vixTermStructure`, `volRegime` or `series` filter or a series expression (in `entry.all`, `entry.any`, `exit.any`, a portfolio leg or the portfolio selection), on a path without the series loader. `sectorQuadrant` and `calendarWindow` filters are allowed everywhere. |
 | `STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED` | A `calendarWindow` filter on an intraday timeframe (every timeframe except `1d` and `1w`). |
+| `STRATEGY_INTRADAY_DAILY_UNSUPPORTED` | An `intraday` block on a daily timeframe (`1d`, `1w`). Without a known timeframe `compileStrategy` / `compile_strategy` refuse it when the bars have no two bars on one New York date. |
+| `STRATEGY_INTRADAY_GRID_MISALIGNED` | An `intraday` block time (`open`, `close`, `entryFrom`, `entryTo`, a `sessionReturn` `HH:MM` time) or `decisionEvery` that is not a whole multiple of the bar duration. |
 
 Backtest runs and Autopilot load daily series from the series store (`market_daily_series`, loader `packages/api/src/server/strategy-series.ts`): the refs the definition reads, resolved for the run symbol (`<ETF>:TR` is the adjusted close of the ETF row), up to the run's `to` with the whole history before `from`. A missing series fails the run with `Series data is not available for <id>` (an Autopilot tick retries instead); a server without the series store fails it with `The daily series store is not available on this server (needed for <ids>)`. Options runs load what the options runner reads (`optionsDefinitionSeriesIds`: each symbol's row and IV index, IRX and SPY, plus the definition's refs).
 
@@ -280,12 +318,13 @@ A definition run without a library strategy stores a snapshot that depends only 
 - Compile parity: a definition SMA cross equals the golden `smaCross` rule (trades, equity, statistics), and the Donchian template equals the golden `breakout` rule without a trend filter: `packages/api/src/strategy-dsl-compile.test.ts`, `packages/api/src/backtest-runs.test.ts`. The entry filters are covered there too.
 - DSL extensions (`timeframe: "1d"`, breaks, `oncePerLevel`, `entry.any`, `management`, `maxLeverage`): schema checks in `strategy-dsl.test.ts`, compiled series in `strategy-dsl-compile.test.ts` (hand-built session days across the 17:00 New York roll), the engine stop management and leverage sizing in `packages/api/src/instant-backtest-engine.test.ts`, and the same cases in Python in `services/research/tests/test_nautilus_backtest_signals.py` and `test_nautilus_backtest_engine.py`.
 - TypeScript and Python parity: `bun run research:nautilus-golden` writes `services/research/tests/fixtures/nautilus_backtest/golden.json` with definitions using each filter (the `qc:*` cases, on synthetic VIX, VIX3M, VXN, SPY, ES=F and GC=F series and a spring 2019 calendar with a Good Friday expiration) and the `reel:*` cases (LD34 and a mixed daily-level definition that enters, on 400 days of hourly bars); `services/research/tests/test_nautilus_backtest_signals.py` must match the signals exactly, and `scripts/research/nautilus-golden.test.ts` checks the committed file is current.
-- Builder page: `apps/web/src/components/portal/strategy-builder-workspace.test.tsx`. The visual builder edits `entry.all`, `exit.any`, the stop, target and sizing; it keeps `entry.any`, `oncePerLevel`, `timeframe`, `management` and `maxLeverage` written in the JSON editor.
+- Intraday sessions, session indicators, `volTarget` and `side`: schema checks and every refusal in `strategy-dsl.test.ts`; hand-checked session layout (early close, ties of the bar gap), `vwap`, `sessionReturn` (`prevClose`, `open`, `HH:MM`, missing bars), `noiseBand` (skipped slots, no look-ahead, `multiple`), the entry window, `decisionEvery`, `volTargetLeverage` and a volTarget short to its MOC exit on an early-close day in `strategy-dsl-compile.test.ts`; the engine short side, MOC and leverage sizing in `instant-backtest-engine.test.ts`; the same hand-checked cases in Python in `test_nautilus_backtest_signals.py` and `test_nautilus_backtest_engine.py`; and the `intraday:*` golden cases (5-minute bars with GHLZ and ZAB, long and short).
+- Builder page: `apps/web/src/components/portal/strategy-builder-workspace.test.tsx`. The visual builder edits `entry.all`, `exit.any`, the stop, target and sizing; it keeps `entry.any`, `oncePerLevel`, `timeframe`, `management`, `maxLeverage`, `side`, the `intraday` block, the session indicators and `volTarget` sizing written in the JSON editor.
 - Headless browser flow, including builder-made SMA 10/40 against the golden rule on `/backtest-runs`: `tests/e2e/strategy-builder.spec.ts`.
 
 ## Limits
 
-- Long only. No short positions, pyramiding or partial exits.
+- One position at a time, long or short (`side`). No pyramiding or partial exits.
 - The text editor accepts JSON only.
 - Research and backtest use only. There is no order or broker path.
 - `offset` reaches at most 1000 bars back. `rvol` `length` is at most 100 sessions. `rvol` needs bar volume. Stored bars load their volume; a null stored volume is not available, so `rvol` is not available in that session and the sessions after it that use it.

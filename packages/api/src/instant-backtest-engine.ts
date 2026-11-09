@@ -2,7 +2,9 @@
 // Research and paper use only. It simulates fills on stored bars and never creates orders.
 //
 // Model:
-// - Long only, fully invested while in a position, flat (cash, 0% yield) otherwise.
+// - Long by default (short with `side`), fully invested while in a position (or sized by riskPct
+//   or a leverage series), flat (cash, 0% yield) otherwise. An optional closeAt mask exits an open
+//   position at a bar's close (market on close, intraday sessions).
 // - Signals use only data up to and including the close of bar i. Signal fills happen at the open
 //   of bar i + 1, so a run never uses a future price.
 // - Stop-loss and take-profit levels are checked inside each bar from the fill bar on. A gap
@@ -96,7 +98,7 @@ export type InstantTrade = Readonly<{
   netReturn: number;
   /** Change in equity (starting equity 1) from entry to exit, after both cost legs. */
   pnl: number;
-  exitReason: "signal" | "stop" | "target" | "end";
+  exitReason: "signal" | "stop" | "target" | "end" | "sessionClose";
   /** Only when a cost profile is set: charges of both legs and the P&L before them. */
   costs?: InstantTradeCosts;
   grossPnl?: number;
@@ -461,7 +463,9 @@ export const summarize = (
 /**
  * Bars that end with an open position (the `barsInPosition` of summarize), from the trades of a
  * finished run. Trades never overlap. A trade holds from its entry bar to the bar before its exit
- * bar (an exit fills during the bar); a trade closed after the last bar (`end`) holds that bar too.
+ * bar (an exit fills during the bar). A trade closed after the last bar (`end`) or at the close by
+ * a market-on-close order (`sessionClose`) holds its exit bar too; a ruin exit at the close does
+ * not (that bar ends flat).
  */
 export const barsInPositionOf = (trades: readonly InstantTrade[]): number =>
   trades.reduce(
@@ -469,9 +473,26 @@ export const barsInPositionOf = (trades: readonly InstantTrade[]): number =>
       total +
       trade.exitIndex -
       trade.entryIndex +
-      (trade.exitReason === "end" ? 1 : 0),
+      (trade.exitReason === "end" || trade.exitReason === "sessionClose"
+        ? 1
+        : 0),
     0
   );
+
+/**
+ * A stop or target level: entry ± a distance (above when `above`), else entry × a percent factor
+ * (NaN when the factor is 0, no level).
+ */
+const levelAt = (
+  entryPrice: number,
+  distance: number | undefined,
+  factor: number,
+  above: boolean
+): number => {
+  if (distance === undefined)
+    return factor > 0 ? entryPrice * factor : Number.NaN;
+  return above ? entryPrice + distance : entryPrice - distance;
+};
 
 /** Runs one backtest. Starting equity is 1. Throws InstantBacktestInputError on bad input. */
 export const runInstantBacktest = (
@@ -522,8 +543,26 @@ export type SignalRunOptions = Readonly<{
    * take equity to 0 or below: see the ruin rule of runSignalBacktest.
    */
   maxLeverage?: number;
-  /** Stop management of the open position (see PositionManagement). */
+  /** Stop management of the open position (see PositionManagement). Long positions only. */
   management?: PositionManagement;
+  /**
+   * "short" sells at the entry and buys back at the exit: P&L = units × (entry - exit), the
+   * percent and distance stops sit above the entry and the targets below it, a bar whose high
+   * reaches the stop exits there (stop first, a gap fills at the open) and riskPct sizes by the
+   * stop distance above the entry. Undefined means long.
+   */
+  side?: "long" | "short";
+  /**
+   * Market on close: at the close of a bar with 1, an open position exits at that close (reason
+   * "sessionClose", costs as for any fill), and that bar takes no entry signal.
+   */
+  closeAt?: Uint8Array;
+  /**
+   * Volatility-target sizing: the position cost is cash × leverage, read at the signal bar (above
+   * 1 borrows like maxLeverage). A missing value (NaN or not above 0) blocks that entry. Excludes
+   * riskPct.
+   */
+  leverage?: Float64Array;
 }>;
 
 /**
@@ -566,6 +605,7 @@ const assertSignalOptions = (
     );
   }
   assertManagementOptions(size, options);
+  assertSideOptions(size, options);
 };
 
 const positive = (name: string, value: number | undefined): void => {
@@ -594,6 +634,30 @@ const assertManagementOptions = (
     throw new InstantBacktestInputError("trail ATR must match the bar count");
 };
 
+/** Checks the side (short: no management, a target below 100%) and the closeAt and leverage arrays. */
+const assertSideOptions = (size: number, options: SignalRunOptions): void => {
+  const { closeAt, leverage, side } = options;
+  if (side !== undefined && side !== "long" && side !== "short")
+    throw new InstantBacktestInputError("side must be long or short");
+  if (side === "short") {
+    if (options.management !== undefined)
+      throw new InstantBacktestInputError(
+        "management raises a long stop; a short position takes none"
+      );
+    if (options.takeProfitPct >= PERCENT)
+      throw new InstantBacktestInputError(
+        "takeProfitPct must be below 100 for a short position"
+      );
+  }
+  if (closeAt !== undefined && closeAt.length !== size)
+    throw new InstantBacktestInputError("closeAt must match the bar count");
+  if (leverage === undefined) return;
+  if (leverage.length !== size)
+    throw new InstantBacktestInputError("leverage must match the bar count");
+  if (options.riskPct !== undefined)
+    throw new InstantBacktestInputError("leverage sizing excludes riskPct");
+};
+
 /** Distance at the signal bar; NaN when missing or not above 0. */
 const distanceAt = (series: Float64Array | undefined, index: number) => {
   const value = series === undefined ? Number.NaN : (series[index] as number);
@@ -604,7 +668,9 @@ const distanceAt = (series: Float64Array | undefined, index: number) => {
  * Runs the fill and accounting model over precomputed signals: 1 enters while flat, -1 exits while
  * in a position, 0 does nothing. Signals act at the open of the next bar. Ruin rule: when equity
  * marked at a bar's close (cash, or unused cash + units × close in a position) is at or below 0,
- * an open position exits at that close (reason "stop") and the run takes no further entries.
+ * an open position exits at that close (reason "stop") and the run takes no further entries. A
+ * short position keeps the sale proceeds in its unused cash and is marked at unused cash - units ×
+ * close.
  */
 export const runSignalBacktest = (
   bars: BarColumns,
@@ -614,10 +680,20 @@ export const runSignalBacktest = (
   const size = assertColumns(bars);
   assertSignalOptions(size, signals, options);
   const cost = options.costBps / BPS;
+  const short = options.side === "short";
+  // A long stop sits below the entry and its target above; a short one the other way round.
   const stopFactor =
-    options.stopLossPct > 0 ? 1 - options.stopLossPct / PERCENT : 0;
+    options.stopLossPct > 0
+      ? short
+        ? 1 + options.stopLossPct / PERCENT
+        : 1 - options.stopLossPct / PERCENT
+      : 0;
   const targetFactor =
-    options.takeProfitPct > 0 ? 1 + options.takeProfitPct / PERCENT : 0;
+    options.takeProfitPct > 0
+      ? short
+        ? 1 - options.takeProfitPct / PERCENT
+        : 1 + options.takeProfitPct / PERCENT
+      : 0;
   const equity = new Float64Array(size);
   const trades: InstantTrade[] = [];
   let cash = 1;
@@ -627,6 +703,7 @@ export const runSignalBacktest = (
   let ruined = false;
   let pendingStop = Number.NaN;
   let pendingTarget = Number.NaN;
+  let pendingLeverage = Number.NaN;
   let barsInPosition = 0;
   const costs = options.costs ?? null;
   const slip = costs?.profile.slippage;
@@ -636,6 +713,9 @@ export const runSignalBacktest = (
       : null;
   const atrBefore = (index: number): number =>
     atr === null || index === 0 ? Number.NaN : (atr[index - 1] as number);
+  /** Equity with an open position at `price`: a short owes its units back. */
+  const markOf = (held: PositionState, price: number): number =>
+    short ? held.rest - held.units * price : held.rest + held.units * price;
 
   const exitPosition = (
     index: number,
@@ -645,28 +725,33 @@ export const runSignalBacktest = (
     const open = position as PositionState;
     let fill = price;
     let legs: Legs | null = null;
+    // A long sells its units; a short buys them back, so its proceeds are below 0.
     let proceeds: number;
     if (costs === null || open.legs === null) {
-      proceeds = open.units * price * (1 - cost);
+      proceeds = short
+        ? -(open.units * price * (1 + cost))
+        : open.units * price * (1 - cost);
     } else {
       const { capital, profile } = costs;
-      const sell = fillCosts(
+      const order = fillCosts(
         profile,
-        "sell",
+        short ? "buy" : "sell",
         open.units * capital,
         price,
         atrBefore(index)
       );
-      fill = sell.price;
+      fill = order.price;
       proceeds =
-        open.units * fill * (1 - cost) -
-        (sell.commission + sell.fees) / capital;
+        (short
+          ? -(open.units * fill * (1 + cost))
+          : open.units * fill * (1 - cost)) -
+        (order.commission + order.fees) / capital;
       legs = {
         bps: open.legs.bps + open.units * fill * cost,
-        commission: open.legs.commission + sell.commission / capital,
-        fees: open.legs.fees + sell.fees / capital,
-        slippage: open.legs.slippage + sell.slippage / capital,
-        spread: open.legs.spread + sell.spread / capital,
+        commission: open.legs.commission + order.commission / capital,
+        fees: open.legs.fees + order.fees / capital,
+        slippage: open.legs.slippage + order.slippage / capital,
+        spread: open.legs.spread + order.spread / capital,
       };
     }
     cash = open.rest + proceeds;
@@ -681,7 +766,7 @@ export const runSignalBacktest = (
       exitIndex: index,
       exitPrice: fill,
       exitReason: reason,
-      netReturn: proceeds / open.spent - 1,
+      netReturn: short ? pnl / open.spent : proceeds / open.spent - 1,
       pnl,
       units: open.units,
       ...(legs === null
@@ -692,12 +777,13 @@ export const runSignalBacktest = (
   };
 
   /**
-   * Cash to commit: all of it, or the amount that loses riskPct of equity at the stop, capped at
-   * the cash (times maxLeverage when set).
+   * Cash to commit: all of it, cash × leverage (volatility target), or the amount that loses
+   * riskPct of equity at the stop, capped at the cash (times maxLeverage when set).
    */
   const spendFor = (open: number, stop: number): number => {
+    if (options.leverage !== undefined) return cash * pendingLeverage;
     if (options.riskPct === undefined) return cash;
-    const perUnit = open - stop;
+    const perUnit = short ? stop - open : open - stop;
     if (!(perUnit > 0)) return 0;
     const riskUnits = (cash * options.riskPct) / PERCENT / perUnit;
     const cap =
@@ -706,31 +792,33 @@ export const runSignalBacktest = (
   };
 
   const enter = (index: number, open: number) => {
-    // A configured distance level that is not available yet (too few bars) blocks the entry, so
-    // a position never opens without the stop or target the strategy asked for.
+    // A configured distance level or leverage that is not available yet (too few bars) blocks
+    // the entry, so a position never opens without the stop, target or size the strategy asked for.
     if (
       (options.stopDistance !== undefined && Number.isNaN(pendingStop)) ||
-      (options.targetDistance !== undefined && Number.isNaN(pendingTarget))
+      (options.targetDistance !== undefined && Number.isNaN(pendingTarget)) ||
+      (options.leverage !== undefined && Number.isNaN(pendingLeverage))
     )
       return;
     const levels = (entryPrice: number) => ({
-      stop:
-        options.stopDistance === undefined
-          ? stopFactor > 0
-            ? entryPrice * stopFactor
-            : Number.NaN
-          : entryPrice - pendingStop,
-      target:
-        options.targetDistance === undefined
-          ? targetFactor > 0
-            ? entryPrice * targetFactor
-            : Number.NaN
-          : entryPrice + pendingTarget,
+      stop: levelAt(
+        entryPrice,
+        options.stopDistance === undefined ? undefined : pendingStop,
+        stopFactor,
+        short
+      ),
+      target: levelAt(
+        entryPrice,
+        options.targetDistance === undefined ? undefined : pendingTarget,
+        targetFactor,
+        !short
+      ),
     });
     if (costs === null) {
       const { stop, target } = levels(open);
       const spent = spendFor(open, stop);
       if (spent <= 0) return;
+      const units = (spent * (1 - cost)) / open;
       position = {
         entryCash: cash,
         entryIndex: index,
@@ -739,19 +827,22 @@ export const runSignalBacktest = (
         legs: null,
         maxClose: Number.NEGATIVE_INFINITY,
         maxHigh: Number.NEGATIVE_INFINITY,
-        rest: cash - spent,
+        // A short keeps the sale proceeds, less the flat cost, as unused cash.
+        rest: short ? cash + units * open - spent * cost : cash - spent,
         spent,
         stop,
         target,
-        units: (spent * (1 - cost)) / open,
+        units,
       };
       return;
     }
     const { capital, profile } = costs;
     const atrNow = atrBefore(index);
-    const quote = fillCosts(profile, "buy", 0, open, atrNow);
+    const side = short ? "sell" : "buy";
+    const quote = fillCosts(profile, side, 0, open, atrNow);
     const quoted = levels(quote.price);
     const spent = spendFor(quote.price, quoted.stop);
+    // A short is sized like a long of the same notional.
     const units = affordableUnits(
       profile,
       spent * (1 - cost),
@@ -759,23 +850,28 @@ export const runSignalBacktest = (
       capital
     );
     if (!(units > 0)) return;
-    const buy = fillCosts(profile, "buy", units * capital, open, atrNow);
-    const level = levels(buy.price);
+    const order = fillCosts(profile, side, units * capital, open, atrNow);
+    const level = levels(order.price);
     position = {
       entryCash: cash,
       entryIndex: index,
-      entryPrice: buy.price,
+      entryPrice: order.price,
       initialStop: level.stop,
       legs: {
         bps: spent * cost,
-        commission: buy.commission / capital,
-        fees: buy.fees / capital,
-        slippage: buy.slippage / capital,
-        spread: buy.spread / capital,
+        commission: order.commission / capital,
+        fees: order.fees / capital,
+        slippage: order.slippage / capital,
+        spread: order.spread / capital,
       },
       maxClose: Number.NEGATIVE_INFINITY,
       maxHigh: Number.NEGATIVE_INFINITY,
-      rest: cash - spent,
+      rest: short
+        ? cash +
+          units * order.price -
+          spent * cost -
+          (order.commission + order.fees) / capital
+        : cash - spent,
       spent,
       units,
       ...level,
@@ -813,43 +909,53 @@ export const runSignalBacktest = (
     }
   };
 
+  /** Stop first: a bar reaching the stop exits there (at the open on a gap), else at the target. */
+  const checkLevels = (index: number, open: number, held: PositionState) => {
+    const high = bars.h[index] as number;
+    const low = bars.l[index] as number;
+    if (short) {
+      if (!Number.isNaN(held.stop) && high >= held.stop)
+        exitPosition(index, Math.max(open, held.stop), "stop");
+      else if (!Number.isNaN(held.target) && low <= held.target)
+        exitPosition(index, Math.min(open, held.target), "target");
+      return;
+    }
+    if (!Number.isNaN(held.stop) && low <= held.stop)
+      exitPosition(index, Math.min(open, held.stop), "stop");
+    else if (!Number.isNaN(held.target) && high >= held.target)
+      exitPosition(index, Math.max(open, held.target), "target");
+  };
+
   for (let index = 0; index < size; index += 1) {
     const open = bars.o[index] as number;
     // A pending entry exists only while flat and a pending exit only while in a position.
     if (pending === 1) enter(index, open);
     else if (pending === -1) exitPosition(index, open, "signal");
     pending = 0;
-    if (position !== null) {
-      const held: PositionState = position;
-      if (!Number.isNaN(held.stop) && (bars.l[index] as number) <= held.stop) {
-        exitPosition(index, Math.min(open, held.stop), "stop");
-      } else if (
-        !Number.isNaN(held.target) &&
-        (bars.h[index] as number) >= held.target
-      ) {
-        exitPosition(index, Math.max(open, held.target), "target");
-      }
-    }
+    if (position !== null) checkLevels(index, open, position);
     manage(index);
     // Ruin: equity marked at the close at or below 0 (possible with maxLeverage, usually after a
     // gap through the stop) ends trading: an open position exits at that close as a stop, and
     // the run takes no further entries.
     const close = bars.c[index] as number;
-    const marked =
-      position === null
-        ? cash
-        : (position as PositionState).rest +
-          (position as PositionState).units * close;
+    const marked = position === null ? cash : markOf(position, close);
     if (marked <= 0) {
       if (position !== null) exitPosition(index, close, "stop");
       ruined = true;
     }
+    // Market on close: the bar is held, then the position exits at its close.
+    const closing = options.closeAt?.[index] === 1;
+    if (closing && position !== null) {
+      barsInPosition += 1;
+      exitPosition(index, close, "sessionClose");
+    }
     const signal = signals[index] as number;
     if (index < size - 1) {
-      if (signal === 1 && position === null && !ruined) {
+      if (signal === 1 && position === null && !ruined && !closing) {
         pending = 1;
         pendingStop = distanceAt(options.stopDistance, index);
         pendingTarget = distanceAt(options.targetDistance, index);
+        pendingLeverage = distanceAt(options.leverage, index);
       }
       // A time exit counts the fill bar as the first bar held.
       if (
@@ -862,13 +968,8 @@ export const runSignalBacktest = (
       )
         pending = -1;
     }
-    const mark = bars.c[index] as number;
     if (position !== null) barsInPosition += 1;
-    equity[index] =
-      position === null
-        ? cash
-        : (position as PositionState).rest +
-          (position as PositionState).units * mark;
+    equity[index] = position === null ? cash : markOf(position, close);
   }
   if (position !== null) {
     exitPosition(size - 1, bars.c[size - 1] as number, "end");

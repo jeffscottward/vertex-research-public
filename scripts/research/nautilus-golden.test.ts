@@ -8,6 +8,7 @@ import {
   assertGapExit,
   GOLDEN_FIXTURE,
   orCaseError,
+  requireIntradaySessions,
   runGoldenCli,
 } from "./nautilus-golden.ts";
 
@@ -85,5 +86,25 @@ describe("orCaseError", () => {
         throw new RangeError("a bug, not a case result");
       })
     ).toThrow("a bug, not a case result");
+  });
+});
+
+describe("requireIntradaySessions", () => {
+  it("refuses bars that never share a New York date", () => {
+    const day = 86_400_000;
+    const daily = new Float64Array([0, day, 2 * day].map((t) => 1.7e12 + t));
+    const prices = new Float64Array([1, 1, 1]);
+    expect(() =>
+      requireIntradaySessions(
+        { c: prices, h: prices, l: prices, o: prices, t: daily },
+        {
+          close: "16:00",
+          entryFrom: "10:00",
+          entryTo: "15:30",
+          open: "09:30",
+          timezone: "America/New_York",
+        }
+      )
+    ).toThrow("session bars must be intraday");
   });
 });

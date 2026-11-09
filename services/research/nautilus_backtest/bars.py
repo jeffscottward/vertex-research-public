@@ -36,6 +36,8 @@ STRATEGY_OPTIONS_UNSUPPORTED = "STRATEGY_OPTIONS_UNSUPPORTED"
 STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED = "STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED"
 STRATEGY_SERIES_FILTERS_UNSUPPORTED = "STRATEGY_SERIES_FILTERS_UNSUPPORTED"
 STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED = "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
+STRATEGY_INTRADAY_DAILY_UNSUPPORTED = "STRATEGY_INTRADAY_DAILY_UNSUPPORTED"
+STRATEGY_INTRADAY_GRID_MISALIGNED = "STRATEGY_INTRADAY_GRID_MISALIGNED"
 
 
 class StrategyUnsupportedError(InputError):
@@ -81,6 +83,31 @@ def calendar_intraday_unsupported() -> StrategyUnsupportedError:
         STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
         f"{STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED}: calendarWindow filters run on daily bars only;"
         " on intraday bars the UTC date misplaces the exchange session.",
+    )
+
+
+def intraday_daily_unsupported() -> StrategyUnsupportedError:
+    """TS STRATEGY_INTRADAY_DAILY_REFUSAL."""
+    return StrategyUnsupportedError(
+        STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
+        f"{STRATEGY_INTRADAY_DAILY_UNSUPPORTED}: the intraday block needs intraday bars (two or more bars"
+        " on one New York date); a daily or weekly run refuses it.",
+    )
+
+
+def _js_number(value: float) -> str:
+    # JS template formatting of a finite number: whole numbers without ".0".
+    return str(int(value)) if float(value).is_integer() else repr(float(value))
+
+
+def intraday_grid_misaligned(field: str, value: str | float, duration_ms: float) -> StrategyUnsupportedError:
+    """TS strategyIntradayGridRefusal: `field` is off the grid of `duration_ms` bars."""
+    shown = value if isinstance(value, str) else _js_number(value)
+    return StrategyUnsupportedError(
+        STRATEGY_INTRADAY_GRID_MISALIGNED,
+        f"{STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday {field} {shown} is not a whole multiple of the"
+        f" {_js_number(duration_ms / 60_000)}-minute bar duration; put every intraday time (minutes since"
+        " midnight New York) and decisionEvery on the bar grid.",
     )
 
 

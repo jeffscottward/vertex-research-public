@@ -309,6 +309,7 @@ export const EXIT_REASON_LABELS: Readonly<Record<TradeExitReason, string>> = {
   exitDte: "Exit DTE reached",
   expiry: "Expiry",
   profitTake: "Profit take",
+  sessionClose: "Session close",
   signal: "Exit signal",
   "stale-iv": "Stale IV",
   stop: "Stop loss",

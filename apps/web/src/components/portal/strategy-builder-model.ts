@@ -2,6 +2,7 @@ import {
   type BacktestRunSubmitInput,
   type BacktestRunSummary,
   type InstantBacktestSeries,
+  isSessionIndicator,
   STRATEGY_EVENT_OPERATORS,
   type STRATEGY_INDICATORS,
   STRATEGY_TEMPLATES,
@@ -10,9 +11,11 @@ import {
   StrategyDefinitionSchema,
   type StrategyExpr,
   type StrategyFilter,
+  type StrategyIndicatorExpr,
   type StrategyOptions,
   type StrategyPortfolio,
   type StrategySeriesRef,
+  type StrategySessionIndicatorExpr,
   type StrategyTemplateId,
 } from "@darkfactory/api";
 
@@ -74,13 +77,11 @@ export const lengthUnit = (
   return timeframe === "1d" ? "days" : "bars";
 };
 
-type IndicatorExpr = Extract<StrategyExpr, { type: "indicator" }>;
-
 /** Changes the indicator; rvol takes no timeframe, so switching to it drops the timeframe. */
 export const withIndicator = (
-  expr: IndicatorExpr,
+  expr: StrategyIndicatorExpr,
   name: StrategyIndicator
-): IndicatorExpr => {
+): StrategyIndicatorExpr => {
   const { timeframe: _timeframe, ...rest } = expr;
   return name === "rvol" ? { ...rest, name } : { ...expr, name };
 };
@@ -98,7 +99,8 @@ export const withOperator = (
 
 /**
  * Fields of the definition the visual builder does not edit (it keeps them): entry.any,
- * management, oncePerLevel, an indicator timeframe and maxLeverage. Edit them in the JSON text.
+ * management, oncePerLevel, an indicator timeframe, maxLeverage, side, the intraday block, the
+ * session indicators and volTarget sizing. Edit them in the JSON text.
  */
 export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
   const conditions = [
@@ -120,7 +122,10 @@ export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
     [
       "timeframe",
       sides.some(
-        (expr) => expr.type === "indicator" && expr.timeframe !== undefined
+        (expr) =>
+          expr.type === "indicator" &&
+          !isSessionIndicator(expr) &&
+          expr.timeframe !== undefined
       ),
     ],
     [
@@ -128,13 +133,18 @@ export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
       definition.sizing.mode === "riskPct" &&
         definition.sizing.maxLeverage !== undefined,
     ],
+    ["side", definition.side !== undefined],
+    ["intraday", definition.intraday !== undefined],
+    ["session indicators", sides.some((expr) => isSessionIndicator(expr))],
+    ["volTarget", definition.sizing.mode === "volTarget"],
   ];
   return used.filter(([, present]) => present).map(([field]) => field);
 };
 
-export type ShiftableExpr = Extract<
-  StrategyExpr,
-  { type: "price" | "indicator" }
+/** Expressions with a bars-ago offset (prices and classic indicators). */
+export type ShiftableExpr = Exclude<
+  Extract<StrategyExpr, { type: "price" | "indicator" }>,
+  StrategySessionIndicatorExpr
 >;
 
 /**
@@ -180,6 +190,11 @@ export const describeExpr = (expr: StrategyExpr): string => {
     case "const":
       return String(expr.value);
     case "indicator":
+      if (expr.name === "vwap") return "vwap";
+      if (expr.name === "sessionReturn")
+        return `sessionReturn(${expr.from}, ${expr.to})`;
+      if (expr.name === "noiseBand")
+        return `noiseBand(${expr.band}, ${expr.length}${expr.multiple === undefined ? "" : `, ${expr.multiple}`})`;
       return `${expr.name}(${usesSource(expr.name) ? `${expr.source}, ` : ""}${expr.length})${barsAgo(expr.offset)}`;
     case "series":
       return `series ${expr.series}${barsAgo(expr.offset)}`;
