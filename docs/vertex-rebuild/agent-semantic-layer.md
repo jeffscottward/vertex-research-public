@@ -218,6 +218,8 @@ Eval: the fixture gains six dummy engine runs with no strategy (IWM sma 10/30 tw
 
 The replay test (`eval-replay.test.ts`) also requires U1-U5 >= 13/15 correct by both grades and none wrong. In a pilot recording one U1 call tried a `symbol` parameter the terms do not have; the `terms_query` description now says `strategy` also matches a symbol, and no U trial in the final recording has a failed call. No trial called `deployment_status`.
 
+Re-recording 2026-11-09 (migration 0065): `strategies_list` rows gained `priority` and `externalValidation`, so the tool results of the two questions that call it changed and their recorded trials were stale. Q13 and H4 were recorded again (`bun run eval:semantic:record -- 3 1 Q13 H4`, OMP completion model, 3 trials each) and graded the same way (OMP judge_batch, then a manual audit). All six answers give the reference value (0.82; 61%), as before. The other 84 trials are unchanged.
+
 The certified term descriptions of 0056 still say "per strategy"; the migration does not edit certified rows, and the answer text names each grouping instead. The owner can edit them on `/semantic-terms` (an edit removes the term's certification until it is certified again).
 
 Deploy: apply `0058_semantic_unlinked_runs.sql` alone in `vertex-postgres` with `psql -v ON_ERROR_STOP=1 --single-transaction`, then deploy the web build. No new role, grant or secret.
