@@ -130,6 +130,276 @@ Each variant is one trial, and the primary rule of a test is one of its variants
 - Tests: `services/research/tests/test_regime_flags.py`.
 - Fetch: `research/backtests/analog-regime-flags/fetch_data.py`; run: `research/backtests/analog-regime-flags/run.py`.
 
-## Results
+## Results (2026-11-09, rig)
 
-Not run yet.
+The tables from "Data" to "Readings at the last bar" are the output of `run.py` (`--markdown`), not edited. Text marked "After the run" is not a frozen rule and decides no verdict.
+
+### Data
+
+|File|Rows|First|Last|Dropped bars (rule G4)|SHA-256 (first 12)|
+|---|---|---|---|---|---|
+|QQQ.csv|6960|1999-03-10|2026-11-06|0|`f3453a778ecd`|
+|SPY.csv|8502|1993-01-29|2026-11-06|0|`1634fab0345a`|
+|NDX.csv|10356|1985-10-01|2026-11-06|0|`db0ccb160809`|
+|GSPC.csv|24831|1927-12-30|2026-11-06|0|`d16b2ecebf08`|
+|IRX.csv|16698|1960-01-04|2026-11-06|n/a|`f214f269c1d0`|
+|WALCL.csv|1247|2002-12-18|2026-11-04|n/a|`939724feb453`|
+|WDTGAL.csv|1247|2002-12-18|2026-11-04|n/a|`a0964d0c7dd3`|
+|RRPONTSYD.csv|6196|2003-02-07|2026-11-06|n/a|`bef48570f482`|
+
+### Test A: stretched + calm
+
+|Sample (rule A6)|Signal days|Episodes (complete)|Hits|Near-record days|All days|p against near-record|Mean `fwd`, episodes|Mean `fwd`, all days|
+|---|---|---|---|---|---|---|---|---|
+|QQQ 1999-03-10 to 2026-11-06|78|8 (7)|2/7 (29%)|254/829 (31%)|2525/6731 (38%)|0.6840|1.0%|1.3%|
+|`^NDX` holdout to 1999-03-09|61|8 (8)|3/8 (38%)|224/697 (32%)|1066/3197 (33%)|0.5021|0.3%|2.9%|
+
+Episodes of rule A6, QQQ:
+
+|Start|Run|Stretch|Vol|`mdd`|`fwd`|Hit|
+|---|---|---|---|---|---|---|
+|2017-05-08|20.9%|12.4%|7.5%|−1.3%|1.1%|no|
+|2019-07-10|20.7%|10.3%|11.7%|−6.1%|−2.0%|yes|
+|2020-12-10|28.3%|20.2%|14.7%|−0.2%|8.6%|no|
+|2021-08-31|22.9%|14.4%|10.4%|−7.2%|−5.3%|yes|
+|2021-11-05|22.4%|14.6%|10.9%|−4.5%|−4.5%|no|
+|2024-06-07|20.2%|13.4%|11.0%|0.0%|3.8%|no|
+|2025-09-09|22.8%|11.5%|11.8%|0.0%|5.3%|no|
+|2026-10-02|28.1%|12.1%|15.0%|open (−13.7% to 2026-11-06)|open|open|
+
+Episodes of rule A6, `^NDX` holdout:
+
+|Start|Run|Stretch|Vol|`mdd`|`fwd`|Hit|
+|---|---|---|---|---|---|---|
+|1987-03-18|36.4%|21.1%|13.9%|−3.5%|−0.7%|no|
+|1987-06-18|34.5%|16.8%|11.9%|−2.6%|2.1%|no|
+|1987-08-11|20.9%|19.4%|13.7%|−5.3%|−2.1%|yes|
+|1989-05-26|29.4%|17.9%|8.9%|−4.6%|−2.1%|no|
+|1989-08-25|20.1%|13.7%|11.6%|−0.2%|7.2%|no|
+|1989-10-09|24.0%|17.0%|8.1%|−9.1%|−5.6%|yes|
+|1993-01-06|23.3%|15.2%|14.5%|−5.7%|−5.1%|yes|
+|1995-05-15|20.1%|17.2%|14.1%|−0.9%|8.5%|no|
+
+Grid (rule A9), QQQ: 44 of 54 cells have 8 or more complete episodes; 32 of them have a hit rate above their base rate. 15 of the 54 cells with an episode have p ≤ 0.05 before a correction; 6 remain after Benjamini-Hochberg at q = 0.05.
+
+|High|Run ≥|Stretch ≥|Vol ≤ 12%|Vol ≤ 15%|Vol ≤ 18%|
+|---|---|---|---|---|---|
+|record|15%|8%|4/15 (27%)|5/17 (29%)|11/28 (39%)|
+|record|15%|10%|3/14 (21%)|4/16 (25%)|10/27 (37%)|
+|record|15%|12%|3/9 (33%)|4/12 (33%)|10/21 (48%)|
+|record|20%|8%|2/8 (25%)|2/8 (25%)|10/18 (56%)|
+|record|20%|10%|2/7 (29%)|2/7 (29%)|10/17 (59%)|
+|record|20%|12%|1/6 (17%)|1/6 (17%)|9/16 (56%)|
+|record|25%|8%|2/4 (50%)|3/5 (60%)|9/11 (82%)|
+|record|25%|10%|2/4 (50%)|2/4 (50%)|8/10 (80%)|
+|record|25%|12%|2/4 (50%)|2/4 (50%)|8/10 (80%)|
+|252-day|15%|8%|10/32 (31%)|14/41 (34%)|17/53 (32%)|
+|252-day|15%|10%|7/28 (25%)|11/37 (30%)|14/49 (29%)|
+|252-day|15%|12%|9/21 (43%)|14/30 (47%)|19/40 (48%)|
+|252-day|20%|8%|3/14 (21%)|9/21 (43%)|14/32 (44%)|
+|252-day|20%|10%|3/13 (23%)|9/20 (45%)|14/31 (45%)|
+|252-day|20%|12%|3/11 (27%)|9/18 (50%)|14/29 (48%)|
+|252-day|25%|8%|5/9 (56%)|9/14 (64%)|15/21 (71%)|
+|252-day|25%|10%|5/9 (56%)|8/13 (62%)|14/20 (70%)|
+|252-day|25%|12%|4/8 (50%)|7/12 (58%)|13/19 (68%)|
+
+Hits / complete episodes per cell. Base rates: near-record days 254/829 (31%), near-252-day-high days 497/1634 (30%).
+
+After the run (not a frozen rule): the cells that remain after Benjamini-Hochberg, and the same cells on the `^NDX` holdout.
+
+|Cell|QQQ hits|QQQ p|QQQ mean `fwd`|Holdout hits|Holdout near-high days|Holdout mean `fwd`|
+|---|---|---|---|---|---|---|
+|252-day high, run ≥ 25%, stretch ≥ 8%, vol ≤ 18%|15/21 (71%)|0.0001|−2.0%|2/11 (18%)|227/734 (31%)|4.1%|
+|252-day high, run ≥ 25%, stretch ≥ 10%, vol ≤ 18%|14/20 (70%)|0.0003|−1.9%|2/11 (18%)|227/734 (31%)|4.1%|
+|record, run ≥ 25%, stretch ≥ 8%, vol ≤ 18%|9/11 (82%)|0.0007|−3.6%|2/11 (18%)|224/697 (32%)|4.1%|
+|252-day high, run ≥ 25%, stretch ≥ 12%, vol ≤ 18%|13/19 (68%)|0.0007|−1.8%|2/11 (18%)|227/734 (31%)|4.1%|
+|record, run ≥ 25%, stretch ≥ 10%, vol ≤ 18%|8/10 (80%)|0.0019|−3.7%|2/11 (18%)|224/697 (32%)|4.1%|
+|record, run ≥ 25%, stretch ≥ 12%, vol ≤ 18%|8/10 (80%)|0.0019|−3.7%|2/11 (18%)|224/697 (32%)|4.1%|
+
+After the run (not a frozen rule): the open episode is a hit already. When its window is complete, rule A6 has 3 hits in 8 episodes; the p-value against the near-record base rate of today is 0.4644.
+
+Claim check (rule A10), data cut at 2026-10-06: rule A6 gives 8 episodes, 7 complete, 2 hits. Cells with exactly ten complete episodes that are all hits: 0 of 54. Signal days of rule A6 from 2026-09-30 to 2026-10-06: 2026-10-02, 2026-10-05, 2026-10-06.
+
+Verdict A: **INCONCLUSIVE**
+
+### Test B: nearest analog of a past top
+
+|Sample|Tops|Sample days (counted)|Top-like hits|Other days hits|p (Test 1)|Mean `fwd`, top-like|Mean `fwd`, others|ρ (Test 2)|p (Test 2)|
+|---|---|---|---|---|---|---|---|---|---|
+|QQQ, path 63, zigzag 10%|56|223 (202)|20/93 (22%)|38/109 (35%)|0.9982|1.6%|2.2%|−0.01|0.5579|
+|`^NDX` holdout to 1999-03-09|80|89 (69)|5/16 (31%)|18/53 (34%)|0.6802|1.5%|4.3%|0.09|0.2258|
+
+The distance to the nearest analog falls as the library of tops grows, so rule B8 marks more than 20% of the later days as top-like.
+
+Variants (rule B11), QQQ:
+
+|Sample|Tops|Sample days (counted)|Top-like hits|Other days hits|p (Test 1)|Mean `fwd`, top-like|Mean `fwd`, others|ρ (Test 2)|p (Test 2)|
+|---|---|---|---|---|---|---|---|---|---|
+|path 42, zigzag 10%|56|223 (202)|29/87 (33%)|42/115 (37%)|0.7654|0.6%|3.0%|0.04|0.2740|
+|path 42, zigzag 15%|26|217 (196)|19/91 (21%)|37/105 (35%)|0.9990|1.6%|2.0%|0.11|0.0546|
+|path 63, zigzag 10%|56|223 (202)|20/93 (22%)|38/109 (35%)|0.9982|1.6%|2.2%|−0.01|0.5579|
+|path 63, zigzag 15%|26|217 (196)|24/89 (27%)|32/107 (30%)|0.7623|0.6%|2.9%|0.06|0.1844|
+|path 126, zigzag 10%|56|222 (201)|27/98 (28%)|32/103 (31%)|0.8045|1.2%|2.5%|−0.04|0.7086|
+|path 126, zigzag 15%|26|217 (196)|25/89 (28%)|31/107 (29%)|0.6122|0.1%|3.2%|0.06|0.2203|
+
+Claim check (rule B12): nearest analogs of 2026-11-03, one per top:
+
+|Analog day|Top|Days after the top|Distance|`fwd` after the analog day|`mdd` after it|
+|---|---|---|---|---|---|
+|2025-03-04|2025-02-19|9|0.0253|−7.6%|−16.0%|
+|2011-08-05|2011-07-26|8|0.0316|5.2%|−7.1%|
+|2004-07-15|2004-06-30|10|0.0349|−1.9%|−7.4%|
+
+2025-02-25 has rank 21 of 583 candidates (distance 0.0488; its top is 2025-02-19, 4 trading days earlier).
+
+Verdict B: **FAIL**
+
+### Test C: Fed net liquidity drain
+
+1247 weeks from 2002-12-18 to 2026-11-04; 0 dropped (no `WDTGAL` value). `Δ4 < 0` in 516 of 1243 weeks.
+
+Primary rule (C4, cost 0.05% per switch):
+
+|Asset|Flag|Period|Sharpe, rule / hold|Max DD, rule / hold|CAGR, rule / hold|Trades|Days out|Better on both|
+|---|---|---|---|---|---|---|---|---|
+|QQQ|Δ4 < 0|full (2003-01-22 to 2026-11-06)|0.53 / 0.70|−49.7% / −53.4%|9.8% / 15.6%|337|41%|no|
+|QQQ|Δ4 < 0|first half (2003-01-22 to 2014-12-10)|0.55 / 0.64|−49.7% / −53.4%|10.0% / 13.5%|178|35%|no|
+|QQQ|Δ4 < 0|second half (2014-12-11 to 2026-11-06)|0.51 / 0.76|−25.7% / −35.1%|9.6% / 17.7%|159|48%|no|
+|QQQ|Δ4 < 0|before 2008-09 (2003-01-22 to 2008-08-29)|0.19 / 0.54|−17.2% / −24.9%|4.6% / 11.9%|102|38%|no|
+|QQQ|Δ4 < 0|2008-09 to 2019 (2008-09-02 to 2019-12-31)|0.71 / 0.78|−41.8% / −44.5%|11.6% / 15.6%|142|40%|no|
+|QQQ|Δ4 < 0|from 2020 (2020-01-02 to 2026-11-06)|0.50 / 0.70|−25.7% / −35.1%|11.3% / 18.6%|93|47%|no|
+
+Other thresholds and SPY (robustness only):
+
+|Asset|Flag|Period|Sharpe, rule / hold|Max DD, rule / hold|CAGR, rule / hold|Trades|Days out|Better on both|
+|---|---|---|---|---|---|---|---|---|
+|QQQ|Δ4 ≤ −0.5%|full (2003-01-22 to 2026-11-06)|0.56 / 0.70|−54.0% / −53.4%|10.9% / 15.6%|288|32%|no|
+|QQQ|Δ4 ≤ −0.5%|first half (2003-01-22 to 2014-12-10)|0.62 / 0.64|−54.0% / −53.4%|11.9% / 13.5%|138|22%|no|
+|QQQ|Δ4 ≤ −0.5%|second half (2014-12-11 to 2026-11-06)|0.51 / 0.76|−28.6% / −35.1%|9.9% / 17.7%|150|41%|no|
+|QQQ|Δ4 ≤ −1.0%|full (2003-01-22 to 2026-11-06)|0.65 / 0.70|−51.5% / −53.4%|13.0% / 15.6%|232|24%|no|
+|QQQ|Δ4 ≤ −1.0%|first half (2003-01-22 to 2014-12-10)|0.74 / 0.64|−51.5% / −53.4%|15.0% / 13.5%|100|14%|yes|
+|QQQ|Δ4 ≤ −1.0%|second half (2014-12-11 to 2026-11-06)|0.56 / 0.76|−28.6% / −35.1%|11.2% / 17.7%|132|34%|no|
+|QQQ|Δ4 ≤ −2.0%|full (2003-01-22 to 2026-11-06)|0.71 / 0.70|−52.5% / −53.4%|15.0% / 15.6%|142|12%|yes|
+|QQQ|Δ4 ≤ −2.0%|first half (2003-01-22 to 2014-12-10)|0.78 / 0.64|−52.5% / −53.4%|16.5% / 13.5%|42|6%|yes|
+|QQQ|Δ4 ≤ −2.0%|second half (2014-12-11 to 2026-11-06)|0.63 / 0.76|−28.6% / −35.1%|13.6% / 17.7%|100|18%|no|
+|SPY|Δ4 < 0|full (2003-01-22 to 2026-11-06)|0.45 / 0.58|−45.2% / −55.2%|7.7% / 11.3%|337|41%|no|
+|SPY|Δ4 < 0|first half (2003-01-22 to 2014-12-10)|0.43 / 0.48|−45.2% / −55.2%|7.4% / 9.3%|178|35%|no|
+|SPY|Δ4 < 0|second half (2014-12-11 to 2026-11-06)|0.48 / 0.68|−32.2% / −33.7%|8.1% / 13.3%|159|48%|no|
+|SPY|Δ4 ≤ −0.5%|full (2003-01-22 to 2026-11-06)|0.48 / 0.58|−50.9% / −55.2%|8.5% / 11.3%|288|32%|no|
+|SPY|Δ4 ≤ −0.5%|first half (2003-01-22 to 2014-12-10)|0.51 / 0.48|−50.9% / −55.2%|9.2% / 9.3%|138|22%|yes|
+|SPY|Δ4 ≤ −0.5%|second half (2014-12-11 to 2026-11-06)|0.45 / 0.68|−33.7% / −33.7%|7.8% / 13.3%|150|41%|no|
+|SPY|Δ4 ≤ −1.0%|full (2003-01-22 to 2026-11-06)|0.52 / 0.58|−51.5% / −55.2%|9.5% / 11.3%|232|24%|no|
+|SPY|Δ4 ≤ −1.0%|first half (2003-01-22 to 2014-12-10)|0.59 / 0.48|−51.5% / −55.2%|10.9% / 9.3%|100|14%|yes|
+|SPY|Δ4 ≤ −1.0%|second half (2014-12-11 to 2026-11-06)|0.45 / 0.68|−33.7% / −33.7%|8.0% / 13.3%|132|34%|no|
+|SPY|Δ4 ≤ −2.0%|full (2003-01-22 to 2026-11-06)|0.61 / 0.58|−49.3% / −55.2%|11.4% / 11.3%|142|12%|yes|
+|SPY|Δ4 ≤ −2.0%|first half (2003-01-22 to 2014-12-10)|0.67 / 0.48|−49.3% / −55.2%|12.9% / 9.3%|42|6%|yes|
+|SPY|Δ4 ≤ −2.0%|second half (2014-12-11 to 2026-11-06)|0.53 / 0.68|−33.7% / −33.7%|9.8% / 13.3%|100|18%|no|
+
+Event comparison (rule C10), QQQ `close`, four-week returns:
+
+|Flag|Weeks on|Weeks off|Mean, flag on|Mean, flag off|p (on below off)|
+|---|---|---|---|---|---|
+|Δ4 < 0|132|178|0.87%|1.52%|0.1515|
+|Δ4 ≤ −0.5%|100|210|0.62%|1.54%|0.0864|
+|Δ4 ≤ −1.0%|73|237|0.10%|1.60%|0.0260|
+|Δ4 ≤ −2.0%|36|274|−0.62%|1.49%|0.0316|
+
+Verdict C: **FAIL**
+
+### Test D: midterm election seasonal
+
+Claim (rule D3): 19 of 19 midterm windows are positive; mean 16.6%. Non-midterm windows 1950 to 2025: 42 of 57 positive (74%); mean 6.9%. Binomial p = 0.0030; times 48 = 0.1450.
+
+|Start years|Midterm mean|Non-midterm mean|
+|---|---|---|
+|1950-1986|17.9%|4.7%|
+|1987-2025|15.2%|8.9%|
+
+|Sample|Start|End|Return|Largest fall inside|
+|---|---|---|---|---|
+|holdout|1930-10-31|1931-10-30|−38.4%|−51.5%|
+|holdout|1934-10-31|1935-10-31|41.4%|−15.9%|
+|holdout|1938-10-31|1939-10-31|−2.6%|−24.4%|
+|holdout|1942-10-30|1943-10-29|27.2%|−9.3%|
+|holdout|1946-10-31|1947-10-31|4.0%|−14.7%|
+|claim|1950-10-31|1951-10-31|17.5%|−8.1%|
+|claim|1954-10-29|1955-10-31|33.6%|−10.6%|
+|claim|1958-10-31|1959-10-30|12.1%|−9.2%|
+|claim|1962-10-31|1963-10-31|30.9%|−4.1%|
+|claim|1966-10-31|1967-10-31|16.3%|−6.5%|
+|claim|1970-10-30|1971-10-29|13.2%|−10.7%|
+|claim|1974-10-31|1975-10-31|20.5%|−14.1%|
+|claim|1978-10-31|1979-10-31|9.3%|−10.1%|
+|claim|1982-10-29|1983-10-31|22.3%|−7.1%|
+|claim|1986-10-31|1987-10-30|3.2%|−33.2%|
+|claim|1990-10-31|1991-10-31|29.1%|−6.1%|
+|claim|1994-10-31|1995-10-31|23.1%|−5.7%|
+|claim|1998-10-30|1999-10-29|24.1%|−12.1%|
+|claim|2002-10-31|2003-10-31|18.6%|−14.7%|
+|claim|2006-10-31|2007-10-31|12.4%|−9.4%|
+|claim|2010-10-29|2011-10-31|5.9%|−19.4%|
+|claim|2014-10-31|2015-10-30|3.0%|−12.4%|
+|claim|2018-10-31|2019-10-31|12.0%|−16.4%|
+|claim|2022-10-31|2023-10-31|8.3%|−10.3%|
+
+Scan (rule D6): 2 of 48 cells have only positive windows. The claim's cell (October, midterm) has rank 2 by share positive, then by mean. Holdout (rule D8): 3 of 5 positive. The ten best cells:
+
+|Start month end|Cycle year of the start|Positive|Mean|
+|---|---|---|---|
+|Jul|midterm|19/19|19.3%|
+|Oct|midterm|19/19|16.6%|
+|Aug|midterm|18/19|20.4%|
+|Jun|midterm|18/19|19.7%|
+|May|midterm|18/19|15.2%|
+|Nov|midterm|18/19|14.7%|
+|Sep|midterm|17/19|20.4%|
+|Dec|midterm|17/19|17.2%|
+|Apr|midterm|17/19|14.7%|
+|Oct|pre-election|17/19|8.7%|
+
+Verdict D: **FAIL**
+
+### Readings at the last bar (2026-11-06)
+
+Descriptive only. A reading is not a signal: see the verdicts.
+
+|Flag|Reading|State|
+|---|---|---|
+|A stretched + calm|run −7.8%, stretch −3.6%, vol 32.1%, 23 trading days since the record close|off (last signal day: 2026-10-07)|
+|B nearest analog|2011-08-09, 10 trading days after the top of 2011-07-26; distance 0.0415|77% of the sample days had a smaller distance (top-like needs under 20%)|
+|C net liquidity|week 2026-10-28: USD 5.730 trillion, Δ4 −0.31% (USD −18 billion)|on (drain)|
+|D midterm window|opened at the 2026-10-30 close (7580.07); −2.7% to 2026-11-06|open until the last close on or before 2027-10-31|
+
+## Verdicts
+
+|Test|Flag|Verdict|Reason|
+|---|---|---|---|
+|A|Stretched + calm|INCONCLUSIVE|7 complete episodes; the rule needs 8. The 7 show nothing: 2 hits (29%) against 31% on any near-record day, and a mean `fwd` of 1.0% against 1.3% on all days.|
+|B|Nearest analog of a past top|FAIL|Top-like days had fewer hits than the other days (22% against 35%) and the analog's outcome did not rank the day's outcome (ρ = −0.01).|
+|C|Fed net liquidity drain|FAIL|The timing rule had a lower Sharpe ratio than buy-and-hold in both halves (0.55 against 0.64; 0.51 against 0.76). The four-week return after a drain was not reliably lower (p = 0.15).|
+|D|Midterm election seasonal|FAIL|The claim reproduces (19 of 19, mean 16.6%) and the midterm mean is higher in both halves. But the adjusted p-value is 0.145, and the holdout has 3 of 5 positive windows with a loss of 38.4% in 1930 to 1931.|
+
+No flag is used. No flag is connected to an engine, to the regime composite or to an order path.
+
+## What the tests say about the four claims
+
+- Claim 1 ("10 out of 10"). No cell of the grid gives ten episodes that are all hits. Rule A6 did signal on 2026-10-02, 2026-10-05 and 2026-10-06, the week of the top, and that episode is a hit already. But the earlier signals of the same rule were hits no more often than any day near a record. The cells with the highest hit rate on QQQ (run ≥ 25%, vol ≤ 18%: 8 of 10 and 9 of 11) have 2 hits in 11 episodes on the `^NDX` holdout, below the holdout base rate, and a mean `fwd` of +4.1% there. The pattern depends on the thresholds and on the period. One correct call in 2026 is not evidence for it.
+- Claim 2 (nearest analog). The finder agrees with the author on the top: for 2026-11-03 the nearest analog is 2025-03-04, nine trading days after the top of 2025-02-19. The author's day, 2025-02-25, has rank 21 of 583. But over 27 years the resemblance told nothing about the next six weeks, in all six variants and on the holdout.
+- Claim 3 (net liquidity). Our series gives a fall of USD 18 billion (−0.31%) for the four weeks to 2026-10-28, and USD 37 billion with the weekly-average Treasury account (`WTREGEN`, checked after the run). The author's USD 48 billion was not reproduced; the sign agrees. Large drains (`Δ4 ≤ −1%`, `≤ −2%`) were followed by lower four-week QQQ returns (p about 0.03 each, not corrected for four thresholds). No threshold gave a timing rule that beat buy-and-hold in the second half. A drain is context, not a switch.
+- Claim 4 ("19 out of 19"). The count is correct and the effect has the same direction in both halves. It is one of 48 comparable cells, a second cell (July, midterm) is also 19 of 19, and "since 1950" leaves out 1930 to 1931 (−38.4%) and 1938 to 1939 (−2.6%). The window also holds large falls: −33.2% inside 1986 to 1987. It does not carry a position.
+
+## Deviations
+
+- Before the first run (commit `50c23daf`): rule A6 said "the first 200 days of a series have no signal". SMA200 is defined from the 200th day, so the text now says "a day with fewer than 200 closes up to it has no signal".
+- Rule G4 is applied to the price series. `^IRX` is a yield: a value of 0 or below is valid and is kept.
+- Added after the run and marked as such: the holdout rows of the best grid cells and the note on the open episode (test A), the sentence on the share of top-like days (test B), the `WTREGEN` check of claim 3. None of them changes a verdict.
+
+## Limits
+
+- Test A: 7 complete episodes. The episode of 2026-10-02 completes at the 2026-11-13 close. It is a hit already; with it the rule has 3 hits in 8 episodes and a p-value of about 0.46, which is a FAIL of check (a). A new run after that date gives the final verdict.
+- Test A: QQQ had no record close from 2000-03 to 2016, so the in-sample episodes of the record-close rule come from 2017 to 2026. The holdout is an older market (1985 to 1999).
+- Test B: the distance to the nearest analog falls as the library of tops grows. Rule B8 therefore marks 46% of the counted days as top-like, not 20%. A rule that corrects for the library size was not tested.
+- Test C: `RRPONTSYD` has 92 values before 2013-09-23, so before that date net liquidity is in effect `WALCL − WDTGAL`. Cash earns the bill yield of the day before. No tax.
+- Test D: `^GSPC` before 1957 is the back-filled index of fewer stocks. It is a price index: no window includes dividends, midterm or not.
+- All tests: Yahoo and FRED data as fetched on 2026-11-09; FRED series are revised. The p-values are not corrected across the four tests.
+- A completed backtest does not authorize a trade.

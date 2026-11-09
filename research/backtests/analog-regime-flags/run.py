@@ -365,9 +365,10 @@ def main() -> None:
     verdicts = {"A": a_data["verdict"], "B": b_data["verdict"], "C": c_data["verdict"], "D": d_data["verdict"]}
 
     lines = ["### Data", ""]
-    lines += table(["File", "Rows", "First", "Last", "Dropped bars (rule G4)"],
+    lines += table(["File", "Rows", "First", "Last", "Dropped bars (rule G4)", "SHA-256 (first 12)"],
                    [[name, str(entry["rows"]), entry["first"], entry["last"],
-                     str(bars[name.removesuffix(".csv")].dropped) if name.removesuffix(".csv") in bars else "n/a"]
+                     str(bars[name.removesuffix(".csv")].dropped) if name.removesuffix(".csv") in bars else "n/a",
+                     f"`{entry['sha256'][:12]}`"]
                     for name, entry in manifest.items()])
     lines += a_lines + b_lines + c_lines + d_lines + r_lines
     result = {"horizon": HORIZON, "verdicts": verdicts, "data_manifest": manifest, "stretched": a_data, "analog": b_data,
