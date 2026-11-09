@@ -4,6 +4,7 @@ import {
   type BacktestRunReportOutput,
   type InstantBacktestSeries,
   OPTIONS_EXIT_REASONS,
+  STRATEGY_OPTION_SYMBOLS,
   STRATEGY_TEMPLATES,
   type StrategyDefinitionGetOutput,
   StrategyDefinitionSchema,
@@ -40,13 +41,16 @@ import {
   loadLinkedDefinition,
   metricRows,
   type OptionsBook,
+  optionsLinkSymbol,
   optionsMetricRows,
+  optionsRunSymbols,
   optionsSignalRows,
   optionTradesHeading,
   pickInitialRunId,
   readDefinitionLink,
   replayGeometry,
   runsOptionsDefinition,
+  todayUtc,
   toSubmitInput,
   toUniverseSubmitInputs,
 } from "./backtest-runs-model.ts";
@@ -1434,9 +1438,10 @@ describe("backtest runs model: options book and definition links", () => {
       strategyId: "strategy-seed-qc-asset-class-trend",
       symbol: null,
       timeframe: "1d",
+      to: "2026-11-06",
     });
     expect(href).toBe(
-      `/backtest-runs?definition=qc-asset-class-trend&sha=${SHA_PINNED}&strategy=strategy-seed-qc-asset-class-trend&timeframe=1d&from=1993-10-29&initialCapital=100000&costBps=0`
+      `/backtest-runs?definition=qc-asset-class-trend&sha=${SHA_PINNED}&strategy=strategy-seed-qc-asset-class-trend&timeframe=1d&from=1993-10-29&to=2026-11-06&initialCapital=100000&costBps=0`
     );
     expect(readDefinitionLink(href.slice(href.indexOf("?")))).toEqual({
       costBps: 0,
@@ -1446,10 +1451,11 @@ describe("backtest runs model: options book and definition links", () => {
       sha256: SHA_PINNED,
       symbol: null,
       timeframe: "1d",
+      to: "2026-11-06",
     });
     expect(
       readDefinitionLink(
-        "?definition=d&sha=XYZ&from=1993-1-2&initialCapital=lots&costBps=&symbol=QQQ"
+        "?definition=d&sha=XYZ&from=1993-1-2&to=soon&initialCapital=lots&costBps=&symbol=QQQ"
       )
     ).toEqual({
       costBps: null,
@@ -1459,6 +1465,7 @@ describe("backtest runs model: options book and definition links", () => {
       sha256: null,
       symbol: "QQQ",
       timeframe: "1d",
+      to: null,
     });
     expect(
       definitionRunHref({
@@ -1470,6 +1477,7 @@ describe("backtest runs model: options book and definition links", () => {
         strategyId: null,
         symbol: "SPY",
         timeframe: "1w",
+        to: null,
       })
     ).toBe("/backtest-runs?definition=d&symbol=SPY&timeframe=1w");
   });
@@ -1499,33 +1507,25 @@ describe("backtest runs model: options book and definition links", () => {
       { ...SPY, symbol: "QQQ", timeframe: "1m" },
     ];
     const daily = { symbol: null, timeframe: "1d" };
-    // A portfolio picks a member with a stored series: the link symbol when it is one.
-    expect(definitionSeries(series, daily, QC_DEFINITION)).toEqual({
-      series: SPY,
-    });
+    // Definitions without options run on the stored bar series the link names.
+    expect(definitionSeries(series, daily)).toBeUndefined();
     expect(
-      definitionSeries(series, { ...daily, symbol: "ES=F" }, QC_DEFINITION)
-    ).toEqual({ series: SPY });
-    const QQQ = { ...SPY, symbol: "QQQ" };
-    expect(
-      definitionSeries([SPY, QQQ], { ...daily, symbol: "QQQ" }, QC_DEFINITION)
-    ).toEqual({ series: QQQ });
-    expect(
-      definitionSeries([ES, QQQ], { ...daily, symbol: "NOPE" }, QC_DEFINITION)
-    ).toEqual({ series: QQQ });
-    expect(definitionSeries([ES], daily, QC_DEFINITION)).toEqual({
-      error:
-        "No stored 1d series for the definition's symbols (SPY, QQQ). Import bars for one of them first.",
-    });
-    // Without a portfolio: the link symbol's series, else null (the form keeps its series).
-    const sma = StrategyDefinitionSchema.parse(STRATEGY_TEMPLATES.smaCross);
-    expect(definitionSeries(series, daily, sma)).toBeNull();
-    expect(
-      definitionSeries(series, { ...daily, symbol: "NOPE" }, sma)
-    ).toBeNull();
-    expect(definitionSeries(series, { ...daily, symbol: "ES=F" }, sma)).toEqual(
-      { series: ES }
+      definitionSeries(series, { ...daily, symbol: "NOPE" })
+    ).toBeUndefined();
+    expect(definitionSeries(series, { ...daily, symbol: "ES=F" })).toBe(ES);
+    expect(definitionSeries(series, { symbol: "QQQ", timeframe: "1m" })).toBe(
+      series[2]
     );
+    // Options definitions run on a store symbol: a portfolio member (stored bars or not), the
+    // link symbol when it is one, else the first; without a portfolio any Core 7 ETF.
+    expect(optionsRunSymbols(QC_DEFINITION)).toEqual(["SPY", "QQQ"]);
+    expect(optionsLinkSymbol({ symbol: null }, QC_DEFINITION)).toBe("SPY");
+    expect(optionsLinkSymbol({ symbol: "QQQ" }, QC_DEFINITION)).toBe("QQQ");
+    expect(optionsLinkSymbol({ symbol: "GLD" }, QC_DEFINITION)).toBe("SPY");
+    const { portfolio: _portfolio, ...single } = QC_DEFINITION;
+    expect(optionsRunSymbols(single)).toEqual(STRATEGY_OPTION_SYMBOLS);
+    expect(optionsLinkSymbol({ symbol: "GLD" }, single)).toBe("GLD");
+    expect(todayUtc()).toBe(new Date().toISOString().slice(0, 10));
     expect(describeLinkedDefinition(LINKED)).toBe(
       "Strategy definition: qc-asset-class-trend revision 1 (sha aaaaaaaaaaaa…), 10-month SMA trend."
     );
@@ -1563,6 +1563,23 @@ describe("backtest runs model: options book and definition links", () => {
     // Only portfolio members run.
     expect(toSubmitInput({ ...form, to: "2026-11-06" }, ES)).toEqual({
       error: "The definition trades SPY, QQQ; choose one of them.",
+    });
+    // Without a portfolio an options definition trades any Core 7 ETF of the series store.
+    const { portfolio: _portfolio, ...rest } = QC_DEFINITION;
+    const single = {
+      ...LINKED,
+      definition: StrategyDefinitionSchema.parse(rest),
+    };
+    expect(
+      toSubmitInput(
+        { ...form, definition: single, to: "2026-11-06" },
+        { symbol: "GLD", timeframe: "1d" }
+      )
+    ).toMatchObject({ input: { costBps: 0, symbol: "GLD", timeframe: "1d" } });
+    expect(
+      toSubmitInput({ ...form, definition: single, to: "2026-11-06" }, ES)
+    ).toEqual({
+      error: `The definition trades ${STRATEGY_OPTION_SYMBOLS.join(", ")}; choose one of them.`,
     });
     // A definition without options keeps the form's cost and profile.
     const sma = {
@@ -1694,11 +1711,21 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
       ["qc-asset-class-trend"],
       ["qc-asset-class-trend", 1],
     ]);
-    // SPY, the first portfolio symbol, is outside Core 7 futures: every series is listed.
-    expect(field("Universe").value).toBe("all");
-    expect(field("Symbol and timeframe").value).toBe("SPY:1d");
+    // Options runs read the daily series store: a portfolio member symbol replaces the universe
+    // and stored-series selects, the link start is kept and the run ends today (UTC).
+    expect(field("Universe")).toBeNull();
+    expect(field("Symbol and timeframe")).toBeNull();
+    const symbol = field("Symbol (daily series store, 1d)");
+    expect(symbol.value).toBe("SPY");
+    expect(Array.from(symbol.options, (option) => option.value)).toEqual([
+      "SPY",
+      "QQQ",
+    ]);
+    expect(
+      document.querySelector("[data-store-symbol]")?.textContent
+    ).toContain("Options runs use the daily series store");
     expect(field("From").value).toBe("1970-01-05");
-    expect(field("To").value).toBe("1970-04-10");
+    expect(field("To").value).toBe(todayUtc());
     expect(field("Initial capital").value).toBe("100000");
     // The options book charges its own costs: flat cost and profile are locked off.
     expect(field("Cost per side (bps)").value).toBe("0");
@@ -1727,10 +1754,17 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
       strategyId: "s-1",
       symbol: "SPY",
       timeframe: "1d",
-      to: "1970-04-10",
+      to: todayUtc(),
     });
+    await setNative(field("Symbol (daily series store, 1d)"), "QQQ");
+    await settle(() => button("Run backtest").click());
+    expect(gateway.submit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ symbol: "QQQ", timeframe: "1d" })
+    );
 
     await setNative(field("Rule"), "breakout");
+    // Back on stored bars: the universe and series selects return.
+    expect(field("Symbol and timeframe").value).toBe("ES=F:1d");
     expect(document.querySelector("[data-linked-definition]")).toBeNull();
     expect(field("Entry lookback (bars)")).not.toBeNull();
     expect(field("Stop-loss (%)")).not.toBeNull();
@@ -1777,19 +1811,19 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
         })}
       />
     );
+    const batch = () =>
+      [...document.querySelectorAll("button")].find((node) =>
+        node.textContent?.startsWith("Run on every series")
+      );
+    expect(field("Universe")).toBeNull();
+    expect(batch()).toBeUndefined();
+    expect(document.querySelector("[data-universe-plan]")).toBeNull();
+    expect(button("Run backtest").disabled).toBe(false);
+    // Back on a plain rule, the universe and its batch run are offered again.
+    await setNative(field("Rule"), "smaCross");
     expect(field("Universe").value).toBe("core7-etf-twins");
     expect(field("Symbol and timeframe").value).toBe("SPY:1d");
-    const batch = [...document.querySelectorAll("button")].find((node) =>
-      node.textContent?.startsWith("Run on every series")
-    ) as HTMLButtonElement;
-    expect(batch.disabled).toBe(true);
-    expect(document.querySelector("[data-universe-plan]")?.textContent).toBe(
-      "An options definition runs on its own portfolio symbols, one run at a time."
-    );
-    expect(button("Run backtest").disabled).toBe(false);
-    // Back on a plain rule, the batch run is offered again.
-    await setNative(field("Rule"), "smaCross");
-    expect(batch.disabled).toBe(false);
+    expect(batch()?.hasAttribute("disabled")).toBe(false);
     expect(document.querySelector("[data-universe-plan]")?.textContent).toBe(
       "2 runs, 0 skipped"
     );
@@ -1844,8 +1878,30 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
     for (const root of roots.splice(0)) await act(async () => root.unmount());
     document.body.replaceChildren();
 
-    // A portfolio definition runs on a member: a non-member link symbol takes the first member
-    // with a stored series (SPY), never the default ES=F.
+    // A link series outside the universe lists every stored series.
+    window.history.replaceState(
+      null,
+      "",
+      "/backtest-runs?definition=sma&symbol=SPY"
+    );
+    await mount(
+      <BacktestRunsWorkspace
+        gateway={gatewayOf({
+          definition: definitionGetter(
+            StrategyDefinitionSchema.parse(STRATEGY_TEMPLATES.smaCross)
+          ),
+          series: vi.fn(async () => [ES, SPY]),
+        })}
+      />
+    );
+    expect(field("Universe").value).toBe("all");
+    expect(field("Symbol and timeframe").value).toBe("SPY:1d");
+    expect(field("To").value).toBe("1970-04-10");
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    document.body.replaceChildren();
+
+    // An options definition runs on a portfolio member even without stored bars for it: a
+    // non-member link symbol takes the first member.
     window.history.replaceState(
       null,
       "",
@@ -1855,34 +1911,40 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
       <BacktestRunsWorkspace
         gateway={gatewayOf({
           definition: definitionGetter(),
-          series: vi.fn(async () => [ES, SPY]),
-        })}
-      />
-    );
-    expect(field("Universe").value).toBe("all");
-    expect(field("Symbol and timeframe").value).toBe("SPY:1d");
-    expect(document.querySelector('[role="alert"]')).toBeNull();
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
-    document.body.replaceChildren();
-
-    // No member has a stored series: a message, and the default series cannot run it.
-    window.history.replaceState(null, "", "/backtest-runs?definition=qc");
-    await mount(
-      <BacktestRunsWorkspace
-        gateway={gatewayOf({
-          definition: definitionGetter(),
           series: vi.fn(async () => [ES]),
         })}
       />
     );
-    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-      "No stored 1d series for the definition's symbols (SPY, QQQ). Import bars for one of them first."
+    expect(field("Symbol (daily series store, 1d)").value).toBe("SPY");
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    expect(button("Run backtest").disabled).toBe(false);
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    document.body.replaceChildren();
+
+    // Link dates outside the stored bars are kept as they are (the store slices to them).
+    window.history.replaceState(
+      null,
+      "",
+      "/backtest-runs?definition=qc&symbol=QQQ&from=1960-01-04&to=2026-11-06"
     );
-    expect(field("Symbol and timeframe").value).toBe("ES=F:1d");
-    expect(document.querySelector('[role="status"]')?.textContent).toBe(
-      "The definition trades SPY, QQQ; choose one of them."
+    const gateway = gatewayOf({
+      definition: definitionGetter(),
+      series: vi.fn(async () => [SPY]),
+    });
+    await mount(<BacktestRunsWorkspace gateway={gateway} />);
+    expect(field("Symbol (daily series store, 1d)").value).toBe("QQQ");
+    expect(field("From").value).toBe("1960-01-04");
+    expect(field("To").value).toBe("2026-11-06");
+    await settle(() => button("Run backtest").click());
+    expect(gateway.submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "1960-01-04",
+        symbol: "QQQ",
+        timeframe: "1d",
+        to: "2026-11-06",
+      })
     );
-    expect(button("Run backtest").disabled).toBe(true);
   });
 
   it("ignores a definition link without a definitions API", async () => {
