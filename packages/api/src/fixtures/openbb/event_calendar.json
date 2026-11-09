@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "fed-events",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "event_calendar",
+      "rows": [
+        {
+          "source": "federal_reserve",
+          "eventKey": "fomc-2026-12-09",
+          "date": "2026-12-09",
+          "time": "14:00",
+          "kind": "fomc_statement",
+          "title": "FOMC statement",
+          "detail": null
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

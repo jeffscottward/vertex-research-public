@@ -32,6 +32,15 @@ import {
 } from "../contracts/optimizations.ts";
 import { FlowSnapshotInputSchema } from "../contracts/flow.ts";
 import {
+  OpenbbCotInputSchema,
+  OpenbbEventsInputSchema,
+  OpenbbFactorsInputSchema,
+  OpenbbMacroInputSchema,
+  OpenbbSecInputSchema,
+  OpenbbShortsInputSchema,
+  OpenbbVolContextInputSchema,
+} from "../contracts/openbb.ts";
+import {
   SemanticTermQueryInputSchema,
   SemanticTermsListInputSchema,
 } from "../contracts/semantic-terms.ts";
@@ -479,6 +488,78 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
       "Read-only flow pipeline view for SPY or ES (minutes 15-390, default 120): per-minute sampled order flow (delta, CVD, VWAP, covered seconds), book pressure, QuantData options flow (call/put, bullish/bearish, ask/bid-side, sweep/block, OTM, 0DTE, opening, vol > OI premium and the largest prints), the newest GEX snapshot (ES uses SPX levels shifted by the ES - SPX basis), derived events (large and off-exchange prints, absorption, stacked imbalances, option sweeps/blocks), a confluence reading (agree/disagree) and per-source freshness. Ticks are sampled, not streamed. Research only; not a trade signal.",
     procedure: "flow/snapshot",
     input: FlowSnapshotInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "openbb_status",
+    title: "OpenBB ingest status",
+    description:
+      "Last run (ok, partial or failed, rows, warnings) of every OpenBB job and the row count and newest date of every OpenBB table. Use it to judge how fresh the other openbb_* tools are. Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/status",
+    input: z.object({}),
+    readOnly: true,
+  },
+  {
+    name: "openbb_vol_context",
+    title: "Vol term structure, VX curve and Core 7 IV",
+    description:
+      "Cboe data: latest vol index closes (VIX, VIX9D, VIX3M, VIX6M, VVIX, SKEW, ...) with VIX9D/VIX, VIX/VIX3M and VIX3M/VIX6M ratios (null unless both closes are from the same session), the VX futures curve (latest and 5 sessions earlier), Core 7 ETF option IV rows (ATM IV 30d, 25-delta IVs, GEX, gamma flip, walls) (IV as decimals, 0.15 = 15%) with a 252-session IV percentile (ivPercentile, 0-100) (null under 20 sessions) and the latest IV term rows. Optional asOf (YYYY-MM-DD); every row carries its own date. Cboe delayed data. Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/volContext",
+    input: OpenbbVolContextInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "openbb_cot",
+    title: "CFTC COT positioning",
+    description:
+      "CFTC Commitments of Traders per report date: long, short and net (long - short) per trader category for ES, NQ, YM, RTY, VX, ZN, DX (TFF) and GC, SI, CL (disaggregated). Optional market, weeks 1-520 (default 52). Report dates are Tuesdays, published Friday. Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/cot",
+    input: OpenbbCotInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "openbb_macro",
+    title: "Macro series",
+    description:
+      "Fed, Treasury, OECD and FRED series (EFFR, SOFR, Treasury yields, NFCI, KCFSI, GSCPI, nowcasts, TGA, OECD CLI, HY/IG OAS, ...) with metadata (source, unit, frequency, first/last date) and points. Optional ids and from (YYYY-MM-DD, default 400 days ago). Rates in percent; values in each series' unit. Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/macro",
+    input: OpenbbMacroInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "openbb_events",
+    title: "Fed, Treasury and data calendar",
+    description:
+      "FOMC documents, Fed release calendar and Treasury auctions between from and to (default today-7 .. today+30, New York dates), optional kinds. Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/events",
+    input: OpenbbEventsInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "openbb_shorts",
+    title: "FINRA short and off-exchange data",
+    description:
+      "For one symbol over the last days (default 60): FINRA Reg SHO daily short volume with short ratio, FINRA short interest with days to cover, FINRA weekly OTC (ATS and non-ATS) shares, SEC fails-to-deliver. Short volume is not short interest. Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/shorts",
+    input: OpenbbShortsInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "openbb_sec",
+    title: "SEC filings, insiders and 13F holders",
+    description:
+      "For one symbol: the latest 25 SEC filings, the latest 50 Form 4 insider trades, the newest-period 13F rows of tracked filers that hold the symbol's CUSIP (found through its FTD rows) and recent fails-to-deliver. Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/sec",
+    input: OpenbbSecInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "openbb_factors",
+    title: "Fama-French factor returns",
+    description:
+      "Ken French data library factor returns in percent (mkt_rf, smb, hml, rmw, cma, rf, mom), daily or monthly, optional from (YYYY-MM-DD; default 400 days ago for daily, 10 years ago for monthly). Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/factors",
+    input: OpenbbFactorsInputSchema,
     readOnly: true,
   },
   {

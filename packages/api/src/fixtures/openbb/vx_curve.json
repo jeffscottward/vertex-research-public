@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "cboe-vx-curve",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "vx_curve",
+      "rows": [
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2026-11",
+          "price": 18.95
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2026-12",
+          "price": 19.8
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

@@ -3766,6 +3766,7 @@ describe("daily series and options runs", () => {
         )
     ),
     replaceSeries: vi.fn(),
+    upsertPoints: vi.fn(),
     rows,
   });
   const optionsBlock = {
@@ -4297,6 +4298,7 @@ describe("daily series and options runs", () => {
           new Map(ids.map((id) => [id, rows[id] as MarketDailyColumns]))
       ),
       replaceSeries: vi.fn(),
+      upsertPoints: vi.fn(),
     });
     const client = clientFor({
       bars: fakeBars(),
