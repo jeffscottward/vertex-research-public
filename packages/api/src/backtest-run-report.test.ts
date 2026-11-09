@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BACKTEST_RUN_TRADES_MAX,
   type BacktestRunOptionsMetrics,
   buildBacktestRunReport,
   buildOptionsRunReport,
   type OptionsRunReportInput,
 } from "./backtest-run-report.ts";
+import {
+  BACKTEST_RUN_TRADES_MAX,
+  BacktestRunReportSchema,
+} from "./contracts/backtest-runs.ts";
 import type {
   BarColumns,
   InstantRunResult,
@@ -335,6 +338,7 @@ describe("buildOptionsRunReport", () => {
     });
     expect(report.options?.trades).toHaveLength(2);
     expect(report.tradesTruncated).toBe(false);
+    expect(report.options?.tradesTruncated).toBe(false);
   });
 
   it("has no buy and hold without bars on the ledger dates", () => {
@@ -362,5 +366,20 @@ describe("buildOptionsRunReport", () => {
     expect(report.trades).toHaveLength(BACKTEST_RUN_TRADES_MAX);
     expect(report.options?.trades).toHaveLength(BACKTEST_RUN_TRADES_MAX);
     expect(report.tradesTruncated).toBe(true);
+    expect(report.options?.tradesTruncated).toBe(true);
+    // Metrics come from the whole ledger, before the cap.
+    expect(report.options?.metrics).toBe(base.metrics);
+    expect(report.metrics.totalTrades).toBe(BACKTEST_RUN_TRADES_MAX + 1);
+    // The engine adds seriesSha256 to the stored report.
+    const stored = { ...report, seriesSha256: "a".repeat(64) };
+    expect(BacktestRunReportSchema.safeParse(stored).error).toBeUndefined();
+    const over = BacktestRunReportSchema.safeParse({
+      ...stored,
+      options: {
+        ...report.options,
+        trades: [...(report.options?.trades ?? []), report.options?.trades[0]],
+      },
+    });
+    expect(over.success).toBe(false);
   });
 });

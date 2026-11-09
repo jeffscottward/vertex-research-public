@@ -1,10 +1,12 @@
 import type { z } from "zod";
 
-import type {
-  BacktestRunOptionsMetricsSchema,
-  BacktestRunOptionsTradeSchema,
-  OPTIONS_EXIT_REASONS,
+import {
+  BACKTEST_RUN_TRADES_MAX,
+  type BacktestRunOptionsMetricsSchema,
+  type BacktestRunOptionsTradeSchema,
+  type OPTIONS_EXIT_REASONS,
 } from "./contracts/backtest-runs.ts";
+
 import {
   type BarColumns,
   downsampleIndexes,
@@ -21,7 +23,6 @@ import type { LedgerResult } from "./options-engine/index.ts";
 // book result. Research only; no order path.
 
 const BACKTEST_RUN_CHART_MAX_POINTS = 2000;
-export const BACKTEST_RUN_TRADES_MAX = 5000;
 
 export type BacktestRunMetrics = Readonly<{
   initialDeposit: number;
@@ -126,6 +127,7 @@ export type BacktestRunOptionsReport = Readonly<{
   signals: Readonly<Record<string, number>>;
   symbols: readonly string[];
   trades: readonly z.infer<typeof BacktestRunOptionsTradeSchema>[];
+  tradesTruncated: boolean;
 }>;
 
 type DrawdownPass = Readonly<{
@@ -154,17 +156,17 @@ const drawdownPass = (values: Float64Array): DrawdownPass => {
 };
 
 interface StreakPass {
-  grossProfit: number;
   grossLoss: number;
-  profitTrades: number;
-  lossTrades: number;
-  largestProfit: number | null;
+  grossProfit: number;
   largestLoss: number | null;
-  maxConsecutiveWins: number;
+  largestProfit: number | null;
+  lossTrades: number;
   maxConsecutiveLosses: number;
   maxConsecutiveLossesMoney: number;
+  maxConsecutiveWins: number;
   maximalConsecutiveLoss: number;
   maximalConsecutiveLossCount: number;
+  profitTrades: number;
 }
 
 /**
@@ -484,6 +486,7 @@ export const buildOptionsRunReport = (
       signals: input.signals,
       symbols: input.symbols,
       trades: ledger.trades.slice(0, BACKTEST_RUN_TRADES_MAX),
+      tradesTruncated: tradeCount > BACKTEST_RUN_TRADES_MAX,
     },
     prices: downsampleIndexes(priced.length, BACKTEST_RUN_CHART_MAX_POINTS).map(
       (position) => {

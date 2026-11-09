@@ -20,13 +20,13 @@ import {
   engineComparisonsContract,
 } from "./engine-comparison.ts";
 import { forwardDriftContract } from "./forward-drift.ts";
-import { strategyDefinitionsContract } from "./strategy-definitions.ts";
 import {
   INSTANT_BACKTEST_TIMEFRAMES,
   InstantBacktestBreakoutSchema,
   InstantBacktestSmaCrossSchema,
 } from "./instant-backtest.ts";
 import { SECTOR_ROTATION_QUADRANTS } from "./sector-rotation.ts";
+import { strategyDefinitionsContract } from "./strategy-definitions.ts";
 
 // Backtest runs: a queued job that runs a backtest engine over a date range of stored bars and
 // stores an account-currency report tied to an immutable strategy revision (a SHA-256 of the
@@ -214,6 +214,9 @@ const optionsSignalsSchema = z
     { message: "Signals are counted per options symbol" }
   );
 
+/** Most trades a stored report keeps (the run's metrics still count every trade). */
+export const BACKTEST_RUN_TRADES_MAX = 5000;
+
 /** Options runs: the options book result (docs/vertex-rebuild/strategy-definitions.md, options runner). */
 export const BacktestRunOptionsReportSchema = z.object({
   capital: z.number(),
@@ -223,7 +226,10 @@ export const BacktestRunOptionsReportSchema = z.object({
   /** Entry signals per symbol (events handed to the book). */
   signals: optionsSignalsSchema,
   symbols: z.array(z.string()),
-  trades: z.array(BacktestRunOptionsTradeSchema),
+  /** The first BACKTEST_RUN_TRADES_MAX spreads; `metrics` count them all. */
+  trades: z.array(BacktestRunOptionsTradeSchema).max(BACKTEST_RUN_TRADES_MAX),
+  /** True when the run had more spreads than `trades` keeps. */
+  tradesTruncated: z.boolean(),
 });
 
 export const BacktestRunReportSchema = z.object({

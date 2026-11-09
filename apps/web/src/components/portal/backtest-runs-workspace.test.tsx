@@ -1275,6 +1275,7 @@ const OPTIONS_BOOK: OptionsBook = {
       symbol: "QQQ",
     },
   ],
+  tradesTruncated: false,
 };
 
 const QC_DEFINITION = StrategyDefinitionSchema.parse({

@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 
 import {
-  AUTHORIZATION_ERROR_CODES,
   type AgentApiKeyService,
+  AUTHORIZATION_ERROR_CODES,
   AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
@@ -32,13 +32,14 @@ import {
   BACKTEST_RUN_ENGINE_BARS_MAX,
   BACKTEST_RUN_ENGINE_VERSION,
   BACKTEST_RUN_NAUTILUS_ENGINE,
+  BACKTEST_RUN_TRADES_MAX,
   BacktestRunEngineOptionsResultSchema,
   BacktestRunEngineResultSchema,
   BacktestRunOptionsReportSchema,
   BacktestRunReportSchema,
-  OPTIONS_NAUTILUS_PARITY_TOLERANCE,
   type BacktestRunSubmitInput,
   BacktestRunSubmitInputSchema,
+  OPTIONS_NAUTILUS_PARITY_TOLERANCE,
 } from "./contracts/backtest-runs.ts";
 import {
   ENGINE_COMPARISON_SUPERSEDED_ERROR,
@@ -3871,6 +3872,7 @@ describe("daily series and options runs", () => {
       signals: outcome.signals,
       symbols: ["SPY"],
       trades: ledger.trades,
+      tradesTruncated: false,
     });
     expect(ledger.trades.length).toBeGreaterThan(5);
     expect(report.bars).toBe(ledger.dates.length);
@@ -4527,8 +4529,8 @@ describe("daily series and options runs", () => {
           trades: [
             {
               ...first,
-              entryPrice: nextUp(first.entryPrice),
               entryFee: first.entryFee + 0.01,
+              entryPrice: nextUp(first.entryPrice),
               pnl: first.pnl - 0.01,
             },
             ...good.trades.slice(1),
@@ -4836,6 +4838,7 @@ describe("daily series and options runs", () => {
       signals: { SPY: 1 },
       symbols: ["SPY"],
       trades: [],
+      tradesTruncated: false,
     };
     const ok = (value: Record<string, unknown>) =>
       BacktestRunOptionsReportSchema.safeParse({ ...report, ...value }).success;
@@ -4844,6 +4847,14 @@ describe("daily series and options runs", () => {
     expect(ok({ nautilusGap: -1 })).toBe(false);
     expect(ok({ nautilusGap: 1e-3 })).toBe(false);
     expect(ok({ signals: { AAPL: 1 } })).toBe(false);
+    expect(ok({ tradesTruncated: undefined })).toBe(false);
+    const [spread] = optionsResult().trades;
+    const spreads = Array.from(
+      { length: BACKTEST_RUN_TRADES_MAX + 1 },
+      () => spread
+    );
+    expect(ok({ trades: spreads.slice(1), tradesTruncated: true })).toBe(true);
+    expect(ok({ trades: spreads, tradesTruncated: true })).toBe(false);
   });
 
   it("uses the Python Nautilus parity tolerance", () => {

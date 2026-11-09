@@ -64391,7 +64391,11 @@
                                     ],
                                     "type": "object"
                                   },
+                                  "maxItems": 5000,
                                   "type": "array"
+                                },
+                                "tradesTruncated": {
+                                  "type": "boolean"
                                 }
                               },
                               "required": [
@@ -64400,7 +64404,8 @@
                                 "nautilusGap",
                                 "signals",
                                 "symbols",
-                                "trades"
+                                "trades",
+                                "tradesTruncated"
                               ],
                               "type": "object"
                             },
@@ -67887,7 +67892,11 @@
                                     ],
                                     "type": "object"
                                   },
+                                  "maxItems": 5000,
                                   "type": "array"
+                                },
+                                "tradesTruncated": {
+                                  "type": "boolean"
                                 }
                               },
                               "required": [
@@ -67896,7 +67905,8 @@
                                 "nautilusGap",
                                 "signals",
                                 "symbols",
-                                "trades"
+                                "trades",
+                                "tradesTruncated"
                               ],
                               "type": "object"
                             },
