@@ -188,36 +188,49 @@ def _run_entry(form: str, sid: str, key: str, points: Sequence, trades: int, ext
 # Options form
 
 
-def options_form(results: Results, keys: Sequence[str], root: str | None, log: Log) -> dict:
-    """Same-day debit verticals on the ETF twin of every signal market, per strategy."""
+def _option_job(job: tuple[str, str, str, list[tuple[str, float]], str | None]) -> tuple[str, str, dict | None, list]:
+    """Worker entry (picklable): (strategy id, signal market, twin, [(side, entry ms)], data root)."""
     from strategies.qc_ports.data import load_market
 
     from .options import EtfClock, OptionEvent, book, price_events, spread_returns
 
-    twins = sorted({BY_KEY[k].twin for k in keys if available(BY_KEY[k].twin, root)})
-    etfs = {t: EtfClock(load_bars(t, root)) for t in twins}
-    markets = {t: load_market(t) for t in twins}
-    out: dict[tuple[str, str], dict] = {}
+    sid, key, twin, entries, root = job
+    etf = EtfClock(load_bars(twin, root))
+    events = [OptionEvent(key, twin, side, entry_ms) for side, entry_ms in entries]
+    spreads, skipped = price_events(events, {twin: etf}, {twin: load_market(twin)})
+    if not spreads:
+        return sid, key, None, skipped
+    first = spreads[0].day
+    closes = [t for day, (t, _) in etf.close_of_day.items() if day >= first]
+    booked = book(spreads, closes, CAPITAL)
+    reasons: dict[str, int] = {}
+    for s in skipped:
+        reasons[s["reason"]] = reasons.get(s["reason"], 0) + 1
+    booked.pop("clock")
+    booked["spreads"] = len(spreads)
+    booked["skipped"] = skipped
+    booked["skipReasons"] = reasons
+    booked["returns"] = spread_returns(booked["nautilus"], CAPITAL)
+    return sid, key, booked, skipped
+
+
+def options_form(results: Results, keys: Sequence[str], root: str | None, log: Log, workers: int = 8) -> dict:
+    """Same-day debit verticals on the ETF twin of every signal market, per strategy (one book per pair)."""
+    jobs = []
     for sid, _, params in STRATEGIES:
         for key in keys:
             twin = BY_KEY[key].twin
-            if twin not in etfs:
+            if not available(twin, root):
                 continue
-            events = [OptionEvent(key, twin, t["side"], t["entryMs"]) for t in results.trades(key, params)]
-            spreads, skipped = price_events(events, etfs, markets)
-            if not spreads:
+            entries = [(t["side"], t["entryMs"]) for t in results.trades(key, params)]
+            jobs.append((sid, key, twin, entries, root))
+    out: dict[tuple[str, str], dict] = {}
+    with ProcessPoolExecutor(max_workers=max(1, min(workers, len(jobs)))) as pool:
+        for sid, key, booked, skipped in pool.map(_option_job, jobs):
+            twin = BY_KEY[key].twin
+            if booked is None:
                 log(f"options {sid} {key}->{twin}: no priced spreads ({len(skipped)} skipped)")
                 continue
-            first = spreads[0].day
-            closes = [t for day, (t, _) in etfs[twin].close_of_day.items() if day >= first]
-            booked = book(spreads, closes, CAPITAL)
-            reasons: dict[str, int] = {}
-            for s in skipped:
-                reasons[s["reason"]] = reasons.get(s["reason"], 0) + 1
-            booked["spreads"] = spreads
-            booked["skipped"] = skipped
-            booked["skipReasons"] = reasons
-            booked["returns"] = spread_returns(booked["nautilus"], CAPITAL)
             out[(sid, key)] = booked
             log(f"options {sid} {key}->{twin}: {len(booked['nautilus'].trades)} spreads, {len(skipped)} skipped, "
                 f"ledger gap {booked['maxGap']:.4f}")
@@ -413,7 +426,7 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
     dsr = m.deflated_sharpe(primary, len(configs), list(trial_sharpes.values()))
 
     log("options form")
-    options = options_form(results, keys, root, log)
+    options = options_form(results, keys, root, log, workers)
     opt_rows = []
     for sid, _, _ in STRATEGIES:
         for key in keys:
