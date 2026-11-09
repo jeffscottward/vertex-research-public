@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { type CostProfile, ZERO_COST_PROFILE } from "./backtest-costs.ts";
 import {
   type BarColumns,
+  barsInPositionOf,
   downsampleIndexes,
   InstantBacktestInputError,
   type InstantRunParams,
@@ -1413,5 +1414,30 @@ describe("runSignalBacktest side, closeAt and leverage input errors", () => {
     expect(
       runSignalBacktest(bars, signals, { ...base, side: "long" }).trades
     ).toHaveLength(1);
+  });
+});
+
+describe("barsInPositionOf", () => {
+  it("counts entry to the bar before the exit, and the last bar for a trade closed at the end", () => {
+    const rows: Row[] = Array.from({ length: 6 }, () => [100, 101, 99, 100]);
+    const { stats, trades } = runSignalBacktest(
+      columns(rows),
+      Int8Array.from([1, 0, -1, 0, 1, 0]),
+      { costBps: 0, stopLossPct: 0, takeProfitPct: 0 }
+    );
+    // Held: bars 1 and 2 (exit at the bar 3 open), then bar 5 (closed at the end).
+    expect(
+      trades.map((trade) => [
+        trade.entryIndex,
+        trade.exitIndex,
+        trade.exitReason,
+      ])
+    ).toEqual([
+      [1, 3, "signal"],
+      [5, 5, "end"],
+    ]);
+    expect(barsInPositionOf(trades)).toBe(3);
+    expect(stats.exposure).toBeCloseTo(3 / 6, 12);
+    expect(barsInPositionOf([])).toBe(0);
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "./instant-backtest-engine.ts";
 import {
   STRATEGY_CALENDAR_INTRADAY_REFUSAL,
+  STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
   STRATEGY_OPTIONS_REFUSAL,
   STRATEGY_TEMPLATES,
   type StrategyDefinition,
@@ -22,6 +23,7 @@ import {
   averageTrueRange,
   compileStrategy,
   exponentialMean,
+  intradaySessions,
   isNyseTradingDay,
   ivRankSeries,
   NYSE_SPECIAL_CLOSURES,
@@ -38,6 +40,8 @@ import {
   type StrategySeriesContext,
   StrategySeriesDataError,
   StrategyUnsupportedError,
+  sessionIndicatorSeries,
+  volTargetLeverage,
 } from "./strategy-dsl-compile.ts";
 
 const DAY_MS = 86_400_000;
@@ -1959,5 +1963,517 @@ describe("management and maxLeverage", () => {
       3
     );
     expect(unmanaged.trades).not.toEqual(result.trades);
+  });
+});
+
+describe("intraday sessions, session indicators, gates and volTarget", () => {
+  const MINUTE_MS = 60_000;
+  // Monday 2026-01-05 09:30 New York (EST, UTC-5).
+  const NY_0930 = Date.UTC(2026, 0, 5, 14, 30);
+  const intraday = {
+    close: "11:30",
+    entryFrom: "10:00",
+    entryTo: "11:00",
+    open: "09:30",
+    timezone: "America/New_York",
+  } as const;
+  type Row = Readonly<{
+    c: number;
+    day: number;
+    o?: number;
+    slot: number;
+    v?: number;
+  }>;
+  /** 30-minute bars: slot k of day d opens at 09:30 + 30k minutes; high/low = close ± 1. */
+  const columns = (rows: readonly Row[], volume = true): BarColumns => {
+    const c = Float64Array.from(rows, (row) => row.c);
+    return {
+      c,
+      h: Float64Array.from(c, (close) => close + 1),
+      l: Float64Array.from(c, (close) => close - 1),
+      o: Float64Array.from(rows, (row) => row.o ?? row.c - 1),
+      t: Float64Array.from(
+        rows,
+        (row) => NY_0930 + row.day * DAY_MS + row.slot * 30 * MINUTE_MS
+      ),
+      ...(volume ? { v: Float64Array.from(rows, (row) => row.v ?? 0) } : {}),
+    };
+  };
+  /** Regular bars of one day from slot `from`, the first opening at `open`. */
+  const sessionDay = (
+    day: number,
+    open: number,
+    closes: readonly number[],
+    slots: readonly number[] = closes.map((_, index) => index)
+  ): Row[] =>
+    closes.map((c, index) => ({
+      c,
+      day,
+      slot: slots[index] as number,
+      ...(index === 0 ? { o: open } : {}),
+    }));
+  const close = { field: "close", type: "price" } as const;
+  const zero = { type: "const", value: 0 } as const;
+  const vwap = { name: "vwap", type: "indicator" } as const;
+  const near = (values: Float64Array | readonly number[]) =>
+    Array.from(values, (value) =>
+      Number.isNaN(value) ? null : Math.round(value * 1e9) / 1e9
+    );
+  const NaN4 = [Number.NaN, Number.NaN, Number.NaN, Number.NaN];
+
+  // Day 2 has no 10:30 bar (slot 1).
+  const fourDays = [
+    ...sessionDay(0, 99, [100, 101, 102, 103]),
+    ...sessionDay(1, 104, [105, 106, 107, 108]),
+    ...sessionDay(2, 109, [110, 111, 112], [0, 2, 3]),
+    ...sessionDay(3, 113, [114, 115, 116, 117]),
+  ];
+
+  describe("intradaySessions", () => {
+    it("lays out regular bars, session days, last bars and day open/close", () => {
+      const bars = columns([
+        { c: 98, day: 0, slot: -1 },
+        ...sessionDay(0, 99, [100, 101, 102, 103]),
+        { c: 104, day: 0, slot: 4 },
+        ...sessionDay(1, 109, [110, 111]),
+      ]);
+      const sessions = intradaySessions(bars, intraday);
+      expect(sessions?.duration).toBe(30 * MINUTE_MS);
+      expect(sessions?.openMs).toBe(570 * MINUTE_MS);
+      // A bar closes 30 minutes after it opens (09:00 + 30 = 09:30).
+      expect(Array.from(sessions?.closeMs ?? [])).toEqual(
+        [570, 600, 630, 660, 690, 720, 600, 630].map((m) => m * MINUTE_MS)
+      );
+      // The 09:00 bar closes at 09:30 but opens before the session; the 11:30 bar closes after it.
+      expect(Array.from(sessions?.session ?? [])).toEqual([
+        -1, 0, 0, 0, 0, -1, 1, 1,
+      ]);
+      // Day 1 closes early (10:30): its last regular bar is the last bar of its session day.
+      expect(Array.from(sessions?.last ?? [])).toEqual([
+        0, 0, 0, 0, 1, 0, 0, 1,
+      ]);
+      expect(Array.from(sessions?.dayOpen ?? [])).toEqual([99, 109]);
+      expect(Array.from(sessions?.dayClose ?? [])).toEqual([103, 111]);
+    });
+
+    it("takes the most common gap, the smaller on a tie, and ignores repeated times", () => {
+      const tie = columns(sessionDay(0, 99, [100, 101, 102], [0, 1, 3]));
+      expect(intradaySessions(tie, intraday)?.duration).toBe(30 * MINUTE_MS);
+      const repeated = columns(
+        sessionDay(0, 99, [100, 100, 101, 102], [0, 0, 2, 4])
+      );
+      expect(intradaySessions(repeated, intraday)?.duration).toBe(
+        60 * MINUTE_MS
+      );
+    });
+
+    it("has no session day when every bar is outside the session", () => {
+      const sessions = intradaySessions(
+        columns([
+          { c: 100, day: 0, slot: 4 },
+          { c: 101, day: 0, slot: 5 },
+        ]),
+        intraday
+      );
+      expect(Array.from(sessions?.session ?? [])).toEqual([-1, -1]);
+      expect(Array.from(sessions?.last ?? [])).toEqual([0, 0]);
+      expect(sessions?.dayOpen.length).toBe(0);
+    });
+
+    it("is undefined for daily bars (no two bars on one New York date)", () => {
+      expect(intradaySessions(wave(5), intraday)).toBeUndefined();
+    });
+  });
+
+  describe("vwap", () => {
+    const rows: Row[] = [
+      { c: 98, day: 0, slot: -1, v: 50 },
+      { c: 100, day: 0, o: 99, slot: 0, v: 0 },
+      { c: 101, day: 0, slot: 1, v: 10 },
+      { c: 102, day: 0, slot: 2, v: 30 },
+      { c: 103, day: 0, slot: 3, v: 0 },
+      { c: 104, day: 0, slot: 4, v: 5 },
+      { c: 110, day: 1, slot: 0, v: 5 },
+    ];
+
+    it("weights the typical price by volume from the first regular bar of each session day", () => {
+      // Typical = (high + low + close) / 3 = close. Bar 1: no volume yet, the mean typical (100);
+      // bar 2: 101 × 10 / 10; bar 3: (1010 + 102 × 30) / 40 = 101.75; bar 4 adds no volume.
+      expect(
+        near(sessionIndicatorSeries(columns(rows), intraday, vwap))
+      ).toEqual([null, 100, 101, 101.75, 101.75, null, 110]);
+    });
+
+    it("is the running mean of the typical prices without volume", () => {
+      expect(
+        near(sessionIndicatorSeries(columns(rows, false), intraday, vwap))
+      ).toEqual([null, 100, 100.5, 101, 101.5, null, 110]);
+    });
+  });
+
+  describe("sessionReturn", () => {
+    const series = (from: string, to: string) =>
+      near(
+        sessionIndicatorSeries(columns(fourDays), intraday, {
+          from,
+          name: "sessionReturn",
+          to,
+          type: "indicator",
+        })
+      );
+
+    it("measures from the session open, NaN before `to` and on a day without the `to` bar", () => {
+      expect(series("open", "10:30")).toEqual(
+        near([
+          Number.NaN,
+          ...new Array<number>(3).fill(101 / 99 - 1),
+          Number.NaN,
+          ...new Array<number>(3).fill(106 / 104 - 1),
+          Number.NaN,
+          Number.NaN,
+          Number.NaN,
+          Number.NaN,
+          ...new Array<number>(3).fill(115 / 113 - 1),
+        ])
+      );
+    });
+
+    it("measures from the previous session close (NaN on the first day)", () => {
+      expect(series("prevClose", "10:30")).toEqual(
+        near([
+          ...NaN4,
+          Number.NaN,
+          ...new Array<number>(3).fill(106 / 103 - 1),
+          Number.NaN,
+          Number.NaN,
+          Number.NaN,
+          Number.NaN,
+          ...new Array<number>(3).fill(115 / 112 - 1),
+        ])
+      );
+    });
+
+    it("measures between two bar closes, NaN on a day without the `from` bar", () => {
+      expect(series("10:00", "11:00")).toEqual(
+        near([
+          Number.NaN,
+          Number.NaN,
+          102 / 100 - 1,
+          102 / 100 - 1,
+          Number.NaN,
+          Number.NaN,
+          107 / 105 - 1,
+          107 / 105 - 1,
+          Number.NaN,
+          111 / 110 - 1,
+          111 / 110 - 1,
+          Number.NaN,
+          Number.NaN,
+          116 / 114 - 1,
+          116 / 114 - 1,
+        ])
+      );
+      expect(series("10:30", "11:30")).toEqual(
+        near([
+          Number.NaN,
+          Number.NaN,
+          Number.NaN,
+          103 / 101 - 1,
+          Number.NaN,
+          Number.NaN,
+          Number.NaN,
+          108 / 106 - 1,
+          Number.NaN,
+          Number.NaN,
+          Number.NaN,
+          ...NaN4.slice(1),
+          117 / 115 - 1,
+        ])
+      );
+    });
+  });
+
+  describe("noiseBand", () => {
+    const band = (
+      bars: BarColumns,
+      side: "upper" | "lower",
+      length: number,
+      multiple?: number
+    ) =>
+      sessionIndicatorSeries(bars, intraday, {
+        band: side,
+        length,
+        name: "noiseBand",
+        type: "indicator",
+        ...(multiple === undefined ? {} : { multiple }),
+      });
+
+    it("scales max(open, previous close) by the mean move at the same slot of earlier days", () => {
+      // Moves |close / open - 1|: day 0 k/99, day 1 k/104, day 2 (slots 0, 2, 3) 1/109, 2/109, 3/109.
+      expect(near(band(columns(fourDays), "upper", 1))).toEqual(
+        near([
+          ...NaN4,
+          104 * (1 + 1 / 99),
+          104 * (1 + 2 / 99),
+          104 * (1 + 3 / 99),
+          104 * (1 + 4 / 99),
+          109 * (1 + 1 / 104),
+          109 * (1 + 3 / 104),
+          109 * (1 + 4 / 104),
+          113 * (1 + 1 / 109),
+          // Day 2 has no slot 1: day 3 reads day 1's move there.
+          113 * (1 + 2 / 104),
+          113 * (1 + 2 / 109),
+          113 * (1 + 3 / 109),
+        ])
+      );
+    });
+
+    it("scales min(open, previous close) down by multiple × the mean of `length` moves", () => {
+      expect(near(band(columns(fourDays), "lower", 2, 2))).toEqual(
+        near([
+          ...NaN4,
+          ...NaN4,
+          108 * (1 - (1 / 99 + 1 / 104)),
+          108 * (1 - (3 / 99 + 3 / 104)),
+          108 * (1 - (4 / 99 + 4 / 104)),
+          112 * (1 - (1 / 104 + 1 / 109)),
+          112 * (1 - (2 / 99 + 2 / 104)),
+          112 * (1 - (3 / 104 + 2 / 109)),
+          112 * (1 - (4 / 104 + 3 / 109)),
+        ])
+      );
+    });
+
+    it("never reads the current day's moves", () => {
+      const moved = fourDays.map((row) =>
+        row.day === 1 && row.slot === 0 ? { ...row, c: 150 } : row
+      );
+      const before = band(columns(fourDays), "upper", 1, 3);
+      const after = band(columns(moved), "upper", 1, 3);
+      expect(near(after.subarray(0, 8))).toEqual(near(before.subarray(0, 8)));
+      // Day 2 reads the changed slot-0 move of day 1: 150 / 104 - 1.
+      expect(after[8]).toBeCloseTo(109 * (1 + (3 * 46) / 104), 9);
+    });
+  });
+
+  it("leaves sessionReturn and noiseBand NaN outside the session", () => {
+    const bars = columns([
+      ...sessionDay(0, 99, [100, 101, 102, 103]),
+      { c: 104, day: 0, slot: 4 },
+      ...sessionDay(1, 104, [105, 106, 107, 108]),
+    ]);
+    const sessionReturn = near(
+      sessionIndicatorSeries(bars, intraday, {
+        from: "open",
+        name: "sessionReturn",
+        to: "11:30",
+        type: "indicator",
+      })
+    );
+    expect(sessionReturn).toEqual(
+      near([
+        ...NaN4.slice(1),
+        103 / 99 - 1,
+        Number.NaN,
+        ...NaN4.slice(1),
+        108 / 104 - 1,
+      ])
+    );
+    const upper = near(
+      sessionIndicatorSeries(bars, intraday, {
+        band: "upper",
+        length: 1,
+        name: "noiseBand",
+        type: "indicator",
+      })
+    );
+    expect(upper.slice(0, 5)).toEqual([null, null, null, null, null]);
+    expect(upper[5]).toBeCloseTo(104 * (1 + 1 / 99), 9);
+  });
+
+  describe("compileStrategy with an intraday block", () => {
+    // 09:00 bar, 4 regular bars, 11:30 bar on day 0; day 1 closes early at 10:30.
+    const bars = columns([
+      { c: 100, day: 0, slot: -1 },
+      ...sessionDay(0, 100, [100, 100, 100, 100]),
+      { c: 100, day: 0, slot: 4 },
+      ...sessionDay(1, 100, [100, 100]),
+    ]);
+    const always = (block: Record<string, unknown>) =>
+      define({
+        entry: { all: [{ left: close, op: ">", right: zero }] },
+        exit: { any: [{ left: close, op: ">", right: zero }] },
+        intraday: { ...intraday, ...block },
+        name: "always",
+        version: 1,
+      });
+
+    it("enters on regular bars closing in the entry window, never on the last bar of a day", () => {
+      const compiled = compileStrategy(bars, always({}));
+      expect(Array.from(compiled.signals)).toEqual([0, 1, 1, 1, -1, 0, 1, -1]);
+      expect(Array.from(compiled.exits)).toEqual([0, 1, 1, 1, 1, 0, 1, 1]);
+      expect(Array.from(compiled.closeAt ?? [])).toEqual([
+        0, 0, 0, 0, 1, 0, 0, 1,
+      ]);
+      expect(compiled.leverage).toBeUndefined();
+    });
+
+    it("narrows entries to [entryFrom, entryTo]", () => {
+      const compiled = compileStrategy(
+        bars,
+        always({ entryFrom: "10:30", entryTo: "10:30" })
+      );
+      // Day 1's 10:30 bar is its last bar: an exit, not an entry.
+      expect(Array.from(compiled.signals)).toEqual([
+        0, -1, 1, -1, -1, 0, -1, -1,
+      ]);
+    });
+
+    it("decides entries and exits only on the decisionEvery grid", () => {
+      const compiled = compileStrategy(bars, always({ decisionEvery: 60 }));
+      // 60 and 120 minutes after 09:30: the bars closing at 10:30 and 11:30.
+      expect(Array.from(compiled.signals)).toEqual([0, 0, 1, 0, -1, 0, 0, -1]);
+      expect(Array.from(compiled.exits)).toEqual([0, 0, 1, 0, 1, 0, 0, 1]);
+    });
+
+    it("reuses one session indicator series across conditions", () => {
+      const compiled = compileStrategy(
+        bars,
+        define({
+          entry: {
+            all: [
+              { left: close, op: ">=", right: vwap },
+              { left: vwap, op: ">", right: zero },
+            ],
+          },
+          intraday,
+          name: "vwap twice",
+          version: 1,
+        })
+      );
+      expect(Array.from(compiled.signals)).toEqual([0, 1, 1, 1, 0, 0, 1, 0]);
+    });
+
+    it("refuses an intraday block on daily bars (STRATEGY_INTRADAY_DAILY_UNSUPPORTED)", () => {
+      const definition = always({});
+      for (const run of [
+        () => compileStrategy(wave(30), definition),
+        () => sessionIndicatorSeries(wave(30), intraday, vwap),
+        () => assertServerRunnable(definition, "1d"),
+      ]) {
+        expect(run).toThrow(StrategyUnsupportedError);
+        try {
+          run();
+        } catch (error) {
+          expect((error as StrategyUnsupportedError).code).toBe(
+            STRATEGY_INTRADAY_DAILY_UNSUPPORTED
+          );
+        }
+      }
+      expect(() => assertServerRunnable(definition, "5m")).not.toThrow();
+    });
+
+    it("refuses a session indicator without an intraday block", () => {
+      const definition = {
+        ...define({
+          entry: { all: [{ left: close, op: ">", right: zero }] },
+          name: "no block",
+          version: 1,
+        }),
+        entry: { all: [{ left: close, op: ">", right: vwap }] },
+      } as StrategyDefinition;
+      expect(() => compileStrategy(bars, definition)).toThrow(
+        new InstantBacktestInputError(
+          "vwap reads the intraday session; add an intraday block"
+        )
+      );
+    });
+  });
+
+  describe("volTargetLeverage", () => {
+    const sizing = { length: 2, maxLeverage: 5, targetPct: 10 } as const;
+    // Returns +10%, -10%: sigma = sqrt(0.02); then -10%, 0: sigma = sqrt(0.005); then 0, 0: sigma 0.
+    const first = 0.1 / Math.sqrt(0.02);
+    const second = 0.1 / Math.sqrt(0.005);
+
+    it("is min(maxLeverage, target / sample sigma of the last `length` day returns)", () => {
+      const daily = {
+        ...wave(5),
+        c: Float64Array.from([100, 110, 99, 99, 99]),
+      };
+      expect(near(volTargetLeverage(daily, sizing))).toEqual(
+        near([Number.NaN, Number.NaN, first, second, 5])
+      );
+      expect(first).toBeCloseTo(Math.SQRT1_2, 12);
+      expect(second).toBeCloseTo(Math.SQRT2, 12);
+    });
+
+    it("steps at the last regular bar of each session day", () => {
+      const bars = columns([
+        ...sessionDay(0, 100, [100, 100]),
+        ...sessionDay(1, 100, [100, 110]),
+        ...sessionDay(2, 100, [100, 99]),
+        { c: 90, day: 3, slot: -1 },
+        ...sessionDay(3, 100, [100, 99]),
+      ]);
+      const sessions = intradaySessions(bars, intraday);
+      const expected = near([...NaN4, Number.NaN, first, first, first, second]);
+      expect(near(volTargetLeverage(bars, sizing, sessions))).toEqual(expected);
+      const compiled = compileStrategy(
+        bars,
+        define({
+          entry: { all: [{ left: close, op: ">", right: zero }] },
+          intraday,
+          name: "volTarget",
+          sizing: { ...sizing, mode: "volTarget" },
+          version: 1,
+        })
+      );
+      expect(near(compiled.leverage ?? [])).toEqual(expected);
+      // Without sessions every bar of a New York date counts: the 09:00 bar is not the day's last.
+      expect(near(volTargetLeverage(bars, sizing))).toEqual(expected);
+    });
+  });
+
+  it("runs a volTarget short to its market-on-close exit on an early-close day", () => {
+    const bars = columns([
+      ...sessionDay(0, 100, [100, 100, 100, 100]),
+      ...sessionDay(1, 110, [110, 110, 110, 110]),
+      ...sessionDay(2, 99, [99, 99, 99, 99]),
+      // Day 3 closes early at 11:00.
+      { c: 100, day: 3, o: 100, slot: 0 },
+      { c: 100, day: 3, o: 100, slot: 1 },
+      { c: 98, day: 3, o: 100, slot: 2 },
+    ]);
+    const definition = define({
+      entry: { all: [{ left: close, op: ">", right: zero }] },
+      intraday,
+      name: "short volTarget",
+      side: "short",
+      sizing: { length: 2, maxLeverage: 5, mode: "volTarget", targetPct: 10 },
+      version: 1,
+    });
+    const result = runStrategyDefinition(
+      bars,
+      definition,
+      0,
+      undefined,
+      undefined,
+      "30m"
+    );
+    // No leverage until day 2's last bar; day 3's 10:00 signal sells at the 10:00 open (100) with
+    // leverage 0.1 / sqrt(0.02) and buys back at the 11:00 close (98).
+    expect(result.trades).toHaveLength(1);
+    expect(result.trades[0]).toMatchObject({
+      entryIndex: 13,
+      entryPrice: 100,
+      exitIndex: 14,
+      exitPrice: 98,
+      exitReason: "signal",
+    });
+    const leverage = 0.1 / Math.sqrt(0.02);
+    expect(result.trades[0]?.pnl).toBeCloseTo(leverage * 0.02, 12);
+    expect(result.equity[14]).toBeCloseTo(1 + leverage * 0.02, 12);
   });
 });
