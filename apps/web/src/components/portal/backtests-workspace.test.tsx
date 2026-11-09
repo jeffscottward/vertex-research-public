@@ -268,6 +268,11 @@ describe("backtests workspace", () => {
     expect(
       section.querySelector('[data-stat="Win rate"]')?.textContent
     ).toContain("0.0%");
+    // Monte Carlo runs for every backtest and shows on the overview without a toggle.
+    expect(section.querySelector("#backtest-mc-overview")).not.toBeNull();
+    expect(
+      section.querySelector('[data-stat="Size scale (sized from worst run)"]')
+    ).not.toBeNull();
     expect(window.location.search).toBe("?id=bt-1");
 
     await clickButton("Trades");
