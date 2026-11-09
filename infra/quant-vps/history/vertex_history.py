@@ -14,6 +14,11 @@ requests), cached 15 s. Depth: one subscription at a time, at least 3 s apart, c
 and always cancelled, cached 5 s. Each /ticks request has one 35 s budget and each /depth request
 one 25 s budget, shared by the lock wait, pacing, the contract lookup and every IB request.
 
+Bars take an optional endDateTime=YYYYMMDD-HH:MM:SS (UTC, IBKR's form; absent = now): a real instant from
+1990-01-01 up to, not including, the service clock, refused for CONTFUT. It is part of the cache key and the
+request echo. A copy fetched at least 24 h after its endDateTime is cached for up to 24 h. whatToShow=BID_ASK
+(stocks only): open = time-average bid, high = max ask, low = min bid, close = time-average ask, volume null.
+
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
 import hashlib
@@ -29,7 +34,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 SCHEMA = "vertex-history-bars-v1"
 TICKS_SCHEMA = "vertex-history-ticks-v1"
 DEPTH_SCHEMA = "vertex-history-depth-v1"
@@ -41,12 +46,21 @@ PREFIX = "/vertex-history/v1"
 
 SEC_TYPES = ("STK", "FUT", "CONTFUT", "CASH")
 DEFAULT_EXCHANGE = {"STK": "SMART", "CASH": "IDEALPRO"}
-WHAT_TO_SHOW = ("TRADES", "MIDPOINT")
+WHAT_TO_SHOW = ("TRADES", "MIDPOINT", "BID_ASK")
+# BID_ASK bars (IBKR semantics): open = time-average bid, high = max ask, low = min bid, close = time-average ask,
+# volume n/a (null). Offered for stocks only here; forex stays MIDPOINT and futures TRADES/MIDPOINT.
+BID_ASK_SEC_TYPES = ("STK",)
 BAR_SIZES = {"1 min": 60, "5 mins": 300, "15 mins": 900, "30 mins": 1800, "1 hour": 3600, "1 day": 86400}
 UNIT_DAYS = {"D": 1, "W": 7, "M": 30, "Y": 365}
 TTL_SECONDS = {"1 min": 120, "1 day": 3600}
 DEFAULT_TTL = 300
 STALE_MAX_SECONDS = 86400
+# endDateTime (bars): IBKR's UTC form, in the past, not before 1990. A range that ended at least
+# SETTLE_SECONDS before a copy was fetched no longer changes, so that copy is good for up to PAST_TTL.
+END_DATETIME_RE = re.compile(r"([0-9]{4})([0-9]{2})([0-9]{2})-([0-9]{2}):([0-9]{2}):([0-9]{2})")  # fullmatch, ASCII
+END_DATETIME_MIN = datetime(1990, 1, 1, tzinfo=timezone.utc)
+SETTLE_SECONDS = 86400
+PAST_TTL = 86400
 CONTRACT_TTL = 86400
 
 MIN_INTERVAL = 10.0
@@ -74,7 +88,8 @@ DEPTH_MAX_WAIT = 10.0
 DEPTH_COLLECT_SECONDS = 2.0
 DEPTH_DEADLINE = 25.0  # one budget per /depth request: lock, spacing, contract lookup, subscription
 
-PARAMS = ("symbol", "secType", "exchange", "currency", "barSize", "duration", "whatToShow", "useRTH", "contractMonth")
+PARAMS = ("symbol", "secType", "exchange", "currency", "barSize", "duration", "whatToShow", "useRTH", "contractMonth",
+          "endDateTime")
 TICKS_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "count", "useRTH", "quotes")
 DEPTH_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "rows")
 SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,11}$")
@@ -176,8 +191,36 @@ def _bounded_int(values, key, default, low, high):
     return int(value)
 
 
-def validate(raw):
-    """raw: dict of str -> list[str] (parse_qs). Returns a normalized request dict or raises BadRequest."""
+def end_datetime_ts(text):
+    """`YYYYMMDD-HH:MM:SS` (UTC) -> epoch seconds; ValueError when malformed or not a real date and time."""
+    m = END_DATETIME_RE.fullmatch(text)
+    if not m:
+        raise ValueError("endDateTime must be YYYYMMDD-HH:MM:SS (UTC)")
+    return datetime(*(int(g) for g in m.groups()), tzinfo=timezone.utc).timestamp()
+
+
+def _end_datetime(values, sec_type, now):
+    """Absent -> None (IBKR's "" = now). Present: a real UTC instant from 1990 up to, not including, now."""
+    if "endDateTime" not in values:
+        return None
+    text = values["endDateTime"]
+    if sec_type == "CONTFUT":
+        raise BadRequest("endDateTime is not supported for CONTFUT (IBKR rejects an end date for continuous "
+                         "futures); use secType=FUT with contractMonth")
+    try:
+        ts = end_datetime_ts(text)
+    except ValueError:
+        raise BadRequest("endDateTime must be YYYYMMDD-HH:MM:SS (UTC) and a real date and time") from None
+    if ts < END_DATETIME_MIN.timestamp():
+        raise BadRequest("endDateTime must not be before 19900101-00:00:00")
+    if ts >= now:
+        raise BadRequest("endDateTime must be in the past")
+    return text
+
+
+def validate(raw, now=None):
+    """raw: dict of str -> list[str] (parse_qs). Returns a normalized request dict or raises BadRequest.
+    now: the service clock (epoch seconds) that endDateTime must precede; defaults to time.time()."""
     values = _single_values(raw, PARAMS)
     inst = _instrument(values)
     bar_size = values.get("barSize", "1 day")
@@ -194,14 +237,20 @@ def validate(raw):
         raise BadRequest("duration too long for " + bar_size)
     what = values.get("whatToShow", "TRADES").upper()
     if what not in WHAT_TO_SHOW:
-        raise BadRequest("whatToShow must be TRADES or MIDPOINT")
+        raise BadRequest("whatToShow must be one of " + ", ".join(WHAT_TO_SHOW))
+    if what == "BID_ASK" and inst["secType"] not in BID_ASK_SEC_TYPES:
+        raise BadRequest("whatToShow=BID_ASK is offered for " + ", ".join(BID_ASK_SEC_TYPES) + " only")
     if inst["secType"] == "CASH":
         what = "MIDPOINT"  # IBKR has no TRADES data for forex
     rth = _flag(values, "useRTH", "1")
     month = _month(values, inst["secType"])
-    return {"symbol": inst["symbol"], "secType": inst["secType"], "exchange": inst["exchange"],
-            "currency": inst["currency"], "barSize": bar_size, "duration": duration, "whatToShow": what,
-            "useRTH": rth, "contractMonth": month}
+    end = _end_datetime(values, inst["secType"], time.time() if now is None else now)
+    req = {"symbol": inst["symbol"], "secType": inst["secType"], "exchange": inst["exchange"],
+           "currency": inst["currency"], "barSize": bar_size, "duration": duration, "whatToShow": what,
+           "useRTH": rth, "contractMonth": month}
+    if end is not None:  # only when given: requests without it keep their cache key and echo
+        req["endDateTime"] = end
+    return req
 
 
 def validate_ticks(raw):
@@ -238,8 +287,16 @@ def cache_key(req):
     return hashlib.sha256(json.dumps(req, sort_keys=True).encode()).hexdigest()
 
 
-def ttl_for(req):
-    return TTL_SECONDS.get(req["barSize"], DEFAULT_TTL)
+def ttl_for(req, now=None):
+    """Max cache age accepted now. Past ranges: a copy fetched at least SETTLE_SECONDS after endDateTime is good
+    for up to PAST_TTL; that holds exactly while age <= now - end - SETTLE_SECONDS, so the bound is
+    min(PAST_TTL, now - end - SETTLE_SECONDS), never below the bar size's normal TTL."""
+    base = TTL_SECONDS.get(req["barSize"], DEFAULT_TTL)
+    end = req.get("endDateTime")
+    if not end:
+        return base
+    settled_for = (time.time() if now is None else now) - end_datetime_ts(end) - SETTLE_SECONDS
+    return max(base, min(PAST_TTL, int(settled_for)))
 
 
 def parse_bar_time(text):
@@ -459,10 +516,11 @@ class HistoryService:
 
     def bars(self, raw):
         try:
-            req = validate(raw)
+            now = self.clock()
+            req = validate(raw, now=now)
         except BadRequest as e:
             return 400, {"error": "bad_request", "message": str(e)}
-        key, ttl = cache_key(req), ttl_for(req)
+        key, ttl = cache_key(req), ttl_for(req, now=now)
 
         def fallback(status, body):
             return self._stale_or(key, ttl, status, body)
@@ -942,9 +1000,11 @@ class IbGateway:
         def start(rid):
             sent.append(rid)
             on_send()
+            end = req.get("endDateTime") or ""  # "" = IBKR's "now"
             self.log("ib_historical", req_id=rid, symbol=req["symbol"], secType=req["secType"],
-                     barSize=req["barSize"], duration=req["duration"])
-            self._client.reqHistoricalData(rid, spec, "", req["duration"], req["barSize"], req["whatToShow"],
+                     barSize=req["barSize"], duration=req["duration"], whatToShow=req["whatToShow"],
+                     endDateTime=end or None)
+            self._client.reqHistoricalData(rid, spec, end, req["duration"], req["barSize"], req["whatToShow"],
                                            1 if req["useRTH"] else 0, 2, False, [])
 
         try:
