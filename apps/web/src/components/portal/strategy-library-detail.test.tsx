@@ -77,6 +77,8 @@ const strategy = (
   name: "Trend",
   params: [],
   presetCount: 0,
+  priority: "normal",
+  externalValidation: null,
   section: null,
   slug: "trend",
   sourceRef: null,
@@ -85,6 +87,25 @@ const strategy = (
   updatedAt: at,
   ...overrides,
 });
+// A third party's claim, in the shape migration 0065 stores for the volume spike breakout row.
+const CLAIM = {
+  claimedMethod:
+    "10,500 strategies ranked by total net R with no correction for the number of strategies tried.",
+  claimedMetrics: [
+    { label: "Rank", value: "1 of 10,500 by total net R" },
+    { label: "Win rate", value: "14%" },
+    { label: "Win rate", value: "out-of-sample 17%" },
+  ],
+  publishedOn: "2026-09-24",
+  sourceAuthor: "Lil Fish (@not_a_lil_fish), YouTube",
+  sourceTitle: "I Backtested 10,000 Strategies",
+  sourceUrl: "https://youtu.be/XLMG6-SATRk",
+};
+const badgeKeys = (container: Element) =>
+  [...container.querySelectorAll("[data-strategy-badge]")].map((badge) => [
+    badge.getAttribute("data-strategy-badge"),
+    badge.textContent,
+  ]);
 const LOOKBACK = {
   default: 20,
   max: 250,
@@ -183,6 +204,166 @@ describe("StrategyDetail", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "failed: offline"
     );
+  });
+
+  it("shows both badges and the external claim as the source's claim, with no arm, order or deploy control", async () => {
+    const claimed = strategy({
+      externalValidation: CLAIM,
+      id: "strategy-seed-volume-spike-breakout",
+      priority: "high",
+      slug: "volume-spike-breakout",
+      status: "backtested",
+      tags: ["research-only", "backtest-study", "externally-pre-validated"],
+    });
+    const container = await mount(
+      detailOf({ detail: { backtests: [], presets: [], strategy: claimed } })
+    );
+    expect(badgeKeys(container)).toEqual([
+      ["high-priority", "High priority"],
+      ["externally-pre-validated", "Externally pre-validated"],
+    ]);
+    expect(
+      container
+        .querySelector('[data-strategy-badge="externally-pre-validated"]')
+        ?.getAttribute("title")
+    ).toContain("not a Vertex validation");
+    expect(
+      container.querySelector('[data-strategy-priority="high"]')?.textContent
+    ).toBe("High priority");
+    expect(
+      container.querySelector("[data-strategy-external-validation]")
+        ?.textContent
+    ).toBe("Externally pre-validated");
+    const block = container.querySelector(
+      '[data-strategy-external-claim="strategy-seed-volume-spike-breakout"]'
+    ) as HTMLElement;
+    expect(block.querySelector("h3")?.textContent).toBe(
+      "External claim (not validated by Vertex)"
+    );
+    expect(block.getAttribute("aria-labelledby")).toBe(
+      block.querySelector("h3")?.id
+    );
+    const link = block.querySelector(
+      "[data-strategy-external-claim-source]"
+    ) as HTMLAnchorElement;
+    expect(link.textContent).toBe("I Backtested 10,000 Strategies");
+    expect(link.getAttribute("href")).toBe("https://youtu.be/XLMG6-SATRk");
+    expect(link.getAttribute("rel")).toBe("noreferrer noopener");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(
+      block.querySelector("[data-external-claim-author]")?.textContent
+    ).toBe("Lil Fish (@not_a_lil_fish), YouTube");
+    expect(
+      block.querySelector("[data-external-claim-published] time")?.textContent
+    ).toBe("2026-09-24");
+    expect(
+      block
+        .querySelector("[data-external-claim-published] time")
+        ?.getAttribute("datetime")
+    ).toBe("2026-09-24");
+    expect(
+      block.querySelector("[data-external-claim-method]")?.textContent
+    ).toBe(CLAIM.claimedMethod);
+    const metrics = block.querySelector(
+      "[data-external-claim-metrics]"
+    ) as HTMLElement;
+    expect(
+      [...metrics.querySelectorAll("dt")].map((term) => term.textContent)
+    ).toEqual(["Rank", "Win rate", "Win rate"]);
+    expect(
+      [...metrics.querySelectorAll("dd")].map((value) => value.textContent)
+    ).toEqual(["1 of 10,500 by total net R", "14%", "out-of-sample 17%"]);
+    expect(
+      block.querySelector("[data-external-claim-notice]")?.textContent
+    ).toBe(
+      "This is the source's claim. Vertex shows its own test result on the Backtests tab. A strategy counts as validated by Vertex only after the Vertex replication and gates pass."
+    );
+    // Research only: the notice stays and no deployment, order or arm control exists anywhere.
+    expect(
+      container.querySelector(
+        '[data-strategy-research-only="strategy-seed-volume-spike-breakout"]'
+      )?.textContent
+    ).toBe("Research only: no deployment");
+    expect(
+      container.querySelector("[data-strategy-request-deployment]")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-strategy-academy-lesson]")
+    ).toBeNull();
+    const controls = [
+      ...container.querySelectorAll("button, a, input, select, textarea"),
+    ].map((control) =>
+      `${control.textContent} ${control.getAttribute("aria-label") ?? ""} ${control.getAttribute("href") ?? ""}`.toLowerCase()
+    );
+    expect(controls.length).toBeGreaterThan(0);
+    for (const control of controls)
+      expect(control).not.toMatch(/\b(arm|order|deploy\w*|go live|trade)\b/u);
+    return expect(block.querySelectorAll("button, input, select")).toHaveLength(
+      0
+    );
+  });
+
+  it("shows no badge and no claim block for a normal-priority strategy without an external claim", async () => {
+    const container = await mount(detailOf());
+    expect(container.querySelector("[data-strategy-badges]")).toBeNull();
+    expect(container.querySelector("[data-strategy-priority]")).toBeNull();
+    expect(
+      container.querySelector("[data-strategy-external-validation]")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-strategy-external-claim]")
+    ).toBeNull();
+    expect(container.textContent).not.toContain("High priority");
+    expect(container.textContent).not.toContain("pre-validated");
+    return expect(container.textContent).not.toContain("External claim");
+  });
+
+  it("shows each badge on its own: priority alone, and a claim alone", async () => {
+    const high = await mount(
+      detailOf({
+        detail: {
+          backtests: [],
+          presets: [],
+          strategy: strategy({ priority: "high" }),
+        },
+      })
+    );
+    expect(badgeKeys(high)).toEqual([["high-priority", "High priority"]]);
+    expect(high.querySelector("[data-strategy-external-claim]")).toBeNull();
+    // Not tagged research-only: the claim adds no control and changes none.
+    expect(
+      high.querySelectorAll("[data-strategy-request-deployment]")
+    ).toHaveLength(1);
+    const claimed = await mount(
+      detailOf({
+        detail: {
+          backtests: [],
+          presets: [],
+          strategy: strategy({ externalValidation: CLAIM }),
+        },
+      })
+    );
+    expect(badgeKeys(claimed)).toEqual([
+      ["externally-pre-validated", "Externally pre-validated"],
+    ]);
+    expect(
+      claimed.querySelectorAll("[data-strategy-external-claim]")
+    ).toHaveLength(1);
+    const parameters = await mount(
+      detailOf({
+        detail: {
+          backtests: [],
+          presets: [],
+          strategy: strategy({ externalValidation: CLAIM }),
+        },
+        tab: "parameters",
+      })
+    );
+    // The claim block belongs to the Overview tab; the header badge stays on every tab.
+    expect(
+      parameters.querySelector("[data-strategy-external-claim]")
+    ).toBeNull();
+    return expect(badgeKeys(parameters)).toHaveLength(1);
   });
 
   it("moves between tabs with the arrow, Home and End keys and by click", async () => {

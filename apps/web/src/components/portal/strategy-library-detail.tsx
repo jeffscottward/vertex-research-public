@@ -9,6 +9,7 @@ import {
   type StrategyStatusValue,
 } from "@darkfactory/api";
 import {
+  Badge,
   Button,
   Input,
   Table,
@@ -41,6 +42,8 @@ import {
 import { QC_IDEA_TAG } from "./strategy-backtest-study-model.ts";
 import {
   descriptionLinks,
+  EXTERNAL_CLAIM_HEADING,
+  EXTERNAL_CLAIM_NOTICE,
   formatParamValue,
   formatPresetValues,
   formatRatio,
@@ -56,6 +59,7 @@ import {
   STRATEGY_TAB_LABELS,
   STRATEGY_TABS,
   type StrategyTab,
+  strategyBadges,
 } from "./strategy-library-model.ts";
 import { ParamField, selectClass } from "./strategy-param-field.tsx";
 import { StrategyReelStudy } from "./strategy-reel-study.tsx";
@@ -85,6 +89,93 @@ export const StrategyLinks = ({
         </a>
       ))}
     </p>
+  );
+};
+
+// "High priority" and "Externally pre-validated" beside a strategy name (board rows, cards and the
+// detail header). Text labels on theme tokens; nothing renders when neither applies.
+export const StrategyBadges = ({
+  strategy,
+}: Readonly<{
+  strategy: Pick<
+    StrategyGetOutput["strategy"],
+    "priority" | "externalValidation"
+  >;
+}>) => {
+  const badges = strategyBadges(strategy);
+  if (badges.length === 0) return null;
+  return (
+    <span className="inline-flex flex-wrap gap-1" data-strategy-badges="">
+      {badges.map((badge) => (
+        <Badge
+          data-strategy-badge={badge.key}
+          {...(badge.key === "high-priority"
+            ? { "data-strategy-priority": "high" }
+            : { "data-strategy-external-validation": "" })}
+          key={badge.key}
+          title={badge.hint}
+          variant={badge.key === "high-priority" ? "default" : "outline"}
+        >
+          {badge.label}
+        </Badge>
+      ))}
+    </span>
+  );
+};
+
+// The third party's claim as published: source, author, date, claimed method and claimed metrics.
+// Read-only; it carries no arm, order or deploy control.
+const ExternalClaim = ({
+  strategy,
+}: Readonly<{ strategy: StrategyGetOutput["strategy"] }>) => {
+  const claim = strategy.externalValidation;
+  if (claim === null) return null;
+  return (
+    <section
+      aria-labelledby="strategy-external-claim-heading"
+      className="space-y-2 rounded-md border border-border p-3 text-xs [overflow-wrap:anywhere]"
+      data-click-private=""
+      data-strategy-external-claim={strategy.id}
+    >
+      <h3 className="font-medium text-sm" id="strategy-external-claim-heading">
+        {EXTERNAL_CLAIM_HEADING}
+      </h3>
+      <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1">
+        <dt className="text-muted-foreground">Source</dt>
+        <dd>
+          <a
+            className="inline-flex min-h-11 items-center underline underline-offset-2 hover:text-foreground"
+            data-strategy-external-claim-source=""
+            href={claim.sourceUrl}
+            rel="noreferrer noopener"
+            target="_blank"
+          >
+            {claim.sourceTitle}
+          </a>
+        </dd>
+        <dt className="text-muted-foreground">Author</dt>
+        <dd data-external-claim-author="">{claim.sourceAuthor}</dd>
+        <dt className="text-muted-foreground">Published</dt>
+        <dd className="font-mono" data-external-claim-published="">
+          <time dateTime={claim.publishedOn}>{claim.publishedOn}</time>
+        </dd>
+        <dt className="text-muted-foreground">Claimed method</dt>
+        <dd data-external-claim-method="">{claim.claimedMethod}</dd>
+      </dl>
+      <h4 className="text-muted-foreground">Claimed metrics</h4>
+      <dl
+        className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1"
+        data-external-claim-metrics=""
+      >
+        {claim.claimedMetrics.map((metric, index) => (
+          <div className="contents" key={index}>
+            <dt className="text-muted-foreground">{metric.label}</dt>
+            <dd className="font-mono">{metric.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p data-external-claim-notice="">{EXTERNAL_CLAIM_NOTICE}</p>
+    </section>
   );
 };
 
@@ -195,6 +286,7 @@ const OverviewTab = ({
 
   return (
     <div className="space-y-5">
+      <ExternalClaim strategy={strategy} />
       <form
         className="grid gap-3 md:grid-cols-2"
         data-strategy-overview-form=""
@@ -978,6 +1070,7 @@ export const StrategyDetail = ({
           >
             {strategy.name}
           </h2>
+          <StrategyBadges strategy={strategy} />
           <p className="break-words text-muted-foreground text-xs [overflow-wrap:anywhere]">
             <span className="font-mono">{strategy.slug}</span> ·{" "}
             {STRATEGY_KIND_LABELS[strategy.kind] ?? strategy.kind} ·{" "}

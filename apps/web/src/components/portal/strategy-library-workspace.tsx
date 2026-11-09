@@ -41,7 +41,11 @@ import {
   type StrategyLibraryGateway,
 } from "./agent-ops-client.tsx";
 import { formatPercent } from "./backtests-workspace.tsx";
-import { StrategyDetail, StrategyLinks } from "./strategy-library-detail.tsx";
+import {
+  StrategyBadges,
+  StrategyDetail,
+  StrategyLinks,
+} from "./strategy-library-detail.tsx";
 import {
   formatRatio,
   formatSignedPercent,
@@ -286,7 +290,10 @@ const RowsView = ({
                 className="whitespace-normal py-0 pr-3 font-normal"
                 scope="row"
               >
-                <NameLink onOpen={onOpen} row={row} />
+                <span className="flex flex-wrap items-center gap-x-2">
+                  <NameLink onOpen={onOpen} row={row} />
+                  <StrategyBadges strategy={row} />
+                </span>
               </TableHead>
               <TableCell
                 className="whitespace-normal py-1 pr-3 text-xs"
@@ -358,6 +365,7 @@ const CardsView = ({
             <NameLink onOpen={onOpen} row={row} />
             <FavoriteButton busy={busy} onToggle={onToggle} row={row} />
           </div>
+          <StrategyBadges strategy={row} />
           <p className="text-muted-foreground text-xs">
             {STRATEGY_STATUS_LABELS[row.status]} ·{" "}
             {STRATEGY_KIND_LABELS[row.kind] ?? row.kind}

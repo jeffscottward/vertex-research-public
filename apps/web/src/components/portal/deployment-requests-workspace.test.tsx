@@ -175,6 +175,8 @@ const summary = (
   name: "HMM forward filter",
   params: [lookback, side],
   presetCount: 1,
+  priority: "normal",
+  externalValidation: null,
   section: null,
   slug: "hmm",
   sourceRef: null,

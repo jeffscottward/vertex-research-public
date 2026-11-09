@@ -48,6 +48,46 @@ export const STRATEGY_SORT_LABELS: Readonly<Record<StrategySortValue, string>> =
     return: "Return (latest backtest)",
   });
 
+// Badges beside a strategy name. "Externally pre-validated" records a third party's claim; it is
+// shown exactly when the strategy carries an external claim and never means validated by Vertex.
+const HIGH_PRIORITY_LABEL = "High priority";
+const EXTERNALLY_PRE_VALIDATED_LABEL = "Externally pre-validated";
+export const EXTERNAL_CLAIM_HEADING =
+  "External claim (not validated by Vertex)";
+export const EXTERNAL_CLAIM_NOTICE =
+  "This is the source's claim. Vertex shows its own test result on the Backtests tab. A strategy counts as validated by Vertex only after the Vertex replication and gates pass.";
+
+export type StrategyBadgeKey = "high-priority" | "externally-pre-validated";
+export type StrategyBadge = Readonly<{
+  key: StrategyBadgeKey;
+  label: string;
+  hint: string;
+}>;
+export const strategyBadges = (
+  strategy: Pick<StrategySummaryOutput, "priority" | "externalValidation">
+): StrategyBadge[] => {
+  return [
+    ...(strategy.priority === "high"
+      ? [
+          {
+            hint: "Listed first in every sort.",
+            key: "high-priority" as const,
+            label: HIGH_PRIORITY_LABEL,
+          },
+        ]
+      : []),
+    ...(strategy.externalValidation === null
+      ? []
+      : [
+          {
+            hint: "A third party published a positive backtest. This is a claim, not a Vertex validation.",
+            key: "externally-pre-validated" as const,
+            label: EXTERNALLY_PRE_VALIDATED_LABEL,
+          },
+        ]),
+  ];
+};
+
 const UNSORTED_SECTION_LABEL = "Unsorted";
 
 export type SectionGroup = Readonly<{
