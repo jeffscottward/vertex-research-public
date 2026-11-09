@@ -27,7 +27,11 @@ SSRN 4824172. The rule is the ZAB row of `docs/specs/strategies/market-intraday-
   spread per side plus 1 bp slippage per side, IBKR Pro Fixed commissions and fees; flat at 16:00.
 - Split: first 60 % of each market's time in-sample, last 40 % out-of-sample. No parameter is tuned: lookback 14 days,
   decision times HH:00/HH:30 10:00-15:30, as in the paper.
-- Configurations counted for the deflated Sharpe: every ZAB run on IBKR and Dukascopy so far plus this study's runs.
+- Parameter changes (one at a time, the 7 rows of `ZAB_SENSITIVITY` in `definition.py`): band length 10 and 20 days; band
+  multiple 0.8 and 1.2; decision every 15 and 60 minutes; 1x sizing. The 75 % gate is therefore at least 6 of 7 with Sharpe > 0.
+- Monte Carlo: 2,000 trade bootstraps, seed 31 (`metrics.MC_PATHS`, `metrics.MC_SEED`).
+- Deflated Sharpe trial count: N = 80, fixed now. It covers the earlier ZAB runs (2 forms on 15 Dukascopy markets, 6 sensitivity
+  rows, 2 forms on IBKR SPY) and this study (2 forms and 7 changes on 4 markets), rounded up.
 
 ## Pass/fail rule (fixed now)
 
