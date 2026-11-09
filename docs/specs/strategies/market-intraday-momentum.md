@@ -107,3 +107,10 @@ Verdict: **no edge** (OOS Sharpe <= 0 and deflated Sharpe probability < 0.5; 0 o
 - Other strategies on US500 (full Sharpe): GHLZ r1+r12 -1.11, ZAB -0.63, ZAB 1x -0.55, BIAS -1.42. ZAB on SPY -0.12. The best of
   140 runs is ZAB 1x on QQQ (0.56, OOS 0.53), one market out of many tried. Buy and hold: Sharpe 0.90 (futures proxies), 0.63
   (ETF twins).
+- ZAB replication check (after the run, not part of the pre-registered rule): with the paper's costs (about 0.1 bp a side; the
+  study's cost multiple 0.07) the same Nautilus definition on SPY gives Sharpe 1.25 and CAGR 18.7 % for 2017-2024 (paper: 1.33 and
+  19.6 % for 2007-2024; an independent pandas check on the 1-minute data gives 1.33 and 20.0 %). Over the full window it is Sharpe
+  0.90 (IS 1.07, OOS 0.63, max DD -27 %). With the pre-registered costs (measured CFD spread plus 1 bp slippage a side, about 13x the
+  paper's) it falls to 0.24 for 2017-2024 and -0.12 overall. So the ZAB rule reproduces; whether it survives depends on real SPY
+  fill costs being near the paper's or near this study's. A follow-up needs real SPY quotes and fills (IBKR) and its own
+  pre-registration.
