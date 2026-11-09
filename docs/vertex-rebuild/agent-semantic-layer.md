@@ -1,6 +1,6 @@
 # Agent semantic layer: decision on NVIDIA Auto Ontology
 
-Updated: 2026-11-08 (build). Cards `vertex-agent-semantic-layer` (decision) and `vertex-semantic-layer-build` (build). Research only. Nothing here gives an agent permission to place, approve or change a trade.
+Updated: 2026-11-09 (Q13 and H4 recorded again; build 2026-11-08). Cards `vertex-agent-semantic-layer` (decision) and `vertex-semantic-layer-build` (build). Research only. Nothing here gives an agent permission to place, approve or change a trade.
 
 ## Decision
 
