@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { toPaletteItems } from "../components/command-palette.tsx";
+import { PORTAL_SIDEBAR_GROUPS, SETTINGS_NAVIGATION } from "./navigation.ts";
 import {
   type PaletteEntry,
   type PaletteGroup,
@@ -112,25 +114,34 @@ describe("paletteGroups commands", () => {
     });
   });
 
-  it("lists matching pages after the command", () => {
+  it("lists matching pages after the command template", () => {
     const charts = { group: "Research", href: "/charts", label: "Charts" };
     const groups = paletteGroups([...items, charts], "chart");
-    expect(headings(groups)).toEqual(["Commands", "Pages"]);
+    // CHART is also ticker-shaped, so its stock rows follow the page.
+    expect(headings(groups)).toEqual(["Commands", "Pages", "Ticker"]);
+    expect(groups[0]?.entries.map((entry) => entry.id)).toEqual([
+      "complete:chart",
+    ]);
     return expect(groups[1]?.entries.map((entry) => entry.id)).toEqual([
       "page:Research:/charts",
     ]);
   });
 
-  it("keeps one-letter tickers that are also aliases (C, O, S)", () => {
+  it("keeps tickers that are also aliases (C, O, S, OPT)", () => {
     const groups = paletteGroups(items, "c");
     expect(headings(groups)).toEqual(["Commands", "Pages", "Ticker"]);
     expect(top("c")).toMatchObject({ fill: "chart ", kind: "complete" });
     expect(hrefs("o")).toContain("/stock/O");
+    expect(hrefs("opt")).toContain("/stock/OPT");
+    expect(top("c 1w")).toMatchObject({ href: "/stock/C?interval=1W" });
     return expect(top("c nvda")).toMatchObject({
       href: "/charts?symbol=NVDA",
       kind: "go",
     });
   });
+
+  it("keeps the hint for a full command name with a wrong argument", () =>
+    expect(top("chart 1y")).toMatchObject({ kind: "hint" }));
 });
 
 describe("paletteGroups completions", () => {
@@ -201,6 +212,34 @@ describe("paletteGroups tickers", () => {
     expect(headings(paletteGroups(items, "nvda soon"))).toEqual([]);
     return expect(headings(paletteGroups(items, "nvda 1W 1D"))).toEqual([]);
   });
+});
+
+describe("paletteGroups with the real portal navigation", () => {
+  const portal = toPaletteItems([
+    ...PORTAL_SIDEBAR_GROUPS.map((group) => ({
+      group: group.label,
+      items: group.items,
+    })),
+    { group: "Settings", items: SETTINGS_NAVIGATION },
+  ]);
+  const first = (query: string): PaletteEntry | undefined =>
+    paletteGroups(portal, query).flatMap((group) => group.entries)[0];
+
+  it.each(["nvda", "aapl", "msft", "tsla", "coin", "intc", "spy", "amd"])(
+    "Enter on %s opens its stock page, not a loosely matching page",
+    (ticker) =>
+      expect(first(ticker)).toMatchObject({
+        href: `/stock/${ticker.toUpperCase()}`,
+      })
+  );
+
+  it.each([
+    ["audit", "/audit"],
+    ["portfolio", "/portfolio"],
+    ["backtests", "/backtests"],
+  ])("Enter on %s still opens the page %s", (query, href) =>
+    expect(first(query)).toMatchObject({ href })
+  );
 });
 
 describe("paletteGroups pages", () => {

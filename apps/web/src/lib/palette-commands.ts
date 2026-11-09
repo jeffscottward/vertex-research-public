@@ -266,21 +266,29 @@ const tickerEntries = (
     )
   );
 
+// cmdk scores: about 0.9-1 for a word prefix ("port" in Portfolio), about 0.17 for spaced
+// initials ("bkt" in Backtests), about 0.02 for letters scattered over label, group and path
+// ("nvda" in "Mission control Overview /dashboard"). Below MIN_PAGE_SCORE a page is noise.
+const MIN_PAGE_SCORE = 0.1;
+// At or above this score a page beats a ticker of the same text ("audit" opens /audit).
+const STRONG_PAGE_SCORE = 0.5;
+
+type ScoredPage = Readonly<{ item: PaletteItem; score: number }>;
+
 /** Pages that fuzzy-match the query (cmdk's scorer on label, group and path), best first. */
 const matchPages = (
   items: readonly PaletteItem[],
   query: string
-): PaletteItem[] => {
+): ScoredPage[] => {
   const needle = query.trim();
-  if (needle === "") return [...items];
+  if (needle === "") return items.map((item) => ({ item, score: 1 }));
   return items
     .map((item) => ({
       item,
       score: defaultFilter(`${item.label} ${item.group} ${item.href}`, needle),
     }))
-    .filter(({ score }) => score > 0)
-    .sort((left, right) => right.score - left.score)
-    .map(({ item }) => item);
+    .filter(({ score }) => score >= MIN_PAGE_SCORE)
+    .sort((left, right) => right.score - left.score);
 };
 
 const group = (
@@ -291,10 +299,11 @@ const group = (
 /**
  * Ordered groups for a query:
  * - empty: every command template, then every page;
- * - a command name first ("chart nvda 1w"): that command, then matching pages;
- * - anything else: commands whose name starts with the text ("ch"), matching pages, then
- *   "Open <TICKER>" with chart and options when the text is a ticker, optionally with an
- *   interval ("NVDA 1W").
+ * - a command with its ticker ("chart nvda 1w"): that command, then matching pages;
+ * - anything else: commands whose name starts with the text ("ch"), then "Open <TICKER>"
+ *   with chart and options when the text is a ticker, optionally with an interval
+ *   ("NVDA 1W"), and matching pages. Pages come before the ticker only when one matches
+ *   strongly ("audit"), so Enter on "nvda" opens NVDA.
  */
 export const paletteGroups = (
   items: readonly PaletteItem[],
@@ -302,8 +311,9 @@ export const paletteGroups = (
 ): PaletteGroup[] => {
   const text = query.trim();
   const [first, ...rest] = text === "" ? [] : text.split(/\s+/u);
-  const pages = matchPages(items, text).map(
-    (item): PaletteEntry => ({
+  const scored = matchPages(items, text);
+  const pages = scored.map(
+    ({ item }): PaletteEntry => ({
       detail: item.group,
       href: item.href,
       id: `page:${item.group}:${item.href}`,
@@ -317,32 +327,38 @@ export const paletteGroups = (
       ...group("Pages", pages),
     ];
   const name = first.toLowerCase();
-  const command = COMMAND_LIST.find((entry) => entry.names.includes(name));
-  // A lone one-letter alias ("c", "o", "s") is also a real ticker (Citigroup, Realty Income,
-  // SentinelOne): it takes the general path below, which offers the template and the ticker.
-  const loneLetter = rest.length === 0 && name.length === 1;
-  if (command !== undefined && !loneLetter)
-    return [
-      ...group("Commands", [commandEntry(command, rest)]),
-      ...group("Pages", pages),
-    ];
   const [second, ...more] = rest;
+  const interval =
+    second !== undefined && more.length === 0 ? parseInterval(second) : null;
+  const tickerForm =
+    isTickerQuery(first) && (second === undefined || interval !== null);
+  const command = COMMAND_LIST.find((entry) => entry.names.includes(name));
+  const commandResult =
+    command === undefined ? undefined : commandEntry(command, rest);
+  // A command name can also be a ticker ("c" is Citigroup, "opt" a listed symbol). Without a
+  // ticker after it ("c", "c 1w"), the general path below offers both the template and the
+  // ticker. Longer names with a wrong argument ("chart 1y") keep their hint.
+  const tickerWins =
+    tickerForm &&
+    commandResult?.kind !== "go" &&
+    (second === undefined || name.length === 1);
+  if (commandResult !== undefined && !tickerWins)
+    return [...group("Commands", [commandResult]), ...group("Pages", pages)];
   const completions =
     second === undefined
       ? COMMAND_LIST.filter((entry) =>
           entry.names.some((alias) => alias.startsWith(name))
         ).map(completeEntry)
       : [];
-  const interval =
-    second !== undefined && more.length === 0 ? parseInterval(second) : null;
-  const tickerForm =
-    isTickerQuery(first) && (second === undefined || interval !== null);
+  const ticker = group(
+    "Ticker",
+    tickerForm ? tickerEntries(first.toUpperCase(), interval) : []
+  );
+  const strongPage = (scored[0]?.score ?? 0) >= STRONG_PAGE_SCORE;
   return [
     ...group("Commands", completions),
-    ...group("Pages", pages),
-    ...group(
-      "Ticker",
-      tickerForm ? tickerEntries(first.toUpperCase(), interval) : []
-    ),
+    ...(strongPage
+      ? [...group("Pages", pages), ...ticker]
+      : [...ticker, ...group("Pages", pages)]),
   ];
 };
