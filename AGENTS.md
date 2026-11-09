@@ -35,7 +35,7 @@ Keep DarkFactory a small, truthful, swappable product template. Build features a
 3. **TypeScript strict.** No `any`, no `@ts-ignore`, no non-null assertions on untrusted data. Validate input with Zod at boundaries.
 4. **Tests and the 100% gate.** Every source file is measured. Cover new code with tests, not with coverage exclusions. Coverage ratchet (owner decision, 2026-10-11, reconfirmed 2026-10-16; ADR-016): files listed in `scripts/ci/coverage-baseline.json` were below 100% after the TypeScript port and keep recorded per-file minimums that may only rise; every other file must reach 100%. The list may only shrink. Never add a file to it or lower a minimum.
 5. **No secrets.** Never commit, log or print secrets, `.env` values, tokens or personal data. Seeded accounts are dev-only.
-6. **Drizzle only.** All Postgres access goes through `packages/db` repositories and generated migrations.
+6. **Drizzle only.** All Postgres access goes through `packages/db` repositories and generated migrations. When a base merge stops on `packages/db/migrations/meta/_journal.json` or `meta/NNNN_snapshot.json` (another branch took the same migration number), run `pnpm db:renumber`, then commit ([CONVENTIONS.md](CONVENTIONS.md#migration-numbers)).
 7. **oRPC only.** No ad hoc REST routes, server actions or direct database calls from pages.
 8. **Small, focused commits.** One change per commit, with its tests, generated artifacts and docs. Use Conventional Commits.
 9. **Never weaken a gate.** Do not lower thresholds, skip tests, add `.only`, widen allowlists or disable hooks to go green.
