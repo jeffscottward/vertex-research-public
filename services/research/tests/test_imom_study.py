@@ -1,12 +1,15 @@
 """Unit tests of the market intraday momentum reel study (synthetic data; no market data, no Nautilus)."""
 from __future__ import annotations
 
+import contextlib
 import inspect
+import io
 import json
 import math
 import shutil
 import subprocess
 import unittest
+import unittest.mock
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -709,6 +712,20 @@ class IbkrSourceTest(unittest.TestCase):
         # Owner 2026-11-09 (card vertex-reel-backtest-dffkn31): IBKR is the intraday-data default.
         self.assertEqual(data.DEFAULT_SOURCE, data.IBKR)
         self.assertEqual(inspect.signature(study.main_study).parameters["source"].default, "ibkr")
+        self.assertEqual(inspect.signature(study.run_study).parameters["source"].default, "ibkr")
+
+    def test_main_study_default_reads_the_ibkr_data(self) -> None:
+        calls = []
+        env = {"VERTEX_IMOM_IBKR_DATA": "/ibkr-root", "VERTEX_IMOM_DATA": "/dukascopy-root"}
+        fake = lambda ran, **kwargs: calls.append(kwargs) or {"kind": "test"}  # noqa: E731
+        with unittest.mock.patch.dict("os.environ", env), unittest.mock.patch.object(study, "run_study", fake), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(study.main_study("2026-11-09", 1, None, compare_rows=["GHLZ US500=0.31,0.012,-0.21"]), 0)
+        self.assertEqual(json.loads(out.getvalue()), {"kind": "test"})
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["source"], "ibkr")
+        self.assertEqual(calls[0]["root"], "/ibkr-root")
+        self.assertEqual(calls[0]["extra_comparison"][0]["name"], "GHLZ US500 (Dukascopy, CFD costs)")
 
     def test_helper_defaults_stay_dukascopy(self) -> None:
         self.assertEqual(data.primary_of(), "US500")

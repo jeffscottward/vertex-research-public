@@ -22,8 +22,10 @@ The owner chose IBKR on 2026-11-09 for the question "Which data should Vertex us
 | Volume | traded shares | tick count |
 | Spread used for costs | quoted SPY bid/ask measured from IBKR `BID_ASK` bars | CFD spread, wider than SPY's |
 
-On the same rules GHLZ gave Sharpe −0.36 (out-of-sample −0.93) on IBKR against −1.72 (−2.04) on Dukascopy. The
-Dukascopy figures came from fewer years and a cost model that does not match the traded ETF.
+On the same rules, GHLZ on SPY gave Sharpe −0.36 (out-of-sample −0.93) on IBKR, against −1.72 (−2.04) on the Dukascopy
+SPY CFD (the `GHLZ SPY (Dukascopy, CFD costs)` comparison row of the stored IBKR study). The Dukascopy figures come from
+fewer years and a cost model that does not match the traded ETF. The original study's primary, GHLZ on the US500 CFD,
+gave −2.10 (−2.75), see [the spec](../../specs/strategies/market-intraday-momentum.md).
 
 ## How the data is fetched
 
@@ -34,11 +36,14 @@ Dukascopy figures came from fewer years and a cost model that does not match the
 - Storage: on the rig only, not in the repository (the data is not ours to redistribute):
   `~/Documents/reports/vertex-reel-dffkn31-data/ibkr5m/<SYMBOL>.csv.gz` (header
   `timestamp,open,high,low,close,volume`, UTC milliseconds of the bar open) and `<SYMBOL>-bidask.csv.gz` spread samples.
+  The fetcher writes to `$VERTEX_IMOM_DATA_ROOT/ibkr5m`; the study reads `$VERTEX_IMOM_IBKR_DATA`. If the data moves,
+  set both.
 - Backtests run on Nautilus on the rig, never on QuantVPS.
 
 ## Tooling defaults
 
-- `python -m strategies.imom study` uses `--source ibkr` unless `--source dukascopy` is given
-  (`DEFAULT_SOURCE` in `services/research/strategies/imom/data.py`; test `test_vertex_default_is_ibkr`).
-- The data helpers in that module keep Dukascopy as their own default argument, because they pair the source with the
-  Dukascopy primary market (US500). Callers that mean IBKR pass `source="ibkr"`.
+- `python -m strategies.imom study`, `main_study` and `run_study` use `--source ibkr` unless `--source dukascopy` is
+  given (`DEFAULT_SOURCE` in `services/research/strategies/imom/data.py`; tests `test_vertex_default_is_ibkr` and
+  `test_main_study_default_reads_the_ibkr_data`). `--source dukascopy` reproduces the original Dukascopy run.
+- The lower-level data helpers in that module keep Dukascopy as their own default argument, because they pair the
+  source with the Dukascopy primary market (US500). `run_study` passes its source to every one of them.

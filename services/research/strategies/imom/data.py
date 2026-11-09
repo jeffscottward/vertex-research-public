@@ -99,8 +99,9 @@ DUKASCOPY = "dukascopy"
 IBKR = "ibkr"
 SOURCES = (DUKASCOPY, IBKR)
 # Vertex default for intraday backtests: IBKR (owner 2026-11-09, card vertex-reel-backtest-dffkn31;
-# docs/vertex-rebuild/data-sources/intraday.md). The CLI and main_study use it. The helpers below keep
-# DUKASCOPY as their default because they pair `source` with the Dukascopy PRIMARY.
+# docs/vertex-rebuild/data-sources/intraday.md). The entry points (CLI, main_study, run_study) use it. The
+# lower-level helpers below keep DUKASCOPY as their default on purpose: they pair `source` with the Dukascopy
+# PRIMARY (US500), and run_study passes its source to every one of them.
 DEFAULT_SOURCE = IBKR
 IBKR_DATA_ENV = "VERTEX_IMOM_IBKR_DATA"
 IBKR_DEFAULT_ROOT = DEFAULT_ROOT.parent / "ibkr5m"

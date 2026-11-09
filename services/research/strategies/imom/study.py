@@ -387,7 +387,7 @@ def library_rows(repo: Path) -> list[dict]:
 
 
 def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path | None = None,
-              detail_path: Path | None = None, log: Log = _log, source: str = DUKASCOPY,
+              detail_path: Path | None = None, log: Log = _log, source: str = DEFAULT_SOURCE,
               extra_comparison: Sequence[dict] = ()) -> dict:
     repo = repo or Path(__file__).resolve().parents[4]
     check_source(source)
