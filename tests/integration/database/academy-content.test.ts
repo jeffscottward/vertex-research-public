@@ -230,6 +230,45 @@ describe("academy content repository (Postgres)", () => {
     ).rejects.toThrow();
   });
 
+  it("serializes concurrent imports of different courses: one claims a new source, the other is refused", async () => {
+    const repository = createAcademyContentRepository(database());
+    const base = sourceOf(firstSpec);
+    const sourceId = `${base.sourceId}-race`;
+    const url = String(base["url"]).replace(base.sourceId, sourceId);
+    const claim = (course: "dyr" | "quantfinancetogo") =>
+      repository.importCourse({
+        course,
+        sources: [{ ...base, course, sourceId, url }],
+        specs: [],
+      });
+    const results = await Promise.allSettled([
+      claim("quantfinancetogo"),
+      claim("dyr"),
+    ]);
+    const fulfilled = results.filter((result) => result.status === "fulfilled");
+    const rejected = results.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(String(rejected[0]?.reason)).toContain(
+      "import would move rows of another course"
+    );
+    if (testDatabase === undefined) throw new Error("Database not started");
+    const winner =
+      results[0]?.status === "fulfilled" ? "quantfinancetogo" : "dyr";
+    expect(
+      await testDatabase.query(
+        "SELECT course FROM academy_lesson_sources WHERE source_id = $1",
+        [sourceId]
+      )
+    ).toEqual([{ course: winner }]);
+    await testDatabase.query(
+      "DELETE FROM academy_lesson_sources WHERE source_id = $1",
+      [sourceId]
+    );
+  });
+
   it("refuses the rollback while content exists, then drops both tables", async () => {
     const postgres = (): PostgresTestDatabase => {
       if (testDatabase === undefined) throw new Error("Database not started");

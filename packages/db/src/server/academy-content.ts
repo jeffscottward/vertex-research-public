@@ -360,6 +360,11 @@ const writeCourse = async (
 ): Promise<AcademyCourseImportResult> => {
   const slugs = specs.map((spec) => spec.slug);
   const sourceIds = sources.map((source) => source.sourceId);
+  // One import at a time across courses: without it, two concurrent imports of different courses could
+  // both pass the clash check before either writes, and the later upsert would be skipped silently.
+  await executor.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('academy_content_import'))`
+  );
   await refuseCourseClashes(executor, course, slugs, sourceIds);
   // Specs first: a pruned lesson frees its source (and its source id for another lesson).
   const specsDeleted = prune
