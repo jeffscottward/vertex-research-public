@@ -220,7 +220,7 @@ const makeRoom = (now: number): void => {
     sourceCache.delete(oldest);
 };
 
-/** A source deliberately not read on this load (IBKR budget spent); never cached or reported. */
+/** A source not read on this load (IBKR budget spent or its 5 s ran out); never cached or shown. */
 export class SourceSkipped extends Error {
   constructor() {
     super("source skipped for this load");
@@ -326,6 +326,13 @@ const loadIbkrHeadlines = async (
       (error.code === "PACED" || error.code === "UNAVAILABLE")
     )
       load.ibkrReads = 0;
+    // Our own short budget ran out (fetchHistoryDocument's abort message): the service was not
+    // wrong, just slower than this page waits. Not cached, not shown; the next load asks again.
+    if (
+      error instanceof MarketDataError &&
+      error.message === "History request timed out"
+    )
+      throw new SourceSkipped();
     throw error;
   }
 };

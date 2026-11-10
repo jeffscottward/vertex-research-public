@@ -647,20 +647,77 @@ const googleItem = (title: string, description = "", hour = 10): string =>
   `<item><title>${title} - Reuters</title><link>https://news.google.com/rss/articles/${encodeURIComponent(title)}</link><pubDate>Fri, 06 Nov 2026 ${String(hour).padStart(2, "0")}:00:00 GMT</pubDate><description>${description}</description></item>`;
 
 describe("Reuters relevance and feed bounds", () => {
-  it("searches Reuters by the SEC name, or by the quoted ticker without one", () => {
+  it("searches the last 30 days of Reuters by the SEC name, or by the quoted ticker without one", () => {
     expect(companyWords("FORD MOTOR CO")).toEqual(["FORD", "MOTOR"]);
     expect(reutersSearchQuery({ name: "FORD MOTOR CO", symbol: "F" })).toBe(
-      '"FORD MOTOR" site:reuters.com'
+      '"FORD MOTOR" site:reuters.com when:30d'
     );
     expect(reutersSearchQuery({ name: "AT&T INC.", symbol: "T" })).toBe(
-      '"AT&T" site:reuters.com'
+      '"AT&T" site:reuters.com when:30d'
     );
     expect(reutersSearchQuery({ name: "GE CO", symbol: "ge" })).toBe(
-      '"GE" stock site:reuters.com'
+      '"GE" stock site:reuters.com when:30d'
     );
     return expect(reutersSearchQuery({ name: null, symbol: "spy" })).toBe(
-      '"SPY" stock site:reuters.com'
+      '"SPY" stock site:reuters.com when:30d'
     );
+  });
+
+  it("drops state tags, legal forms and lone ampersands from SEC names", () => {
+    expect(companyWords("COSTCO WHOLESALE CORP /NEW")).toEqual([
+      "COSTCO",
+      "WHOLESALE",
+    ]);
+    expect(companyWords("QUALCOMM INC/DE")).toEqual(["QUALCOMM"]);
+    expect(companyWords("WELLS FARGO & COMPANY/MN")).toEqual([
+      "WELLS",
+      "FARGO",
+    ]);
+    expect(companyWords("ELI LILLY & Co")).toEqual(["ELI", "LILLY"]);
+    expect(companyWords("TESLA, INC. /DE/")).toEqual(["TESLA"]);
+    expect(companyWords("ASML HOLDING NV")).toEqual(["ASML"]);
+    expect(companyWords("BANCO SANTANDER SA ADR")).toEqual([
+      "BANCO",
+      "SANTANDER",
+    ]);
+    expect(
+      reutersSearchQuery({ name: "QUALCOMM INC/DE", symbol: "QCOM" })
+    ).toBe('"QUALCOMM" site:reuters.com when:30d');
+    // A dropped "&" still matches the name as written in a headline.
+    return expect(
+      mentionPattern({ name: "PROCTER & GAMBLE Co", symbol: "PG" }).test(
+        "Procter & Gamble raises prices"
+      )
+    ).toBe(true);
+  });
+
+  it("accepts any distinctive name word: Disney and Exxon stories stay", () => {
+    const disney = parseReutersRss(
+      rss(
+        [
+          googleItem("Disney, Adobe to join AI content pact", "", 9),
+          googleItem("Walt Disney World raises ticket prices", "", 8),
+          googleItem("Media stocks slip on ad worries", "", 7),
+        ].join("")
+      ),
+      { name: "WALT DISNEY CO", symbol: "DIS" }
+    );
+    expect(disney.map((item) => item.title)).toEqual([
+      "Disney, Adobe to join AI content pact",
+      "Walt Disney World raises ticket prices",
+    ]);
+    const exxon = companyMention({ name: "EXXON MOBIL CORP", symbol: "XOM" });
+    expect(exxon("Exxon signs Guyana gas deal")).toBe(true);
+    expect(exxon("Mobil lubricants plant reopens")).toBe(true);
+    expect(exxon("Oil majors weigh buybacks")).toBe(false);
+    // CamelCase names split into their words.
+    const camel = companyMention({ name: "ExxonMobil Corp", symbol: "XOM" });
+    expect(camel("Exxon signs Guyana gas deal")).toBe(true);
+    // Generic words alone ("General", "Motors") never count.
+    const gm = companyMention({ name: "GENERAL MOTORS CO", symbol: "GM" });
+    expect(gm("General strike hits ports")).toBe(false);
+    expect(gm("Electric motors demand rises")).toBe(false);
+    return expect(gm("General Motors recalls SUVs")).toBe(true);
   });
 
   it("keeps only Reuters stories that name a single-letter ticker's company", () => {
@@ -691,7 +748,9 @@ describe("Reuters relevance and feed bounds", () => {
       symbol: "on",
     });
     expect(mentions("ON shares jump after results")).toBe(true);
-    expect(mentions("onsemi: Semiconductor maker beats")).toBe(true);
+    expect(mentions("ON Semiconductor beats estimates")).toBe(true);
+    // "Semiconductor" alone is generic.
+    expect(mentions("Semiconductor stocks slide")).toBe(false);
     expect(mentions("Markets rally on rate hopes")).toBe(false);
     // Without a name only the ticker itself counts.
     const spy = companyMention({ name: null, symbol: "SPY" });

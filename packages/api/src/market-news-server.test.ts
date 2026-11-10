@@ -509,9 +509,9 @@ describe("merged headline sources", () => {
       "https://history.example.test/news?symbol=KO&count=20"
     );
     expect(calls).toContain("https://seekingalpha.com/api/sa/combined/KO.xml");
-    // Reuters is searched by the SEC company name without its legal form.
+    // Reuters is searched by the SEC company name without its legal form, last 30 days.
     return expect(calls).toContain(
-      "https://news.google.com/rss/search?ceid=US%3Aen&gl=US&hl=en-US&q=%22COCA+COLA%22+site%3Areuters.com"
+      "https://news.google.com/rss/search?ceid=US%3Aen&gl=US&hl=en-US&q=%22COCA+COLA%22+site%3Areuters.com+when%3A30d"
     );
   });
 
@@ -587,7 +587,7 @@ describe("merged headline sources", () => {
     return expect(again.headlines.map((item) => item.source)).toContain("ibkr");
   });
 
-  it("gives IBKR a short budget and records a timeout as a source error", async () => {
+  it("treats IBKR running past its budget as skipped: no error, not cached, IBKR off for the load", async () => {
     const { calls, fetch: base } = koFeeds();
     // vertex-history never answers: the request is aborted at the IBKR budget.
     const fetch: Fetch = (url, init) => {
@@ -600,29 +600,104 @@ describe("merged headline sources", () => {
         );
       });
     };
+    const options = {
+      fetch,
+      marketHistory: HISTORY,
+      now: () => NOW,
+      timeoutMs: 20,
+    };
+    const ibkrCalls = () => calls.filter((url) => url.startsWith(HISTORY.url));
     const load = newsLoad();
-    const slow = await loadTickerFeeds(
-      "KO",
-      { fetch, marketHistory: HISTORY, now: () => NOW, timeoutMs: 20 },
-      undefined,
-      load
-    );
-    expect(slow.errors).toEqual([
-      "headlines: IBKR news: History request timed out",
-    ]);
+    const slow = await loadTickerFeeds("KO", options, undefined, load);
+    expect(slow.errors).toEqual([]);
     expect(slow.headlines.length).toBeGreaterThan(0);
-    // The timeout ends IBKR for the rest of this load: AAPL does not ask and reports nothing.
-    const next = await loadTickerFeeds(
-      "AAPL",
-      { fetch, marketHistory: HISTORY, now: () => NOW, timeoutMs: 20 },
-      undefined,
-      load
-    );
+    // The timeout ends IBKR for the rest of this load: AAPL does not ask.
+    const next = await loadTickerFeeds("AAPL", options, undefined, load);
     expect(next.errors).toEqual([]);
-    expect(calls.filter((url) => url.startsWith(HISTORY.url))).toEqual([
+    expect(ibkrCalls()).toEqual([
       "https://history.example.test/news?symbol=KO&count=20",
     ]);
-    return expect(IBKR_NEWS_TIMEOUT_MS).toBe(5000);
+    // Not cached: the next load asks again.
+    await loadTickerFeeds("KO", options);
+    return expect(ibkrCalls()).toHaveLength(2);
+  });
+
+  it("aborts an IBKR read after 5 s by default", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { fetch: base } = koFeeds();
+      const signals: AbortSignal[] = [];
+      const fetch: Fetch = (url, init) => {
+        if (!url.startsWith(HISTORY.url)) return base(url, init);
+        if (init.signal) signals.push(init.signal);
+        return new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new Error("aborted"))
+          );
+        });
+      };
+      const pending = loadTickerFeeds("KO", {
+        fetch,
+        marketHistory: HISTORY,
+        now: () => NOW,
+      });
+      await vi.advanceTimersByTimeAsync(IBKR_NEWS_TIMEOUT_MS - 1);
+      expect(signals.map((signal) => signal.aborted)).toEqual([false]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals.map((signal) => signal.aborted)).toEqual([true]);
+      expect(IBKR_NEWS_TIMEOUT_MS).toBe(5000);
+      return expect((await pending).errors).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads the 8-K feed alongside the headline feeds", async () => {
+    const { fetch: base } = koFeeds();
+    let releaseYahoo = (): void => undefined;
+    const yahooGate = new Promise<void>((resolve) => {
+      releaseYahoo = resolve;
+    });
+    // Yahoo answers only once the 8-K feed has been requested: a sequential read would hang.
+    const fetch: Fetch = async (url, init) => {
+      if (url.includes("feeds.finance.yahoo.com")) await yahooGate;
+      if (url.includes("browse-edgar")) releaseYahoo();
+      return base(url, init);
+    };
+    const feedsFor = await loadTickerFeeds("KO", { fetch, now: () => NOW });
+    expect(feedsFor.filings).toHaveLength(3);
+    return expect(feedsFor.headlines.length).toBeGreaterThan(0);
+  });
+
+  it("caps headline feeds at 512 KB while the 8-K feed keeps 2 MB", async () => {
+    const declared = (bytes: number, name: string, type: string) => () =>
+      new Response(fixtureBytes(name), {
+        headers: { "content-length": String(bytes), "content-type": type },
+      });
+    const { fetch } = feeds({
+      "/cgi-bin/browse-edgar": declared(
+        600 * 1024,
+        "sec-8-K-0000021344.xml",
+        "application/atom+xml; charset=ISO-8859-1"
+      ),
+      KO: declared(600 * 1024, "yahoo-KO.xml", "application/rss+xml"),
+    });
+    const big = await loadTickerFeeds("KO", { fetch, now: () => NOW });
+    expect(big.errors).toEqual([
+      "headlines: Yahoo headlines response exceeds the size cap",
+    ]);
+    expect(big.filings).toHaveLength(3);
+    clearMarketNewsCacheForTesting();
+    const { fetch: huge } = feeds({
+      "/cgi-bin/browse-edgar": declared(
+        2 * 1024 * 1024 + 1,
+        "sec-8-K-0000021344.xml",
+        "application/atom+xml; charset=ISO-8859-1"
+      ),
+    });
+    return expect(
+      (await loadTickerFeeds("KO", { fetch: huge, now: () => NOW })).errors
+    ).toEqual(["filings: SEC 8-K feed response exceeds the size cap"]);
   });
 
   it("asks IBKR for at most two uncached symbols per load", async () => {

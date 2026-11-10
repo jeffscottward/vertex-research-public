@@ -244,7 +244,7 @@ const TickerSection = ({
               {/* Other sources still answered: only some of them failed. */}
               {ticker.headlines.length === 0
                 ? "Headlines unavailable"
-                : "Some sources failed"}
+                : "Source failures"}
               : {failures.headlines}
             </p>
           )}
@@ -552,7 +552,9 @@ export const MarketNewsWorkspace = ({
             <p className="border-t px-4 py-3 text-muted-foreground text-xs">
               Sources: IBKR news, Reuters (via Google News), Seeking Alpha and
               Yahoo Finance headline RSS, and SEC EDGAR 8-K feeds, cached for 5
-              minutes. Updated {formatNewsTime(state.news.receivedAt)}.
+              minutes. IBKR answers one request at a time, so each refresh fills
+              in IBKR headlines for a couple more symbols. Updated{" "}
+              {formatNewsTime(state.news.receivedAt)}.
             </p>
           </>
         ) : null}

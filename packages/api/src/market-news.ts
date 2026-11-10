@@ -87,23 +87,28 @@ export type HeadlineSubject = Readonly<{ symbol: string; name: string | null }>;
 const escapeRegExp = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
-// Legal-form words and state tags ("/DE/") that headlines never repeat.
+// Legal-form words that headlines never repeat ("ADR" and "SA"/"NV" without dots included).
 const COMPANY_FORM_WORDS =
-  /\b(?:inc|incorporated|corp|corporation|co|company|ltd|limited|plc|holdings?|group|llc|lp|n\.v|s\.a|ag|se|the)\b\.?/giu;
+  /\b(?:inc|incorporated|corp|corporation|co|company|ltd|limited|plc|holdings?|group|llc|lp|n\.v|nv|s\.a|sa|ag|se|adr|the)\b\.?/giu;
 
-/** The SEC company name without legal form or state tag, as words ("COCA COLA CO" -> COCA, COLA). */
+/**
+ * The SEC company name without legal form or state tag, as words. State tags come as "/DE/",
+ * "/DE" or " /NEW" ("QUALCOMM INC/DE" -> QUALCOMM); tokens without a letter or digit (a lone "&")
+ * are dropped ("ELI LILLY & Co" -> ELI, LILLY).
+ */
 export const companyWords = (name: string | null): string[] =>
   (name ?? "")
     .replace(/\/[^/]*\//gu, " ")
+    .replace(/\s*\/\p{L}{1,4}\b/gu, " ")
     .replace(COMPANY_FORM_WORDS, " ")
     .replace(/[^\p{L}\p{N}&]+/gu, " ")
-    .trim()
     .split(" ")
-    .filter((word) => word !== "");
+    .filter((word) => /[\p{L}\p{N}]/u.test(word));
 
 /**
  * Matches a headline that names the company: "(KO)", "$KO", "NYSE: KO", or the SEC name
- * without its legal form ("COCA COLA CO" matches "Coca-Cola"). Names under 4 letters are skipped.
+ * without its legal form ("COCA COLA CO" matches "Coca-Cola", "PROCTER & GAMBLE" keeps its "&").
+ * Names under 4 letters are skipped.
  */
 export const mentionPattern = (subject: HeadlineSubject): RegExp => {
   const symbol = escapeRegExp(subject.symbol);
@@ -114,26 +119,69 @@ export const mentionPattern = (subject: HeadlineSubject): RegExp => {
   ];
   const words = companyWords(subject.name);
   if (words.join("").length >= 4)
-    alternatives.push(`\\b${words.join("[\\s-]+")}\\b`);
+    alternatives.push(`\\b${words.join("[\\s&-]+")}\\b`);
   return new RegExp(alternatives.join("|"), "iu");
 };
 
 /**
- * Google News search for Reuters stories about one company. By the SEC name without its legal
- * form ("FORD MOTOR CO" -> "FORD MOTOR"): a short ticker alone (F, T, ON, NOW) finds unrelated
- * stories. Without a usable name: the quoted ticker plus "stock".
+ * Google News search for the last 30 days of Reuters stories about one company. By the SEC name
+ * without its legal form ("FORD MOTOR CO" -> "FORD MOTOR"): a short ticker alone (F, T, ON, NOW)
+ * finds unrelated stories. Without a usable name: the quoted ticker plus "stock".
  */
 export const reutersSearchQuery = (subject: HeadlineSubject): string => {
   const words = companyWords(subject.name);
   return words.join("").length >= 4
-    ? `"${words.join(" ")}" site:reuters.com`
-    : `"${subject.symbol.toUpperCase()}" stock site:reuters.com`;
+    ? `"${words.join(" ")}" site:reuters.com when:30d`
+    : `"${subject.symbol.toUpperCase()}" stock site:reuters.com when:30d`;
 };
+
+// Name words too common to identify a company on their own ("General", "Bank", "Motor").
+const GENERIC_NAME_WORDS: Readonly<Record<string, true>> = Object.freeze({
+  america: true,
+  american: true,
+  bancorp: true,
+  bank: true,
+  brands: true,
+  business: true,
+  capital: true,
+  communications: true,
+  energy: true,
+  entertainment: true,
+  financial: true,
+  first: true,
+  foods: true,
+  general: true,
+  global: true,
+  group: true,
+  health: true,
+  holdings: true,
+  industries: true,
+  international: true,
+  machines: true,
+  motor: true,
+  motors: true,
+  national: true,
+  partners: true,
+  pharmaceuticals: true,
+  resources: true,
+  semiconductor: true,
+  semiconductors: true,
+  services: true,
+  solutions: true,
+  systems: true,
+  technologies: true,
+  technology: true,
+  therapeutics: true,
+  trust: true,
+  united: true,
+  wholesale: true,
+});
 
 /**
  * True when `text` names the company: any `mentionPattern` form, the ticker as a word in upper case
- * (two or more letters; a lone "A" or "T" is an ordinary word), or the first name word of three or
- * more letters in any case ("Ford" for "FORD MOTOR CO").
+ * (two or more letters; a lone "A" or "T" is an ordinary word), or any distinctive name word of
+ * four or more letters in any case ("Disney" for "WALT DISNEY CO", "Exxon" or "Mobil" for
+ * "EXXON MOBIL CORP"; CamelCase words are split, "ExxonMobil" -> Exxon, Mobil).
  */
 export const companyMention = (
   subject: HeadlineSubject
@@ -142,9 +190,16 @@ export const companyMention = (
   const symbol = subject.symbol.toUpperCase();
   if (symbol.length >= 2)
     patterns.push(new RegExp(`\\b${escapeRegExp(symbol)}\\b`, "u"));
-  const first = companyWords(subject.name).find((word) => word.length >= 3);
-  if (first !== undefined)
-    patterns.push(new RegExp(`\\b${escapeRegExp(first)}\\b`, "iu"));
+  const distinctive = companyWords(subject.name)
+    .flatMap((word) => word.split(/(?<=\p{Ll})(?=\p{Lu})/u))
+    .filter(
+      (word) =>
+        word.length >= 4 && GENERIC_NAME_WORDS[word.toLowerCase()] !== true
+    );
+  if (distinctive.length > 0)
+    patterns.push(
+      new RegExp(`\\b(?:${distinctive.map(escapeRegExp).join("|")})\\b`, "iu")
+    );
   return (text) => patterns.some((pattern) => pattern.test(text));
 };
 
@@ -301,7 +356,10 @@ export const headlineKey = (title: string): string =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
-/** Items read per headline feed; the rest of a long feed is never scanned. */
+/**
+ * Items parsed per headline feed. `xmlBlocks` still matches every item (cheap regex work on a
+ * capped body); only the first 60 are decoded, tagged and validated.
+ */
 export const MARKET_NEWS_FEED_MAX_ITEMS = 60;
 
 /** `since`: items published before it are dropped before tagging and validation. */

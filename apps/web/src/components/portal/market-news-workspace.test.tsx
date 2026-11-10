@@ -402,8 +402,11 @@ describe("news monitor workspace", () => {
     expect(container.textContent).toContain(
       "Headlines from IBKR, Reuters, Seeking Alpha and Yahoo Finance"
     );
+    expect(container.textContent).toContain(
+      "each refresh fills in IBKR headlines for a couple more symbols"
+    );
     return expect(container.textContent).toContain(
-      "Some sources failed: Seeking Alpha headlines returned HTTP 503; Reuters headlines: not an RSS 2.0 document"
+      "Source failures: Seeking Alpha headlines returned HTTP 503; Reuters headlines: not an RSS 2.0 document"
     );
   });
 
