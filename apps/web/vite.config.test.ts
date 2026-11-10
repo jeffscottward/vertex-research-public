@@ -265,14 +265,17 @@ describe("Vite application plugin contract", () => {
       tasks: Record<string, { env?: string[]; outputs?: string[] }>;
     };
     // A `pkg#task` entry replaces the generic task, so it must repeat it: the
-    // same config plus the SHA key and the Worker deploy config vinext writes
-    // (infra/quantvps/README.md copies .wrangler/deploy/config.json).
+    // same config plus the SHA key. The outputs must keep the Worker deploy
+    // config vinext writes (infra/quantvps/README.md copies
+    // .wrangler/deploy/config.json).
     const generic = turbo.tasks["build"];
     expect(turbo.tasks["@darkfactory/web#build"]).toEqual({
       ...generic,
       env: [...(generic?.env ?? []), "VERTEX_BUILD_SHA"],
-      outputs: [...(generic?.outputs ?? []), ".wrangler/deploy/**"],
     });
+    expect(turbo.tasks["@darkfactory/web#build"]?.outputs).toContain(
+      ".wrangler/deploy/**"
+    );
 
     const manifest = JSON.parse(
       await readFile(new URL("../../package.json", import.meta.url), "utf8")
