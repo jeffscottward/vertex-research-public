@@ -371,6 +371,77 @@ describe("Graphify workflow", () => {
     );
   });
 
+  it("scopes Graphify AST placeholders with missing source metadata", () => {
+    // Graphify 0.9.2 emits one placeholder node per Python file for an
+    // external name (Path, Any, Exception) with empty source metadata; only
+    // the raw id tells them apart, after the random snapshot path.
+    const placeholder = (id: string, extra: Record<string, string> = {}) => ({
+      id,
+      label: "Any",
+      file_type: "code",
+      source_file: "",
+      source_location: "",
+      _origin: "ast",
+      ...extra,
+    });
+    const graph = (prefix: string, reverse = false) => {
+      const nodes = ["one", "two"].map((source) =>
+        placeholder(`${prefix}_active_tools_harvester_${source}_py_any`)
+      );
+      return JSON.stringify({
+        nodes: reverse ? nodes.reverse() : nodes,
+        links: [],
+      });
+    };
+
+    expect(() =>
+      calculateGraphDigest(graph("private_active_tmp_graph_first"))
+    ).not.toThrow();
+    expect(calculateGraphDigest(graph("private_active_tmp_graph_first"))).toBe(
+      calculateGraphDigest(graph("private_active_tmp_graph_second", true))
+    );
+    expect(() =>
+      calculateGraphDigest(
+        JSON.stringify({ nodes: [placeholder("plain-placeholder")], links: [] })
+      )
+    ).not.toThrow();
+    // Only AST nodes without any source metadata are scoped.
+    for (const unscoped of [
+      { _origin: "semantic" },
+      { source_file: "tools/one.py" },
+      { source_location: "L1" },
+    ]) {
+      expect(
+        () =>
+          calculateGraphDigest(
+            JSON.stringify({
+              nodes: [
+                placeholder("a_active_one_py_any", unscoped),
+                placeholder("a_active_two_py_any", unscoped),
+              ],
+              links: [],
+            })
+          ),
+        JSON.stringify(unscoped)
+      ).toThrow(/indistinguishable semantic nodes/i);
+    }
+    return expect(() =>
+      calculateGraphDigest(
+        JSON.stringify({
+          nodes: [
+            placeholder(
+              "private_tmp_graph_first_active_tools_harvester_one_py_any"
+            ),
+            placeholder(
+              "private_tmp_graph_second_active_tools_harvester_one_py_any"
+            ),
+          ],
+          links: [],
+        })
+      )
+    ).toThrow(/indistinguishable semantic nodes/i);
+  });
+
   it("rejects non-finite numeric graph values instead of hashing them as null", () => {
     const nonFinite = '{"nodes":[{"id":"route","score":1e400}],"links":[]}';
 

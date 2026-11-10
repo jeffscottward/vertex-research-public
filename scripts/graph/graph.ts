@@ -353,6 +353,26 @@ const canonicalizeHyperedge = (
   );
 };
 
+// Graphify AST placeholders for external names (Python `Path`, `Any`, ...) have
+// no source metadata, so only the raw id tells them apart. The id embeds the
+// random snapshot path before `_active_`; the rest is stable across runs.
+// Same rule as surplus-funds-recovery scripts/graph/graph.civet.
+const graphifyAstPlaceholderScope = (
+  node: Readonly<Record<string, unknown>>,
+  rawId: string
+): string | undefined => {
+  if (
+    node["_origin"] !== "ast" ||
+    node["source_file"] !== "" ||
+    node["source_location"] !== ""
+  )
+    return undefined;
+  const marker = "_active_";
+  const markerIndex = rawId.lastIndexOf(marker);
+  if (markerIndex === -1) return undefined;
+  return rawId.slice(markerIndex + marker.length);
+};
+
 export const calculateGraphDigest = (content: string): string => {
   let parsed: unknown;
   try {
@@ -388,7 +408,12 @@ export const calculateGraphDigest = (content: string): string => {
         return key !== "id" && key !== "community" && key !== "norm_label";
       })
     );
-    const canonicalNode = canonicalJson(semanticNode);
+    const placeholderScope = graphifyAstPlaceholderScope(node, rawId);
+    const canonicalNode = canonicalJson(
+      placeholderScope === undefined
+        ? semanticNode
+        : { ...semanticNode, graphify_ast_scope: placeholderScope }
+    );
     const semanticId = calculateContentDigest(canonicalNode);
     if (semanticNodeIds.has(semanticId)) {
       throw new Error("Graph output has indistinguishable semantic nodes");
