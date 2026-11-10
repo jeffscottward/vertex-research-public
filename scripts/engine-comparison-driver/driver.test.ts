@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   CLAIM_POLL_MS,
   CLAIM_WAIT_MAX_MS,
+  CONFIG_ERROR_EXIT,
   campaignTicks,
   DEFAULT_CAMPAIGN_TICKS,
   DRIVER_INSTANT_SET,
   type DriverIo,
+  driverOrigin,
   driverSweepRequest,
+  INSTANT_PHASE_MAX_MS,
   REUSE_MARGIN_MS,
   REUSE_WINDOW_MS,
   runEngineComparisonDriver,
@@ -29,6 +32,7 @@ const harness = (
   const counts = new Map<string, number>();
   const sleeps: number[] = [];
   const headers: Record<string, string>[] = [];
+  const signals: unknown[] = [];
   let clock = NOW;
   let out = "";
   let err = "";
@@ -44,6 +48,7 @@ const harness = (
       const input = (JSON.parse(String(init.body)) as { json: unknown })
         .json as Record<string, unknown>;
       headers.push(init.headers as Record<string, string>);
+      signals.push(init.signal);
       calls.push({ input, path });
       const count = (counts.get(path) ?? 0) + 1;
       counts.set(path, count);
@@ -62,10 +67,14 @@ const harness = (
     stdout: { write: (text) => (out += text) },
   };
   return {
+    advance: (ms: number) => {
+      clock += ms;
+    },
     calls,
     headers,
     io,
     output: () => ({ err, out }),
+    signals,
     sleeps,
   };
 };
@@ -173,6 +182,9 @@ describe("engine comparison driver", () => {
     expect(
       h.calls.find((call) => call.path === "autopilot/campaigns/tick")?.input
     ).toEqual({ id: "camp-1" });
+    expect(h.signals.every((signal) => signal instanceof AbortSignal)).toBe(
+      true
+    );
     for (const header of h.headers) {
       expect(header).toEqual({
         "content-type": "application/json",
@@ -278,7 +290,10 @@ describe("engine comparison driver", () => {
   it("skips series without bars and reports every other instant failure", async () => {
     let call = 0;
     const replies: Reply[] = [
-      { json: { error: "nope" }, status: 404 },
+      {
+        json: { code: "NOT_FOUND", message: "No stored bars for this series" },
+        status: 404,
+      },
       { raw: "boom", status: 500 },
       { json: {} },
       {
@@ -298,6 +313,7 @@ describe("engine comparison driver", () => {
         },
       },
       { raw: "{bad json" },
+      { raw: "Not Found", status: 404 },
     ];
     const h = harness({
       "backtestRuns/comparisons/list": listClaimed,
@@ -328,7 +344,97 @@ describe("engine comparison driver", () => {
       "FAIL instant NQ=F 1d smaCross 20/100: no comparison group"
     );
     expect(out).toContain("FAIL instant GC=F 1d smaCross 20/100: ");
-    expect(out).toContain("summary: 2 instant groups queued, 6 failures");
+    // A 404 without the stored-bars error (wrong path or origin) is a failure, not a skip.
+    expect(out).toContain(
+      "FAIL instant CL=F 1d smaCross 20/100: instantBacktest/run returned HTTP 404: Not Found"
+    );
+    expect(out).toContain("summary: 1 instant groups queued, 7 failures");
+  });
+
+  it("stops the instant runs once when the key may not call instantBacktest.run", async () => {
+    const h = harness({
+      "backtestRuns/sweep": sweepQueued,
+      "instantBacktest/run": () => ({
+        json: { code: "FORBIDDEN", message: "API keys may call only ..." },
+        status: 403,
+      }),
+    });
+    expect(await runEngineComparisonDriver(h.io)).toBe(1);
+    const { out } = h.output();
+    expect(out.match(/^FAIL instant/gmu)).toHaveLength(1);
+    expect(out).toContain(
+      "the key may not call instantBacktest.run, stopping instant runs"
+    );
+    expect(out).toContain("not requested instant SPY 1d breakout 55/20/200");
+    expect(
+      h.calls.filter((c) => c.path === "instantBacktest/run")
+    ).toHaveLength(1);
+    expect(out).toContain("summary: 0 instant groups queued, 1 failures");
+  });
+
+  it("fails a run that a newer request of the same user superseded", async () => {
+    let polls = 0;
+    const h = harness({
+      "backtestRuns/comparisons/list": () => {
+        polls += 1;
+        return polls === 1
+          ? {
+              json: {
+                runs: [
+                  {
+                    createdAt: "2026-11-10T10:59:00Z",
+                    error: "Superseded by a newer request",
+                    status: "failed",
+                  },
+                ],
+              },
+            }
+          : listClaimed({}, 0);
+      },
+      "backtestRuns/sweep": sweepQueued,
+      "instantBacktest/run": instantQueued,
+    });
+    expect(await runEngineComparisonDriver(h.io)).toBe(1);
+    const { out } = h.output();
+    expect(out).toContain(
+      "FAIL instant SPY 1d smaCross 20/100: superseded by a newer instant request of the same user"
+    );
+    expect(out).toContain(
+      `summary: ${DRIVER_INSTANT_SET.length} instant groups queued, 1 failures`
+    );
+  });
+
+  it("stops asking once the instant phase budget is used up", async () => {
+    let calls = 0;
+    const h = harness({
+      "backtestRuns/comparisons/list": () => ({
+        json: {
+          runs: [
+            {
+              createdAt: "2026-11-10T10:59:00Z",
+              error: null,
+              status: "failed",
+            },
+          ],
+        },
+      }),
+      "backtestRuns/sweep": sweepQueued,
+      "instantBacktest/run": (input) => {
+        calls += 1;
+        // The second request hangs past the phase budget.
+        if (calls === 2) h.advance(INSTANT_PHASE_MAX_MS);
+        return instantQueued(input, 0);
+      },
+    });
+    expect(await runEngineComparisonDriver(h.io)).toBe(1);
+    const { out } = h.output();
+    expect(calls).toBe(2);
+    expect(out).toContain(
+      `FAIL instant IWM 1d smaCross 20/100: not requested (instant phase over ${INSTANT_PHASE_MAX_MS / 60_000} min)`
+    );
+    expect(out.match(/not requested \(instant phase over/gmu)).toHaveLength(
+      DRIVER_INSTANT_SET.length - 2
+    );
   });
 
   it("stops the instant runs when the research worker claims nothing", async () => {
@@ -344,7 +450,7 @@ describe("engine comparison driver", () => {
     expect(await runEngineComparisonDriver(h.io)).toBe(1);
     const { out } = h.output();
     expect(out).toContain(
-      `FAIL instant SPY 1d smaCross 20/100: still queued after ${CLAIM_WAIT_MAX_MS / 60_000} min (research worker down?); stopping instant runs`
+      "FAIL instant SPY 1d smaCross 20/100: still queued at the wait limit (research worker down or slow?); stopping instant runs"
     );
     expect(
       h.calls.filter((call) => call.path === "instantBacktest/run")
@@ -379,6 +485,10 @@ describe("engine comparison driver", () => {
         "FAIL sweep: backtestRuns/sweep returned HTTP 503: bad",
       ],
       [{ raw: "{not json" }, "FAIL sweep: "],
+      [
+        { json: { comparison: { groupId: null, host: "h", wallMs: 1 } } },
+        "FAIL sweep: no comparison group",
+      ],
     ] as const) {
       const h = harness({
         "backtestRuns/comparisons/list": listClaimed,
@@ -405,7 +515,7 @@ describe("engine comparison driver", () => {
     );
     expect(await runEngineComparisonDriver(empty.io)).toBe(1);
     expect(empty.output().out).toContain(
-      "FAIL campaign camp-1: not running (nothing ticked)"
+      "FAIL campaign camp-1: nothing ticked"
     );
 
     const gateError = harness(
@@ -447,6 +557,21 @@ describe("engine comparison driver", () => {
       thrown.calls.filter((call) => call.path === "autopilot/campaigns/tick")
     ).toHaveLength(1);
 
+    const stopped = harness(
+      {
+        ...base,
+        "autopilot/campaigns/tick": () => ({
+          json: { code: "CONFLICT", message: "Campaign is not running" },
+          status: 409,
+        }),
+      },
+      { VERTEX_DRIVER_CAMPAIGN_ID: "camp-1" }
+    );
+    expect(await runEngineComparisonDriver(stopped.io)).toBe(1);
+    expect(stopped.output().out).toContain(
+      "FAIL campaign camp-1: not running (stopped, completed or failed)"
+    );
+
     const none = harness(base, {
       VERTEX_DRIVER_CAMPAIGN_ID: "camp-1",
       VERTEX_DRIVER_CAMPAIGN_TICKS: "0",
@@ -471,9 +596,13 @@ describe("engine comparison driver", () => {
     expect(h.output().out).toContain("FAIL sweep: socket closed");
   });
 
-  it("refuses a missing origin, key or a bad tick count", async () => {
+  it("refuses a missing or plain-http origin, a missing key or a bad tick count", async () => {
     for (const [env, message] of [
       [{ VERTEX_ORIGIN: " " }, "VERTEX_ORIGIN is required"],
+      [
+        { VERTEX_ORIGIN: "http://vertex.example.test:3451" },
+        "VERTEX_ORIGIN must be an https:// origin",
+      ],
       [{ VERTEX_AGENT_API_KEY: undefined }, "VERTEX_AGENT_API_KEY is required"],
       [
         { VERTEX_DRIVER_CAMPAIGN_TICKS: "21" },
@@ -481,7 +610,7 @@ describe("engine comparison driver", () => {
       ],
     ] as const) {
       const h = harness({}, env);
-      expect(await runEngineComparisonDriver(h.io)).toBe(1);
+      expect(await runEngineComparisonDriver(h.io)).toBe(CONFIG_ERROR_EXIT);
       expect(h.output().err).toContain(message);
       expect(h.calls).toEqual([]);
     }
@@ -489,6 +618,13 @@ describe("engine comparison driver", () => {
 });
 
 describe("driver settings", () => {
+  it("keeps only the origin of an https portal URL", () => {
+    expect(driverOrigin("https://v.example.test:3451/a/b?c")).toBe(
+      "https://v.example.test:3451"
+    );
+    expect(() => driverOrigin("http://v.example.test")).toThrow("https://");
+  });
+
   it("reads the campaign tick count", () => {
     expect(campaignTicks(undefined)).toBe(DEFAULT_CAMPAIGN_TICKS);
     expect(campaignTicks(" ")).toBe(DEFAULT_CAMPAIGN_TICKS);

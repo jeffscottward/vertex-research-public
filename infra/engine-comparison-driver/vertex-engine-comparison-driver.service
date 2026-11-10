@@ -15,8 +15,10 @@ Wants=network-online.target
 Type=oneshot
 EnvironmentFile=%h/.config/vertex/engine-comparison-driver.env
 ExecStart=%h/.local/bin/vertex-engine-comparison-driver-run
-# Nine instant runs each wait for the worker's claim (at most 15 min each when it is slow), the
-# campaign ticks, a 10 min wait for the batch and the report.
-TimeoutStartSec=5400
+# The driver's instant phase stops after 45 min (each request times out after 2 min); then the
+# sweep, the campaign ticks, a 10 min wait for the batch and the report.
+TimeoutStartSec=7200
 Nice=10
 NoNewPrivileges=yes
+UMask=0077
+PrivateTmp=yes

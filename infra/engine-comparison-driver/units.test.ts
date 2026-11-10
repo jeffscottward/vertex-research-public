@@ -39,6 +39,7 @@ type Setup = Readonly<{
   reportScript?: boolean;
   driverExit?: number;
   reportExit?: number;
+  keyMode?: number;
 }>;
 
 const runWrapper = (setup: Setup = {}) => {
@@ -68,7 +69,9 @@ const runWrapper = (setup: Setup = {}) => {
     );
     chmodSync(join(bin, "bun"), 0o755);
   }
-  writeFileSync(join(root, "key"), "secret-key\n");
+  writeFileSync(join(root, "key"), "secret-key\n", { mode: 0o600 });
+  writeFileSync(join(root, "read-key"), "read-key\n", { mode: 0o600 });
+  if (setup.keyMode !== undefined) chmodSync(join(root, "key"), setup.keyMode);
   const result = spawnSync(
     "bash",
     [
@@ -87,7 +90,12 @@ const runWrapper = (setup: Setup = {}) => {
         ...(runner === DEFAULT_RUNNER
           ? {}
           : { VERTEX_DRIVER_RUNNER_DIR: join(root, runner) }),
-        ...setup.env,
+        ...Object.fromEntries(
+          Object.entries(setup.env ?? {}).map(([key, value]) => [
+            key,
+            value === "READ_KEY" ? join(root, "read-key") : value,
+          ])
+        ),
       },
     }
   );
@@ -119,6 +127,8 @@ describe("vertex-engine-comparison-driver units", () => {
     ]);
     expect(values(service, "WorkingDirectory")).toEqual([]);
     expect(values(service, "NoNewPrivileges")).toEqual(["yes"]);
+    expect(values(service, "UMask")).toEqual(["0077"]);
+    expect(values(service, "TimeoutStartSec")).toEqual(["7200"]);
   });
 
   it("runs the driver with the key, then the report with the key file only", () => {
@@ -154,10 +164,33 @@ describe("vertex-engine-comparison-driver units", () => {
     expect(run.stdout[1]).toContain("report not rebuilt");
   });
 
-  it("exits 3 when the checkout has no report script yet", () => {
+  it("exits 3 when the checkout has no report script yet, unless the driver failed", () => {
     const run = runWrapper({ reportScript: false });
     expect(run.status).toBe(3);
     expect(run.stderr).toContain("no vertex:engine-comparison-report script");
+    expect(runWrapper({ driverExit: 1, reportScript: false }).status).toBe(1);
+  });
+
+  it("skips the report when the driver refused its configuration", () => {
+    const run = runWrapper({ driverExit: 2 });
+    expect(run.status).toBe(2);
+    expect(run.stdout).toHaveLength(1);
+  });
+
+  it("gives the report its own key file when one is set", () => {
+    const run = runWrapper({
+      env: { VERTEX_DRIVER_REPORT_KEY_FILE: "READ_KEY" },
+    });
+    expect(run.stdout[1]).toContain(`keyfile:${run.root}/read-key`);
+  });
+
+  it("refuses a key file others can read and a bad report wait", () => {
+    const loose = runWrapper({ keyMode: 0o644 });
+    expect(loose.status).toBe(2);
+    expect(loose.stderr).toContain("readable by its owner only");
+    const wait = runWrapper({ env: { VERTEX_DRIVER_REPORT_WAIT_S: "10m" } });
+    expect(wait.status).toBe(2);
+    expect(wait.stderr).toContain("whole number of seconds");
   });
 
   it("refuses to run without the origin or a readable key file", () => {

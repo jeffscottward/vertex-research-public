@@ -69,8 +69,6 @@ No flooding: the instant backtest and the sweep page run again on every form cha
 
 Only a caller that may write queues comparison runs: an operator session or a write-access agent key. `backtestRuns.sweep` is a read procedure, so a read-access key or a read-only agent viewer gets the TypeScript result without `comparison` and nothing is queued.
 
-Daily driver (owner choice 2026-11-10, after no instant or gate comparison was recorded from 2026-11-06 to 2026-11-10): a rig timer runs a fixed set of instant backtests and one sweep once a day with an operator write key, ticks one research Autopilot campaign so the gate is compared, and rebuilds the report page. See [infra/engine-comparison-driver](../../infra/engine-comparison-driver/README.md).
-
 | Feature | What is repeated | Cap |
 | --- | --- | --- |
 | Instant backtest | The run over the whole stored series (`from` and `to` are the first and last bar dates) | One run per request |
@@ -81,6 +79,8 @@ Daily driver (owner choice 2026-11-10, after no instant or gate comparison was r
 | Academy backtest | The lesson's structure with its resolved rules, the capital and the implied volatility per bar (the VIX closes for SPY when stored, else none: both engines then model it) on the daily closes the TypeScript run read, as a run with rule `{"kind": "academy", ...}` (see [Academy on Nautilus](#academy-on-nautilus-option-instruments)). The lesson page keeps the TypeScript result and shows the Nautilus card | One run per request; reuse and supersede as the instant backtest |
 
 For the gate the TypeScript side is computed again on exactly the bars of each date range (for daily bars these are the gate's own bars; for minute bars the in-sample range ends with a whole day), and counts in the tick's time.
+
+Daily driver (owner choice 2026-11-10, after no instant or gate comparison was recorded from 2026-11-06 to 2026-11-10): a rig timer runs a fixed set of instant backtests and one sweep once a day with an operator write key, ticks one research Autopilot campaign so the gate is compared, and rebuilds the report page. The instant leg needs `instantBacktest.run` in the agent key scope and the report step needs the report script; see [infra/engine-comparison-driver](../../infra/engine-comparison-driver/README.md).
 
 Timing: the server measures the TypeScript engine call. A Worker runtime does not advance `performance.now`/`Date.now` during pure compute, so a zero time is stored as `wallMs: null` with `wallNote: "timer frozen in Worker runtime"`, never as 0. The page also shows the browser round trip as the time the user saw. The worker records per run `engineRun`: `host` (`os.hostname()`), `wallMs` (engine time of the case), `processWallMs` and `cpuMs` (user + system CPU time of the engine process, from `getrusage`), `processes`, `processCases` and `gpu: "not used (Nautilus engine is CPU-only)"`.
 

@@ -94,8 +94,15 @@ const REUSE_WAIT_MAX_MS = 20 * 60_000;
 /** A newer instant request of the same user supersedes still-queued runs: wait until claimed. */
 export const CLAIM_POLL_MS = 15_000;
 export const CLAIM_WAIT_MAX_MS = 15 * 60_000;
+/** Budget of the whole instant phase (claim and reuse waits included); the unit allows 2 h. */
+export const INSTANT_PHASE_MAX_MS = 45 * 60_000;
+/** Per request; a hung connection fails the request instead of the unit timeout. */
+const REQUEST_TIMEOUT_MS = 120_000;
 export const DEFAULT_CAMPAIGN_TICKS = 3;
 const MAX_CAMPAIGN_TICKS = 20;
+/** Exit code for a configuration error: the wrapper then skips the report. */
+export const CONFIG_ERROR_EXIT = 2;
+const NO_STORED_BARS = "No stored bars for this series";
 
 // Only the fields the driver reads; the API answers carry more.
 const TimingSchema = z.object({
@@ -107,7 +114,13 @@ const TimingSchema = z.object({
 });
 const ComparedSchema = z.object({ comparison: TimingSchema.optional() });
 const GroupRunsSchema = z.object({
-  runs: z.array(z.object({ createdAt: z.string(), status: z.string() })),
+  runs: z.array(
+    z.object({
+      createdAt: z.string(),
+      error: z.string().nullable().optional(),
+      status: z.string(),
+    })
+  ),
 });
 const TickSchema = z.object({
   results: z.array(
@@ -129,10 +142,12 @@ const EnvelopeSchema = z.object({ json: z.unknown() });
 
 class DriverApiError extends Error {
   readonly status: number;
+  readonly body: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body: string) {
     super(message);
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -157,25 +172,38 @@ export const campaignTicks = (raw: string | undefined): number => {
   return value;
 };
 
+/** The portal origin; https only, because the write key travels in a header. */
+export const driverOrigin = (raw: string): string => {
+  const url = new URL(raw);
+  if (url.protocol !== "https:")
+    throw new Error("VERTEX_ORIGIN must be an https:// origin");
+  return url.origin;
+};
+
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-/** The lines of one run; a FAIL line makes the run exit 1. */
+/** Writes each line as it happens (a killed unit still leaves its journal); FAIL lines exit 1. */
 class RunLog {
-  readonly lines: string[] = [];
   failures = 0;
+  readonly #io: DriverIo;
+
+  constructor(io: DriverIo) {
+    this.#io = io;
+  }
 
   ok(line: string): void {
-    this.lines.push(line);
+    this.#io.stdout.write(`${line}\n`);
   }
 
   fail(line: string): void {
     this.failures += 1;
-    this.lines.push(`FAIL ${line}`);
+    this.#io.stdout.write(`FAIL ${line}\n`);
   }
 }
 
 type Client = ReturnType<typeof createClient>;
+type ClaimOutcome = "claimed" | "superseded" | "timeout";
 
 const createClient = (io: DriverIo, origin: string, apiKey: string) => {
   const call = async (path: string, json: unknown): Promise<unknown> => {
@@ -187,12 +215,14 @@ const createClient = (io: DriverIo, origin: string, apiKey: string) => {
         "x-api-key": apiKey,
       },
       method: "POST",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     const text = await response.text();
     if (!response.ok)
       throw new DriverApiError(
         response.status,
-        `${path} returned HTTP ${response.status}: ${text.slice(0, 300)}`
+        `${path} returned HTTP ${response.status}: ${text.slice(0, 300)}`,
+        text
       );
     return EnvelopeSchema.parse(JSON.parse(text)).json;
   };
@@ -210,13 +240,26 @@ const createClient = (io: DriverIo, origin: string, apiKey: string) => {
       const newest = Math.max(...runs.map((run) => Date.parse(run.createdAt)));
       return Math.max(0, newest + REUSE_WINDOW_MS + REUSE_MARGIN_MS - io.now());
     },
-    /** Waits until no run of the group is queued; false when the wait ran out. */
-    waitClaimed: async (groupId: string): Promise<boolean> => {
-      const deadline = io.now() + CLAIM_WAIT_MAX_MS;
+    /**
+     * Waits until no run of the group is queued. A run another request of the same user
+     * superseded meanwhile ends "failed" with "Superseded by a newer request".
+     */
+    waitClaimed: async (
+      groupId: string,
+      deadline: number
+    ): Promise<ClaimOutcome> => {
+      const end = Math.min(deadline, io.now() + CLAIM_WAIT_MAX_MS);
       for (;;) {
         const runs = await groupRuns(groupId);
-        if (!runs.some((run) => run.status === "queued")) return true;
-        if (io.now() + CLAIM_POLL_MS > deadline) return false;
+        if (!runs.some((run) => run.status === "queued"))
+          return runs.some(
+            (run) =>
+              run.status === "failed" &&
+              (run.error ?? "").startsWith("Superseded")
+          )
+            ? "superseded"
+            : "claimed";
+        if (io.now() + CLAIM_POLL_MS > end) return "timeout";
         await io.sleep(CLAIM_POLL_MS);
       }
     },
@@ -227,17 +270,88 @@ const createClient = (io: DriverIo, origin: string, apiKey: string) => {
 const requestInstant = async (
   io: DriverIo,
   client: Client,
-  request: InstantRequest
+  request: InstantRequest,
+  deadline: number
 ) => {
   const first = ComparedSchema.parse(
     await client.call("instantBacktest/run", request)
   ).comparison;
   if (first?.reused !== true || first.groupId === null) return first;
   const wait = await client.reuseWait(first.groupId);
-  if (wait > REUSE_WAIT_MAX_MS) return first;
+  if (wait > REUSE_WAIT_MAX_MS || io.now() + wait > deadline) return first;
   await io.sleep(wait);
   return ComparedSchema.parse(await client.call("instantBacktest/run", request))
     .comparison;
+};
+
+const instantName = (request: InstantRequest): string => {
+  const { rule } = request;
+  return `instant ${request.symbol} ${request.timeframe} ${
+    rule.kind === "smaCross"
+      ? `smaCross ${rule.fast}/${rule.slow}`
+      : `breakout ${rule.entryLookback}/${rule.exitLookback}/${rule.trendSma}`
+  }`;
+};
+
+type InstantStep = "next" | "stop";
+
+/** One instant request: logs its outcome and says whether the phase goes on. */
+const runInstant = async (
+  io: DriverIo,
+  client: Client,
+  log: RunLog,
+  request: InstantRequest,
+  deadline: number
+): Promise<{ step: InstantStep; queued: boolean }> => {
+  const name = instantName(request);
+  const next = { queued: false, step: "next" } as const;
+  try {
+    const timing = await requestInstant(io, client, request, deadline);
+    if (timing === undefined) {
+      log.fail(
+        `${name}: no comparison (engine comparison off or read-only key)`
+      );
+      return next;
+    }
+    if (timing.error !== undefined || timing.groupId === null) {
+      log.fail(`${name}: ${timing.error ?? "no comparison group"}`);
+      return next;
+    }
+    if (timing.reused === true) {
+      log.ok(`reused ${name}: ${timing.groupId} (queued <24 h ago)`);
+      return next;
+    }
+    log.ok(`queued ${name}: ${timing.groupId}`);
+    const outcome = await client.waitClaimed(timing.groupId, deadline);
+    if (outcome === "superseded")
+      log.fail(
+        `${name}: superseded by a newer instant request of the same user`
+      );
+    if (outcome === "timeout") {
+      log.fail(
+        `${name}: still queued at the wait limit (research worker down or slow?); stopping instant runs`
+      );
+      return { queued: true, step: "stop" };
+    }
+    return { queued: true, step: "next" };
+  } catch (error) {
+    if (
+      error instanceof DriverApiError &&
+      error.status === 404 &&
+      error.body.includes(NO_STORED_BARS)
+    ) {
+      log.ok(`skipped ${name}: no stored bars`);
+      return next;
+    }
+    if (error instanceof DriverApiError && error.status === 403) {
+      log.fail(
+        `${name}: ${error.message}; the key may not call instantBacktest.run, stopping instant runs`
+      );
+      return { queued: false, step: "stop" };
+    }
+    log.fail(`${name}: ${messageOf(error)}`);
+    return next;
+  }
 };
 
 /** Instant backtests, one at a time so none supersedes the previous one's queued run. */
@@ -246,42 +360,22 @@ const runInstants = async (
   client: Client,
   log: RunLog
 ): Promise<number> => {
+  const deadline = io.now() + INSTANT_PHASE_MAX_MS;
   let queued = 0;
-  for (const request of DRIVER_INSTANT_SET) {
-    const { rule } = request;
-    const name = `instant ${request.symbol} ${request.timeframe} ${
-      rule.kind === "smaCross"
-        ? `smaCross ${rule.fast}/${rule.slow}`
-        : `breakout ${rule.entryLookback}/${rule.exitLookback}/${rule.trendSma}`
-    }`;
-    try {
-      const timing = await requestInstant(io, client, request);
-      if (timing === undefined) {
-        log.fail(
-          `${name}: no comparison (engine comparison off or read-only key)`
-        );
-        continue;
-      }
-      if (timing.error !== undefined || timing.groupId === null) {
-        log.fail(`${name}: ${timing.error ?? "no comparison group"}`);
-        continue;
-      }
-      if (timing.reused === true) {
-        log.ok(`reused ${name}: ${timing.groupId} (queued <24 h ago)`);
-        continue;
-      }
-      queued += 1;
-      log.ok(`queued ${name}: ${timing.groupId}`);
-      if (!(await client.waitClaimed(timing.groupId))) {
-        log.fail(
-          `${name}: still queued after ${CLAIM_WAIT_MAX_MS / 60_000} min (research worker down?); stopping instant runs`
-        );
-        break;
-      }
-    } catch (error) {
-      if (error instanceof DriverApiError && error.status === 404)
-        log.ok(`skipped ${name}: no stored bars`);
-      else log.fail(`${name}: ${messageOf(error)}`);
+  for (const [index, request] of DRIVER_INSTANT_SET.entries()) {
+    const result =
+      io.now() >= deadline
+        ? undefined
+        : await runInstant(io, client, log, request, deadline);
+    if (result === undefined)
+      log.fail(
+        `${instantName(request)}: not requested (instant phase over ${INSTANT_PHASE_MAX_MS / 60_000} min)`
+      );
+    if (result?.queued === true) queued += 1;
+    if (result?.step === "stop") {
+      for (const skipped of DRIVER_INSTANT_SET.slice(index + 1))
+        log.ok(`not requested ${instantName(skipped)}`);
+      break;
     }
   }
   return queued;
@@ -297,9 +391,13 @@ const runSweep = async (
     const timing = ComparedSchema.parse(
       await client.call("backtestRuns/sweep", driverSweepRequest(io.now()))
     ).comparison;
-    if (timing === undefined || timing.error !== undefined)
+    if (
+      timing === undefined ||
+      timing.error !== undefined ||
+      timing.groupId === null
+    )
       log.fail(
-        `sweep: ${timing?.error ?? "no comparison (engine comparison off or read-only key)"}`
+        `sweep: ${timing?.error ?? (timing === undefined ? "no comparison (engine comparison off or read-only key)" : "no comparison group")}`
       );
     else
       log.ok(
@@ -327,7 +425,7 @@ const runCampaign = async (
         await client.call("autopilot/campaigns/tick", { id: campaignId })
       ).results;
       if (result === undefined) {
-        log.fail(`campaign ${campaignId}: not running (nothing ticked)`);
+        log.fail(`campaign ${campaignId}: nothing ticked`);
         return;
       }
       const comparison = result.comparison;
@@ -338,7 +436,11 @@ const runCampaign = async (
       else log.fail(`campaign tick ${tick}: ${comparison.error}`);
       if (result.status !== "running") return;
     } catch (error) {
-      log.fail(`campaign tick ${tick}: ${messageOf(error)}`);
+      log.fail(
+        error instanceof DriverApiError && error.status === 409
+          ? `campaign ${campaignId}: not running (stopped, completed or failed)`
+          : `campaign tick ${tick}: ${messageOf(error)}`
+      );
       return;
     }
   }
@@ -350,14 +452,17 @@ export const runEngineComparisonDriver = async (
   let client: Client;
   let ticks: number;
   try {
-    const origin = new URL(required(io.env, "VERTEX_ORIGIN")).origin;
-    client = createClient(io, origin, required(io.env, "VERTEX_AGENT_API_KEY"));
+    client = createClient(
+      io,
+      driverOrigin(required(io.env, "VERTEX_ORIGIN")),
+      required(io.env, "VERTEX_AGENT_API_KEY")
+    );
     ticks = campaignTicks(io.env["VERTEX_DRIVER_CAMPAIGN_TICKS"]);
   } catch (error) {
     io.stderr.write(`engine comparison driver: ${messageOf(error)}\n`);
-    return 1;
+    return CONFIG_ERROR_EXIT;
   }
-  const log = new RunLog();
+  const log = new RunLog(io);
   const queued = await runInstants(io, client, log);
   await runSweep(io, client, log);
   await runCampaign(
@@ -367,6 +472,5 @@ export const runEngineComparisonDriver = async (
     ticks
   );
   log.ok(`summary: ${queued} instant groups queued, ${log.failures} failures`);
-  io.stdout.write(`${log.lines.join("\n")}\n`);
   return log.failures === 0 ? 0 : 1;
 };

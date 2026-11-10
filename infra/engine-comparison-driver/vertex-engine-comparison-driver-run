@@ -18,11 +18,25 @@ if [[ -z "${VERTEX_ORIGIN:-}" || -z "$KEYF" || ! -r "$KEYF" ]]; then
   echo "vertex-engine-comparison-driver-run: VERTEX_ORIGIN and a readable VERTEX_DRIVER_KEY_FILE (operator write key) are required" >&2
   exit 2
 fi
+REPORT_KEYF="${VERTEX_DRIVER_REPORT_KEY_FILE:-$KEYF}"
+for f in "$KEYF" "$REPORT_KEYF"; do
+  if [[ "$(stat -c %a "$f")" != [4-7]00 ]]; then
+    echo "vertex-engine-comparison-driver-run: $f must be readable by its owner only (chmod 600)" >&2
+    exit 2
+  fi
+done
+WAIT_S="${VERTEX_DRIVER_REPORT_WAIT_S:-600}"
+if [[ ! "$WAIT_S" =~ ^[0-9]+$ ]]; then
+  echo "vertex-engine-comparison-driver-run: VERTEX_DRIVER_REPORT_WAIT_S must be a whole number of seconds" >&2
+  exit 2
+fi
 VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
 export VERTEX_AGENT_API_KEY
 rc=0
 "$BUN/bun" --no-env-file scripts/vertex-engine-comparison-driver.ts || rc=$?
 unset VERTEX_AGENT_API_KEY
+# 2: the driver refused its configuration and asked for nothing; there is nothing new to report.
+if [[ "$rc" -eq 2 ]]; then exit 2; fi
 OUT="${VERTEX_DRIVER_REPORT_OUT:-}"
 if [[ -z "$OUT" ]]; then
   echo "vertex-engine-comparison-driver-run: VERTEX_DRIVER_REPORT_OUT not set; report not rebuilt"
@@ -30,11 +44,12 @@ if [[ -z "$OUT" ]]; then
 fi
 if ! grep -q '"vertex:engine-comparison-report"' package.json; then
   echo "vertex-engine-comparison-driver-run: this checkout has no vertex:engine-comparison-report script; report not rebuilt" >&2
+  if [[ "$rc" -ne 0 ]]; then exit "$rc"; fi
   exit 3
 fi
 # The sweep cells and gate runs are claimed in batches; give the worker time before the report.
-sleep "${VERTEX_DRIVER_REPORT_WAIT_S:-600}"
+sleep "$WAIT_S"
 report_rc=0
-VERTEX_AGENT_KEY_FILE="$KEYF" "$BUN/bun" run vertex:engine-comparison-report -- --out "$OUT" || report_rc=$?
+VERTEX_AGENT_KEY_FILE="$REPORT_KEYF" "$BUN/bun" run vertex:engine-comparison-report -- --out "$OUT" || report_rc=$?
 if [[ "$rc" -eq 0 ]]; then rc=$report_rc; fi
 exit "$rc"
