@@ -78,6 +78,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "openbb.shorts",
   "openbb.sec",
   "openbb.factors",
+  "breadth90.get",
 ]);
 
 type OperatorErrorFactories = Readonly<{

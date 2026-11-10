@@ -275,6 +275,8 @@ describe("agent API key scope", () => {
       "pickLists.screen",
       "flow.collect",
       "flow.snapshot",
+      "breadth90.collect",
+      "breadth90.get",
     ]);
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(

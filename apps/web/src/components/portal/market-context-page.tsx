@@ -1,12 +1,13 @@
 "use client";
 
-// What: the /markets page body: header (status chip from both feeds, Refresh), then volatility
+// What: the /markets page body: header (status chip from both feeds, Refresh), an optional slot under
+// the header (the breadth-90 signal card), then volatility
 // (ibkr-monitor) and GEX, macro and macro news (market-watch-bot). Read-only public market data.
 // Used by: apps/web/src/app/(portal)/markets/page.tsx.
 // See: market-context-workspace.tsx, market-feeds-workspace.tsx, market-source-status.ts.
 import { Button, PageHeader, StatusBadge } from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import {
   type MarketContextGateway,
@@ -22,11 +23,14 @@ import {
 } from "./market-source-status.ts";
 
 export interface MarketContextPageProps {
+  /** Rendered directly under the header, above both workspaces (the breadth-90 signal card). */
+  readonly belowHeader?: ReactNode;
   readonly contextGateway?: MarketContextGateway;
   readonly feedsGateway?: MarketFeedsGateway;
 }
 
 export const MarketContextPage = ({
+  belowHeader,
   contextGateway,
   feedsGateway,
 }: MarketContextPageProps) => {
@@ -62,6 +66,7 @@ export const MarketContextPage = ({
         }
         title="Market context"
       />
+      {belowHeader}
       <MarketContextWorkspace
         {...(contextGateway === undefined ? {} : { gateway: contextGateway })}
         onBusyChange={setVolatilityBusy}
