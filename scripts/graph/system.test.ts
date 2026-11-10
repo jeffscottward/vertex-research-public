@@ -5,6 +5,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   symlink,
@@ -12,10 +13,11 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { required } from "../lib/required.ts";
 
 const mocks = vi.hoisted(() => ({
   execFile: vi.fn(),
@@ -117,9 +119,11 @@ vi.mock("./corpus.ts", async () => {
   };
 });
 
-import { parseGraphConfig } from "./graph.ts";
+import { type GraphProcess, parseGraphConfig } from "./graph.ts";
 import {
+  createGraphToolchain,
   createNodeGraphFileSystem,
+  defaultGraphifyCacheRoot,
   graphProcessEnvironment,
   isGraphSourceExcluded,
   nodeGraphFileSystem,
@@ -2442,6 +2446,29 @@ describe("Graphify configured source corpus", () => {
     return expect(performance.now() - started).toBeLessThan(1000);
   });
 
+  it("excludes a leftover feature generator temp directory", async () => {
+    // scripts/generate-feature/apply.ts makes `.generate-feature-*` in the
+    // target root; an interrupted run leaves it behind with staged sources.
+    const config = parseGraphConfig(
+      await readFile(".graphify/config.json", "utf8")
+    );
+    for (const leftover of [
+      ".generate-feature-Ab12Cd/packages/api/src/feature.ts",
+      ".generate-feature-Ab12Cd/apps/web/src/page.tsx",
+    ]) {
+      expect(
+        isGraphSourceExcluded(leftover, config.source.excludes),
+        leftover
+      ).toBe(true);
+    }
+    return expect(
+      isGraphSourceExcluded(
+        "scripts/generate-feature/apply.ts",
+        config.source.excludes
+      )
+    ).toBe(false);
+  });
+
   it("excludes every dot-prefixed temp directory glob that .gitignore ignores", async () => {
     // The scan does not read .gitignore. A test temp directory that is ignored
     // there must also be a source exclude, or a leftover becomes a graph source.
@@ -2454,7 +2481,11 @@ describe("Graphify configured source corpus", () => {
       .map((rule) => rule.slice(0, -1));
 
     expect(ignoredTempDirectories).toEqual(
-      expect.arrayContaining([".*-bundle-*", ".vite-browser-boundary-*"])
+      expect.arrayContaining([
+        ".*-bundle-*",
+        ".vite-browser-boundary-*",
+        ".generate-feature-*",
+      ])
     );
     return expect(config.source.excludes).toEqual(
       expect.arrayContaining(ignoredTempDirectories)
@@ -3239,5 +3270,240 @@ describe("Graphify Node process adapter", () => {
       stdout: "",
       stderr: "",
     });
+  });
+});
+
+describe("Graphify Node process timeouts", () => {
+  return it("marks a command killed at its time limit as timed out, not a buffer overflow", async () => {
+    type ExecError = Error &
+      Readonly<{ code?: string | number | null; killed?: boolean }>;
+    const settleWith = (error: ExecError) =>
+      mocks.execFile.mockImplementationOnce(
+        (
+          _command: string,
+          _arguments: readonly string[],
+          _options: Record<string, unknown>,
+          callback: (
+            error: ExecError | null,
+            stdout?: string,
+            stderr?: string
+          ) => void
+        ) => callback(error, "partial", "slow")
+      );
+
+    settleWith(
+      Object.assign(new Error("killed"), {
+        code: null,
+        killed: true,
+        signal: "SIGTERM",
+      })
+    );
+    await expect(
+      nodeGraphProcess.run("graphify", ["extract"], { timeoutMs: 5 })
+    ).resolves.toEqual({
+      exitCode: 1,
+      stderr: "slow",
+      stdout: "partial",
+      timedOut: true,
+    });
+
+    settleWith(
+      Object.assign(new Error("maxBuffer"), {
+        code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+        killed: true,
+      })
+    );
+    const overflow = await nodeGraphProcess.run("graphify", ["extract"]);
+    expect(overflow).toEqual({
+      exitCode: 1,
+      stderr: "slow",
+      stdout: "partial",
+    });
+    expect(overflow).not.toHaveProperty("timedOut");
+
+    settleWith(
+      Object.assign(new Error("signal"), { code: null, killed: false })
+    );
+    return expect(
+      nodeGraphProcess.run("graphify", ["extract"])
+    ).resolves.not.toHaveProperty("timedOut");
+  });
+});
+
+describe("pinned Graphify toolchain", () => {
+  const LOCK = "graphifyy==2.4.0 \\\n    --hash=sha256:abc\n";
+
+  const toolchainFixture = async (lock = LOCK) => {
+    const root = await mkdtemp(
+      join(tmpdir(), "darkfactory-graphify-toolchain-")
+    );
+    const lockPath = join(root, "requirements.lock");
+    await writeFile(lockPath, lock);
+    const cacheRoot = join(root, "cache", "darkfactory", "graphify");
+    const uvCalls: Array<readonly string[]> = [];
+    const failures: Readonly<{ exitCode: number; stderr: string }>[] = [];
+    const uvOptions: unknown[] = [];
+    const runner: GraphProcess = {
+      run: async (command, arguments_, options) => {
+        expect(command).toBe("uv");
+        uvCalls.push([...arguments_]);
+        uvOptions.push(options);
+        const failure = failures.shift();
+        if (failure)
+          return {
+            exitCode: failure.exitCode,
+            stderr: failure.stderr,
+            stdout: "",
+          };
+        if (arguments_[0] === "venv") {
+          const venv = required(arguments_.at(-1), "venv path");
+          await mkdir(join(venv, "bin"), { recursive: true });
+          await writeFile(join(venv, "bin", "python"), "#!/bin/sh\n");
+        }
+        return { exitCode: 0, stderr: "", stdout: "" };
+      },
+    };
+    const toolchain = createGraphToolchain({
+      cacheRoot,
+      lockPath,
+      process: runner,
+    });
+    return {
+      cacheRoot,
+      failures,
+      lockPath,
+      root,
+      toolchain,
+      uvCalls,
+      uvOptions,
+    };
+  };
+
+  const stagingEntries = async (cacheRoot: string): Promise<string[]> =>
+    (await readdir(cacheRoot)).filter((name) => name.startsWith(".provision-"));
+
+  it("keeps the cache under XDG_CACHE_HOME only when it is absolute", () => {
+    expect(defaultGraphifyCacheRoot({ XDG_CACHE_HOME: "/var/cache/me" })).toBe(
+      "/var/cache/me/darkfactory/graphify"
+    );
+    expect(defaultGraphifyCacheRoot({ XDG_CACHE_HOME: "relative" })).toBe(
+      join(homedir(), ".cache", "darkfactory", "graphify")
+    );
+    expect(defaultGraphifyCacheRoot({})).toBe(
+      join(homedir(), ".cache", "darkfactory", "graphify")
+    );
+    return expect(defaultGraphifyCacheRoot()).toMatch(/darkfactory\/graphify$/);
+  });
+
+  it("provisions a hash-locked venv once per lock and reuses it", async () => {
+    const state = await toolchainFixture();
+
+    await expect(state.toolchain.pinnedVersion()).resolves.toBe("2.4.0");
+    await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
+    const python = await state.toolchain.provision();
+
+    expect(dirname(dirname(dirname(python)))).toBe(state.cacheRoot);
+    expect(python.endsWith(join("bin", "python"))).toBe(true);
+    await expect(state.toolchain.pinnedPython()).resolves.toBe(python);
+    expect(state.uvCalls).toHaveLength(2);
+    expect(state.uvCalls[0]?.slice(0, 4)).toEqual([
+      "venv",
+      "--quiet",
+      "--python",
+      "3.12",
+    ]);
+    const staging = required(state.uvCalls[0]?.at(-1), "staging venv");
+    expect(dirname(staging)).toBe(state.cacheRoot);
+    expect(state.uvCalls[1]).toEqual([
+      "pip",
+      "install",
+      "--quiet",
+      "--python",
+      join(staging, "bin", "python"),
+      "--only-binary=:all:",
+      "--require-hashes",
+      "--requirement",
+      state.lockPath,
+    ]);
+    expect(state.uvOptions).toEqual([
+      expect.objectContaining({ timeoutMs: 900_000 }),
+      expect.objectContaining({ timeoutMs: 900_000 }),
+    ]);
+    expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+    expect((await lstat(state.cacheRoot)).mode & 0o777).toBe(0o700);
+
+    await writeFile(state.lockPath, "graphifyy==2.5.0\n");
+    await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
+    return expect(await state.toolchain.provision()).not.toBe(python);
+  });
+
+  it("keeps a venv another run installed first and rebuilds one whose Python vanished", async () => {
+    const state = await toolchainFixture();
+    const python = await state.toolchain.provision();
+
+    await expect(state.toolchain.provision()).resolves.toBe(python);
+    expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+
+    await rm(python);
+    await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
+    await expect(state.toolchain.provision()).resolves.toBe(python);
+    return expect(await exists(python)).toBe(true);
+  });
+
+  it("reports uv failures and leaves no staging venv behind", async () => {
+    const state = await toolchainFixture();
+    state.failures.push({
+      exitCode: 2,
+      stderr: "warning: slow\nerror: no interpreter for 3.12\n",
+    });
+    await expect(state.toolchain.provision()).rejects.toThrow(
+      "uv venv failed (exit 2): error: no interpreter for 3.12"
+    );
+
+    state.failures.push(
+      { exitCode: 0, stderr: "" },
+      { exitCode: 1, stderr: "" }
+    );
+    await expect(state.toolchain.provision()).rejects.toThrow(
+      "uv pip install failed (exit 1): is uv on PATH?"
+    );
+    expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+    return expect(state.toolchain.pinnedPython()).resolves.toBeNull();
+  });
+
+  it("rethrows unexpected rename failures after cleaning the staging venv", async () => {
+    const state = await toolchainFixture();
+    const failure = Object.assign(new Error("read-only cache"), {
+      code: "EROFS",
+    });
+    mocks.fileSystem.rename.mockRejectedValueOnce(failure);
+    await expect(state.toolchain.provision()).rejects.toBe(failure);
+    expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+
+    mocks.fileSystem.rename.mockRejectedValueOnce(
+      Object.assign(new Error("exists"), { code: "EEXIST" })
+    );
+    const python = await state.toolchain.provision();
+    expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+    return expect(await exists(python)).toBe(false);
+  });
+
+  return it("rejects an oversized lock or one without exactly one graphifyy pin before running uv", async () => {
+    const oversized = await toolchainFixture(
+      `graphifyy==2.4.0\n${"#".repeat(262_145)}\n`
+    );
+    await expect(oversized.toolchain.pinnedVersion()).rejects.toThrow(
+      "Graphify lock is too large"
+    );
+    await expect(oversized.toolchain.pinnedPython()).rejects.toThrow(
+      "Graphify lock is too large"
+    );
+
+    const unpinned = await toolchainFixture("numpy==2.5.1\n");
+    await expect(unpinned.toolchain.provision()).rejects.toThrow(
+      "Graphify lock must pin exactly one graphifyy version"
+    );
+    expect(oversized.uvCalls).toEqual([]);
+    return expect(unpinned.uvCalls).toEqual([]);
   });
 });

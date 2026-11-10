@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { required } from "../lib/required.ts";
 import { runGraphCli } from "./cli.ts";
 import {
   calculateContentDigest,
@@ -7,6 +9,7 @@ import {
   type GraphDependencies,
   type GraphFileSystem,
   parseGraphConfig,
+  parsePinnedGraphifyVersion,
   runGraphAction,
 } from "./graph.ts";
 
@@ -1098,7 +1101,7 @@ describe("Graphify workflow", () => {
       runGraphAction("build", extractFailure)
     ).resolves.toMatchObject({
       ok: false,
-      reason: "Graphify build command failed",
+      reason: "Graphify build command failed (exit 7): failed",
     });
     expect(extractCleanups).toBe(1);
     return expect(extractState.writes).toHaveLength(0);
@@ -1408,5 +1411,336 @@ describe("Graphify workflow", () => {
       reason: "Graphify produced no graph",
     });
     return expect(graphState.writes).toHaveLength(0);
+  });
+});
+
+describe("Graphify extract limits", () => {
+  const extractWith = (
+    result: Readonly<{
+      exitCode: number;
+      stderr: string;
+      timedOut?: boolean;
+    }>
+  ) => {
+    const state = fixture();
+    const options: unknown[] = [];
+    const dependencies: GraphDependencies = {
+      ...state.dependencies,
+      process: {
+        run: async (command, arguments_, commandOptions) => {
+          if (arguments_[0] !== "extract")
+            return state.dependencies.process.run(
+              command,
+              arguments_,
+              commandOptions
+            );
+          options.push(commandOptions);
+          return { stdout: "", ...result };
+        },
+      },
+    };
+    return { dependencies, options, state };
+  };
+
+  it("gives the extract ten minutes and names a timeout", async () => {
+    const timedOut = extractWith({ exitCode: 1, stderr: "", timedOut: true });
+    await expect(
+      runGraphAction("build", timedOut.dependencies)
+    ).resolves.toEqual({
+      action: "build",
+      fresh: false,
+      ok: false,
+      reason: "Graphify build timed out after 600 s",
+    });
+    expect(timedOut.options).toEqual([
+      expect.objectContaining({ timeoutMs: 600_000 }),
+    ]);
+    return expect(timedOut.state.writes).toHaveLength(0);
+  });
+
+  return it("reports the exit code and the last stderr line of a failed extract", async () => {
+    const traceback = extractWith({
+      exitCode: 1,
+      stderr: `  warning: slow\nTraceback (most recent call last):\n  ValueError: ${"x".repeat(400)}  \n\n`,
+    });
+    await expect(
+      runGraphAction("update", traceback.dependencies)
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: `Graphify update command failed (exit 1): ValueError: ${"x".repeat(288)}`,
+    });
+
+    const silent = extractWith({ exitCode: 3, stderr: " \n" });
+    return await expect(
+      runGraphAction("build", silent.dependencies)
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: "Graphify build command failed (exit 3)",
+    });
+  });
+});
+
+const FRESH_PYTHON = "/cache/darkfactory/graphify/fresh/bin/python";
+const SNAPSHOT_EXTRACT = [
+  "extract",
+  "/tmp/darkfactory-graphify-test",
+  "--out",
+  ".",
+] as const;
+
+const pinnedFixture = (
+  options: {
+    pathVersion?: string | null;
+    cachedPython?: string | null;
+    cachedVersion?: string | null;
+    provisionVersion?: string | null;
+    provisionError?: Error;
+    pinnedError?: Error;
+    graphExists?: boolean;
+    manifest?: string;
+  } = {}
+) => {
+  const state = fixture({
+    ...(options.graphExists === undefined
+      ? {}
+      : { graphExists: options.graphExists }),
+    ...(options.manifest === undefined ? {} : { manifest: options.manifest }),
+  });
+  const versions = new Map<string, string | null>([
+    ["graphify", options.pathVersion ?? null],
+  ]);
+  if (options.cachedPython)
+    versions.set(options.cachedPython, options.cachedVersion ?? null);
+  const commands: Array<readonly [string, readonly string[]]> = [];
+  const provisioned: string[] = [];
+  const dependencies: GraphDependencies = {
+    files: state.dependencies.files,
+    process: {
+      run: async (command, arguments_, commandOptions) => {
+        commands.push([command, [...arguments_]]);
+        const graphifyArguments =
+          command === "graphify" ? arguments_ : arguments_.slice(2);
+        if (command !== "graphify")
+          expect(arguments_.slice(0, 2)).toEqual(["-m", "graphify"]);
+        if (graphifyArguments[0] === "--version") {
+          const version = versions.get(command);
+          return version
+            ? { exitCode: 0, stderr: "", stdout: `graphify ${version}\n` }
+            : { exitCode: 127, stderr: "", stdout: "" };
+        }
+        return state.dependencies.process.run(
+          "graphify",
+          graphifyArguments,
+          commandOptions
+        );
+      },
+    },
+    toolchain: {
+      pinnedPython: async () => options.cachedPython ?? null,
+      pinnedVersion: async () => {
+        if (options.pinnedError) throw options.pinnedError;
+        return "2.4.0";
+      },
+      provision: async () => {
+        provisioned.push(FRESH_PYTHON);
+        if (options.provisionError) throw options.provisionError;
+        versions.set(FRESH_PYTHON, options.provisionVersion ?? null);
+        return FRESH_PYTHON;
+      },
+    },
+  };
+  return { ...state, commands, dependencies, provisioned };
+};
+
+describe("pinned Graphify toolchain", () => {
+  it("reads exactly one graphifyy pin from the repository lock", () => {
+    const lock = readFileSync("scripts/graph/requirements.lock", "utf8");
+    const requested = readFileSync(
+      "scripts/graph/requirements.in",
+      "utf8"
+    ).match(/^graphifyy==(\S+)$/m)?.[1];
+    expect(requested).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(parsePinnedGraphifyVersion(lock)).toBe(requested);
+    expect(
+      parsePinnedGraphifyVersion("graphifyy==0.9.2 \\\n    --hash=sha256:abc\n")
+    ).toBe("0.9.2");
+    expect(parsePinnedGraphifyVersion("graphifyy==1.2.3")).toBe("1.2.3");
+    for (const invalid of [
+      "",
+      "numpy==2.5.1\n",
+      "graphifyy==0.9.2\ngraphifyy==0.9.3\n",
+      "graphifyy==latest\n",
+      "  graphifyy==0.9.2\n",
+    ]) {
+      expect(() => parsePinnedGraphifyVersion(invalid), invalid).toThrow(
+        "Graphify lock must pin exactly one graphifyy version"
+      );
+    }
+  });
+
+  it("uses PATH Graphify when it is the pinned version", async () => {
+    const state = pinnedFixture({ pathVersion: "2.4.0" });
+
+    await expect(
+      runGraphAction("build", state.dependencies)
+    ).resolves.toMatchObject({ graphifyVersion: "2.4.0", ok: true });
+    expect(state.commands).toContainEqual(["graphify", SNAPSHOT_EXTRACT]);
+    expect(state.provisioned).toEqual([]);
+    return expect(state.writes).toEqual([
+      [".graphify/manifest.json", manifestFor()],
+    ]);
+  });
+
+  it("runs the cached pinned venv instead of another PATH Graphify version", async () => {
+    const cachedPython = "/cache/darkfactory/graphify/cached/bin/python";
+    const state = pinnedFixture({
+      cachedPython,
+      cachedVersion: "2.4.0",
+      pathVersion: "9.9.9",
+    });
+
+    await expect(
+      runGraphAction("update", state.dependencies)
+    ).resolves.toMatchObject({ graphifyVersion: "2.4.0", ok: true });
+    expect(state.commands).toContainEqual([
+      cachedPython,
+      ["-m", "graphify", ...SNAPSHOT_EXTRACT],
+    ]);
+    expect(
+      state.commands.some(
+        ([command, arguments_]) =>
+          command === "graphify" && arguments_[0] === "extract"
+      )
+    ).toBe(false);
+    expect(state.provisioned).toEqual([]);
+    expect(state.writes).toEqual([[".graphify/manifest.json", manifestFor()]]);
+
+    const verified = pinnedFixture({
+      cachedPython,
+      cachedVersion: "2.4.0",
+      graphExists: true,
+      manifest: manifestFor(),
+      pathVersion: "9.9.9",
+    });
+    await expect(
+      runGraphAction("verify", verified.dependencies)
+    ).resolves.toMatchObject({ ok: true, queriesVerified: 5 });
+    return expect(verified.commands).toContainEqual([
+      cachedPython,
+      ["-m", "graphify", "path", "handleOrpcRequest", "appContract"],
+    ]);
+  });
+
+  it("provisions the pinned venv when none exists or the cached one reports another version", async () => {
+    for (const cached of [
+      { cachedPython: null, pathVersion: null },
+      {
+        cachedPython: "/cache/darkfactory/graphify/stale/bin/python",
+        cachedVersion: "1.0.0",
+        pathVersion: "9.9.9",
+      },
+    ]) {
+      const state = pinnedFixture({ ...cached, provisionVersion: "2.4.0" });
+
+      await expect(
+        runGraphAction("build", state.dependencies)
+      ).resolves.toMatchObject({ graphifyVersion: "2.4.0", ok: true });
+      expect(state.provisioned).toEqual([FRESH_PYTHON]);
+      expect(state.commands).toContainEqual([
+        FRESH_PYTHON,
+        ["-m", "graphify", ...SNAPSHOT_EXTRACT],
+      ]);
+    }
+
+    const unreadableCache = pinnedFixture({ provisionVersion: "2.4.0" });
+    const toolchain = required(
+      unreadableCache.dependencies.toolchain,
+      "toolchain"
+    );
+    await expect(
+      runGraphAction("build", {
+        ...unreadableCache.dependencies,
+        toolchain: {
+          ...toolchain,
+          pinnedPython: () => Promise.reject(new Error("cache unreadable")),
+        },
+      })
+    ).resolves.toMatchObject({ ok: true });
+    return expect(unreadableCache.provisioned).toEqual([FRESH_PYTHON]);
+  });
+
+  return it("fails closed without extracting when the pinned Graphify cannot be resolved", async () => {
+    const failed = pinnedFixture({
+      pathVersion: "9.9.9",
+      provisionError: new Error("uv venv failed (exit 2): no Python"),
+    });
+    await expect(
+      runGraphAction("update", failed.dependencies)
+    ).resolves.toEqual({
+      action: "update",
+      fresh: false,
+      ok: false,
+      reason:
+        "Graphify 2.4.0 is required (PATH has 9.9.9) and the pinned venv failed: uv venv failed (exit 2): no Python",
+    });
+
+    const wrong = pinnedFixture({ provisionVersion: "9.9.9" });
+    await expect(
+      runGraphAction("check", wrong.dependencies)
+    ).resolves.toMatchObject({
+      ok: false,
+      reason:
+        "Graphify 2.4.0 is required (PATH has none) and the pinned venv did not report it",
+    });
+
+    const unreadable = pinnedFixture({
+      pathVersion: "2.4.0",
+      pinnedError: new Error(
+        "Graphify lock must pin exactly one graphifyy version"
+      ),
+    });
+    await expect(
+      runGraphAction("build", unreadable.dependencies)
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: "Graphify lock must pin exactly one graphifyy version",
+    });
+
+    const opaque = pinnedFixture();
+    const opaqueToolchain = required(
+      opaque.dependencies.toolchain,
+      "toolchain"
+    );
+    await expect(
+      runGraphAction("build", {
+        ...opaque.dependencies,
+        toolchain: {
+          ...opaqueToolchain,
+          pinnedVersion: () => Promise.reject("lock vanished"),
+        },
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: "Graphify lock is unreadable",
+    });
+    await expect(
+      runGraphAction("build", {
+        ...opaque.dependencies,
+        toolchain: {
+          ...opaqueToolchain,
+          provision: () => Promise.reject("uv crashed"),
+        },
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      reason:
+        "Graphify 2.4.0 is required (PATH has none) and the pinned venv failed: unknown provisioning failure",
+    });
+    for (const state of [failed, wrong, unreadable, opaque]) {
+      expect(
+        state.commands.some(([, arguments_]) => arguments_.includes("extract"))
+      ).toBe(false);
+    }
+    return expect(opaque.writes).toHaveLength(0);
   });
 });

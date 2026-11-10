@@ -131,5 +131,9 @@ token*.json
 .*-bundle-*/
 .vite-browser-boundary-*/
 
+# Staging folder of the feature generator (scripts/generate-feature/apply.ts). An interrupted
+# run leaves it in the target root; .graphify/config.json excludes it from the graph too.
+.generate-feature-*/
+
 # Python build artifacts
 *.egg-info/

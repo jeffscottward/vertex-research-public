@@ -10,6 +10,9 @@ const COMMAND_OPTIONS = Object.freeze({
   timeoutMs: 120_000,
   maxOutputBytes: 1_048_576,
 });
+// A full extract of this repository took 110 s with the pinned Graphify on an
+// idle 32-core rig, so the 120 s command limit killed it under any load.
+const EXTRACT_TIMEOUT_MS = 600_000;
 const SUPPORTED_GRAPH_PATH = "graphify-out/graph.json";
 
 export type GraphAction = "build" | "update" | "check" | "verify";
@@ -59,17 +62,44 @@ export type GraphCommandOptions = Readonly<{
   environment?: Readonly<Record<string, string>>;
 }>;
 
+export type GraphCommandResult = Readonly<{
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  // True when the command was killed because it reached timeoutMs.
+  timedOut?: boolean;
+}>;
+
 export type GraphProcess = Readonly<{
   run: (
     command: string,
     arguments_: readonly string[],
     options?: GraphCommandOptions
-  ) => Promise<Readonly<{ exitCode: number; stdout: string; stderr: string }>>;
+  ) => Promise<GraphCommandResult>;
+}>;
+
+// The pinned Graphify toolchain. scripts/graph/requirements.lock pins graphifyy;
+// another Graphify on PATH (for example a newer global uv tool) builds a
+// different graph and can be much slower, so the wrapper uses PATH only at the
+// pinned version and otherwise runs a hash-locked venv.
+export type GraphToolchain = Readonly<{
+  pinnedVersion: () => Promise<string>;
+  // Python of an existing pinned venv, or null when none was provisioned yet.
+  pinnedPython: () => Promise<string | null>;
+  // Builds the pinned venv when needed and returns its Python.
+  provision: () => Promise<string>;
 }>;
 
 export type GraphDependencies = Readonly<{
   files: GraphFileSystem;
   process: GraphProcess;
+  toolchain?: GraphToolchain;
+}>;
+
+type GraphifyTool = Readonly<{
+  command: string;
+  prefix: readonly string[];
+  version: string;
 }>;
 
 export type GraphReport = Readonly<{
@@ -437,14 +467,20 @@ export const calculateSourceFingerprint = (
 const serializeManifest = (manifest: GraphManifest): string =>
   `${JSON.stringify(manifest, null, 2)}\n`;
 
-const inspectGraphify = async (
-  dependencies: GraphDependencies
+const inspectGraphifyVersion = async (
+  dependencies: GraphDependencies,
+  command: string,
+  prefix: readonly string[]
 ): Promise<string | null> => {
   try {
-    const result = await dependencies.process.run("graphify", ["--version"], {
-      ...COMMAND_OPTIONS,
-      timeoutMs: 10_000,
-    });
+    const result = await dependencies.process.run(
+      command,
+      [...prefix, "--version"],
+      {
+        ...COMMAND_OPTIONS,
+        timeoutMs: 30_000,
+      }
+    );
     if (result.exitCode !== 0) return null;
     const match = result.stdout
       .trim()
@@ -453,6 +489,107 @@ const inspectGraphify = async (
   } catch {
     return null;
   }
+};
+
+// Reads the exact graphifyy version from a pip-compile requirements lock.
+export const parsePinnedGraphifyVersion = (lock: string): string => {
+  const pins = [...lock.matchAll(/^graphifyy==(\S+?)(?:\s|\\|$)/gm)].map(
+    (match) => match[1]
+  );
+  const [pin] = pins;
+  if (
+    pins.length !== 1 ||
+    pin === undefined ||
+    !/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/.test(pin)
+  ) {
+    throw new Error("Graphify lock must pin exactly one graphifyy version");
+  }
+  return pin;
+};
+
+const PYTHON_MODULE_PREFIX: readonly string[] = Object.freeze([
+  "-m",
+  "graphify",
+]);
+const PATH_GRAPHIFY_PREFIX: readonly string[] = Object.freeze([]);
+
+// Returns the Graphify to run, or the reason none can run. Without a toolchain
+// (tests, embedders) PATH Graphify is used at any version.
+const resolveGraphify = async (
+  dependencies: GraphDependencies
+): Promise<GraphifyTool | string> => {
+  const pathVersion = await inspectGraphifyVersion(
+    dependencies,
+    "graphify",
+    PATH_GRAPHIFY_PREFIX
+  );
+  const toolchain = dependencies.toolchain;
+  if (!toolchain) {
+    return pathVersion
+      ? Object.freeze({
+          command: "graphify",
+          prefix: PATH_GRAPHIFY_PREFIX,
+          version: pathVersion,
+        })
+      : "Graphify is unavailable or returned an invalid version";
+  }
+
+  let pinned: string;
+  try {
+    pinned = await toolchain.pinnedVersion();
+  } catch (error) {
+    return error instanceof Error
+      ? error.message
+      : "Graphify lock is unreadable";
+  }
+  if (pathVersion === pinned) {
+    return Object.freeze({
+      command: "graphify",
+      prefix: PATH_GRAPHIFY_PREFIX,
+      version: pinned,
+    });
+  }
+
+  const pinnedTool = async (
+    python: string | null
+  ): Promise<GraphifyTool | null> => {
+    if (!python) return null;
+    const version = await inspectGraphifyVersion(
+      dependencies,
+      python,
+      PYTHON_MODULE_PREFIX
+    );
+    return version === pinned
+      ? Object.freeze({
+          command: python,
+          prefix: PYTHON_MODULE_PREFIX,
+          version: pinned,
+        })
+      : null;
+  };
+
+  let existing: string | null;
+  try {
+    existing = await toolchain.pinnedPython();
+  } catch {
+    existing = null;
+  }
+  const cached = await pinnedTool(existing);
+  if (cached) return cached;
+
+  const requirement = `Graphify ${pinned} is required (PATH has ${pathVersion ?? "none"})`;
+  let provisioned: string;
+  try {
+    provisioned = await toolchain.provision();
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : "unknown provisioning failure";
+    return `${requirement} and the pinned venv failed: ${detail}`;
+  }
+  return (
+    (await pinnedTool(provisioned)) ??
+    `${requirement} and the pinned venv did not report it`
+  );
 };
 
 const inspectSources = async (
@@ -614,8 +751,9 @@ const buildOrUpdate = async (
   dependencies: GraphDependencies,
   config: GraphConfig,
   configSource: string,
-  graphifyVersion: string
+  graphify: GraphifyTool
 ): Promise<GraphReport> => {
+  const graphifyVersion = graphify.version;
   const before = await inspectSources(dependencies, config);
   let snapshot: Awaited<ReturnType<GraphFileSystem["createSourceSnapshot"]>>;
   try {
@@ -625,7 +763,7 @@ const buildOrUpdate = async (
       error instanceof Error ? error.message : "unknown snapshot failure";
     return failure(action, `Graph source snapshot failed: ${detail}`);
   }
-  let execution: Readonly<{ exitCode: number }>;
+  let execution: GraphCommandResult;
   try {
     try {
       await dependencies.files.resetGraphOutput(config.graphPath);
@@ -635,18 +773,35 @@ const buildOrUpdate = async (
       return failure(action, `Graph output reset failed: ${detail}`);
     }
     execution = await dependencies.process.run(
-      "graphify",
-      ["extract", snapshot.path, "--out", "."],
+      graphify.command,
+      [...graphify.prefix, "extract", snapshot.path, "--out", "."],
       {
         ...COMMAND_OPTIONS,
         environment: { GRAPHIFY_MAX_WORKERS: "1", PYTHONHASHSEED: "0" },
+        timeoutMs: EXTRACT_TIMEOUT_MS,
       }
     );
   } finally {
     await snapshot.cleanup();
   }
-  if (execution.exitCode !== 0)
-    return failure(action, `Graphify ${action} command failed`);
+  if (execution.timedOut) {
+    return failure(
+      action,
+      `Graphify ${action} timed out after ${EXTRACT_TIMEOUT_MS / 1000} s`
+    );
+  }
+  if (execution.exitCode !== 0) {
+    const lastLine = execution.stderr
+      .trim()
+      .split("\n")
+      .at(-1)
+      ?.trim()
+      .slice(0, 300);
+    return failure(
+      action,
+      `Graphify ${action} command failed (exit ${execution.exitCode})${lastLine ? `: ${lastLine}` : ""}`
+    );
+  }
 
   const after = await inspectSources(dependencies, config);
   if (
@@ -722,12 +877,9 @@ export const runGraphAction = async (
     return failure(action, "Graph config is missing or malformed");
   }
 
-  const graphifyVersion = await inspectGraphify(dependencies);
-  if (!graphifyVersion)
-    return failure(
-      action,
-      "Graphify is unavailable or returned an invalid version"
-    );
+  const graphify = await resolveGraphify(dependencies);
+  if (typeof graphify === "string") return failure(action, graphify);
+  const graphifyVersion = graphify.version;
 
   try {
     if (action === "build" || action === "update") {
@@ -736,7 +888,7 @@ export const runGraphAction = async (
         dependencies,
         config,
         configSource,
-        graphifyVersion
+        graphify
       );
     }
 
@@ -764,8 +916,8 @@ export const runGraphAction = async (
         "verification path node"
       );
       const query = await dependencies.process.run(
-        "graphify",
-        ["path", from, to],
+        graphify.command,
+        [...graphify.prefix, "path", from, to],
         {
           ...COMMAND_OPTIONS,
           timeoutMs: 30_000,
