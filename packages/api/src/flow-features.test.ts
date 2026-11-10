@@ -198,21 +198,22 @@ describe("buildMinuteFeatures", () => {
     const { events } = buildMinuteFeatures(
       FLOW_INSTRUMENTS.ES,
       [
-        signed(T0, 100, 3),
-        signed(T0 + 60, 101, 2),
-        signed(T0 + 120, 102, 1),
-        signed(T0 + 180, 101, 5),
-        signed(T0 + 240, 100, 1),
+        signed(T0, 100, 1),
+        signed(T0 + 60, 100, 3),
+        signed(T0 + 120, 101, 2),
+        signed(T0 + 180, 102, 1),
+        signed(T0 + 240, 101, 5),
+        signed(T0 + 300, 100, 1),
       ],
       0.25
     );
     expect(events.filter((event) => event.kind === "exhaustion")).toEqual([
       {
-        at: new Date((T0 + 120) * 1000),
+        at: new Date((T0 + 180) * 1000),
         detail:
           "Higher highs on less fuel for 3 min: volume 3 → 1, delta 3 → 1",
         direction: "bearish",
-        key: `exhaustion:up:${T0}`,
+        key: `exhaustion:up:${T0 + 60}`,
         kind: "exhaustion",
         premium: null,
         price: 102,
@@ -223,18 +224,47 @@ describe("buildMinuteFeatures", () => {
     ]);
   });
 
-  it("holds back an exhaustion run that is still forming or in a partial minute", () => {
-    const { events } = buildMinuteFeatures(
+  it("holds back an exhaustion run that may still grow at either edge", () => {
+    const atEdge = buildMinuteFeatures(
       FLOW_INSTRUMENTS.ES,
       [
-        signed(T0 + 30, 100, 3),
+        signed(T0, 100, 3),
         signed(T0 + 60, 101, 2),
         signed(T0 + 120, 102, 1),
-        signed(T0 + 180, 103, 1),
+        signed(T0 + 180, 101, 5),
+        signed(T0 + 240, 100, 1),
       ],
       0.25
     );
-    expect(events.some((event) => event.kind === "exhaustion")).toBe(false);
+    expect(atEdge.events.some((event) => event.kind === "exhaustion")).toBe(
+      false
+    );
+  });
+
+  it("flags bullish exhaustion after lower lows on fading selling", () => {
+    const { events } = buildMinuteFeatures(
+      FLOW_INSTRUMENTS.ES,
+      [
+        signed(T0, 100, 1, "sell"),
+        signed(T0 + 60, 100, 3, "sell"),
+        signed(T0 + 120, 99, 2, "sell"),
+        signed(T0 + 180, 98, 1, "sell"),
+        signed(T0 + 240, 99, 5, "sell"),
+        signed(T0 + 300, 100, 1, "sell"),
+      ],
+      0.25
+    );
+    expect(
+      events
+        .filter((event) => event.kind === "exhaustion")
+        .map(({ direction, detail, key }) => ({ detail, direction, key }))
+    ).toEqual([
+      {
+        detail: "Lower lows on less fuel for 3 min: volume 3 → 1, delta 3 → 1",
+        direction: "bullish",
+        key: `exhaustion:down:${T0 + 60}`,
+      },
+    ]);
   });
 
   it("flags buy absorption", () => {

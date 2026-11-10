@@ -318,16 +318,18 @@ export const buildMinuteFeatures = (
       vwap: totals.volume > 0 ? totals.notional / totals.volume : close,
     });
   }
-  // Exhaustion only over fully covered minutes, and only for runs a later full minute has
-  // already ended: such a run is final, so its key (start minute) is stable across samples.
+  // Exhaustion only over fully covered minutes, and only for runs with a full minute on both
+  // sides: such a run cannot grow either way in a later sample, so its key (start) is stable.
   const full = minutes.filter((row) => row.coveredSeconds === 60);
   const closes = new Map(full.map((row) => [row.minute.getTime(), row.close]));
-  const lastFull = (full.at(-1)?.minute.getTime() ?? 0) / 1000;
+  const fullStarts = [...closes.keys()].map((ms) => ms / 1000);
+  const firstFull = Math.min(...fullStarts);
+  const lastFull = Math.max(...fullStarts);
   const fullTrades = ordered.filter((trade) =>
     closes.has(Math.floor(trade.t / 60) * 60_000)
   );
   for (const run of findExhaustion(fullTrades, 60))
-    if (run.end < lastFull)
+    if (run.start > firstFull && run.end < lastFull)
       events.push({
         at: new Date(run.end * 1000),
         detail: `${run.direction === "up" ? "Higher highs" : "Lower lows"} on less fuel for ${run.buckets} min: volume ${run.firstVolume} → ${run.lastVolume}, delta ${run.firstDelta} → ${run.lastDelta}`,
@@ -335,7 +337,7 @@ export const buildMinuteFeatures = (
         key: `exhaustion:${run.direction}:${run.start}`,
         kind: "exhaustion",
         premium: null,
-        price: closes.get(run.end * 1000) ?? null,
+        price: closes.get(run.end * 1000) as number,
         size: run.lastVolume,
         source: "ibkr",
         symbol,
