@@ -25,6 +25,7 @@ export type FlowEventKindValue =
   | "off_exchange_print"
   | "absorption"
   | "stacked_imbalance"
+  | "exhaustion"
   | "option_sweep"
   | "option_block"
   | "option_golden_sweep"

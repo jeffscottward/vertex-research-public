@@ -15,6 +15,7 @@ import type {
   MarketTicksInput,
   MarketTicksOutput,
 } from "@darkfactory/api";
+import { countSigning, findExhaustion, signTrades } from "@darkfactory/api";
 import { Button, Panel } from "@darkfactory/ui";
 import {
   type KeyboardEvent,
@@ -26,17 +27,16 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { defined } from "../../features/order-flow/defined.ts";
 import { buildDeltaSeries } from "../../features/order-flow/delta.ts";
 import { buildFootprint } from "../../features/order-flow/footprint.ts";
 import {
   createBrowserOrderFlowGateway,
   describeOrderFlowFailure,
-  pacedRetryDelayMs,
   type OrderFlowFailure,
   type OrderFlowGateway,
   type OrderFlowView,
+  pacedRetryDelayMs,
 } from "../../features/order-flow/order-flow-client.ts";
 import {
   autoBucketSeconds,
@@ -53,7 +53,6 @@ import {
   timeAndSalesRows,
 } from "../../features/order-flow/time-and-sales.ts";
 import { buildTpoProfile } from "../../features/order-flow/tpo.ts";
-import { countSigning, signTrades } from "@darkfactory/api";
 import type { MarketDataGateway } from "./market-data-client.ts";
 import {
   DeltaChart,
@@ -421,6 +420,10 @@ export const OrderFlowPanel = ({
     () => buildDeltaSeries(signed, bucketSeconds ?? undefined),
     [signed, bucketSeconds]
   );
+  const exhaustion = useMemo(
+    () => (delta === null ? [] : findExhaustion(signed, delta.bucketSeconds)),
+    [signed, delta]
+  );
   const barsData = shownData(bars);
   const profile = useMemo(
     () => (barsData === null ? null : buildTpoProfile(barsData.bars, timeZone)),
@@ -520,7 +523,11 @@ export const OrderFlowPanel = ({
             </p>
           )
         ) : (
-          <DeltaChart series={delta} timeZone={timeZone} />
+          <DeltaChart
+            exhaustion={exhaustion}
+            series={delta}
+            timeZone={timeZone}
+          />
         )}
       </ViewFrame>
     ),
