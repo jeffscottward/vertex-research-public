@@ -2,6 +2,10 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, readSync } from "node:fs";
 import { extname } from "node:path";
 import { inspectBunRuntime } from "../ci/bun-runtime.ts";
+import {
+  DEPENDENCY_INSTALL,
+  installDependencies,
+} from "../lib/dependencies.ts";
 import { withoutGitRepositoryEnvironment } from "../lib/git-env.ts";
 
 const BIOME_EXTENSIONS = new Set([
@@ -217,25 +221,9 @@ interface PushDependencies {
 const runPrePushScripts: BunScriptRunner = (scripts) =>
   runBunScripts(scripts, [], withoutGitRepositoryEnvironment(process.env));
 
-// The lockfile stays as committed. --prefer-offline uses the store first but
-// still fetches packages it lacks. A copied node_modules from another pnpm
-// layout needs a purge, and hooks have no terminal to confirm it.
-const DEPENDENCY_INSTALL: readonly string[] = Object.freeze([
-  "install",
-  "--frozen-lockfile",
-  "--prefer-offline",
-  "--config.confirm-modules-purge=false",
-]);
-
-// Returns 0, or the failed install's exit code after reporting it. Git's hook
-// repository variables would point pnpm's lifecycle scripts (husky) at the
-// wrong repository.
-function installDependencies(): number {
-  const result = spawnSync("pnpm", DEPENDENCY_INSTALL, {
-    env: withoutGitRepositoryEnvironment(process.env),
-    shell: false,
-    stdio: ["ignore", "inherit", "inherit"],
-  });
+// Returns 0, or the failed install's exit code after reporting it.
+function refreshDependencies(): number {
+  const result = installDependencies();
   return result.error || result.signal || result.status !== 0
     ? failureExitCode("pnpm", DEPENDENCY_INSTALL, result)
     : 0;
@@ -422,14 +410,16 @@ export function runPrePush(
       return checkoutStatus;
     }
     warnBunRuntime();
-    // pnpm 11 checks node_modules before each `pnpm run` and installs when it
-    // does not match the lockfile (verifyDepsBeforeRun defaults to install).
-    // After a lockfile-changing pull, each parallel turbo task would start its
-    // own install into the same node_modules (ERR_PNPM_ENOTEMPTY, "Failed to
-    // create bin"), and knip would check the stale tree first. One install here
-    // uses pnpm's own up-to-date check and takes about 0.5 s when nothing
-    // changed (card vertex-prepush-stale-deps-parallel-install, 2026-11-08).
-    const installStatus = installDependencies();
+    // pnpm-workspace.yaml sets verifyDepsBeforeRun: error, so after a
+    // lockfile-changing pull a `pnpm run`/`pnpm exec` stops on the stale tree
+    // instead of each parallel turbo task starting its own install into the
+    // same node_modules (ERR_PNPM_ENOTEMPTY, "Failed to create bin"). Lanes
+    // such as knip and auth:schema:check run before the first root script
+    // that installs, so one install here comes first. pnpm's own up-to-date
+    // check makes it about 0.6 s when nothing changed (cards
+    // vertex-prepush-stale-deps-parallel-install,
+    // vertex-manual-turbo-stale-deps-race).
+    const installStatus = refreshDependencies();
     if (installStatus !== 0) {
       console.error(
         "[hook] dependency install failed; local lanes not run on stale dependencies"
@@ -466,11 +456,12 @@ function readOptionalText(path: string): string | undefined {
 // a copy-on-write clone of the source checkout, ignored files included, and
 // then runs this hook in the new worktree. The copied node_modules matches the
 // source checkout's lockfile, not this commit's: knip then reports unlisted
-// binaries, and every parallel turbo task starts its own pnpm install. One
-// install here prevents both (card vitest-cache-copy-race, 2026-11-08). OMP
-// shows the hook output only after the install ends. A plain `git worktree add`
-// also runs this hook, but its new worktree has no node_modules, so the hook
-// leaves the install to its owner.
+// binaries, and each `pnpm run`/`pnpm exec` stops on the stale tree
+// (verifyDepsBeforeRun: error). One install here prevents both (card
+// vitest-cache-copy-race, 2026-11-08). OMP shows the hook output only after
+// the install ends. A plain `git worktree add` also runs this hook, but its
+// new worktree has no node_modules, so the hook leaves the install to its
+// owner.
 export function runPostCheckout(argv: readonly string[]): number {
   // Git passes the null object id as the previous HEAD only for a new checkout.
   if (!ZERO_ID.test(argv[0] ?? "")) {
@@ -486,7 +477,7 @@ export function runPostCheckout(argv: readonly string[]): number {
   console.error(
     "[hook] node_modules was copied from another checkout and does not match pnpm-lock.yaml; installing"
   );
-  if (installDependencies() !== 0) {
+  if (refreshDependencies() !== 0) {
     console.error(
       "[hook] WARNING: dependencies are stale; run `pnpm install --frozen-lockfile` before you test or push"
     );
