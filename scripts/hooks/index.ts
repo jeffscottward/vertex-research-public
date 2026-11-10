@@ -413,11 +413,10 @@ export function runPrePush(
     // pnpm-workspace.yaml sets verifyDepsBeforeRun: error, so after a
     // lockfile-changing pull a `pnpm run`/`pnpm exec` stops on the stale tree
     // instead of each parallel turbo task starting its own install into the
-    // same node_modules (ERR_PNPM_ENOTEMPTY, "Failed to create bin"). Lanes
-    // such as knip and auth:schema:check run before the first root script
-    // that installs, so one install here comes first. pnpm's own up-to-date
-    // check makes it about 0.6 s when nothing changed (cards
-    // vertex-prepush-stale-deps-parallel-install,
+    // same node_modules (ERR_PNPM_ENOTEMPTY, "Failed to create bin"). The hook
+    // installs before the lanes so that a failed install blocks the push with
+    // a clear message; the lanes' own install step is then a ~0.6 s no-op
+    // (cards vertex-prepush-stale-deps-parallel-install,
     // vertex-manual-turbo-stale-deps-race).
     const installStatus = refreshDependencies();
     if (installStatus !== 0) {
