@@ -184,6 +184,15 @@ const OVERRIDES = {
     reason:
       'Portfolio stress test beyond VaR (liquidity, correlation breaks); "basis blowouts" is one example, not a futures-curve feed requirement.',
   },
+  // Hand review 2026-11-09 (not a lil fish merge, knowledge-bases master rules 8bbcd66a).
+  // Prop-firm account mechanics; we trade our own options book and hold no evaluation or funded accounts.
+  C082: { cls: "D", reason: "Prop-firm evaluation pass-probability rule." },
+  C745: { cls: "D", reason: "Prop-firm challenge rule." },
+  C747: { cls: "D", reason: "Prop-account copy-trading rule." },
+  C749: { cls: "D", reason: "Prop-firm account-type choice." },
+  C751: { cls: "D", reason: "Prop-account payout buffer rule." },
+  C758: { cls: "D", reason: "Prop-account stacking rule." },
+  C759: { cls: "D", reason: "Prop-firm evaluation budget rule." },
 };
 
 export function classifyCluster(c, debated = new Map()) {
