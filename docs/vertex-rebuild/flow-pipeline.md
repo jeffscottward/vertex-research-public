@@ -82,6 +82,9 @@ Full-session tape needs streaming tick-by-tick data (a later owner decision).
   levels inside one minute (`stacked_imbalance`).
 - **Absorption:** a minute with at least 30 trades and |delta| at least 40% of volume whose price did
   not move the delta's way (`absorption`).
+- **Exhaustion:** 3+ consecutive minutes making new highs (lows) while volume and the delta in
+  that direction both shrink (`exhaustion`, bearish after highs, bullish after lows). Event only;
+  no `flow_minutes` column, no migration (`flow_events.kind` is free text).
 - **Book pressure:** (bid size − ask size) ÷ (bid size + ask size) over the top 10 rows.
 - **Options:** premium by right, sentiment, aggressor side (QuantData `tradeSideCode`), sweep/block,
   moneyness, unusual, vol > OI, opening, 0DTE; option events for prints at or above $500k (SPY) or

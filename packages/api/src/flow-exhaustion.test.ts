@@ -1,6 +1,6 @@
-import type { SignedTrade, TradeSide } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
-import { findExhaustion } from "./exhaustion.ts";
+import { findExhaustion } from "./flow-exhaustion.ts";
+import type { SignedTrade, TradeSide } from "./flow-trade-signing.ts";
 
 const trade = (
   t: number,
@@ -80,5 +80,25 @@ describe("findExhaustion", () => {
       )
     ).toEqual([]);
     expect(findExhaustion([], 10)).toEqual([]);
+  });
+
+  it("orders up and down runs by time and ignores unsigned prints in delta", () => {
+    const runs = findExhaustion(
+      [
+        trade(0, 100, 300, "buy"),
+        trade(1, 100, 50, "unknown"),
+        trade(10, 101, 200, "buy"),
+        trade(20, 102, 100, "buy"),
+        trade(30, 90, 900, "sell"),
+        trade(40, 89, 600, "sell"),
+        trade(50, 88, 300, "sell"),
+      ],
+      10
+    );
+    expect(runs.map(({ direction, start }) => ({ direction, start }))).toEqual([
+      { direction: "up", start: 0 },
+      { direction: "down", start: 30 },
+    ]);
+    expect(findExhaustion([trade(0, 1, 1, "buy")], 0)).toEqual([]);
   });
 });

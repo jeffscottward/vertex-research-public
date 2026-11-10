@@ -194,6 +194,29 @@ describe("buildMinuteFeatures", () => {
     expect(minutes[0]?.vwap).toBe(5000);
   });
 
+  it("flags exhaustion: higher highs on shrinking volume and delta", () => {
+    const { events } = buildMinuteFeatures(
+      FLOW_INSTRUMENTS.ES,
+      [signed(T0, 100, 3), signed(T0 + 60, 101, 2), signed(T0 + 120, 102, 1)],
+      0.25
+    );
+    expect(events.filter((event) => event.kind === "exhaustion")).toEqual([
+      {
+        at: new Date((T0 + 120) * 1000),
+        detail:
+          "Higher highs on less fuel for 3 min: volume 3 → 1, delta 3 → 1",
+        direction: "bearish",
+        key: `exhaustion:up:${T0 + 120}`,
+        kind: "exhaustion",
+        premium: null,
+        price: 102,
+        size: 1,
+        source: "ibkr",
+        symbol: "ES",
+      },
+    ]);
+  });
+
   it("flags buy absorption", () => {
     const trades = Array.from({ length: 30 }, (_, index) =>
       signed(T0 + index, 100, 1, "buy")

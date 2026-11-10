@@ -1,9 +1,9 @@
 // What: exhaustion runs — consecutive time buckets that keep pushing price to new highs (or lows)
 // while traded volume and the delta in the push direction both shrink ("higher price, less
 // fuel"). Research display only; a heuristic flag, not a signal.
-// Used by: components/portal/order-flow-views.tsx (DeltaChart).
-import type { SignedTrade } from "@darkfactory/api";
-import { bucketStart } from "./price-grid.ts";
+// Used by: flow-features.ts (/flow "exhaustion" events, 1-minute buckets) and the web
+// /charts delta view (apps/web components/portal/order-flow-panel.tsx).
+import type { SignedTrade } from "./flow-trade-signing.ts";
 
 export type ExhaustionRun = Readonly<{
   direction: "up" | "down";
@@ -30,7 +30,7 @@ interface Bar {
 const bars = (trades: readonly SignedTrade[], seconds: number): Bar[] => {
   const byStart = new Map<number, Bar>();
   for (const trade of trades) {
-    const start = bucketStart(trade.t, seconds);
+    const start = Math.floor(trade.t / seconds) * seconds;
     const bar = byStart.get(start) ?? {
       delta: 0,
       high: trade.price,

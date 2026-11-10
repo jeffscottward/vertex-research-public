@@ -5,6 +5,7 @@
 // library. Read-only research display.
 // Used by: components/portal/order-flow-panel.tsx.
 import type {
+  ExhaustionRun,
   MarketBarsOutput,
   MarketDepthOutput,
   MarketTicksOutput,
@@ -30,7 +31,6 @@ import {
   depthSizeNote,
   type LadderRow,
 } from "../../features/order-flow/depth-ladder.ts";
-import type { ExhaustionRun } from "../../features/order-flow/exhaustion.ts";
 import type { Footprint } from "../../features/order-flow/footprint.ts";
 import {
   decimalsOf,

@@ -1,5 +1,5 @@
 // What: turns one sample of signed IBKR prints into per-minute order-flow features and derived
-// events (large prints, off-exchange prints, absorption, stacked imbalances), and one depth
+// events (large prints, off-exchange prints, absorption, stacked imbalances, exhaustion), and one depth
 // snapshot into book pressure. Pure; the collector (server/flow-collect.ts) stores the result.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
@@ -7,6 +7,7 @@ import type {
   FlowEventKind,
   FlowSymbol,
 } from "./contracts/flow.ts";
+import { findExhaustion } from "./flow-exhaustion.ts";
 import type { SignedTrade } from "./flow-trade-signing.ts";
 
 export type FlowInstrument = Readonly<{
@@ -317,6 +318,22 @@ export const buildMinuteFeatures = (
       vwap: totals.volume > 0 ? totals.notional / totals.volume : close,
     });
   }
+  const closes = new Map(
+    minutes.map((row) => [row.minute.getTime(), row.close])
+  );
+  for (const run of findExhaustion(ordered, 60))
+    events.push({
+      at: new Date(run.end * 1000),
+      detail: `${run.direction === "up" ? "Higher highs" : "Lower lows"} on less fuel for ${run.buckets} min: volume ${run.firstVolume} → ${run.lastVolume}, delta ${run.firstDelta} → ${run.lastDelta}`,
+      direction: run.direction === "up" ? "bearish" : "bullish",
+      key: `exhaustion:${run.direction}:${run.end}`,
+      kind: "exhaustion",
+      premium: null,
+      price: closes.get(run.end * 1000) ?? null,
+      size: run.lastVolume,
+      source: "ibkr",
+      symbol,
+    });
   return { events, minutes };
 };
 

@@ -15,7 +15,7 @@ import type {
   MarketTicksInput,
   MarketTicksOutput,
 } from "@darkfactory/api";
-import { countSigning, signTrades } from "@darkfactory/api";
+import { countSigning, findExhaustion, signTrades } from "@darkfactory/api";
 import { Button, Panel } from "@darkfactory/ui";
 import {
   type KeyboardEvent,
@@ -29,7 +29,6 @@ import {
 } from "react";
 import { defined } from "../../features/order-flow/defined.ts";
 import { buildDeltaSeries } from "../../features/order-flow/delta.ts";
-import { findExhaustion } from "../../features/order-flow/exhaustion.ts";
 import { buildFootprint } from "../../features/order-flow/footprint.ts";
 import {
   createBrowserOrderFlowGateway,
