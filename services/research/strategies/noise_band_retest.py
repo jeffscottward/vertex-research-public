@@ -6,7 +6,11 @@ docs/specs/strategies/noise-band-intraday-momentum.md, section "Re-test 2026-11"
 Inputs
   --ib DIR        output of noise_band_ib_fetch.py: DIR/<SYMBOL>/<YYYY-MM>.csv with epoch_utc,open,high,low,close,volume
                   (5-minute TRADES bars, regular trading hours, bar start time).
-  --daily DIR     DIR/<SYMBOL>.json: Yahoo chart API daily bars with dividend events (see fetch_daily()).
+  --daily DIR     DIR/<SYMBOL>.json: daily bars with dividend events in the Yahoo chart API layout (see
+                  fetch_daily()). Source: IBKR first, Yahoo fills gaps: with VERTEX_HISTORY_URL and
+                  VERTEX_DEPLOY_STATUS_TOKEN set, the bars are IBKR TRADES daily bars (unadjusted for
+                  dividends) and Yahoo's fill the dates before IBKR's first date; dividend events are
+                  Yahoo's (IBKR history has no dividend feed). Without IBKR the Yahoo response is saved verbatim.
   --kaggle FILE   the 2008-2021 SPY 1-minute CSV used by the first test (ibkr-mt format), aggregated here to 5 minutes.
 
 Usage
@@ -24,6 +28,8 @@ from dataclasses import asdict, replace
 from datetime import date, datetime, timezone
 from typing import Sequence
 from zoneinfo import ZoneInfo
+
+import ibkr_history as ih
 
 from strategies.noise_band import (
     BacktestResult,
@@ -115,14 +121,53 @@ def to_five_minute(sessions: Sequence[Session]) -> list[Session]:
     return out
 
 
-def fetch_daily(symbol: str, path: str) -> None:
-    """Yahoo chart API daily bars (unadjusted OHLC) with dividend events, saved verbatim."""
+DAILY_START = "2007-12-01"  # period1=1196467200
+
+
+def fetch_yahoo_daily(symbol: str) -> bytes:
+    """Yahoo chart API daily bars (unadjusted OHLC) with dividend events, verbatim."""
     url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?period1=1196467200"
            f"&period2={int(time.time())}&interval=1d&events=div")
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=60) as r:
         data = r.read()
     json.loads(data)
+    return data
+
+
+def merge_daily(yahoo: bytes, symbol: str, client: ih.Client | None = None) -> bytes:
+    """IBKR first, Yahoo fills gaps, in the Yahoo chart layout load_daily() reads: the quote arrays hold the
+    merged bars (IBKR dates stamped 14:30 UTC, the same New York date in summer and winter), events keep
+    Yahoo's dividends, and `vertex_sources` records the merge. Without IBKR rows the Yahoo bytes are returned
+    unchanged."""
+    doc = json.loads(yahoo)
+    res = doc["chart"]["result"][0]
+    quote = res["indicators"]["quote"][0]
+    stamps = {}
+    rows = []
+    for i, ts in enumerate(res["timestamp"]):
+        day = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(ET).date().isoformat()
+        stamps[day] = ts
+        rows.append({"date": day, **{key: quote.get(key, [None] * len(res["timestamp"]))[i]
+                                     for key in ("open", "high", "low", "close", "volume")}})
+    merged = ih.merged_daily(symbol, lambda: rows, start=DAILY_START, client=client)
+    if "ibkr" not in merged.sources:
+        return yahoo
+    out = merged.rows
+    res["timestamp"] = [stamps[row["date"]] if row["source"] == "yahoo"
+                        else int(datetime.fromisoformat(row["date"]).replace(hour=14, minute=30,
+                                                                              tzinfo=timezone.utc).timestamp())
+                        for row in out]
+    res["indicators"] = {"quote": [{key: [row[key] for row in out]
+                                    for key in ("open", "high", "low", "close", "volume")}]}
+    doc["vertex_sources"] = merged.summary()
+    return json.dumps(doc).encode()
+
+
+def fetch_daily(symbol: str, path: str, client: ih.Client | None = None) -> None:
+    """Daily bars with dividend events, saved in the Yahoo chart layout: IBKR first, Yahoo fills gaps.
+    The Yahoo download always runs (dividend events)."""
+    data = merge_daily(fetch_yahoo_daily(symbol), symbol, client)
     with open(path, "wb") as f:
         f.write(data)
 
