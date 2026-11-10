@@ -25,6 +25,7 @@ export const FLOW_EVENT_KINDS = [
   "off_exchange_print",
   "absorption",
   "stacked_imbalance",
+  "exhaustion",
   "option_sweep",
   "option_block",
   "option_golden_sweep",
