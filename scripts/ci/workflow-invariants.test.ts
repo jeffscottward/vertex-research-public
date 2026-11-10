@@ -186,9 +186,6 @@ describe("GitHub workflow invariants", () => {
       Job & { needs?: string | string[]; if?: string }
     >;
     const gate = ciJobs["ci-gate"]!;
-    expect(gate.name).toBe(
-      "${{ github.event.pull_request.draft && 'ci-gate (draft)' || 'ci-gate' }}"
-    );
     expect(gate.if).toBe("${{ always() }}");
     expect([...(gate.needs as string[])].sort()).toEqual(
       Object.keys(ciJobs)
@@ -212,6 +209,25 @@ describe("GitHub workflow invariants", () => {
       expect(trigger?.["paths-ignore"]).toBeUndefined();
       expect(trigger?.["paths"]).toBeUndefined();
     }
+  });
+
+  // Card vertex-ci-draft-ready-race (PR #84): the draft flag in the event can be
+  // stale, so the changes job reports the draft state it read from GitHub. The gate
+  // is the required "ci-gate" check when the event says ready, or when the changes
+  // job answered "not a draft". A draft run that was cancelled before the changes
+  // job answered stays "ci-gate (draft)".
+  it("names the gate from the draft state that the changes job read", () => {
+    const ci = workflows.find(({ file }) => file === "ci.yml")!;
+    const ciJobs = ci.workflow.jobs as Record<
+      string,
+      Job & { outputs?: Record<string, string> }
+    >;
+    expect(ciJobs["changes"]!.outputs?.["draft"]).toBe(
+      "${{ steps.plan.outputs.draft }}"
+    );
+    return expect(ciJobs["ci-gate"]!.name).toBe(
+      "${{ github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}"
+    );
   });
 
   return it("keeps the job names that required status checks reference", () => {
