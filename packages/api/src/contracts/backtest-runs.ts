@@ -1,4 +1,3 @@
-import { STRUCTURES } from "@darkfactory/academy/schema";
 import { BAR_SYMBOL_PATTERN } from "@darkfactory/shared/universes";
 import { oc } from "@orpc/contract";
 import { z } from "zod";
@@ -329,7 +328,8 @@ export const BacktestRunSpecSchema = z.object({
         .optional(),
       kind: z.literal("academy"),
       rules: z.record(z.string(), z.number()),
-      structure: z.enum(STRUCTURES),
+      /** An Academy structure id (the engine checks it; this contract imports no Academy code). */
+      structure: z.string().min(1).max(64),
     }),
   ]),
   stopLossPct: z.number(),

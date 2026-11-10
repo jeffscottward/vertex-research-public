@@ -64300,27 +64300,8 @@
                                         "type": "object"
                                       },
                                       "structure": {
-                                        "enum": [
-                                          "long_call",
-                                          "long_put",
-                                          "call_debit_spread",
-                                          "put_debit_spread",
-                                          "put_credit_spread",
-                                          "call_credit_spread",
-                                          "iron_condor",
-                                          "iron_butterfly",
-                                          "long_straddle",
-                                          "short_strangle",
-                                          "covered_call",
-                                          "cash_secured_put",
-                                          "collar",
-                                          "protective_put",
-                                          "pmcc",
-                                          "deep_itm_call",
-                                          "synthetic_long",
-                                          "ratio_call_spread",
-                                          "calendar_call"
-                                        ],
+                                        "maxLength": 64,
+                                        "minLength": 1,
                                         "type": "string"
                                       }
                                     },
@@ -70522,27 +70503,8 @@
                                   "type": "object"
                                 },
                                 "structure": {
-                                  "enum": [
-                                    "long_call",
-                                    "long_put",
-                                    "call_debit_spread",
-                                    "put_debit_spread",
-                                    "put_credit_spread",
-                                    "call_credit_spread",
-                                    "iron_condor",
-                                    "iron_butterfly",
-                                    "long_straddle",
-                                    "short_strangle",
-                                    "covered_call",
-                                    "cash_secured_put",
-                                    "collar",
-                                    "protective_put",
-                                    "pmcc",
-                                    "deep_itm_call",
-                                    "synthetic_long",
-                                    "ratio_call_spread",
-                                    "calendar_call"
-                                  ],
+                                  "maxLength": 64,
+                                  "minLength": 1,
                                   "type": "string"
                                 }
                               },
@@ -74331,27 +74293,8 @@
                                   "type": "object"
                                 },
                                 "structure": {
-                                  "enum": [
-                                    "long_call",
-                                    "long_put",
-                                    "call_debit_spread",
-                                    "put_debit_spread",
-                                    "put_credit_spread",
-                                    "call_credit_spread",
-                                    "iron_condor",
-                                    "iron_butterfly",
-                                    "long_straddle",
-                                    "short_strangle",
-                                    "covered_call",
-                                    "cash_secured_put",
-                                    "collar",
-                                    "protective_put",
-                                    "pmcc",
-                                    "deep_itm_call",
-                                    "synthetic_long",
-                                    "ratio_call_spread",
-                                    "calendar_call"
-                                  ],
+                                  "maxLength": 64,
+                                  "minLength": 1,
                                   "type": "string"
                                 }
                               },
@@ -77857,27 +77800,8 @@
                                                 "type": "object"
                                               },
                                               "structure": {
-                                                "enum": [
-                                                  "long_call",
-                                                  "long_put",
-                                                  "call_debit_spread",
-                                                  "put_debit_spread",
-                                                  "put_credit_spread",
-                                                  "call_credit_spread",
-                                                  "iron_condor",
-                                                  "iron_butterfly",
-                                                  "long_straddle",
-                                                  "short_strangle",
-                                                  "covered_call",
-                                                  "cash_secured_put",
-                                                  "collar",
-                                                  "protective_put",
-                                                  "pmcc",
-                                                  "deep_itm_call",
-                                                  "synthetic_long",
-                                                  "ratio_call_spread",
-                                                  "calendar_call"
-                                                ],
+                                                "maxLength": 64,
+                                                "minLength": 1,
                                                 "type": "string"
                                               }
                                             },
@@ -80610,27 +80534,8 @@
                                           "type": "object"
                                         },
                                         "structure": {
-                                          "enum": [
-                                            "long_call",
-                                            "long_put",
-                                            "call_debit_spread",
-                                            "put_debit_spread",
-                                            "put_credit_spread",
-                                            "call_credit_spread",
-                                            "iron_condor",
-                                            "iron_butterfly",
-                                            "long_straddle",
-                                            "short_strangle",
-                                            "covered_call",
-                                            "cash_secured_put",
-                                            "collar",
-                                            "protective_put",
-                                            "pmcc",
-                                            "deep_itm_call",
-                                            "synthetic_long",
-                                            "ratio_call_spread",
-                                            "calendar_call"
-                                          ],
+                                          "maxLength": 64,
+                                          "minLength": 1,
                                           "type": "string"
                                         }
                                       },
