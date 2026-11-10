@@ -3698,16 +3698,15 @@ describe("engine comparison (dual run)", () => {
     );
     expect(off).not.toHaveProperty("comparison");
     expect(runs.rows.size).toBe(0);
-    // A read key gets the answer and queues nothing.
-    const read = await clientFor({
-      apiKeyAccess: "read",
-      bars: fakeBars(),
-      comparison: "on",
-      runs,
-    })
-      .academy.backtest(academyInput)
-      .catch((error: unknown) => error);
-    expect(read).not.toHaveProperty("comparison");
+    // academy.backtest is not a read procedure: a read key is refused and queues nothing.
+    await expect(
+      clientFor({
+        apiKeyAccess: "read",
+        bars: fakeBars(),
+        comparison: "on",
+        runs,
+      }).academy.backtest(academyInput)
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(runs.rows.size).toBe(0);
 
     const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
