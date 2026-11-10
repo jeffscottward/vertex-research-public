@@ -135,6 +135,7 @@ export const requireOperator = api.middleware(
       failures.FORBIDDEN({ message: OPERATOR_ACCESS_REQUIRED_MESSAGE });
     let principal: SafePrincipal;
     let callerCanWrite: boolean;
+    let callerIsAgentViewer = false;
     try {
       if (context.agentApiKeyPresented === true) {
         ({ canWrite: callerCanWrite, principal } = await agentKeyOwner(
@@ -150,10 +151,10 @@ export const requireOperator = api.middleware(
           session.user,
           context.operatorEmails
         );
-        const allowed =
-          callerCanWrite ||
+        callerIsAgentViewer =
+          !callerCanWrite &&
           isOperatorIdentity(session.user, context.agentViewerEmails);
-        if (!allowed) throw denied();
+        if (!(callerCanWrite || callerIsAgentViewer)) throw denied();
         principal = session.principal;
       }
     } catch (error) {
@@ -167,6 +168,8 @@ export const requireOperator = api.middleware(
       if (error.status === 401) throw failures.UNAUTHORIZED();
       throw denied();
     }
-    return next({ context: { callerCanWrite, principal } });
+    return next({
+      context: { callerCanWrite, callerIsAgentViewer, principal },
+    });
   }
 );

@@ -83,6 +83,9 @@ export type ApiContext = Readonly<{
   // read-access key or a read-only agent viewer. Read procedures with a side effect (the engine
   // comparison queue of backtestRuns.sweep) run it only when this is true.
   callerCanWrite?: boolean;
+  // Set by requireOperator: true for a read-only agent viewer session. Academy backtests (owner
+  // decision 2026-11-10) let a viewer queue their Nautilus comparison run; nothing else does.
+  callerIsAgentViewer?: boolean;
   // Lower-cased operator allow-list (VERTEX_OPERATOR_EMAILS). Absent/empty => no
   // operators; agentOps.*, papers.* and agentApiKeys.* then deny everyone.
   operatorEmails?: readonly string[];

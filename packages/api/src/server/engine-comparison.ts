@@ -25,17 +25,20 @@ import { requireOperator } from "./operator-access.ts";
  * The comparison queue of a request, or null when the setting is off, run storage is missing or
  * the caller may not write (a read-access agent key or a read-only viewer: backtestRuns.sweep is
  * a read procedure, and queueing runs is a write). `requestedBy` is the caller's user id.
+ * `agentViewerMayQueue` lets a read-only agent viewer queue too (Academy backtests only, owner
+ * decision 2026-11-10); a read-access agent key still may not.
  */
 export const comparisonQueueFor = (
   context: ApiContext,
-  requestedBy: string
+  requestedBy: string,
+  options: Readonly<{ agentViewerMayQueue?: boolean }> = {}
 ): ComparisonQueue | null => {
   const runs = context.repositories.backtestRuns;
-  if (
-    context.engineComparison !== "on" ||
-    runs === undefined ||
-    context.callerCanWrite !== true
-  )
+  const mayQueue =
+    context.callerCanWrite === true ||
+    (options.agentViewerMayQueue === true &&
+      context.callerIsAgentViewer === true);
+  if (context.engineComparison !== "on" || runs === undefined || !mayQueue)
     return null;
   return createComparisonQueue(
     runs,
