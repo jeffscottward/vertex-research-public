@@ -297,3 +297,99 @@ export const fetchHistoryBarsPaged = async (
     stale,
   };
 };
+
+// /news (vertex-history 1.3.0): newest IBKR headlines for one stock from the account's API news providers.
+const HistoryNewsUpstreamSchema = z
+  .object({
+    schema: z.literal("vertex-history-news-v1"),
+    source: z.literal("ibkr-gateway"),
+    client_id: z.literal(77),
+    request: z
+      .object({
+        symbol: z.string().max(12),
+        secType: z.literal("STK"),
+        exchange: z.string().max(16),
+        currency: z.string().max(3),
+        count: z.number().int().min(1).max(50),
+      })
+      .strict(),
+    contract: MarketContractSchema,
+    providers: z
+      .array(
+        z
+          .object({
+            code: z.string().max(16),
+            name: z.string().max(80).nullable(),
+          })
+          .strict()
+      )
+      .max(100),
+    items: z
+      .array(
+        z
+          .object({
+            t: z.number().int(),
+            time: isoUtc,
+            provider: z.string().max(16).nullable(),
+            articleId: z.string().max(64).nullable(),
+            headline: z.string().min(1).max(500),
+          })
+          .strict()
+      )
+      .max(50),
+    count: z.number().int().nonnegative(),
+    fetchedAt: isoUtc,
+    cache: z
+      .object({
+        hit: z.boolean(),
+        ageSeconds: z.number().int().nonnegative(),
+        ttlSeconds: z.number().int().nonnegative(),
+        stale: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict()
+  .refine((document) => document.count === document.items.length, {
+    message: "count mismatch",
+  });
+
+export type HistoryNews = Readonly<{
+  providers: z.infer<typeof HistoryNewsUpstreamSchema>["providers"];
+  // Newest first.
+  items: z.infer<typeof HistoryNewsUpstreamSchema>["items"];
+  fetchedAt: string;
+  stale: boolean;
+}>;
+
+/** Newest IBKR headlines (1 to 50) for one US stock. Throws MarketDataError (safe message) on failure. */
+export const fetchHistoryNews = async (
+  config: DeployStatusConfig | null,
+  symbol: string,
+  count: number,
+  options: FetchMarketBarsOptions = {}
+): Promise<HistoryNews> => {
+  if (!Number.isInteger(count) || count < 1 || count > 50)
+    throw new MarketDataError("BAD_REQUEST", "count: 1 to 50");
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) =>
+      `${base.replace(/\/+$/, "")}/news?${new URLSearchParams({
+        symbol: symbol.toUpperCase(),
+        count: String(count),
+      }).toString()}`,
+    MARKET_HISTORY_TIMEOUT_MS,
+    options
+  );
+  const parsed = HistoryNewsUpstreamSchema.safeParse(raw);
+  if (!parsed.success)
+    throw new MarketDataError(
+      "UPSTREAM_ERROR",
+      "News response failed schema validation"
+    );
+  return {
+    providers: parsed.data.providers,
+    items: parsed.data.items,
+    fetchedAt: parsed.data.fetchedAt,
+    stale: parsed.data.cache.stale,
+  };
+};

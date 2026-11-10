@@ -10,6 +10,7 @@ import {
   checkHistoryBarsRequest,
   fetchHistoryBars,
   fetchHistoryBarsPaged,
+  fetchHistoryNews,
   type HistoryBarsRequest,
   historyEndDateTime,
 } from "./server/ibkr-history.ts";
@@ -469,5 +470,70 @@ describe("fetchHistoryBarsPaged", () => {
       )
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(urls).toEqual([]);
+  });
+});
+
+describe("fetchHistoryNews", () => {
+  const newsDocument = (overrides: Record<string, unknown> = {}) => ({
+    cache: { ageSeconds: 0, hit: false, stale: false, ttlSeconds: 300 },
+    client_id: 77,
+    contract: {
+      conId: 265_598,
+      currency: "USD",
+      exchange: "SMART",
+      lastTradeDateOrContractMonth: null,
+      localSymbol: "AAPL",
+      longName: "APPLE INC",
+      matches: 1,
+      multiplier: null,
+      secType: "STK",
+      timeZoneId: "US/Eastern",
+    },
+    count: 1,
+    fetchedAt: "2026-11-10T20:00:00Z",
+    items: [
+      {
+        articleId: "BRFG$1",
+        headline: "Apple holds capex steady",
+        provider: "BRFG",
+        t: 1_794_340_000,
+        time: "2026-11-10T19:46:40Z",
+      },
+    ],
+    providers: [{ code: "BRFG", name: "Briefing.com General Market Columns" }],
+    request: {
+      count: 5,
+      currency: "USD",
+      exchange: "SMART",
+      secType: "STK",
+      symbol: "AAPL",
+    },
+    schema: "vertex-history-news-v1",
+    source: "ibkr-gateway",
+    ...overrides,
+  });
+
+  it("reads the newest headlines with their providers", async () => {
+    const { urls, fetch } = recorder(() => json(newsDocument()));
+    const news = await fetchHistoryNews(config, "aapl", 5, { fetch });
+    expect(urls).toEqual([`${BASE}/news?symbol=AAPL&count=5`]);
+    expect(news.items[0]?.headline).toBe("Apple holds capex steady");
+    expect(news.providers.map((p) => p.code)).toEqual(["BRFG"]);
+    expect(news.stale).toBe(false);
+  });
+
+  it("refuses a bad count without a request and a bad document after one", async () => {
+    const { urls, fetch } = recorder(() => json(newsDocument({ count: 2 })));
+    await expect(
+      fetchHistoryNews(config, "AAPL", 51, { fetch })
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(urls).toEqual([]);
+    await expect(
+      fetchHistoryNews(config, "AAPL", 5, { fetch })
+    ).rejects.toMatchObject({
+      code: "UPSTREAM_ERROR",
+    });
   });
 });
