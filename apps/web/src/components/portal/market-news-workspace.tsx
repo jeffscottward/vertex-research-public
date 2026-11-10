@@ -241,7 +241,11 @@ const TickerSection = ({
           <h4 className="font-medium text-sm">Headlines</h4>
           {failures.headlines === null ? null : (
             <p className="text-sm">
-              Headlines unavailable: {failures.headlines}
+              {/* Other sources still answered: only some of them failed. */}
+              {ticker.headlines.length === 0
+                ? "Headlines unavailable"
+                : "Some sources failed"}
+              : {failures.headlines}
             </p>
           )}
           {failures.headlines === null && ticker.headlines.length === 0 ? (
@@ -458,7 +462,7 @@ export const MarketNewsWorkspace = ({
             Refresh
           </Button>
         }
-        description="Yahoo Finance headlines and SEC 8-K filings for the 25 newest symbols on your watchlist. Research only; no orders."
+        description="Headlines from IBKR, Reuters, Seeking Alpha and Yahoo Finance, and SEC 8-K filings, for the 25 newest symbols on your watchlist. Research only; no orders."
         status={<NewsStatus state={state} />}
         title="News monitor"
       />

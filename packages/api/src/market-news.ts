@@ -91,6 +91,16 @@ const escapeRegExp = (value: string): string =>
 const COMPANY_FORM_WORDS =
   /\b(?:inc|incorporated|corp|corporation|co|company|ltd|limited|plc|holdings?|group|llc|lp|n\.v|s\.a|ag|se|the)\b\.?/giu;
 
+/** The SEC company name without legal form or state tag, as words ("COCA COLA CO" -> COCA, COLA). */
+export const companyWords = (name: string | null): string[] =>
+  (name ?? "")
+    .replace(/\/[^/]*\//gu, " ")
+    .replace(COMPANY_FORM_WORDS, " ")
+    .replace(/[^\p{L}\p{N}&]+/gu, " ")
+    .trim()
+    .split(" ")
+    .filter((word) => word !== "");
+
 /**
  * Matches a headline that names the company: "(KO)", "$KO", "NYSE: KO", or the SEC name
  * without its legal form ("COCA COLA CO" matches "Coca-Cola"). Names under 4 letters are skipped.
@@ -102,16 +112,40 @@ export const mentionPattern = (subject: HeadlineSubject): RegExp => {
     `\\$${symbol}\\b`,
     `\\b(?:NYSE|NASDAQ)\\s*:\\s*${symbol}\\b`,
   ];
-  const words = (subject.name ?? "")
-    .replace(/\/[^/]*\//gu, " ")
-    .replace(COMPANY_FORM_WORDS, " ")
-    .replace(/[^\p{L}\p{N}&]+/gu, " ")
-    .trim()
-    .split(" ")
-    .filter((word) => word !== "");
+  const words = companyWords(subject.name);
   if (words.join("").length >= 4)
     alternatives.push(`\\b${words.join("[\\s-]+")}\\b`);
   return new RegExp(alternatives.join("|"), "iu");
+};
+
+/**
+ * Google News search for Reuters stories about one company. By the SEC name without its legal
+ * form ("FORD MOTOR CO" -> "FORD MOTOR"): a short ticker alone (F, T, ON, NOW) finds unrelated
+ * stories. Without a usable name: the quoted ticker plus "stock".
+ */
+export const reutersSearchQuery = (subject: HeadlineSubject): string => {
+  const words = companyWords(subject.name);
+  return words.join("").length >= 4
+    ? `"${words.join(" ")}" site:reuters.com`
+    : `"${subject.symbol.toUpperCase()}" stock site:reuters.com`;
+};
+
+/**
+ * True when `text` names the company: any `mentionPattern` form, the ticker as a word in upper case
+ * (two or more letters; a lone "A" or "T" is an ordinary word), or the first name word of three or
+ * more letters in any case ("Ford" for "FORD MOTOR CO").
+ */
+export const companyMention = (
+  subject: HeadlineSubject
+): ((text: string) => boolean) => {
+  const patterns = [mentionPattern(subject)];
+  const symbol = subject.symbol.toUpperCase();
+  if (symbol.length >= 2)
+    patterns.push(new RegExp(`\\b${escapeRegExp(symbol)}\\b`, "u"));
+  const first = companyWords(subject.name).find((word) => word.length >= 3);
+  if (first !== undefined)
+    patterns.push(new RegExp(`\\b${escapeRegExp(first)}\\b`, "iu"));
+  return (text) => patterns.some((pattern) => pattern.test(text));
 };
 
 /**
@@ -173,9 +207,30 @@ export const decodeXmlText = (raw: string): string => {
 // Element and attribute names here are fixed identifiers; only "." needs escaping in a pattern.
 const escapeName = (name: string): string => name.replace(/\./gu, "\\.");
 
-const elementPattern = (name: string, flags: string): RegExp => {
+// Each pattern is compiled once per (kind, name, flags): a feed reads the same few child names
+// for every item, and Workers CPU time is short. Names are fixed identifiers, so the map stays
+// small. Shared global patterns are safe: String#match resets `lastIndex`, and `exec` on a
+// non-global pattern ignores it.
+const compiled = new Map<string, RegExp>();
+const xmlPattern = (
+  kind: "element" | "open" | "close" | "tag" | "attribute",
+  name: string,
+  flags: string
+): RegExp => {
+  const key = `${kind} ${name} ${flags}`;
+  const hit = compiled.get(key);
+  if (hit !== undefined) return hit;
   const tag = escapeName(name);
-  return new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?</${tag}\\s*>`, flags);
+  const source = {
+    attribute: `\\s${tag}\\s*=\\s*(?:"[^"]*"|'[^']*')`,
+    close: `</${tag}\\s*>`,
+    element: `<${tag}(?:\\s[^>]*)?>[\\s\\S]*?</${tag}\\s*>`,
+    open: `<${tag}(?:\\s[^>]*)?>`,
+    tag: `<${tag}\\s[^>]*>`,
+  }[kind];
+  const pattern = new RegExp(source, flags);
+  compiled.set(key, pattern);
+  return pattern;
 };
 
 // The opening tag cannot contain ">", so the inner markup starts after the first one.
@@ -184,17 +239,16 @@ const innerMarkup = (element: string): string =>
 
 /** Inner markup of every <name>…</name> block (attributes allowed). Unbalanced tags are an error. */
 export const xmlBlocks = (xml: string, name: string): string[] => {
-  const tag = escapeName(name);
-  const opens = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>`, "gu")) ?? [];
-  const closes = xml.match(new RegExp(`</${tag}\\s*>`, "gu")) ?? [];
+  const opens = xml.match(xmlPattern("open", name, "gu")) ?? [];
+  const closes = xml.match(xmlPattern("close", name, "gu")) ?? [];
   if (opens.length !== closes.length)
     throw new MarketNewsParseError(`unbalanced <${name}> elements`);
-  return (xml.match(elementPattern(name, "gu")) ?? []).map(innerMarkup);
+  return (xml.match(xmlPattern("element", name, "gu")) ?? []).map(innerMarkup);
 };
 
 /** Decoded text of the first <name> child, or "" when absent or empty. */
 export const childText = (block: string, name: string): string => {
-  const element = elementPattern(name, "u").exec(block)?.[0];
+  const element = xmlPattern("element", name, "u").exec(block)?.[0];
   return element === undefined ? "" : decodeXmlText(innerMarkup(element));
 };
 
@@ -204,13 +258,9 @@ export const childAttribute = (
   name: string,
   attribute: string
 ): string => {
-  const element =
-    new RegExp(`<${escapeName(name)}\\s[^>]*>`, "u").exec(block)?.[0] ?? "";
+  const element = xmlPattern("tag", name, "u").exec(block)?.[0] ?? "";
   // ` name="value"` or ` name='value'`: the value sits between the quotes.
-  const pair = new RegExp(
-    `\\s${escapeName(attribute)}\\s*=\\s*(?:"[^"]*"|'[^']*')`,
-    "u"
-  ).exec(element)?.[0];
+  const pair = xmlPattern("attribute", attribute, "u").exec(element)?.[0];
   return pair === undefined
     ? ""
     : decodeXmlText(pair.slice(pair.search(/["']/u) + 1, -1));
@@ -251,51 +301,80 @@ export const headlineKey = (title: string): string =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
+/** Items read per headline feed; the rest of a long feed is never scanned. */
+export const MARKET_NEWS_FEED_MAX_ITEMS = 60;
+
+/** `since`: items published before it are dropped before tagging and validation. */
+export type HeadlineParseOptions = Readonly<{ since?: Date }>;
+
 /** How one RSS 2.0 headline feed is read. */
 type RssHeadlineFeed = Readonly<{
   source: MarketNewsSource;
   /** In-feed repeat key: the item link, or its guid where one link serves many items. */
   identity: "link" | "guid";
+  /** Keep only items whose title or description names the company (search feeds). */
+  mentionRequired: boolean;
 }>;
+
+const isOlder = (time: Date | null, options: HeadlineParseOptions): boolean =>
+  time !== null &&
+  options.since !== undefined &&
+  time.getTime() < options.since.getTime();
+
+/** One RSS <item> -> a validated headline with its in-feed identity, or null to skip it. */
+const readRssItem = (
+  item: string,
+  feed: RssHeadlineFeed,
+  options: HeadlineParseOptions,
+  mention: RegExp,
+  names: ((text: string) => boolean) | null
+): Readonly<{ headline: MarketNewsHeadline; identity: string }> | null => {
+  const publishedAt = parseFeedTime(childText(item, "pubDate"));
+  if (isOlder(publishedAt, options)) return null;
+  const title = stripSourceSuffix(childText(item, "title"));
+  // Google News descriptions are escaped HTML: markup is dropped before keyword matching.
+  const description = childText(item, "description").replace(/<[^>]*>/gu, " ");
+  if (names !== null && !names(`${title} ${description}`)) return null;
+  // <source> on Yahoo and Google News items; Seeking Alpha names the author instead.
+  const publisher =
+    childText(item, "source") || childText(item, "sa:author_name");
+  const url = childText(item, "link");
+  const parsed = MarketNewsHeadlineSchema.safeParse({
+    publishedAt,
+    publisher: publisher === "" ? null : publisher,
+    source: feed.source,
+    tags: tagHeadline(title, description, mention),
+    title,
+    url,
+  });
+  if (!parsed.success) return null;
+  return {
+    headline: parsed.data,
+    identity: feed.identity === "guid" ? childText(item, "guid") || url : url,
+  };
+};
 
 /** RSS 2.0 headlines -> validated headlines from `feed.source`, newest first, one per story. */
 const parseRssHeadlines = (
   xml: string,
   subject: HeadlineSubject,
-  feed: RssHeadlineFeed
+  feed: RssHeadlineFeed,
+  options: HeadlineParseOptions
 ): MarketNewsHeadline[] => {
   if (!(/<rss[\s>]/u.test(xml) && /<channel[\s>]/u.test(xml)))
     throw new MarketNewsParseError("not an RSS 2.0 document");
   const mention = mentionPattern(subject);
+  const names = feed.mentionRequired ? companyMention(subject) : null;
   const seen = new Set<string>();
   const out: MarketNewsHeadline[] = [];
-  for (const item of xmlBlocks(xml, "item")) {
-    const title = stripSourceSuffix(childText(item, "title"));
-    // Google News descriptions are escaped HTML: markup is dropped before keyword matching.
-    const description = childText(item, "description").replace(
-      /<[^>]*>/gu,
-      " "
-    );
-    // <source> on Yahoo and Google News items; Seeking Alpha names the author instead.
-    const publisher =
-      childText(item, "source") || childText(item, "sa:author_name");
-    const url = childText(item, "link");
-    const parsed = MarketNewsHeadlineSchema.safeParse({
-      publishedAt: parseFeedTime(childText(item, "pubDate")),
-      publisher: publisher === "" ? null : publisher,
-      source: feed.source,
-      tags: tagHeadline(title, description, mention),
-      title,
-      url,
-    });
-    if (!parsed.success) continue;
-    const keys = [
-      feed.identity === "guid" ? childText(item, "guid") || url : url,
-      headlineKey(parsed.data.title),
-    ];
+  const items = xmlBlocks(xml, "item").slice(0, MARKET_NEWS_FEED_MAX_ITEMS);
+  for (const item of items) {
+    const read = readRssItem(item, feed, options, mention, names);
+    if (read === null) continue;
+    const keys = [read.identity, headlineKey(read.headline.title)];
     if (keys.some((key) => seen.has(key))) continue;
     for (const key of keys) seen.add(key);
-    out.push(parsed.data);
+    out.push(read.headline);
   }
   return out.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
 };
@@ -303,9 +382,15 @@ const parseRssHeadlines = (
 /** Yahoo Finance headline RSS 2.0 -> validated headlines, newest first, one per story. */
 export const parseYahooRss = (
   xml: string,
-  subject: HeadlineSubject
+  subject: HeadlineSubject,
+  options: HeadlineParseOptions = {}
 ): MarketNewsHeadline[] =>
-  parseRssHeadlines(xml, subject, { identity: "link", source: "yahoo" });
+  parseRssHeadlines(
+    xml,
+    subject,
+    { identity: "link", mentionRequired: false, source: "yahoo" },
+    options
+  );
 
 /**
  * Seeking Alpha per-symbol RSS (`/api/sa/combined/{SYMBOL}.xml`) -> validated headlines. News
@@ -313,22 +398,33 @@ export const parseYahooRss = (
  */
 export const parseSeekingAlphaRss = (
   xml: string,
-  subject: HeadlineSubject
+  subject: HeadlineSubject,
+  options: HeadlineParseOptions = {}
 ): MarketNewsHeadline[] =>
-  parseRssHeadlines(xml, subject, {
-    identity: "guid",
-    source: "seekingalpha",
-  });
+  parseRssHeadlines(
+    xml,
+    subject,
+    { identity: "guid", mentionRequired: false, source: "seekingalpha" },
+    options
+  );
 
 /**
  * Google News RSS search restricted to reuters.com -> validated Reuters headlines. Titles lose
- * their " - Reuters" suffix; links stay the Google News redirect URLs as given.
+ * their " - Reuters" suffix; links stay the Google News redirect URLs as given. A search also
+ * returns stories that only share a word with the query, so items that do not name the company
+ * (`companyMention`) are dropped.
  */
 export const parseReutersRss = (
   xml: string,
-  subject: HeadlineSubject
+  subject: HeadlineSubject,
+  options: HeadlineParseOptions = {}
 ): MarketNewsHeadline[] =>
-  parseRssHeadlines(xml, subject, { identity: "link", source: "reuters" });
+  parseRssHeadlines(
+    xml,
+    subject,
+    { identity: "link", mentionRequired: true, source: "reuters" },
+    options
+  );
 
 /** The part of a vertex-history /news answer the monitor reads (see server/ibkr-history.ts). */
 export type IbkrNews = Readonly<{
@@ -343,7 +439,8 @@ export type IbkrNews = Readonly<{
 /** IBKR API news headlines -> validated headlines (no public link), newest first, one per story. */
 export const ibkrHeadlines = (
   news: IbkrNews,
-  subject: HeadlineSubject
+  subject: HeadlineSubject,
+  options: HeadlineParseOptions = {}
 ): MarketNewsHeadline[] => {
   const mention = mentionPattern(subject);
   const names = new Map(
@@ -352,9 +449,11 @@ export const ibkrHeadlines = (
   const seen = new Set<string>();
   const out: MarketNewsHeadline[] = [];
   for (const item of news.items) {
+    const publishedAt = new Date(item.time);
+    if (isOlder(publishedAt, options)) continue;
     const title = item.headline.replace(/\s+/gu, " ").trim();
     const parsed = MarketNewsHeadlineSchema.safeParse({
-      publishedAt: new Date(item.time),
+      publishedAt,
       publisher:
         item.provider === null
           ? null
@@ -378,20 +477,31 @@ const sourceRank = (headline: MarketNewsHeadline): number =>
 
 /**
  * One list from every source, newest first. Near-identical titles (same `headlineKey`) are one
- * story: the copy from the highest-priority source (MARKET_NEWS_SOURCES order) is kept.
+ * story: the copy from the highest-priority source (MARKET_NEWS_SOURCES order) is kept, with the
+ * link of the best-ranked copy that has one (IBKR copies have none) and the tags of every copy.
  */
 export const mergeHeadlines = (
   lists: readonly (readonly MarketNewsHeadline[])[]
 ): MarketNewsHeadline[] => {
-  const kept = new Map<string, MarketNewsHeadline>();
+  const stories = new Map<string, MarketNewsHeadline[]>();
   for (const list of lists)
     for (const headline of list) {
       const key = headlineKey(headline.title);
-      const held = kept.get(key);
-      if (held === undefined || sourceRank(headline) < sourceRank(held))
-        kept.set(key, headline);
+      stories.set(key, [...(stories.get(key) ?? []), headline]);
     }
-  return [...kept.values()].sort(
+  const kept = [...stories.values()].map((copies) => {
+    const [best, ...rest] = [...copies].sort(
+      (a, b) => sourceRank(a) - sourceRank(b)
+    ) as [MarketNewsHeadline, ...MarketNewsHeadline[]];
+    return {
+      ...best,
+      tags: MARKET_NEWS_HEADLINE_TAGS.filter((tag) =>
+        copies.some((copy) => copy.tags.includes(tag))
+      ),
+      url: best.url ?? rest.find((copy) => copy.url !== null)?.url ?? null,
+    };
+  });
+  return kept.sort(
     (a, b) =>
       b.publishedAt.getTime() - a.publishedAt.getTime() ||
       sourceRank(a) - sourceRank(b)

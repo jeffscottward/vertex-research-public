@@ -5,6 +5,8 @@ import type { MarketNewsHeadline } from "./contracts/market-news.ts";
 import {
   childAttribute,
   childText,
+  companyMention,
+  companyWords,
   decodeFeedBytes,
   decodeXmlText,
   describe8kItems,
@@ -12,6 +14,7 @@ import {
   IMPORTANT_8K_ITEMS,
   ITEMS_8K,
   ibkrHeadlines,
+  MARKET_NEWS_FEED_MAX_ITEMS,
   MarketNewsParseError,
   mentionPattern,
   mergeHeadlines,
@@ -20,6 +23,7 @@ import {
   parseSecAtom,
   parseSeekingAlphaRss,
   parseYahooRss,
+  reutersSearchQuery,
   selectNewsSymbols,
   stripSourceSuffix,
   tagHeadline,
@@ -636,5 +640,116 @@ describe("headline merge", () => {
     ]);
     expect(mergeHeadlines([reuters, yahoo])[0]?.source).toBe("reuters");
     return expect(mergeHeadlines([])).toEqual([]);
+  });
+});
+
+const googleItem = (title: string, description = "", hour = 10): string =>
+  `<item><title>${title} - Reuters</title><link>https://news.google.com/rss/articles/${encodeURIComponent(title)}</link><pubDate>Fri, 06 Nov 2026 ${String(hour).padStart(2, "0")}:00:00 GMT</pubDate><description>${description}</description></item>`;
+
+describe("Reuters relevance and feed bounds", () => {
+  it("searches Reuters by the SEC name, or by the quoted ticker without one", () => {
+    expect(companyWords("FORD MOTOR CO")).toEqual(["FORD", "MOTOR"]);
+    expect(reutersSearchQuery({ name: "FORD MOTOR CO", symbol: "F" })).toBe(
+      '"FORD MOTOR" site:reuters.com'
+    );
+    expect(reutersSearchQuery({ name: "AT&T INC.", symbol: "T" })).toBe(
+      '"AT&T" site:reuters.com'
+    );
+    expect(reutersSearchQuery({ name: "GE CO", symbol: "ge" })).toBe(
+      '"GE" stock site:reuters.com'
+    );
+    return expect(reutersSearchQuery({ name: null, symbol: "spy" })).toBe(
+      '"SPY" stock site:reuters.com'
+    );
+  });
+
+  it("keeps only Reuters stories that name a single-letter ticker's company", () => {
+    const ford = { name: "FORD MOTOR CO", symbol: "F" };
+    const headlines = parseReutersRss(
+      rss(
+        [
+          googleItem("Ford recalls 100,000 trucks", "", 9),
+          googleItem("Shares of (F) rise after recall", "", 8),
+          googleItem("Lockheed F-35 deliveries slip", "", 7),
+          googleItem("A quiet day on Wall Street", "", 6),
+          googleItem(
+            "Detroit carmakers cut jobs",
+            "&lt;a href=&quot;x&quot;&gt;Ford and GM&lt;/a&gt;",
+            5
+          ),
+        ].join("")
+      ),
+      ford
+    );
+    expect(headlines.map((item) => item.title)).toEqual([
+      "Ford recalls 100,000 trucks",
+      "Shares of (F) rise after recall",
+      "Detroit carmakers cut jobs",
+    ]);
+    const mentions = companyMention({
+      name: "ON SEMICONDUCTOR CORP",
+      symbol: "on",
+    });
+    expect(mentions("ON shares jump after results")).toBe(true);
+    expect(mentions("onsemi: Semiconductor maker beats")).toBe(true);
+    expect(mentions("Markets rally on rate hopes")).toBe(false);
+    // Without a name only the ticker itself counts.
+    const spy = companyMention({ name: null, symbol: "SPY" });
+    expect(spy("SPY outflows hit record")).toBe(true);
+    return expect(spy("Spy agency report")).toBe(false);
+  });
+
+  it("skips items older than `since` and reads at most 60 items per feed", () => {
+    const since = new Date("2026-11-06T08:30:00Z");
+    const items = [9, 8, 7].map(
+      (hour) =>
+        `<item><title>Apple story ${hour}</title><link>https://example.com/${hour}</link><pubDate>Fri, 06 Nov 2026 0${hour}:00:00 GMT</pubDate></item>`
+    );
+    items.push(
+      "<item><title>Apple undated</title><link>https://example.com/u</link></item>"
+    );
+    expect(
+      parseYahooRss(rss(items.join("")), APPLE, { since }).map(
+        (item) => item.title
+      )
+    ).toEqual(["Apple story 9"]);
+    expect(
+      ibkrHeadlines(IBKR_NEWS, APPLE, {
+        since: new Date("2026-11-10T19:00:00Z"),
+      }).map((item) => item.title)
+    ).toEqual(["Apple names new CFO", "Apple price target raised at Wedbush"]);
+    const long = Array.from(
+      { length: MARKET_NEWS_FEED_MAX_ITEMS + 5 },
+      (_, index) =>
+        `<item><title>Story ${index}</title><link>https://example.com/s${index}</link><pubDate>Fri, 06 Nov 2026 09:00:00 GMT</pubDate></item>`
+    ).join("");
+    return expect(parseYahooRss(rss(long), APPLE)).toHaveLength(
+      MARKET_NEWS_FEED_MAX_ITEMS
+    );
+  });
+
+  return it("gives a kept unlinked copy the next copy's link and every copy's tags", () => {
+    const ibkr = {
+      ...headline("ibkr", "Apple names new CFO", "2026-11-10T10:00:00Z"),
+      tags: ["executive" as const],
+    };
+    const yahoo = {
+      ...headline("yahoo", "Apple names new CFO!", "2026-11-10T10:01:00Z"),
+      tags: ["analyst" as const, "executive" as const],
+    };
+    const seekingAlpha = headline(
+      "seekingalpha",
+      "apple names new cfo",
+      "2026-11-10T10:02:00Z"
+    );
+    const [merged, ...rest] = mergeHeadlines([[yahoo], [seekingAlpha], [ibkr]]);
+    expect(rest).toEqual([]);
+    expect(merged).toEqual({
+      ...ibkr,
+      tags: ["analyst", "executive"],
+      url: seekingAlpha.url,
+    });
+    // Alone, an IBKR headline keeps no link.
+    return expect(mergeHeadlines([[ibkr]])[0]?.url).toBeNull();
   });
 });

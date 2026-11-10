@@ -118347,6 +118347,20 @@
               "default": 72,
               "type": "number"
             }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "filings"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {

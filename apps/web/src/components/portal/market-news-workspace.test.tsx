@@ -397,8 +397,13 @@ describe("news monitor workspace", () => {
     // A publisher equal to the source label is not repeated.
     expect(rows[1]?.textContent?.match(/Reuters/gu)).toHaveLength(1);
     expect(rows[2]?.textContent).toContain("Dividend Desk");
+    // Other sources answered, so the failure is partial.
+    expect(container.textContent).not.toContain("Headlines unavailable");
+    expect(container.textContent).toContain(
+      "Headlines from IBKR, Reuters, Seeking Alpha and Yahoo Finance"
+    );
     return expect(container.textContent).toContain(
-      "Headlines unavailable: Seeking Alpha headlines returned HTTP 503; Reuters headlines: not an RSS 2.0 document"
+      "Some sources failed: Seeking Alpha headlines returned HTTP 503; Reuters headlines: not an RSS 2.0 document"
     );
   });
 

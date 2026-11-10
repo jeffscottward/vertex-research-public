@@ -102,6 +102,10 @@ export const MarketNewsTickerSchema = z
   })
   .strict();
 
+/** "all": headlines and 8-K filings; "filings": 8-K filings only (no headline source is read). */
+export const MARKET_NEWS_INCLUDE = ["all", "filings"] as const;
+export type MarketNewsInclude = (typeof MARKET_NEWS_INCLUDE)[number];
+
 export const MarketNewsWatchlistInputSchema = z
   .object({
     // GET query values arrive as strings; coerce, then allow only the listed windows.
@@ -111,6 +115,7 @@ export const MarketNewsWatchlistInputSchema = z
         z.union([z.literal(24), z.literal(72), z.literal(168), z.literal(720)])
       )
       .default(72),
+    include: z.enum(MARKET_NEWS_INCLUDE).default("all"),
   })
   .strict();
 

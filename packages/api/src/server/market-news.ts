@@ -4,15 +4,19 @@ import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import {
+  MARKET_NEWS_HOURS,
   MARKET_NEWS_MAX_FILINGS,
   MARKET_NEWS_MAX_HEADLINES,
   type MarketNewsFiling,
   type MarketNewsHeadline,
   type MarketNewsHours,
+  type MarketNewsInclude,
   type MarketNewsTicker,
   type MarketNewsWatchlistOutput,
 } from "../contracts/market-news.ts";
 import {
+  type HeadlineParseOptions,
+  type HeadlineSubject,
   decodeFeedBytes,
   ibkrHeadlines,
   mergeHeadlines,
@@ -20,6 +24,7 @@ import {
   parseSecAtom,
   parseSeekingAlphaRss,
   parseYahooRss,
+  reutersSearchQuery,
   selectNewsSymbols,
   withinHours,
   yahooSymbol,
@@ -27,6 +32,7 @@ import {
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig } from "./deploy-status.ts";
 import { fetchHistoryNews } from "./ibkr-history.ts";
+import { MarketDataError } from "./market-data.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   ResearchLensError,
@@ -39,19 +45,32 @@ import {
 
 // Watchlist news monitor for the operator's own watchlist. Headlines per ticker from IBKR
 // (vertex-history /news, skipped when VERTEX_HISTORY_URL is not configured), Reuters (Google News
-// RSS limited to reuters.com), Seeking Alpha per-symbol RSS and Yahoo Finance headline RSS,
-// merged into one list (one copy per story, ibkr > reuters > seekingalpha > yahoo); SEC EDGAR 8-K
-// Atom per ticker. GET only, bounded time and size, redirects never followed, schema-validated,
-// 5 min per-source cache. One failing source or ticker never fails the page: failures are
-// recorded per ticker. Read-only research; no orders.
+// RSS limited to reuters.com, searched by company name), Seeking Alpha per-symbol RSS and Yahoo
+// Finance headline RSS, merged into one list (one copy per story, ibkr > reuters > seekingalpha >
+// yahoo); SEC EDGAR 8-K Atom per ticker, read in parallel with the headlines. GET only, bounded
+// time and size, redirects never followed, schema-validated, 5 min per-source cache (failures
+// 60 s, or the feed's Retry-After). One failing source or ticker never fails the page: failures
+// are recorded per ticker. Read-only research; no orders.
 
 // Cold SEC EDGAR answers take over 10 s; same budget as the research lenses.
 const NEWS_TIMEOUT_MS = 20_000;
 const NEWS_MAX_BYTES = 2 * 1024 * 1024;
+// Headline feeds are 50-150 KB; the smaller cap bounds parse work on Workers (cpu_ms 500).
+const HEADLINE_MAX_BYTES = 512 * 1024;
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
+const FAILURE_CACHE_TTL_MS = 60 * 1000;
+const FAILURE_CACHE_MAX_TTL_MS = 15 * 60 * 1000;
 // Bounds the module cache: watchlists can name any symbol, and Yahoo answers unknown ones too.
 export const NEWS_CACHE_MAX_ENTRIES = 500;
 const NEWS_CONCURRENCY = 4;
+// Cached headlines cover the widest window, so one cache entry serves every window.
+const HEADLINE_SINCE_MS = Math.max(...MARKET_NEWS_HOURS) * 60 * 60 * 1000;
+// vertex-history answers /news one request at a time, at least 3 s apart. A 5 s budget fits one
+// queued request behind another, so each page load asks IBKR for at most 2 uncached symbols (the
+// newest on the watchlist first); a busy, paced or timed-out answer stops IBKR for the rest of
+// that load. Cached IBKR answers (5 min) cost nothing, so later loads fill in other symbols.
+export const IBKR_NEWS_TIMEOUT_MS = 5000;
+export const IBKR_NEWS_READS_PER_LOAD = 2;
 const FEED_USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) vertex-research/news-monitor";
 const XML_CONTENT_TYPE = /^(?:text|application)\/(?:(?:rss|atom)\+)?xml\b/iu;
@@ -98,6 +117,22 @@ const readCappedBytes = async (
   return bytes;
 };
 
+/** HTTP 429 from a feed, with the server's Retry-After wait when it sent one. */
+export class FeedBusyError extends ResearchLensError {
+  retryAfterMs: number | null;
+  constructor(message: string, retryAfterMs: number | null) {
+    super("UNAVAILABLE", message);
+    this.name = "FeedBusyError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/** Retry-After in delta-seconds -> ms; an HTTP date or anything else -> null (default wait). */
+const parseRetryAfter = (value: string | null): number | null =>
+  value !== null && /^\d{1,6}$/u.test(value.trim())
+    ? Number(value.trim()) * 1000
+    : null;
+
 /** One bounded GET of an XML feed returning decoded text. Same error codes as `fetchBoundedJson`. */
 export const fetchBoundedText = async (
   request: TextRequest,
@@ -130,7 +165,12 @@ export const fetchBoundedText = async (
       );
     }
     if (response.status === 404) throw fail("NOT_FOUND", "returned HTTP 404");
-    if ([429, 502, 503, 504].includes(response.status))
+    if (response.status === 429)
+      throw new FeedBusyError(
+        `${request.label} returned HTTP 429`,
+        parseRetryAfter(response.headers.get("retry-after"))
+      );
+    if ([502, 503, 504].includes(response.status))
       throw fail("UNAVAILABLE", `returned HTTP ${response.status}`);
     if (response.status !== 200)
       throw fail("UPSTREAM_ERROR", `returned HTTP ${response.status}`);
@@ -156,7 +196,12 @@ export const fetchBoundedText = async (
   }
 };
 
-type CachedSource = Readonly<{ at: number; value: unknown }>;
+type CachedSource = Readonly<
+  { until: number } & (
+    | { ok: true; value: unknown }
+    | { ok: false; error: unknown }
+  )
+>;
 const sourceCache = new Map<string, CachedSource>();
 
 export const clearMarketNewsCacheForTesting = (): void => {
@@ -169,26 +214,61 @@ export const marketNewsCacheSizeForTesting = (): number => sourceCache.size;
 const makeRoom = (now: number): void => {
   if (sourceCache.size < NEWS_CACHE_MAX_ENTRIES) return;
   for (const [key, entry] of sourceCache)
-    if (now - entry.at >= NEWS_CACHE_TTL_MS) sourceCache.delete(key);
+    if (now >= entry.until) sourceCache.delete(key);
   const [oldest] = sourceCache.keys();
   if (sourceCache.size >= NEWS_CACHE_MAX_ENTRIES && oldest !== undefined)
     sourceCache.delete(oldest);
 };
 
-/** Successful source reads are cached for 5 min; failures are retried on the next request. */
+/** A source deliberately not read on this load (IBKR budget spent); never cached or reported. */
+export class SourceSkipped extends Error {
+  constructor() {
+    super("source skipped for this load");
+    this.name = "SourceSkipped";
+  }
+}
+
+/** How long a failure is remembered: the upstream's own wait when it sent one, within 1-15 min. */
+const failureTtlMs = (error: unknown): number => {
+  let wait = 0;
+  if (error instanceof FeedBusyError) wait = error.retryAfterMs ?? 0;
+  if (error instanceof MarketDataError)
+    wait = (error.retryAfterSeconds ?? 0) * 1000;
+  return Math.min(
+    Math.max(wait, FAILURE_CACHE_TTL_MS),
+    FAILURE_CACHE_MAX_TTL_MS
+  );
+};
+
+/**
+ * Successful source reads are cached for 5 min. Failures are cached for 60 s (or the upstream's
+ * Retry-After, up to 15 min), so a struggling feed is not asked again on every page load.
+ */
 export const cachedSource = async <T>(
   key: string,
   now: number,
   load: () => Promise<T>
 ): Promise<T> => {
   const hit = sourceCache.get(key);
-  if (hit !== undefined && now - hit.at < NEWS_CACHE_TTL_MS)
-    return hit.value as T;
-  const value = await load();
-  // Re-insert so insertion order stays oldest-first for makeRoom.
-  sourceCache.delete(key);
-  makeRoom(now);
-  sourceCache.set(key, { at: now, value });
+  if (hit !== undefined && now < hit.until) {
+    if (hit.ok) return hit.value as T;
+    throw hit.error;
+  }
+  const remember = (entry: CachedSource): void => {
+    // Re-insert so insertion order stays oldest-first for makeRoom.
+    sourceCache.delete(key);
+    makeRoom(now);
+    sourceCache.set(key, entry);
+  };
+  let value: T;
+  try {
+    value = await load();
+  } catch (error) {
+    if (!(error instanceof SourceSkipped))
+      remember({ error, ok: false, until: now + failureTtlMs(error) });
+    throw error;
+  }
+  remember({ ok: true, until: now + NEWS_CACHE_TTL_MS, value });
   return value;
 };
 
@@ -209,16 +289,57 @@ type HeadlineFeed = Readonly<{
   load: () => Promise<MarketNewsHeadline[]>;
 }>;
 
+/** What one page load reads: `include` from the request, and the IBKR reads it may still make. */
+export interface NewsLoad {
+  include: MarketNewsInclude;
+  ibkrReads: number;
+}
+
+export const newsLoad = (include: MarketNewsInclude = "all"): NewsLoad => ({
+  ibkrReads: IBKR_NEWS_READS_PER_LOAD,
+  include,
+});
+
+/** IBKR headlines within this load's budget; busy, paced or timed out ends IBKR for the load. */
+const loadIbkrHeadlines = async (
+  history: DeployStatusConfig,
+  symbol: string,
+  subject: HeadlineSubject,
+  parse: HeadlineParseOptions,
+  options: MarketNewsOptions,
+  load: NewsLoad
+): Promise<MarketNewsHeadline[]> => {
+  if (load.ibkrReads <= 0) throw new SourceSkipped();
+  load.ibkrReads -= 1;
+  try {
+    const news = await fetchHistoryNews(history, symbol, 20, {
+      ...options,
+      timeoutMs: Math.min(
+        options.timeoutMs ?? IBKR_NEWS_TIMEOUT_MS,
+        IBKR_NEWS_TIMEOUT_MS
+      ),
+    });
+    return ibkrHeadlines(news, subject, parse);
+  } catch (error) {
+    if (
+      error instanceof MarketDataError &&
+      (error.code === "PACED" || error.code === "UNAVAILABLE")
+    )
+      load.ibkrReads = 0;
+    throw error;
+  }
+};
+
 /** Every headline and 8-K for one ticker (unfiltered); per-source failures land in `errors`. */
 export const loadTickerFeeds = async (
   symbol: string,
   options: MarketNewsOptions = {},
-  tickerList: () => Promise<Map<string, SecTicker>> = () => secTickers(options)
+  tickerList: () => Promise<Map<string, SecTicker>> = () => secTickers(options),
+  load: NewsLoad = newsLoad()
 ): Promise<TickerFeeds> => {
   const now = (options.now ?? (() => new Date()))().getTime();
-  const errors: string[] = [];
-  let filings: MarketNewsFiling[] = [];
-  // The SEC company title names the issuer for headline tagging and locates its 8-K feed.
+  // The SEC company title names the issuer for headline tagging and the Reuters search, and
+  // locates its 8-K feed.
   const lookup = await tickerList().then(
     (tickers) => ({
       company: tickers.get(yahooSymbol(symbol)) ?? tickers.get(symbol),
@@ -227,69 +348,86 @@ export const loadTickerFeeds = async (
     (error: unknown) => ({ company: undefined, failure: { error } })
   );
   const subject = { name: lookup.company?.title ?? null, symbol };
+  const parse = { since: new Date(now - HEADLINE_SINCE_MS) };
   const rssFeed = (
     key: string,
     label: string,
     url: string,
-    parse: typeof parseYahooRss
+    read: typeof parseYahooRss
   ): HeadlineFeed => ({
     key,
     label,
     load: async () =>
-      parse(
+      read(
         await fetchBoundedText(
           { headers: { "user-agent": FEED_USER_AGENT }, label, url },
-          options
+          { ...options, maxBytes: HEADLINE_MAX_BYTES }
         ),
-        subject
+        subject,
+        parse
       ),
   });
   const history = options.marketHistory ?? null;
-  const upper = encodeURIComponent(symbol.toUpperCase());
-  const feeds: HeadlineFeed[] = [
-    ...(history === null
+  const reuters = new URLSearchParams({
+    ceid: "US:en",
+    gl: "US",
+    hl: "en-US",
+    q: reutersSearchQuery(subject),
+  });
+  const feeds: HeadlineFeed[] =
+    load.include === "filings"
       ? []
       : [
-          {
-            key: "ibkr",
-            label: "IBKR news",
-            load: async () =>
-              ibkrHeadlines(
-                await fetchHistoryNews(history, symbol, 20, options),
-                subject
-              ),
-          },
-        ]),
-    rssFeed(
-      "reuters",
-      "Reuters headlines",
-      `https://news.google.com/rss/search?q=${upper}+site:reuters.com&hl=en-US&gl=US&ceid=US:en`,
-      parseReutersRss
-    ),
-    rssFeed(
-      "seekingalpha",
-      "Seeking Alpha headlines",
-      `https://seekingalpha.com/api/sa/combined/${upper}.xml`,
-      parseSeekingAlphaRss
-    ),
-    rssFeed(
-      "yahoo",
-      "Yahoo headlines",
-      `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(yahooSymbol(symbol))}&region=US&lang=en-US`,
-      parseYahooRss
-    ),
-  ];
-  // Sources load in parallel, each on its own: one failing source never drops the others.
-  // Headline tags use the SEC company name, so headlines read while the SEC list failed are not
-  // cached: the next request tags them again with the name.
-  const reads = await Promise.all(
-    feeds.map(({ key, label, load }) =>
+          ...(history === null
+            ? []
+            : [
+                {
+                  key: "ibkr",
+                  label: "IBKR news",
+                  load: () =>
+                    loadIbkrHeadlines(
+                      history,
+                      symbol,
+                      subject,
+                      parse,
+                      options,
+                      load
+                    ),
+                },
+              ]),
+          rssFeed(
+            "reuters",
+            "Reuters headlines",
+            `https://news.google.com/rss/search?${reuters.toString()}`,
+            parseReutersRss
+          ),
+          rssFeed(
+            "seekingalpha",
+            "Seeking Alpha headlines",
+            `https://seekingalpha.com/api/sa/combined/${encodeURIComponent(symbol.toUpperCase())}.xml`,
+            parseSeekingAlphaRss
+          ),
+          rssFeed(
+            "yahoo",
+            "Yahoo headlines",
+            `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(yahooSymbol(symbol))}&region=US&lang=en-US`,
+            parseYahooRss
+          ),
+        ];
+  // Every source loads in parallel with the others and with the 8-K feed, each on its own: one
+  // failing source never drops the others. Headline tags and the Reuters search use the SEC
+  // company name, so headlines read while the SEC list failed are not cached: the next request
+  // reads them again with the name.
+  const headlineReads = Promise.all(
+    feeds.map(({ key, label, load: read }) =>
       (lookup.failure === null
-        ? cachedSource(`${key}:${symbol}`, now, load)
-        : load()
+        ? cachedSource(`${key}:${symbol}`, now, read)
+        : read()
       ).then(
         (list) => ({ error: null, headlines: list }),
         (error: unknown) => {
+          if (error instanceof SourceSkipped)
+            return { error: null, headlines: [] };
           const message = reason(error);
           return {
             error: message.startsWith(label) ? message : `${label}: ${message}`,
@@ -299,19 +437,16 @@ export const loadTickerFeeds = async (
       )
     )
   );
-  for (const read of reads)
-    if (read.error !== null) errors.push(`headlines: ${read.error}`);
-  const headlines = mergeHeadlines(reads.map((read) => read.headlines));
-  try {
-    filings = await cachedSource(`sec:${symbol}`, now, async () => {
-      if (lookup.failure !== null) throw lookup.failure.error;
-      const hit = lookup.company;
-      if (hit === undefined)
-        throw new ResearchLensError(
-          "NOT_FOUND",
-          "no SEC filer matches this symbol"
-        );
-      return parseSecAtom(
+  const filingsRead = (async (): Promise<MarketNewsFiling[]> => {
+    if (lookup.failure !== null) throw lookup.failure.error;
+    const hit = lookup.company;
+    if (hit === undefined)
+      throw new ResearchLensError(
+        "NOT_FOUND",
+        "no SEC filer matches this symbol"
+      );
+    return await cachedSource(`sec:${symbol}`, now, async () =>
+      parseSecAtom(
         await fetchBoundedText(
           {
             headers: { "user-agent": secUserAgent() },
@@ -321,12 +456,22 @@ export const loadTickerFeeds = async (
           options
         ),
         hit.title
-      );
-    });
-  } catch (error) {
-    errors.push(`filings: ${reason(error)}`);
-  }
-  return { errors, filings, headlines };
+      )
+    );
+  })().then(
+    (filings) => ({ error: null, filings }),
+    (error: unknown) => ({ error: `filings: ${reason(error)}`, filings: [] })
+  );
+  const [reads, filed] = await Promise.all([headlineReads, filingsRead]);
+  const errors = reads.flatMap((read) =>
+    read.error === null ? [] : [`headlines: ${read.error}`]
+  );
+  if (filed.error !== null) errors.push(filed.error);
+  return {
+    errors,
+    filings: filed.filings,
+    headlines: mergeHeadlines(reads.map((read) => read.headlines)),
+  };
 };
 
 /** Runs `work` over `inputs` with at most `limit` in flight; results keep input order. */
@@ -350,12 +495,14 @@ export const mapWithConcurrency = async <T, R>(
   return results;
 };
 
-/** The monitor for a list of symbols, filtered to the last `hours`. */
+/** The monitor for a list of symbols, filtered to the last `hours`; "filings" skips headlines. */
 export const buildMarketNews = async (
   symbols: readonly string[],
   hours: MarketNewsHours,
-  options: MarketNewsOptions = {}
+  options: MarketNewsOptions = {},
+  include: MarketNewsInclude = "all"
 ): Promise<MarketNewsWatchlistOutput> => {
+  const load = newsLoad(include);
   const receivedAt = (options.now ?? (() => new Date()))();
   // One SEC ticker-list read per request, shared by every ticker (and its failure too).
   let tickerList: Promise<Map<string, SecTicker>> | undefined;
@@ -367,7 +514,12 @@ export const buildMarketNews = async (
     symbols,
     NEWS_CONCURRENCY,
     async (symbol): Promise<MarketNewsTicker> => {
-      const feeds = await loadTickerFeeds(symbol, options, sharedTickerList);
+      const feeds = await loadTickerFeeds(
+        symbol,
+        options,
+        sharedTickerList,
+        load
+      );
       return {
         errors: feeds.errors,
         filings: withinHours(
@@ -423,10 +575,12 @@ const watchlistNews = api.marketNews.watchlist
         throw failures.STORAGE_ERROR();
       throw error;
     }
-    return buildMarketNews(selectNewsSymbols(items), input.hours, {
-      marketHistory: context.marketHistory ?? null,
-      ...marketNewsOptions,
-    });
+    return buildMarketNews(
+      selectNewsSymbols(items),
+      input.hours,
+      { marketHistory: context.marketHistory ?? null, ...marketNewsOptions },
+      input.include
+    );
   });
 
 export const marketNewsRouter = { watchlist: watchlistNews };

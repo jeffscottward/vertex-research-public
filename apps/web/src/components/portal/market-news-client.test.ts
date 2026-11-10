@@ -41,11 +41,17 @@ const fakeClient = () => {
 };
 
 describe("market news gateway", () => {
-  it("maps the window to the marketNews.watchlist input", async () => {
+  it("maps the window and the include choice to the marketNews.watchlist input", async () => {
     const fake = fakeClient();
-    const news = await createMarketNewsGateway(fake.client).watchlist(24);
+    const gateway = createMarketNewsGateway(fake.client);
+    const news = await gateway.watchlist(24);
     expect(news.tickers).toEqual([]);
-    return expect(fake.watchlist).toHaveBeenCalledWith({ hours: 24 });
+    expect(fake.watchlist).toHaveBeenCalledWith({ hours: 24, include: "all" });
+    await gateway.watchlist(720, "filings");
+    return expect(fake.watchlist).toHaveBeenLastCalledWith({
+      hours: 720,
+      include: "filings",
+    });
   });
 
   it("creates the browser client lazily, once, on the page origin", async () => {
@@ -54,7 +60,11 @@ describe("market news gateway", () => {
     const gateway = createBrowserMarketNewsGateway();
     expect(runtime.origins).toEqual([]);
     await gateway.watchlist(72);
-    await gateway.watchlist(168);
+    await gateway.watchlist(168, "filings");
+    expect(fake.watchlist).toHaveBeenLastCalledWith({
+      hours: 168,
+      include: "filings",
+    });
     expect(runtime.origins).toEqual([window.location.origin]);
     return expect(Object.isFrozen(gateway)).toBe(true);
   });

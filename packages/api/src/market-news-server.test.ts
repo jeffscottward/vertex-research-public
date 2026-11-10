@@ -22,11 +22,14 @@ import {
   cachedSource,
   clearMarketNewsCacheForTesting,
   fetchBoundedText,
+  IBKR_NEWS_READS_PER_LOAD,
+  IBKR_NEWS_TIMEOUT_MS,
   loadTickerFeeds,
   type MarketNewsOptions,
   mapWithConcurrency,
   marketNewsCacheSizeForTesting,
   NEWS_CACHE_MAX_ENTRIES,
+  newsLoad,
   setMarketNewsOptionsForTesting,
 } from "./server/market-news.ts";
 import { clearResearchLensCacheForTesting } from "./server/research-lenses.ts";
@@ -494,7 +497,10 @@ describe("merged headline sources", () => {
         [],
       ],
     ]);
-    expect(ko?.headlines[0]?.url).toBeNull();
+    // The IBKR copy has no link of its own: it takes the Reuters copy's.
+    expect(ko?.headlines[0]?.url).toBe(
+      "https://news.google.com/rss/articles/CBMiKO2?oc=5"
+    );
     expect(ko?.headlines[0]?.publisher).toBe("Dow Jones Newsletters");
     expect(ko?.headlines[1]?.url).toBe(
       "https://news.google.com/rss/articles/CBMiKO1?oc=5"
@@ -503,8 +509,9 @@ describe("merged headline sources", () => {
       "https://history.example.test/news?symbol=KO&count=20"
     );
     expect(calls).toContain("https://seekingalpha.com/api/sa/combined/KO.xml");
+    // Reuters is searched by the SEC company name without its legal form.
     return expect(calls).toContain(
-      "https://news.google.com/rss/search?q=KO+site:reuters.com&hl=en-US&gl=US&ceid=US:en"
+      "https://news.google.com/rss/search?ceid=US%3Aen&gl=US&hl=en-US&q=%22COCA+COLA%22+site%3Areuters.com"
     );
   });
 
@@ -531,7 +538,7 @@ describe("merged headline sources", () => {
     ]);
   });
 
-  return it("skips IBKR without a vertex-history config", async () => {
+  it("skips IBKR without a vertex-history config", async () => {
     const { calls, fetch } = koFeeds();
     const feedsFor = await loadTickerFeeds("KO", {
       fetch,
@@ -543,6 +550,185 @@ describe("merged headline sources", () => {
     return expect(
       feedsFor.headlines.map((item) => [item.source, item.title])
     ).toContainEqual(["reuters", "Coca-Cola names new CFO"]);
+  });
+
+  it("reads only 8-K filings when the request includes filings only", async () => {
+    const { calls, fetch } = koFeeds();
+    const news = await buildMarketNews(
+      ["AAPL"],
+      720,
+      {
+        fetch,
+        marketHistory: HISTORY,
+        now: () => new Date("2026-09-03T00:00:00.000Z"),
+      },
+      "filings"
+    );
+    expect(news.tickers[0]?.headlines).toEqual([]);
+    expect(news.tickers[0]?.errors).toEqual([]);
+    expect(news.tickers[0]?.filings.length).toBeGreaterThan(0);
+    return expect(calls.filter((url) => !url.includes("sec.gov"))).toEqual([]);
+  });
+
+  it("caches IBKR headlines per symbol, but not while the SEC ticker list is down", async () => {
+    const { calls, fetch } = koFeeds();
+    const options = { fetch, marketHistory: HISTORY, now: () => NOW };
+    const ibkrCalls = () =>
+      calls.filter((url) => url.startsWith(HISTORY.url)).length;
+    await loadTickerFeeds("KO", options);
+    const cached = await loadTickerFeeds("KO", options);
+    expect(ibkrCalls()).toBe(1);
+    expect(cached.headlines[0]?.source).toBe("ibkr");
+    clearMarketNewsCacheForTesting();
+    const failing = () => Promise.reject(new Error("SEC list down"));
+    await loadTickerFeeds("KO", options, failing);
+    const again = await loadTickerFeeds("KO", options, failing);
+    expect(ibkrCalls()).toBe(3);
+    return expect(again.headlines.map((item) => item.source)).toContain("ibkr");
+  });
+
+  it("gives IBKR a short budget and records a timeout as a source error", async () => {
+    const { calls, fetch: base } = koFeeds();
+    // vertex-history never answers: the request is aborted at the IBKR budget.
+    const fetch: Fetch = (url, init) => {
+      if (!url.startsWith(HISTORY.url)) return base(url, init);
+      calls.push(url);
+      // The package's TS lib predates Promise.withResolvers.
+      return new Promise<Response>((_, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(new Error("aborted"))
+        );
+      });
+    };
+    const load = newsLoad();
+    const slow = await loadTickerFeeds(
+      "KO",
+      { fetch, marketHistory: HISTORY, now: () => NOW, timeoutMs: 20 },
+      undefined,
+      load
+    );
+    expect(slow.errors).toEqual([
+      "headlines: IBKR news: History request timed out",
+    ]);
+    expect(slow.headlines.length).toBeGreaterThan(0);
+    // The timeout ends IBKR for the rest of this load: AAPL does not ask and reports nothing.
+    const next = await loadTickerFeeds(
+      "AAPL",
+      { fetch, marketHistory: HISTORY, now: () => NOW, timeoutMs: 20 },
+      undefined,
+      load
+    );
+    expect(next.errors).toEqual([]);
+    expect(calls.filter((url) => url.startsWith(HISTORY.url))).toEqual([
+      "https://history.example.test/news?symbol=KO&count=20",
+    ]);
+    return expect(IBKR_NEWS_TIMEOUT_MS).toBe(5000);
+  });
+
+  it("asks IBKR for at most two uncached symbols per load", async () => {
+    const { calls, fetch } = koFeeds();
+    const news = await buildMarketNews(["KO", "AAPL", "TSLA"], 168, {
+      fetch,
+      marketHistory: HISTORY,
+      now: () => NOW,
+    });
+    expect(
+      calls
+        .filter((url) => url.startsWith(HISTORY.url))
+        .map((url) => {
+          return new URL(url).searchParams.get("symbol");
+        })
+    ).toEqual(["KO", "AAPL"]);
+    expect(IBKR_NEWS_READS_PER_LOAD).toBe(2);
+    // No IBKR error for TSLA: a skipped source is not a failure.
+    expect(
+      news.tickers.flatMap((ticker) =>
+        ticker.errors.filter((error) => error.startsWith("headlines: "))
+      )
+    ).toEqual([]);
+    // The next load reads KO and AAPL from the cache and spends its budget on TSLA.
+    await buildMarketNews(["KO", "AAPL", "TSLA"], 168, {
+      fetch,
+      marketHistory: HISTORY,
+      now: () => NOW,
+    });
+    return expect(
+      calls.filter((url) => url.startsWith(HISTORY.url))
+    ).toHaveLength(3);
+  });
+
+  it("remembers a paced IBKR answer for its retry wait and stops IBKR for the load", async () => {
+    let now = NOW;
+    const paced = () =>
+      new Response(null, { headers: { "retry-after": "120" }, status: 429 });
+    const { calls, fetch } = koFeeds({ "/news": paced });
+    const ibkrCalls = () =>
+      calls.filter((url) => url.startsWith(HISTORY.url)).length;
+    const options = { fetch, marketHistory: HISTORY, now: () => now };
+    const load = newsLoad();
+    const first = await loadTickerFeeds("KO", options, undefined, load);
+    expect(first.errors).toEqual([
+      "headlines: IBKR news: IBKR history pacing: retry in 120 s",
+    ]);
+    expect(load.ibkrReads).toBe(0);
+    now = new Date(NOW.getTime() + 90_000);
+    const cached = await loadTickerFeeds("KO", options);
+    expect(cached.errors).toEqual(first.errors);
+    expect(ibkrCalls()).toBe(1);
+    now = new Date(NOW.getTime() + 121_000);
+    await loadTickerFeeds("KO", options);
+    return expect(ibkrCalls()).toBe(2);
+  });
+
+  it("keeps asking IBKR after an unknown-contract answer", async () => {
+    const { calls, fetch } = koFeeds({
+      "/news": () => new Response(null, { status: 422 }),
+    });
+    const load = newsLoad();
+    const options = { fetch, marketHistory: HISTORY, now: () => NOW };
+    const ko = await loadTickerFeeds("KO", options, undefined, load);
+    expect(ko.errors).toEqual([
+      "headlines: IBKR news: History endpoint returned HTTP 422",
+    ]);
+    await loadTickerFeeds("AAPL", options, undefined, load);
+    return expect(
+      calls.filter((url) => url.startsWith(HISTORY.url))
+    ).toHaveLength(2);
+  });
+
+  return it("remembers a failed feed for 60 s, or for its Retry-After", async () => {
+    let now = NOW;
+    const { calls, fetch } = feeds({
+      AAPL: () =>
+        new Response("slow down", {
+          headers: { "retry-after": "300" },
+          status: 429,
+        }),
+      KO: () => new Response("slow down", { status: 429 }),
+      TSLA: () =>
+        new Response("slow down", {
+          headers: { "retry-after": "Wed, 21 Oct 2026 07:28:00 GMT" },
+          status: 429,
+        }),
+    });
+    const options = { fetch, now: () => now };
+    const yahooCalls = () =>
+      calls.filter((url) => url.includes("feeds.finance.yahoo.com")).length;
+    const all = async () => {
+      for (const symbol of ["KO", "AAPL", "TSLA"])
+        await loadTickerFeeds(symbol, options);
+    };
+    await all();
+    expect(yahooCalls()).toBe(3);
+    const ko = await loadTickerFeeds("KO", options);
+    expect(ko.errors).toEqual(["headlines: Yahoo headlines returned HTTP 429"]);
+    now = new Date(NOW.getTime() + 61_000);
+    await all();
+    // KO and TSLA (an HTTP-date Retry-After counts as no hint) after 60 s; AAPL waits 300 s.
+    expect(yahooCalls()).toBe(5);
+    now = new Date(NOW.getTime() + 301_000);
+    await all();
+    return expect(yahooCalls()).toBe(8);
   });
 });
 
@@ -753,10 +939,19 @@ describe("marketNews.watchlist procedure", () => {
     expect(calls).toContain(
       "https://history.example.test/news?symbol=KO&count=20"
     );
-    return expect(news.tickers[0]?.headlines[0]).toMatchObject({
+    expect(news.tickers[0]?.headlines[0]).toMatchObject({
       source: "ibkr",
       title: "Coca-Cola names new CFO",
-      url: null,
+      url: "https://news.google.com/rss/articles/CBMiKO2?oc=5",
     });
+    // The calendar asks for filings only: no headline source is read.
+    clearMarketNewsCacheForTesting();
+    calls.length = 0;
+    const filings = await client.marketNews.watchlist({
+      hours: 720,
+      include: "filings",
+    });
+    expect(filings.tickers[0]?.headlines).toEqual([]);
+    return expect(calls.every((url) => url.includes("sec.gov"))).toBe(true);
   });
 });
