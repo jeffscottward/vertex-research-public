@@ -977,7 +977,22 @@ describe("Graphify workflow", () => {
   });
 
   it("reports bounded graph files and unavailable version probes without mutations", async () => {
-    for (const size of [-1, 67_108_865]) {
+    // 84,087,628 bytes: the real graph of this repository on 2026-11-10.
+    const measured = fixture({ graphExists: true, manifest: manifestFor() });
+    await expect(
+      runGraphAction("check", {
+        ...measured.dependencies,
+        files: {
+          ...measured.dependencies.files,
+          inspect: async (path) =>
+            path === "graphify-out/graph.json"
+              ? { kind: "file", size: 84_087_628 }
+              : measured.dependencies.files.inspect(path),
+        },
+      })
+    ).resolves.toMatchObject({ ok: true, fresh: true });
+
+    for (const size of [-1, 268_435_457]) {
       const state = fixture({ graphExists: true, manifest: manifestFor() });
       const bounded: GraphDependencies = {
         ...state.dependencies,

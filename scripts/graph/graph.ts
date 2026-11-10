@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { required } from "../lib/required.ts";
 
 const MAX_CONFIG_BYTES = 262_144;
-const MAX_GRAPH_BYTES = 67_108_864;
+// The graph of this repository was 84 MB on 2026-11-10 (48,866 nodes,
+// 125,901 links), above the former 64 MiB bound.
+const MAX_GRAPH_BYTES = 268_435_456;
 const MAX_SOURCE_FILE_BYTES = 8_388_608;
 const MAX_SOURCE_TOTAL_BYTES = 134_217_728;
 const MAX_SOURCE_FILES = 20_000;
