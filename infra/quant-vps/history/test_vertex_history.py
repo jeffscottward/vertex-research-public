@@ -99,10 +99,11 @@ class ValidateTest(unittest.TestCase):
                              "contractMonth": None})
 
     def test_duration_bounds(self):
-        ok = [("1 day", "1 Y"), ("1 day", "12 M"), ("1 day", "365 D"), ("5 mins", "1 M"), ("1 hour", "4 W"),
-              ("1 min", "2 D"), ("15 mins", "31 D")]
-        bad = [("1 day", "2 Y"), ("1 day", "13 M"), ("5 mins", "2 M"), ("1 hour", "5 W"), ("1 min", "3 D"),
-               ("1 min", "1 W"), ("30 mins", "1 Y"), ("1 day", "0 D"), ("1 day", "1Y"), ("1 day", "1 S")]
+        ok = [("1 day", "1 Y"), ("1 day", "12 M"), ("1 day", "365 D"), ("1 day", "2 Y"), ("1 day", "30 Y"),
+              ("5 mins", "1 M"), ("1 hour", "4 W"), ("1 min", "2 D"), ("15 mins", "31 D")]
+        bad = [("1 day", "31 Y"), ("1 day", "13 M"), ("1 day", "400 D"), ("1 day", "60 W"), ("5 mins", "2 M"),
+               ("1 hour", "5 W"), ("1 min", "3 D"), ("1 min", "1 W"), ("30 mins", "1 Y"), ("1 day", "0 D"),
+               ("1 day", "1Y"), ("1 day", "1 S")]
         for bar, dur in ok:
             self.assertEqual(vh.validate(q(symbol="SPY", barSize=bar, duration=dur))["duration"], dur)
         for bar, dur in bad:
@@ -305,7 +306,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_bad_request(self):
         svc, gw, c = make_service()
-        self.assertEqual(svc.bars(q(symbol="SPY", duration="5 Y"))[0], 400)
+        self.assertEqual(svc.bars(q(symbol="SPY", duration="35 Y"))[0], 400)
         self.assertEqual(gw.calls, [])
 
 
@@ -898,7 +899,7 @@ class HttpTest(unittest.TestCase):
         self.assertEqual((status, body["client_id"], body["connected"]), (200, 77, False))
         self.assertEqual(self.call("/vertex-history/v1/other")[0], 404)
         self.assertEqual(self.call("/vertex-history/v1/bars?symbol=SPY", method="POST")[0], 405)
-        self.assertEqual(self.call("/vertex-history/v1/bars?symbol=SPY&duration=9%20Y")[0], 400)
+        self.assertEqual(self.call("/vertex-history/v1/bars?symbol=SPY&duration=31%20Y")[0], 400)
         status, body = self.call("/vertex-history/v1/bars?symbol=SPY&barSize=1%20day&duration=1%20Y")
         self.assertEqual((status, body["count"]), (200, 2))
         self.assertNotIn(TOKEN, json.dumps(body))
@@ -1079,6 +1080,57 @@ class EndDateTimeServiceTest(unittest.TestCase):
             status, body = svc.bars(raw)
             self.assertEqual((status, body["error"]), (400, "bad_request"), raw)
         self.assertEqual(gw.calls, [])
+
+
+class Extend130Test(unittest.TestCase):
+    """1.3.0: ADJUSTED_LAST, IND bars, daily windows up to 30 Y (card vertex-yahoo-terms-decision)."""
+
+    def test_adjusted_last_rules(self):
+        r = vh.validate(q(symbol="SPY", whatToShow="adjusted_last", duration="30 Y"), now=NOW)
+        self.assertEqual((r["whatToShow"], r["duration"]), ("ADJUSTED_LAST", "30 Y"))
+        self.assertNotIn("endDateTime", r)
+        self.assertNotEqual(vh.cache_key(r), vh.cache_key(dict(r, whatToShow="TRADES")))
+        for raw, msg in ((q(symbol="SPY", whatToShow="ADJUSTED_LAST", endDateTime="20261001-20:00:00"), "endDateTime"),
+                         (q(symbol="SPY", whatToShow="ADJUSTED_LAST", barSize="1 hour", duration="2 D"), "1 day"),
+                         (q(symbol="ES", secType="CONTFUT", exchange="CME", whatToShow="ADJUSTED_LAST"), "STK"),
+                         (q(symbol="EUR", secType="CASH", whatToShow="ADJUSTED_LAST"), "STK"),
+                         (q(symbol="VIX", secType="IND", exchange="CBOE", whatToShow="ADJUSTED_LAST"), "STK")):
+            with self.assertRaisesRegex(vh.BadRequest, msg, msg=raw):
+                vh.validate(raw, now=NOW)
+
+    def test_indices_are_trades_bars_with_an_exchange(self):
+        r = vh.validate(q(symbol="vix", secType="IND", exchange="cboe", duration="30 Y"), now=NOW)
+        self.assertEqual((r["symbol"], r["secType"], r["exchange"], r["whatToShow"]), ("VIX", "IND", "CBOE", "TRADES"))
+        r = vh.validate(q(symbol="VIX", secType="IND", exchange="CBOE", endDateTime="20101001-20:00:00"), now=NOW)
+        self.assertEqual(r["endDateTime"], "20101001-20:00:00")
+        with self.assertRaisesRegex(vh.BadRequest, "exchange"):
+            vh.validate(q(symbol="VIX", secType="IND"), now=NOW)
+        for what in ("MIDPOINT", "BID_ASK"):
+            with self.assertRaises(vh.BadRequest, msg=what):
+                vh.validate(q(symbol="VIX", secType="IND", exchange="CBOE", whatToShow=what), now=NOW)
+        for fn, kind in ((vh.validate_ticks, "ticks"), (vh.validate_depth, "depth")):
+            with self.assertRaisesRegex(vh.BadRequest, kind + " are not supported for IND"):
+                fn(q(symbol="VIX", secType="IND", exchange="CBOE"))
+            with self.assertRaisesRegex(vh.BadRequest, kind + " are not supported for CASH"):
+                fn(q(symbol="EUR", secType="CASH"))
+
+    def test_adjusted_last_and_index_reach_reqHistoricalData(self):
+        gw = fake_gateway(bars=[bar_row("20261002", 1, 2, 0.5, 1.5, 10)])
+        _info, bars = gw.fetch(vh.validate(q(symbol="SPY", whatToShow="ADJUSTED_LAST", duration="20 Y"), now=NOW),
+                               lambda: None)
+        self.assertEqual(bars, [{"t": 1790899200, "o": 1.0, "h": 2.0, "l": 0.5, "c": 1.5, "v": 10.0}])
+        call = next(c for c in gw._client.calls if c[0] == "reqHistoricalData")
+        self.assertEqual((call[2], call[3], call[4], call[5]), ("", "20 Y", "1 day", "ADJUSTED_LAST"))
+        gw = fake_gateway(bars=[bar_row("20261002", 20, 21, 19, 20.5, -1)])
+        _info, bars = gw.fetch(vh.validate(q(symbol="VIX", secType="IND", exchange="CBOE", duration="5 Y"), now=NOW),
+                               lambda: None)
+        self.assertIsNone(bars[0]["v"])
+        call = next(c for c in gw._client.calls if c[0] == "reqHistoricalData")
+        self.assertEqual((call[3], call[5], call[-2]), ("5 Y", "TRADES", "IND"))
+
+    def test_health_reports_1_3_0(self):
+        svc, _gw, _c = make_service()
+        self.assertEqual(svc.health()[1]["version"], "1.3.0")
 
 
 if __name__ == "__main__":

@@ -360,7 +360,8 @@ const toMarketBarsOutput = (
   };
 };
 
-const fetchHistoryDocument = async (
+// GET one history document (bearer, timeout, size cap, no redirects); also used by ibkr-history.ts.
+export const fetchHistoryDocument = async (
   config: DeployStatusConfig | null,
   buildUrl: (base: string) => string,
   defaultTimeoutMs: number,

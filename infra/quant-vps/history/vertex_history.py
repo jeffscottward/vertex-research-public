@@ -19,6 +19,11 @@ Bars take an optional endDateTime=YYYYMMDD-HH:MM:SS (UTC, IBKR's form; absent = 
 request echo. A copy fetched at least 24 h after its endDateTime is cached for up to 24 h. whatToShow=BID_ASK
 (stocks only): open = time-average bid, high = max ask, low = min bid, close = time-average ask, volume null.
 
+1.3.0 (card vertex-yahoo-terms-decision, owner 2026-11-10 "Extend it"): daily bars take up to 30 Y in one request
+(longer than 365 days only in Y units); whatToShow=ADJUSTED_LAST (stocks, daily, no endDateTime: IBKR refuses an
+end date for it) gives split- and dividend-adjusted bars; secType=IND (indices such as VIX on CBOE, TRADES bars,
+exchange required) serves bars only, not ticks or depth.
+
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
 import hashlib
@@ -34,7 +39,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 SCHEMA = "vertex-history-bars-v1"
 TICKS_SCHEMA = "vertex-history-ticks-v1"
 DEPTH_SCHEMA = "vertex-history-depth-v1"
@@ -44,9 +49,13 @@ LISTEN_HOST = "127.0.0.1"
 LISTEN_PORT = 8791
 PREFIX = "/vertex-history/v1"
 
-SEC_TYPES = ("STK", "FUT", "CONTFUT", "CASH")
+SEC_TYPES = ("STK", "FUT", "CONTFUT", "CASH", "IND")
 DEFAULT_EXCHANGE = {"STK": "SMART", "CASH": "IDEALPRO"}
-WHAT_TO_SHOW = ("TRADES", "MIDPOINT", "BID_ASK")
+BARS_ONLY_SEC_TYPES = {"CASH": "CASH (forex)", "IND": "IND (indices)"}
+WHAT_TO_SHOW = ("TRADES", "MIDPOINT", "BID_ASK", "ADJUSTED_LAST")
+# ADJUSTED_LAST (IBKR): daily bars adjusted for splits and dividends; IBKR requires an empty end date.
+ADJUSTED_SEC_TYPES = ("STK",)
+DAILY_MAX_DAYS = 30 * 365  # 30 Y; above 365 days IBKR takes the duration in years only
 # BID_ASK bars (IBKR semantics): open = time-average bid, high = max ask, low = min bid, close = time-average ask,
 # volume n/a (null). Offered for stocks only here; forex stays MIDPOINT and futures TRADES/MIDPOINT.
 BID_ASK_SEC_TYPES = ("STK",)
@@ -136,7 +145,7 @@ def scrub(text):
 
 def max_duration_days(bar_size):
     if bar_size == "1 day":
-        return 365
+        return DAILY_MAX_DAYS
     if bar_size == "1 min":
         return 2
     return 31
@@ -163,7 +172,7 @@ def _instrument(values):
         raise BadRequest("invalid symbol")
     exchange = values.get("exchange", DEFAULT_EXCHANGE.get(sec_type, "")).upper()
     if not EXCHANGE_RE.match(exchange):
-        raise BadRequest("invalid exchange (required for futures)")
+        raise BadRequest("invalid exchange (required for futures and indices)")
     currency = values.get("currency", "USD").upper()
     if not CURRENCY_RE.match(currency):
         raise BadRequest("invalid currency")
@@ -235,11 +244,22 @@ def validate(raw, now=None):
         raise BadRequest("1 min bars allow durations in days only")
     if days > max_duration_days(bar_size):
         raise BadRequest("duration too long for " + bar_size)
+    if days > 365 and m.group(2) != "Y":
+        raise BadRequest("durations longer than 365 days take Y units (IBKR)")
     what = values.get("whatToShow", "TRADES").upper()
     if what not in WHAT_TO_SHOW:
         raise BadRequest("whatToShow must be one of " + ", ".join(WHAT_TO_SHOW))
     if what == "BID_ASK" and inst["secType"] not in BID_ASK_SEC_TYPES:
         raise BadRequest("whatToShow=BID_ASK is offered for " + ", ".join(BID_ASK_SEC_TYPES) + " only")
+    if what == "ADJUSTED_LAST":
+        if inst["secType"] not in ADJUSTED_SEC_TYPES:
+            raise BadRequest("whatToShow=ADJUSTED_LAST is offered for " + ", ".join(ADJUSTED_SEC_TYPES) + " only")
+        if bar_size != "1 day":
+            raise BadRequest("whatToShow=ADJUSTED_LAST is offered for 1 day bars only")
+        if "endDateTime" in values:
+            raise BadRequest("whatToShow=ADJUSTED_LAST takes no endDateTime (IBKR); ask for a longer duration")
+    if inst["secType"] == "IND" and what != "TRADES":
+        raise BadRequest("IND (indices) offers whatToShow=TRADES only")
     if inst["secType"] == "CASH":
         what = "MIDPOINT"  # IBKR has no TRADES data for forex
     rth = _flag(values, "useRTH", "1")
@@ -257,7 +277,7 @@ def validate_ticks(raw):
     """Historical ticks: the most recent `count` trade prints (and bid/ask quotes over the same window)."""
     values = _single_values(raw, TICKS_PARAMS)
     inst = _instrument(values)
-    _reject_cash(inst, "ticks")
+    _reject_bars_only(inst, "ticks")
     count = _bounded_int(values, "count", TICKS_DEFAULT, TICKS_MIN, TICKS_MAX)
     rth = _flag(values, "useRTH", "0")
     quotes = _flag(values, "quotes", "1")
@@ -269,7 +289,7 @@ def validate_depth(raw):
     """Depth snapshot. Stocks always use IBKR SMART depth; futures use the given exchange's own book."""
     values = _single_values(raw, DEPTH_PARAMS)
     inst = _instrument(values)
-    _reject_cash(inst, "depth")
+    _reject_bars_only(inst, "depth")
     rows = _bounded_int(values, "rows", DEPTH_ROWS_DEFAULT, 1, DEPTH_ROWS_MAX)
     month = _month(values, inst["secType"])
     smart = inst["secType"] == "STK"
@@ -278,9 +298,10 @@ def validate_depth(raw):
     return dict(inst, contractMonth=month, rows=rows, smartDepth=smart)
 
 
-def _reject_cash(inst, kind):
-    if inst["secType"] == "CASH":
-        raise BadRequest(kind + " are not supported for CASH (forex)")
+def _reject_bars_only(inst, kind):
+    label = BARS_ONLY_SEC_TYPES.get(inst["secType"])
+    if label:
+        raise BadRequest(kind + " are not supported for " + label)
 
 
 def cache_key(req):
