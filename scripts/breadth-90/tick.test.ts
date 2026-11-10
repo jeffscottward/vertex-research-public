@@ -425,6 +425,36 @@ describe("runBreadth90Tick", () => {
     expect(second.posts.filter((p) => !p.url.includes("wsj"))).toEqual([]);
   });
 
+  it("fails the email channel and exits 1 while BREADTH90_EMAIL_TO is unset", async () => {
+    const w = world({
+      feed: {
+        daily: armedHistory,
+        intraday: { date: "2026-11-06", values: pct(92, 91) },
+      },
+      wsj: wsjBody("2026-11-06", 91),
+    });
+    w.files.set(
+      "/s/state.json",
+      JSON.stringify({ days: {}, lastTick: "earlier", sent: {}, version: 1 })
+    );
+    const env = { BREADTH90_EMAIL_TO: "" };
+    expect(await runBreadth90Tick(ioFor(w, ["--no-push"], INTRADAY, env))).toBe(
+      1
+    );
+    expect(w.out.join("")).toContain(
+      "email FAILED (BREADTH90_EMAIL_TO is not set)"
+    );
+    expect(w.mails).toEqual([]);
+    // ntfy and Discord got FORMING and the prior ARMED once; only email stays due.
+    expect(alertsSent(w)).toHaveLength(4);
+    const second = world({ ...w, mails: [], out: [], posts: [] });
+    expect(
+      await runBreadth90Tick(ioFor(second, ["--no-push"], INTRADAY, env))
+    ).toBe(1);
+    expect(second.mails).toEqual([]);
+    expect(alertsSent(second)).toEqual([]);
+  });
+
   it("alerts FIRED at the close, retries only a failed channel and exits 1 on failure", async () => {
     const w = world({
       discordOk: false,

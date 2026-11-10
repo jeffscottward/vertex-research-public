@@ -3,9 +3,10 @@
 # and VERTEX_ORIGIN set, reads the operator write key from its 0600 file (never printed) and pushes to
 # Vertex; otherwise the tick runs with --no-push.
 set -euo pipefail
-BUN="$HOME/.local/share/mise/installs/bun/1.4.2/bin"
-export PATH="$BUN:/usr/local/bin:/usr/bin:/bin"
 cd "${BREADTH90_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-ticks-runner}"
+# The bun version is the pin of the runner checkout (.bun-version), installed by mise.
+BUN="$HOME/.local/share/mise/installs/bun/$(tr -d '[:space:]' < .bun-version)/bin"
+export PATH="$BUN:/usr/local/bin:/usr/bin:/bin"
 KEYF="${BREADTH90_KEY_FILE:-$HOME/.config/vertex/sector-rotation-key}"
 if [[ "${BREADTH90_PUSH:-0}" == "1" && -n "${VERTEX_ORIGIN:-}" && -r "$KEYF" ]]; then
   VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
