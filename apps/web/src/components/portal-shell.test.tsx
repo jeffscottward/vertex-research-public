@@ -42,6 +42,7 @@ afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 const assistantGateway = {
@@ -160,11 +161,18 @@ describe("PortalShell", () => {
     ).toHaveLength(1);
   });
 
-  it("renders with a trusted session scope key", () => {
+  it("leaves no timer behind when a shell with a trusted session scope key unmounts", () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
     renderShell(undefined, undefined, "user-1:member:0");
-    return expect(
+    expect(
       document.querySelector('[data-slot="portal-topbar"]')
     ).not.toBeNull();
+    act(() => root?.unmount());
+    // A timer that outlives the unmount can fire after Vitest removes the
+    // jsdom window. Then the run fails with an unhandled "window is not defined".
+    return expect(vi.getTimerCount()).toBe(0);
   });
 
   it("labels settings pages with the Settings section", () => {
