@@ -32,6 +32,7 @@ import {
   snapshotTypeScriptSource,
 } from "./corpus.ts";
 import {
+  type GraphCommandOptions,
   type GraphConfig,
   type GraphFileInfo,
   type GraphFileSystem,
@@ -1006,12 +1007,20 @@ const ALLOWED_ENV = [
   "SSL_CERT_FILE",
   "NODE_EXTRA_CA_CERTS",
 ] as const;
+// uv's own settings: index/cache/Python dirs and proxies it needs to install.
+const UV_ENV =
+  /^(?:UV_[A-Z0-9_]+|XDG_(?:BIN|CACHE|CONFIG|DATA)_HOME|(?:ALL|HTTPS?|NO)_PROXY|(?:all|https?|no)_proxy|SSL_CERT_DIR)$/;
 export const graphProcessEnvironment = (
-  additions: Readonly<Record<string, string>> = {}
+  additions: Readonly<Record<string, string>> = {},
+  profile: NonNullable<GraphCommandOptions["environmentProfile"]> = "graphify"
 ): NodeJS.ProcessEnv => {
   const environment: NodeJS.ProcessEnv = {};
   for (const name of ALLOWED_ENV)
     if (process.env[name]) environment[name] = process.env[name];
+  if (profile === "uv") {
+    for (const [name, value] of Object.entries(process.env))
+      if (value && UV_ENV.test(name)) environment[name] = value;
+  }
   if (additions["GRAPHIFY_QUERY_LOG_DISABLE"] === "1") {
     environment["GRAPHIFY_QUERY_LOG_DISABLE"] = "1";
   }
@@ -1029,7 +1038,10 @@ export const nodeGraphProcess: GraphProcess = Object.freeze({
         [...arguments_],
         {
           encoding: "utf8",
-          env: graphProcessEnvironment(options.environment),
+          env: graphProcessEnvironment(
+            options.environment,
+            options.environmentProfile
+          ),
           maxBuffer: options.maxOutputBytes ?? MAX_OUTPUT_BYTES,
           timeout: options.timeoutMs ?? 120_000,
           windowsHide: true,
@@ -1057,10 +1069,11 @@ const GRAPHIFY_LOCK_PATH = "scripts/graph/requirements.lock";
 const GRAPHIFY_PYTHON = "3.12";
 const GRAPHIFY_PROVISION_TIMEOUT_MS = 900_000;
 const MAX_LOCK_BYTES = 262_144;
-// Provisioning is bounded by two uv runs of 15 min; an older staging venv is
-// the leftover of an interrupted run.
-const STALE_STAGING_MS = 86_400_000;
+// Provisioning is bounded by two uv runs of 15 min, so an older staging or
+// discarded venv is the leftover of an interrupted run.
+const LEFTOVER_AGE_MS = 86_400_000;
 const STAGING_PREFIX = ".provision-";
+const DISCARD_PREFIX = ".stale-";
 
 export type GraphToolchainOptions = Readonly<{
   lockPath: string;
@@ -1088,31 +1101,33 @@ const isPresent = async (path: string): Promise<boolean> => {
   }
 };
 
-const removeStaleStaging = async (cacheRoot: string): Promise<void> => {
-  const cutoff = Date.now() - STALE_STAGING_MS;
+// Best effort: a leftover that cannot be inspected or removed (another run
+// removed it first, or it is not ours to delete) stays.
+const removeLeftovers = async (cacheRoot: string): Promise<void> => {
+  const cutoff = Date.now() - LEFTOVER_AGE_MS;
   for (const name of await readdir(cacheRoot)) {
-    if (!name.startsWith(STAGING_PREFIX)) continue;
+    if (!(name.startsWith(STAGING_PREFIX) || name.startsWith(DISCARD_PREFIX)))
+      continue;
     const path = join(cacheRoot, name);
     try {
       if ((await stat(path)).mtimeMs < cutoff)
         await rm(path, { force: true, recursive: true });
     } catch {
-      // Another run removed it first.
+      // Left for a later run.
     }
   }
 };
 
 // Pinned Graphify venvs live outside the repository, one per lock digest, so
-// every worktree shares one install and a global Graphify of another version
-// stays untouched.
+// every worktree (and surplus-funds-recovery, same key) shares one install and
+// a global Graphify of another version stays untouched.
 export const createGraphToolchain = (
   options: GraphToolchainOptions
 ): GraphToolchain => {
   const readLock = async (): Promise<string> => {
-    const lock = await readFile(options.lockPath, "utf8");
-    if (Buffer.byteLength(lock, "utf8") > MAX_LOCK_BYTES)
+    if ((await stat(options.lockPath)).size > MAX_LOCK_BYTES)
       throw new Error("Graphify lock is too large");
-    return lock;
+    return await readFile(options.lockPath, "utf8");
   };
   const venvFor = (lock: string): string =>
     join(
@@ -1123,11 +1138,27 @@ export const createGraphToolchain = (
         .slice(0, 32)
     );
   const pythonOf = (venv: string): string => join(venv, "bin", "python");
+  // Moves a venv aside before deleting it, so its path is free at once and
+  // other runs never see a half-deleted venv.
+  const discard = async (venv: string): Promise<void> => {
+    const stale = join(
+      options.cacheRoot,
+      `${DISCARD_PREFIX}${process.pid}-${randomUUID()}`
+    );
+    try {
+      await rename(venv, stale);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    await rm(stale, { force: true, recursive: true });
+  };
   const runUv = async (
     arguments_: readonly string[],
     label: string
   ): Promise<void> => {
     const result = await options.process.run("uv", arguments_, {
+      environmentProfile: "uv",
       maxOutputBytes: MAX_OUTPUT_BYTES,
       timeoutMs: GRAPHIFY_PROVISION_TIMEOUT_MS,
     });
@@ -1149,11 +1180,7 @@ export const createGraphToolchain = (
       parsePinnedGraphifyVersion(lock);
       const venv = venvFor(lock);
       await mkdir(options.cacheRoot, { mode: 0o700, recursive: true });
-      await removeStaleStaging(options.cacheRoot);
-      // A venv whose interpreter vanished (for example a removed uv-managed
-      // Python) cannot recover.
-      if (!(await isPresent(pythonOf(venv))))
-        await rm(venv, { force: true, recursive: true });
+      await removeLeftovers(options.cacheRoot);
       const staging = join(
         options.cacheRoot,
         `${STAGING_PREFIX}${process.pid}-${randomUUID()}`
@@ -1163,6 +1190,10 @@ export const createGraphToolchain = (
           ["venv", "--quiet", "--python", GRAPHIFY_PYTHON, staging],
           "venv"
         );
+        // Install the exact lock text the venv key was derived from, not a
+        // file that may change meanwhile.
+        const stagedLock = join(staging, "requirements.lock");
+        await writeFile(stagedLock, lock, { mode: 0o600 });
         await runUv(
           [
             "pip",
@@ -1173,19 +1204,28 @@ export const createGraphToolchain = (
             "--only-binary=:all:",
             "--require-hashes",
             "--requirement",
-            options.lockPath,
+            stagedLock,
           ],
           "pip install"
         );
-        // The cached venv runs but reports another version: it cannot repair
-        // itself, and the rename below keeps an existing venv.
-        if (replaceExisting) await rm(venv, { force: true, recursive: true });
+        // Only after a good install: replace a venv that answered with another
+        // version, or one whose interpreter vanished (for example a removed
+        // uv-managed Python), which cannot recover.
+        if (
+          (await isPresent(venv)) &&
+          (replaceExisting || !(await isPresent(pythonOf(venv))))
+        )
+          await discard(venv);
         try {
           await rename(staging, venv);
         } catch (error) {
           // Another wrapper run installed the same lock first: keep its venv.
           const code = (error as NodeJS.ErrnoException).code;
           if (code !== "EEXIST" && code !== "ENOTEMPTY") throw error;
+          if (!(await isPresent(pythonOf(venv))))
+            throw new Error(
+              "Graphify venv installed by another run has no Python"
+            );
         }
         return pythonOf(venv);
       } finally {

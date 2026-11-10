@@ -3344,13 +3344,15 @@ describe("pinned Graphify toolchain", () => {
     const uvCalls: Array<readonly string[]> = [];
     const failures: Readonly<{ exitCode: number; stderr: string }>[] = [];
     const uvOptions: unknown[] = [];
+    const installedLocks: string[] = [];
+    const beforeInstall: Array<() => Promise<void>> = [];
     const runner: GraphProcess = {
       run: async (command, arguments_, options) => {
         expect(command).toBe("uv");
         uvCalls.push([...arguments_]);
         uvOptions.push(options);
         const failure = failures.shift();
-        if (failure)
+        if (failure && failure.exitCode !== 0)
           return {
             exitCode: failure.exitCode,
             stderr: failure.stderr,
@@ -3361,6 +3363,12 @@ describe("pinned Graphify toolchain", () => {
           await mkdir(join(venv, "bin"), { recursive: true });
           await writeFile(join(venv, "bin", "python"), "#!/bin/sh\n");
         }
+        if (arguments_[0] === "pip") {
+          await beforeInstall.shift()?.();
+          installedLocks.push(
+            await readFile(required(arguments_.at(-1), "lock"), "utf8")
+          );
+        }
         return { exitCode: 0, stderr: "", stdout: "" };
       },
     };
@@ -3370,8 +3378,10 @@ describe("pinned Graphify toolchain", () => {
       process: runner,
     });
     return {
+      beforeInstall,
       cacheRoot,
       failures,
+      installedLocks,
       lockPath,
       root,
       toolchain,
@@ -3381,7 +3391,9 @@ describe("pinned Graphify toolchain", () => {
   };
 
   const stagingEntries = async (cacheRoot: string): Promise<string[]> =>
-    (await readdir(cacheRoot)).filter((name) => name.startsWith(".provision-"));
+    (await readdir(cacheRoot)).filter(
+      (name) => name.startsWith(".provision-") || name.startsWith(".stale-")
+    );
 
   it("keeps the cache under XDG_CACHE_HOME only when it is absolute", () => {
     expect(defaultGraphifyCacheRoot({ XDG_CACHE_HOME: "/var/cache/me" })).toBe(
@@ -3424,11 +3436,12 @@ describe("pinned Graphify toolchain", () => {
       "--only-binary=:all:",
       "--require-hashes",
       "--requirement",
-      state.lockPath,
+      join(staging, "requirements.lock"),
     ]);
+    expect(state.installedLocks).toEqual([LOCK]);
     expect(state.uvOptions).toEqual([
-      expect.objectContaining({ timeoutMs: 900_000 }),
-      expect.objectContaining({ timeoutMs: 900_000 }),
+      expect.objectContaining({ environmentProfile: "uv", timeoutMs: 900_000 }),
+      expect.objectContaining({ environmentProfile: "uv", timeoutMs: 900_000 }),
     ]);
     expect(await stagingEntries(state.cacheRoot)).toEqual([]);
     expect((await lstat(state.cacheRoot)).mode & 0o777).toBe(0o700);
@@ -3473,6 +3486,82 @@ describe("pinned Graphify toolchain", () => {
     expect(await exists(marker)).toBe(false);
     expect(await exists(python)).toBe(true);
     return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+  });
+
+  it("installs the lock text the venv key came from, even if the lock file changes meanwhile", async () => {
+    const state = await toolchainFixture();
+    state.beforeInstall.push(() =>
+      writeFile(state.lockPath, "graphifyy==9.9.9\n")
+    );
+    const python = await state.toolchain.provision({ replaceExisting: false });
+    expect(state.installedLocks).toEqual([LOCK]);
+    await writeFile(state.lockPath, LOCK);
+    return expect(state.toolchain.pinnedPython()).resolves.toBe(python);
+  });
+
+  it("refuses a venv another run installed without a Python", async () => {
+    const state = await toolchainFixture();
+    mocks.fileSystem.rename.mockImplementationOnce(async (_from, to) => {
+      // Another run's half-made venv now holds the path.
+      await mkdir(join(String(to), "lib"), { recursive: true });
+      throw Object.assign(new Error("exists"), { code: "ENOTEMPTY" });
+    });
+    await expect(
+      state.toolchain.provision({ replaceExisting: false })
+    ).rejects.toThrow("Graphify venv installed by another run has no Python");
+    return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+  });
+
+  it("moves a replaced venv aside and keeps it when the new install fails", async () => {
+    const state = await toolchainFixture();
+    const python = await state.toolchain.provision({ replaceExisting: false });
+    const marker = join(dirname(dirname(python)), "old-install");
+    await writeFile(marker, "");
+
+    state.failures.push({ exitCode: 1, stderr: "error: index unreachable\n" });
+    await expect(
+      state.toolchain.provision({ replaceExisting: true })
+    ).rejects.toThrow("uv venv failed (exit 1): error: index unreachable");
+    expect(await exists(marker)).toBe(true);
+
+    const discardFailure = Object.assign(new Error("busy"), { code: "EBUSY" });
+    mocks.fileSystem.rename.mockRejectedValueOnce(discardFailure);
+    await expect(
+      state.toolchain.provision({ replaceExisting: true })
+    ).rejects.toBe(discardFailure);
+    expect(await exists(marker)).toBe(true);
+
+    // The venv vanished between the presence check and the move: nothing to discard.
+    mocks.fileSystem.rename.mockRejectedValueOnce(
+      Object.assign(new Error("gone"), { code: "ENOENT" })
+    );
+    await expect(
+      state.toolchain.provision({ replaceExisting: true })
+    ).resolves.toBe(python);
+    return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+  });
+
+  it("passes uv its own settings and proxies, Graphify only the base allow-list", () => {
+    const names = [
+      "UV_INDEX_URL",
+      "XDG_CACHE_HOME",
+      "HTTPS_PROXY",
+      "no_proxy",
+      "SSL_CERT_DIR",
+      "UVICORN_PORT",
+    ];
+    for (const name of names) process.env[name] = `value-${name}`;
+    try {
+      const uv = graphProcessEnvironment({}, "uv");
+      const graphify = graphProcessEnvironment();
+      for (const name of names.slice(0, 5)) {
+        expect(uv[name], name).toBe(`value-${name}`);
+        expect(graphify[name], name).toBeUndefined();
+      }
+      return expect(uv["UVICORN_PORT"]).toBeUndefined();
+    } finally {
+      for (const name of names) delete process.env[name];
+    }
   });
 
   it("names the venv by Python minor and lock digest, shared with other DarkFactory repos", async () => {
@@ -3558,9 +3647,10 @@ describe("pinned Graphify toolchain", () => {
     mocks.fileSystem.rename.mockRejectedValueOnce(
       Object.assign(new Error("exists"), { code: "EEXIST" })
     );
-    const python = await state.toolchain.provision({ replaceExisting: false });
-    expect(await stagingEntries(state.cacheRoot)).toEqual([]);
-    return expect(await exists(python)).toBe(false);
+    await expect(
+      state.toolchain.provision({ replaceExisting: false })
+    ).rejects.toThrow("Graphify venv installed by another run has no Python");
+    return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
   });
 
   return it("rejects an oversized lock or one without exactly one graphifyy pin before running uv", async () => {

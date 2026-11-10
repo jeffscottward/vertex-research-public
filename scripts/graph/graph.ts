@@ -62,6 +62,8 @@ export type GraphCommandOptions = Readonly<{
   timeoutMs?: number;
   maxOutputBytes?: number;
   environment?: Readonly<Record<string, string>>;
+  // "uv" also passes uv's own settings (UV_*, XDG_*, proxies) to the child.
+  environmentProfile?: "graphify" | "uv";
 }>;
 
 export type GraphCommandResult = Readonly<{
@@ -81,15 +83,15 @@ export type GraphProcess = Readonly<{
 }>;
 
 // The pinned Graphify toolchain. scripts/graph/requirements.lock pins graphifyy;
-// another Graphify on PATH (for example a newer global uv tool) builds a
-// different graph and can be much slower, so the wrapper uses PATH only at the
-// pinned version and otherwise runs a hash-locked venv.
+// the wrapper always runs it from a hash-locked venv built from that lock, never
+// a Graphify on PATH (same rule as surplus-funds-recovery scripts/graph).
 export type GraphToolchain = Readonly<{
   pinnedVersion: () => Promise<string>;
   // Python of an existing pinned venv, or null when none was provisioned yet.
   pinnedPython: () => Promise<string | null>;
-  // Builds the pinned venv and returns its Python. replaceExisting: a cached
-  // venv runs but does not report the pinned version, so it is rebuilt.
+  // Builds the pinned venv from the lock and returns its Python.
+  // replaceExisting discards a cached venv that answered with another version
+  // or an error; otherwise a venv another run installed first is kept.
   provision: (
     options: Readonly<{ replaceExisting: boolean }>
   ) => Promise<string>;
@@ -98,7 +100,7 @@ export type GraphToolchain = Readonly<{
 export type GraphDependencies = Readonly<{
   files: GraphFileSystem;
   process: GraphProcess;
-  toolchain?: GraphToolchain;
+  toolchain: GraphToolchain;
 }>;
 
 type GraphifyTool = Readonly<{
@@ -358,8 +360,12 @@ const canonicalizeHyperedge = (
 
 // Graphify AST placeholders for external names (Python `Path`, `Any`, ...) have
 // no source metadata, so only the raw id tells them apart. The id embeds the
-// random snapshot path before `_active_`; the rest is stable across runs.
-// Same rule as surplus-funds-recovery scripts/graph/graph.civet.
+// random snapshot directory (system.ts: `darkfactory-graph-<hash16>-<random6>`
+// then `active/`); the rest is the stable repository path and name. Anchoring
+// on that directory keeps an `active` path segment or name in the scope.
+const SNAPSHOT_ID_PREFIX =
+  /darkfactory_graph_[0-9a-f]{16}_[0-9a-z]{6}_active_/i;
+
 const graphifyAstPlaceholderScope = (
   node: Readonly<Record<string, unknown>>,
   rawId: string
@@ -370,10 +376,8 @@ const graphifyAstPlaceholderScope = (
     node["source_location"] !== ""
   )
     return undefined;
-  const marker = "_active_";
-  const markerIndex = rawId.lastIndexOf(marker);
-  if (markerIndex === -1) return undefined;
-  return rawId.slice(markerIndex + marker.length);
+  const prefix = SNAPSHOT_ID_PREFIX.exec(rawId);
+  return prefix ? rawId.slice(prefix.index + prefix[0].length) : undefined;
 };
 
 export const calculateGraphDigest = (content: string): string => {
@@ -497,27 +501,45 @@ export const calculateSourceFingerprint = (
 const serializeManifest = (manifest: GraphManifest): string =>
   `${JSON.stringify(manifest, null, 2)}\n`;
 
+// Accepts only a whole `graphify X.Y.Z` line, so a banner or a prerelease
+// suffix in another line cannot pass as the pinned version.
+export const parseGraphifyVersionOutput = (stdout: string): string | null =>
+  stdout.match(
+    /^[ \t]*(?:graphify[ \t]+)?v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)[ \t]*\r?$/im
+  )?.[1] ?? null;
+
+// -P keeps the repository root off sys.path, so no local graphify module can
+// shadow the venv's.
+const PYTHON_MODULE_PREFIX: readonly string[] = Object.freeze([
+  "-P",
+  "-m",
+  "graphify",
+]);
+
+type VersionProbe = Readonly<{ version: string | null; timedOut: boolean }>;
+
 const inspectGraphifyVersion = async (
   dependencies: GraphDependencies,
-  command: string,
-  prefix: readonly string[]
-): Promise<string | null> => {
+  python: string
+): Promise<VersionProbe> => {
   try {
     const result = await dependencies.process.run(
-      command,
-      [...prefix, "--version"],
+      python,
+      [...PYTHON_MODULE_PREFIX, "--version"],
       {
         ...COMMAND_OPTIONS,
         timeoutMs: 30_000,
       }
     );
-    if (result.exitCode !== 0) return null;
-    const match = result.stdout
-      .trim()
-      .match(/(?:graphify\s+)?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)/i);
-    return match?.[1] ?? null;
+    return {
+      version:
+        result.exitCode === 0
+          ? parseGraphifyVersionOutput(result.stdout)
+          : null,
+      timedOut: result.timedOut === true,
+    };
   } catch {
-    return null;
+    return { version: null, timedOut: false };
   }
 };
 
@@ -537,66 +559,31 @@ export const parsePinnedGraphifyVersion = (lock: string): string => {
   return pin;
 };
 
-const PYTHON_MODULE_PREFIX: readonly string[] = Object.freeze([
-  "-m",
-  "graphify",
-]);
-const PATH_GRAPHIFY_PREFIX: readonly string[] = Object.freeze([]);
+const readPinnedVersion = async (
+  dependencies: GraphDependencies
+): Promise<string> => {
+  try {
+    return await dependencies.toolchain.pinnedVersion();
+  } catch (error) {
+    throw new Error(
+      error instanceof Error ? error.message : "Graphify lock is unreadable"
+    );
+  }
+};
 
-// Returns the Graphify to run, or the reason none can run. Without a toolchain
-// (tests, embedders) PATH Graphify is used at any version.
+// Returns the Graphify to run, or the reason none can run. Graphify always runs
+// from the hash-locked venv, never from PATH: a PATH graphify of the pinned
+// version can still carry other tree-sitter or networkx versions.
 const resolveGraphify = async (
   dependencies: GraphDependencies
 ): Promise<GraphifyTool | string> => {
-  const pathVersion = await inspectGraphifyVersion(
-    dependencies,
-    "graphify",
-    PATH_GRAPHIFY_PREFIX
-  );
   const toolchain = dependencies.toolchain;
-  if (!toolchain) {
-    return pathVersion
-      ? Object.freeze({
-          command: "graphify",
-          prefix: PATH_GRAPHIFY_PREFIX,
-          version: pathVersion,
-        })
-      : "Graphify is unavailable or returned an invalid version";
-  }
-
   let pinned: string;
   try {
-    pinned = await toolchain.pinnedVersion();
+    pinned = await readPinnedVersion(dependencies);
   } catch (error) {
-    return error instanceof Error
-      ? error.message
-      : "Graphify lock is unreadable";
+    return (error as Error).message;
   }
-  if (pathVersion === pinned) {
-    return Object.freeze({
-      command: "graphify",
-      prefix: PATH_GRAPHIFY_PREFIX,
-      version: pinned,
-    });
-  }
-
-  const pinnedTool = async (
-    python: string | null
-  ): Promise<GraphifyTool | null> => {
-    if (!python) return null;
-    const version = await inspectGraphifyVersion(
-      dependencies,
-      python,
-      PYTHON_MODULE_PREFIX
-    );
-    return version === pinned
-      ? Object.freeze({
-          command: python,
-          prefix: PYTHON_MODULE_PREFIX,
-          version: pinned,
-        })
-      : null;
-  };
 
   let existing: string | null;
   try {
@@ -604,10 +591,23 @@ const resolveGraphify = async (
   } catch {
     existing = null;
   }
-  const cached = await pinnedTool(existing);
-  if (cached) return cached;
+  if (existing) {
+    const cached = await inspectGraphifyVersion(dependencies, existing);
+    if (cached.version === pinned) {
+      return Object.freeze({
+        command: existing,
+        prefix: PYTHON_MODULE_PREFIX,
+        version: pinned,
+      });
+    }
+    // A probe that timed out says nothing about the venv (the rig may be
+    // busy, and other runs may be using it), so only a venv that answered
+    // with another version or an error is replaced.
+    if (cached.timedOut) {
+      return `Graphify ${pinned} venv did not answer its version probe in time`;
+    }
+  }
 
-  const requirement = `Graphify ${pinned} is required (PATH has ${pathVersion ?? "none"})`;
   let provisioned: string;
   try {
     provisioned = await toolchain.provision({
@@ -616,12 +616,16 @@ const resolveGraphify = async (
   } catch (error) {
     const detail =
       error instanceof Error ? error.message : "unknown provisioning failure";
-    return `${requirement} and the pinned venv failed: ${detail}`;
+    return `Graphify ${pinned} venv provisioning failed: ${detail}`;
   }
-  return (
-    (await pinnedTool(provisioned)) ??
-    `${requirement} and the pinned venv did not report it`
-  );
+  const fresh = await inspectGraphifyVersion(dependencies, provisioned);
+  return fresh.version === pinned
+    ? Object.freeze({
+        command: provisioned,
+        prefix: PYTHON_MODULE_PREFIX,
+        version: pinned,
+      })
+    : `Graphify ${pinned} venv did not report version ${pinned}`;
 };
 
 const inspectSources = async (
@@ -909,12 +913,10 @@ export const runGraphAction = async (
     return failure(action, "Graph config is missing or malformed");
   }
 
-  const graphify = await resolveGraphify(dependencies);
-  if (typeof graphify === "string") return failure(action, graphify);
-  const graphifyVersion = graphify.version;
-
-  try {
-    if (action === "build" || action === "update") {
+  if (action === "build" || action === "update") {
+    const graphify = await resolveGraphify(dependencies);
+    if (typeof graphify === "string") return failure(action, graphify);
+    try {
       return await buildOrUpdate(
         action,
         dependencies,
@@ -922,16 +924,32 @@ export const runGraphAction = async (
         configSource,
         graphify
       );
+    } catch {
+      return failure(action, `Graph ${action} inspection failed`);
     }
+  }
 
+  // check and verify compare the metadata with the pinned version first: a
+  // stale graph is reported without running or provisioning Graphify, and only
+  // verify then needs a runnable Graphify.
+  let pinned: string;
+  try {
+    pinned = await readPinnedVersion(dependencies);
+  } catch (error) {
+    return failure(action, (error as Error).message);
+  }
+
+  try {
     const freshness = await inspectFreshness(
       action,
       dependencies,
       config,
       configSource,
-      graphifyVersion
+      pinned
     );
     if (!freshness.ok || action === "check") return freshness;
+    const graphify = await resolveGraphify(dependencies);
+    if (typeof graphify === "string") return failure(action, graphify);
 
     let verified = 0;
     for (
