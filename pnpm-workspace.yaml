@@ -14,9 +14,10 @@ enableGlobalVirtualStore: false
 # default installs when it is out of date. Turbo starts one `pnpm run` per
 # task, so after a lockfile-changing pull every parallel task installed into
 # the same node_modules at once (ERR_PNPM_ENOTEMPTY, "Failed to create bin").
-# `error` stops a stale run with "Run pnpm install" instead; the root build,
-# typecheck and test:unit scripts install once before turbo (card
-# vertex-manual-turbo-stale-deps-race, 2026-11-10).
+# `error` stops a stale run with "Run pnpm install" instead. The root scripts
+# that start turbo, and verify:core and verify:coverage, run one install first
+# (scripts/install-dependencies.ts; card vertex-manual-turbo-stale-deps-race,
+# 2026-11-10).
 verifyDepsBeforeRun: error
 
 allowBuilds:

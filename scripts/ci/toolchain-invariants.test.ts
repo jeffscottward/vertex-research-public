@@ -134,20 +134,26 @@ describe("toolchain pins", () => {
   });
 
   // A manual run after a pull still works: the root scripts that start turbo
-  // install once, serially, before any task runs.
-  it("installs dependencies once before turbo in each root script that runs it", async () => {
+  // install once, serially, before any task runs. `pnpm -r`/`--filter` runs
+  // need no such step: pnpm checks once at the top and turns the check off for
+  // the scripts it starts, so only turbo starts parallel checks. The verify
+  // lanes people run by hand install first too: their first pnpm step
+  // (auth:schema:check, the coverage Vitest run) and knip would otherwise meet
+  // the stale tree. Composite scripts may install more than once (a ~0.6 s
+  // no-op when node_modules is current).
+  it("installs dependencies once before turbo and before the manual verify lanes", async () => {
     const { scripts = {} } = JSON.parse(
       await read("package.json")
     ) as Readonly<{
       scripts?: Readonly<Record<string, string>>;
     }>;
     const install = "bun scripts/install-dependencies.ts";
-    const turbo = Object.entries(scripts).filter(([, command]) =>
-      /\bturbo run\b/u.test(command)
-    );
-    expect(turbo.map(([name]) => name)).toContain("test:unit");
-    for (const [name, command] of turbo) {
-      const steps = command.split(" && ");
+    const turbo = Object.entries(scripts)
+      .filter(([, command]) => /\bturbo run\b/u.test(command))
+      .map(([name]) => name);
+    expect(turbo).toContain("test:unit");
+    for (const name of [...turbo, "verify:core", "verify:coverage"]) {
+      const steps = (scripts[name] ?? "").split(" && ");
       expect(steps[0], name).toBe(install);
       expect(
         steps.filter((step) => step === install),
