@@ -120,6 +120,42 @@ describe("toolchain pins", () => {
     return expect(workspace.enableGlobalVirtualStore).toBe(false);
   });
 
+  // pnpm 11 checks node_modules before each `pnpm run`/`pnpm exec` and by
+  // default installs when it is out of date. Turbo starts one `pnpm run` per
+  // task, so after a lockfile-changing pull every parallel task installed into
+  // the same node_modules at once ("Failed to create bin", ERR_PNPM_ENOTEMPTY;
+  // card vertex-manual-turbo-stale-deps-race). `error` stops a stale run with
+  // "Run pnpm install" instead.
+  it("stops a stale pnpm run instead of installing in each parallel task", async () => {
+    const workspace = parse(await read("pnpm-workspace.yaml")) as Readonly<{
+      verifyDepsBeforeRun?: unknown;
+    }>;
+    return expect(workspace.verifyDepsBeforeRun).toBe("error");
+  });
+
+  // A manual run after a pull still works: the root scripts that start turbo
+  // install once, serially, before any task runs.
+  it("installs dependencies once before turbo in each root script that runs it", async () => {
+    const { scripts = {} } = JSON.parse(
+      await read("package.json")
+    ) as Readonly<{
+      scripts?: Readonly<Record<string, string>>;
+    }>;
+    const install = "bun scripts/install-dependencies.ts";
+    const turbo = Object.entries(scripts).filter(([, command]) =>
+      /\bturbo run\b/u.test(command)
+    );
+    expect(turbo.map(([name]) => name)).toContain("test:unit");
+    for (const [name, command] of turbo) {
+      const steps = command.split(" && ");
+      expect(steps[0], name).toBe(install);
+      expect(
+        steps.filter((step) => step === install),
+        name
+      ).toHaveLength(1);
+    }
+  });
+
   return it("parses only exact pins from the [tools] table", () => {
     expect(
       parseMiseToolchain(
