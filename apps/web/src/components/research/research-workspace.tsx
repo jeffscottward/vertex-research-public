@@ -45,7 +45,7 @@ const ModulesContent = ({
   return (
     <section aria-label="Module catalog" className="vx-work-section">
       <div className="vx-section-toolbar">
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           Read-only catalog · no module activation controls
         </p>
         <Button

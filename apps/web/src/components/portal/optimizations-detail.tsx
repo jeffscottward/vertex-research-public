@@ -216,7 +216,7 @@ const BestParams = ({ run }: { readonly run: Run }) => {
                   return (
                     <TableRow className="border-border border-b" key={key}>
                       <TableHead
-                        className={`${headCell} font-mono`}
+                        className={`h-auto whitespace-normal ${headCell} font-mono`}
                         scope="row"
                       >
                         {key}
@@ -248,7 +248,7 @@ const OosRow = ({
   readonly report: OosReport;
 }) => (
   <TableRow className="border-border border-b" data-oos-row={label}>
-    <TableHead className={headCell} scope="row">
+    <TableHead className={`h-auto whitespace-normal ${headCell}`} scope="row">
       {label}
     </TableHead>
     <TableCell className={numCell}>{report.trialIndex}</TableCell>
@@ -410,7 +410,10 @@ const OosReportSection = ({ run }: { readonly run: Run }) => {
                           className="border-border border-b"
                           key={market}
                         >
-                          <TableHead className={headCell} scope="row">
+                          <TableHead
+                            className={`h-auto whitespace-normal ${headCell}`}
+                            scope="row"
+                          >
                             {market}
                           </TableHead>
                           <TableCell className={`${cell} font-mono`}>
@@ -545,7 +548,10 @@ const MarketRanking = ({ run }: { readonly run: Run }) => {
               return (
                 <TableRow className="border-border border-b" key={row.market}>
                   <TableCell className={numCell}>{row.rank ?? "—"}</TableCell>
-                  <TableHead className={headCell} scope="row">
+                  <TableHead
+                    className={`h-auto whitespace-normal ${headCell}`}
+                    scope="row"
+                  >
                     {row.market}
                   </TableHead>
                   <TableCell className={numCell}>
@@ -944,7 +950,10 @@ const ProfileTable = ({
             {profile.bins.map((bin, index) => {
               return (
                 <TableRow className="border-border border-b" key={index}>
-                  <TableHead className={`${headCell} font-mono`} scope="row">
+                  <TableHead
+                    className={`h-auto whitespace-normal ${headCell} font-mono`}
+                    scope="row"
+                  >
                     {formatBinRange(bin)}
                   </TableHead>
                   <TableCell className={numCell}>{bin.count}</TableCell>
@@ -1017,7 +1026,10 @@ const Heatmap = ({
             {heatmap.yBins.map((bin, row) => {
               return (
                 <TableRow className="border-border border-b" key={row}>
-                  <TableHead className={`${headCell} font-mono`} scope="row">
+                  <TableHead
+                    className={`h-auto whitespace-normal ${headCell} font-mono`}
+                    scope="row"
+                  >
                     {formatBinRange(bin)}
                   </TableHead>
                   {(heatmap.meanScores[row] ?? []).map((value, column) => {
@@ -1257,7 +1269,7 @@ const FoldsPanel = ({ run }: { readonly run: Run }) => (
                   key={fold.index}
                 >
                   <TableHead
-                    className={`${headCell} text-right font-mono`}
+                    className={`h-auto whitespace-normal ${headCell} text-right font-mono`}
                     scope="row"
                   >
                     {fold.index}

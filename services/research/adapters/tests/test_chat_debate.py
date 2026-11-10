@@ -341,7 +341,7 @@ def actual_retained(f):
     return job, consumer, context, result, retained
 
 
-@pytest.mark.parametrize("change", ["v1-with-debate", "missing-debate", "unknown-profile", "extra-field",
+@pytest.mark.parametrize("change", ["v1-with-debate", "native-with-debate", "missing-debate", "unknown-profile", "extra-field",
                                   "missing-field", "extra-plan-field", "wrong-plan-profile",
                                   "noncanonical", "response-hash", "request-hash", "dispatch-proof", "execution"])
 def test_real_control_stage_rejects_version_contamination_and_keeps_provenance_guards(monkeypatch, change):
@@ -350,6 +350,7 @@ def test_real_control_stage_rejects_version_contamination_and_keeps_provenance_g
     value = json.loads(retained.content)
     proof = deepcopy(result.completion_proof)
     if change == "v1-with-debate": value["profile"] = "vertex-research-chat-advisory-v1"
+    elif change == "native-with-debate": value["profile"] = "vertex-research-chat-native-evidence-advisory-v1"
     elif change == "missing-debate": del value["debate"]
     elif change == "unknown-profile": value["profile"] = "unrecognized-profile"
     elif change == "extra-field": value["derived_context"] = f.derived
@@ -371,6 +372,26 @@ def test_real_control_stage_rejects_version_contamination_and_keeps_provenance_g
             deadline_ns=job.deadline, cancellation=job.cancel)
     assert not any(method == "stageArtifact" for method, _ in f.control.calls)
     assert f.control.governed == {} and f.control.publications == []
+
+
+@pytest.mark.parametrize("profile", ["vertex-research-chat-advisory-v1", "vertex-research-chat-native-evidence-advisory-v1"])
+def test_real_control_stage_admits_exact_v1_keys_under_each_v1_discriminator(monkeypatch, profile):
+    # chat_output.retain_chat_advisory writes the native-evidence advisory with
+    # exactly the v1 keys under its own discriminator; the stage must admit it.
+    f = debate_boundary(monkeypatch)
+    job, consumer, context, result, retained = actual_retained(f)
+    value = json.loads(retained.content)
+    del value["debate"]
+    value["profile"] = profile
+    content = f.authority.encode(value)
+    job.control.artifacts.stage_chat_advisory(collection_id="collection", artifact_id="advisory-1",
+        content=content, maximum_content_bytes=context.maximum_bytes,
+        rights_policy_id=context.rights_policy_id, rights_version=context.rights_version,
+        lineage_artifact_ids=("evidence-artifact",), completion_request=result.completion_request,
+        completion_response=result.completion_response, completion_proof=result.completion_proof,
+        deadline_ns=job.deadline, cancellation=job.cancel)
+    stages = [fields for method, fields in f.control.calls if method == "stageArtifact"]
+    assert [b64decode(fields["contentBase64"]) for fields in stages] == [content]
 
 
 def test_retention_independently_rechecks_exact_approved_debate_recipe(monkeypatch):

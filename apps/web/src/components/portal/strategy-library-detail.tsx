@@ -465,7 +465,7 @@ const SchemaTable = ({
                 key={param.name}
               >
                 <TableHead
-                  className={`${headCell} whitespace-normal font-mono`}
+                  className={`h-auto ${headCell} whitespace-normal font-mono`}
                   scope="row"
                 >
                   {param.name}
@@ -709,7 +709,7 @@ const ParametersTab = ({
                       key={preset.id}
                     >
                       <TableHead
-                        className={`${headCell} whitespace-normal`}
+                        className={`h-auto ${headCell} whitespace-normal`}
                         scope="row"
                       >
                         {preset.name}
@@ -981,7 +981,7 @@ const BacktestsTab = ({
                     key={row.id}
                   >
                     <TableHead
-                      className={`${headCell} whitespace-normal`}
+                      className={`h-auto ${headCell} whitespace-normal`}
                       scope="row"
                     >
                       {row.strategy}

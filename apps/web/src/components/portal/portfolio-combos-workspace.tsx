@@ -355,7 +355,7 @@ const ComboReport = ({ combo }: Readonly<{ combo: BacktestCombo }>) => (
         <TableBody>
           {combo.slots.map((slot, row) => (
             <TableRow key={slot.runId}>
-              <TableHead className="whitespace-normal" scope="row">
+              <TableHead className="h-auto whitespace-normal" scope="row">
                 {row + 1}
               </TableHead>
               {combo.slots.map((other, column) => (
