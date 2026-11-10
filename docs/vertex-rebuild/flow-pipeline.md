@@ -50,6 +50,11 @@ share that budget, and `/charts` keeps priority:
   (`pacing.recent_requests`, `pacing.backoff_seconds`). It fetches only when at most 2 requests are in
   the current window and no back-off is running, so at least 2 slots stay free for `/charts`. If the
   health read fails, it does not fetch.
+- The wait behind a busy window has a limit. A symbol whose newest tick sample is older than 360 s
+  (or that has none) fetches as soon as the window has room for its two requests (at most 4 in the
+  window), so a steady client such as a long bar backfill cannot keep ticks stale (stale on `/flow`
+  means older than 600 s). A back-off still stops every tick fetch. The operator seed
+  (`seed: true`) always keeps the limit of 2.
 - Depth uses its own subscription pacer (one at a time, at least 3 s apart) and does not count
   against the historical budget.
 - The service pacer remains the hard limit: it never sends more than 6 per 120 s, whatever the
