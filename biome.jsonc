@@ -18,6 +18,8 @@
       "!!packages/api/src/fixtures/day-trader-skill",
       // Written by scripts/research/nautilus-golden.ts and nautilus-parity.ts; regenerate, do not reformat.
       "!!services/research/tests/fixtures/nautilus_backtest/golden.json",
+      // Written by scripts/research/academy-golden.ts; regenerate, do not reformat.
+      "!!services/research/tests/fixtures/nautilus_backtest/academy-golden.json",
       "!!research/backtests/nautilus-parity/report.json",
       // Frozen exec-node portfolio-ui server with a minimal owned edit; test_exec_node.py pins its bytes.
       "!!infra/quant-vps/exec-node/runtime/portfolio-ui/server.mjs",

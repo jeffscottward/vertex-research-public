@@ -312,7 +312,7 @@ export const runCase = (plan: CasePlan, series: GoldenSeries) => {
 };
 
 /** Builds academy-golden.json (text with a trailing newline). Deterministic; one case per line. */
-export const buildAcademyGolden = (): string => {
+const buildAcademyGolden = (): string => {
   const series = new Map(
     SERIES_PLANS.map((plan) => [plan.id, buildSeries(plan)])
   );
