@@ -506,7 +506,7 @@ const scriptedFetch =
     if (url.includes("CIK0001067983")) return jsonResponse({ facts: {} });
     if (url.includes("CIK0000000042")) return jsonResponse({}, 404);
     if (url.includes("CIK0000000043")) return jsonResponse({}, 500);
-    if (url.includes("finance.yahoo.com"))
+    if (new URL(url).hostname.endsWith(".finance.yahoo.com"))
       return jsonResponse(
         yahooChart([10, 11, 12], { meta: { longName: "From Yahoo" } })
       );
@@ -596,7 +596,8 @@ describe("createDeepValueSources", () => {
     expect((await sources.secTickerMap()).size).toBe(0);
     const failing = testIo({
       fetch: async (url) => {
-        if (url.includes("sec.gov")) throw new Error("offline");
+        if (/(^|\.)sec\.gov$/.test(new URL(url).hostname))
+          throw new Error("offline");
         throw "yahoo down";
       },
     });

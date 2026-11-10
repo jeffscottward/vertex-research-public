@@ -226,7 +226,8 @@ const market = (): Readonly<{
     [...companies.values()].map((company) => [company.cik, company])
   );
   const fetch: LensFetch = async (url) => {
-    if (url.includes("api.nasdaq.com")) return jsonResponse({ data: { rows } });
+    if (new URL(url).hostname === "api.nasdaq.com")
+      return jsonResponse({ data: { rows } });
     if (url.includes("company_tickers.json")) return jsonResponse(tickers);
     if (url.includes("companyfacts")) {
       const company = byCik.get(Number(url.split("CIK")[1]?.split(".")[0]));

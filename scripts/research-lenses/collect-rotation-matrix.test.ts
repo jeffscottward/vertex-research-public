@@ -285,7 +285,8 @@ const market = (): Readonly<{
   while (rows.length < 1000)
     rows.push({ marketCap: "1000", symbol: `F${rows.length}` });
   const fetch: LensFetch = async (url) => {
-    if (url.includes("api.nasdaq.com")) return jsonResponse({ data: { rows } });
+    if (new URL(url).hostname === "api.nasdaq.com")
+      return jsonResponse({ data: { rows } });
     const symbol = decodeURIComponent(
       url.split("/chart/")[1]?.split("?")[0] ?? ""
     );
@@ -372,7 +373,9 @@ describe("runRotationMatrix", () => {
     });
     expect(await runRotationMatrix(io)).toBe(0);
     expect(
-      requests.filter((url) => url.includes("finance.yahoo.com"))
+      requests.filter((url) =>
+        new URL(url).hostname.endsWith(".finance.yahoo.com")
+      )
     ).toHaveLength(5);
     expect(JSON.parse(files.get("/out/latest.json") ?? "").universeSize).toBe(
       5
