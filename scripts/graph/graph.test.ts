@@ -1619,6 +1619,9 @@ const pinnedFixture = (
     cachedPython?: string | null;
     cachedVersion?: string | null;
     cachedTimedOut?: boolean;
+    // The cached venv answers the pinned version from its second probe on
+    // (another run repaired it during this run's install).
+    cachedRecovers?: boolean;
     provisionVersion?: string | null;
     provisionError?: Error;
     pinnedError?: Error;
@@ -1653,6 +1656,8 @@ const pinnedFixture = (
           if (command === options.cachedPython && options.cachedTimedOut)
             return { exitCode: 1, stderr: "", stdout: "", timedOut: true };
           const version = versions.get(command);
+          if (command === options.cachedPython && options.cachedRecovers)
+            versions.set(command, "2.4.0");
           return version
             ? { exitCode: 0, stderr: "", stdout: `graphify ${version}\n` }
             : { exitCode: 1, stderr: "ModuleNotFoundError", stdout: "" };
@@ -1672,7 +1677,7 @@ const pinnedFixture = (
       },
       provision: async ({ replaceExisting }) => {
         provisioned.push(FRESH_PYTHON);
-        replaceRequests.push(replaceExisting);
+        replaceRequests.push(await replaceExisting());
         if (options.provisionError) throw options.provisionError;
         versions.set(FRESH_PYTHON, options.provisionVersion ?? null);
         return FRESH_PYTHON;
@@ -1783,6 +1788,43 @@ describe("pinned Graphify toolchain", () => {
       // A cold uv-managed Python can take seconds to import Graphify.
       expect(new Set(state.versionProbeTimeouts)).toEqual(new Set([30_000]));
     }
+
+    // Asked again after the install: a venv another run repaired is kept.
+    const repaired = pinnedFixture({
+      cachedPython: CACHED_PYTHON,
+      cachedRecovers: true,
+      cachedVersion: "1.0.0",
+      provisionVersion: "2.4.0",
+    });
+    await expect(
+      runGraphAction("build", repaired.dependencies)
+    ).resolves.toMatchObject({ ok: true });
+    expect(repaired.replaceRequests).toEqual([false]);
+    // A recheck that times out does not replace either.
+    const busy = pinnedFixture({
+      cachedPython: CACHED_PYTHON,
+      cachedVersion: "1.0.0",
+      provisionVersion: "2.4.0",
+    });
+    let probes = 0;
+    await expect(
+      runGraphAction("build", {
+        ...busy.dependencies,
+        process: {
+          run: async (command, rawArguments, commandOptions) => {
+            if (command === CACHED_PYTHON) probes += 1;
+            return command === CACHED_PYTHON && probes === 2
+              ? { exitCode: 1, stderr: "", stdout: "", timedOut: true }
+              : busy.dependencies.process.run(
+                  command,
+                  rawArguments,
+                  commandOptions
+                );
+          },
+        },
+      })
+    ).resolves.toMatchObject({ ok: true });
+    expect(busy.replaceRequests).toEqual([false]);
 
     const unreadableCache = pinnedFixture({ provisionVersion: "2.4.0" });
     await expect(

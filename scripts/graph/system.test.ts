@@ -3332,6 +3332,8 @@ describe("Graphify Node process timeouts", () => {
 });
 
 describe("pinned Graphify toolchain", () => {
+  const KEEP_EXISTING = { replaceExisting: async () => false };
+  const REPLACE_EXISTING = { replaceExisting: async () => true };
   const LOCK = "graphifyy==2.4.0 \\\n    --hash=sha256:abc\n";
 
   const toolchainFixture = async (lock = LOCK) => {
@@ -3413,7 +3415,7 @@ describe("pinned Graphify toolchain", () => {
 
     await expect(state.toolchain.pinnedVersion()).resolves.toBe("2.4.0");
     await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
-    const python = await state.toolchain.provision({ replaceExisting: false });
+    const python = await state.toolchain.provision(KEEP_EXISTING);
 
     expect(dirname(dirname(dirname(python)))).toBe(state.cacheRoot);
     expect(python.endsWith(join("bin", "python"))).toBe(true);
@@ -3448,41 +3450,41 @@ describe("pinned Graphify toolchain", () => {
 
     await writeFile(state.lockPath, "graphifyy==2.5.0\n");
     await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
-    return expect(
-      await state.toolchain.provision({ replaceExisting: false })
-    ).not.toBe(python);
+    return expect(await state.toolchain.provision(KEEP_EXISTING)).not.toBe(
+      python
+    );
   });
 
   it("keeps a venv another run installed first and rebuilds one whose Python vanished", async () => {
     const state = await toolchainFixture();
-    const python = await state.toolchain.provision({ replaceExisting: false });
+    const python = await state.toolchain.provision(KEEP_EXISTING);
 
-    await expect(
-      state.toolchain.provision({ replaceExisting: false })
-    ).resolves.toBe(python);
+    await expect(state.toolchain.provision(KEEP_EXISTING)).resolves.toBe(
+      python
+    );
     expect(await stagingEntries(state.cacheRoot)).toEqual([]);
 
     await rm(python);
     await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
-    await expect(
-      state.toolchain.provision({ replaceExisting: false })
-    ).resolves.toBe(python);
+    await expect(state.toolchain.provision(KEEP_EXISTING)).resolves.toBe(
+      python
+    );
     return expect(await exists(python)).toBe(true);
   });
 
   it("rebuilds a cached venv that runs but reports another version", async () => {
     const state = await toolchainFixture();
-    const python = await state.toolchain.provision({ replaceExisting: false });
+    const python = await state.toolchain.provision(KEEP_EXISTING);
     const marker = join(dirname(dirname(python)), "broken-install");
     await writeFile(marker, "");
 
     // Without replaceExisting an installed venv wins (a concurrent first run).
-    await state.toolchain.provision({ replaceExisting: false });
+    await state.toolchain.provision(KEEP_EXISTING);
     expect(await exists(marker)).toBe(true);
 
-    await expect(
-      state.toolchain.provision({ replaceExisting: true })
-    ).resolves.toBe(python);
+    await expect(state.toolchain.provision(REPLACE_EXISTING)).resolves.toBe(
+      python
+    );
     expect(await exists(marker)).toBe(false);
     expect(await exists(python)).toBe(true);
     return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
@@ -3493,7 +3495,7 @@ describe("pinned Graphify toolchain", () => {
     state.beforeInstall.push(() =>
       writeFile(state.lockPath, "graphifyy==9.9.9\n")
     );
-    const python = await state.toolchain.provision({ replaceExisting: false });
+    const python = await state.toolchain.provision(KEEP_EXISTING);
     expect(state.installedLocks).toEqual([LOCK]);
     await writeFile(state.lockPath, LOCK);
     return expect(state.toolchain.pinnedPython()).resolves.toBe(python);
@@ -3506,38 +3508,38 @@ describe("pinned Graphify toolchain", () => {
       await mkdir(join(String(to), "lib"), { recursive: true });
       throw Object.assign(new Error("exists"), { code: "ENOTEMPTY" });
     });
-    await expect(
-      state.toolchain.provision({ replaceExisting: false })
-    ).rejects.toThrow("Graphify venv installed by another run has no Python");
+    await expect(state.toolchain.provision(KEEP_EXISTING)).rejects.toThrow(
+      "Graphify venv installed by another run has no Python"
+    );
     return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
   });
 
   it("moves a replaced venv aside and keeps it when the new install fails", async () => {
     const state = await toolchainFixture();
-    const python = await state.toolchain.provision({ replaceExisting: false });
+    const python = await state.toolchain.provision(KEEP_EXISTING);
     const marker = join(dirname(dirname(python)), "old-install");
     await writeFile(marker, "");
 
     state.failures.push({ exitCode: 1, stderr: "error: index unreachable\n" });
-    await expect(
-      state.toolchain.provision({ replaceExisting: true })
-    ).rejects.toThrow("uv venv failed (exit 1): error: index unreachable");
+    await expect(state.toolchain.provision(REPLACE_EXISTING)).rejects.toThrow(
+      "uv venv failed (exit 1): error: index unreachable"
+    );
     expect(await exists(marker)).toBe(true);
 
     const discardFailure = Object.assign(new Error("busy"), { code: "EBUSY" });
     mocks.fileSystem.rename.mockRejectedValueOnce(discardFailure);
-    await expect(
-      state.toolchain.provision({ replaceExisting: true })
-    ).rejects.toBe(discardFailure);
+    await expect(state.toolchain.provision(REPLACE_EXISTING)).rejects.toBe(
+      discardFailure
+    );
     expect(await exists(marker)).toBe(true);
 
     // The venv vanished between the presence check and the move: nothing to discard.
     mocks.fileSystem.rename.mockRejectedValueOnce(
       Object.assign(new Error("gone"), { code: "ENOENT" })
     );
-    await expect(
-      state.toolchain.provision({ replaceExisting: true })
-    ).resolves.toBe(python);
+    await expect(state.toolchain.provision(REPLACE_EXISTING)).resolves.toBe(
+      python
+    );
     return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
   });
 
@@ -3564,9 +3566,49 @@ describe("pinned Graphify toolchain", () => {
     }
   });
 
+  it("asks whether to replace only after a good install, and never for a venv without Python", async () => {
+    const state = await toolchainFixture();
+    const order: string[] = [];
+    const decide = {
+      replaceExisting: async () => {
+        order.push(`decide after ${state.uvCalls.length} uv calls`);
+        return false;
+      },
+    };
+    const python = await state.toolchain.provision(decide);
+    expect(order).toEqual([]);
+
+    await state.toolchain.provision(decide);
+    expect(order).toEqual(["decide after 4 uv calls"]);
+
+    state.failures.push({ exitCode: 1, stderr: "error: offline\n" });
+    await expect(state.toolchain.provision(decide)).rejects.toThrow(
+      "uv venv failed (exit 1): error: offline"
+    );
+    expect(order).toHaveLength(1);
+    return expect(await exists(python)).toBe(true);
+  });
+
+  it("keeps a good install when the moved-aside venv cannot be deleted yet", async () => {
+    const state = await toolchainFixture();
+    const python = await state.toolchain.provision(KEEP_EXISTING);
+    mocks.fileSystem.rm.mockRejectedValueOnce(
+      Object.assign(new Error("busy"), { code: "EBUSY" })
+    );
+    await expect(state.toolchain.provision(REPLACE_EXISTING)).resolves.toBe(
+      python
+    );
+    expect(await exists(python)).toBe(true);
+    return expect(
+      (await stagingEntries(state.cacheRoot)).map((name) =>
+        name.startsWith(".stale-")
+      )
+    ).toEqual([true]);
+  });
+
   it("names the venv by Python minor and lock digest, shared with other DarkFactory repos", async () => {
     const state = await toolchainFixture();
-    const python = await state.toolchain.provision({ replaceExisting: false });
+    const python = await state.toolchain.provision(KEEP_EXISTING);
     const key = createHash("sha256")
       .update(`3.12\0${LOCK}`)
       .digest("hex")
@@ -3580,16 +3622,19 @@ describe("pinned Graphify toolchain", () => {
     const state = await toolchainFixture();
     await mkdir(state.cacheRoot, { recursive: true });
     const old = join(state.cacheRoot, ".provision-1-interrupted");
+    const oldDiscard = join(state.cacheRoot, ".stale-1-undeleted");
     const recent = join(state.cacheRoot, ".provision-2-running");
     const other = join(state.cacheRoot, "unrelated-old");
-    for (const path of [old, recent, other])
+    for (const path of [old, oldDiscard, recent, other])
       await mkdir(join(path, "bin"), { recursive: true });
     const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
     await utimes(old, twoDaysAgo, twoDaysAgo);
+    await utimes(oldDiscard, twoDaysAgo, twoDaysAgo);
     await utimes(other, twoDaysAgo, twoDaysAgo);
 
-    await state.toolchain.provision({ replaceExisting: false });
+    await state.toolchain.provision(KEEP_EXISTING);
     expect(await exists(old)).toBe(false);
+    expect(await exists(oldDiscard)).toBe(false);
     expect(await exists(recent)).toBe(true);
     expect(await exists(other)).toBe(true);
 
@@ -3599,7 +3644,7 @@ describe("pinned Graphify toolchain", () => {
       ".provision-3-gone",
       ".provision-2-running",
     ]);
-    await state.toolchain.provision({ replaceExisting: false });
+    await state.toolchain.provision(KEEP_EXISTING);
     return expect(await exists(recent)).toBe(false);
   });
 
@@ -3609,9 +3654,7 @@ describe("pinned Graphify toolchain", () => {
       exitCode: 2,
       stderr: "warning: slow\nerror: no interpreter for 3.12\n",
     });
-    await expect(
-      state.toolchain.provision({ replaceExisting: false })
-    ).rejects.toThrow(
+    await expect(state.toolchain.provision(KEEP_EXISTING)).rejects.toThrow(
       "uv venv failed (exit 2): error: no interpreter for 3.12"
     );
 
@@ -3619,14 +3662,12 @@ describe("pinned Graphify toolchain", () => {
       { exitCode: 0, stderr: "" },
       { exitCode: 1, stderr: "" }
     );
-    await expect(
-      state.toolchain.provision({ replaceExisting: false })
-    ).rejects.toThrow("uv pip install failed (exit 1): is uv on PATH?");
+    await expect(state.toolchain.provision(KEEP_EXISTING)).rejects.toThrow(
+      "uv pip install failed (exit 1): is uv on PATH?"
+    );
 
     state.failures.push({ exitCode: 3, stderr: `error: ${"x".repeat(400)}\n` });
-    await expect(
-      state.toolchain.provision({ replaceExisting: false })
-    ).rejects.toThrow(
+    await expect(state.toolchain.provision(KEEP_EXISTING)).rejects.toThrow(
       new Error(`uv venv failed (exit 3): error: ${"x".repeat(293)}`)
     );
     expect(await stagingEntries(state.cacheRoot)).toEqual([]);
@@ -3639,17 +3680,17 @@ describe("pinned Graphify toolchain", () => {
       code: "EROFS",
     });
     mocks.fileSystem.rename.mockRejectedValueOnce(failure);
-    await expect(
-      state.toolchain.provision({ replaceExisting: false })
-    ).rejects.toBe(failure);
+    await expect(state.toolchain.provision(KEEP_EXISTING)).rejects.toBe(
+      failure
+    );
     expect(await stagingEntries(state.cacheRoot)).toEqual([]);
 
     mocks.fileSystem.rename.mockRejectedValueOnce(
       Object.assign(new Error("exists"), { code: "EEXIST" })
     );
-    await expect(
-      state.toolchain.provision({ replaceExisting: false })
-    ).rejects.toThrow("Graphify venv installed by another run has no Python");
+    await expect(state.toolchain.provision(KEEP_EXISTING)).rejects.toThrow(
+      "Graphify venv installed by another run has no Python"
+    );
     return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
   });
 
@@ -3665,9 +3706,9 @@ describe("pinned Graphify toolchain", () => {
     );
 
     const unpinned = await toolchainFixture("numpy==2.5.1\n");
-    await expect(
-      unpinned.toolchain.provision({ replaceExisting: false })
-    ).rejects.toThrow("Graphify lock must pin exactly one graphifyy version");
+    await expect(unpinned.toolchain.provision(KEEP_EXISTING)).rejects.toThrow(
+      "Graphify lock must pin exactly one graphifyy version"
+    );
     expect(oversized.uvCalls).toEqual([]);
     return expect(unpinned.uvCalls).toEqual([]);
   });

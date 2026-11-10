@@ -1151,7 +1151,9 @@ export const createGraphToolchain = (
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
       throw error;
     }
-    await rm(stale, { force: true, recursive: true });
+    // The path is free; a venv that cannot be deleted now is a leftover the
+    // sweep removes later.
+    await rm(stale, { force: true, recursive: true }).catch(() => undefined);
   };
   const runUv = async (
     arguments_: readonly string[],
@@ -1213,7 +1215,7 @@ export const createGraphToolchain = (
         // uv-managed Python), which cannot recover.
         if (
           (await isPresent(venv)) &&
-          (replaceExisting || !(await isPresent(pythonOf(venv))))
+          (!(await isPresent(pythonOf(venv))) || (await replaceExisting()))
         )
           await discard(venv);
         try {

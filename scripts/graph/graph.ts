@@ -89,11 +89,13 @@ export type GraphToolchain = Readonly<{
   pinnedVersion: () => Promise<string>;
   // Python of an existing pinned venv, or null when none was provisioned yet.
   pinnedPython: () => Promise<string | null>;
-  // Builds the pinned venv from the lock and returns its Python.
-  // replaceExisting discards a cached venv that answered with another version
-  // or an error; otherwise a venv another run installed first is kept.
+  // Builds the pinned venv from the lock and returns its Python. After the
+  // install, replaceExisting decides whether a cached venv is still broken and
+  // must be discarded (asked then, not before the minutes-long install, so a
+  // venv another run repaired meanwhile is kept); otherwise a venv another run
+  // installed first is kept.
   provision: (
-    options: Readonly<{ replaceExisting: boolean }>
+    options: Readonly<{ replaceExisting: () => Promise<boolean> }>
   ) => Promise<string>;
 }>;
 
@@ -501,8 +503,9 @@ export const calculateSourceFingerprint = (
 const serializeManifest = (manifest: GraphManifest): string =>
   `${JSON.stringify(manifest, null, 2)}\n`;
 
-// Accepts only a whole `graphify X.Y.Z` line, so a banner or a prerelease
-// suffix in another line cannot pass as the pinned version.
+// Accepts only a line that is a whole version (`graphify X.Y.Z`, `X.Y.Z` or
+// `vX.Y.Z`), so a banner or a prerelease suffix cannot pass as the pinned
+// version; the first such line wins.
 export const parseGraphifyVersionOutput = (stdout: string): string | null =>
   stdout.match(
     /^[ \t]*(?:graphify[ \t]+)?v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)[ \t]*\r?$/im
@@ -611,7 +614,11 @@ const resolveGraphify = async (
   let provisioned: string;
   try {
     provisioned = await toolchain.provision({
-      replaceExisting: existing !== null,
+      replaceExisting: async () => {
+        if (existing === null) return false;
+        const recheck = await inspectGraphifyVersion(dependencies, existing);
+        return !recheck.timedOut && recheck.version !== pinned;
+      },
     });
   } catch (error) {
     const detail =
