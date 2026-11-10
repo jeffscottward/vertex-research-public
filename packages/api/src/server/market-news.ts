@@ -220,11 +220,17 @@ const makeRoom = (now: number): void => {
     sourceCache.delete(oldest);
 };
 
-/** A source not read on this load (IBKR budget spent or its 5 s ran out); never cached or shown. */
+/**
+ * A source not read on this load; never shown. `remember`: cache the skip like a failure (60 s),
+ * so the next load spends its IBKR reads on other symbols (IBKR ran past its 5 s). Without it
+ * (IBKR budget spent) nothing is cached and the next load may ask.
+ */
 export class SourceSkipped extends Error {
-  constructor() {
+  readonly remember: boolean;
+  constructor(remember = false) {
     super("source skipped for this load");
     this.name = "SourceSkipped";
+    this.remember = remember;
   }
 }
 
@@ -264,7 +270,7 @@ export const cachedSource = async <T>(
   try {
     value = await load();
   } catch (error) {
-    if (!(error instanceof SourceSkipped))
+    if (!(error instanceof SourceSkipped) || error.remember)
       remember({ error, ok: false, until: now + failureTtlMs(error) });
     throw error;
   }
@@ -311,9 +317,18 @@ const loadIbkrHeadlines = async (
 ): Promise<MarketNewsHeadline[]> => {
   if (load.ibkrReads <= 0) throw new SourceSkipped();
   load.ibkrReads -= 1;
+  // The history client aborts its request only when our timeout fires, so an aborted signal
+  // means IBKR ran past the budget (not a service failure).
+  const doFetch = options.fetch ?? ((url, init) => globalThis.fetch(url, init));
+  let signal: AbortSignal | null | undefined;
+  const watched: typeof doFetch = (url, init) => {
+    signal = init.signal;
+    return doFetch(url, init);
+  };
   try {
     const news = await fetchHistoryNews(history, symbol, 20, {
       ...options,
+      fetch: watched,
       timeoutMs: Math.min(
         options.timeoutMs ?? IBKR_NEWS_TIMEOUT_MS,
         IBKR_NEWS_TIMEOUT_MS
@@ -326,13 +341,9 @@ const loadIbkrHeadlines = async (
       (error.code === "PACED" || error.code === "UNAVAILABLE")
     )
       load.ibkrReads = 0;
-    // Our own short budget ran out (fetchHistoryDocument's abort message): the service was not
-    // wrong, just slower than this page waits. Not cached, not shown; the next load asks again.
-    if (
-      error instanceof MarketDataError &&
-      error.message === "History request timed out"
-    )
-      throw new SourceSkipped();
+    // Slower than this page waits: hidden, and remembered for 60 s so the next load spends its
+    // IBKR reads on other symbols instead of waiting on this one again.
+    if (signal?.aborted === true) throw new SourceSkipped(true);
     throw error;
   }
 };

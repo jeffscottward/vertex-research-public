@@ -105,22 +105,42 @@ export const companyWords = (name: string | null): string[] =>
     .split(" ")
     .filter((word) => /[\p{L}\p{N}]/u.test(word));
 
+// Word edges that also hold for accented letters ("Nestlé"), unlike ASCII-only \b.
+const WORD_START = "(?<![\\p{L}\\p{N}])";
+const WORD_END = "(?![\\p{L}\\p{N}])";
+
+/** "(KO)", "$KO" and "NYSE: KO" forms of the ticker, as regex sources (case-insensitive use). */
+const tickerForms = (symbol: string): string[] => {
+  const escaped = escapeRegExp(symbol);
+  return [
+    `\\(${escaped}\\)`,
+    `\\$${escaped}${WORD_END}`,
+    `${WORD_START}(?:NYSE|NASDAQ)\\s*:\\s*${escaped}${WORD_END}`,
+  ];
+};
+
+/**
+ * The SEC name without legal form as one phrase, words joined by optional spaces, "&" or "-"
+ * ("COCA COLA" matches "Coca-Cola", "EXXON MOBIL" matches "ExxonMobil", "PROCTER GAMBLE" matches
+ * "Procter & Gamble"); null for names under 4 letters.
+ */
+const namePhrase = (words: readonly string[]): string | null =>
+  words.join("").length >= 4
+    ? `${WORD_START}${words.map(escapeRegExp).join("[\\s&-]*")}${WORD_END}`
+    : null;
+
 /**
  * Matches a headline that names the company: "(KO)", "$KO", "NYSE: KO", or the SEC name
- * without its legal form ("COCA COLA CO" matches "Coca-Cola", "PROCTER & GAMBLE" keeps its "&").
- * Names under 4 letters are skipped.
+ * without its legal form (see `namePhrase`). Names under 4 letters are skipped.
  */
 export const mentionPattern = (subject: HeadlineSubject): RegExp => {
-  const symbol = escapeRegExp(subject.symbol);
-  const alternatives = [
-    `\\(${symbol}\\)`,
-    `\\$${symbol}\\b`,
-    `\\b(?:NYSE|NASDAQ)\\s*:\\s*${symbol}\\b`,
-  ];
-  const words = companyWords(subject.name);
-  if (words.join("").length >= 4)
-    alternatives.push(`\\b${words.join("[\\s&-]+")}\\b`);
-  return new RegExp(alternatives.join("|"), "iu");
+  const phrase = namePhrase(companyWords(subject.name));
+  return new RegExp(
+    [...tickerForms(subject.symbol), ...(phrase === null ? [] : [phrase])].join(
+      "|"
+    ),
+    "iu"
+  );
 };
 
 /**
@@ -135,8 +155,11 @@ export const reutersSearchQuery = (subject: HeadlineSubject): string => {
     : `"${subject.symbol.toUpperCase()}" stock site:reuters.com when:30d`;
 };
 
-// Name words too common to identify a company on their own ("General", "Bank", "Motor").
+// Name words too common to identify a company on their own ("General", "Bank", "Dollar").
 const GENERIC_NAME_WORDS: Readonly<Record<string, true>> = Object.freeze({
+  air: true,
+  airlines: true,
+  airways: true,
   america: true,
   american: true,
   bancorp: true,
@@ -144,33 +167,60 @@ const GENERIC_NAME_WORDS: Readonly<Record<string, true>> = Object.freeze({
   brands: true,
   business: true,
   capital: true,
+  chemical: true,
   communications: true,
+  devices: true,
+  dollar: true,
+  electric: true,
   energy: true,
   entertainment: true,
+  express: true,
   financial: true,
   first: true,
   foods: true,
+  gas: true,
   general: true,
   global: true,
   group: true,
   health: true,
   holdings: true,
+  home: true,
   industries: true,
+  instruments: true,
+  insurance: true,
   international: true,
+  laboratories: true,
+  lines: true,
   machines: true,
+  materials: true,
   motor: true,
   motors: true,
   national: true,
+  networks: true,
+  oil: true,
+  pacific: true,
   partners: true,
+  petroleum: true,
   pharmaceuticals: true,
+  platforms: true,
+  power: true,
+  products: true,
+  properties: true,
+  realty: true,
   resources: true,
+  reuters: true,
   semiconductor: true,
   semiconductors: true,
   services: true,
+  software: true,
   solutions: true,
+  southern: true,
+  steel: true,
+  stores: true,
   systems: true,
   technologies: true,
   technology: true,
+  texas: true,
   therapeutics: true,
   trust: true,
   united: true,
@@ -178,29 +228,37 @@ const GENERIC_NAME_WORDS: Readonly<Record<string, true>> = Object.freeze({
 });
 
 /**
- * True when `text` names the company: any `mentionPattern` form, the ticker as a word in upper case
- * (two or more letters; a lone "A" or "T" is an ordinary word), or any distinctive name word of
- * four or more letters in any case ("Disney" for "WALT DISNEY CO", "Exxon" or "Mobil" for
- * "EXXON MOBIL CORP"; CamelCase words are split, "ExxonMobil" -> Exxon, Mobil).
+ * True when `text` names the company: a ticker form ("(KO)", "$KO", "NYSE: KO"), the ticker as a
+ * word in upper case (two or more letters; a lone "A" or "T" is an ordinary word), or the SEC name
+ * phrase or any distinctive name word of four or more letters ("Disney" for "WALT DISNEY CO")
+ * written as a name: the matched text must start with a capital or digit, so "price target" does
+ * not name Target. Name words are matched whole: "Black Friday" does not name BlackRock.
  */
 export const companyMention = (
   subject: HeadlineSubject
 ): ((text: string) => boolean) => {
-  const patterns = [mentionPattern(subject)];
+  const patterns = [new RegExp(tickerForms(subject.symbol).join("|"), "iu")];
   const symbol = subject.symbol.toUpperCase();
   if (symbol.length >= 2)
-    patterns.push(new RegExp(`\\b${escapeRegExp(symbol)}\\b`, "u"));
-  const distinctive = companyWords(subject.name)
-    .flatMap((word) => word.split(/(?<=\p{Ll})(?=\p{Lu})/u))
+    patterns.push(
+      new RegExp(`${WORD_START}${escapeRegExp(symbol)}${WORD_END}`, "u")
+    );
+  const words = companyWords(subject.name);
+  const distinctive = words
     .filter(
       (word) =>
         word.length >= 4 && GENERIC_NAME_WORDS[word.toLowerCase()] !== true
-    );
-  if (distinctive.length > 0)
-    patterns.push(
-      new RegExp(`\\b(?:${distinctive.map(escapeRegExp).join("|")})\\b`, "iu")
-    );
-  return (text) => patterns.some((pattern) => pattern.test(text));
+    )
+    .map((word) => `${WORD_START}${escapeRegExp(word)}${WORD_END}`);
+  const phrase = namePhrase(words);
+  const names = [...(phrase === null ? [] : [phrase]), ...distinctive];
+  const named = names.length === 0 ? null : new RegExp(names.join("|"), "giu");
+  return (text) =>
+    patterns.some((pattern) => pattern.test(text)) ||
+    (named !== null &&
+      [...text.matchAll(named)].some((match) =>
+        /^[\p{Lu}\p{N}]/u.test(match[0])
+      ));
 };
 
 /**

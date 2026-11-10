@@ -710,14 +710,75 @@ describe("Reuters relevance and feed bounds", () => {
     expect(exxon("Exxon signs Guyana gas deal")).toBe(true);
     expect(exxon("Mobil lubricants plant reopens")).toBe(true);
     expect(exxon("Oil majors weigh buybacks")).toBe(false);
-    // CamelCase names split into their words.
-    const camel = companyMention({ name: "ExxonMobil Corp", symbol: "XOM" });
-    expect(camel("Exxon signs Guyana gas deal")).toBe(true);
+    // The SEC name matches written as one word, but a name is never split into parts.
+    expect(
+      parseReutersRss(rss(googleItem("ExxonMobil to buy Pioneer")), {
+        name: "EXXON MOBIL CORP",
+        symbol: "XOM",
+      }).map((item) => item.title)
+    ).toEqual(["ExxonMobil to buy Pioneer"]);
+    expect(
+      companyMention({ name: "BlackRock, Inc.", symbol: "BLK" })(
+        "Black Friday sales jump"
+      )
+    ).toBe(false);
+    expect(
+      companyMention({ name: "CrowdStrike Holdings, Inc.", symbol: "CRWD" })(
+        "Russian missile strike hits Kyiv"
+      )
+    ).toBe(false);
+    expect(
+      companyMention({ name: "DoorDash, Inc.", symbol: "DASH" })(
+        "Investors dash for cash"
+      )
+    ).toBe(false);
+    // Accented names keep their word edges.
+    expect(
+      companyMention({ name: "Nestlé S.A.", symbol: "NSRGY" })(
+        "Nestlé cuts jobs"
+      )
+    ).toBe(true);
     // Generic words alone ("General", "Motors") never count.
     const gm = companyMention({ name: "GENERAL MOTORS CO", symbol: "GM" });
     expect(gm("General strike hits ports")).toBe(false);
     expect(gm("Electric motors demand rises")).toBe(false);
     return expect(gm("General Motors recalls SUVs")).toBe(true);
+  });
+
+  it("drops generic-word and lower-case matches: AAL, DG, TGT, TRI", () => {
+    const kept = (name: string, symbol: string, items: string[]) =>
+      parseReutersRss(rss(items.join("")), { name, symbol }).map(
+        (item) => item.title
+      );
+    expect(
+      kept("American Airlines Group Inc.", "AAL", [
+        googleItem("United Airlines profit beats", "", 9),
+        googleItem("American Airlines adds routes", "", 8),
+      ])
+    ).toEqual(["American Airlines adds routes"]);
+    expect(
+      kept("DOLLAR GENERAL CORP", "DG", [
+        googleItem("Dollar Tree raises forecast", "", 9),
+        googleItem("Dollar slips after jobs data", "", 8),
+        googleItem("Dollar General beats estimates", "", 7),
+      ])
+    ).toEqual(["Dollar General beats estimates"]);
+    expect(
+      kept("TARGET CORP", "TGT", [
+        googleItem("Analysts raise price target on Nvidia", "", 9),
+        googleItem("Target cuts prices on 3,000 items", "", 8),
+      ])
+    ).toEqual(["Target cuts prices on 3,000 items"]);
+    return expect(
+      kept("THOMSON REUTERS CORP", "TRI", [
+        googleItem(
+          "Oil rises on supply fears",
+          "&lt;font&gt;Reuters&lt;/font&gt;",
+          9
+        ),
+        googleItem("Thomson Reuters lifts outlook", "", 8),
+      ])
+    ).toEqual(["Thomson Reuters lifts outlook"]);
   });
 
   it("keeps only Reuters stories that name a single-letter ticker's company", () => {

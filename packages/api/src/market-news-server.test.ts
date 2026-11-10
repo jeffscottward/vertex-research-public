@@ -587,11 +587,16 @@ describe("merged headline sources", () => {
     return expect(again.headlines.map((item) => item.source)).toContain("ibkr");
   });
 
-  it("treats IBKR running past its budget as skipped: no error, not cached, IBKR off for the load", async () => {
+  // vertex-history never answers for `slowSymbol`: the request is aborted at the IBKR budget.
+  const slowIbkr = (slowSymbol: string) => {
     const { calls, fetch: base } = koFeeds();
-    // vertex-history never answers: the request is aborted at the IBKR budget.
     const fetch: Fetch = (url, init) => {
-      if (!url.startsWith(HISTORY.url)) return base(url, init);
+      // `base` records every URL it answers; the hanging request is recorded here.
+      if (
+        !url.startsWith(HISTORY.url) ||
+        new URL(url).searchParams.get("symbol") !== slowSymbol
+      )
+        return base(url, init);
       calls.push(url);
       // The package's TS lib predates Promise.withResolvers.
       return new Promise<Response>((_, reject) => {
@@ -600,13 +605,22 @@ describe("merged headline sources", () => {
         );
       });
     };
+    const ibkrSymbols = () =>
+      calls
+        .filter((url) => url.startsWith(HISTORY.url))
+        .map((url) => new URL(url).searchParams.get("symbol"));
+    return { fetch, ibkrSymbols };
+  };
+
+  it("treats IBKR running past its budget as a hidden skip, remembered for 60 s", async () => {
+    const { fetch, ibkrSymbols } = slowIbkr("KO");
+    let now = NOW;
     const options = {
       fetch,
       marketHistory: HISTORY,
-      now: () => NOW,
+      now: () => now,
       timeoutMs: 20,
     };
-    const ibkrCalls = () => calls.filter((url) => url.startsWith(HISTORY.url));
     const load = newsLoad();
     const slow = await loadTickerFeeds("KO", options, undefined, load);
     expect(slow.errors).toEqual([]);
@@ -614,12 +628,41 @@ describe("merged headline sources", () => {
     // The timeout ends IBKR for the rest of this load: AAPL does not ask.
     const next = await loadTickerFeeds("AAPL", options, undefined, load);
     expect(next.errors).toEqual([]);
-    expect(ibkrCalls()).toEqual([
-      "https://history.example.test/news?symbol=KO&count=20",
-    ]);
-    // Not cached: the next load asks again.
+    expect(ibkrSymbols()).toEqual(["KO"]);
+    // Remembered: a new load within 60 s neither asks nor shows anything for KO.
+    expect((await loadTickerFeeds("KO", options)).errors).toEqual([]);
+    expect(ibkrSymbols()).toEqual(["KO"]);
+    now = new Date(NOW.getTime() + 61_000);
     await loadTickerFeeds("KO", options);
-    return expect(ibkrCalls()).toHaveLength(2);
+    return expect(ibkrSymbols()).toEqual(["KO", "KO"]);
+  });
+
+  it("asks IBKR for a different symbol on the load after a timeout", async () => {
+    const { fetch, ibkrSymbols } = slowIbkr("KO");
+    const options = {
+      fetch,
+      marketHistory: HISTORY,
+      now: () => NOW,
+      timeoutMs: 20,
+    };
+    const first = await buildMarketNews(["KO", "AAPL", "TSLA"], 168, options);
+    expect(ibkrSymbols()).toEqual(["KO", "AAPL"]);
+    expect(
+      first.tickers.flatMap((ticker) =>
+        ticker.errors.filter((error) => error.includes("IBKR"))
+      )
+    ).toEqual([]);
+    await buildMarketNews(["KO", "AAPL", "TSLA"], 168, options);
+    return expect(ibkrSymbols()).toEqual(["KO", "AAPL", "TSLA"]);
+  });
+
+  it("reads IBKR through the global fetch when no fetch is given", async () => {
+    vi.stubGlobal("fetch", koFeeds().fetch);
+    const feedsFor = await loadTickerFeeds("KO", {
+      marketHistory: HISTORY,
+      now: () => NOW,
+    });
+    return expect(feedsFor.headlines[0]?.source).toBe("ibkr");
   });
 
   it("aborts an IBKR read after 5 s by default", async () => {
