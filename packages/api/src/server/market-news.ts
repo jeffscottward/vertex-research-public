@@ -118,7 +118,7 @@ const readCappedBytes = async (
 };
 
 /** HTTP 429 from a feed, with the server's Retry-After wait when it sent one. */
-export class FeedBusyError extends ResearchLensError {
+class FeedBusyError extends ResearchLensError {
   retryAfterMs: number | null;
   constructor(message: string, retryAfterMs: number | null) {
     super("UNAVAILABLE", message);
@@ -225,7 +225,7 @@ const makeRoom = (now: number): void => {
  * so the next load spends its IBKR reads on other symbols (IBKR ran past its 5 s). Without it
  * (IBKR budget spent) nothing is cached and the next load may ask.
  */
-export class SourceSkipped extends Error {
+class SourceSkipped extends Error {
   readonly remember: boolean;
   constructor(remember = false) {
     super("source skipped for this load");

@@ -288,7 +288,7 @@ export const newYorkTime = (day: string, minute: number): Date => {
 
 const SESSION_OPEN_MINUTE = 9 * 60 + 30;
 /** 16:00 New York: the US regular session close. */
-export const SESSION_CLOSE_MINUTE = 16 * 60;
+const SESSION_CLOSE_MINUTE = 16 * 60;
 
 /** 09:30 New York on the New York calendar day of `now` (the US regular session open). */
 export const sessionOpen = (now: Date): Date =>
