@@ -17,6 +17,7 @@ import {
   dslEquity,
   HOURLY_REASON,
   importableRows,
+  manifestDataFile,
   RESULTS_PATH,
   rebased,
   rerunOnCore7,
@@ -423,5 +424,32 @@ describe("CLI", () => {
     expect(nautilus.calls[0]?.python).toBe("/v/bin/python");
     expect(out.join("")).toContain("Nautilus differs from");
     return expect(readFile(join(root, RESULTS_PATH), "utf8")).rejects.toThrow();
+  });
+});
+
+describe("manifestDataFile", () => {
+  const base = { normalizedSha256: sha("b"), sourceSha256: sha("c") };
+  it("labels the bars from the manifest's source spans, its source text or the neutral label", () => {
+    const spans = {
+      rows: {
+        ibkr: { first: "2024-11-11", last: "2026-11-06" },
+        yahoo: { first: "2000-09-18", last: "2024-11-08" },
+      },
+    };
+    expect(
+      manifestDataFile(JSON.stringify({ ...base, sources: spans }), sha("a"))
+    ).toEqual({
+      ...file(),
+      source: "ibkr 2024-11-11..2026-11-06, yahoo 2000-09-18..2024-11-08",
+    });
+    expect(
+      manifestDataFile(
+        JSON.stringify({ ...base, source: "Yahoo Finance chart v8" }),
+        sha("a")
+      ).source
+    ).toBe("Yahoo Finance chart v8");
+    expect(manifestDataFile(JSON.stringify(base), sha("a")).source).toBe(
+      "IBKR first, Yahoo fills gaps"
+    );
   });
 });

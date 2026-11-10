@@ -1,7 +1,8 @@
 // Imports the daily research series of the QuantConnect idea ports into market_daily_series.
 // Usage: DATABASE_URL=... bun run vertex:series:import -- [--dry-run] [<dir>]
 // <dir> defaults to $VERTEX_QC_PORTS_DATA, then ~/Documents/reports/vertex-qc-ports/data: the
-// output of research/backtests/qc-ports/fetch_data.py (Yahoo, CBOE and Shiller files plus
+// output of research/backtests/qc-ports/fetch_data.py (IBKR first, Yahoo fills gaps; CBOE and
+// Treasury fallbacks for indices; Shiller; SOURCES.json with the per-source spans of each file; and
 // SHA256SUMS). Every file is verified against SHA256SUMS before anything is parsed or written.
 // Rows mirror services/research/strategies/qc_ports/data.py: a row is kept when its close parses
 // to a finite number with Python float() rules; open, high, low and adj_close are null where they
@@ -20,6 +21,12 @@ import {
   type MarketDailySeriesInput,
   validateMarketDailySeries,
 } from "@darkfactory/db/server";
+
+import {
+  describeSpans,
+  MERGED_SOURCE,
+  sourceSpans,
+} from "../research/fetch-sources.ts";
 
 export const ETF_SYMBOLS = [
   "SPY",
@@ -51,8 +58,31 @@ export const INDICES = [
   "IRX",
   "TNX",
 ] as const;
-/** Indices the fetch reads from the CBOE public history CSV; the rest come from Yahoo. */
+/** Indices without Yahoo history: the fetch reads IBKR, then the CBOE public history CSV. */
 const CBOE_INDICES = new Set<string>(["RVX", "VXSLV"]);
+const YIELD_INDICES = new Set<string>(["IRX", "TNX"]);
+/** Per-file source record of the fetch (ibkr_history.Merged.summary() by file name); absent before 2026-11-10. */
+const SOURCES_FILE = "SOURCES.json";
+
+/** File name -> merge summary from SOURCES.json; throws when it is not a JSON object. */
+export const parseSourcesRecord = (
+  text: string
+): Readonly<Record<string, unknown>> => {
+  const raw: unknown = JSON.parse(text);
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`${SOURCES_FILE} must be a JSON object`);
+  }
+  return raw as Record<string, unknown>;
+};
+
+/** Label when SOURCES.json has no spans for an index file (data fetched before the record existed). */
+const indexFallback = (id: string): string => {
+  if (CBOE_INDICES.has(id)) {
+    return `IBKR first, then the CBOE public history CSV ${id}_History.csv`;
+  }
+  if (YIELD_INDICES.has(id)) return `${MERGED_SOURCE}, then US Treasury yields`;
+  return `${MERGED_SOURCE}, then the CBOE public history CSV`;
+};
 /** Months between the Shiller month and its use (earnings are published late), as data.py. */
 const EARNINGS_LAG_MONTHS = 6;
 const DATA_ENV = "VERTEX_QC_PORTS_DATA";
@@ -256,6 +286,13 @@ export const loadSeriesImports = async (
     texts.set(file, UTF8.decode(bytes));
     return expected;
   };
+  let record: Readonly<Record<string, unknown>> = {};
+  if (sums.has(SOURCES_FILE)) {
+    await verified(SOURCES_FILE);
+    record = parseSourcesRecord(texts.get(SOURCES_FILE) as string);
+  }
+  const spans = (id: string, fallback: string): string =>
+    describeSpans(sourceSpans(record[`${id}.csv`]), fallback);
   const imports: SeriesImport[] = [];
   const add = async (
     id: string,
@@ -279,22 +316,24 @@ export const loadSeriesImports = async (
     });
   };
   for (const id of ETF_SYMBOLS) {
-    await add(id, "etf", `Yahoo daily bars ${id}, auto_adjust=False`);
+    await add(
+      id,
+      "etf",
+      `daily bars ${id}, split-adjusted close: ${spans(id, MERGED_SOURCE)}`
+    );
   }
   for (const id of FUTURES) {
     await add(
       id,
       "future",
-      `Yahoo daily bars ${id} (continuous future), auto_adjust=False`
+      `daily bars ${id} (continuous future): ${spans(id, MERGED_SOURCE)}`
     );
   }
   for (const id of INDICES) {
     await add(
       id,
       "index",
-      CBOE_INDICES.has(id)
-        ? `CBOE public history CSV ${id}_History.csv, daily close`
-        : `Yahoo daily close ^${id}`
+      `daily close ^${id}: ${spans(id, indexFallback(id))}`
     );
   }
   const shillerDigest = await verified("SHILLER.csv");
@@ -310,7 +349,7 @@ export const loadSeriesImports = async (
       id: "EY_TNX_RATIO",
       kind: "derived",
       // Digest of the SHA256SUMS lines of both inputs.
-      source: `${FETCH}: derived as data.ey_tnx_ratio, 100 * Shiller earnings / price (month - ${EARNINGS_LAG_MONTHS}) / TNX yield %; Shiller ie_data.xls (shillerdata.com) and Yahoo ^TNX; fetched ${fetched}`,
+      source: `${FETCH}: derived as data.ey_tnx_ratio, 100 * Shiller earnings / price (month - ${EARNINGS_LAG_MONTHS}) / TNX yield %; Shiller ie_data.xls (shillerdata.com) and ^TNX (${MERGED_SOURCE}); fetched ${fetched}`,
       sourceSha256: sha256(
         `${shillerDigest}  SHILLER.csv\n${tnx.series.sourceSha256}  TNX.csv\n`
       ),

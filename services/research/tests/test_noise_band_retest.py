@@ -129,4 +129,4 @@ def test_calendar_check_and_splice():
     closes[date(2021, 1, 1)] = 1.0  # outside the bar range: ignored
     chk = calendar_check([s for s in sp if s.day != date(2021, 1, 5)], closes)
     assert chk["missing_sessions"] == ["2021-01-05"]
-    assert chk["last_close_vs_yahoo_median_abs"] == 0.0
+    assert chk["last_close_vs_daily_median_abs"] == 0.0 and chk["daily_source"] == "yahoo"

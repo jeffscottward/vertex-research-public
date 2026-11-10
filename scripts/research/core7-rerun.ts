@@ -36,6 +36,7 @@ import {
   typescriptEngine,
   typescriptRunner,
 } from "./dsl-engine.ts";
+import { describeSpans, MERGED_SOURCE, sourceSpans } from "./fetch-sources.ts";
 import {
   combineSleeves,
   type LibraryDoc,
@@ -52,17 +53,17 @@ export const RESULTS_PATH = `${CORE7_DIR}/rerun-results.json`;
 // Vertex research cost: 10 bp per side, the same value as VERTEX_COST_BPS in quantjourney.ts.
 export const CORE7_COST_BPS = 10;
 const DATA_SOURCE =
-  "Yahoo Finance via yfinance 0.2.66 (research/backtests/core7/fetch_data.py)";
+  "IBKR first, Yahoo fills gaps (research/backtests/core7/fetch_data.py); per symbol: data.symbols.<SYMBOL>.source";
 export const ADAPTER_REASON =
   "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7";
 export const HOURLY_REASON =
   "hourly (1h) definition; the Core 7 data set is daily only; not re-run on Core 7";
 const METHOD = [
-  "Each symbol runs on its full Yahoo daily history, so per-symbol figures cover different periods.",
+  "Each symbol runs on its full daily history (IBKR first, Yahoo fills the earlier dates), so per-symbol figures cover different periods.",
   "Prices come from parsePriceCsv (scripts/research/quantjourney.ts): OHLC scaled by adj_close / close, so ETF runs include dividends. For the futures adj_close equals close.",
   "Rows that the Vertex bar importer rejects (non-positive price, low above open or close, high below open or close) are dropped, as in the import files.",
   "Combined: equal starting capital per member, never rebalanced (combineSleeves), on the common window of all members. Each sleeve is rebased to 1 at the window start.",
-  "The futures are Yahoo continuous front-month series, not back-adjusted: a roll gap counts as a return.",
+  "The futures are continuous front-month series (IBKR CONTFUT for the latest window, Yahoo before it, scaled to IBKR at the seam), not back-adjusted by Vertex: a roll gap counts as a return.",
   "Statistics: Vertex returnStats (risk-free rate 0). Cost: 10 bp per side on every position change.",
 ] as const;
 
@@ -100,6 +101,8 @@ export type DataFile = Readonly<{
   manifestSha256: string;
   normalizedSha256: string;
   sourceSha256: string;
+  // Where the bars came from: the manifest's per-source spans, else its source text (absent in old fixtures).
+  source?: string;
 }>;
 
 export type Core7Results = Readonly<{
@@ -341,8 +344,25 @@ export const buildCore7Results = (
 
 const manifestSchema = z.object({
   normalizedSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  source: z.string().optional(),
   sourceSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  sources: z.unknown().optional(),
 });
+
+/** One import manifest's DataFile fields: the source label from `sources` (spans), else `source`, else neutral. */
+export const manifestDataFile = (
+  text: string,
+  manifestSha256: string
+): DataFile => {
+  const { normalizedSha256, source, sourceSha256, sources } =
+    manifestSchema.parse(JSON.parse(text));
+  return {
+    manifestSha256,
+    normalizedSha256,
+    source: describeSpans(sourceSpans(sources), source ?? MERGED_SOURCE),
+    sourceSha256,
+  };
+};
 
 type Output = Readonly<{ write: (text: string) => unknown }>;
 
@@ -389,10 +409,7 @@ export const runCore7RerunCli = async (
       join(data, "import", `${symbol}-1d.manifest.json`),
       "utf8"
     );
-    files.set(symbol, {
-      ...manifestSchema.parse(JSON.parse(manifest)),
-      manifestSha256: io.sha256(manifest),
-    });
+    files.set(symbol, manifestDataFile(manifest, io.sha256(manifest)));
   }
   const results = catchNautilusErrors(
     () =>

@@ -86,23 +86,27 @@ def fetch(symbol: str):
     raise RuntimeError(f"{symbol}: no data after one retry")
 
 
+SOURCE_MAX = 300  # validateMarketBars: source is 1 to 300 characters
+
+
 def source_text(symbol: str, fetched: str, merged: ih.Merged) -> str:
-    ibkr = merged.sources.get("ibkr")
-    yahoo = merged.sources.get("yahoo")
+    """The importer manifest's source line (at most about 230 characters; SOURCE_MAX is 300)."""
+    future = symbol.endswith("=F")
     parts = []
-    if ibkr:
-        kind = ("CONTFUT front month (latest window), roll handling as IBKR reports it" if symbol.endswith("=F")
-                else "TRADES split-adjusted OHLC, ADJUSTED_LAST adj_close")
-        parts.append(f"IBKR vertex-history daily {kind}, {ibkr['first']}..{ibkr['last']}")
-    if yahoo:
-        if symbol.endswith("=F"):
-            parts.append(f"Yahoo Finance chart v8 daily via yfinance {yf.__version__}, {symbol} continuous "
-                         f"front-month future, not back-adjusted (roll dates show price jumps), "
-                         f"{yahoo['first']}..{yahoo['last']}")
+    for name, info in merged.sources.items():
+        span = f"{info['first']}..{info['last']}"
+        if name == "ibkr":
+            kind = "CONTFUT front month, all hours" if future else "TRADES OHLC + ADJUSTED_LAST adj_close"
+            parts.append(f"IBKR vertex-history {kind} {span}")
         else:
-            parts.append(f"Yahoo Finance chart v8 daily via yfinance {yf.__version__}, split-adjusted OHLC "
-                         f"(dividends not included), {yahoo['first']}..{yahoo['last']}")
-    return "; ".join(parts) + f", fetched {fetched}"
+            kind = ("continuous front month, not back-adjusted" if future
+                    else "split-adjusted OHLC, adj_close with dividends")
+            scaled = ", scaled to IBKR at the seam" if "ibkr" in merged.sources else ""
+            parts.append(f"{name.capitalize()} yfinance {str(yf.__version__)[:12]} {kind}{scaled} {span}")
+    text = "; ".join(parts) + f"; fetched {fetched}"
+    if len(text) > SOURCE_MAX:
+        raise ValueError(f"{symbol}: source text longer than {SOURCE_MAX} characters")
+    return text
 
 
 def yahoo_rows(frame) -> list[dict]:

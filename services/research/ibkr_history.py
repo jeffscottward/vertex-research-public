@@ -6,7 +6,8 @@ plus the merge rules the fetch scripts share:
 
 * IBKR first: every date IBKR returns is kept as IBKR's bar (``source: "ibkr"``).
 * Yahoo fills the dates before IBKR's first date, and everything when IBKR fails or is not
-  configured (``VERTEX_HISTORY_URL`` and ``VERTEX_DEPLOY_STATUS_TOKEN`` unset).
+  configured (``VERTEX_HISTORY_URL`` and ``VERTEX_DEPLOY_STATUS_TOKEN`` unset). Yahoo is not called
+  when IBKR covers the requested start (first bar within COVER_SLACK_DAYS of it).
 * Indices: IBKR IND, then Yahoo, then the Cboe published daily CSV (volatility indices), then the
   US Treasury daily par yield curve (IRX: 3-month, TNX: 10-year).
 
@@ -22,10 +23,12 @@ pacing answers 429 with ``retry_after_seconds``.
 
 Best-effort links (unverified against a live run; each falls through to the next source):
 * IBKR CONTFUT keeps expired contracts for about two years, so only the latest window
-  (CONTFUT_YEARS) is requested; whether IBKR back-adjusts that series is not verified, so every
-  seam records the close ratio of both sources on the seam date.
-* IBKR IRX/TNX may quote 10 x the yield (Cboe convention); a series whose newest window peaks
-  above 20 is divided by 10 so all sources give percent (yields since 1990 never reached 20 %).
+  (CONTFUT_YEARS, all trading hours) is requested; whether IBKR back-adjusts that series is not
+  verified, so the Yahoo part is scaled by the close ratio on the seam (FUTURES_RESCALE) and a ratio
+  further than SEAM_WARN_TOLERANCE from 1 is reported in ``Merged.warnings``.
+* IBKR IRX/TNX may quote 10 x the yield (Cboe convention); ``yield_scale`` decides from the overlap
+  with Yahoo (percent) when the merge reads Yahoo anyway, else from the median of IBKR's newest 250
+  closes (above 20 = 10 x form).
 * The Cboe CSV exists for the Cboe volatility indices only (CBOE_CSV); its column layout varies
   (``CLOSE`` or a single value column).
 * The Treasury par yield curve is a constant-maturity bond-equivalent yield, close to but not the
@@ -36,6 +39,7 @@ messages, reprs or output; this module logs nothing.
 """
 from __future__ import annotations
 
+import bisect
 import csv
 import io
 import json
@@ -66,8 +70,18 @@ MAX_BYTES = 2 * 1024 * 1024
 ERROR_BODY_MAX_BYTES = 4 * 1024
 PACED_RETRIES = 6
 PACED_WAIT_SECONDS = 25.0
+# The service backs off 10 minutes after an IBKR pacing violation; a longer advertised wait is capped.
+PACED_WAIT_MAX_SECONDS = 660.0
 CONTFUT_YEARS = 2
 YIELD_TENTHS_ABOVE = 20.0
+# A start date counts as covered when the first bar is at most this many calendar days later
+# (weekends, holidays, a long market closure such as 2001-09-11..17).
+COVER_SLACK_DAYS = 5
+# A seam whose close ratio (newer / older source on the same date) is further than this from 1 is
+# reported in Merged.warnings (roll basis, a unit mismatch or a bad bar).
+SEAM_WARN_TOLERANCE = 0.02
+# vertex-history 1.3.x symbol rule (infra/quant-vps/history/vertex_history.py SYMBOL_RE): class shares "BRK B".
+SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,11}( [A-Z])?$")
 
 Row = dict[str, Any]
 
@@ -164,15 +178,23 @@ def _clean(text: str) -> str:
     return _CONTROL.sub(" ", _ACCOUNT.sub("[account]", text)).strip()[:300]
 
 
+def covers(first: str, start: str) -> bool:
+    """True when a series whose first date is ``first`` covers ``start`` (YYYY-MM-DD): the first bar is at most
+    COVER_SLACK_DAYS calendar days after it, so a weekend or holiday start counts as covered."""
+    return date.fromisoformat(first) <= date.fromisoformat(start) + timedelta(days=COVER_SLACK_DAYS)
+
+
 def end_date_time(day: date) -> str:
     """IBKR's UTC end form for the last second of ``day``."""
     return f"{day:%Y%m%d}-23:59:59"
 
 
 def check_request(*, sec_type: str, exchange: str | None, what: str, years: int,
-                  end_date_time: str | None) -> None:
-    """Raises BAD_REQUEST when a daily request breaks a vertex-history 1.3.0 rule; no network call."""
+                  end_date_time: str | None, symbol: str = "SPY") -> None:
+    """Raises BAD_REQUEST when a daily request breaks a vertex-history 1.3.x rule; no network call."""
     rules = (
+        (not SYMBOL_RE.match(symbol.upper()), "symbol must be 1-12 letters, digits or dots, optionally "
+                                              "followed by one space and a class letter"),
         (sec_type not in SEC_TYPES, "secType must be one of " + " ".join(SEC_TYPES)),
         (what not in WHAT_TO_SHOW, "whatToShow must be one of " + " ".join(WHAT_TO_SHOW)),
         (isinstance(years, bool) or not isinstance(years, int) or not 1 <= years <= MAX_YEARS,
@@ -334,8 +356,10 @@ class Client:
                    currency: str = "USD", what: str = "TRADES", years: int = MAX_YEARS,
                    end_date_time: str | None = None, use_rth: bool = True) -> list[Row]:
         """One daily window of ``years`` ending at ``end_date_time`` (absent: now). A paced (429) answer is
-        retried after ``retry_after_seconds`` (else the default wait), up to ``paced_retries`` times."""
-        check_request(sec_type=sec_type, exchange=exchange, what=what, years=years, end_date_time=end_date_time)
+        retried after ``retry_after_seconds`` + 1 (else the default wait; at most PACED_WAIT_MAX_SECONDS), up to
+        ``paced_retries`` times."""
+        check_request(sec_type=sec_type, exchange=exchange, what=what, years=years, end_date_time=end_date_time,
+                      symbol=symbol)
         url = build_url(self._url, symbol=symbol, sec_type=sec_type, exchange=exchange, currency=currency,
                         years=years, what=what, use_rth=use_rth, end_date_time=end_date_time)
         for attempt in range(self._paced_retries + 1):
@@ -345,15 +369,16 @@ class Client:
                 if error.code != "PACED" or attempt >= self._paced_retries:
                     raise
                 wait = self._paced_wait if error.retry_after is None else float(error.retry_after) + 1.0
-                self._sleep(wait)
+                self._sleep(min(wait, PACED_WAIT_MAX_SECONDS))
         raise AssertionError("unreachable")
 
     def paged(self, symbol: str, *, start: str | None = None, sec_type: str = "STK", exchange: str | None = None,
               currency: str = "USD", what: str = "TRADES", max_pages: int = MAX_PAGES,
               use_rth: bool = True) -> list[Row]:
         """Daily bars back to ``start`` (absent: the service's 1990 floor): end-dated windows of up to 30 Y,
-        newest first, each ending the day before the previous window's first bar; ascending, one row per
-        date (rows before ``start`` are kept; callers cut). CONTFUT and ADJUSTED_LAST take no end date, so
+        newest first, each ending the day before the previous window's first bar, until a window's first bar
+        covers the floor (``covers``: within COVER_SLACK_DAYS); ascending, one row per date (rows before
+        ``start`` are kept; callers cut). CONTFUT and ADJUSTED_LAST take no end date, so
         they get one window (at most 30 years back)."""
         floor = max(date.fromisoformat(start), END_FLOOR) if start else END_FLOOR
 
@@ -375,7 +400,7 @@ class Client:
             rows.update((row["date"], row) for row in new)
             first = date.fromisoformat(min(row["date"] for row in page))
             end = first - timedelta(days=1)
-            if first <= floor or end < END_FLOOR:
+            if covers(first.isoformat(), floor.isoformat()) or end < END_FLOOR:
                 break
         return [rows[day] for day in sorted(rows)]
 
@@ -444,38 +469,84 @@ def contract_for(yahoo_symbol: str) -> Contract | None:
 # --- IBKR rows per kind ----------------------------------------------------------------------------------
 
 
-def _yields_in_percent(rows: list[Row]) -> list[Row]:
-    if rows and max(row["close"] for row in rows) > YIELD_TENTHS_ABOVE:
-        return [{**row, **{key: row[key] / 10 for key in ("open", "high", "low", "close")}} for row in rows]
-    return rows
+def _median(values: Sequence[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def yield_scale(ibkr: Sequence[Row], reference: Sequence[Row] = ()) -> float:
+    """The divisor that puts IBKR IRX/TNX bars in percent: 10 when IBKR quotes ten times the yield (Cboe's
+    convention), else 1. Decided from the median ratio to ``reference`` rows in percent (Yahoo or Treasury)
+    over at least 5 common dates; without such an overlap, from the median of IBKR's newest 250 closes
+    (above YIELD_TENTHS_ABOVE = 10x form). That fallback misreads a 10x series only if yields stayed below
+    2 % for the whole last year (last seen 2021-2022)."""
+    closes = {row["date"]: row["close"] for row in reference if _number(row.get("close")) and row["close"] > 0}
+    ratios = [row["close"] / closes[row["date"]] for row in ibkr
+              if row["date"] in closes and _number(row.get("close")) and row["close"] > 0]
+    if len(ratios) >= 5:
+        ratio = _median(ratios)
+        if 5.0 <= ratio <= 20.0:
+            return 10.0
+        if 0.5 <= ratio <= 2.0:
+            return 1.0
+    recent = [row["close"] for row in ibkr[-250:] if _number(row.get("close"))]
+    return 10.0 if recent and _median(recent) > YIELD_TENTHS_ABOVE else 1.0
+
+
+def _scaled(rows: Sequence[Row], divisor: float) -> list[Row]:
+    if divisor == 1.0:
+        return list(rows)
+    return [{**row, **{key: row[key] / divisor for key in ("open", "high", "low", "close", "adj_close")
+                       if _number(row.get(key))}} for row in rows]
+
+
+def _with_adj_close(trades: Sequence[Row], adjusted: Sequence[Row]) -> list[Row]:
+    """TRADES rows with ADJUSTED_LAST's close as ``adj_close``. A TRADES date missing from ADJUSTED_LAST keeps
+    its bar: adj_close = close x the adjustment factor of the nearest earlier date in both (else the nearest
+    later one), flagged ``adj_close_carried``. Dates only in ADJUSTED_LAST have no OHLC and are left out."""
+    closes = {row["date"]: row["close"] for row in adjusted}
+    factors = [(row["date"], closes[row["date"]] / row["close"]) for row in trades
+               if row["date"] in closes and row["close"]]
+    days = [day for day, _ in factors]
+    out = []
+    for row in trades:
+        if row["date"] in closes:
+            out.append({**row, "adj_close": closes[row["date"]]})
+            continue
+        if not factors:
+            continue
+        index = bisect.bisect_left(days, row["date"])
+        factor = factors[index - 1][1] if index > 0 else factors[0][1]
+        out.append({**row, "adj_close": row["close"] * factor, "adj_close_carried": True})
+    return out
 
 
 def ibkr_rows(yahoo_symbol: str, *, start: str | None = None, adjust: str = "none",
               client: Client | None = None) -> list[Row]:
     """IBKR daily rows for a Yahoo symbol. ``adjust``: ``none`` (TRADES, split-adjusted OHLC),
-    ``adj_close`` (TRADES OHLC plus ADJUSTED_LAST close as ``adj_close``, dates in both only) or ``ohlc``
-    (ADJUSTED_LAST OHLC, the auto_adjust=True twin). Non-stock rows get ``adj_close`` = close.
-    Raises IbkrHistoryError (NOT_CONFIGURED, NOT_MAPPED, ...)."""
+    ``adj_close`` (TRADES OHLC plus ADJUSTED_LAST close as ``adj_close``, see _with_adj_close) or ``ohlc``
+    (ADJUSTED_LAST OHLC, the auto_adjust=True twin). Non-stock rows get ``adj_close`` = close. Futures:
+    CONTFUT, latest CONTFUT_YEARS window, all trading hours (useRTH=0). Index rows are IBKR's quote as is
+    (IRX/TNX scale: index_daily). Raises IbkrHistoryError (NOT_CONFIGURED, NOT_MAPPED, ...)."""
     contract = contract_for(yahoo_symbol)
     if contract is None:
         raise IbkrHistoryError("NOT_MAPPED", f"no IBKR contract mapping for {yahoo_symbol}")
     client = client or Client.from_env()
     base = {"sec_type": contract.sec_type, "exchange": contract.exchange, "currency": contract.currency}
     if contract.sec_type == "CONTFUT":
-        rows = client.daily_bars(contract.symbol, years=CONTFUT_YEARS, what=contract.what, **base)
+        rows = client.daily_bars(contract.symbol, years=CONTFUT_YEARS, what=contract.what, use_rth=False, **base)
     elif contract.sec_type != "STK" or adjust == "none":
         rows = client.paged(contract.symbol, start=start, what=contract.what, **base)
-        if contract.sec_type == "IND" and contract.symbol in YIELD_INDICES:
-            rows = _yields_in_percent(rows)
     elif adjust == "ohlc":
         rows = client.paged(contract.symbol, start=start, what="ADJUSTED_LAST", **base)
     elif adjust == "adj_close":
         adjusted = client.paged(contract.symbol, start=start, what="ADJUSTED_LAST", **base)
         if not adjusted:
             return []
-        trades = client.paged(contract.symbol, start=max(start or "", adjusted[0]["date"]), **base)
-        closes = {row["date"]: row["close"] for row in adjusted}
-        return [{**row, "adj_close": closes[row["date"]]} for row in trades if row["date"] in closes]
+        first = adjusted[0]["date"]  # earlier dates: Yahoo fills them (with its own adj_close)
+        trades = client.paged(contract.symbol, start=max(start or "", first), **base)
+        return _with_adj_close([row for row in trades if row["date"] >= first], adjusted)
     else:
         raise ValueError(f"adjust must be none, adj_close or ohlc, not {adjust!r}")
     return [{**row, "adj_close": row["close"]} for row in rows] if contract.sec_type != "STK" else rows
@@ -494,17 +565,27 @@ PUBLIC_AGENT = {"User-Agent": "Mozilla/5.0 (vertex-research; public data)"}
 Fetch = Callable[[str], bytes]
 
 
+PUBLIC_MAX_BYTES = 16 * 1024 * 1024
+
+
 def public_get(url: str) -> bytes:
-    """GET a fixed public https URL (Cboe, Treasury)."""
+    """GET a fixed public https URL (Cboe, Treasury): no redirects (a 3xx raises HTTPError), 60 s timeout,
+    body capped at PUBLIC_MAX_BYTES."""
+    if not url.startswith("https://"):
+        raise ValueError("public_get takes https URLs only")
+    opener = urllib.request.build_opener(_NoRedirect)
     request = urllib.request.Request(url, headers=PUBLIC_AGENT)
-    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 - fixed public https URLs
-        return response.read()
+    with opener.open(request, timeout=60) as response:
+        body = response.read(PUBLIC_MAX_BYTES + 1)
+    if len(body) > PUBLIC_MAX_BYTES:
+        raise ValueError("public download exceeds the size cap")
+    return body
 
 
 def _ohlc_row(day: str, close: float, source: str, record: Mapping[str, str] | None = None) -> Row:
     values = {}
     for key in ("open", "high", "low"):
-        text = (record or {}).get(key.upper(), "")
+        text = (record or {}).get(key.upper()) or ""
         try:
             values[key] = float(text) if text.strip() else close
         except ValueError:
@@ -513,16 +594,21 @@ def _ohlc_row(day: str, close: float, source: str, record: Mapping[str, str] | N
 
 
 def cboe_daily(name: str, *, fetch: Fetch | None = None) -> list[Row]:
-    """Cboe's published daily history CSV (DATE as MM/DD/YYYY, then CLOSE or one value column); rows with a
-    close above 0, ascending."""
-    text = (fetch or public_get)(CBOE_URL.format(name=name)).decode("utf-8")
+    """Cboe's published daily history CSV (DATE as MM/DD/YYYY, then CLOSE or one value column; a BOM is
+    ignored); rows with a close above 0, ascending. Rows with a blank or unreadable date or close are skipped."""
+    text = (fetch or public_get)(CBOE_URL.format(name=name)).decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
-    value_column = "CLOSE" if "CLOSE" in (reader.fieldnames or []) else (reader.fieldnames or [""])[-1]
+    names = [name.strip() for name in (reader.fieldnames or [])]
+    reader.fieldnames = names
+    value_column = "CLOSE" if "CLOSE" in names else (names or [""])[-1]
     rows: dict[str, Row] = {}
     for record in reader:
-        day = datetime.strptime(record["DATE"].strip(), "%m/%d/%Y").date().isoformat()
-        close = float(record[value_column])
-        if close > 0:
+        try:
+            day = datetime.strptime((record.get("DATE") or "").strip(), "%m/%d/%Y").date().isoformat()
+            close = float((record.get(value_column) or "").strip())
+        except ValueError:
+            continue
+        if math.isfinite(close) and close > 0:
             rows[day] = _ohlc_row(day, close, "cboe", record if value_column == "CLOSE" else None)
     return [rows[day] for day in sorted(rows)]
 
@@ -566,10 +652,14 @@ class Merged:
     sources: dict[str, dict] = field(default_factory=dict)  # name -> rows, first, last (rows kept)
     errors: dict[str, str] = field(default_factory=dict)    # name -> safe error text
     seams: list[dict] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)       # seams whose close ratio is far from 1
+    notes: dict[str, Any] = field(default_factory=dict)     # e.g. the IRX/TNX scale applied to IBKR
 
     def summary(self) -> dict:
         """JSON-ready provenance for manifests."""
-        return {"rows": self.sources, "errors": self.errors, "seams": self.seams}
+        return {"rows": self.sources, "errors": self.errors, "seams": self.seams, "warnings": self.warnings,
+                "adj_close_carried": sum(1 for row in self.rows if row.get("adj_close_carried")),
+                "notes": self.notes}
 
     def label(self) -> str:
         """`ibkr 2001-01-02..2026-11-06 (6500); yahoo 1993-01-29..2000-12-29 (2000)` (newest source first)."""
@@ -595,17 +685,25 @@ def _ratio(new: Row, old: Row, key: str) -> float | None:
 def merge_sources(sources: Sequence[Source], *, start: str | None = None, end: str | None = None,
                   rescale: Mapping[str, Sequence[str]] | None = None) -> Merged:
     """IBKR-first merge. Sources are consulted in order; each later source fills only the dates before the
-    earliest date chosen so far (or everything when nothing was chosen). A source is skipped once the
-    chosen rows reach ``start``; a failing source is recorded and skipped. ``rescale`` maps a ratio field
-    to the fields scaled by it (e.g. ``{"close": ("open", "high", "low", "close")}`` for adjusted
-    series): a filling source is multiplied by newer/older on the seam date, so returns stay continuous.
-    Rows are cut to ``start <= date < end`` (end exclusive) and tagged with their source name. When no
-    rows remain and a source raised, the last such exception is re-raised (the old Yahoo failure)."""
+    earliest date chosen so far (or everything when nothing was chosen). A source is not called once the
+    chosen rows cover ``start`` (``covers``: first date within COVER_SLACK_DAYS of it); a failing source is
+    recorded and skipped.
+
+    Seams: the ratio date is the first chosen date the filling source also has (the seam date itself when
+    both have it). ``rescale`` maps a ratio field to the fields scaled by it (e.g. ``{"close": ("open",
+    "high", "low", "close")}`` for adjusted series): the filling rows are multiplied by newer/older on the
+    ratio date, so returns stay continuous. A close ratio further than SEAM_WARN_TOLERANCE from 1 adds a
+    warning.
+
+    Rows are cut to ``start <= date < end`` (end exclusive) and tagged with their source name. An empty
+    result is returned when a source answered with no rows in the window; only when no source answered at
+    all is the last exception re-raised (the failure the script saw before IBKR)."""
     chosen: list[Row] = []
     merged = Merged([])
     last_error: BaseException | None = None
+    answered = False
     for source in sources:
-        if chosen and start is not None and chosen[0]["date"] <= start:
+        if chosen and start is not None and covers(chosen[0]["date"], start):
             break
         if chosen and start is None and not source.open_start:
             continue
@@ -616,6 +714,7 @@ def merge_sources(sources: Sequence[Source], *, start: str | None = None, end: s
             merged.errors[source.name] = _error_text(source.name, error)
             last_error = error
             continue
+        answered = True
         if not chosen:
             chosen = [{**row, "source": source.name} for row in rows]
             continue
@@ -623,13 +722,18 @@ def merge_sources(sources: Sequence[Source], *, start: str | None = None, end: s
         fill = [row for row in rows if row["date"] < seam_day]
         if not fill:
             continue
-        at_seam = next((row for row in rows if row["date"] == seam_day), None)
-        seam = {"date": seam_day, "newer": chosen[0]["source"], "older": source.name,
-                "close_ratio": None if at_seam is None else _ratio(chosen[0], at_seam, "close"),
-                "rescaled": {}}
+        older = {row["date"]: row for row in rows}
+        newer = next((row for row in chosen if row["date"] in older), None)
+        at_seam = None if newer is None else older[newer["date"]]
+        close_ratio = None if at_seam is None else _ratio(newer, at_seam, "close")
+        seam = {"date": seam_day, "ratio_date": None if newer is None else newer["date"],
+                "newer": chosen[0]["source"], "older": source.name, "close_ratio": close_ratio, "rescaled": {}}
+        if close_ratio is not None and abs(close_ratio - 1.0) > SEAM_WARN_TOLERANCE:
+            merged.warnings.append(f"seam {seam_day}: {chosen[0]['source']}/{source.name} close ratio "
+                                   f"{close_ratio:.4f}")
         factors: dict[str, float] = {}
         for ratio_field, fields in (rescale or {}).items():
-            factor = None if at_seam is None else _ratio(chosen[0], at_seam, ratio_field)
+            factor = None if at_seam is None else _ratio(newer, at_seam, ratio_field)
             if factor is not None:
                 seam["rescaled"][ratio_field] = factor
                 factors.update((name, factor) for name in fields)
@@ -644,7 +748,7 @@ def merge_sources(sources: Sequence[Source], *, start: str | None = None, end: s
         chosen = filled + chosen
     merged.rows = [row for row in chosen
                    if (start is None or row["date"] >= start) and (end is None or row["date"] < end)]
-    if not merged.rows and last_error is not None:
+    if not answered and last_error is not None:
         raise last_error
     by_source: dict[str, list[str]] = {}
     for row in merged.rows:
@@ -659,6 +763,10 @@ ADJUST_RESCALE: dict[str, dict[str, tuple[str, ...]]] = {
     "adj_close": {"adj_close": ("adj_close",)},
     "ohlc": {"close": ("open", "high", "low", "close")},
 }
+# Futures: Yahoo's continuous front month is not back-adjusted, and whether IBKR's CONTFUT is back-adjusted is
+# not verified; scaling the Yahoo part by the close ratio on the seam keeps returns continuous either way
+# (levels before the seam move by that ratio, recorded in the seam). A large ratio is warned about.
+FUTURES_RESCALE: dict[str, tuple[str, ...]] = {"close": ("open", "high", "low", "close", "adj_close")}
 
 
 def _ibkr_source(yahoo_symbol: str, start: str | None, adjust: str, client: Client | None) -> Source:
@@ -668,34 +776,71 @@ def _ibkr_source(yahoo_symbol: str, start: str | None, adjust: str, client: Clie
 def merged_daily(yahoo_symbol: str, yahoo: Callable[[], Sequence[Row]] | None, *, start: str | None = None,
                  end: str | None = None, adjust: str = "none", client: Client | None = None) -> Merged:
     """IBKR first, Yahoo fills the earlier dates (and everything when IBKR fails or is not configured).
-    Adjusted series (``adjust`` ``adj_close`` or ``ohlc``) rescale the Yahoo part at the seam. Index
-    symbols (``^...``) go through ``index_daily``."""
+    Adjusted series (``adjust`` ``adj_close`` or ``ohlc``) and futures (FUTURES_RESCALE) rescale the Yahoo
+    part at the seam. Index symbols (``^...``) go through ``index_daily``."""
     if yahoo_symbol in INDICES:
         return index_daily(yahoo_symbol, yahoo, start=start, end=end, client=client)
     sources = [_ibkr_source(yahoo_symbol, start, adjust, client)]
     if yahoo is not None:
         sources.append(Source("yahoo", yahoo))
-    return merge_sources(sources, start=start, end=end, rescale=ADJUST_RESCALE[adjust])
+    contract = contract_for(yahoo_symbol)
+    rescale = FUTURES_RESCALE if contract is not None and contract.sec_type == "CONTFUT" else ADJUST_RESCALE[adjust]
+    return merge_sources(sources, start=start, end=end, rescale=rescale)
+
+
+def _memo(fetch: Callable[[], Sequence[Row]]) -> Callable[[], list[Row]]:
+    """``fetch`` called at most once; later calls return the same rows or raise the same error."""
+    box: dict[str, Any] = {}
+
+    def call() -> list[Row]:
+        if not box:
+            try:
+                box["rows"] = list(fetch())
+            except Exception as error:  # noqa: BLE001 - replayed to every caller
+                box["error"] = error
+        if "error" in box:
+            raise box["error"]
+        return box["rows"]
+    return call
 
 
 def index_daily(yahoo_symbol: str, yahoo: Callable[[], Sequence[Row]] | None, *, start: str | None = None,
                 end: str | None = None, client: Client | None = None, fetch: Fetch | None = None) -> Merged:
     """Index closes: IBKR IND, then Yahoo (``yahoo``; None skips it), then the Cboe CSV (volatility
     indices), then the Treasury par yield curve (IRX, TNX; only when the others leave the start uncovered
-    or return nothing). Every row carries ``adj_close`` = close from the non-Yahoo sources."""
+    or return nothing). Every row carries ``adj_close`` = close from the non-Yahoo sources. IRX/TNX IBKR
+    bars are put in percent by ``yield_scale`` against the Yahoo rows when the merge consults Yahoo anyway
+    (no extra download), else by the recent-median rule; the divisor is in ``notes``."""
     name = yahoo_symbol.lstrip("^")
-    sources = [_ibkr_source(yahoo_symbol, start, "none", client)]
-    if yahoo is not None:
-        sources.append(Source("yahoo", yahoo))
+    yahoo_rows = None if yahoo is None else _memo(yahoo)
+    notes: dict[str, Any] = {}
+    if name in YIELD_INDICES:
+        def ibkr() -> list[Row]:
+            rows = ibkr_rows(yahoo_symbol, start=start, client=client)
+            reference: list[Row] = []
+            if yahoo_rows is not None and (start is None or not rows or not covers(rows[0]["date"], start)):
+                try:
+                    reference = yahoo_rows()
+                except Exception:  # noqa: BLE001 - recorded when the merge calls Yahoo itself
+                    reference = []
+            notes["ibkr_divisor"] = yield_scale(rows, reference)
+            return _scaled(rows, notes["ibkr_divisor"])
+        sources = [Source("ibkr", ibkr)]
+    else:
+        sources = [_ibkr_source(yahoo_symbol, start, "none", client)]
+    if yahoo_rows is not None:
+        sources.append(Source("yahoo", yahoo_rows))
     if name in CBOE_CSV:
         sources.append(Source("cboe", lambda: cboe_daily(name, fetch=fetch)))
     if name in TREASURY_COLUMN:
         sources.append(Source("treasury", lambda: treasury_daily(name, start=start, end=end, fetch=fetch),
                               open_start=False))
-    return merge_sources(sources, start=start, end=end)
+    merged = merge_sources(sources, start=start, end=end)
+    merged.notes.update(notes)
+    return merged
 
 
 def source_note(merged: Merged) -> str:
-    """One line for a script's summary print: per-source counts, and failed sources by code."""
+    """One line for a script's summary print: per-source counts, failed sources by code, seam warnings."""
     errors = "; ".join(f"{name} failed ({text.split(':')[0]})" for name, text in merged.errors.items())
-    return merged.label() + (f"; {errors}" if errors else "")
+    return "; ".join(part for part in (merged.label(), errors, *merged.warnings) if part)

@@ -4,20 +4,16 @@ Not a test and not a runtime dependency. Run it only to rebuild the fixture:
 
     python3 services/research/tests/golden/fetch_yahoo.py
 
-Source: IBKR first, Yahoo fills gaps (services/research/ibkr_history.py). With
-VERTEX_HISTORY_URL and VERTEX_DEPLOY_STATUS_TOKEN set, IBKR TRADES daily bars
-(split-adjusted OHLC, volume in shares) joined with ADJUSTED_LAST (adj_close); the
-public Yahoo Finance chart endpoint (v8, interval 1d) fills the dates before IBKR's
-first date (adj_close rescaled to IBKR's on the seam date) and everything when IBKR
-fails or is not configured. The output is a frozen copy: a new download can differ,
-because both providers restate adjusted closes after each dividend. Do not rebuild
-the fixture unless the golden reference is also rebuilt.
+Source: the public Yahoo Finance chart endpoint (v8, interval 1d) only, on purpose.
+Unlike the research fetchers (services/research/ibkr_history.py: IBKR first, Yahoo
+fills gaps), this script never reads IBKR history, even when VERTEX_HISTORY_URL and
+VERTEX_DEPLOY_STATUS_TOKEN are set: the fixture is committed to a public repository
+and IBKR market data must never land there. No account, key or payment is needed.
+The output is a frozen copy: a new download can differ, because Yahoo restates
+adjusted closes after each dividend. Do not rebuild the fixture unless the golden
+reference is also rebuilt.
 
 Writes tests/fixtures/golden/<SYMBOL>-1d.csv and tests/fixtures/golden/manifest.json.
-The CSV header stays exact (scripts/golden-battery/battery.ts refuses other columns),
-so the per-source rows and seams go to manifest.json (files.<SYMBOL>.sources);
-downloadSha256 is the SHA-256 of the downloaded bytes (IBKR rows as canonical JSON,
-then the Yahoo response, whichever were used).
 """
 
 from __future__ import annotations
@@ -26,14 +22,12 @@ import csv
 import hashlib
 import io
 import json
+import os
 import sys
 import urllib.request
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-import ibkr_history as ih  # noqa: E402
 
 SYMBOLS = ("SPY", "QQQ")
 START = "2015-01-01"
@@ -59,12 +53,12 @@ def _download(symbol: str) -> bytes:
         return response.read()
 
 
-def _rows(raw: bytes) -> list[dict]:
+def _rows(raw: bytes) -> list[dict[str, str]]:
     chart = json.loads(raw)["chart"]["result"][0]
     zone = ZoneInfo(chart["meta"]["exchangeTimezoneName"])
     quote = chart["indicators"]["quote"][0]
     adjusted = chart["indicators"]["adjclose"][0]["adjclose"]
-    rows: list[dict] = []
+    rows: list[dict[str, str]] = []
     for index, stamp in enumerate(chart["timestamp"]):
         values = [quote["open"][index], quote["high"][index], quote["low"][index], quote["close"][index]]
         if any(value is None for value in [*values, adjusted[index], quote["volume"][index]]):
@@ -72,42 +66,31 @@ def _rows(raw: bytes) -> list[dict]:
         day = datetime.fromtimestamp(stamp, zone).date().isoformat()
         if not START <= day <= END:
             continue
-        rows.append({"date": day, "open": values[0], "high": values[1], "low": values[2], "close": values[3],
-                     "adj_close": adjusted[index], "volume": quote["volume"][index]})
-    return rows
-
-
-def _merged(symbol: str) -> tuple[list[dict[str, str]], ih.Merged, bytes]:
-    """IBKR first, Yahoo fills gaps; rows formatted for the fixture, the merge and the downloaded bytes."""
-    downloads: list[bytes] = []
-
-    def yahoo() -> list[dict]:
-        raw = _download(symbol)
-        downloads.append(raw)
-        return _rows(raw)
-
-    end = (date.fromisoformat(END) + timedelta(days=1)).isoformat()  # END is inclusive
-    merged = ih.merged_daily(symbol, yahoo, start=START, end=end, adjust="adj_close")
-    ibkr = [row for row in merged.rows if row["source"] == "ibkr"]
-    if ibkr:
-        downloads.insert(0, json.dumps(ibkr, sort_keys=True, separators=(",", ":")).encode())
-    rows: list[dict[str, str]] = []
-    for row in merged.rows:
-        if row["volume"] is None:
-            raise SystemExit(f"{symbol}: missing volume on {row['date']}")
-        rows.append({**{key: f"{float(row[key]):.6f}" for key in FIELDS[1:6]},
-                     "date": row["date"], "volume": str(int(round(row["volume"])))})
+        rows.append(
+            {
+                "date": day,
+                "open": f"{values[0]:.6f}",
+                "high": f"{values[1]:.6f}",
+                "low": f"{values[2]:.6f}",
+                "close": f"{values[3]:.6f}",
+                "adj_close": f"{adjusted[index]:.6f}",
+                "volume": str(int(quote["volume"][index])),
+            }
+        )
     days = [row["date"] for row in rows]
     if days != sorted(set(days)):
         raise SystemExit("dates are not unique and ascending")
-    return rows, merged, b"".join(downloads)
+    return rows
 
 
 def main() -> int:
+    if os.environ.get("VERTEX_HISTORY_URL"):
+        print("IBKR history is configured but not used: the golden fixture is Yahoo only (public repository).")
     TARGET.mkdir(parents=True, exist_ok=True)
     files = {}
     for symbol in SYMBOLS:
-        rows, merged, raw = _merged(symbol)
+        raw = _download(symbol)
+        rows = _rows(raw)
         buffer = io.StringIO()
         writer = csv.DictWriter(buffer, fieldnames=FIELDS, lineterminator="\n")
         writer.writeheader()
@@ -122,28 +105,25 @@ def main() -> int:
             "rows": len(rows),
             "first": rows[0]["date"],
             "last": rows[-1]["date"],
-            "sources": merged.summary(),
         }
-        print(symbol, len(rows), rows[0]["date"], rows[-1]["date"], ih.source_note(merged))
+        print(symbol, len(rows), rows[0]["date"], rows[-1]["date"])
     manifest = {
-        "provider": "IBKR vertex-history daily (TRADES OHLC and volume, ADJUSTED_LAST adj_close) first; Yahoo "
-                    "Finance public chart endpoint v8 (query1.finance.yahoo.com), interval 1d, fills gaps",
+        "provider": "Yahoo Finance public chart endpoint v8 (query1.finance.yahoo.com), interval 1d",
         "fetchedAt": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "generator": "services/research/tests/golden/fetch_yahoo.py",
         "range": {"start": START, "end": END},
         "fields": {
             "date": "exchange-local trading date (America/New_York)",
             "open, high, low, close": "split-adjusted prices in USD, rounded to 6 decimals",
-            "adj_close": "split- and dividend-adjusted close as IBKR (Yahoo before IBKR's first date, rescaled on "
-                         "the seam date) reported it on fetchedAt, rounded to 6 decimals",
+            "adj_close": "split- and dividend-adjusted close as Yahoo reported it on fetchedAt, rounded to 6 decimals",
             "volume": "shares, split-adjusted",
         },
         "adjustment": "Both backtest paths scale open, high, low and close by adj_close/close (total-return bars).",
         "delay": "End-of-day history only; the newest bar is from 2024-12-31. No live or intraday data.",
         "license": (
-            "IBKR and Yahoo Finance data are for personal, non-commercial use and must not be redistributed. "
-            "This copy is a test fixture in a private repository. Do not publish it, copy it to "
-            "report pages or ship it in a build."
+            "Yahoo Finance data is for personal, non-commercial use and must not be redistributed. "
+            "This copy is a frozen test fixture for the golden backtest battery only. Do not copy it to "
+            "report pages, other data sets or a build."
         ),
         "files": files,
     }

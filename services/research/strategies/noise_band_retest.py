@@ -173,7 +173,8 @@ def fetch_daily(symbol: str, path: str, client: ih.Client | None = None) -> None
 
 
 def load_daily(path: str) -> tuple[dict[date, float], dict[date, float]]:
-    """(close by session date, cash dividend by ex-date) from a saved Yahoo chart response."""
+    """(close by session date, cash dividend by ex-date) from a saved daily file (Yahoo chart layout; see
+    fetch_daily: IBKR first, Yahoo fills gaps)."""
     res = json.load(open(path))["chart"]["result"][0]
     closes = {}
     for ts, c in zip(res["timestamp"], res["indicators"]["quote"][0]["close"]):
@@ -184,8 +185,18 @@ def load_daily(path: str) -> tuple[dict[date, float], dict[date, float]]:
     return closes, divs
 
 
-def calendar_check(sessions: Sequence[Session], closes: dict[date, float]) -> dict:
-    """Sessions missing against the Yahoo daily calendar inside the bar range, and last-close agreement."""
+def daily_source(path: str) -> str:
+    """Where the saved daily file's bars came from: the merge record of fetch_daily, else Yahoo (a file saved
+    verbatim from the Yahoo chart API)."""
+    sources = json.load(open(path)).get("vertex_sources")
+    if not sources:
+        return "yahoo"
+    return "; ".join(f"{name} {info['first']}..{info['last']}" for name, info in sources["rows"].items())
+
+
+def calendar_check(sessions: Sequence[Session], closes: dict[date, float], source: str = "yahoo") -> dict:
+    """Sessions missing against the daily-bar calendar (``source``: see daily_source) inside the bar range,
+    and last-close agreement."""
     if not sessions:
         return {}
     have = {s.day for s in sessions}
@@ -193,10 +204,11 @@ def calendar_check(sessions: Sequence[Session], closes: dict[date, float]) -> di
     missing = sorted(d for d in closes if lo <= d <= hi and d not in have)
     diffs = sorted(abs(s.bars[-1].close / closes[s.day] - 1.0) for s in sessions if s.day in closes)
     return {
-        "yahoo_sessions_in_range": sum(1 for d in closes if lo <= d <= hi),
+        "daily_source": source,
+        "daily_sessions_in_range": sum(1 for d in closes if lo <= d <= hi),
         "missing_sessions": [d.isoformat() for d in missing],
-        "last_close_vs_yahoo_median_abs": round(diffs[len(diffs) // 2], 6) if diffs else None,
-        "last_close_vs_yahoo_over_0.5pct": sum(1 for x in diffs if x > 0.005),
+        "last_close_vs_daily_median_abs": round(diffs[len(diffs) // 2], 6) if diffs else None,
+        "last_close_vs_daily_over_0.5pct": sum(1 for x in diffs if x > 0.005),
     }
 
 
@@ -294,7 +306,7 @@ def main(argv: list[str] | None = None) -> dict:
             fetch_daily(sym, dpath)
         closes, divs = load_daily(dpath)
         sessions, info = load_ib_sessions(os.path.join(a.ib, sym), divs)
-        entry: dict = {"data": info, "calendar": calendar_check(sessions, closes)}
+        entry: dict = {"data": info, "calendar": calendar_check(sessions, closes, daily_source(dpath))}
         if sym == "SPY" and kaggle5:
             k_div = [replace(s, dividend=divs.get(s.day, s.dividend)) for s in kaggle5]
             overlap = [s.day for s in sessions if s.day <= kaggle5[-1].day]

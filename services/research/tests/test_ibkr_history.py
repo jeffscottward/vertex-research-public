@@ -264,14 +264,59 @@ def test_adj_close_rows_join_trades_and_adjusted_last():
     assert [call["params"]["whatToShow"] for call in fake.calls][:2] == ["ADJUSTED_LAST", "TRADES"]
 
 
-def test_futures_use_the_latest_contfut_window_and_yields_come_in_percent():
+def test_futures_use_the_latest_contfut_window_with_all_trading_hours():
     fake = FakeTransport(answer=lambda params: ok(document(["2026-11-09"], sec_type="CONTFUT")))
     rows = ih.ibkr_rows("ES=F", client=client(fake))
-    assert fake.calls[0]["params"]["duration"] == f"{ih.CONTFUT_YEARS} Y" and rows[0]["adj_close"] == 100.0
-    fake = FakeTransport(answer=lambda params: ok(document(["2026-11-09"], sec_type="IND", close=42.5, volume=None)))
-    assert ih.ibkr_rows("^TNX", client=client(fake))[0]["close"] == pytest.approx(4.25)
-    fake = FakeTransport(answer=lambda params: ok(document(["2026-11-09"], sec_type="IND", close=4.25, volume=None)))
-    assert ih.ibkr_rows("^TNX", client=client(fake))[0]["close"] == 4.25
+    params = fake.calls[0]["params"]
+    assert (params["duration"], params["useRTH"], params["exchange"]) == (f"{ih.CONTFUT_YEARS} Y", "0", "CME")
+    assert rows[0]["adj_close"] == 100.0
+
+
+def test_futures_seam_rescales_yahoo_by_the_close_ratio_and_warns():
+    fake = FakeTransport(answer=lambda params: ok(document(["2026-01-05", "2026-01-06"], sec_type="CONTFUT",
+                                                           close=110.0)))
+    yahoo = [bar("2026-01-02", 99.0, adj_close=99.0), bar("2026-01-05", 100.0, adj_close=100.0)]
+    merged = ih.merged_daily("ES=F", lambda: yahoo, client=client(fake))
+    first = merged.rows[0]
+    assert first["source"] == "yahoo" and first["close"] == pytest.approx(108.9)
+    assert first["adj_close"] == pytest.approx(108.9) and first["open"] == pytest.approx(108.9)
+    assert merged.seams[0]["rescaled"] == {"close": pytest.approx(1.1)}
+    assert merged.warnings == ["seam 2026-01-05: ibkr/yahoo close ratio 1.1000"]
+    assert "close ratio 1.1000" in ih.source_note(merged)
+
+
+def test_yield_scale_from_overlap_or_recent_median():
+    tenfold = [bar(f"2026-01-0{d}", 42.5) for d in range(1, 8)]
+    percent = [bar(f"2026-01-0{d}", 4.25) for d in range(1, 8)]
+    assert ih.yield_scale(tenfold, percent) == 10.0
+    assert ih.yield_scale(percent, percent) == 1.0
+    # 2020-style near-zero yields in 10x form: the overlap decides, the median alone would not.
+    assert ih.yield_scale([bar(f"2026-01-0{d}", 0.9) for d in range(1, 8)],
+                          [bar(f"2026-01-0{d}", 0.09) for d in range(1, 8)]) == 10.0
+    assert ih.yield_scale(tenfold) == 10.0 and ih.yield_scale(percent) == 1.0
+    assert ih.yield_scale(tenfold, percent[:4]) == 10.0  # too little overlap: median rule
+    assert ih.yield_scale(tenfold, [bar(f"2026-01-0{d}", 1.0) for d in range(1, 8)]) == 10.0  # ratio 42.5: median
+    assert ih.yield_scale([]) == 1.0
+
+
+def test_index_daily_scales_ibkr_yields_against_yahoo_without_extra_downloads():
+    calls: list[str] = []
+    fake = FakeTransport(answer=lambda params: ok(document(["2000-01-03", "2000-01-04", "2000-01-05",
+                                                           "2000-01-06", "2000-01-07"], sec_type="IND",
+                                                          close=65.0, step=0.0, volume=None)))
+
+    def yahoo():
+        calls.append("yahoo")
+        return [bar(day, 6.5) for day in ("1999-12-30", "2000-01-03", "2000-01-04", "2000-01-05", "2000-01-06",
+                                          "2000-01-07")]
+
+    merged = ih.index_daily("^TNX", yahoo, client=client(fake))
+    assert calls == ["yahoo"] and merged.notes == {"ibkr_divisor": 10.0}
+    assert [(row["date"], row["close"], row["source"]) for row in merged.rows][:2] == [
+        ("1999-12-30", 6.5, "yahoo"), ("2000-01-03", 6.5, "ibkr")]
+    calls.clear()
+    merged = ih.index_daily("^TNX", yahoo, start="2000-01-01", client=client(fake))  # covered: no Yahoo
+    assert calls == [] and merged.notes == {"ibkr_divisor": 10.0} and merged.rows[0]["close"] == 6.5
 
 
 # --- merge seam --------------------------------------------------------------------------------------------
@@ -301,8 +346,9 @@ def test_ibkr_keeps_its_dates_and_yahoo_fills_before_its_first_date():
         ("2020-01-03", 10.0, "ibkr"), ("2020-01-06", 11.0, "ibkr")]
     assert merged.sources == {"ibkr": {"rows": 2, "first": "2020-01-03", "last": "2020-01-06"},
                               "yahoo": {"rows": 2, "first": "2020-01-01", "last": "2020-01-02"}}
-    assert merged.seams == [{"date": "2020-01-03", "newer": "ibkr", "older": "yahoo", "close_ratio": 10 / 3,
-                             "rescaled": {}}]
+    assert merged.seams == [{"date": "2020-01-03", "ratio_date": "2020-01-03", "newer": "ibkr", "older": "yahoo",
+                             "close_ratio": 10 / 3, "rescaled": {}}]
+    assert merged.warnings == ["seam 2020-01-03: ibkr/yahoo close ratio 3.3333"]
     assert merged.errors == {}
 
 
@@ -394,9 +440,12 @@ def test_treasury_is_consulted_only_when_the_others_leave_the_start_uncovered(mo
     merged = ih.index_daily("^TNX", lambda: yahoo, fetch=fetch)  # open start, Yahoo answered: no Treasury
     assert calls == [] and [row["source"] for row in merged.rows] == ["yahoo"]
     merged = ih.index_daily("^TNX", lambda: yahoo, start="2000-01-01", end="2001-01-01", fetch=fetch)
+    assert calls == [] and len(merged.rows) == 1  # Yahoo's 2000-01-04 covers a 2000-01-01 (Saturday) start
+    late = [bar("2000-01-10", 6.4)]
+    merged = ih.index_daily("^TNX", lambda: late, start="2000-01-01", end="2001-01-01", fetch=fetch)
     assert calls == ["2000", "2001"]
     assert [(row["date"], row["close"], row["source"]) for row in merged.rows] == [
-        ("2000-01-03", 6.6, "treasury"), ("2000-01-04", 6.4, "yahoo")]
+        ("2000-01-03", 6.6, "treasury"), ("2000-01-04", 6.5, "treasury"), ("2000-01-10", 6.4, "yahoo")]
     calls.clear()
     merged = ih.index_daily("^IRX", lambda: [], start="2000-01-01", end="2000-06-01", fetch=fetch)
     assert calls == ["2000"] and [row["close"] for row in merged.rows] == [5.3]
@@ -425,6 +474,7 @@ SCRIPTS = {
     "volsizing": "research/backtests/volsizing/fetch_ivx.py",
     "golden": "services/research/tests/golden/fetch_yahoo.py",
 }
+MERGING = sorted(set(SCRIPTS) - {"golden"})
 
 
 class FakeSeries:
@@ -498,7 +548,7 @@ def ibkr_spy(params):
     return ok(document(["2020-01-02", "2020-01-03"], close=40.0 if adjusted else 100.0))
 
 
-@pytest.mark.parametrize("name", sorted(SCRIPTS))
+@pytest.mark.parametrize("name", MERGING)
 def test_every_fetcher_names_the_ibkr_first_source(name, monkeypatch):
     module = load_script(name, monkeypatch)
     assert "IBKR first, Yahoo fills gaps" in " ".join(module.__doc__.split())
@@ -594,3 +644,196 @@ def test_noise_band_daily_keeps_yahoo_dividends_and_new_york_dates(monkeypatch, 
     assert closes == {date(2019, 12, 31): 321.0, date(2020, 1, 2): 100.0, date(2020, 1, 3): 101.0}
     assert divs == {date(2019, 12, 20): 1.57}
     assert json.loads(merged)["vertex_sources"]["rows"]["yahoo"]["rows"] == 1
+
+
+# --- review fixes: empty answers, coverage slack, symbols, caps, seams ------------------------------------------
+
+
+def test_empty_yahoo_answer_returns_no_rows_instead_of_raising_ibkr_error(monkeypatch):
+    monkeypatch.delenv(ih.URL_ENV, raising=False)
+    merged = ih.merged_daily("SPY", lambda: [], start="2020-01-01")
+    assert merged.rows == [] and merged.errors["ibkr"].startswith("NOT_CONFIGURED")
+    merged = ih.merge_sources([source("ibkr", error=ih.IbkrHistoryError("NOT_FOUND", "x")),
+                               source("yahoo", [bar("2019-01-02", 1.0)])], start="2020-01-01")
+    assert merged.rows == [] and merged.sources == {}
+
+
+def test_weekend_or_holiday_start_counts_as_covered():
+    calls: list[str] = []
+    merged = ih.merge_sources([source("ibkr", [bar("2000-01-03", 1.0)], calls=calls),
+                               source("yahoo", [bar("1999-12-31", 0.5)], calls=calls)], start="2000-01-01")
+    assert calls == ["ibkr"] and [row["source"] for row in merged.rows] == ["ibkr"]
+    merged = ih.merge_sources([source("ibkr", [bar("2000-01-10", 1.0)], calls=calls),
+                               source("yahoo", [bar("2000-01-03", 0.5)], calls=calls)], start="2000-01-01")
+    assert calls[1:] == ["ibkr", "yahoo"]  # 9 days later: not covered
+    assert ih.covers("2000-01-06", "2000-01-01") and not ih.covers("2000-01-07", "2000-01-01")
+
+
+def test_paged_needs_no_extra_page_for_a_weekend_start():
+    fake = FakeTransport(answer=lambda params: ok(document(["2000-01-03", "2026-11-09"])))
+    client(fake).paged("SPY", start="2000-01-01")
+    assert len(fake.calls) == 1 and fake.calls[0]["params"]["duration"] == "27 Y"
+
+
+def test_class_share_symbols_pass_and_bad_symbols_are_refused_before_any_request():
+    fake = FakeTransport(answer=lambda params: ok(document(["2026-11-09"])))
+    client(fake).daily_bars("BRK B")
+    assert fake.calls[0]["params"]["symbol"] == "BRK B"
+    for bad in ("BRK  B", "BRK-B", "", "TOOLONGSYMBOL1", "^VIX", "BRK BB"):
+        with pytest.raises(ih.IbkrHistoryError) as raised:
+            client(fake).daily_bars(bad)
+        assert raised.value.code == "BAD_REQUEST" and "symbol" in raised.value.message
+    assert len(fake.calls) == 1
+
+
+def _vertex_history():
+    path = REPO / "infra" / "quant-vps" / "history" / "vertex_history.py"
+    spec = importlib.util.spec_from_file_location("vertex_history_contract", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("yahoo_symbol, request_", [
+    ("BRK-B", {"years": 30}),
+    ("SPY", {"what": "ADJUSTED_LAST", "years": 30}),
+    ("SPY", {"years": 22, "end_date_time": "20100103-23:59:59"}),
+    ("^VIX", {"years": 30}),
+    ("^GSPC", {"years": 5, "end_date_time": "20200103-23:59:59"}),
+    ("ES=F", {"years": ih.CONTFUT_YEARS, "use_rth": False}),
+    ("EURUSD=X", {"years": 10}),
+])
+def test_built_queries_pass_the_service_validator(yahoo_symbol, request_):
+    vh = _vertex_history()
+    contract = ih.contract_for(yahoo_symbol)
+    options = {"sec_type": contract.sec_type, "exchange": contract.exchange, "currency": contract.currency,
+               "what": request_.pop("what", contract.what), **request_}
+    ih.check_request(sec_type=options["sec_type"], exchange=options["exchange"], what=options["what"],
+                     years=options["years"], end_date_time=options.get("end_date_time"), symbol=contract.symbol)
+    url = ih.build_url(BASE, symbol=contract.symbol, **options)
+    raw = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+    normalized = vh.validate(raw, now=stamp("2026-11-10"))
+    assert normalized["symbol"] == contract.symbol and normalized["secType"] == contract.sec_type
+    assert normalized["useRTH"] is options.get("use_rth", True)
+
+
+def test_paced_wait_is_capped():
+    sleeps: list[float] = []
+    fake = FakeTransport(queue=[failure(429, {"error": "paced", "retry_after_seconds": 5000}),
+                                ok(document(["2026-11-09"]))])
+    client(fake, sleeps=sleeps).daily_bars("SPY")
+    assert sleeps == [ih.PACED_WAIT_MAX_SECONDS]
+
+
+def test_public_get_refuses_plain_http_redirects_and_oversized_bodies(monkeypatch):
+    with pytest.raises(ValueError, match="https"):
+        ih.public_get("http://cdn.cboe.test/x.csv")
+
+    class Response:
+        def __init__(self, body):
+            self.body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, limit):
+            return self.body[:limit]
+
+    handlers: list = []
+
+    class Opener:
+        def __init__(self, body):
+            self.body = body
+
+        def open(self, request, timeout):
+            assert request.full_url == "https://cdn.cboe.test/x.csv" and timeout == 60
+            return Response(self.body)
+
+    def build(*given, body=b"DATE,CLOSE\n"):
+        handlers.extend(given)
+        return Opener(body)
+
+    monkeypatch.setattr(ih.urllib.request, "build_opener", build)
+    assert ih.public_get("https://cdn.cboe.test/x.csv") == b"DATE,CLOSE\n"
+    assert handlers == [ih._NoRedirect]
+    monkeypatch.setattr(ih.urllib.request, "build_opener",
+                        lambda *given: Opener(b"x" * (ih.PUBLIC_MAX_BYTES + 1)))
+    with pytest.raises(ValueError, match="size cap"):
+        ih.public_get("https://cdn.cboe.test/x.csv")
+    assert ih._NoRedirect().redirect_request() is None
+
+
+def test_cboe_csv_with_bom_padded_headers_and_blank_values():
+    text = "\ufeffDATE, OPEN,HIGH,LOW,CLOSE\n01/02/2004,20,,19,20.5\n01/05/2004,1,1,1,\n,1,1,1,3\nn/a,1,1,1,3\n"
+    rows = ih.cboe_daily("VIX", fetch=lambda url: text.encode())
+    assert [(row["date"], row["open"], row["high"], row["close"]) for row in rows] == [
+        ("2004-01-02", 20.0, 20.5, 20.5)]
+
+
+def test_seam_ratio_uses_the_first_common_date_when_the_seam_date_is_missing():
+    ibkr = [bar("2020-01-03", 20.0, adj_close=20.0), bar("2020-01-06", 22.0, adj_close=22.0)]
+    yahoo = [bar("2020-01-02", 9.0, adj_close=9.0), bar("2020-01-06", 11.0, adj_close=11.0)]
+    merged = ih.merge_sources([source("ibkr", ibkr), source("yahoo", yahoo)], rescale=ih.ADJUST_RESCALE["adj_close"])
+    assert merged.seams[0]["ratio_date"] == "2020-01-06" and merged.seams[0]["close_ratio"] == 2.0
+    assert merged.rows[0]["adj_close"] == 18.0
+    merged = ih.merge_sources([source("ibkr", ibkr), source("yahoo", yahoo[:1])])
+    assert merged.seams[0]["ratio_date"] is None and merged.seams[0]["close_ratio"] is None
+
+
+def test_adj_close_mode_keeps_trades_dates_missing_from_adjusted_last():
+    def answer(params):
+        if params["whatToShow"] == "ADJUSTED_LAST":
+            return ok(document(["2020-01-02", "2020-01-06"], close=50.0, step=0.0))
+        return ok(document(["2020-01-02", "2020-01-03", "2020-01-06"], close=100.0, step=0.0))
+    rows = ih.ibkr_rows("SPY", start="2020-01-01", adjust="adj_close", client=client(FakeTransport(answer=answer)))
+    assert [(row["date"], row["adj_close"], row.get("adj_close_carried", False)) for row in rows] == [
+        ("2020-01-02", 50.0, False), ("2020-01-03", 50.0, True), ("2020-01-06", 50.0, False)]
+    merged = ih.merge_sources([ih.Source("ibkr", lambda: rows)])
+    assert merged.summary()["adj_close_carried"] == 1
+    assert ih._with_adj_close([bar("2020-01-01", 10.0)], [bar("2020-01-02", 5.0)]) == []
+    early = ih._with_adj_close([bar("2020-01-01", 10.0), bar("2020-01-02", 10.0)], [bar("2020-01-02", 5.0)])
+    assert early[0] == {**bar("2020-01-01", 10.0), "adj_close": 5.0, "adj_close_carried": True}
+
+
+def test_golden_fixture_fetcher_is_yahoo_only(monkeypatch, capsys):
+    module = load_script("golden", monkeypatch)
+    assert not hasattr(module, "ih")
+    doc = " ".join(module.__doc__.split())
+    assert "Yahoo Finance chart endpoint (v8, interval 1d) only" in doc and "never reads IBKR history" in doc
+    source = (REPO / SCRIPTS["golden"]).read_text()
+    assert "import ibkr_history" not in source and "private repository" not in source
+    assert "Yahoo Finance public chart endpoint v8" in source
+
+
+def test_core7_source_text_stays_under_the_importer_limit(monkeypatch):
+    module = load_script("core7", monkeypatch)
+    merged = ih.Merged([], sources={"ibkr": {"rows": 7000, "first": "1996-11-11", "last": "2026-11-06"},
+                                    "yahoo": {"rows": 900, "first": "1993-01-29", "last": "1996-11-08"}})
+    for symbol in ("SPY", "ES=F"):
+        text = module.source_text(symbol, "2026-11-10", merged)
+        assert len(text) <= 240 and text.startswith("IBKR vertex-history") and "scaled to IBKR" in text
+    only = ih.Merged([], sources={"yahoo": {"rows": 900, "first": "1993-01-29", "last": "2026-11-06"}})
+    assert module.source_text("SPY", "2026-11-10", only).startswith("Yahoo yfinance fake split-adjusted")
+    with pytest.raises(ValueError, match="300"):
+        module.source_text("SPY", "2026-11-10", ih.Merged([], sources={
+            f"s{i}": {"rows": 1, "first": "2000-01-01", "last": "2000-01-02"} for i in range(9)}))
+
+
+def test_scripts_keep_their_old_empty_result_behaviour(monkeypatch, tmp_path):
+    monkeypatch.delenv(ih.URL_ENV, raising=False)
+    module = load_script("freestockalerts", monkeypatch)
+    assert module.fetch("ZZZ", tmp_path)["rows"] == 0
+    module = load_script("quantjourney", monkeypatch)
+    entry = module.fetch_daily("ZZZ", tmp_path / "ZZZ.csv")
+    assert (entry["rows"], entry["first"]) == (0, None)
+    assert (tmp_path / "ZZZ.csv").read_text() == "date,open,high,low,close,adj_close,volume,source\n"
+    module = load_script("qc_ports", monkeypatch)
+    with pytest.raises(SystemExit, match="no data for ZZZ"):
+        module._bars(fake_yfinance({}), "ZZZ", None)
+    module = load_script("calendar", monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["fetch_data.py", "--out", str(tmp_path / "cal")])
+    with pytest.raises(SystemExit, match="no data for SPY"):
+        module.main()

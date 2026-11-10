@@ -22,6 +22,7 @@ import {
   parseSeriesPoints,
   parseSha256Sums,
   parseShiller,
+  parseSourcesRecord,
   runMarketSeriesImport,
   shiftMonth,
 } from "./import.ts";
@@ -307,14 +308,19 @@ describe("loadSeriesImports", () => {
       id: "SPY",
       kind: "etf",
       source:
-        "qc-ports fetch (research/backtests/qc-ports/fetch_data.py): Yahoo daily bars SPY, auto_adjust=False; fetched 2026-11-08",
+        "qc-ports fetch (research/backtests/qc-ports/fetch_data.py): daily bars SPY, split-adjusted close: IBKR first, Yahoo fills gaps; fetched 2026-11-08",
       sourceSha256: sha(BAR_FILE),
     });
     expect(byId.get("ES=F")?.series.kind).toBe("future");
     expect(byId.get("ES=F")?.series.source).toContain(
       "ES=F (continuous future)"
     );
-    expect(byId.get("VIX")?.series.source).toContain("Yahoo daily close ^VIX;");
+    expect(byId.get("VIX")?.series.source).toContain(
+      "daily close ^VIX: IBKR first, Yahoo fills gaps, then the CBOE public history CSV;"
+    );
+    expect(byId.get("TNX")?.series.source).toContain(
+      "then US Treasury yields;"
+    );
     expect(byId.get("RVX")?.series.source).toContain(
       "CBOE public history CSV RVX_History.csv"
     );
@@ -330,6 +336,43 @@ describe("loadSeriesImports", () => {
     expect(ratio?.points.map((point) => [point.date, point.close])).toEqual([
       ["2024-01-02", (100 * 190.25) / 4500.5 / 4],
     ]);
+  });
+
+  it("labels each series from SOURCES.json when the fetch recorded it", async () => {
+    const sources = JSON.stringify({
+      "RVX.csv": {
+        rows: { cboe: { first: "2004-01-02", last: "2026-11-06", rows: 5000 } },
+      },
+      "SPY.csv": {
+        rows: {
+          ibkr: { first: "1996-11-11", last: "2026-11-06", rows: 7550 },
+          yahoo: { first: "1993-01-29", last: "1996-11-08", rows: 950 },
+        },
+      },
+    });
+    writeFetch(directory, { "SOURCES.json": sources });
+    const imports = await loadSeriesImports(directory);
+    const byId = new Map(imports.map((entry) => [entry.series.id, entry]));
+    expect(byId.get("SPY")?.series.source).toContain(
+      "daily bars SPY, split-adjusted close: ibkr 1996-11-11..2026-11-06, yahoo 1993-01-29..1996-11-08; fetched"
+    );
+    expect(byId.get("RVX")?.series.source).toContain(
+      "daily close ^RVX: cboe 2004-01-02..2026-11-06;"
+    );
+    expect(byId.get("QQQ")?.series.source).toContain(
+      "split-adjusted close: IBKR first, Yahoo fills gaps;"
+    );
+    for (const entry of imports) {
+      expect(entry.series.source.length).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it("refuses a SOURCES.json that is not a JSON object", async () => {
+    writeFetch(directory, { "SOURCES.json": "[]" });
+    await expect(loadSeriesImports(directory)).rejects.toThrow(
+      "SOURCES.json must be a JSON object"
+    );
+    expect(() => parseSourcesRecord("null")).toThrow("JSON object");
   });
 
   it("refuses a file missing from SHA256SUMS", async () => {

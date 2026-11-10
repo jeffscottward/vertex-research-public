@@ -26,6 +26,7 @@ import {
   type Published,
   parsePriceCsv,
   primarySummary,
+  quantjourneySource,
   RESEARCH_DIR,
   type RerunInputs,
   rerunStrategy,
@@ -771,6 +772,26 @@ describe("CLI and rendering", () => {
     expect(text).toContain("|WF01|100.0% / 0.30 / -20.0%|—|—|—|—|");
     return expect(text).toContain(
       "Gates (3 trials, Vertex cost 10 bp per side): 1 pass."
+    );
+  });
+});
+
+describe("quantjourneySource", () => {
+  it("names the merge and the files per source when the manifest records them", () => {
+    expect(quantjourneySource("{}")).toBe(
+      "IBKR first, Yahoo fills gaps (research/backtests/quantjourney/fetch_data.py)"
+    );
+    const manifest = JSON.stringify({
+      files: {
+        "daily/SPY.csv": {
+          sources: {
+            rows: { ibkr: { first: "1999-01-04", last: "2026-07-15" } },
+          },
+        },
+      },
+    });
+    expect(quantjourneySource(manifest)).toBe(
+      "IBKR first, Yahoo fills gaps (research/backtests/quantjourney/fetch_data.py); daily files by source: ibkr 1 file; hourly Yahoo"
     );
   });
 });
