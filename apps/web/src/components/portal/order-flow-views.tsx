@@ -640,8 +640,8 @@ export const DeltaChart = ({
             <ul className="text-muted-foreground text-xs" data-exhaustion="">
               {exhaustion.map((run) => (
                 <li key={`${run.direction}-${run.start}`}>
-                  Exhaustion {run.direction === "up" ? "up" : "down"}:{" "}
-                  {run.buckets} buckets {formatClock(run.start, timeZone)}–
+                  Exhaustion {run.direction}: {run.buckets} buckets{" "}
+                  {formatClock(run.start, timeZone)}–
                   {formatClock(run.end, timeZone)}, volume{" "}
                   {formatSize(run.firstVolume)} → {formatSize(run.lastVolume)},
                   delta {formatSigned(run.firstDelta)} →{" "}
