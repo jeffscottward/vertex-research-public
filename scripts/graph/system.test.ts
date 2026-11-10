@@ -2394,9 +2394,17 @@ describe("Graphify configured source corpus", () => {
       ["a*b*c", "abc", true],
       ["a*b*c", "aXbYc", true],
       ["a*b*c", "ab", false],
+      ["a*b*c", "ac", false],
       ["a*b*c", "acb", false],
       ["a*b*c", "xabc", false],
       ["a*b*c", "abcx", false],
+      // Each literal between two "*" is found after the one before it.
+      ["*a*a*", "a", false],
+      ["*a*a*", "aa", true],
+      ["a*b*c*d", "acbd", false],
+      ["a*b*c*d", "abcd", true],
+      ["*ab*ba*", "aba", false],
+      ["*ab*ba*", "abba", true],
       // The first and the last literal must not overlap.
       ["ab*ba", "aba", false],
       ["ab*ba", "abba", true],
@@ -2418,17 +2426,20 @@ describe("Graphify configured source corpus", () => {
       [".*-bundle-*", ".A-BUNDLE-b", false],
     ] as const) {
       expect(
-        isGraphSourceExcluded(`src/${segment}/x.ts`, [glob]),
+        isGraphSourceExcluded(segment, [glob]),
         `${glob} against ${segment}`
       ).toBe(expected);
     }
-    // Many "*" against a long segment: a matcher that backtracks does not
-    // finish before the test timeout.
-    const manyStars = `${"*a".repeat(12)}*b`;
+    // Several "*" against a long segment. A matcher that backtracks needs
+    // seconds for this input; one forward search for each literal needs less
+    // than a millisecond.
+    const manyStars = `${"*a".repeat(4)}*b`;
+    const started = performance.now();
     expect(isGraphSourceExcluded("a".repeat(255), [manyStars])).toBe(false);
-    return expect(
-      isGraphSourceExcluded(`${"a".repeat(255)}b`, [manyStars])
-    ).toBe(true);
+    expect(isGraphSourceExcluded(`${"a".repeat(255)}b`, [manyStars])).toBe(
+      true
+    );
+    return expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it("excludes every dot-prefixed temp directory glob that .gitignore ignores", async () => {

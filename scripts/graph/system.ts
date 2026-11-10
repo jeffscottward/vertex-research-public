@@ -232,23 +232,22 @@ const validateGraphSource = async (
   }
 };
 // True when one path segment matches a glob whose only special character is
-// "*" (any characters). `literals` is the glob split at each "*". Each literal
-// is found with one forward search, so a glob with many "*" stays fast.
-const matchesSegmentGlob = (
-  segment: string,
-  literals: readonly string[]
-): boolean => {
-  const first = literals[0] ?? "";
-  const last = literals.at(-1) ?? "";
-  const end = segment.length - last.length;
+// "*" (any characters). The glob must contain a "*". The text before the first
+// "*" and after the last "*" must be the start and the end of the segment.
+// Each literal between them is found with one forward search, so a glob with
+// many "*" stays fast.
+const matchesSegmentGlob = (segment: string, glob: string): boolean => {
+  const firstStar = glob.indexOf("*");
+  const lastStar = glob.lastIndexOf("*");
+  const end = segment.length - (glob.length - 1 - lastStar);
   if (
-    end < first.length ||
-    !segment.startsWith(first) ||
-    !segment.endsWith(last)
+    end < firstStar ||
+    !segment.startsWith(glob.slice(0, firstStar)) ||
+    !segment.endsWith(glob.slice(lastStar + 1))
   )
     return false;
-  let from = first.length;
-  for (const literal of literals.slice(1, -1)) {
+  let from = firstStar;
+  for (const literal of glob.slice(firstStar + 1, lastStar).split("*")) {
     const at = segment.indexOf(literal, from);
     if (at === -1 || at + literal.length > end) return false;
     from = at + literal.length;
@@ -273,10 +272,8 @@ export const isGraphSourceExcluded = (
         (path === rootPath || path.startsWith(`${rootPath}/`))
       );
     }
-    if (excluded.includes("*") && !excluded.includes("/")) {
-      const literals = excluded.split("*");
-      return segments.some((segment) => matchesSegmentGlob(segment, literals));
-    }
+    if (excluded.includes("*") && !excluded.includes("/"))
+      return segments.some((segment) => matchesSegmentGlob(segment, excluded));
     return (
       path === excluded ||
       path.startsWith(`${excluded}/`) ||
