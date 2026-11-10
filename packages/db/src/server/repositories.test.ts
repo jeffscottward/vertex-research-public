@@ -1125,6 +1125,7 @@ describe("feature item mutation repository", () => {
       "sectorRotation",
       "clickLog",
       "semanticLayer",
+      "breadth90",
     ]);
     return expect(repositories.generated).toEqual({});
   });

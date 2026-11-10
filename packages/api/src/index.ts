@@ -122,6 +122,7 @@ export * from "./contracts/research-lenses.ts";
 export * from "./contracts/openbb.ts";
 export * from "./contracts/sector-rotation.ts";
 export * from "./flow-trade-signing.ts";
+export * from "./contracts/breadth-90.ts";
 export * from "./contracts/congress-trades.ts";
 export * from "./contracts/risk-allocator.ts";
 export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";

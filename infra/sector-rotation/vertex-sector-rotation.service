@@ -13,7 +13,7 @@ After=network-online.target
 [Service]
 Type=oneshot
 EnvironmentFile=%h/.config/vertex/sector-rotation.env
-WorkingDirectory=%h/Github/trading/vertex-research-platform
+WorkingDirectory=%h/Github/trading/vertex-research-public
 ExecStart=/usr/bin/env bun run vertex:sector-rotation:tick
 TimeoutStartSec=300
 NoNewPrivileges=yes
