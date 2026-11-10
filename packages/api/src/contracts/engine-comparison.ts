@@ -2,9 +2,10 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 
 // Engine comparison (dual run, owner decision 2026-11-05; setup replay and paper forward added by
-// owner decision 2026-11-08): with VERTEX_ENGINE_COMPARISON=on the instant backtest, the parameter
-// sweep, the Autopilot gate, setup replay and the paper forward tick keep their TypeScript result and
-// also queue the same run(s) as Nautilus backtest runs for the research worker on the rig. Each
+// owner decision 2026-11-08, the Academy backtest by the step 6 decision of the same day): with
+// VERTEX_ENGINE_COMPARISON=on the instant backtest, the parameter sweep, the Autopilot gate, setup
+// replay, the paper forward tick and the Academy modelled options backtest keep their TypeScript
+// result and also queue the same run(s) as Nautilus backtest runs for the research worker on the rig. Each
 // such run stores `spec.comparison`: the feature, a group per request (or campaign), a label, and
 // the TypeScript result it repeats. When the worker completes the run, the API stores where and
 // how long it ran (`report.engineRun`) and the differences to the TypeScript result
@@ -16,6 +17,7 @@ export const ENGINE_COMPARISON_FEATURES = [
   "autopilotGate",
   "setupReplay",
   "paperForward",
+  "academy",
 ] as const;
 /** Sweep cells repeated on Nautilus per sweep; the UI states the cap. */
 export const ENGINE_COMPARISON_SWEEP_CELLS_MAX = 100;

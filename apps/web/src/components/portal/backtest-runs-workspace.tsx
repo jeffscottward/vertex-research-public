@@ -154,6 +154,7 @@ const seriesKey = (series: InstantBacktestSeries): string =>
 const describeRule = ({ rule }: BacktestRun["spec"]): string => {
   if (rule.kind === "smaCross") return `SMA cross ${rule.fast}/${rule.slow}`;
   if (rule.kind === "dsl") return `Definition: ${rule.definition.name}`;
+  if (rule.kind === "academy") return `Academy: ${rule.structure}`;
   return `Breakout ${rule.entryLookback}/${rule.exitLookback}${rule.trendSma > 0 ? `, trend ${rule.trendSma}` : ""}`;
 };
 

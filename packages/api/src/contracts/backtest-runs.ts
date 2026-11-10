@@ -287,6 +287,9 @@ export const BacktestRunReportSchema = z.object({
   tradesTruncated: z.boolean(),
 });
 
+/** Daily bars of one Academy comparison run (about 80 years). */
+export const BACKTEST_RUN_ACADEMY_BARS_MAX = 20_000;
+
 export const BacktestRunSpecSchema = z.object({
   /** Engine comparison runs only (./engine-comparison.ts). */
   comparison: EngineComparisonSpecSchema.optional(),
@@ -312,6 +315,22 @@ export const BacktestRunSpecSchema = z.object({
       trendSma: z.number(),
     }),
     z.object({ definition: StrategyDefinitionSchema, kind: z.literal("dsl") }),
+    /**
+     * Academy comparison runs only (the dual run of the Academy modelled options backtest): the
+     * structure and its resolved rules on the daily closes of `symbol`, with `initialCapital` as
+     * the capital. `iv` holds one implied volatility (or null) per bar from `from` to `to`.
+     * Only the Nautilus research worker runs it; `backtestRuns.submit` does not accept it.
+     */
+    z.object({
+      iv: z
+        .array(z.number().nullable())
+        .max(BACKTEST_RUN_ACADEMY_BARS_MAX)
+        .optional(),
+      kind: z.literal("academy"),
+      rules: z.record(z.string(), z.number()),
+      /** An Academy structure id (the engine checks it; this contract imports no Academy code). */
+      structure: z.string().min(1).max(64),
+    }),
   ]),
   stopLossPct: z.number(),
   symbol: z.string(),

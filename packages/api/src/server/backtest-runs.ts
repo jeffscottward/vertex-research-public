@@ -355,11 +355,19 @@ export const loadRunData = async (
   };
 };
 
+export const ACADEMY_RUN_ENGINE_ERROR =
+  "An Academy run needs the Nautilus research worker";
+
 const executeClaimed = async (
   dependencies: BacktestRunExecutionDependencies,
   run: BacktestRunRecord
 ): Promise<void> => {
   const { spec } = run;
+  if (spec.rule.kind === "academy") {
+    // The Academy rule exists for comparison runs, which carry the Nautilus engine id.
+    await dependencies.runs.fail(run.id, ACADEMY_RUN_ENGINE_ERROR);
+    return;
+  }
   const loaded = await loadRunData(dependencies, spec, true);
   if ("error" in loaded) {
     await dependencies.runs.fail(run.id, loaded.error);

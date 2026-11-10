@@ -17,6 +17,7 @@ import {
   vi,
 } from "vitest";
 
+import type { EngineComparisonGateway } from "../engine-comparison.tsx";
 import type { AcademyGateway } from "./academy-client.ts";
 import { LessonBacktest } from "./lesson-backtest.tsx";
 
@@ -137,7 +138,8 @@ const fakeGateway = (
 const mount = async (
   lesson: Lesson,
   gateway: AcademyGateway,
-  onResult?: (output: AcademyBacktestOutput) => void
+  onResult?: (output: AcademyBacktestOutput) => void,
+  comparisonGateway?: EngineComparisonGateway
 ) => {
   const container = document.createElement("div");
   document.body.append(container);
@@ -149,6 +151,7 @@ const mount = async (
         gateway={gateway}
         lesson={lesson}
         {...(onResult === undefined ? {} : { onResult })}
+        {...(comparisonGateway === undefined ? {} : { comparisonGateway })}
       />
     )
   );
@@ -180,6 +183,51 @@ const query = <T extends Element>(container: HTMLElement, selector: string) =>
   container.querySelector(selector) as T;
 
 describe("LessonBacktest", () => {
+  it("shows the Nautilus repeat of a backtest when engine comparison is on", async () => {
+    const comparisons = vi.fn(async () => ({ runs: [] }));
+    const { container } = await mount(
+      strategyLesson(),
+      fakeGateway(async () =>
+        result({
+          comparison: {
+            groupId: "academy-abc",
+            host: "web server",
+            wallMs: 12,
+          },
+        })
+      ),
+      undefined,
+      { comparisons }
+    );
+    expect(container.querySelector("[data-engine-comparison]")).not.toBeNull();
+    expect(comparisons).toHaveBeenCalledWith("academy-abc");
+    // A failed queue (no group) still shows the card; without a comparison there is none.
+    const failed = await mount(
+      strategyLesson(),
+      fakeGateway(async () =>
+        result({
+          comparison: {
+            error: "queue failed",
+            groupId: null,
+            host: "web server",
+            wallMs: null,
+          },
+        })
+      ),
+      undefined,
+      { comparisons }
+    );
+    expect(
+      failed.container.querySelector("[data-engine-comparison]")
+    ).not.toBeNull();
+    expect(comparisons).toHaveBeenCalledTimes(1);
+    const off = await mount(
+      strategyLesson(),
+      fakeGateway(async () => result())
+    );
+    expect(off.container.querySelector("[data-engine-comparison]")).toBeNull();
+  });
+
   it("runs the preset on load, renders stats and trades, and expands the trade list", async () => {
     const onResult = vi.fn();
     const gateway = fakeGateway(async () => result());
