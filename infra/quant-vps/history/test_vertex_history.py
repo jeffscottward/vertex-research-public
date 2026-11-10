@@ -1154,6 +1154,12 @@ class Extend130Test(unittest.TestCase):
         call = next(c for c in gw._client.calls if c[0] == "reqHistoricalData")
         self.assertEqual((call[3], call[5], call[-2]), ("5 Y", "TRADES", "IND"))
 
+    def test_class_share_symbols(self):
+        self.assertEqual(vh.validate(q(symbol="brk b"), now=NOW)["symbol"], "BRK B")
+        for bad in ("BRK  B", "BRK BB", "BRK-B C", "BRK B1"):
+            with self.assertRaises(vh.BadRequest, msg=bad):
+                vh.validate({"symbol": [bad]}, now=NOW)
+
     def test_health_reports_1_3_0(self):
         svc, _gw, _c = make_service()
         self.assertEqual(svc.health()[1]["version"], "1.3.0")
