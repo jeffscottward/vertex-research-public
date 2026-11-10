@@ -383,6 +383,7 @@ const validateDependencyAuthority = (files: readonly SourceFile[]): void => {
           "catalogs",
           "minimumReleaseAgeExclude",
           "enableGlobalVirtualStore",
+          "verifyDepsBeforeRun",
         ].includes(key)
     )
   )
@@ -408,6 +409,13 @@ const validateDependencyAuthority = (files: readonly SourceFile[]): void => {
   if (
     workspace["enableGlobalVirtualStore"] !== undefined &&
     workspace["enableGlobalVirtualStore"] !== false
+  )
+    inputFailure("unsupported-lock-acquisition");
+  // `error` makes `pnpm run`/`pnpm exec` stop on stale dependencies instead of
+  // installing, so it adds no acquisition path.
+  if (
+    workspace["verifyDepsBeforeRun"] !== undefined &&
+    workspace["verifyDepsBeforeRun"] !== "error"
   )
     inputFailure("unsupported-lock-acquisition");
   // Only the three reviewed build scripts may be approved. An explicit
