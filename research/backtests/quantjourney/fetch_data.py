@@ -69,6 +69,13 @@ def write(frame, path: Path, *, intraday: bool) -> dict:
     return {"rows": rows, "first": first, "last": last, "sha256": sha256(path)}
 
 
+def manifest_source(files: dict) -> str:
+    """The manifest's source line: the old Yahoo label unless IBKR answered for some daily file."""
+    if not ih.answered(entry.get("sources") for entry in files.values()):
+        return "Yahoo Finance via yfinance 0.2.66"
+    return "daily: sources per file, see files.<FILE>.sources; hourly: Yahoo Finance via yfinance 0.2.66"
+
+
 def fetch_daily(symbol: str, path: Path) -> dict:
     def yahoo() -> list[dict]:
         frame = yf.Ticker(symbol).history(start=DAILY_START, end=DAILY_END, interval="1d",
@@ -108,7 +115,7 @@ def main() -> None:
         files[f"hourly/{symbol}.csv"] = write(frame, args.out / "hourly" / f"{symbol}.csv", intraday=True)
     manifest = {
         "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "source": "IBKR vertex-history first (daily), Yahoo Finance via yfinance 0.2.66 fills gaps; hourly Yahoo only",
+        "source": manifest_source(files),
         "daily_window": [DAILY_START, DAILY_END],
         "hourly_window": [HOURLY_START, HOURLY_END],
         "files": files,

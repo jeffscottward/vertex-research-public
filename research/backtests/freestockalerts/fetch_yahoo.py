@@ -35,8 +35,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "services" / "resea
 import ibkr_history as ih  # noqa: E402
 
 START, END = "2005-01-01", "2026-10-24"
-SOURCE = ("IBKR vertex-history first (TRADES + ADJUSTED_LAST, IND), Yahoo Finance via yfinance fills gaps; "
-          "dividends Yahoo")
+
+
+def manifest_source(entries: list[dict]) -> str:
+    """The manifest's source line: the old Yahoo label unless IBKR answered for some symbol."""
+    if not ih.answered(entry.get("sources") for entry in entries):
+        return "Yahoo Finance via yfinance"
+    return "sources per symbol, see symbols[].sources; dividends: Yahoo Finance via yfinance"
 
 
 def sha256(path: Path) -> str:
@@ -85,7 +90,7 @@ def main() -> None:
                 if attempt == 2:
                     manifest.append({"symbol": symbol, "rows": 0, "error": type(exc).__name__})
                 time.sleep(2)
-    (out / "manifest.json").write_text(json.dumps({"source": SOURCE, "start": START,
+    (out / "manifest.json").write_text(json.dumps({"source": manifest_source(manifest), "start": START,
                                                    "end": END, "symbols": manifest}, indent=1))
     print(sum(1 for m in manifest if m.get("rows")), "of", len(manifest), "symbols fetched")
 

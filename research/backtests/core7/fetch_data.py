@@ -96,7 +96,7 @@ def source_text(symbol: str, fetched: str, merged: ih.Merged) -> str:
     parts = []
     for name, info in merged.sources.items():
         span = f"{info['first']}..{info['last']}"
-        seam = "ibkr" in merged.sources
+        seam = any(entry["rescaled"] for entry in merged.seams)  # only when the older part was actually scaled
         if name == "ibkr":
             kind = ("CONTFUT front month, all hours" if future
                     else "TRADES OHLC split-adjusted, no dividends; ADJUSTED_LAST adj_close")
@@ -206,6 +206,15 @@ def largest_twin_gaps(kept, twin_kept) -> list[dict]:
     return gaps[:LARGEST_MOVES]
 
 
+def coverage_source(results: dict[str, dict]) -> tuple[str, dict]:
+    """coverage.json's source line and request: IBKR is named only when it answered for some symbol."""
+    request: dict = {"period": "max", "interval": "1d", "auto_adjust": False}
+    if not ih.answered(entry["manifest"]["sources"] for entry in results.values()):
+        return "Yahoo Finance via yfinance", request
+    request["ibkr"] = "STK TRADES paged + ADJUSTED_LAST 30 Y; CONTFUT 1 day latest window, all hours"
+    return "sources per symbol, see symbols.<SYMBOL>.sources", request
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, required=True)
@@ -271,12 +280,12 @@ def main() -> None:
             record["largestGapsVsTwin"] = largest_twin_gaps(kept, results[twin]["kept"])
         coverage[symbol] = record
 
+    source, request = coverage_source(results)
     doc = {
         "fetchedAt": fetched_at,
-        "source": "IBKR vertex-history first (TRADES + ADJUSTED_LAST, CONTFUT), Yahoo Finance via yfinance fills gaps",
+        "source": source,
         "yfinanceVersion": yf.__version__,
-        "request": {"period": "max", "interval": "1d", "auto_adjust": False,
-                    "ibkr": "STK TRADES paged + ADJUSTED_LAST 30 Y; CONTFUT 1 day latest window"},
+        "request": request,
         "referenceCalendar": f"{REFERENCE} trading dates of the same fetch",
         "script": "research/backtests/core7/fetch_data.py",
         "retries": retries,

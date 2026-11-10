@@ -85,6 +85,12 @@ const treasuryNote = (id: string, spans: SourceSpans): string =>
     ? ""
     : `; treasury = US Treasury ${TREASURY_TENOR[id]} par yield`;
 
+/** The fetch scales a future's Yahoo part to IBKR's close on the seam (ibkr_history FUTURES_RESCALE). */
+const futureSeamNote = (spans: SourceSpans): string =>
+  spans["ibkr"] !== undefined && spans["yahoo"] !== undefined
+    ? ", Yahoo part scaled to IBKR at the seam"
+    : "";
+
 /** Label of an index file fetched before SOURCES.json existed (Yahoo, or the CBOE CSV for RVX and VXSLV). */
 const oldIndexLabel = (id: string): string =>
   CBOE_INDICES.has(id)
@@ -302,11 +308,16 @@ export const loadSeriesImports = async (
   const spans = (id: string): SourceSpans | undefined =>
     sourceSpans(record[`${id}.csv`]);
   // With a SOURCES.json record: the per-source spans; without one (an older fetch): the old Yahoo/CBOE label.
-  const label = (id: string, what: string, old: string): string => {
+  const label = (
+    id: string,
+    what: string,
+    old: string,
+    note: (found: SourceSpans) => string = () => ""
+  ): string => {
     const found = spans(id);
     return found === undefined
       ? old
-      : `${what}: ${describeSpans(found, old)}${treasuryNote(id, found)}`;
+      : `${what}: ${describeSpans(found, old)}${treasuryNote(id, found)}${note(found)}`;
   };
   const imports: SeriesImport[] = [];
   const add = async (
@@ -348,7 +359,8 @@ export const loadSeriesImports = async (
       label(
         id,
         `daily bars ${id} (continuous future)`,
-        `Yahoo daily bars ${id} (continuous future), auto_adjust=False`
+        `Yahoo daily bars ${id} (continuous future), auto_adjust=False`,
+        futureSeamNote
       )
     );
   }

@@ -50,7 +50,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -838,6 +838,12 @@ def index_daily(yahoo_symbol: str, yahoo: Callable[[], Sequence[Row]] | None, *,
     merged = merge_sources(sources, start=start, end=end)
     merged.notes.update(notes)
     return merged
+
+
+def answered(summaries: Iterable[Mapping[str, Any] | None], name: str = "ibkr") -> bool:
+    """True when any merge summary (Merged.summary()) has rows from ``name``: a script's manifest names IBKR
+    only when IBKR actually answered."""
+    return any(name in ((summary or {}).get("rows") or {}) for summary in summaries)
 
 
 def source_note(merged: Merged) -> str:

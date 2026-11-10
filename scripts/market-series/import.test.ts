@@ -359,9 +359,13 @@ describe("loadSeriesImports", () => {
           yahoo: { first: "1993-01-29", last: "1996-11-08", rows: 950 },
         },
       },
+      "GC=F.csv": {
+        rows: { ibkr: { first: "2024-11-11", last: "2026-11-06", rows: 500 } },
+      },
       "TNX.csv": {
         rows: {
-          ibkr: { first: "2000-01-03", last: "2026-11-06", rows: 6700 },
+          ibkr: { first: "2003-01-02", last: "2026-11-06", rows: 6000 },
+          yahoo: { first: "2000-01-03", last: "2002-12-31", rows: 750 },
           treasury: { first: "1990-01-02", last: "1999-12-31", rows: 2500 },
         },
       },
@@ -379,7 +383,10 @@ describe("loadSeriesImports", () => {
       "daily close ^RVX: cboe 2004-01-02..2026-11-06;"
     );
     expect(byId.get("ES=F")?.series.source).toContain(
-      "daily bars ES=F (continuous future): ibkr 2024-11-11..2026-11-06, yahoo 2000-09-18..2024-11-08;"
+      "daily bars ES=F (continuous future): ibkr 2024-11-11..2026-11-06, yahoo 2000-09-18..2024-11-08, Yahoo part scaled to IBKR at the seam;"
+    );
+    expect(byId.get("GC=F")?.series.source).toContain(
+      "daily bars GC=F (continuous future): ibkr 2024-11-11..2026-11-06;"
     );
     expect(byId.get("IRX")?.series.source).toContain(
       "daily close ^IRX: ibkr 2000-01-03..2026-11-06, treasury 1990-01-02..1999-12-31; treasury = US Treasury 3-month par yield;"
@@ -391,9 +398,11 @@ describe("loadSeriesImports", () => {
     expect(byId.get("QQQ")?.series.source).toContain(
       "Yahoo daily bars QQQ, auto_adjust=False;"
     );
-    expect(byId.get("EY_TNX_RATIO")?.series.source).toContain(
-      "and ^TNX (TNX.csv sources: ibkr, treasury; treasury = US Treasury 10-year par yield);"
+    const ratio = byId.get("EY_TNX_RATIO")?.series.source ?? "";
+    expect(ratio).toContain(
+      "and ^TNX (TNX.csv sources: ibkr, yahoo, treasury; treasury = US Treasury 10-year par yield);"
     );
+    expect(ratio.length).toBeLessThanOrEqual(300);
     for (const entry of imports) {
       expect(entry.series.source.length).toBeLessThanOrEqual(300);
     }

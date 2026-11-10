@@ -360,7 +360,7 @@ const manifestSchema = z.object({
   sources: z.unknown().optional(),
 });
 
-/** One import manifest's DataFile fields: the source label from `sources` (spans), else `source`, else neutral. */
+/** One import manifest's DataFile fields: the source label from `sources` (spans), else `source`, else the old Yahoo label. */
 export const manifestDataFile = (
   text: string,
   manifestSha256: string

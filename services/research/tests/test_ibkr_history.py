@@ -811,18 +811,27 @@ def test_golden_fixture_fetcher_is_yahoo_only(monkeypatch, capsys):
 
 def test_core7_source_text_stays_under_the_importer_limit(monkeypatch):
     module = load_script("core7", monkeypatch)
-    merged = ih.Merged([], sources={"ibkr": {"rows": 7000, "first": "1996-11-11", "last": "2026-11-06"},
-                                    "yahoo": {"rows": 900, "first": "1993-01-29", "last": "1996-11-08"}})
+    sources = {"ibkr": {"rows": 7000, "first": "1996-11-11", "last": "2026-11-06"},
+               "yahoo": {"rows": 900, "first": "1993-01-29", "last": "1996-11-08"}}
+    seam = {"date": "1996-11-11", "ratio_date": "1996-11-11", "newer": "ibkr", "older": "yahoo",
+            "close_ratio": 1.0, "rescaled": {"adj_close": 1.01}}
+    merged = ih.Merged([], sources=sources, seams=[seam])
     for symbol in ("SPY", "ES=F"):
         text = module.source_text(symbol, "2026-11-10", merged)
         assert len(text) <= 240 and text.startswith("IBKR ") and "scaled to IBKR at the seam" in text
     assert "split-adjusted, no dividends; ADJUSTED_LAST adj_close" in module.source_text("SPY", "2026-11-10", merged)
+    unscaled = ih.Merged([], sources=sources, seams=[{**seam, "rescaled": {}}])
+    for symbol in ("SPY", "ES=F"):
+        assert "scaled" not in module.source_text(symbol, "2026-11-10", unscaled)
     only = ih.Merged([], sources={"yahoo": {"rows": 900, "first": "1993-01-29", "last": "2026-11-06"}})
     assert module.source_text("SPY", "2026-11-10", only) == (
         "Yahoo yfinance fake OHLC split-adjusted without dividends, adj_close with dividends "
         "1993-01-29..2026-11-06; fetched 2026-11-10")
     assert module.source_text("ES=F", "2026-11-10", only).startswith(
         "Yahoo yfinance fake continuous front month, not back-adjusted 1993")
+    with pytest.raises(ValueError, match="300"):
+        module.source_text("SPY", "2026-11-10", ih.Merged([], sources={
+            f"s{i}": {"rows": 1, "first": "2000-01-01", "last": "2000-01-02"} for i in range(9)}))
 
 
 def test_core7_largest_moves_carry_no_prices(monkeypatch):
@@ -830,9 +839,40 @@ def test_core7_largest_moves_carry_no_prices(monkeypatch):
     kept = [("2020-01-02", 0, 1, 1, 1, 100.0, 1), ("2020-01-03", 0, 1, 1, 1, 110.0, 1)]
     assert module.largest_moves(kept) == [{"date": "2020-01-03", "previousDate": "2020-01-02",
                                            "change": pytest.approx(0.1)}]
-    with pytest.raises(ValueError, match="300"):
-        module.source_text("SPY", "2026-11-10", ih.Merged([], sources={
-            f"s{i}": {"rows": 1, "first": "2000-01-01", "last": "2000-01-02"} for i in range(9)}))
+
+
+def test_committed_core7_coverage_holds_no_prices():
+    def keys(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                yield key
+                yield from keys(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from keys(value)
+
+    found = set(keys(json.loads((REPO / "research" / "backtests" / "core7" / "coverage.json").read_text())))
+    assert "largestCloseMoves" in found and not found & {"close", "previousClose", "open", "high", "low"}
+
+
+def test_manifest_sources_name_ibkr_only_when_it_answered(monkeypatch):
+    ibkr = {"rows": {"ibkr": {"rows": 1, "first": "2020-01-02", "last": "2020-01-02"}}}
+    yahoo = {"rows": {"yahoo": {"rows": 1, "first": "2020-01-02", "last": "2020-01-02"}}}
+    assert ih.answered([yahoo, None, ibkr]) and not ih.answered([yahoo, None, {}])
+    module = load_script("quantjourney", monkeypatch)
+    assert module.manifest_source({"daily/SPY.csv": {"sources": yahoo}, "hourly/SPY.csv": {}}) == (
+        "Yahoo Finance via yfinance 0.2.66")
+    assert module.manifest_source({"daily/SPY.csv": {"sources": ibkr}}).startswith(
+        "daily: sources per file, see files.<FILE>.sources")
+    module = load_script("core7", monkeypatch)
+    assert module.coverage_source({"SPY": {"manifest": {"sources": yahoo}}}) == (
+        "Yahoo Finance via yfinance", {"period": "max", "interval": "1d", "auto_adjust": False})
+    source, request = module.coverage_source({"SPY": {"manifest": {"sources": yahoo}},
+                                              "ES=F": {"manifest": {"sources": ibkr}}})
+    assert source == "sources per symbol, see symbols.<SYMBOL>.sources" and "ibkr" in request
+    module = load_script("freestockalerts", monkeypatch)
+    assert module.manifest_source([{"sources": yahoo}, {"rows": 0, "error": "X"}]) == "Yahoo Finance via yfinance"
+    assert module.manifest_source([{"sources": ibkr}]).startswith("sources per symbol")
 
 
 def test_scripts_keep_their_old_empty_result_behaviour(monkeypatch, tmp_path):
