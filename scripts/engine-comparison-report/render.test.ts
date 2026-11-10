@@ -144,9 +144,7 @@ describe("renderReport", () => {
     });
     const html = renderReport(empty);
     expect(html).toContain("(2026-11-20, passed 1 day(s) ago)");
-    expect(html).toContain(
-      '<span class="">Met. The dual run has been live 15 days.'
-    );
+    expect(html).toContain("<span>Met. The dual run has been live 15 days.");
     expect(html).not.toContain("older Nautilus runs are not shown");
     expect(html).toContain("<p>None found.</p>");
     expect(html).toContain("<p>None.</p>");

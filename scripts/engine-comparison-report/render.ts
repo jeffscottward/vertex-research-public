@@ -244,7 +244,7 @@ export const renderReport = (
 <h1>Current engine vs Nautilus (step 4 report)</h1>
 <p class="muted">Built ${minute(model.generatedAt)} from the stored runs in production (<code>backtestRuns.comparisons.list</code>, up to ${model.limit} per feature; <code>backtestRuns.list</code>/<code>get</code>) and the ${journalText}. Research only: no orders. Nautilus never runs on QuantVPS.</p>
 <h2>Step 4 decision (${model.step4.decisionDate}, ${deadline})</h2>
-<p>Pass condition (switch plan): ${model.step4.daysNeeded} days of live side-by-side data for the instant backtest, the parameter sweep and the Autopilot gate. The dual run is on in production since ${model.step4.since}. <span class="${model.step4.met ? "" : "warn"}">${escapeHtml(model.step4.verdict)}</span></p>
+<p>Pass condition (switch plan): ${model.step4.daysNeeded} days of live side-by-side data for the instant backtest, the parameter sweep and the Autopilot gate. The dual run is on in production since ${model.step4.since}. <span${model.step4.met ? "" : ' class="warn"'}>${escapeHtml(model.step4.verdict)}</span></p>
 <ul>${model.step4.lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
 <h2>Timeline of stored runs</h2>
 ${timelineSvg(model)}

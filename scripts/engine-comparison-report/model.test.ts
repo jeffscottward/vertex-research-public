@@ -490,13 +490,13 @@ describe("buildModel", () => {
       decisionDate: "2026-11-20",
       lines: [
         "Instant backtest: no live comparison runs since 2026-11-06.",
-        "Parameter sweep: 1 runs from 1 request(s), on 1 of 4 day(s) (2026-11-06 to 2026-11-06); 1 same, 0 differ.",
+        "Parameter sweep: 1 runs (1 compared) from 1 request(s), on 1 of 5 calendar day(s) (2026-11-06 to 2026-11-06); 1 same, 0 differ.",
         "Autopilot gate: no live comparison runs since 2026-11-06.",
       ],
       met: false,
       since: "2026-11-06",
       verdict:
-        "Not met yet: the dual run has been live 4 of 14 days. No live comparison runs for Instant backtest, Autopilot gate.",
+        "Not met yet: the dual run has been live 4 of 14 days. No compared live runs for Instant backtest, Autopilot gate.",
     });
   });
 
@@ -532,7 +532,7 @@ describe("buildModel", () => {
     expect(model.nautilusListFull).toBe(true);
     expect(model.step4.met).toBe(true);
     expect(model.step4.verdict).toBe(
-      "Met. The dual run has been live 14 days. Every step-4 feature has live comparison runs."
+      "Met. The dual run has been live 14 days. Every step-4 feature has compared live runs."
     );
   });
 
@@ -544,7 +544,7 @@ describe("buildModel", () => {
         sweep: daily,
       }).step4.verdict
     ).toBe(
-      "Not met yet: the dual run has been live 6 of 14 days. Every step-4 feature has live comparison runs."
+      "Not met yet: the dual run has been live 6 of 14 days. Every step-4 feature has compared live runs."
     );
     const late = step4At(
       "2026-11-21T00:00:00.000Z",
@@ -553,10 +553,115 @@ describe("buildModel", () => {
     ).step4;
     expect(late.met).toBe(false);
     expect(late.verdict).toBe(
-      "The dual run has been live 15 days. No live comparison runs for Autopilot gate. Counts for Instant backtest, Parameter sweep are lower bounds (list limit reached)."
+      "The dual run has been live 15 days. No compared live runs for Autopilot gate. Counts for Instant backtest, Parameter sweep are lower bounds (list limit reached)."
     );
     expect(late.lines[0]).toMatch(
-      /^Instant backtest: at least 14 runs from 1 request\(s\), on 14 of 15 day\(s\)/u
+      /^Instant backtest: at least 14 runs \(14 compared\) from 1 request\(s\), on 14 of 16 calendar day\(s\)/u
     );
+  });
+});
+
+describe("review round 2 cases", () => {
+  const error = (iso: string) => ({
+    at: at(iso),
+    message: "getaddrinfo ENOTFOUND host",
+  });
+
+  it("keeps an outage open when the service stopped after the errors", () => {
+    expect(
+      findOutages(
+        [
+          error("2026-11-09T10:00:00Z"),
+          error("2026-11-09T10:18:00Z"),
+          {
+            at: at("2026-11-09T10:21:00Z"),
+            message: "Stopped Vertex Nautilus backtest worker.",
+          },
+        ],
+        { now: at("2026-11-09T12:30:00Z") }
+      )
+    ).toEqual([
+      {
+        from: at("2026-11-09T10:18:00Z"),
+        reason:
+          "worker could not resolve the API host name (getaddrinfo ENOTFOUND), then the service stopped",
+        to: null,
+      },
+    ]);
+  });
+
+  it("measures the error gap from the restart", () => {
+    expect(
+      findOutages(
+        [
+          error("2026-11-09T10:00:00Z"),
+          error("2026-11-09T10:08:00Z"),
+          {
+            at: at("2026-11-09T10:09:00Z"),
+            message: "Started Vertex Nautilus backtest worker.",
+          },
+          error("2026-11-09T10:19:00Z"),
+          error("2026-11-09T10:25:00Z"),
+        ],
+        { now: at("2026-11-09T12:00:00Z") }
+      )
+    ).toEqual([
+      {
+        from: at("2026-11-09T10:00:00Z"),
+        reason:
+          "worker could not resolve the API host name (getaddrinfo ENOTFOUND)",
+        to: at("2026-11-09T10:25:00Z"),
+      },
+    ]);
+  });
+
+  const model = (
+    comparisons: Parameters<typeof buildModel>[0]["comparisons"],
+    generatedAt: string
+  ) =>
+    buildModel({
+      benchmark: RIG_BENCHMARK_2026_11_06,
+      comparisons,
+      generatedAt: new Date(generatedAt),
+      journal: { entries: [], read: false },
+      limit: 500,
+      nautilusListFull: false,
+      nautilusRuns: [],
+    });
+
+  it("does not pass step 4 on failed runs alone", () => {
+    const failed = Array.from({ length: 15 }, (_, index) =>
+      comparisonRow({
+        createdAt: new Date(
+          at("2026-11-06T12:00:00Z") + index * 86_400_000
+        ).toISOString(),
+        differences: null,
+        error: "engine crashed",
+        status: "failed",
+      })
+    );
+    const ok = [comparisonRow()];
+    const step4 = model(
+      { autopilotGate: failed, instant: ok, sweep: ok },
+      "2026-11-21T00:00:00.000Z"
+    ).step4;
+    expect(step4.met).toBe(false);
+    expect(step4.verdict).toContain(
+      "No compared live runs for Autopilot gate."
+    );
+    expect(step4.lines[2]).toContain("15 runs (0 compared)");
+  });
+
+  it("counts the build day as a calendar day", () => {
+    const daily = Array.from({ length: 5 }, (_, index) =>
+      comparisonRow({
+        createdAt: new Date(
+          at("2026-11-06T08:00:00Z") + index * 86_400_000
+        ).toISOString(),
+      })
+    );
+    expect(
+      model({ sweep: daily }, "2026-11-10T20:00:00.000Z").step4.lines[1]
+    ).toContain("on 5 of 5 calendar day(s)");
   });
 });

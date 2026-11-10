@@ -168,6 +168,14 @@ const openAtEnd = (
   stoppedAt: number | null,
   now: number
 ): Outage[] => {
+  if (cluster !== null && stoppedAt !== null)
+    return [
+      {
+        from: cluster.from,
+        reason: `${cluster.reason}, then the service stopped`,
+        to: null,
+      },
+    ];
   if (cluster !== null)
     return [
       cluster.restartedAt === null && now - cluster.last <= ERROR_CLUSTER_GAP_MS
@@ -195,7 +203,11 @@ export const findOutages = (
   let cluster: ErrorCluster | null = null;
   let stoppedAt: number | null = null;
   for (const entry of sorted) {
-    if (cluster !== null && entry.at - cluster.last > ERROR_CLUSTER_GAP_MS) {
+    if (
+      cluster !== null &&
+      entry.at - Math.max(cluster.last, cluster.restartedAt ?? 0) >
+        ERROR_CLUSTER_GAP_MS
+    ) {
       found.push(clusterOutage(cluster));
       cluster = null;
     }
@@ -425,8 +437,9 @@ const pointKind = (row: ComparisonRow): TimelinePoint["kind"] => {
 
 /**
  * Step 4 passes with two weeks of live side-by-side data: the dual run live for `daysNeeded`
- * days and live comparison runs of every step-4 feature in that time. Rows from before the dual
- * run start do not count; a feature at the list limit has lower-bound counts.
+ * days and compared runs (succeeded, differences stored) of every step-4 feature in that time.
+ * Rows from before the dual run start do not count; a feature at the list limit has lower-bound
+ * counts.
  */
 const step4Status = (
   summaries: readonly FeatureSummary[],
@@ -445,18 +458,23 @@ const step4Status = (
     ].sort();
     const requests = new Set(liveRows.map((row) => row.comparison.groupId))
       .size;
+    const compared = liveRows.filter(
+      (row) => row.status === "succeeded" && row.differences !== null
+    );
     const bound = summary.truncated ? " at least" : "";
+    // Calendar days so far, the start day and today included.
+    const calendarDays = daysSinceStart + 1;
     return {
+      compared: compared.length,
       line:
         liveRows.length === 0
           ? `${summary.title}: no live comparison runs since ${STEP4_DUAL_RUN_SINCE}.`
-          : `${summary.title}:${bound} ${liveRows.length} runs from ${requests} request(s), on ${days.length} of ${daysSinceStart} day(s) (${days[0]} to ${days.at(-1)}); ${liveRows.filter((row) => row.differences?.ok === true).length} same, ${liveRows.filter((row) => row.differences?.ok === false).length} differ.`,
-      runs: liveRows.length,
+          : `${summary.title}:${bound} ${liveRows.length} runs (${compared.length} compared) from ${requests} request(s), on ${days.length} of ${calendarDays} calendar day(s) (${days[0]} to ${days.at(-1)}); ${compared.filter((row) => row.differences?.ok === true).length} same, ${compared.filter((row) => row.differences?.ok === false).length} differ.`,
       summary,
     };
   });
   const without = live
-    .filter((entry) => entry.runs === 0)
+    .filter((entry) => entry.compared === 0)
     .map((entry) => entry.summary.title);
   const lowerBound = live
     .filter((entry) => entry.summary.truncated)
@@ -467,8 +485,8 @@ const step4Status = (
       ? `The dual run has been live ${daysSinceStart} days.`
       : `Not met yet: the dual run has been live ${daysSinceStart} of ${STEP4_DAYS_NEEDED} days.`,
     without.length === 0
-      ? "Every step-4 feature has live comparison runs."
-      : `No live comparison runs for ${without.join(", ")}.`,
+      ? "Every step-4 feature has compared live runs."
+      : `No compared live runs for ${without.join(", ")}.`,
     lowerBound.length === 0
       ? ""
       : `Counts for ${lowerBound.join(", ")} are lower bounds (list limit reached).`,
