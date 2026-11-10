@@ -17,12 +17,21 @@ import {
   type Repositories,
 } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
+import type { MarketBar } from "./contracts/market-data.ts";
 import { PICK_LIST_SCREEN_MAX_MEMBERS } from "./contracts/pick-lists.ts";
 import { createApiContext } from "./server/context.ts";
+import type { DeployStatusConfig } from "./server/deploy-status.ts";
 import { handleApiRequest } from "./server/handler.ts";
+import { resetIbkrPacing } from "./server/merged-bars.ts";
+import {
+  HISTORY_CONFIG,
+  historyBar,
+  historyResponse,
+  withHistory,
+} from "./server/merged-bars.test-support.ts";
 import {
   orderForBucket,
   setPickListOptionsForTesting,
@@ -223,7 +232,10 @@ const clientFor = (
   requestSession: SafeAuthSession | null,
   pickLists?: PickListRepository,
   baskets?: BasketRepository,
-  options: Readonly<{ apiKey?: boolean }> = {}
+  options: Readonly<{
+    apiKey?: boolean;
+    marketHistory?: DeployStatusConfig;
+  }> = {}
 ) => {
   const repositories = {
     profiles: {},
@@ -254,6 +266,9 @@ const clientFor = (
     const context = createApiContext(request, {
       agentApiKeys,
       agentViewerEmails: ["viewer@domain.test"],
+      ...(options.marketHistory === undefined
+        ? {}
+        : { marketHistory: options.marketHistory }),
       repositories,
       requestId: "request-1",
       capabilities: {
@@ -1225,5 +1240,119 @@ describe("pickLists.proposal", () => {
       expiry: "2027-03-19",
       dte: 134,
     });
+  });
+});
+
+describe("pickLists.screen with IBKR history", () => {
+  const now = new Date("2026-11-05T21:00:00.000Z");
+  const DAY_MS = 86_400_000;
+  // One IBKR daily bar per calendar day from 2025-11-05 through 2026-11-05.
+  const yearOfBars = (start = Date.UTC(2025, 10, 5), close = 100) =>
+    Array.from(
+      { length: Math.round((Date.UTC(2026, 10, 5) - start) / DAY_MS) + 1 },
+      (_, index) =>
+        historyBar((start + index * DAY_MS) / 1000, close + index * 0.1)
+    );
+  const ibkrClient = (repository: PickListRepository) =>
+    clientFor(session("operator"), repository, undefined, {
+      marketHistory: HISTORY_CONFIG,
+    }).pickLists;
+  const list = () => pickList("core", [row("AAA", { sector: "Technology" })]);
+
+  beforeEach(() => {
+    resetIbkrPacing();
+  });
+
+  it("screens from IBKR bars without a Yahoo request, dropping a live or empty bar", async () => {
+    const yahoo = yahooWith({});
+    const history = withHistory((url) => {
+      const bars = yearOfBars();
+      // A bar without a positive price is dropped.
+      bars[10] = historyBar((bars[10] as { t: number }).t, 0);
+      // A bar without volume counts as 0 shares.
+      bars[11] = { ...(bars[11] as MarketBar), v: null };
+      return historyResponse(url, bars);
+    }, yahoo);
+    setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
+    const repository = pickListRepository([list()]);
+    const result = await ibkrClient(repository).screen({ id: "core" });
+    expect(yahoo).not.toHaveBeenCalled();
+    expect(
+      history.urls.map((url) => new URL(url).searchParams.get("symbol"))
+    ).toEqual(["SPY", "AAA", "XLK"]);
+    expect(history.urls[0]).toContain("barSize=1+day");
+    expect(history.urls[0]).toContain("duration=1+Y");
+    expect(history.urls[0]).toContain("whatToShow=TRADES");
+    expect(result.members[0]).toMatchObject({
+      lastDate: "2026-11-05",
+      reason: null,
+      symbol: "AAA",
+    });
+    // During the session the newest IBKR bar is live and dropped.
+    resetIbkrPacing();
+    setPickListOptionsForTesting({
+      fetch: history.fetch,
+      now: () => new Date("2026-11-05T15:00:00.000Z"),
+    });
+    const live = await ibkrClient(repository).screen({ id: "core" });
+    expect(live.members[0]?.lastDate).toBe("2026-11-04");
+    expect(yahoo).not.toHaveBeenCalled();
+  });
+
+  it("reads Yahoo when IBKR fails or its pacing slots are used up", async () => {
+    const yahoo = yahooWith({
+      SPY: { closes: rising(120, 400, 1) },
+      AAA: { closes: rising(120) },
+      XLK: { closes: rising(120, 200, 0.3) },
+    });
+    const history = withHistory(
+      () => Response.json({ error: "down" }, { status: 503 }),
+      yahoo
+    );
+    setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
+    const repository = pickListRepository([list()]);
+    const result = await ibkrClient(repository).screen({ id: "core" });
+    expect(history.urls).toHaveLength(3);
+    expect(yahoo.mock.calls.map(([url]) => symbolOf(url))).toEqual([
+      "SPY",
+      "AAA",
+      "XLK",
+    ]);
+    expect(result.members[0]).toMatchObject({ last: 111.9, reason: null });
+    // The next view inside the pacing window does not ask IBKR again.
+    setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
+    await ibkrClient(repository).screen({ id: "core" });
+    expect(history.urls).toHaveLength(3);
+    expect(yahoo).toHaveBeenCalledTimes(6);
+  });
+
+  it("fills the days before IBKR's late first bar from Yahoo with continuous volume", async () => {
+    // Yahoo: 200 days at 100 (volume 1000 shares) from 2025-11-03 through 2026-05-21.
+    const yahoo = yahooWith({
+      SPY: { closes: rising(200, 400, 1) },
+      AAA: { closes: Array.from({ length: 200 }, () => 100) },
+      XLK: { closes: rising(200, 200, 0.3) },
+    });
+    // IBKR: 10 days at 200 from 2026-05-22, 10 lots of 100 shares each.
+    const late = Array.from({ length: 10 }, (_, index) =>
+      historyBar((Date.UTC(2026, 4, 22) + index * DAY_MS) / 1000, 200, 10)
+    );
+    const history = withHistory(
+      (url) =>
+        url.includes("symbol=AAA")
+          ? historyResponse(url, late)
+          : Response.json({ error: "down" }, { status: 503 }),
+      yahoo
+    );
+    setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
+    const result = await ibkrClient(pickListRepository([list()])).screen({
+      id: "core",
+    });
+    expect(yahoo.mock.calls.map(([url]) => symbolOf(url))).toContain("AAA");
+    // The last 20 bars: 10 Yahoo days at 100 and 10 IBKR days at 200, 1000 shares each.
+    expect(result.members[0]?.lastDate).toBe("2026-05-31");
+    expect(result.members[0]?.gates.aboveVwap20.detail).toBe(
+      "Close 200.00 vs 20-day VWAP 150.00"
+    );
   });
 });

@@ -8,6 +8,7 @@ import type { NotificationFetch } from "@darkfactory/notifications/server";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
+import type { MarketBarSize } from "../contracts/market-data.ts";
 import {
   SIGNAL_ALERT_EVENTS_MAX,
   SIGNAL_ALERT_MAX_SERIES_PER_RUN,
@@ -25,6 +26,7 @@ import {
   describeSignalCondition,
   evaluateSignalAlert,
   isRegularSession,
+  newYorkClock,
   parseWatchRequest,
   planSignalAlertRun,
   SIGNAL_ALERT_NOTIFICATION,
@@ -34,7 +36,15 @@ import {
   signalAlertChartUrl,
 } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
-import type { DeployStatusFetch } from "./deploy-status.ts";
+import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
+import {
+  historyDate,
+  historyInstrument,
+  LIVE_HISTORY_TIMEOUT_MS,
+  loadMergedBars,
+  newYorkTime,
+  windowFillBefore,
+} from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   type PriceAlertsNtfyConfig,
@@ -43,7 +53,8 @@ import {
 import { fetchBoundedJson } from "./research-lenses.ts";
 
 // Signal alert and watch procedures (priceAlerts.signals.*), LuxAlgo P4. Operator-only. A run
-// fetches each symbol/timeframe series once from Yahoo (public GET, bounded), evaluates the active
+// fetches each symbol/timeframe series once (IBKR history first, paced to about 3 requests per minute
+// for the whole process by merged-bars.ts; public Yahoo for the rest and for older bars), evaluates the active
 // rules arithmetically (no model call in the tick loop), inserts one event per fired bar and sends
 // one fixed-text ntfy push per owner with a fire (the price alert destination). The browser shows
 // events from priceAlerts.signals.events as in-app and OS notifications. No order path.
@@ -79,7 +90,8 @@ type SeriesError = Readonly<{
   reason: string;
 }>;
 
-const fetchSeries = async (
+/** Yahoo's bars of one series (the longest window Yahoo serves for the timeframe). */
+const fetchYahooSeries = async (
   symbol: string,
   timeframe: SignalAlertTimeframe
 ): Promise<SignalBarsResult> => {
@@ -101,6 +113,115 @@ const fetchSeries = async (
     return barsFromYahooChart(raw, timeframe);
   } catch (error) {
     return { ok: false, reason: (error as Error).message };
+  }
+};
+
+/**
+ * IBKR request per timeframe and the calendar days the series covers (Yahoo's range). 1h: one IBKR
+ * page of 31 days, then Yahoo for the rest of the year: a year of hourly bars is 12 pages, about 4
+ * minutes of the service's pacing for one series, and a tick reads up to 20 series. Continuous
+ * futures take one page (CONTFUT has no end date), so Yahoo serves their older bars too.
+ */
+const IBKR_SERIES: Readonly<
+  Record<
+    SignalAlertTimeframe,
+    Readonly<{
+      barSize: MarketBarSize;
+      duration: string;
+      pages: number;
+      days: number;
+    }>
+  >
+> = Object.freeze({
+  "1d": { barSize: "1 day", days: 730, duration: "2 Y", pages: 1 },
+  "1h": { barSize: "1 hour", days: 365, duration: "31 D", pages: 1 },
+  "5m": { barSize: "5 mins", days: 30, duration: "30 D", pages: 1 },
+  "15m": { barSize: "15 mins", days: 60, duration: "31 D", pages: 2 },
+});
+
+// Daily bars start at the regular session open (09:30 New York), or at midnight New York for
+// futures, as Yahoo stamps them; IBKR stamps a daily bar 00:00 UTC of its trading date.
+const DAILY_START_MINUTE = { CONTFUT: 0, STK: 9 * 60 + 30 } as const;
+
+type SeriesFailure = Extract<SignalBarsResult, { ok: false }>;
+
+class YahooSeriesFailure extends Error {
+  readonly result: SeriesFailure;
+  constructor(result: SeriesFailure) {
+    super(result.reason);
+    this.result = result;
+  }
+}
+
+/**
+ * One series: IBKR first (a stale service copy is not used), Yahoo for the whole series when IBKR
+ * fails or has no request slot, and Yahoo for the bars before IBKR's first bar when IBKR starts
+ * later than the timeframe's window.
+ */
+const fetchSeries = async (
+  symbol: string,
+  timeframe: SignalAlertTimeframe,
+  config: DeployStatusConfig | null
+): Promise<SignalBarsResult> => {
+  const now = currentTime();
+  const instrument = historyInstrument(symbol);
+  const spec = IBKR_SERIES[timeframe];
+  const daily = timeframe === "1d";
+  const keyOf = (bar: SignalBar): string =>
+    daily ? newYorkClock(bar.start).day : bar.start.toISOString();
+  const fillBefore = windowFillBefore(now, spec.days);
+  try {
+    const merged = await loadMergedBars<SignalBar>({
+      config,
+      request:
+        instrument === null
+          ? null
+          : {
+              ...instrument,
+              barSize: spec.barSize,
+              duration: spec.duration,
+              useRTH: instrument.secType === "STK",
+            },
+      pages: instrument?.secType === "STK" ? spec.pages : 1,
+      options: {
+        ...(signalAlertsOptions.fetch === undefined
+          ? {}
+          : { fetch: signalAlertsOptions.fetch }),
+        now: () => now,
+        timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
+      },
+      rejectStale: true,
+      fillBefore: daily
+        ? newYorkClock(fillBefore).day
+        : fillBefore.toISOString(),
+      fromIbkr: (bar, history) =>
+        Math.min(bar.o, bar.h, bar.l, bar.c) > 0
+          ? {
+              close: bar.c,
+              high: bar.h,
+              low: bar.l,
+              open: bar.o,
+              start: daily
+                ? newYorkTime(
+                    historyDate(bar.t),
+                    DAILY_START_MINUTE[
+                      history.request.secType === "CONTFUT" ? "CONTFUT" : "STK"
+                    ]
+                  )
+                : new Date(bar.t * 1000),
+            }
+          : null,
+      yahoo: async () => {
+        const result = await fetchYahooSeries(symbol, timeframe);
+        if (!result.ok) throw new YahooSeriesFailure(result);
+        return result.bars;
+      },
+      keyOf,
+    });
+    return { bars: merged.bars, ok: true };
+  } catch (error) {
+    // loadMergedBars turns every IBKR failure into a Yahoo read; only that read throws here.
+    return { ok: false, reason: (error as YahooSeriesFailure).result.reason };
   }
 };
 
@@ -170,6 +291,7 @@ type RunResult = Readonly<{
 const runSignalAlerts = async (
   repository: SignalAlertRepository,
   config: PriceAlertsNtfyConfig | null,
+  history: DeployStatusConfig | null,
   candidates: readonly SignalAlertRuleRecord[]
 ): Promise<RunResult> => {
   const now = currentTime();
@@ -186,7 +308,11 @@ const runSignalAlerts = async (
   for (let start = 0; start < groups.length; start += SERIES_CONCURRENCY) {
     await Promise.all(
       groups.slice(start, start + SERIES_CONCURRENCY).map(async (group) => {
-        const result = await fetchSeries(group.symbol, group.timeframe);
+        const result = await fetchSeries(
+          group.symbol,
+          group.timeframe,
+          history
+        );
         if (result.ok) bars.set(group, result.bars);
         else
           seriesErrors.push({
@@ -282,9 +408,10 @@ const backfillFor = async (
     symbol: string;
     timeframe: SignalAlertTimeframe;
     condition: SignalAlertCondition;
-  }>
+  }>,
+  history: DeployStatusConfig | null
 ) => {
-  const result = await fetchSeries(input.symbol, input.timeframe);
+  const result = await fetchSeries(input.symbol, input.timeframe, history);
   if (!result.ok) return { ok: false as const, reason: result.reason };
   return {
     backfill: backfillSignalAlert(
@@ -375,9 +502,9 @@ const create = api.priceAlerts.signals.create
 
 const backfill = api.priceAlerts.signals.backfill
   .use(requireOperator)
-  .handler(async ({ input, errors }) => {
+  .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
-    const result = await backfillFor(input);
+    const result = await backfillFor(input, context.marketHistory ?? null);
     if (!result.ok) throw failures.UPSTREAM_ERROR({ message: result.reason });
     return {
       backfill: result.backfill,
@@ -425,7 +552,7 @@ const propose = api.priceAlerts.signals.propose
       userId: context.principal.userId,
     });
     // The backfill is context for the card; a market-data failure never blocks the proposal.
-    const history = await backfillFor(fields);
+    const history = await backfillFor(fields, context.marketHistory ?? null);
     return {
       backfill: history.ok ? history.backfill : null,
       ok: true as const,
@@ -497,6 +624,7 @@ const check = api.priceAlerts.signals.check
     const result = await runSignalAlerts(
       repository,
       context.priceAlertsNtfy ?? null,
+      context.marketHistory ?? null,
       await repository.listActiveByUser(userId)
     );
     return {
@@ -520,6 +648,7 @@ const tick = api.priceAlerts.signals.tick
     const result = await runSignalAlerts(
       repository,
       context.priceAlertsNtfy ?? null,
+      context.marketHistory ?? null,
       await repository.listActive(
         SIGNAL_ALERT_TICK_MAX_RULES,
         context.operatorEmails

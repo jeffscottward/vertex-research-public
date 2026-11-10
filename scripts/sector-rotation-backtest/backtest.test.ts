@@ -16,6 +16,11 @@ import {
   parseChart,
   runFreeze,
 } from "./freeze.ts";
+import {
+  HISTORY_CONFIG,
+  historyBar,
+  historyResponse,
+} from "../../packages/api/src/server/merged-bars.test-support.ts";
 
 const root = resolve(import.meta.dirname, "../..");
 const frozen = JSON.parse(
@@ -206,5 +211,89 @@ describe("freeze helper", () => {
         write: () => undefined,
       })
     ).rejects.toThrow("HTTP 429");
+  });
+
+  describe("with IBKR history", () => {
+    const env = {
+      VERTEX_DEPLOY_STATUS_TOKEN: HISTORY_CONFIG.token,
+      VERTEX_HISTORY_URL: HISTORY_CONFIG.url,
+    };
+    const day = (date: string) => Date.parse(`${date}T00:00:00Z`) / 1000;
+    const io = (
+      history: (url: string) => Response,
+      yahoo: (url: string) => Response = () =>
+        Response.json(
+          body([at("2018-06-18"), at(FREEZE_FROM), at("2018-06-20")], [1, 2, 3])
+        )
+    ) => {
+      const urls: string[] = [];
+      const writes: string[] = [];
+      return {
+        urls,
+        writes,
+        run: () =>
+          runFreeze({
+            env,
+            fetch: async (url) => {
+              urls.push(url);
+              return url.startsWith(HISTORY_CONFIG.url)
+                ? history(url)
+                : yahoo(url);
+            },
+            now: new Date("2026-11-10T00:00:00Z"),
+            out: "/tmp/out.json",
+            write: (_path, content) => writes.push(content),
+          }),
+      };
+    };
+    const parsed = (text: string | undefined) =>
+      JSON.parse(text as string) as {
+        source: string;
+        symbols: Record<string, unknown>;
+      };
+
+    it("uses IBKR ADJUSTED_LAST closes without a Yahoo request", async () => {
+      const run = io((url) =>
+        historyResponse(url, [
+          historyBar(day("2018-06-18"), 9),
+          historyBar(day(FREEZE_FROM), 10.123_45),
+          historyBar(day("2026-11-02"), 99),
+        ])
+      );
+      expect(await run.run()).toBe(0);
+      expect(run.urls).toHaveLength(12);
+      expect(run.urls.every((url) => url.startsWith(HISTORY_CONFIG.url))).toBe(
+        true
+      );
+      expect(run.urls[0]).toContain("whatToShow=ADJUSTED_LAST");
+      expect(run.urls[0]).toContain("duration=10+Y");
+      const file = parsed(run.writes[0]);
+      expect(file.source).toContain("IBKR");
+      expect(file.symbols["SPY"]).toEqual([[FREEZE_FROM, 10.1235]]);
+    });
+
+    it("reads Yahoo when IBKR fails", async () => {
+      const run = io(() => Response.json({ error: "bad" }, { status: 400 }));
+      await run.run();
+      const file = parsed(run.writes[0]);
+      expect(file.source).toContain("Yahoo Finance v8");
+      expect(file.source).not.toContain("IBKR");
+      expect(file.symbols["XLK"]).toEqual([
+        [FREEZE_FROM, 2],
+        ["2018-06-20", 3],
+      ]);
+    });
+
+    it("fills the dates before IBKR's late first close from Yahoo", async () => {
+      const run = io((url) =>
+        historyResponse(url, [historyBar(day("2018-06-20"), 30)])
+      );
+      await run.run();
+      // IBKR's 2018-06-20 close wins over Yahoo's; Yahoo fills 2018-06-19.
+      expect(parsed(run.writes[0]).symbols["XLY"]).toEqual([
+        [FREEZE_FROM, 2],
+        ["2018-06-20", 30],
+      ]);
+    });
   });
 });

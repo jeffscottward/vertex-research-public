@@ -13,11 +13,22 @@ import {
   type WatchlistRepository,
 } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
 import { createApiContext } from "./server/context.ts";
+import type {
+  DeployStatusConfig,
+  DeployStatusFetch,
+} from "./server/deploy-status.ts";
 import { handleApiRequest } from "./server/handler.ts";
+import { resetIbkrPacing } from "./server/merged-bars.ts";
+import {
+  HISTORY_CONFIG,
+  historyBar,
+  historyResponse,
+  withHistory,
+} from "./server/merged-bars.test-support.ts";
 import {
   type PriceAlertsNtfyConfig,
   resolvePriceAlertsNtfyConfig,
@@ -212,6 +223,7 @@ const clientFor = (
     apiKey?: string;
     keyAccess?: "read" | "write";
     session?: SafeAuthSession | null;
+    marketHistory?: DeployStatusConfig;
   }>
 ) => {
   const repositories: Repositories = {
@@ -253,6 +265,9 @@ const clientFor = (
           emailDelivery: false,
           telemetryExport: false,
         },
+        ...(options.marketHistory === undefined
+          ? {}
+          : { marketHistory: options.marketHistory }),
         operatorEmails: ["owner@domain.test", "second@domain.test"],
         priceAlertsNtfy: options.ntfy ?? null,
         repositories,
@@ -726,5 +741,123 @@ describe("priceAlerts.tick", () => {
       403
     );
     expect(repository.listActive).not.toHaveBeenCalled();
+  });
+});
+
+describe("price alert quotes from IBKR history", () => {
+  // 5-minute bars of 2026-10-13 from `from` (UTC hh:mm), one close per bar (low = close - 1).
+  const fiveMinute = (from: string, closes: readonly number[]) =>
+    closes.map((close, index) =>
+      historyBar(
+        Date.parse(`2026-10-13T${from}:00Z`) / 1000 + index * 300,
+        close
+      )
+    );
+  const run = async (fetch: DeployStatusFetch) => {
+    setPriceAlertsOptionsForTesting({
+      fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+    });
+    const memory = memoryRules([
+      // Listed first so the earlier window of rule-1 replaces it as BAC's window start.
+      record({
+        id: "rule-2",
+        kind: "above",
+        level: "70",
+        role: "target",
+        state: {
+          lastCheckedAt: new Date("2026-10-13T19:00:00.000Z"),
+          status: "active",
+        },
+      }),
+      record(),
+    ]);
+    const client = clientFor({
+      marketHistory: HISTORY_CONFIG,
+      ntfy: NTFY,
+      rules: memory.repository,
+    });
+    return { memory, result: await client.priceAlerts.check({}) };
+  };
+
+  beforeEach(() => {
+    resetIbkrPacing();
+  });
+
+  it("evaluates IBKR 5-minute bars without a Yahoo request", async () => {
+    const history = withHistory(
+      (url) => historyResponse(url, fiveMinute("13:30", [56, 0, 54.5, 56])),
+      yahoo
+    );
+    const { result } = await run(history.fetch);
+    expect(yahoo).not.toHaveBeenCalled();
+    expect(history.urls).toHaveLength(1);
+    expect(history.urls[0]).toContain("barSize=5+mins");
+    expect(history.urls[0]).toContain("duration=1+D");
+    expect(history.urls[0]).toContain("useRTH=1");
+    expect(result.quoteErrors).toEqual([]);
+    expect(result.triggered).toEqual([
+      expect.objectContaining({
+        id: "rule-1",
+        state: expect.objectContaining({ triggerPrice: "53.5" }),
+      }),
+    ]);
+  });
+
+  it("reads Yahoo when IBKR fails or answers with a stale copy", async () => {
+    const failing = withHistory(
+      () => Response.json({ error: "down" }, { status: 503 }),
+      yahoo
+    );
+    const { result } = await run(failing.fetch);
+    expect(failing.urls).toHaveLength(1);
+    expect(yahoo).toHaveBeenCalledTimes(1);
+    expect(result.triggered[0]?.state).toMatchObject({ triggerPrice: "53.64" });
+    resetIbkrPacing();
+    yahoo.mockClear();
+    const stale = withHistory(
+      (url) => historyResponse(url, fiveMinute("13:30", [80]), { stale: true }),
+      yahoo
+    );
+    const second = await run(stale.fetch);
+    expect(yahoo).toHaveBeenCalledTimes(1);
+    expect(second.result.triggered[0]?.state).toMatchObject({
+      triggerPrice: "53.64",
+    });
+    // Class shares (BRK.B) have no IBKR form here: Yahoo only.
+    resetIbkrPacing();
+    setPriceAlertsOptionsForTesting({
+      fetch: failing.fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+    });
+    const requests = failing.urls.length;
+    const { repository } = memoryRules([
+      record({ id: "rule-brk", symbol: "BRK.B" }),
+    ]);
+    const odd = await clientFor({
+      marketHistory: HISTORY_CONFIG,
+      rules: repository,
+    }).priceAlerts.check({});
+    expect(odd.quoteErrors.map((error) => error.symbol)).toEqual(["BRK.B"]);
+    expect(failing.urls).toHaveLength(requests);
+  });
+
+  it("fills the bars before IBKR's late first bar from Yahoo", async () => {
+    // IBKR starts at 13:35 (after the 09:30 open); Yahoo's 13:30 bar touched 53.64.
+    const late = withHistory(
+      (url) => historyResponse(url, fiveMinute("13:35", [60, 61])),
+      yahoo
+    );
+    const { result } = await run(late.fetch);
+    expect(late.urls).toHaveLength(1);
+    expect(yahoo).toHaveBeenCalledTimes(1);
+    expect(result.triggered).toEqual([
+      expect.objectContaining({
+        id: "rule-1",
+        state: expect.objectContaining({ triggerPrice: "53.64" }),
+      }),
+    ]);
   });
 });
