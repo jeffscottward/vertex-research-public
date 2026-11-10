@@ -32,6 +32,7 @@ import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
 import {
   FallbackFailure,
+  historyFetchedAt,
   historyInstrument,
   LIVE_HISTORY_TIMEOUT_MS,
   loadMergedBars,
@@ -130,18 +131,24 @@ const fetchYahooQuote = async (
   }
 };
 
-/** An IBKR copy fetched longer ago than this is not a quote: the service caches 5-minute bars. */
+/**
+ * An IBKR copy fetched longer ago than this is not a quote. The owner wants IBKR first, but the
+ * service caches 5-minute bars for up to 300 s, so most checks find an older copy and fall back to
+ * Yahoo under this limit; IBKR serves the checks that land shortly after a fresh fetch.
+ */
 const QUOTE_MAX_AGE_MS = 60_000;
 
 // IBKR bars keep their close: the newest one is the last price.
 type QuoteBar = PriceAlertBar & Readonly<{ close?: number }>;
 
 /**
- * Today's 5-minute bars and the last price: IBKR first (5 mins, 1 D; a stale or more than 60 s old
- * service copy is not used, so a check never marks time it did not see), Yahoo for the whole quote
- * when IBKR fails or has no request slot, and Yahoo for the bars before IBKR's first bar when IBKR
- * starts after `needsFrom` (the earliest window of the symbol's rules, at most back to today's 09:30
- * New York open: Yahoo's range=1d has nothing older either).
+ * Today's 5-minute bars and the last price: IBKR first (5 mins, 1 D; a stale copy or one fetched
+ * more than QUOTE_MAX_AGE_MS ago is not used), Yahoo for the whole quote when IBKR fails or has no
+ * request slot, and Yahoo for the bars before IBKR's first bar when IBKR starts after `needsFrom` (the
+ * earliest window of the symbol's rules, at most back to today's 09:30 New York open: Yahoo's
+ * range=1d has nothing older either). An IBKR quote carries `asOf` = min(now, fetch time): its rules
+ * are marked checked only up to the time the copy covers, so a touch between the fetch and the check
+ * is evaluated on the next check.
  */
 const fetchQuote = (
   symbol: string,
@@ -202,6 +209,9 @@ const fetchQuote = (
       quote: {
         bars: merged.bars,
         last: close as number,
+        asOf: new Date(
+          Math.min(now.getTime(), historyFetchedAt(merged.history).getTime())
+        ),
         lastAt: new Date(Math.min(now.getTime(), start.getTime() + 5 * 60_000)),
         symbol,
       },
@@ -364,7 +374,8 @@ const runPriceAlerts = async (
     needsFrom
   );
   let checked = 0;
-  const untouched: string[] = [];
+  // Untouched rules by the time their quote covers (IBKR: its fetch time; Yahoo: now).
+  const untouched = new Map<number, string[]>();
   const unquoted: string[] = [];
   const triggered: PriceAlertRuleRecord[] = [];
   for (const rule of plan.rules) {
@@ -384,7 +395,8 @@ const runPriceAlerts = async (
       quote
     );
     if (!evaluation.hit) {
-      untouched.push(rule.id);
+      const at = (quote.asOf ?? now).getTime();
+      untouched.set(at, [...(untouched.get(at) ?? []), rule.id]);
       continue;
     }
     const record = await repository.trigger({
@@ -395,7 +407,8 @@ const runPriceAlerts = async (
     if (record !== null) triggered.push(record);
   }
   const notified = await notifyOwners(repository, config, triggered, now);
-  await repository.markChecked(untouched, now);
+  for (const [at, ids] of untouched)
+    await repository.markChecked(ids, new Date(at));
   await repository.markAttempted(unquoted);
   return { checked, quoteErrors: errors, ...notified };
 };

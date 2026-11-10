@@ -1,9 +1,10 @@
 // Sector rotation tick client for the scheduler (user systemd timer, not enabled by default).
 // Usage: VERTEX_ORIGIN=https://vertex.example VERTEX_AGENT_API_KEY=... bun run vertex:sector-rotation:tick [--dry-run]
-// It calls sectorRotation.collect with an operator agent WRITE key. The procedure reads public Yahoo
-// daily bars for SPY and the 11 sector ETFs, stores daily and weekly points and sends one ntfy line
-// per new entry into leading or lagging. --dry-run computes and reports only: nothing is stored,
-// recorded or sent. Research only: no orders. The key is never printed.
+// It calls sectorRotation.collect with an operator agent WRITE key. The procedure reads daily bars for
+// SPY and the 11 sector ETFs (IBKR first, Yahoo when IBKR cannot serve all symbols in time), stores
+// daily and weekly points and sends one ntfy line per new entry into leading or lagging. --dry-run
+// computes and reports only: nothing is stored, recorded or sent. Research only: no orders. The key is
+// never printed.
 // Optional second route: with VERTEX_ALERT_POST_URL (a loopback chat bot endpoint that takes
 // {channel, text}) and VERTEX_ALERT_CHANNEL set, each new alert that the server could not deliver
 // (not-configured or failed) is posted there once. The server records an alert once, so a repeat

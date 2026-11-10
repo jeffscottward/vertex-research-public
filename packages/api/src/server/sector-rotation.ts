@@ -106,6 +106,7 @@ export const setSectorRotationOptionsForTesting = (
 ): void => {
   options = next;
   mapCache.clear();
+  yahooNames.clear();
 };
 
 const sectorNames: ReadonlyMap<string, string> = new Map(
@@ -216,6 +217,20 @@ const displayName = (raw: string | null | undefined): string | null => {
 
 type CloseRange = typeof COLLECT_RANGE | typeof MAP_RANGE;
 
+// The last Yahoo display name per symbol: an IBKR read keeps it (never IBKR's contract name). One
+// short entry per symbol the operator has mapped; cleared with the test seam.
+const yahooNames = new Map<string, string | null>();
+
+/** Yahoo's name when Yahoo was read (remembered), else the last Yahoo name, else the symbol. */
+const stableName = (
+  symbol: string,
+  yahoo: BarsResult | null
+): string | null => {
+  if (yahoo?.ok !== true) return yahooNames.get(symbol) ?? symbol;
+  yahooNames.set(symbol, yahoo.bars.name);
+  return yahoo.bars.name;
+};
+
 type CloseRead = Readonly<{ result: BarsResult; ibkr: boolean }>;
 
 /**
@@ -223,8 +238,8 @@ type CloseRead = Readonly<{ result: BarsResult; ibkr: boolean }>;
  * fails or has no request slot, and Yahoo for the days before IBKR's first bar when IBKR starts late.
  * Both are adjusted back from the newest close, so the seam has no adjustment step. An IBKR daily bar
  * whose session was still running when the service fetched it is dropped (as Yahoo's live bar is). A
- * Yahoo failure is the symbol's result. The display name comes from Yahoo only (null when IBKR alone
- * served the symbol), so it never flips to IBKR's contract name. `scheduled`: a collect run that may
+ * Yahoo failure is the symbol's result. The display name is stableName's, never IBKR's contract
+ * name. `scheduled`: a collect run that may
  * wait for the service pacing and never reads Yahoo for the whole series (collectCloses decides).
  */
 const fetchCloses = async (
@@ -255,7 +270,9 @@ const fetchCloses = async (
       options: {
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         now: clock,
-        ...(scheduled ? {} : { timeoutMs: LIVE_HISTORY_TIMEOUT_MS }),
+        ...(scheduled
+          ? { maxPacedWaitMs: 30_000, pacedRetries: 1 }
+          : { timeoutMs: LIVE_HISTORY_TIMEOUT_MS }),
       },
       fillBefore: historyDate(
         windowFillBefore(now, RANGE_DAYS[range]).getTime() / 1000
@@ -279,7 +296,7 @@ const fetchCloses = async (
     return {
       bars: {
         closes: merged.bars,
-        name: yahoo?.ok === true ? yahoo.bars.name : null,
+        name: stableName(symbol, yahoo),
       },
       ok: true,
     };
@@ -307,10 +324,14 @@ const fetchAllBars = async (
   return out;
 };
 
+/** collect waits for IBKR at most this long in total (the scheduler unit stops the run at 300 s). */
+const COLLECT_IBKR_BUDGET_MS = 150_000;
+
 /**
  * The closes of one collect run from one source: IBKR for every symbol (one at a time, waiting for the
- * service pacing: about 4 minutes for 12 symbols), or Yahoo for every symbol when IBKR is not
- * configured or any symbol fails, so stored points never mix sources within a run.
+ * service pacing: one paced retry of at most 30 s per symbol), or Yahoo for every symbol when IBKR is
+ * not configured, any symbol fails or IBKR has not served all symbols within COLLECT_IBKR_BUDGET_MS,
+ * so stored points never mix sources within a run.
  */
 const collectCloses = async (
   symbols: readonly string[],
@@ -318,10 +339,14 @@ const collectCloses = async (
 ): Promise<Map<string, BarsResult>> => {
   if (config === null || config === undefined)
     return fetchAllBars(symbols, COLLECT_RANGE, null);
+  const started = clock().getTime();
   const out = new Map<string, BarsResult>();
   for (const symbol of symbols) {
-    const read = await fetchCloses(symbol, COLLECT_RANGE, config, true);
-    if (!read.ibkr) return fetchAllBars(symbols, COLLECT_RANGE, null);
+    const read =
+      clock().getTime() - started > COLLECT_IBKR_BUDGET_MS
+        ? null
+        : await fetchCloses(symbol, COLLECT_RANGE, config, true);
+    if (read?.ibkr !== true) return fetchAllBars(symbols, COLLECT_RANGE, null);
     out.set(symbol, read.result);
   }
   return out;

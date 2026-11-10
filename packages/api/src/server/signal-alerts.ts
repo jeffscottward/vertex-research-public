@@ -154,11 +154,12 @@ const DAILY_MINUTES = {
   STK: { end: 16 * 60, start: 9 * 60 + 30 },
 } as const;
 
-/** One IBKR bar as a signal bar; null without positive prices or when it had not ended at fetch. */
+/** One IBKR bar as a signal bar; null without positive prices or when the cached copy holds it partial. */
 const signalBarOf = (
   bar: MarketBar,
   history: HistoryBars,
-  timeframe: SignalAlertTimeframe
+  timeframe: SignalAlertTimeframe,
+  now: Date
 ): SignalBar | null => {
   if (Math.min(bar.o, bar.h, bar.l, bar.c) <= 0) return null;
   const minutes =
@@ -170,8 +171,11 @@ const signalBarOf = (
   const end = daily
     ? newYorkTime(historyDate(bar.t), minutes.end).getTime()
     : start.getTime() + SIGNAL_ALERT_TIMEFRAME_MS[timeframe];
-  // The service answers from its cache: a bar still forming when it was fetched is not closed.
-  if (end > historyFetchedAt(history).getTime()) return null;
+  // The service answers from its cache: a bar that has closed by now but was still forming when the
+  // copy was fetched holds a partial close, so it is dropped. A bar still forming now is kept: the
+  // evaluator treats it as forming (once and per-bar rules may fire on it).
+  if (end > historyFetchedAt(history).getTime() && end <= now.getTime())
+    return null;
   return { close: bar.c, high: bar.h, low: bar.l, open: bar.o, start };
 };
 
@@ -217,7 +221,11 @@ const fetchSeries = (
       fillBefore: daily
         ? newYorkClock(fillBefore).day
         : fillBefore.toISOString(),
-      fromIbkr: (bar, history) => signalBarOf(bar, history, timeframe),
+      fromIbkr: (bar, history) => signalBarOf(bar, history, timeframe, now),
+      noRequestReason:
+        spec === undefined
+          ? "1h served by Yahoo"
+          : "No IBKR contract for this symbol",
       yahoo: async () => {
         const result = await fetchYahooSeries(symbol, timeframe);
         if (!result.ok) throw new FallbackFailure(result.reason, result);

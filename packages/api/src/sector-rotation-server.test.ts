@@ -1091,9 +1091,9 @@ describe("sector rotation closes from IBKR history", () => {
     expect(history.urls[0]).toContain("whatToShow=ADJUSTED_LAST");
     expect(history.urls[0]).toContain("duration=2+Y");
     expect(result.asOf).toBe(LAST_DATE);
-    // The display name never flips to IBKR's contract name.
+    // The display name is never IBKR's contract name: no Yahoo name yet, so the symbol.
     expect(result.series.map((series) => [series.symbol, series.name])).toEqual(
-      [["AAPL", null]]
+      [["AAPL", "AAPL"]]
     );
     // A cached copy fetched during the session holds a live newest bar: it is dropped.
     resetIbkrPacing();
@@ -1167,6 +1167,21 @@ describe("sector rotation closes from IBKR history", () => {
       "XLI",
       "XLK",
     ]);
+    expect(yahoo).toHaveBeenCalledTimes(12);
+    // IBKR serves each symbol but the run passes its 150 s budget after the third: Yahoo for all.
+    yahoo.mockClear();
+    let clock = NOW.getTime();
+    const slow = withHistory((url) => {
+      clock += 60_000;
+      return historyResponse(url, ibkrBars(symbolOf(url), BARS["5y"] + 10));
+    }, yahoo);
+    setSectorRotationOptionsForTesting({
+      fetch: slow.fetch,
+      notify: ntfyAccepting,
+      now: () => new Date(clock),
+    });
+    expect((await collect()).asOf).toBe(LAST_DATE);
+    expect(slow.urls).toHaveLength(3);
     expect(yahoo).toHaveBeenCalledTimes(12);
   });
 

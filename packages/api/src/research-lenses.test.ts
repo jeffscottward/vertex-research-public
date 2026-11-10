@@ -849,9 +849,18 @@ describe("deep value prices from IBKR history", () => {
       asOf: "2026-10-21",
       // 10 lots of 100 shares.
       avgVolume: 1000,
-      name: "Alpha Industries Inc",
+      // Never IBKR's contract name: with no Yahoo name for the symbol yet, the SEC title.
+      name: "ALPHA INDUSTRIES INC",
       price: 11.65,
     });
+    // After a Yahoo read, IBKR reads keep that Yahoo name.
+    await gatherDeepValueFacts("AAA", undefined, options(fetch));
+    resetIbkrPacing();
+    const again = await gatherDeepValueFacts("AAA", undefined, {
+      ...options(fetch),
+      marketHistory: HISTORY_CONFIG,
+    });
+    expect(again.facts.name).toBe("Alpha Industries");
     // The procedure passes context.marketHistory.
     setResearchLensOptionsForTesting(options(fetch));
     const score = await clientFor(
@@ -860,7 +869,7 @@ describe("deep value prices from IBKR history", () => {
       HISTORY_CONFIG
     ).researchLenses.deepValueScore({ symbol: "AAA" });
     expect(score.symbol).toBe("AAA");
-    expect(yahooCalls(calls)).toEqual([]);
+    expect(yahooCalls(calls)).toHaveLength(1);
   });
 
   it("uses the real clock and global fetch by default", async () => {

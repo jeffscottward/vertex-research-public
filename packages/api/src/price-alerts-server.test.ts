@@ -876,4 +876,44 @@ describe("price alert quotes from IBKR history", () => {
       }),
     ]);
   });
+
+  it("marks rules checked at the IBKR copy's fetch time, so a later touch counts next check", async () => {
+    let now = NOW;
+    let fetchedAt = "2026-10-13T20:04:30Z";
+    let closes = [60];
+    const history = withHistory(
+      (url) => historyResponse(url, fiveMinute("20:00", closes), { fetchedAt }),
+      yahoo
+    );
+    setPriceAlertsOptionsForTesting({
+      fetch: history.fetch,
+      notify: ntfyAccepting,
+      now: () => now,
+    });
+    const { repository, rows } = memoryRules([
+      record({ createdAt: new Date("2026-10-13T20:00:00.000Z") }),
+    ]);
+    const client = clientFor({
+      marketHistory: HISTORY_CONFIG,
+      ntfy: NTFY,
+      rules: repository,
+    });
+    expect((await client.priceAlerts.check({})).triggered).toEqual([]);
+    expect(rows[0]?.state).toEqual({
+      lastCheckedAt: new Date(fetchedAt),
+      status: "active",
+    });
+    // The 20:00 bar dipped to 53 after the first copy was fetched (20:04:30) and ends at 20:05.
+    resetIbkrPacing();
+    now = new Date("2026-10-13T20:10:00.000Z");
+    fetchedAt = "2026-10-13T20:09:30Z";
+    closes = [54, 60];
+    const second = await client.priceAlerts.check({});
+    expect(yahoo).not.toHaveBeenCalled();
+    expect(second.triggered).toEqual([
+      expect.objectContaining({
+        state: expect.objectContaining({ triggerPrice: "53" }),
+      }),
+    ]);
+  });
 });

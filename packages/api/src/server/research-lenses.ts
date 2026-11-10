@@ -169,6 +169,7 @@ let tickerCache: Readonly<{ at: number; map: Map<string, SecTicker> }> | null =
   null;
 
 export const clearResearchLensCacheForTesting = (): void => {
+  yahooNames.clear();
   documentCache.clear();
   tickerCache = null;
 };
@@ -307,6 +308,8 @@ const reason = (error: unknown): string =>
   error instanceof Error ? error.message : "request failed";
 
 type DatedBar = DailyBar & Readonly<{ date: string }>;
+// The last Yahoo display name per symbol (bounded by the operator's own requests).
+const yahooNames = new Map<string, string | null>();
 type ChartRow = NonNullable<YahooChart["chart"]["result"]>[number];
 type ChartQuote = NonNullable<ChartRow["indicators"]["quote"]>[number];
 
@@ -402,7 +405,9 @@ const priceFacts = async (
     keyOf: (bar) => bar.date,
   });
   const read = yahoo as YahooYear | null;
-  const name = merged.history?.contract.longName ?? read?.name ?? null;
+  // One name rule: the last Yahoo name for the symbol (never IBKR's contract name), else the SEC title.
+  if (read !== null) yahooNames.set(symbol, read.name);
+  const name = read?.name ?? yahooNames.get(symbol) ?? null;
   return {
     ...factsFromBars(merged.bars),
     asOf:

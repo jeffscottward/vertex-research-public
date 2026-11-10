@@ -20,7 +20,7 @@ import type {
   DeployStatusFetch,
 } from "./server/deploy-status.ts";
 import { handleApiRequest } from "./server/handler.ts";
-import { resetIbkrPacing } from "./server/merged-bars.ts";
+import { ibkrFallbacks, resetIbkrPacing } from "./server/merged-bars.ts";
 import {
   HISTORY_CONFIG,
   historyBar,
@@ -964,5 +964,62 @@ describe("signal alert series from IBKR history", () => {
       bars: 1,
       count: 0,
     });
+  });
+
+  it("drops a futures day fetched before its 17:00 close but keeps the stock day", async () => {
+    // Fetched 16:30 New York, evaluated 18:00 New York on 2026-11-02.
+    const later = new Date("2026-11-02T23:00:00Z");
+    const daily = withHistory(
+      (url) =>
+        historyResponse(
+          url,
+          ["2026-10-30", "2026-11-02"].map((date, index) =>
+            historyBar(
+              Date.parse(`${date}T00:00:00Z`) / 1000,
+              index === 0 ? 9 : 11
+            )
+          ),
+          { fetchedAt: "2026-11-02T21:30:00Z" }
+        ),
+      yahoo
+    );
+    setSignalAlertsOptionsForTesting({ fetch: daily.fetch, now: () => later });
+    expect((await backfill("NQ=F", "1d")).backfill).toMatchObject({
+      bars: 1,
+      count: 0,
+    });
+    resetIbkrPacing();
+    expect((await backfill("SPY", "1d")).backfill).toMatchObject({
+      bars: 2,
+      count: 1,
+    });
+    // 1h is Yahoo's, and the fallback counts say why.
+    await backfill("SPY", "1h");
+    expect(ibkrFallbacks()["signal-alerts"]?.lastReason).toBe(
+      "1h served by Yahoo"
+    );
+  });
+
+  it("fires a per-bar rule on a forming IBKR bar", async () => {
+    // Fetched 15:49: bars through 15:45 are closed or forming; the 15:45 bar (9 -> 11) is forming.
+    const history = withHistory(
+      (url) =>
+        url.includes("endDateTime")
+          ? historyResponse(url, [])
+          : historyResponse(url, quarterHours(CLOSES), {
+              fetchedAt: "2026-11-02T15:49:00Z",
+            }),
+      yahoo
+    );
+    use(history.fetch);
+    const { repository } = memoryRules([record({ frequency: "per-bar" })]);
+    const result = await clientFor({
+      marketHistory: HISTORY_CONFIG,
+      ntfy: NTFY,
+      rules: repository,
+    }).priceAlerts.signals.check({});
+    expect(
+      result.events.map((event) => new Date(event.barAt).getTime())
+    ).toContain(START + 75 * MINUTE);
   });
 });

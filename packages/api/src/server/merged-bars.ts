@@ -41,6 +41,8 @@ export type MergedBarsPlan<T> = Readonly<{
   config: DeployStatusConfig | null;
   /** The IBKR request; null when the symbol has no IBKR form here (Yahoo serves it). */
   request: HistoryBarsRequest | null;
+  /** Why IBKR is not asked when request is null; default "No IBKR contract for this symbol". */
+  noRequestReason?: string;
   /** Consecutive windows of request.duration, newest first (fetchHistoryBarsPaged); default 1. */
   pages?: number;
   /** IBKR transport options; `now` is also the pacing and freshness clock. */
@@ -146,7 +148,10 @@ const askIbkr = async <T>(
   now: number
 ): Promise<IbkrAnswer> => {
   if (plan.request === null)
-    return { error: "No IBKR contract for this symbol", history: null };
+    return {
+      error: plan.noRequestReason ?? "No IBKR contract for this symbol",
+      history: null,
+    };
   if (plan.config === null)
     return { error: "IBKR history not configured", history: null };
   const pages = plan.pages ?? 1;
