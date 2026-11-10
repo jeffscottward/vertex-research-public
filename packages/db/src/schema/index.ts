@@ -1078,6 +1078,8 @@ export interface BacktestRunConfig {
   timeframe?: string;
   fillModel?: BacktestFillModel;
   leverage?: number;
+  // Backtest engine and version that produced the result, e.g. "nautilus-trader-1.227.0".
+  engine?: string;
 }
 // Benchmark equity on the same timestamps as the strategy equity (for alpha/beta).
 export interface BacktestBenchmark {

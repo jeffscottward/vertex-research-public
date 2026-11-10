@@ -119,12 +119,11 @@ def run_spec(spec: dict, bars: list[Bar], rates: list[Bar] | None, *, data_label
     bh_points = _equity(wf["dates"], [bench.returns[i] for i in bh_wf_idx], step)
     trades = trades_from_weights(wf["dates"], wf["weights"], bars, costs, rebalance["execution"],
                                  spec["universe"]["instruments"][0])[-2000:]
-    # `engine` is a top-level key (the recorder's result schema strips unknown keys and the stored
-    # runConfig is a closed contract), so a non-default engine is also named in the strategy label.
-    label = "walk-forward" if engine_id == ENGINE_ID else f"walk-forward, {engine_id}"
+    # The engine is stored as runConfig.engine (the recorder's contract field); the top-level key
+    # stays for the CLI summary line. The strategy label no longer names the engine.
     return {
         "engine": engine_id,
-        "strategy": f"{spec['name']} ({label})",
+        "strategy": f"{spec['name']} (walk-forward)",
         "instruments": ", ".join(spec["universe"]["instruments"]),
         "periodStart": wf["dates"][0],
         "periodEnd": wf["dates"][-1],
@@ -148,7 +147,7 @@ def run_spec(spec: dict, bars: list[Bar], rates: list[Bar] | None, *, data_label
         "folds": wf["folds"][:100],
         "runConfig": {"initialCapital": 1, "commissionPercent": c["commission_bps"] / 100,
                       "slippagePercent": (c["half_spread_bps"] + c["slippage_bps"]) / 100, "timeframe": "1d",
-                      "fillModel": "bar", "leverage": sizing["weight"]},
+                      "fillModel": "bar", "leverage": sizing["weight"], "engine": engine_id},
         "benchmark": {"label": f"Buy and hold {spec['universe']['instruments'][0]}", "points": bh_points},
         "criteria": criteria,
         "verdict": verdict,
