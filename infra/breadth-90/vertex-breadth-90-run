@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Runs one breadth-90 tick (research only, no orders) from the runner checkout. With BREADTH90_PUSH=1
+# and VERTEX_ORIGIN set, reads the operator write key from its 0600 file (never printed) and pushes to
+# Vertex; otherwise the tick runs with --no-push.
+set -euo pipefail
+BUN="$HOME/.local/share/mise/installs/bun/1.4.2/bin"
+export PATH="$BUN:/usr/local/bin:/usr/bin:/bin"
+cd "${BREADTH90_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-ticks-runner}"
+KEYF="${BREADTH90_KEY_FILE:-$HOME/.config/vertex/sector-rotation-key}"
+if [[ "${BREADTH90_PUSH:-0}" == "1" && -n "${VERTEX_ORIGIN:-}" && -r "$KEYF" ]]; then
+  VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
+  export VERTEX_AGENT_API_KEY
+  exec "$BUN/bun" run vertex:breadth-90:tick "$@"
+fi
+if [[ "${BREADTH90_PUSH:-0}" == "1" ]]; then
+  echo "vertex-breadth-90-run: BREADTH90_PUSH=1 but VERTEX_ORIGIN or the key file is missing; running without push" >&2
+fi
+exec "$BUN/bun" run vertex:breadth-90:tick --no-push "$@"

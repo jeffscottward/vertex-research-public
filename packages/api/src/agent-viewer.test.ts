@@ -248,6 +248,7 @@ const REVIEWED_READS: readonly string[] = [
   "backtestRuns.list",
   "baskets.list",
   "baskets.valuation",
+  "breadth90.get",
   "clickLog.query",
   "congressTrades.feed",
   "dashboard.summary",

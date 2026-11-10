@@ -235,6 +235,28 @@ export {
   type SectorRotationRepositoryDependencies,
   type SectorRotationTimeframeValue,
 } from "./sector-rotation.ts";
+export {
+  BREADTH90_STATUS_ID,
+  BREADTH90_UPSERT_BATCH,
+  type Breadth90BasketValue,
+  type Breadth90CollectRecord,
+  type Breadth90CollectResult,
+  type Breadth90DayKindValue,
+  type Breadth90DayRecord,
+  type Breadth90EventKindValue,
+  type Breadth90EventRecord,
+  type Breadth90GradeValue,
+  type Breadth90Repository,
+  type Breadth90RepositoryDependencies,
+  type Breadth90StateValue,
+  type Breadth90StatusRecord,
+  type Breadth90StoredDay,
+  type Breadth90StoredEvent,
+  type Breadth90StoredStatus,
+  type Breadth90TierValue,
+  type Breadth90TriggerValue,
+  createBreadth90Repository,
+} from "./breadth-90.ts";
 export type {
   MarketBarColumns,
   MarketBarRow,

@@ -5,7 +5,7 @@
 # only); the key is never printed.
 set -euo pipefail
 
-CHECKOUT="__RUNNER_CHECKOUT__"         # for example $HOME/Github/trading/vertex-research-platform-runner
+CHECKOUT="__RUNNER_CHECKOUT__"         # for example $HOME/Github/trading/vertex-research-public-runner
 KEY_FILE="__AGENT_WRITE_KEY_FILE__"    # for example $HOME/.config/vertex/agent-write-key
 BUN="__BUN__"                          # absolute path of the bun binary
 export VERTEX_ORIGIN="__VERTEX_ORIGIN__"                    # portal origin, https://...

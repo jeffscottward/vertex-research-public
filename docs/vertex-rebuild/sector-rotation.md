@@ -129,7 +129,7 @@ To remove the chat route: delete the drop-in and `alert.env`, then run `systemct
 
 ### Rig user units (not used)
 
-The user units `infra/sector-rotation/vertex-sector-rotation.{service,timer}` were the first plan for the rig. They are not installed or enabled anywhere. Do not enable them beside the QuantVPS timer: two schedulers would run the same collection. They run `bun run vertex:sector-rotation:tick` from a checkout at `~/Github/trading/vertex-research-platform` with `~/.config/vertex/sector-rotation.env` (mode 0600, the same keys as above).
+The user units `infra/sector-rotation/vertex-sector-rotation.{service,timer}` were the first plan for the rig. They are not installed or enabled anywhere. Do not enable them beside the QuantVPS timer: two schedulers would run the same collection. They run `bun run vertex:sector-rotation:tick` from a checkout at `~/Github/trading/vertex-research-public` with `~/.config/vertex/sector-rotation.env` (mode 0600, the same keys as above).
 
 ## Rollback
 

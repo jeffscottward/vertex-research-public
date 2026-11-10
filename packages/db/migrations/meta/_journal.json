@@ -463,6 +463,13 @@
       "when": 1794261059332,
       "tag": "0065_strategy_catalog_volume_spike_breakout",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1794276233898,
+      "tag": "0066_breadth_90",
+      "breakpoints": true
     }
   ]
 }

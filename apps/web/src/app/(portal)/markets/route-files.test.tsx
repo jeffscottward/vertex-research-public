@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ReactElement } from "react";
+import { act, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -7,8 +7,14 @@ import MarketsError from "./error.tsx";
 import MarketsLoading from "./loading.tsx";
 import MarketsPage, { metadata } from "./page.tsx";
 
+vi.mock("../../../components/portal/breadth-90-card.tsx", () => ({
+  Breadth90Card: () => <div data-workspace="breadth-90" />,
+}));
+
 vi.mock("../../../components/portal/market-context-page.tsx", () => ({
-  MarketContextPage: () => <div data-workspace="markets" />,
+  MarketContextPage: (props: { belowHeader?: ReactNode }) => (
+    <div data-workspace="markets">{props.belowHeader}</div>
+  ),
 }));
 
 vi.mock("../../../features/openbb/openbb-panels.tsx", () => ({
@@ -43,6 +49,12 @@ describe("market context route files", () => {
     expect(metadata).toEqual({ title: "Market context" });
     expect(
       container.querySelector('[data-workspace="markets"]')
+    ).not.toBeNull();
+    // The breadth-90 signal card goes into the client page's slot under the header.
+    expect(
+      container.querySelector(
+        '[data-workspace="markets"] > [data-workspace="breadth-90"]'
+      )
     ).not.toBeNull();
     expect(container.querySelector('[data-openbb="markets"]')).not.toBeNull();
   });

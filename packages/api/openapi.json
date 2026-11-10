@@ -87387,6 +87387,1397 @@
         ]
       }
     },
+    "/breadth-90": {
+      "get": {
+        "operationId": "breadth90.get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "days": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "adv": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "advPct": {
+                            "anyOf": [
+                              {
+                                "maximum": 100,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "date": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "decl": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "dvol": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "final": {
+                            "type": "boolean"
+                          },
+                          "kind": {
+                            "enum": [
+                              "UP_90",
+                              "UP_80",
+                              "NEUTRAL",
+                              "DOWN_80",
+                              "DOWN_90"
+                            ],
+                            "type": "string"
+                          },
+                          "source": {
+                            "maxLength": 40,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "sourceAsOf": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "upPct": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "uvol": {
+                            "minimum": 0,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "adv",
+                          "advPct",
+                          "date",
+                          "decl",
+                          "dvol",
+                          "final",
+                          "kind",
+                          "source",
+                          "sourceAsOf",
+                          "upPct",
+                          "uvol",
+                          "updatedAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 30,
+                      "type": "array"
+                    },
+                    "events": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "advPct": {
+                            "anyOf": [
+                              {
+                                "maximum": 100,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "armedOn": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "date": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "grade": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "major",
+                                  "volume-only"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "enum": [
+                              "ARMED",
+                              "FORMING",
+                              "FIRED",
+                              "THRUST"
+                            ],
+                            "type": "string"
+                          },
+                          "strict": {
+                            "type": "boolean"
+                          },
+                          "tier": {
+                            "enum": [
+                              "strict",
+                              "standard",
+                              "major",
+                              "volume-only"
+                            ],
+                            "type": "string"
+                          },
+                          "trigger": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "UP_90",
+                                  "UP_80_X2"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "upPct": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "advPct",
+                          "armedOn",
+                          "date",
+                          "grade",
+                          "kind",
+                          "strict",
+                          "tier",
+                          "trigger",
+                          "upPct",
+                          "createdAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 20,
+                      "type": "array"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "armedOn": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "asOf": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "basket": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "asOf": {
+                                      "anyOf": [
+                                        {
+                                          "maxLength": 64,
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "reportPath": {
+                                      "anyOf": [
+                                        {
+                                          "maxLength": 500,
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "rulesNote": {
+                                      "anyOf": [
+                                        {
+                                          "maxLength": 1000,
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "summary": {
+                                      "anyOf": [
+                                        {
+                                          "maxLength": 1000,
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "tiers": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "id": {
+                                            "maxLength": 80,
+                                            "type": "string"
+                                          },
+                                          "label": {
+                                            "maxLength": 120,
+                                            "type": "string"
+                                          },
+                                          "tickers": {
+                                            "items": {
+                                              "maxLength": 16,
+                                              "type": "string"
+                                            },
+                                            "maxItems": 100,
+                                            "type": "array"
+                                          },
+                                          "weightPctNlv": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "label",
+                                          "tickers",
+                                          "weightPctNlv"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "maxItems": 20,
+                                      "type": "array"
+                                    }
+                                  },
+                                  "required": [
+                                    "asOf",
+                                    "reportPath",
+                                    "rulesNote",
+                                    "summary",
+                                    "tiers"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sessionsLeft": {
+                              "anyOf": [
+                                {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "state": {
+                              "enum": [
+                                "IDLE",
+                                "ARMED",
+                                "FORMING",
+                                "FIRED"
+                              ],
+                              "type": "string"
+                            },
+                            "strict": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "armedOn",
+                            "asOf",
+                            "basket",
+                            "sessionsLeft",
+                            "state",
+                            "strict"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "thresholds": {
+                      "properties": {
+                        "down80": {
+                          "type": "number"
+                        },
+                        "down90": {
+                          "type": "number"
+                        },
+                        "up80": {
+                          "type": "number"
+                        },
+                        "up90": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "down80",
+                        "down90",
+                        "up80",
+                        "up90"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "days",
+                    "events",
+                    "status",
+                    "thresholds"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Breadth-90 storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Breadth-90 status, the last 30 sessions and the newest signal events",
+        "tags": [
+          "Breadth 90"
+        ]
+      }
+    },
+    "/breadth-90/collect": {
+      "post": {
+        "operationId": "breadth90.collect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "armedOn": {
+                    "anyOf": [
+                      {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "asOf": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "basket": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "asOf": {
+                        "anyOf": [
+                          {
+                            "maxLength": 64,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reportPath": {
+                        "anyOf": [
+                          {
+                            "maxLength": 500,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "rulesNote": {
+                        "anyOf": [
+                          {
+                            "maxLength": 1000,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "summary": {
+                        "anyOf": [
+                          {
+                            "maxLength": 1000,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "tiers": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "maxLength": 80,
+                              "type": "string"
+                            },
+                            "label": {
+                              "maxLength": 120,
+                              "type": "string"
+                            },
+                            "tickers": {
+                              "items": {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              "maxItems": 100,
+                              "type": "array"
+                            },
+                            "weightPctNlv": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "label",
+                            "tickers",
+                            "weightPctNlv"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 20,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "asOf",
+                      "reportPath",
+                      "rulesNote",
+                      "summary",
+                      "tiers"
+                    ],
+                    "type": "object"
+                  },
+                  "days": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "adv": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "advPct": {
+                          "anyOf": [
+                            {
+                              "maximum": 100,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "decl": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "dvol": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "final": {
+                          "type": "boolean"
+                        },
+                        "kind": {
+                          "enum": [
+                            "UP_90",
+                            "UP_80",
+                            "NEUTRAL",
+                            "DOWN_80",
+                            "DOWN_90"
+                          ],
+                          "type": "string"
+                        },
+                        "source": {
+                          "maxLength": 40,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "sourceAsOf": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "upPct": {
+                          "maximum": 100,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "uvol": {
+                          "minimum": 0,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "adv",
+                        "advPct",
+                        "date",
+                        "decl",
+                        "dvol",
+                        "final",
+                        "kind",
+                        "source",
+                        "sourceAsOf",
+                        "upPct",
+                        "uvol"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 2500,
+                    "type": "array"
+                  },
+                  "events": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "advPct": {
+                          "anyOf": [
+                            {
+                              "maximum": 100,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "armedOn": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "grade": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "major",
+                                "volume-only"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "kind": {
+                          "enum": [
+                            "ARMED",
+                            "FORMING",
+                            "FIRED",
+                            "THRUST"
+                          ],
+                          "type": "string"
+                        },
+                        "strict": {
+                          "type": "boolean"
+                        },
+                        "tier": {
+                          "enum": [
+                            "strict",
+                            "standard",
+                            "major",
+                            "volume-only"
+                          ],
+                          "type": "string"
+                        },
+                        "trigger": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "UP_90",
+                                "UP_80_X2"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "upPct": {
+                          "maximum": 100,
+                          "minimum": 0,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "advPct",
+                        "armedOn",
+                        "date",
+                        "grade",
+                        "kind",
+                        "strict",
+                        "tier",
+                        "trigger",
+                        "upPct"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 1000,
+                    "type": "array"
+                  },
+                  "sessionsLeft": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "state": {
+                    "enum": [
+                      "IDLE",
+                      "ARMED",
+                      "FORMING",
+                      "FIRED"
+                    ],
+                    "type": "string"
+                  },
+                  "strict": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "armedOn",
+                  "asOf",
+                  "basket",
+                  "days",
+                  "events",
+                  "sessionsLeft",
+                  "state",
+                  "strict"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "asOf": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "newEvents": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "advPct": {
+                            "anyOf": [
+                              {
+                                "maximum": 100,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "armedOn": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "date": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "grade": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "major",
+                                  "volume-only"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "enum": [
+                              "ARMED",
+                              "FORMING",
+                              "FIRED",
+                              "THRUST"
+                            ],
+                            "type": "string"
+                          },
+                          "strict": {
+                            "type": "boolean"
+                          },
+                          "tier": {
+                            "enum": [
+                              "strict",
+                              "standard",
+                              "major",
+                              "volume-only"
+                            ],
+                            "type": "string"
+                          },
+                          "trigger": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "UP_90",
+                                  "UP_80_X2"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "upPct": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "advPct",
+                          "armedOn",
+                          "date",
+                          "grade",
+                          "kind",
+                          "strict",
+                          "tier",
+                          "trigger",
+                          "upPct"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "stored": {
+                      "properties": {
+                        "days": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "events": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "days",
+                        "events"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "asOf",
+                    "newEvents",
+                    "stored"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Breadth-90 storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Rig tick: store NYSE breadth sessions, record signal events and replace the status",
+        "tags": [
+          "Breadth 90"
+        ]
+      }
+    },
     "/click-log/events": {
       "get": {
         "operationId": "clickLog.query",

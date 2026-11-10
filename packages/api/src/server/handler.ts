@@ -37,6 +37,8 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // key (flow.collect) and research agents read flow.snapshot with a read key.
 // openbb.* is a root: the OpenBB tick (scripts/openbb/tick.ts) writes ingest and recordRun with a
 // write key, and research agents read the other openbb.* procedures with a read key.
+// The breadth-90 rig tick pushes sessions with a write key (breadth90.collect) and research agents
+// read the signal with a read key (breadth90.get).
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -49,6 +51,8 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "pickLists.screen",
   "flow.collect",
   "flow.snapshot",
+  "breadth90.collect",
+  "breadth90.get",
 ]);
 
 export const isAgentApiKeyProcedurePath = (
@@ -79,7 +83,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect and flow.snapshot",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, breadth90.collect and breadth90.get",
       })
     );
   }
