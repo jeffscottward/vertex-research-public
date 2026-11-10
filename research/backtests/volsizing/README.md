@@ -10,9 +10,9 @@ code. Card `vertex-volsizing-research`; the note is `~/Documents/reports/web/ver
   and sizes it five ways inside the 2% NLV max-loss gate: current fixed 0.50% NLV max loss,
   risk-matched vol target, risk-matched vol target with weekly buffered resizing, a shrink-only
   vol brake, and Carver's default 16% vol target.
-- `results.json`: derived statistics only (dummy $1,000,000 account, public Yahoo bars that are not
-  in the repository).
-- `render_note.py`: writes the dark HTML note with the chart from `results.json`.
+- `volsizing.py --out` writes the derived statistics (dummy $1,000,000 account, public Yahoo bars) to
+  `~/Documents/reports/vertex-volsizing/results.json`, outside the repository (AGENTS.md rule 13).
+- `render_note.py`: writes the dark HTML note with the chart from that results file.
 - `test_volsizing.py`: unit tests (option math, gate, sizing, buffer, IDM, vol estimators) and
   synthetic-market tests of `simulate()` (entry, rolls, exit, cash, gate at entry/roll/add).
 
@@ -20,9 +20,8 @@ code. Card `vertex-volsizing-research`; the note is `~/Documents/reports/web/ver
 uv run --no-project --python 3.12 --with yfinance==0.2.66 \
   python research/backtests/volsizing/fetch_ivx.py --out ~/Documents/reports/vertex-core7/data
 <nautilus-venv>/bin/python research/backtests/volsizing/volsizing.py \
-  --data ~/Documents/reports/vertex-core7/data --out research/backtests/volsizing/results.json
-npx biome format --write research/backtests/volsizing/results.json
-python3 research/backtests/volsizing/render_note.py research/backtests/volsizing/results.json \
+  --data ~/Documents/reports/vertex-core7/data --out ~/Documents/reports/vertex-volsizing/results.json
+python3 research/backtests/volsizing/render_note.py ~/Documents/reports/vertex-volsizing/results.json \
   ~/Documents/reports/web/vertex-volsizing/index.html
 <nautilus-venv>/bin/python -m pytest research/backtests/volsizing/test_volsizing.py -q
 ```

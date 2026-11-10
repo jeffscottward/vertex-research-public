@@ -5,7 +5,7 @@ to paper or live trading. No code from pysystemtrade (GPL-3.0) is used; the meth
 from its published description (Systematic Trading, Leveraged Trading, pysystemtrade docs).
 
     <nautilus-venv>/bin/python research/backtests/volsizing/volsizing.py \
-        --data ~/Documents/reports/vertex-core7/data --out research/backtests/volsizing/results.json
+        --data ~/Documents/reports/vertex-core7/data --out ~/Documents/reports/vertex-volsizing/results.json
 
 Pipeline:
 1. Signals: each library strategy (QuantJourney O01, O02, O12 DSL definitions in
@@ -779,7 +779,9 @@ def main(argv=None) -> int:
         out["strategies"].append({"id": sid, "name": lib["name"], "definition": lib["dsl"],
                                   "signalTrades": signal, "variants": rows, "curves": curves})
         print(sid, "done", file=sys.stderr)
-    args.out.write_text(json.dumps(out, indent=1) + "\n")
+    out_path = args.out.expanduser()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(out, indent=1) + "\n")
     return 0
 
 

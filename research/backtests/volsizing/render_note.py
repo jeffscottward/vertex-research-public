@@ -1,6 +1,6 @@
 """Render the vol-sizing research note (dark HTML with an inline SVG chart) from results.json.
 
-    python3 research/backtests/volsizing/render_note.py research/backtests/volsizing/results.json \
+    python3 research/backtests/volsizing/render_note.py ~/Documents/reports/vertex-volsizing/results.json \
         ~/Documents/reports/web/vertex-volsizing/index.html
 
 Research only: the note never authorizes a trade. Only derived statistics of public Yahoo data
@@ -313,8 +313,8 @@ at 0.5% each are partly one bet (IDM {num(r["idm"], 2)}, not 2.65). A correlatio
 budget is a separate research card.</li>
 </ul>
 <p class="note">Reproduce: <code>&lt;nautilus-venv&gt;/bin/python research/backtests/volsizing/volsizing.py
---data ~/Documents/reports/vertex-core7/data --out research/backtests/volsizing/results.json</code>, then
-<code>python3 research/backtests/volsizing/render_note.py research/backtests/volsizing/results.json
+--data ~/Documents/reports/vertex-core7/data --out ~/Documents/reports/vertex-volsizing/results.json</code>, then
+<code>python3 research/backtests/volsizing/render_note.py ~/Documents/reports/vertex-volsizing/results.json
 ~/Documents/reports/web/vertex-volsizing/index.html</code>. Tests:
 <code>python -m pytest research/backtests/volsizing/test_volsizing.py</code>.</p>
 </body></html>
