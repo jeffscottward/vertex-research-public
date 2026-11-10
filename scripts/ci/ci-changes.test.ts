@@ -12,32 +12,49 @@ const classify = (paths: string[]): string =>
     .toString()
     .trim();
 
-// Stands in for the GitHub CLI: the pull request changed one code file, and
-// LIVE_DRAFT is its draft state now ("true", "false", or "error" for a failed read).
+// Stands in for the GitHub CLI. It logs each call and answers only the three exact
+// reads that the script makes for pull request 7 of owner/repo; any other call fails.
+// FILES holds the changed paths. LIVE_DRAFT is the draft state now: "true", "false",
+// or "error" for a failed read (the real CLI then prints the error body on stdout).
+const draftRead = "api repos/owner/repo/pulls/7 --jq .draft";
 const fakeGh = [
   "#!/usr/bin/env bash",
+  'echo "$*" >>"$GH_LOG"',
   'case "$*" in',
-  '  *"/files "*) echo apps/web/src/page.civet ;;',
-  '  *".changed_files") echo 1 ;;',
-  '  *".draft") [[ "$LIVE_DRAFT" != error ]] && echo "$LIVE_DRAFT" ;;',
+  '  "api repos/owner/repo/pulls/7 --jq .changed_files") grep -c . <<<"$FILES" ;;',
+  '  "api --paginate repos/owner/repo/pulls/7/files --jq "*) echo "$FILES" ;;',
+  `  "${draftRead}")`,
+  '    if [[ "$LIVE_DRAFT" == error ]]; then',
+  `      echo '{"message":"Server Error","draft":true}'`,
+  "      exit 1",
+  "    fi",
+  '    echo "$LIVE_DRAFT" ;;',
   "  *) exit 2 ;;",
   "esac",
   "",
 ].join("\n");
 
-const plan = (env: Record<string, string>): string => {
+const runPlan = (
+  env: Record<string, string>
+): { calls: string[]; out: string } => {
   const directory = mkdtempSync(join(tmpdir(), "ci-changes-"));
   const output = join(directory, "out");
+  const log = join(directory, "gh.log");
   try {
     writeFileSync(join(directory, "gh"), fakeGh, { mode: 0o755 });
+    writeFileSync(log, "");
     execFileSync("bash", [script, "plan"], {
       env: {
         PATH: `${directory}:${process.env["PATH"] ?? ""}`,
         GITHUB_OUTPUT: output,
+        GH_LOG: log,
         ...env,
       },
     });
-    return readFileSync(output, "utf8");
+    return {
+      calls: readFileSync(log, "utf8").split("\n").filter(Boolean),
+      out: readFileSync(output, "utf8"),
+    };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -45,13 +62,18 @@ const plan = (env: Record<string, string>): string => {
 
 // A pull request run: `eventDraft` is the draft flag in the event that started the
 // run, `liveDraft` is what GitHub answers when the run asks.
-const planPullRequest = (eventDraft: string, liveDraft: string): string =>
-  plan({
+const planPullRequest = (
+  eventDraft: string,
+  liveDraft: string,
+  files = "apps/web/src/page.civet"
+): { calls: string[]; out: string } =>
+  runPlan({
     EVENT: "pull_request",
     REPO: "owner/repo",
     PR_NUMBER: "7",
     DRAFT: eventDraft,
     LIVE_DRAFT: liveDraft,
+    FILES: files,
     BROWSER_TESTS: "on",
   });
 
@@ -86,22 +108,29 @@ describe("ci-changes.sh", () => {
   });
 
   it("always takes the full lane on a manual run", () => {
-    const out = plan({ EVENT: "workflow_dispatch", BROWSER_TESTS: "on" });
+    const { out } = runPlan({
+      EVENT: "workflow_dispatch",
+      BROWSER_TESTS: "on",
+    });
     expect(out).toContain("heavy=true");
+    expect(out).toContain("draft=false");
     expect(out).toContain("exclude=[]");
   });
 
   it("takes the full lane when the changed files cannot be listed", () => {
-    const out = plan({
+    const { out } = runPlan({
       EVENT: "push",
       BEFORE: "0000000000000000000000000000000000000000",
     });
     expect(out).toContain("heavy=true");
+    expect(out).toContain("draft=false");
     expect(out).toContain('exclude=[{"lane":"browser"}]');
   });
 
   it("takes only the light lane on a pull request that is still a draft", () => {
-    const out = planPullRequest("true", "true");
+    const { calls, out } = planPullRequest("true", "true");
+    expect(calls).toContain(draftRead);
+    expect(out).toContain("kind=code");
     expect(out).toContain("heavy=false");
     expect(out).toContain("draft=true");
     expect(out).toContain(
@@ -113,21 +142,36 @@ describe("ci-changes.sh", () => {
   // `gh pr create --draft`. The run for the draft event cancelled the run for the
   // ready event, then took the light lane 15 seconds after the PR was ready.
   it("takes the full lane when a draft event runs after the pull request became ready", () => {
-    const out = planPullRequest("true", "false");
+    const { calls, out } = planPullRequest("true", "false");
+    expect(calls).toContain(draftRead);
+    expect(out).toContain("kind=code");
     expect(out).toContain("heavy=true");
     expect(out).toContain("draft=false");
     expect(out).toContain("exclude=[]");
   });
 
   it("takes the full lane when the draft state cannot be read", () => {
-    const out = planPullRequest("true", "error");
+    const { calls, out } = planPullRequest("true", "error");
+    expect(calls).toContain(draftRead);
     expect(out).toContain("heavy=true");
     expect(out).toContain("draft=false");
   });
 
-  it("never moves a ready event to the light lane", () => {
-    const out = planPullRequest("false", "true");
+  it("never asks for the draft state on a ready event and takes the full lane", () => {
+    const { calls, out } = planPullRequest("false", "true");
+    expect(calls).not.toContain(draftRead);
     expect(out).toContain("heavy=true");
     expect(out).toContain("draft=false");
+  });
+
+  it("keeps the light lane for a docs-only pull request and still reports the draft state", () => {
+    const ready = planPullRequest("true", "false", "README.md").out;
+    expect(ready).toContain("kind=docs");
+    expect(ready).toContain("heavy=false");
+    expect(ready).toContain("draft=false");
+    const draft = planPullRequest("true", "true", "README.md").out;
+    expect(draft).toContain("kind=docs");
+    expect(draft).toContain("heavy=false");
+    expect(draft).toContain("draft=true");
   });
 });

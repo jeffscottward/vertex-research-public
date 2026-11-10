@@ -213,8 +213,9 @@ describe("GitHub workflow invariants", () => {
 
   // Card vertex-ci-draft-ready-race (PR #84): the draft flag in the event can be
   // stale, so the changes job reports the draft state it read from GitHub. The gate
-  // is the required "ci-gate" check unless the event and that answer both say draft.
-  // A cancelled draft run has no answer and stays "ci-gate (draft)".
+  // is the required "ci-gate" check when the event says ready, or when the changes
+  // job answered "not a draft". A draft run that was cancelled before the changes
+  // job answered stays "ci-gate (draft)".
   it("names the gate from the draft state that the changes job read", () => {
     const ci = workflows.find(({ file }) => file === "ci.yml")!;
     const ciJobs = ci.workflow.jobs as Record<

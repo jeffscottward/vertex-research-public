@@ -417,7 +417,8 @@ jobs:
   # for the required "ci-gate" check on the same commit.
   # A run for a draft event reports as "ci-gate" when the changes job found the pull
   # request ready (card vertex-ci-draft-ready-race): that run chose its lanes as a
-  # ready run does. A cancelled draft run has no answer and stays "ci-gate (draft)".
+  # ready run does. A draft run that was cancelled before the changes job answered
+  # stays "ci-gate (draft)".
   ci-gate:
     name: ${{ github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}
     needs: [changes, coverage-shards, verification, verification-coverage]
