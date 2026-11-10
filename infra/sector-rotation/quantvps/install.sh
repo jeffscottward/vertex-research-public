@@ -75,8 +75,10 @@ bundle=vertex-sector-rotation-tick.mjs
 [ -x "$node" ] || fail "missing $node (install the Autopilot tick first)"
 [ -f "$prefix/etc/vertex-autopilot/autopilot.env" ] || fail "missing /etc/vertex-autopilot/autopilot.env"
 key_env="$prefix/etc/vertex-sector-rotation/agent-key.env"
-if [ -f "$key_env" ] && [ "$(stat -c %a "$key_env")" != 600 ]; then
-  fail "/etc/vertex-sector-rotation/agent-key.env must have mode 0600"
+if [ -e "$key_env" ] || [ -L "$key_env" ]; then
+  # A regular file, mode 0600, owned by the installing user (root on QuantVPS); never a symlink.
+  [ -f "$key_env" ] && [ ! -L "$key_env" ] && [ "$(stat -c '%a %u' "$key_env")" = "600 $(id -u)" ] ||
+    fail "/etc/vertex-sector-rotation/agent-key.env must be a regular file with mode 0600 owned by $(id -un)"
 fi
 "$node" --check "$src/$bundle" || fail "the bundle does not parse with $node"
 install -d -m 0755 "$app"

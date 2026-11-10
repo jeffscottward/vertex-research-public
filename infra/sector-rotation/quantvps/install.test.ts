@@ -245,7 +245,9 @@ describe("install.sh", () => {
     const host = fakeHost({ alertEnv: true, keyMode: 0o644, node: true });
     const result = install(host);
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("agent-key.env must have mode 0600");
+    expect(result.stderr).toContain(
+      "agent-key.env must be a regular file with mode 0600"
+    );
     expect(existsSync(join(host.root, "opt/vertex-sector-rotation"))).toBe(
       false
     );
