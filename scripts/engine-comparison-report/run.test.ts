@@ -31,7 +31,7 @@ const listedRun = (
     ...(comparison === undefined ? {} : { comparison }),
   },
   startedAt: "2026-11-09T13:17:09.000Z",
-  status: "succeeded",
+  status: id === "q-1" ? "queued" : id === "n-2" ? "failed" : "succeeded",
   strategySnapshot: id === "n-2" ? null : { name: "Asset-Class Trend" },
 });
 
@@ -74,6 +74,10 @@ const fakeIo = (overrides: Partial<ReportIo> = {}) => {
             runs: [
               listedRun("n-1", "nautilus-trader-1.227.0"),
               listedRun("n-2", "nautilus-trader-1.227.0"),
+              {
+                ...listedRun("q-1", "nautilus-trader-1.227.0"),
+                startedAt: null,
+              },
               listedRun("c-1", "nautilus-trader-1.227.0", { feature: "sweep" }),
               listedRun("t-1", "instant-2"),
             ],
@@ -163,6 +167,8 @@ describe("parseJournal", () => {
           }),
           JSON.stringify({ MESSAGE: "no time" }),
           "  ",
+          "not json {",
+          JSON.stringify({ __REALTIME_TIMESTAMP: "soon", MESSAGE: "bad time" }),
         ].join("\n")
       )
     ).toEqual([
@@ -177,13 +183,18 @@ describe("runEngineComparisonReport", () => {
     expect(await runEngineComparisonReport(["--out", "/out"], io)).toBe(0);
     expect(stderr).toEqual([]);
     expect(stdout).toEqual([
-      "wrote /out/index.html: 1 comparison runs, 2 Nautilus runs, 2 outage(s)\n",
+      "wrote /out/index.html: 1 comparison runs, 3 Nautilus runs, 2 outage(s)\n",
     ]);
     expect(calls.map((call) => call.path)).toEqual([
       ...Array.from({ length: 6 }, () => "backtestRuns/comparisons/list"),
       "backtestRuns/list",
       "backtestRuns/get",
       "backtestRuns/get",
+    ]);
+    // The queued run q-1 is never read with get (get can fail or start an unfinished run).
+    expect(calls.slice(7).map((call) => call.body)).toEqual([
+      { json: { id: "n-1" } },
+      { json: { id: "n-2" } },
     ]);
     expect(calls[0]).toMatchObject({
       body: { json: { feature: "instant", limit: 500 } },
@@ -235,6 +246,15 @@ describe("runEngineComparisonReport", () => {
     const cases: [Partial<ReportIo>, string][] = [
       [{ env: {} }, "set VERTEX_ORIGIN"],
       [
+        {
+          env: {
+            VERTEX_AGENT_API_KEY: KEY,
+            VERTEX_ORIGIN: "http://vertex.example",
+          },
+        },
+        "VERTEX_ORIGIN must use https",
+      ],
+      [
         { env: { VERTEX_AGENT_API_KEY: "", VERTEX_ORIGIN: ORIGIN } },
         "set VERTEX_AGENT_KEY_FILE",
       ],
@@ -256,6 +276,38 @@ describe("runEngineComparisonReport", () => {
     expect(stderr.join("")).toContain("--out <dir> is required");
   });
 
+  it("warns when the run list is full and allows plain http on loopback", async () => {
+    const base = fakeIo();
+    const io: ReportIo = {
+      ...base.io,
+      fetch: async (url, init) =>
+        url.endsWith("backtestRuns/list")
+          ? answer({
+              json: {
+                runs: Array.from({ length: 100 }, (_, index) =>
+                  listedRun(`t-${index}`, "instant-2")
+                ),
+              },
+            })
+          : base.io.fetch(url, init),
+    };
+    expect(await runEngineComparisonReport(["--out", "/out"], io)).toBe(0);
+    expect(base.written.get("/out/index.html")).toContain(
+      "older Nautilus runs are not shown"
+    );
+    const loopback = fakeIo({
+      env: {
+        VERTEX_AGENT_API_KEY: KEY,
+        VERTEX_ORIGIN: "http://127.0.0.1:3451",
+      },
+      fetch: () => Promise.reject(new Error("offline")),
+    });
+    expect(
+      await runEngineComparisonReport(["--out", "/out"], loopback.io)
+    ).toBe(1);
+    expect(loopback.stderr.join("")).toContain("offline");
+  });
+
   it("refuses rows that do not match the contract", async () => {
     const { io, stderr } = fakeIo({
       fetch: async () =>
@@ -264,6 +316,6 @@ describe("runEngineComparisonReport", () => {
         }),
     });
     expect(await runEngineComparisonReport(["--out", "/out"], io)).toBe(1);
-    expect(stderr.join("")).toContain("not a date");
+    expect(stderr.join("")).toContain("createdAt");
   });
 });

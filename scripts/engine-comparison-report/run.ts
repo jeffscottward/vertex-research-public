@@ -1,9 +1,9 @@
 // Builds the step-4 "current engine vs Nautilus" report page (research only; no orders).
 // Usage: VERTEX_ORIGIN=https://<portal> VERTEX_AGENT_KEY_FILE=<operator read key file> \
 //   bun run vertex:engine-comparison-report -- --out <dir> [--limit 500] [--no-journal]
-// Read-only: calls backtestRuns.comparisons.list (per feature), backtestRuns.list and
-// backtestRuns.get with an operator agent key (read access is enough) and reads the research
-// worker's journal for outages. Writes <dir>/index.html and nothing else. The key is never printed.
+// Read-only: calls backtestRuns.comparisons.list (per feature), backtestRuns.list and, for
+// finished runs only (it can change unfinished ones), backtestRuns.get with an operator agent
+// key (read access is enough) and reads the research worker's journal for outages. Writes <dir>/index.html and nothing else. The key is never printed.
 import { z } from "zod";
 
 import { BACKTEST_RUN_LIST_MAX } from "../../packages/api/src/contracts/backtest-runs.ts";
@@ -17,6 +17,7 @@ import {
   buildModel,
   type ComparisonRow,
   ComparisonRowSchema,
+  IsoDateSchema,
   type JournalEntry,
   type NautilusRun,
 } from "./model.ts";
@@ -27,6 +28,11 @@ export const WORKER_UNIT = "vertex-nautilus-worker.service";
 export const SNAPSHOT_DIR = "snapshot-2026-11-06";
 const API_TIMEOUT_MS = 30_000;
 const DAY_MS = 86_400_000;
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set([
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+]);
 
 export type ReportIo = Readonly<{
   env: Readonly<Record<string, string | undefined>>;
@@ -93,10 +99,10 @@ const ResponseSchema = z.object({ json: z.unknown() });
 const RunListSchema = z.object({
   runs: z.array(
     z.object({
-      createdAt: z.string(),
+      createdAt: IsoDateSchema,
       engineVersion: z.string(),
       error: z.string().nullable(),
-      finishedAt: z.string().nullable(),
+      finishedAt: IsoDateSchema.nullable(),
       id: z.string(),
       spec: z.object({
         comparison: z.unknown().optional(),
@@ -104,7 +110,7 @@ const RunListSchema = z.object({
         symbol: z.string(),
         to: z.string(),
       }),
-      startedAt: z.string().nullable(),
+      startedAt: IsoDateSchema.nullable(),
       status: z.string(),
       strategySnapshot: z.object({ name: z.string() }).nullable(),
     })
@@ -115,13 +121,24 @@ const RunGetSchema = z.object({
   report: z.object({ engineRun: EngineRunSchema.optional() }).nullable(),
 });
 
-/** Parses journalctl -o json lines; lines without a text message are skipped. */
+const JournalLineSchema = z.object({
+  __REALTIME_TIMESTAMP: z.string().regex(/^\d+$/u),
+  MESSAGE: z.unknown(),
+});
+
+/** The JSON value of one line, or undefined when the line is not JSON. */
+const jsonOf = (line: string): unknown => {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return undefined;
+  }
+};
+
+/** Parses journalctl -o json lines; lines that are not JSON or carry no text message are skipped. */
 export const parseJournal = (text: string): JournalEntry[] =>
   text.split("\n").flatMap((line) => {
-    if (line.trim() === "") return [];
-    const entry = z
-      .object({ __REALTIME_TIMESTAMP: z.string(), MESSAGE: z.unknown() })
-      .safeParse(JSON.parse(line));
+    const entry = JournalLineSchema.safeParse(jsonOf(line));
     if (!entry.success || typeof entry.data.MESSAGE !== "string") return [];
     return [
       {
@@ -135,7 +152,12 @@ const build = async (args: ReportArgs, io: ReportIo): Promise<string> => {
   const originText = io.env["VERTEX_ORIGIN"];
   if (originText === undefined || originText === "")
     throw new Error("set VERTEX_ORIGIN to the portal origin");
-  const origin = new URL(originText).origin;
+  const url = new URL(originText);
+  if (url.protocol !== "https:" && !LOOPBACK_HOSTS.has(url.hostname))
+    throw new Error(
+      "VERTEX_ORIGIN must use https (the key travels in a header)"
+    );
+  const origin = url.origin;
   const key = await apiKey(io);
   const call = async (path: string, input: unknown): Promise<unknown> => {
     const response = await io.fetch(`${origin}/api/orpc/${path}`, {
@@ -163,21 +185,25 @@ const build = async (args: ReportArgs, io: ReportIo): Promise<string> => {
         })
       ).runs;
   }
-  const listed = RunListSchema.parse(
+  const allListed = RunListSchema.parse(
     await call("backtestRuns/list", { limit: BACKTEST_RUN_LIST_MAX })
-  ).runs.filter(
+  ).runs;
+  const listed = allListed.filter(
     (run) =>
       run.engineVersion.startsWith("nautilus") &&
       run.spec.comparison === undefined
   );
   const nautilusRuns: NautilusRun[] = [];
   for (const run of listed) {
-    const detail = RunGetSchema.parse(
-      await call("backtestRuns/get", { id: run.id })
-    );
+    // backtestRuns.get may fail a stale queued or running run (or start a queued one), so only
+    // finished runs are read; the others are shown without engine timing.
+    const finished = run.status === "succeeded" || run.status === "failed";
+    const detail = finished
+      ? RunGetSchema.parse(await call("backtestRuns/get", { id: run.id }))
+      : null;
     nautilusRuns.push({
       createdAt: run.createdAt,
-      engineRun: detail.report?.engineRun ?? null,
+      engineRun: detail?.report?.engineRun ?? null,
       error: run.error,
       finishedAt: run.finishedAt,
       from: run.spec.from,
@@ -210,6 +236,7 @@ const build = async (args: ReportArgs, io: ReportIo): Promise<string> => {
     generatedAt: io.now(),
     journal: { entries, read: journalRead },
     limit: args.limit,
+    nautilusListFull: allListed.length >= BACKTEST_RUN_LIST_MAX,
     nautilusRuns,
   });
   const snapshot = (await io.exists(`${args.out}/${SNAPSHOT_DIR}/index.html`))

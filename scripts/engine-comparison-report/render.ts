@@ -6,7 +6,6 @@ import type {
   Stats,
   TimelinePoint,
 } from "./model.ts";
-import { STEP4_FEATURES } from "./model.ts";
 
 const DAY_MS = 86_400_000;
 
@@ -15,7 +14,8 @@ export const escapeHtml = (text: string): string =>
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 
 /** "0.30 ms", "12.3 ms", "1.25 s", "42 s". */
 export const formatMs = (ms: number | null): string => {
@@ -33,7 +33,7 @@ const formatStats = (stats: Stats | null): string =>
     : `${formatMs(stats.p50)} / ${formatMs(stats.p95)} (n=${stats.n})`;
 
 const minute = (iso: string): string =>
-  `${iso.slice(0, 16).replace("T", " ")}Z`;
+  escapeHtml(`${iso.slice(0, 16).replace("T", " ")}Z`);
 
 const KIND_COLORS: Readonly<Record<TimelinePoint["kind"], string>> = {
   differs: "#e8a33d",
@@ -42,6 +42,7 @@ const KIND_COLORS: Readonly<Record<TimelinePoint["kind"], string>> = {
   nautilus: "#c9a54a",
   pending: "#5aa8e6",
   superseded: "#6b7280",
+  unknown: "#9aa0a6",
 };
 
 const KIND_LABELS: Readonly<Record<TimelinePoint["kind"], string>> = {
@@ -51,6 +52,7 @@ const KIND_LABELS: Readonly<Record<TimelinePoint["kind"], string>> = {
   nautilus: "Nautilus run without a TypeScript twin",
   pending: "queued or running",
   superseded: "superseded (a newer request replaced it)",
+  unknown: "done, differences not readable",
 };
 
 const NAUTILUS_ROW = "Nautilus backtest runs";
@@ -62,6 +64,7 @@ const DRAW_ORDER: Readonly<Record<TimelinePoint["kind"], number>> = {
   nautilus: 2,
   pending: 1,
   superseded: 0,
+  unknown: 3,
 };
 
 /** Timeline of every stored run with the worker outages shaded; the axis runs to the decision date. */
@@ -139,7 +142,13 @@ const benchmarkSvg = (model: ReportModel): string => {
   const plotWidth = width - left - 220;
   const rowHeight = 56;
   const height = rows.length * rowHeight + 20;
-  const max = Math.max(...rows.map((row) => row.nautilus.p95Ms)) * 1.05;
+  const max =
+    Math.max(
+      ...rows.flatMap((row) => [
+        row.nautilus.p95Ms,
+        row.typescript.p50Ms + model.benchmark.roundTripMs,
+      ])
+    ) * 1.05;
   const scale = (ms: number): number => (ms / max) * plotWidth;
   const parts = rows.map((row, index) => {
     const y = 10 + index * rowHeight;
@@ -195,16 +204,9 @@ export const renderReport = (
   const daysLeft = Math.ceil(
     (Date.parse(`${model.step4.decisionDate}T00:00:00.000Z`) - now) / DAY_MS
   );
-  const step4Titles = model.features
-    .filter((feature) => STEP4_FEATURES.includes(feature.feature))
-    .map((feature) => feature.title);
-  const missing = step4Titles.filter(
-    (title) => !model.step4.enough.includes(title)
-  );
-  const verdict =
-    missing.length === 0
-      ? `Met: every step-4 feature has at least ${model.step4.daysNeeded} days of live comparison runs.`
-      : `Not met yet for ${missing.join(", ")}: fewer than ${model.step4.daysNeeded} days of live comparison runs.`;
+  let deadline = `passed ${-daysLeft} day(s) ago`;
+  if (daysLeft > 0) deadline = `${daysLeft} day(s) left`;
+  else if (daysLeft === 0) deadline = "today";
   const differenceItems = model.features.flatMap((feature) =>
     feature.differenceItems.map(
       (item) =>
@@ -241,8 +243,8 @@ export const renderReport = (
 <title>Vertex: current engine vs Nautilus</title><style>${STYLE}</style></head><body>
 <h1>Current engine vs Nautilus (step 4 report)</h1>
 <p class="muted">Built ${minute(model.generatedAt)} from the stored runs in production (<code>backtestRuns.comparisons.list</code>, up to ${model.limit} per feature; <code>backtestRuns.list</code>/<code>get</code>) and the ${journalText}. Research only: no orders. Nautilus never runs on QuantVPS.</p>
-<h2>Step 4 decision (${model.step4.decisionDate}, ${daysLeft > 0 ? `${daysLeft} day(s) left` : "due"})</h2>
-<p>Pass condition (switch plan): ${model.step4.daysNeeded} days of live side-by-side data for the instant backtest, the parameter sweep and the Autopilot gate. The dual run is on in production since ${model.step4.since} (${model.step4.daysSinceStart} day(s)). <span class="${missing.length === 0 ? "" : "warn"}">${escapeHtml(verdict)}</span></p>
+<h2>Step 4 decision (${model.step4.decisionDate}, ${deadline})</h2>
+<p>Pass condition (switch plan): ${model.step4.daysNeeded} days of live side-by-side data for the instant backtest, the parameter sweep and the Autopilot gate. The dual run is on in production since ${model.step4.since}. <span class="${model.step4.met ? "" : "warn"}">${escapeHtml(model.step4.verdict)}</span></p>
 <ul>${model.step4.lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
 <h2>Timeline of stored runs</h2>
 ${timelineSvg(model)}
@@ -256,6 +258,7 @@ ${differenceItems.length === 0 ? "" : `<h3>Differences</h3><ul>${differenceItems
 ${failures.length === 0 ? "" : `<h3>Failed runs</h3><ul>${failures.join("")}</ul>`}
 <h2>Nautilus backtest runs without a TypeScript twin</h2>
 ${nautilusRows.length === 0 ? "<p>None.</p>" : table(["Created", "Strategy", "Bars", "Status", "Queue wait", "Host", "Engine / process wall", "CPU"], nautilusRows)}
+${model.nautilusListFull ? '<p class="warn">The run list returned its maximum; older Nautilus runs are not shown.</p>' : ""}
 <h2>Rig benchmark (${minute(bench.measuredAt)}, not re-measured)</h2>
 <p class="muted">${escapeHtml(bench.conditions)}. Engine time alone in a warm process: ${formatMs(bench.warmEngineMs)} for the instant backtest, so most of a cold Nautilus run is Python start.${options.snapshotHref === undefined ? "" : ` Original page: <a href="${escapeHtml(options.snapshotHref)}">snapshot of 2026-11-06</a>.`}</p>
 ${benchmarkSvg(model)}

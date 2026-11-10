@@ -41,6 +41,7 @@ const busyModel = (): ReportModel =>
           },
           { feature: "academy" }
         ),
+        comparisonRow({ differences: null }, { feature: "academy" }),
       ],
       sweep: [
         comparisonRow(
@@ -65,6 +66,7 @@ const busyModel = (): ReportModel =>
       read: true,
     },
     limit: 1,
+    nautilusListFull: true,
     nautilusRuns: [
       nautilusRun(),
       nautilusRun({
@@ -89,8 +91,8 @@ describe("formatMs and escapeHtml", () => {
   });
 
   it("escapes markup", () => {
-    expect(escapeHtml(`<a href="x">&</a>`)).toBe(
-      "&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;"
+    expect(escapeHtml(`<a href="x" title='y'>&</a>`)).toBe(
+      "&lt;a href=&quot;x&quot; title=&#39;y&#39;&gt;&amp;&lt;/a&gt;"
     );
   });
 });
@@ -106,8 +108,11 @@ describe("renderReport", () => {
     expect(html).toContain("still going on");
     expect(html).toContain("10 day(s) left");
     expect(html).toContain(
-      "Not met yet for Instant backtest, Parameter sweep, Autopilot gate"
+      "Not met yet: the dual run has been live 4 of 14 days."
     );
+    expect(html).toContain('<span class="warn">');
+    expect(html).toContain("older Nautilus runs are not shown");
+    expect(html).toContain("done, differences not readable");
     expect(html).toContain("list limit reached");
     expect(html).toContain("1 timer frozen");
     expect(html).toContain("SPY &lt;iron condor&gt;");
@@ -134,11 +139,15 @@ describe("renderReport", () => {
       generatedAt: new Date("2026-11-21T00:00:00.000Z"),
       journal: { entries: [], read: false },
       limit: 500,
+      nautilusListFull: false,
       nautilusRuns: [],
     });
     const html = renderReport(empty);
-    expect(html).toContain("(2026-11-20, due)");
-    expect(html).toContain("Met: every step-4 feature");
+    expect(html).toContain("(2026-11-20, passed 1 day(s) ago)");
+    expect(html).toContain(
+      '<span class="">Met. The dual run has been live 15 days.'
+    );
+    expect(html).not.toContain("older Nautilus runs are not shown");
     expect(html).toContain("<p>None found.</p>");
     expect(html).toContain("<p>None.</p>");
     expect(html).toContain("worker journal not read");
@@ -149,8 +158,12 @@ describe("renderReport", () => {
       generatedAt: new Date("2026-11-10T20:00:00.000Z"),
       journal: { entries: [], read: true },
       limit: 500,
+      nautilusListFull: false,
       nautilusRuns: [],
     });
+    expect(
+      renderReport({ ...readEmpty, generatedAt: "2026-11-20T08:00:00.000Z" })
+    ).toContain("(2026-11-20, today)");
     expect(renderReport(readEmpty)).toContain(
       "worker journal from - (0 lines)"
     );

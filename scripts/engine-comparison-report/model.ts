@@ -25,7 +25,7 @@ const STEP4_DECISION_DATE = "2026-11-20";
 const STEP4_DUAL_RUN_SINCE = "2026-11-06";
 /** Pass condition of step 4: two weeks of live side-by-side data. */
 const STEP4_DAYS_NEEDED = 14;
-export const STEP4_FEATURES: readonly EngineComparisonFeature[] = [
+const STEP4_FEATURES: readonly EngineComparisonFeature[] = [
   "instant",
   "sweep",
   "autopilotGate",
@@ -50,22 +50,23 @@ const FEATURE_STEP: Readonly<Record<EngineComparisonFeature, number>> = {
   sweep: 4,
 };
 
-const isoString = z
-  .string()
-  .refine((value) => Number.isFinite(Date.parse(value)), "not a date");
+/** An ISO date-time with an offset, normalized to UTC (`utcDay` and the page read it as UTC). */
+export const IsoDateSchema = z.iso
+  .datetime({ offset: true })
+  .transform((value) => new Date(value).toISOString());
 
 /** One row of backtestRuns.comparisons.list as JSON (dates as ISO strings). */
 export const ComparisonRowSchema = z.object({
   comparison: EngineComparisonSpecSchema,
-  createdAt: isoString,
+  createdAt: IsoDateSchema,
   differences: EngineDifferencesSchema.nullable(),
   engineRun: EngineRunSchema.nullable(),
   error: z.string().nullable(),
-  finishedAt: isoString.nullable(),
+  finishedAt: IsoDateSchema.nullable(),
   from: z.string(),
   id: z.string(),
   queueWaitMs: z.number().nullable(),
-  startedAt: isoString.nullable(),
+  startedAt: IsoDateSchema.nullable(),
   status: z.enum(["queued", "running", "succeeded", "failed"]),
   symbol: z.string(),
   to: z.string(),
@@ -126,8 +127,12 @@ const ERROR_LINE =
   /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|fetch failed|Unable to connect|timed out|returned HTTP 5\d\d/i;
 const STOPPED_LINE = /^Stopped /;
 const STARTED_LINE = /^Started /;
-/** Errors closer together than this belong to one outage (the worker retries every few seconds). */
-const ERROR_CLUSTER_GAP_MS = 5 * 60_000;
+/**
+ * Errors closer together than this belong to one outage. The worker logs each failed request;
+ * its longest silent stretch between two of them (idle wait, request timeouts and the quiet pause
+ * after the request budget) is about 7 min.
+ */
+const ERROR_CLUSTER_GAP_MS = 10 * 60_000;
 
 const errorReason = (message: string): string => {
   const match = /getaddrinfo (ENOTFOUND|EAI_AGAIN)/.exec(message);
@@ -143,32 +148,42 @@ interface ErrorCluster {
   from: number;
   last: number;
   reason: string;
+  /** A service start after the last error; errors within the gap continue the outage. */
+  restartedAt: number | null;
 }
 
-/** The outage a service start ends: the error cluster before it, else the stop before it. */
-const endedByStart = (
+/** The outage of a closed error cluster: up to the restart after it, else its last error. */
+const clusterOutage = (cluster: ErrorCluster): Outage =>
+  cluster.restartedAt === null
+    ? { from: cluster.from, reason: cluster.reason, to: cluster.last }
+    : {
+        from: cluster.from,
+        reason: `${cluster.reason} until the service restart`,
+        to: cluster.restartedAt,
+      };
+
+/** The outage still open when the journal ends: recent errors, or a stop with no start. */
+const openAtEnd = (
   cluster: ErrorCluster | null,
   stoppedAt: number | null,
-  at: number
+  now: number
 ): Outage[] => {
   if (cluster !== null)
     return [
-      {
-        from: cluster.from,
-        reason: `${cluster.reason} until the service restart`,
-        to: at,
-      },
+      cluster.restartedAt === null && now - cluster.last <= ERROR_CLUSTER_GAP_MS
+        ? { from: cluster.from, reason: cluster.reason, to: null }
+        : clusterOutage(cluster),
     ];
   return stoppedAt === null
     ? []
-    : [{ from: stoppedAt, reason: "worker service stopped", to: at }];
+    : [{ from: stoppedAt, reason: "worker service stopped", to: null }];
 };
 
 /**
- * Worker outages in the journal: a cluster of connection errors (each within 5 min of the one
- * before; it ends at the last error, or at the service start that follows it), or the unit
- * stopped until its next start; both only when they last at least `minMs`. Other lines (quiet
- * pauses, alerts, web-restart pauses) neither start nor end an outage.
+ * Worker outages in the journal: a cluster of connection errors (each within 10 min of the one
+ * before; it ends at the last error, or at the service start after it when no error follows), or
+ * the unit stopped until its next start; both only when they last at least `minMs`. Other lines
+ * (quiet pauses, alerts, web-restart pauses) neither start nor end an outage.
  */
 export const findOutages = (
   entries: readonly JournalEntry[],
@@ -181,11 +196,7 @@ export const findOutages = (
   let stoppedAt: number | null = null;
   for (const entry of sorted) {
     if (cluster !== null && entry.at - cluster.last > ERROR_CLUSTER_GAP_MS) {
-      found.push({
-        from: cluster.from,
-        reason: cluster.reason,
-        to: cluster.last,
-      });
+      found.push(clusterOutage(cluster));
       cluster = null;
     }
     if (ERROR_LINE.test(entry.message)) {
@@ -193,24 +204,23 @@ export const findOutages = (
         from: entry.at,
         last: entry.at,
         reason: errorReason(entry.message),
+        restartedAt: null,
       };
       cluster.last = entry.at;
+      cluster.restartedAt = null;
     } else if (STOPPED_LINE.test(entry.message)) stoppedAt ??= entry.at;
     else if (STARTED_LINE.test(entry.message)) {
-      found.push(...endedByStart(cluster, stoppedAt, entry.at));
-      cluster = null;
+      if (cluster !== null) cluster.restartedAt = entry.at;
+      else if (stoppedAt !== null)
+        found.push({
+          from: stoppedAt,
+          reason: "worker service stopped",
+          to: entry.at,
+        });
       stoppedAt = null;
     }
   }
-  if (cluster !== null)
-    found.push({
-      from: cluster.from,
-      reason: cluster.reason,
-      to:
-        options.now - cluster.last > ERROR_CLUSTER_GAP_MS ? cluster.last : null,
-    });
-  else if (stoppedAt !== null)
-    found.push({ from: stoppedAt, reason: "worker service stopped", to: null });
+  found.push(...openAtEnd(cluster, stoppedAt, options.now));
   return found.filter(
     (outage) => (outage.to ?? options.now) - outage.from >= minMs
   );
@@ -361,6 +371,7 @@ export type TimelinePoint = Readonly<{
   kind:
     | "matched"
     | "differs"
+    | "unknown"
     | "failed"
     | "superseded"
     | "pending"
@@ -383,6 +394,8 @@ export type ReportModel = Readonly<{
   generatedAt: string;
   journal: Readonly<{ entries: number; firstAt: string | null; read: boolean }>;
   limit: number;
+  /** backtestRuns.list returned its maximum: older Nautilus runs may be missing. */
+  nautilusListFull: boolean;
   nautilusRuns: readonly (NautilusRun & { queueWaitMs: number | null })[];
   outages: readonly OutageView[];
   step4: Readonly<{
@@ -390,10 +403,11 @@ export type ReportModel = Readonly<{
     /** Whole days from the dual run start to the build time. */
     daysSinceStart: number;
     decisionDate: string;
-    /** Feature titles with at least `daysNeeded` UTC days of live comparison runs. */
-    enough: readonly string[];
+    /** One line per step-4 feature: its live runs since the dual run start. */
     lines: readonly string[];
+    met: boolean;
     since: string;
+    verdict: string;
   }>;
   timeline: readonly TimelinePoint[];
   windowFrom: string;
@@ -405,13 +419,66 @@ const pointKind = (row: ComparisonRow): TimelinePoint["kind"] => {
       ? "superseded"
       : "failed";
   if (row.status !== "succeeded") return "pending";
-  return row.differences?.ok === false ? "differs" : "matched";
+  if (row.differences === null) return "unknown";
+  return row.differences.ok ? "matched" : "differs";
 };
 
-const step4Line = (summary: FeatureSummary): string => {
-  if (summary.span === null)
-    return `${summary.title}: no live comparison runs yet.`;
-  return `${summary.title}: ${summary.runs} runs from ${summary.requests} request(s) on ${summary.days} day(s) (${utcDay(summary.span.first)} to ${utcDay(summary.span.last)}); ${summary.matched} match, ${summary.differing} differ.`;
+/**
+ * Step 4 passes with two weeks of live side-by-side data: the dual run live for `daysNeeded`
+ * days and live comparison runs of every step-4 feature in that time. Rows from before the dual
+ * run start do not count; a feature at the list limit has lower-bound counts.
+ */
+const step4Status = (
+  summaries: readonly FeatureSummary[],
+  rows: Readonly<
+    Partial<Record<EngineComparisonFeature, readonly ComparisonRow[]>>
+  >,
+  daysSinceStart: number
+): Readonly<{ lines: string[]; met: boolean; verdict: string }> => {
+  const since = `${STEP4_DUAL_RUN_SINCE}T00:00:00.000Z`;
+  const live = summaries.map((summary) => {
+    const liveRows = (rows[summary.feature] ?? []).filter(
+      (row) => row.createdAt >= since
+    );
+    const days = [
+      ...new Set(liveRows.map((row) => utcDay(row.createdAt))),
+    ].sort();
+    const requests = new Set(liveRows.map((row) => row.comparison.groupId))
+      .size;
+    const bound = summary.truncated ? " at least" : "";
+    return {
+      line:
+        liveRows.length === 0
+          ? `${summary.title}: no live comparison runs since ${STEP4_DUAL_RUN_SINCE}.`
+          : `${summary.title}:${bound} ${liveRows.length} runs from ${requests} request(s), on ${days.length} of ${daysSinceStart} day(s) (${days[0]} to ${days.at(-1)}); ${liveRows.filter((row) => row.differences?.ok === true).length} same, ${liveRows.filter((row) => row.differences?.ok === false).length} differ.`,
+      runs: liveRows.length,
+      summary,
+    };
+  });
+  const without = live
+    .filter((entry) => entry.runs === 0)
+    .map((entry) => entry.summary.title);
+  const lowerBound = live
+    .filter((entry) => entry.summary.truncated)
+    .map((entry) => entry.summary.title);
+  const enoughTime = daysSinceStart >= STEP4_DAYS_NEEDED;
+  const parts = [
+    enoughTime
+      ? `The dual run has been live ${daysSinceStart} days.`
+      : `Not met yet: the dual run has been live ${daysSinceStart} of ${STEP4_DAYS_NEEDED} days.`,
+    without.length === 0
+      ? "Every step-4 feature has live comparison runs."
+      : `No live comparison runs for ${without.join(", ")}.`,
+    lowerBound.length === 0
+      ? ""
+      : `Counts for ${lowerBound.join(", ")} are lower bounds (list limit reached).`,
+  ];
+  const met = enoughTime && without.length === 0;
+  return {
+    lines: live.map((entry) => entry.line),
+    met,
+    verdict: `${met ? "Met. " : ""}${parts.filter((part) => part !== "").join(" ")}`,
+  };
 };
 
 export const buildModel = (
@@ -423,6 +490,7 @@ export const buildModel = (
     generatedAt: Date;
     journal: Readonly<{ entries: readonly JournalEntry[]; read: boolean }>;
     limit: number;
+    nautilusListFull: boolean;
     nautilusRuns: readonly NautilusRun[];
   }>
 ): ReportModel => {
@@ -476,8 +544,12 @@ export const buildModel = (
       row: "Nautilus backtest runs",
     })),
   ];
-  const step4 = features.filter((summary) =>
-    STEP4_FEATURES.includes(summary.feature)
+  const daysSinceStart = Math.floor(
+    (now - Date.parse(`${STEP4_DUAL_RUN_SINCE}T00:00:00.000Z`)) / DAY_MS
+  );
+  const journalFirst = input.journal.entries.reduce(
+    (first, entry) => Math.min(first, entry.at),
+    Number.POSITIVE_INFINITY
   );
   return {
     benchmark: input.benchmark,
@@ -485,15 +557,13 @@ export const buildModel = (
     generatedAt: input.generatedAt.toISOString(),
     journal: {
       entries: input.journal.entries.length,
-      firstAt:
-        input.journal.entries.length === 0
-          ? null
-          : new Date(
-              Math.min(...input.journal.entries.map((entry) => entry.at))
-            ).toISOString(),
+      firstAt: Number.isFinite(journalFirst)
+        ? new Date(journalFirst).toISOString()
+        : null,
       read: input.journal.read,
     },
     limit: input.limit,
+    nautilusListFull: input.nautilusListFull,
     nautilusRuns: [...input.nautilusRuns]
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
       .map((run) => ({
@@ -506,15 +576,14 @@ export const buildModel = (
     outages,
     step4: {
       daysNeeded: STEP4_DAYS_NEEDED,
-      daysSinceStart: Math.floor(
-        (now - Date.parse(`${STEP4_DUAL_RUN_SINCE}T00:00:00.000Z`)) / DAY_MS
-      ),
+      daysSinceStart,
       decisionDate: STEP4_DECISION_DATE,
-      enough: step4
-        .filter((summary) => summary.days >= STEP4_DAYS_NEEDED)
-        .map((summary) => summary.title),
-      lines: step4.map(step4Line),
       since: STEP4_DUAL_RUN_SINCE,
+      ...step4Status(
+        features.filter((summary) => STEP4_FEATURES.includes(summary.feature)),
+        input.comparisons,
+        daysSinceStart
+      ),
     },
     timeline,
     windowFrom,
