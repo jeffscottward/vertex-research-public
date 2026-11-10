@@ -47,6 +47,8 @@ const isoUtc = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
 const END_DATETIME_RE = /^\d{8}-\d{2}:\d{2}:\d{2}$/;
 // vertex-history refuses end dates before 1990-01-01 (IBKR's history floor for this service).
 const END_DATETIME_FLOOR_MS = Date.UTC(1990, 0, 1);
+// US stock bar volume arrives in lots of 100 shares (ibapi 9.81; docs/vertex-rebuild/quantvps-status-endpoint.md).
+export const STK_VOLUME_LOT = 100;
 
 const HistoryUpstreamSchema = z
   .object({
@@ -91,7 +93,9 @@ type HistoryUpstream = z.infer<typeof HistoryUpstreamSchema>;
 export type HistoryBars = Readonly<{
   request: HistoryUpstream["request"];
   contract: HistoryUpstream["contract"];
-  // Ascending by `t` (epoch seconds; daily bars: 00:00 UTC of the trading date).
+  // Ascending by `t` (epoch seconds; daily bars: 00:00 UTC of the trading date). `v` in shares or contracts:
+  // IBKR reports US stock volume to this API version in lots of 100 (STK_VOLUME_LOT), scaled here so bars
+  // merge with share-based sources (Yahoo) without a unit seam.
   bars: MarketBar[];
   fetchedAt: string;
   asOf: string | null;
@@ -208,9 +212,17 @@ export const fetchHistoryBars = async (
       "History response failed schema validation"
     );
   const document = parsed.data;
+  const lot =
+    document.request.secType === "STK" && document.request.currency === "USD"
+      ? STK_VOLUME_LOT
+      : 1;
   return {
     asOf: document.as_of,
-    bars: [...document.bars].sort((a, b) => a.t - b.t),
+    bars: document.bars
+      .map((bar) =>
+        bar.v === null || lot === 1 ? bar : { ...bar, v: bar.v * lot }
+      )
+      .sort((a, b) => a.t - b.t),
     contract: document.contract,
     fetchedAt: document.fetched_at,
     request: document.request,

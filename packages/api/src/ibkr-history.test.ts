@@ -13,6 +13,7 @@ import {
   fetchHistoryNews,
   type HistoryBarsRequest,
   historyEndDateTime,
+  STK_VOLUME_LOT,
 } from "./server/ibkr-history.ts";
 import { MarketDataError } from "./server/market-data.ts";
 
@@ -535,5 +536,46 @@ describe("fetchHistoryNews", () => {
     ).rejects.toMatchObject({
       code: "UPSTREAM_ERROR",
     });
+  });
+});
+
+describe("volume units", () => {
+  it("scales US stock volume from lots of 100 to shares, other volume unchanged", async () => {
+    const t0 = Date.UTC(2026, 9, 1) / 1000;
+    const stock = recorder((url) => json(document(url, [bar(t0)])));
+    const shares = await fetchHistoryBars(
+      config,
+      { barSize: "1 day", duration: "1 Y", symbol: "SPY" },
+      { fetch: stock.fetch }
+    );
+    expect(shares.bars[0]?.v).toBe(1000 * STK_VOLUME_LOT);
+    const index = recorder((url) =>
+      json(document(url, [{ ...bar(t0), v: null }]))
+    );
+    const vix = await fetchHistoryBars(
+      config,
+      {
+        barSize: "1 day",
+        duration: "1 Y",
+        exchange: "CBOE",
+        secType: "IND",
+        symbol: "VIX",
+      },
+      { fetch: index.fetch }
+    );
+    expect(vix.bars[0]?.v).toBeNull();
+    const futures = recorder((url) => json(document(url, [bar(t0)])));
+    const es = await fetchHistoryBars(
+      config,
+      {
+        barSize: "1 day",
+        duration: "1 Y",
+        exchange: "CME",
+        secType: "CONTFUT",
+        symbol: "ES",
+      },
+      { fetch: futures.fetch }
+    );
+    expect(es.bars[0]?.v).toBe(1000);
   });
 });
