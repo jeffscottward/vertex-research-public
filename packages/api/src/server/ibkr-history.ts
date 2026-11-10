@@ -232,80 +232,123 @@ export const fetchHistoryBars = async (
 
 export type PagedHistoryOptions = FetchMarketBarsOptions &
   Readonly<{
-    // Sleep before retrying a paced (429) page; default: real timers.
+    // Sleep before retrying a page; default: real timers.
     sleep?: (ms: number) => Promise<void>;
-    // Retries of one paced page (the service allows about 3 requests per minute).
+    // Retries of one paced (429) page; each waits the service's retry_after_seconds, at least pacedWaitMs.
     pacedRetries?: number;
     pacedWaitMs?: number;
+    // A paced page whose wait is longer (for example a 600 s pacing-violation back-off) fails at once.
+    maxPacedWaitMs?: number;
   }>;
+
+// The service shares about 3 requests per minute with /charts and /ticks: 20 pages hold it for ~7 minutes.
+const MAX_PAGES = 20;
 
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 
-// One page; a paced (429) answer is retried after a wait, any other failure is thrown.
-const fetchPacedPage = async (
+// The wait before retrying `error`, or null when it is not retried. PACED waits for the service's own
+// retry time; UNAVAILABLE (gateway timeout, client timeout) is retried once: the service caches a page it
+// finished after the client gave up, so the retry usually hits that copy.
+const retryWaitMs = (
+  error: unknown,
+  attempt: number,
+  options: PagedHistoryOptions
+): number | null => {
+  // fetchHistoryBars reports every failure as a MarketDataError.
+  const { code, retryAfterSeconds } = error as MarketDataError;
+  const base = options.pacedWaitMs ?? 25_000;
+  if (code === "UNAVAILABLE") return attempt < 1 ? base : null;
+  if (code !== "PACED" || attempt >= (options.pacedRetries ?? 3)) return null;
+  const wait = Math.max(base, (retryAfterSeconds ?? 0) * 1000);
+  return wait > (options.maxPacedWaitMs ?? 120_000) ? null : wait;
+};
+
+// One page with retries (see retryWaitMs); any other failure is thrown.
+const fetchRetriedPage = async (
   config: DeployStatusConfig | null,
   request: HistoryBarsRequest,
   options: PagedHistoryOptions
 ): Promise<HistoryBars> => {
-  const retries = options.pacedRetries ?? 3;
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await fetchHistoryBars(config, request, options);
     } catch (error) {
-      const paced = error instanceof MarketDataError && error.code === "PACED";
-      if (!paced || attempt >= retries) throw error;
-      await (options.sleep ?? realSleep)(options.pacedWaitMs ?? 25_000);
+      const wait = retryWaitMs(error, attempt, options);
+      if (wait === null) throw error;
+      await (options.sleep ?? realSleep)(wait);
     }
   }
 };
 
+export type PagedHistoryBars = HistoryBars &
+  Readonly<{
+    // False when a later page failed: `bars` then holds the pages fetched before it.
+    complete: boolean;
+  }>;
+
 /**
- * Up to `pages` consecutive windows of `request.duration`, newest first, each ending one second before the
- * previous window's first bar; merged ascending without duplicates. Stops early on an empty window or at the
- * service's 1990 floor. CONTFUT and ADJUSTED_LAST take no end date, so they allow one page only.
+ * Up to `pages` (1-20) consecutive windows of `request.duration`, newest first, each ending one second before
+ * the previous window's first bar; merged ascending, the newer page winning a duplicate time. Stops early on an
+ * empty window, a window that does not reach further back, or the service's 1990 floor. A failure of the first
+ * page is thrown; a later failure ends the walk with `complete: false`. `request` echoes the newest page.
+ * CONTFUT and ADJUSTED_LAST take no end date, so they allow one page only.
  */
 export const fetchHistoryBarsPaged = async (
   config: DeployStatusConfig | null,
   request: HistoryBarsRequest,
   pages: number,
   options: PagedHistoryOptions = {}
-): Promise<HistoryBars> => {
+): Promise<PagedHistoryBars> => {
   const undated =
     request.secType === "CONTFUT" || request.whatToShow === "ADJUSTED_LAST";
   if (
     !Number.isInteger(pages) ||
     pages < 1 ||
-    pages > 40 ||
+    pages > MAX_PAGES ||
     (undated && pages > 1)
   )
     throw new MarketDataError(
       "BAD_REQUEST",
-      "pages: 1 to 40, and 1 for CONTFUT or ADJUSTED_LAST"
+      `pages: 1 to ${MAX_PAGES}, and 1 for CONTFUT or ADJUSTED_LAST`
     );
   const byTime = new Map<number, MarketBar>();
-  const newest = await fetchPacedPage(config, request, options);
+  const newest = await fetchRetriedPage(config, request, options);
   let result = newest;
   let stale = newest.stale;
+  let complete = true;
+  let lastEndMs = Number.POSITIVE_INFINITY;
   for (let page = 1; ; page += 1) {
     for (const bar of result.bars) {
       if (!byTime.has(bar.t)) byTime.set(bar.t, bar);
     }
     const first = result.bars[0];
     const nextEndMs = first === undefined ? 0 : (first.t - 1) * 1000;
-    if (page >= pages || nextEndMs < END_DATETIME_FLOOR_MS) break;
-    result = await fetchPacedPage(
-      config,
-      { ...request, endDateTime: historyEndDateTime(new Date(nextEndMs)) },
-      options
-    );
+    if (
+      page >= pages ||
+      nextEndMs < END_DATETIME_FLOOR_MS ||
+      nextEndMs >= lastEndMs
+    )
+      break;
+    lastEndMs = nextEndMs;
+    try {
+      result = await fetchRetriedPage(
+        config,
+        { ...request, endDateTime: historyEndDateTime(new Date(nextEndMs)) },
+        options
+      );
+    } catch {
+      complete = false;
+      break;
+    }
     stale ||= result.stale;
   }
   return {
     ...newest,
     bars: [...byTime.values()].sort((a, b) => a.t - b.t),
+    complete,
     stale,
   };
 };
@@ -330,8 +373,8 @@ const HistoryNewsUpstreamSchema = z
       .array(
         z
           .object({
-            code: z.string().max(16),
-            name: z.string().max(80).nullable(),
+            code: z.string().max(32),
+            name: z.string().max(160).nullable(),
           })
           .strict()
       )
@@ -342,9 +385,10 @@ const HistoryNewsUpstreamSchema = z
           .object({
             t: z.number().int(),
             time: isoUtc,
-            provider: z.string().max(16).nullable(),
-            articleId: z.string().max(64).nullable(),
-            headline: z.string().min(1).max(500),
+            provider: z.string().max(32).nullable(),
+            articleId: z.string().max(128).nullable(),
+            // The service cuts at 500 code points; zod counts UTF-16 units.
+            headline: z.string().min(1).max(1000),
           })
           .strict()
       )

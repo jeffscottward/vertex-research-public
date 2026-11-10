@@ -391,7 +391,7 @@ describe("fetchHistoryBarsPaged", () => {
       waits.push(ms);
       return Promise.resolve();
     };
-    const paced = () => json({ error: "paced", retry_after: 12 }, 429);
+    const paced = () => json({ error: "paced", retry_after_seconds: 12 }, 429);
     const once = recorder((url, index) =>
       index === 0 ? paced() : json(document(url, [bar(t0)]))
     );
@@ -406,7 +406,8 @@ describe("fetchHistoryBarsPaged", () => {
       }
     );
     expect(result.bars).toHaveLength(1);
-    expect(waits).toEqual([7]);
+    expect(result.complete).toBe(true);
+    expect(waits).toEqual([12_000]);
     const always = recorder(paced);
     await expect(
       fetchHistoryBarsPaged(
@@ -421,6 +422,94 @@ describe("fetchHistoryBarsPaged", () => {
       )
     ).rejects.toMatchObject({ code: "PACED" });
     expect(always.urls).toHaveLength(3);
+  });
+
+  it("fails at once when the service asks for a longer wait than allowed", async () => {
+    const waits: number[] = [];
+    const violation = recorder(() =>
+      json({ error: "pacing_violation", retry_after_seconds: 600 }, 429)
+    );
+    await expect(
+      fetchHistoryBarsPaged(
+        config,
+        { barSize: "1 hour", duration: "31 D", symbol: "SPY" },
+        1,
+        {
+          fetch: violation.fetch,
+          sleep: (ms) => {
+            waits.push(ms);
+            return Promise.resolve();
+          },
+        }
+      )
+    ).rejects.toMatchObject({ code: "PACED", retryAfterSeconds: 600 });
+    expect(violation.urls).toHaveLength(1);
+    expect(waits).toEqual([]);
+  });
+
+  it("retries an unavailable page once, and keeps earlier pages when a later one fails", async () => {
+    const sleep = () => Promise.resolve();
+    const down = () => json({ error: "unavailable", message: "gateway" }, 503);
+    const flaky = recorder((url, index) =>
+      index === 0 ? down() : json(document(url, [bar(t0)]))
+    );
+    const once = await fetchHistoryBarsPaged(
+      config,
+      { barSize: "1 hour", duration: "31 D", symbol: "SPY" },
+      1,
+      { fetch: flaky.fetch, sleep }
+    );
+    expect(once.bars).toHaveLength(1);
+    expect(flaky.urls).toHaveLength(2);
+    const later = recorder((url, index) =>
+      index === 0 ? json(document(url, [bar(t0), bar(t0 + 3600)])) : down()
+    );
+    const partial = await fetchHistoryBarsPaged(
+      config,
+      { barSize: "1 hour", duration: "31 D", symbol: "SPY" },
+      3,
+      { fetch: later.fetch, sleep }
+    );
+    expect(partial.complete).toBe(false);
+    expect(partial.bars.map((b) => b.t)).toEqual([t0, t0 + 3600]);
+    expect(later.urls).toHaveLength(3);
+    const first = recorder(() => down());
+    await expect(
+      fetchHistoryBarsPaged(
+        config,
+        { barSize: "1 hour", duration: "31 D", symbol: "SPY" },
+        3,
+        { fetch: first.fetch, sleep }
+      )
+    ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    const notFound = recorder(() =>
+      json({ error: "no_contract", message: "none" }, 422)
+    );
+    await expect(
+      fetchHistoryBarsPaged(
+        config,
+        { barSize: "1 hour", duration: "31 D", symbol: "ZZZZ" },
+        2,
+        { fetch: notFound.fetch, sleep }
+      )
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(notFound.urls).toHaveLength(1);
+  });
+
+  it("stops when a window does not reach further back, keeping the newer copy of a duplicate", async () => {
+    const same = recorder((url, index) =>
+      json(document(url, [bar(t0, index === 0 ? 101 : 99)]))
+    );
+    const result = await fetchHistoryBarsPaged(
+      config,
+      { barSize: "1 day", duration: "1 D", symbol: "SPY" },
+      5,
+      { fetch: same.fetch }
+    );
+    expect(same.urls).toHaveLength(2);
+    expect(result.bars).toEqual([
+      { ...bar(t0, 101), v: 1000 * STK_VOLUME_LOT },
+    ]);
   });
 
   it("waits with real timers when no sleep is given", async () => {
@@ -521,6 +610,24 @@ describe("fetchHistoryNews", () => {
     expect(news.items[0]?.headline).toBe("Apple holds capex steady");
     expect(news.providers.map((p) => p.code)).toEqual(["BRFG"]);
     expect(news.stale).toBe(false);
+  });
+
+  it("maps a missing news permission to ENTITLEMENT", async () => {
+    const { fetch } = recorder(() =>
+      json(
+        {
+          error: "entitlement",
+          ibkr_code: 10_276,
+          message: "News feed is not allowed",
+        },
+        502
+      )
+    );
+    await expect(
+      fetchHistoryNews(config, "AAPL", 5, { fetch })
+    ).rejects.toMatchObject({
+      code: "ENTITLEMENT",
+    });
   });
 
   it("refuses a bad count without a request and a bad document after one", async () => {

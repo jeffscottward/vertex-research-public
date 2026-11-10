@@ -116,7 +116,7 @@ State on 2026-10-03:
 
 ## Read-only IBKR history service (2026-10-04)
 
-Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.0.0, `test_vertex_history.py` 22 tests incl. a static scan that fails on any order, account or position API name and an AST allow-list of IB client calls, `vertex-history.service`, `resolve-gateway.sh`, `install-history.sh`). Rig deployer: `~/.local/state/vertex-vps-status/deploy-history.mjs`.
+Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.3.0, `test_vertex_history.py` 90 tests incl. a static scan that fails on any order, account or position API name and an AST allow-list of IB client calls, `vertex-history.service`, `resolve-gateway.sh`, `install-history.sh`). Rig deployer: `~/.local/state/vertex-vps-status/deploy-history.mjs`.
 
 | Item | Value |
 | --- | --- |
@@ -129,11 +129,11 @@ Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.0.0, `test_vertex_his
 | `whatToShow=BID_ASK` (bars, service 1.2.0+) | `secType=STK` only (400 for FUT, CONTFUT and CASH; CASH stays MIDPOINT). IBKR semantics: open = time-average bid, high = max ask, low = min bid, close = time-average ask, volume n/a (`v: null`). Same bounds, pacing and cache as TRADES |
 | `whatToShow=ADJUSTED_LAST` (bars, service 1.3.0+) | `secType=STK`, `barSize=1 day`, no `endDateTime` (IBKR refuses an end date for it); split- and dividend-adjusted daily bars. Replaces Yahoo's adjusted close (card vertex-yahoo-terms-decision) |
 | `secType=IND` (bars, service 1.3.0+) | indices, `exchange` required (for example `VIX` on `CBOE`), `whatToShow=TRADES` only; refused for ticks and depth. Needs the account's index data line; IBKR answers an entitlement error otherwise |
-| `GET /vertex-history/v1/news` (service 1.3.0+) | `symbol` (STK only), `count` 1 to 50 (default 20): newest headlines from every API news provider the account has (`reqNewsProviders`, cached 24 h; `reqHistoricalNews`), metadata prefix `{...}` stripped, account numbers masked. One request at a time, ≥ 3 s apart, cached 300 s, stale copy up to 1 h when IBKR is unavailable. Schema `vertex-history-news-v1` (camelCase like ticks/depth) |
+| `GET /vertex-history/v1/news` (service 1.3.0+) | `symbol` (STK only), `count` 1 to 50 (default 20): newest headlines from every API news provider the account has (`reqNewsProviders`, cached 24 h; `reqHistoricalNews`), metadata prefix `{...}` stripped, account numbers masked. One request at a time, ≥ 3 s apart, cached 300 s, stale copy up to 1 h when IBKR is unavailable. Schema `vertex-history-news-v1` (camelCase like ticks/depth). `t`/`time` read IBKR's zone-less news time as UTC (IBKR: "UTC assumed"); to be confirmed against one live headline after deploy. Code 10276 (news feed not allowed) = `entitlement` |
 | Bounds | bar sizes 1 min, 5/15/30 mins, 1 hour, 1 day; duration ≤ 30 Y daily (service 1.3.0+; above 365 days in `Y` units only, IBKR's rule), ≤ 1 M intraday, ≤ 2 D for 1 min |
 | Pacing | historical requests ≥ 10 s apart, ≤ 6 per 120 s, identical ≤ 1 per 15 s, 10 min back-off after an IBKR pacing violation; a request waits at most 20 s, otherwise 429 with `retry_after_seconds` |
 | Cache | `/var/cache/private/vertex-history`, TTL 3600 s daily, 300 s intraday, 120 s for 1 min; with `endDateTime`, a copy fetched at least 24 h after that end is served for up to 24 h (`cache.ttl_seconds` = min(86400, now − end − 86400), never below the normal TTL); stale copies up to 24 h served (`cache.stale=true`) while paced or the gateway is down |
-| Volume | as reported by IBKR to this API version (US stocks in lots of 100 shares) |
+| Volume | as reported by IBKR to this API version (ibapi 9.81: US stocks in lots of 100 shares). `marketData.bars` (/charts) passes it through unchanged; the server-side client `packages/api/src/server/ibkr-history.ts` (Yahoo-merge call sites) multiplies STK/USD volume by 100 (`STK_VOLUME_LOT`). `test_vertex_history.py` pins ibapi 9.81 so an upgrade (10.x reports shares) changes both |
 
 Note: `secType=CASH` (forex on IDEALPRO, MIDPOINT only) is staged in `infra/quant-vps/history` only; it is not yet deployed to the live service, and the web/API side (`MARKET_SEC_TYPES`, the charts picker, MCP `market_bars`) does not expose it.
 

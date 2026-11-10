@@ -108,6 +108,7 @@ NEWS_STALE_MAX = 3600
 NEWS_MIN_INTERVAL = 3.0
 NEWS_DEADLINE = 25.0  # one budget per /news request: lock, spacing, contract lookup, providers, headlines
 PROVIDERS_TTL = 86400
+PROVIDERS_EMPTY_TTL = 300
 HEADLINE_META_RE = re.compile(r"^\{[^{}]{0,300}\}")  # IBKR prefixes some headlines with {A:...:L:en:K:...}
 
 PARAMS = ("symbol", "secType", "exchange", "currency", "barSize", "duration", "whatToShow", "useRTH", "contractMonth",
@@ -317,6 +318,7 @@ def _reject_bars_only(inst, kind):
     if label:
         raise BadRequest(kind + " are not supported for " + label)
 
+
 def validate_news(raw):
     """News headlines for one stock: the newest `count` from all API news providers on the account."""
     values = _single_values(raw, NEWS_PARAMS)
@@ -328,7 +330,8 @@ def validate_news(raw):
 
 
 def parse_news_time(text):
-    """IBKR's `YYYY-MM-DD HH:MM:SS[.f]` (UTC) -> epoch seconds; ValueError when malformed."""
+    """IBKR's `YYYY-MM-DD HH:MM:SS[.f]` -> epoch seconds, read as UTC (IBKR: "UTC assumed"; to be confirmed
+    against a live headline, see docs/vertex-rebuild/quantvps-status-endpoint.md); ValueError when malformed."""
     return int(datetime.strptime(str(text).split(".")[0], "%Y-%m-%d %H:%M:%S")
                .replace(tzinfo=timezone.utc).timestamp())
 
@@ -344,7 +347,6 @@ def to_news_item(time_text, provider, article_id, headline):
         return None
     return {"t": t, "time": now_iso(t), "provider": _text(provider, 16), "articleId": _text(article_id, 64),
             "headline": text}
-
 
 
 def cache_key(req):
@@ -775,6 +777,12 @@ class HistoryService:
                 contract, providers, items = self.gateway.fetch_news(req, remaining)
             except IbError as e:
                 return self._ib_error(e, fallback)
+            except PacingViolation:  # news has no historical back-off; just ask the caller to retry
+                self.log("news_pacing_violation")
+                return fallback(429, {"error": "pacing_violation", "retry_after_seconds": int(NEWS_MIN_INTERVAL)})
+            except Exception as e:  # never drop the connection without a JSON answer
+                self.log("news_failed", kind=type(e).__name__)
+                return fallback(500, {"error": "internal", "message": "news request failed"})
             payload = {"schema": NEWS_SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "request": req,
                        "contract": contract, "providers": providers, "items": items, "count": len(items),
                        "fetchedAt": now_iso(self.clock())}
@@ -892,7 +900,7 @@ def _wrapper_class():
 
 
 INFO_CODES = {2103, 2104, 2105, 2106, 2107, 2108, 2119, 2157, 2158, 2174, 2176}
-ENTITLEMENT_CODES = {354, 10089, 10090, 10092, 10167, 10168, 10186, 10197}
+ENTITLEMENT_CODES = {354, 10089, 10090, 10092, 10167, 10168, 10186, 10197, 10276}  # 10276: news feed not allowed
 DEPTH_NOTICE_CODE = 2152  # venues with depth, top of book only, and missing permissions
 DEPTH_RESET_CODE = 317  # "market depth data has been RESET": empty the book before new entries
 
@@ -1217,7 +1225,6 @@ class IbGateway:
         except Exception as e:
             self.log("ib_cancel_depth_failed", req_id=req_id, kind=type(e).__name__)
 
-
     def add_providers(self, providers):
         """newsProviders has no request id: it answers the one pending provider request."""
         rid = self.providers_rid
@@ -1236,7 +1243,9 @@ class IbGateway:
 
         rows, _ = self._call(start, remaining)
         providers = [p for p in rows if p["code"]]
-        self.providers = (self.clock(), providers)
+        # an empty answer (no providers yet, or a reconnect) is cached only briefly
+        ttl_offset = 0 if providers else PROVIDERS_TTL - PROVIDERS_EMPTY_TTL
+        self.providers = (self.clock() - ttl_offset, providers)
         return providers
 
     def fetch_news(self, req, remaining=None):
@@ -1252,6 +1261,7 @@ class IbGateway:
         items = [i for i in (to_news_item(*row) for row in rows) if i is not None]
         items.sort(key=lambda i: i["t"], reverse=True)
         return info, providers, items[:req["count"]]
+
     def close(self):
         if self._client is not None:
             self._client.disconnect()

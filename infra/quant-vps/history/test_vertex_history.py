@@ -798,7 +798,11 @@ class IbapiSignatureTest(unittest.TestCase):
         for name in vh.IbGateway.IB_CALLS:
             self.assertTrue(hasattr(EClient, name), name)
         wrapper = vh._wrapper_class()
-        for name in ("historicalTicksLast", "historicalTicksBidAsk", "updateMktDepth", "updateMktDepthL2"):
+        self.assertEqual(params(EClient.reqHistoricalNews), ["reqId", "conId", "providerCodes", "startDateTime",
+                                                            "endDateTime", "totalResults", "historicalNewsOptions"])
+        self.assertEqual(params(EClient.reqNewsProviders), [])
+        for name in ("historicalTicksLast", "historicalTicksBidAsk", "updateMktDepth", "updateMktDepthL2",
+                     "newsProviders", "historicalNews", "historicalNewsEnd"):
             self.assertEqual(params(getattr(wrapper, name)), params(getattr(EWrapper, name)), name)
         gw = fake_gateway()
         w = wrapper(gw)
@@ -1155,6 +1159,14 @@ class Extend130Test(unittest.TestCase):
         self.assertEqual(svc.health()[1]["version"], "1.3.0")
 
 
+class IbapiPinTest(unittest.TestCase):
+    def test_ibapi_9_81_is_pinned(self):
+        """US stock bar volume arrives in lots of 100 with ibapi 9.81; packages/api/src/server/ibkr-history.ts
+        (STK_VOLUME_LOT) scales it to shares. Upgrading ibapi (10.x reports shares) must change both."""
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "install-history.sh")) as f:
+            self.assertIn("ibapi-9.81.1.post1.tar.gz", f.read())
+
+
 class NewsTest(unittest.TestCase):
     """1.3.0 /news: IBKR headlines for one stock from the account's API news providers."""
 
@@ -1202,7 +1214,29 @@ class NewsTest(unittest.TestCase):
         gw = fake_gateway(providers=[types.SimpleNamespace(code="BRFG", name="B")], news=(10276, "News feed is not allowed"))
         with self.assertRaises(vh.IbError) as ctx:
             gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
-        self.assertEqual(ctx.exception.kind, "ibkr_error")
+        self.assertEqual((ctx.exception.kind, ctx.exception.code), ("entitlement", 10276))
+
+    def test_empty_provider_list_is_cached_briefly(self):
+        gw = fake_gateway(providers=[])
+        gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
+        gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
+        self.assertEqual(sum(1 for c in gw._client.calls if c[0] == "reqNewsProviders"), 1)
+        gw.clock.sleep(vh.PROVIDERS_EMPTY_TTL + 1)
+        gw._client.providers = [types.SimpleNamespace(code="BRFG", name="B")]
+        _info, providers, _items = gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
+        self.assertEqual([p["code"] for p in providers], ["BRFG"])
+        self.assertEqual(sum(1 for c in gw._client.calls if c[0] == "reqNewsProviders"), 2)
+
+    def test_service_answers_pacing_violation_and_unexpected_errors_with_json(self):
+        svc, gw, c = make_service()
+        gw.outcomes = [vh.PacingViolation()]
+        status, body = svc.news(q(symbol="SPY"))
+        self.assertEqual((status, body["error"]), (429, "pacing_violation"))
+        self.assertEqual(svc.pacer.snapshot()["backoff_seconds"], 0)  # the historical pacer is untouched
+        c.sleep(10)
+        gw.outcomes = [RuntimeError("boom")]
+        status, body = svc.news(q(symbol="SPY"))
+        self.assertEqual((status, body), (500, {"error": "internal", "message": "news request failed"}))
 
     def test_service_caches_spaces_and_serves_stale(self):
         svc, gw, c = make_service()
