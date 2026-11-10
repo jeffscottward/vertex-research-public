@@ -54,6 +54,15 @@ export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
 const FLOW_TICKS_STAGGER_SECONDS = 110;
 /** Fetch ticks only while the IBKR 120 s window holds at most this many requests (of 6). */
 const FLOW_IBKR_MAX_RECENT = 2;
+/**
+ * A symbol whose newest tick sample is older than this stops yielding to /charts: it fetches as soon
+ * as the window has room for its two requests. Without this limit a steady client (a bar backfill at
+ * 3 to 4 requests per 120 s) kept every tick sample out for hours. 360 s leaves time for both
+ * staggered symbols before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s).
+ */
+export const FLOW_TICKS_STARVED_SECONDS = 360;
+/** The vertex-history limit (6 per 120 s) minus the two requests of one tick fetch. */
+const FLOW_IBKR_MAX_RECENT_STARVED = 4;
 export const FLOW_TICKS_COUNT = 1000;
 export const FLOW_DEPTH_ROWS = 10;
 /** QuantData pages for the new options window of one symbol per run. */
@@ -162,10 +171,13 @@ const historyPacing = async (
 };
 
 /** Why a tick fetch must wait (budget, stagger), or null when it may go (its requests then count). */
-const ticksBlocked = async (state: RunState): Promise<string | null> => {
+const ticksBlocked = async (
+  state: RunState,
+  symbol: FlowSymbol
+): Promise<string | null> => {
   const lastTicks = Math.min(
-    ...FLOW_SYMBOLS.map((symbol) =>
-      secondsSince(state, state.last.get(sampleKey(symbol, "ticks")))
+    ...FLOW_SYMBOLS.map((other) =>
+      secondsSince(state, state.last.get(sampleKey(other, "ticks")))
     )
   );
   if (!state.seed && lastTicks < FLOW_TICKS_STAGGER_SECONDS)
@@ -174,7 +186,15 @@ const ticksBlocked = async (state: RunState): Promise<string | null> => {
   if (pacing === null) return "IBKR pacing unknown (history health failed)";
   if (pacing.backoffSeconds > 0)
     return `IBKR pacing back-off, ${pacing.backoffSeconds} s left`;
-  if (pacing.recentRequests > FLOW_IBKR_MAX_RECENT)
+  // The operator seed always yields; a sampled symbol yields only while its ticks are recent.
+  const starved =
+    !state.seed &&
+    secondsSince(state, state.last.get(sampleKey(symbol, "ticks"))) >
+      FLOW_TICKS_STARVED_SECONDS;
+  const maxRecent = starved
+    ? FLOW_IBKR_MAX_RECENT_STARVED
+    : FLOW_IBKR_MAX_RECENT;
+  if (pacing.recentRequests > maxRecent)
     return `IBKR window busy (${pacing.recentRequests}/6 in 120 s); /charts has priority`;
   // Count the two historical requests (TRADES, BID_ASK) against the window for the next symbol.
   state.pacing = { ...pacing, recentRequests: pacing.recentRequests + 2 };
@@ -185,7 +205,7 @@ const collectTicks = async (
   state: RunState,
   instrument: FlowInstrument
 ): Promise<Attempt> => {
-  const blocked = await ticksBlocked(state);
+  const blocked = await ticksBlocked(state, instrument.symbol);
   if (blocked !== null) return notDue(blocked);
   state.last.set(sampleKey(instrument.symbol, "ticks"), state.deps.now);
   let output: MarketTicksOutput;
