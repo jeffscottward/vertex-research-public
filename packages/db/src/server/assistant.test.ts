@@ -87,43 +87,13 @@ describe("0022 assistant migration", () => {
       idx: 21,
       tag: "0021_deployment_requests",
     });
-    // Upstream appearance migrations (0023, 0024) are appended after the Vertex ledger.
-    return expect(
-      journal.entries.slice(index + 1).map((entry) => entry.tag)
-    ).toEqual([
-      "0023_appearance_preferences",
-      "0024_shadcn_themes",
-      "0025_market_bars",
-      "0026_backtest_runs",
-      "0027_forward_drift",
-      "0028_paper_forward_runner",
-      "0029_ai_builder",
-      "0030_todos",
-      "0031_strategy_catalog",
-      "0032_strategy_catalog_carousel",
-      "0033_strategy_catalog_quantjourney",
-      "0034_autopilot",
-      "0035_strategy_catalog_sma30_timing",
-      "0036_backtest_rating_series",
-      "0037_agent_model_runs",
-      "0038_agent_model_run_events",
-      "0039_app_role_grants",
-      "0040_price_alert_rules",
-      "0041_baskets",
-      "0042_basket_benchmark_base",
-      "0043_quant_lab",
-      "0044_research_reports",
-      "0045_market_bar_futures_symbols",
-      "0046_click_log",
-      "0047_sector_rotation",
-      "0048_pick_lists",
-      "0049_signal_alerts",
-      "0050_plays",
-      "0051_research_studies",
-      "0052_flow_pipeline",
-      "0053_flow_option_gaps",
-      "0054_agent_model_run_grants",
-    ]);
+    // Upstream appearance migrations (0023, 0024) are appended after the Vertex ledger. Later entries
+    // are not pinned here: migration-journal.test.ts checks the order, and a list would make every
+    // new migration edit this file (card vertex-migration-number-race).
+    return expect(journal.entries[index + 1]).toMatchObject({
+      idx: 23,
+      tag: "0023_appearance_preferences",
+    });
   });
 
   return it("rollback refuses while any assistant row exists and never cascades", () => {
@@ -174,34 +144,34 @@ describe("assistant record rules", () => {
     expect(
       normalizeAssistantToolTrace([
         {
-          tool: "tasks_list",
           args: "x".repeat(400),
-          ok: true,
-          error: null,
           durationMs: 12.4,
+          error: null,
+          ok: true,
+          tool: "tasks_list",
         },
       ])
     ).toEqual([
       {
-        tool: "tasks_list",
         args: "x".repeat(300),
-        ok: true,
-        error: null,
         durationMs: 12,
+        error: null,
+        ok: true,
+        tool: "tasks_list",
       },
     ]);
     expect(() =>
       normalizeAssistantToolTrace([
-        { tool: "Bad Name", args: "", ok: true, durationMs: 1 },
+        { args: "", durationMs: 1, ok: true, tool: "Bad Name" },
       ])
     ).toThrow(/tool name/);
     return expect(() =>
       normalizeAssistantToolTrace(
         new Array(65).fill({
-          tool: "summary",
           args: "",
-          ok: true,
           durationMs: 1,
+          ok: true,
+          tool: "summary",
         })
       )
     ).toThrow(/at most 64/);
@@ -212,57 +182,57 @@ describe("assistant record rules", () => {
     expect(
       normalizeAssistantToolTrace([
         {
-          tool: "chart_clear_drawings",
           args: "{}",
-          ok: true,
-          error: null,
-          durationMs: 1,
           artifact,
+          durationMs: 1,
+          error: null,
+          ok: true,
+          tool: "chart_clear_drawings",
         },
       ])
     ).toEqual([
       {
-        tool: "chart_clear_drawings",
         args: "{}",
-        ok: true,
-        error: null,
-        durationMs: 1,
         artifact,
+        durationMs: 1,
+        error: null,
+        ok: true,
+        tool: "chart_clear_drawings",
       },
     ]);
     expect(
       normalizeAssistantToolTrace([
         {
-          tool: "teach_steps",
           args: `${"é".repeat(299)}\uD83D\uDE00`,
-          ok: true,
-          error: "bad\u0000\uD83D",
-          durationMs: 1,
           artifact: {
             kind: "teach",
+            steps: [{ body: "line 1\n\tline 2\u0001 😀", title: "T\u007f" }],
             topic: "Lev\u0000els\uD83D",
-            steps: [{ title: "T\u007f", body: "line 1\n\tline 2\u0001 😀" }],
           },
+          durationMs: 1,
+          error: "bad\u0000\uD83D",
+          ok: true,
+          tool: "teach_steps",
         },
       ])
     ).toEqual([
       {
-        tool: "teach_steps",
         // Cut at 300 code units inside the emoji: the lone half is removed.
         args: "é".repeat(299),
-        ok: true,
-        error: "bad ",
-        durationMs: 1,
         artifact: {
           kind: "teach",
+          steps: [{ body: "line 1\n\tline 2 😀", title: "T" }],
           topic: "Levels",
-          steps: [{ title: "T", body: "line 1\n\tline 2 😀" }],
         },
+        durationMs: 1,
+        error: "bad ",
+        ok: true,
+        tool: "teach_steps",
       },
     ]);
     return expect(() =>
       normalizeAssistantToolTrace([
-        { tool: "chart_draw", args: "", ok: true, durationMs: 1, artifact: [] },
+        { args: "", artifact: [], durationMs: 1, ok: true, tool: "chart_draw" },
       ])
     ).toThrow(/artifact must be an object/);
   });
@@ -287,22 +257,17 @@ const createDouble = (outcomes: Array<readonly Row[] | Error>) => {
   const builder = (operation: Operation) => {
     const chain: Record<string, unknown> = {
       from: () => chain,
-      where: () => chain,
-      orderBy: () => chain,
       limit: () => chain,
-      values: (values: Row) => {
-        operation.values = values;
-        return chain;
-      },
-      set: (values: Row) => {
-        operation.set = values;
-        return chain;
-      },
       onConflictDoUpdate: (config: Row) => {
         operation.conflict = config;
         return chain;
       },
+      orderBy: () => chain,
       returning: () => chain,
+      set: (values: Row) => {
+        operation.set = values;
+        return chain;
+      },
       then: (
         resolve: (rows: unknown) => unknown,
         reject: (error: unknown) => unknown
@@ -314,13 +279,18 @@ const createDouble = (outcomes: Array<readonly Row[] | Error>) => {
             : Promise.resolve(outcome)
         ).then(resolve, reject);
       },
+      values: (values: Row) => {
+        operation.values = values;
+        return chain;
+      },
+      where: () => chain,
     };
     operations.push(operation);
     return chain;
   };
   const database: Record<string, unknown> = {
-    select: () => builder({ kind: "select" }),
     insert: () => builder({ kind: "insert" }),
+    select: () => builder({ kind: "select" }),
     update: () => builder({ kind: "update" }),
   };
   database["transaction"] = (
@@ -332,10 +302,10 @@ const createDouble = (outcomes: Array<readonly Row[] | Error>) => {
 const repositoryFor = (outcomes: Array<readonly Row[] | Error>) => {
   const double = createDouble(outcomes);
   const repository = createAssistantRepository(double.database, {
-    now: () => FIXED_NOW,
     generateId: () => "id-1",
+    now: () => FIXED_NOW,
   });
-  return { repository, operations: double.operations };
+  return { operations: double.operations, repository };
 };
 
 describe("assistant repository", () => {
@@ -343,63 +313,63 @@ describe("assistant repository", () => {
     const { repository, operations } = repositoryFor([
       [
         {
-          id: "id-1",
-          userId: "user-a",
-          title: "Hello",
           createdAt: FIXED_NOW,
+          id: "id-1",
+          title: "Hello",
           updatedAt: FIXED_NOW,
+          userId: "user-a",
         },
       ],
     ]);
-    await repository.createThread({ userId: "user-a", title: "  Hello " });
+    await repository.createThread({ title: "  Hello ", userId: "user-a" });
     return expect(operations[0]!.values).toEqual({
-      id: "id-1",
-      userId: "user-a",
-      title: "Hello",
       createdAt: FIXED_NOW,
+      id: "id-1",
+      title: "Hello",
       updatedAt: FIXED_NOW,
+      userId: "user-a",
     });
   });
 
   it("appends a message and bumps the thread in one transaction", async () => {
     const { repository, operations } = repositoryFor([[{ id: "id-1" }], []]);
     await repository.appendMessage({
-      threadId: "t-1",
-      role: "assistant",
-      mode: "plan",
       content: "Done",
-      model: "anthropic/claude-sonnet-4.5",
       inputTokens: 120,
+      mode: "plan",
+      model: "anthropic/claude-sonnet-4.5",
       outputTokens: 30,
+      role: "assistant",
+      threadId: "t-1",
       toolCalls: [
         {
-          tool: "backtests_list",
           args: "{}",
-          ok: true,
-          error: null,
           durationMs: 40,
+          error: null,
+          ok: true,
+          tool: "backtests_list",
         },
       ],
     });
     expect(operations[0]).toMatchObject({
       kind: "insert",
       values: {
-        threadId: "t-1",
-        role: "assistant",
-        mode: "plan",
         content: "Done",
         inputTokens: 120,
-        outputTokens: 30,
+        mode: "plan",
         model: "anthropic/claude-sonnet-4.5",
+        outputTokens: 30,
+        role: "assistant",
+        threadId: "t-1",
       },
     });
     expect(operations[0]!.values!["toolCalls"]).toEqual([
       {
-        tool: "backtests_list",
         args: "{}",
-        ok: true,
-        error: null,
         durationMs: 40,
+        error: null,
+        ok: true,
+        tool: "backtests_list",
       },
     ]);
     expect(operations[1]).toMatchObject({
@@ -408,18 +378,18 @@ describe("assistant repository", () => {
     });
     await expect(
       repositoryFor([]).repository.appendMessage({
-        threadId: "t-1",
-        role: "user",
-        mode: "plan",
         content: " ",
+        mode: "plan",
+        role: "user",
+        threadId: "t-1",
       })
     ).rejects.toBeInstanceOf(InvalidRepositoryInputError);
     return await expect(
       repositoryFor([]).repository.appendMessage({
-        threadId: "t-1",
-        role: "user",
-        mode: "live" as "plan",
         content: "x",
+        mode: "live" as "plan",
+        role: "user",
+        threadId: "t-1",
       })
     ).rejects.toThrow(/mode must be one of plan, act/);
   });
@@ -433,26 +403,26 @@ describe("assistant repository", () => {
 
   it("admits a model call with a conditional upsert and reports a refusal as null", async () => {
     const admitted = repositoryFor([
-      [{ requests: 3, inputTokens: 10, outputTokens: 5 }],
+      [{ inputTokens: 10, outputTokens: 5, requests: 3 }],
     ]);
     expect(
       await admitted.repository.reserveRequest({
-        userId: "user-a",
         day: "2026-01-02",
         maxRequests: 100,
         maxTokens: 1000,
+        userId: "user-a",
       })
     ).toEqual({
       day: "2026-01-02",
-      requests: 3,
       inputTokens: 10,
       outputTokens: 5,
+      requests: 3,
     });
     const insert = admitted.operations[0]!;
     expect(insert.values).toMatchObject({
-      userId: "user-a",
       day: "2026-01-02",
       requests: 1,
+      userId: "user-a",
     });
     const conflict = insert.conflict!;
     expect(conflict["setWhere"]).toBeDefined();
@@ -467,18 +437,18 @@ describe("assistant repository", () => {
 
     expect(
       await repositoryFor([[]]).repository.reserveRequest({
-        userId: "user-a",
         day: "2026-01-02",
         maxRequests: 100,
         maxTokens: 1000,
+        userId: "user-a",
       })
     ).toBeNull();
     return await expect(
       repositoryFor([]).repository.reserveRequest({
-        userId: "user-a",
         day: "2026-1-2",
         maxRequests: 1,
         maxTokens: 1,
+        userId: "user-a",
       })
     ).rejects.toThrow(/YYYY-MM-DD/);
   });
@@ -486,19 +456,19 @@ describe("assistant repository", () => {
   return it("records token usage and reads zero usage for an unused day", async () => {
     const { repository, operations } = repositoryFor([[]]);
     await repository.recordTokens({
-      userId: "user-a",
       day: "2026-01-02",
       inputTokens: 50,
       outputTokens: 7,
+      userId: "user-a",
     });
     expect(operations[0]!.kind).toBe("update");
     return expect(
       await repositoryFor([[]]).repository.usage("user-a", "2026-01-02")
     ).toEqual({
       day: "2026-01-02",
-      requests: 0,
       inputTokens: 0,
       outputTokens: 0,
+      requests: 0,
     });
   });
 });

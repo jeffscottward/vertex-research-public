@@ -1,4 +1,16 @@
-import { describe, expect, it } from "vitest";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterAll, describe, expect, it } from "vitest";
+
+import { createJanitorDeps } from "./system.ts";
 
 import {
   collectBusyFiles,
@@ -10,6 +22,7 @@ import {
   type RunResult,
   resolveDefaultBranch,
   runJanitorWeekly,
+  stagePass,
 } from "./weekly.ts";
 
 const LIVE = "vertex/rebuild-darkfactory-20260921";
@@ -76,7 +89,7 @@ const deps = (answers: Record<string, Answer>, report?: string) => {
 };
 
 const env = { HOME: "/home/u" };
-const MAIN = "/home/u/Github/trading/vertex-research";
+const MAIN = "/home/u/Github/trading/vertex-research-public";
 const STAMP = "20261101-1100";
 const BRANCH = `ws/janitor-${STAMP}`;
 const WT = `/tmp/vertex-research-janitor-${STAMP}`;
@@ -333,6 +346,29 @@ describe("weekly pass", () => {
     );
   });
 
+  it("exits 0 with no safe moves from the public checkout, never naming node_modules in git add", () => {
+    // Real git exits 1 when an add pathspec names an ignored path, even as an
+    // exclude (rig runs 11-01 and 11-08: "janitor: git add failed").
+    const run = deps({
+      ...healthyRepo,
+      "git add -A -- . :!JANITOR-REPORT.md :!node_modules": fail,
+    });
+    expect(runJanitorWeekly([], env, run.deps)).toBe(0);
+    expect(run.output.at(-1)).toBe("janitor: no safe moves\n");
+    const lines = run.calls.map((call) => call.line);
+    const add = lines.findIndex((line) => line.startsWith("git add"));
+    expect(lines[add]).toBe("git add -A -- . :!JANITOR-REPORT.md");
+    expect(lines[add + 1]).toBe("git reset -q -- node_modules");
+    expect(lines[add + 2]).toContain("diff --cached --name-status");
+    expect(run.calls[0]?.cwd).toBe(MAIN);
+  });
+
+  it("fails the pass when unstaging node_modules fails", () => {
+    const run = deps({ ...healthyRepo, "git reset": fail });
+    expect(runJanitorWeekly([], env, run.deps)).toBe(1);
+    expect(run.output.at(-1)).toBe("janitor: git reset node_modules failed\n");
+  });
+
   it("--no-pr prints the report and does not commit or push", () => {
     const run = deps(
       { ...healthyRepo, "git -c core.quotePath=false diff --cached": ok(MOVE) },
@@ -376,4 +412,53 @@ describe("weekly pass", () => {
     expect(runJanitorWeekly(["--dry-run"], env, run.deps)).toBe(1);
     expect(run.output.at(-1)).toBe("janitor: disk full\n");
   });
+});
+
+describe("stagePass against real git", () => {
+  const root = mkdtempSync(join(tmpdir(), "janitor-stage-"));
+  afterAll(() => {
+    rmSync(root, { force: true, recursive: true });
+  });
+  const { run } = createJanitorDeps();
+  const target = join(root, "deps");
+  mkdirSync(target);
+
+  /** A repo like the janitor worktree: a node_modules symlink, one rename. */
+  const worktree = (name: string, excludeLine: boolean): string => {
+    const wt = join(root, name);
+    const git = (...args: string[]) =>
+      expect(
+        run("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd: wt })
+          .status
+      ).toBe(0);
+    mkdirSync(wt);
+    git("init", "-q");
+    // The repo's own .gitignore: `node_modules/` matches directories only.
+    writeFileSync(join(wt, ".gitignore"), "node_modules/\n");
+    // The rig's shared .git/info/exclude also lists bare `node_modules`.
+    if (excludeLine)
+      writeFileSync(join(wt, ".git/info/exclude"), "node_modules\n");
+    writeFileSync(join(wt, "old-name.ts"), "export const a = 1;\n");
+    git("add", ".");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init");
+    symlinkSync(target, join(wt, "node_modules"));
+    return wt;
+  };
+
+  for (const excludeLine of [true, false]) {
+    const label = excludeLine ? "ignored" : "not ignored";
+    it(`stages nothing when the pass made no moves (node_modules ${label})`, () => {
+      const wt = worktree(`empty-${label.replace(" ", "-")}`, excludeLine);
+      expect(stagePass(run, wt)).toBe("");
+    });
+
+    it(`stages the rename and never node_modules (node_modules ${label})`, () => {
+      const wt = worktree(`move-${label.replace(" ", "-")}`, excludeLine);
+      expect(
+        run("git", ["mv", "old-name.ts", "new-name.ts"], { cwd: wt }).status
+      ).toBe(0);
+      writeFileSync(join(wt, "JANITOR-REPORT.md"), "report\n");
+      expect(stagePass(run, wt)).toBe("R100\told-name.ts\tnew-name.ts\n");
+    });
+  }
 });

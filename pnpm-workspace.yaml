@@ -2,6 +2,14 @@ packages:
   - "apps/*"
   - "packages/*"
 
+# Pinned so every shell records the same pnpm workspace state. pnpm sets it to
+# false when it detects CI (ci-info: CI=true, BUILD_ID and similar variables)
+# and leaves it unset otherwise (both mean off), and `pnpm run`/`pnpm exec`
+# reinstall when the recorded value differs. A shell with CI=true (agent
+# shells) and one without would reinstall in turns (card
+# vertex-prepush-api-task-serial-install, 2026-11-08).
+enableGlobalVirtualStore: false
+
 allowBuilds:
   esbuild: true
   sharp: true
@@ -22,11 +30,6 @@ overrides:
   "image-size@<2.0.3": ^2.0.3
   "sharp@<0.35.4": ^0.35.4
   "undici@>=7.0.0 <7.29.1": ^7.29.1
-  # Hold: ast-v8-to-istanbul 1.0.7 also counts functions and branches nested in
-  # logical expressions, which lowers measured coverage below the ratchet
-  # minimums. Remove this hold only together with the tests that cover them
-  # (card vertex-cov-astv8-107).
-  "@vitest/coverage-v8@5.0.5>ast-v8-to-istanbul": 1.0.5
   # One OTel API copy: better-auth and drizzle-orm auto-install the optional
   # @opentelemetry/api peer at its latest version, which would add a second
   # global API next to the catalog pin.
@@ -69,6 +72,7 @@ catalog:
   better-auth: 1.7.14
   class-variance-authority: 0.7.1
   clsx: 2.1.1
+  cmdk: 1.1.1
   drizzle-kit: 0.31.11
   drizzle-orm: 0.45.4
   esbuild: 0.28.2

@@ -109,7 +109,8 @@ describe("agent viewer read-only gate", () => {
         expect(
           method === "GET" ||
             path === "agentModelRuns.list" ||
-            path === "agentModelRuns.search"
+            path === "agentModelRuns.search" ||
+            path === "semanticTerms.query"
         ).toBe(true);
       } else {
         expect(ran, path).toBe(false);
@@ -213,6 +214,8 @@ describe("agent viewer read-only gate", () => {
 });
 
 const REVIEWED_READS: readonly string[] = [
+  "academy.lesson",
+  "academy.lessons",
   "academy.tickers",
   "account.addresses.list",
   "account.profile.get",
@@ -267,6 +270,14 @@ const REVIEWED_READS: readonly string[] = [
   "marketData.ticks",
   "marketNews.watchlist",
   "nautilusArm.status",
+  "openbb.cot",
+  "openbb.events",
+  "openbb.factors",
+  "openbb.macro",
+  "openbb.sec",
+  "openbb.shorts",
+  "openbb.status",
+  "openbb.volContext",
   "optionsAnalytics.snapshot",
   "optionsChain.chain",
   "optionsChain.expiries",
@@ -290,6 +301,9 @@ const REVIEWED_READS: readonly string[] = [
   "researchStudies.get",
   "riskAllocator.caps",
   "sectorRotation.snapshot",
+  "semanticTerms.catalog",
+  "semanticTerms.list",
+  "semanticTerms.query",
   "setupReplay.presets",
   "strategyLibrary.get",
   "strategyLibrary.list",

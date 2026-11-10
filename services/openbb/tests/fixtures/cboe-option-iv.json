@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "cboe-option-iv",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "option_iv_daily",
+      "rows": [
+        {
+          "asOf": "2026-11-06",
+          "atmIv30d": 0.230973,
+          "callIv25d30d": 0.220094,
+          "callOi": 40283,
+          "callVolume": 20874,
+          "callWall": 385.0,
+          "contracts": 296,
+          "gammaFlip": 370.0,
+          "netGex": 85189846.84,
+          "putIv25d30d": 0.243056,
+          "putOi": 17404,
+          "putVolume": 9055,
+          "putWall": 375.0,
+          "underlying": "GLD",
+          "underlyingPrice": 372.52
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv30d": 0.202583,
+          "callIv25d30d": 0.160441,
+          "callOi": 152254,
+          "callVolume": 559067,
+          "callWall": 740.0,
+          "contracts": 526,
+          "gammaFlip": null,
+          "netGex": -1298784112.67,
+          "putIv25d30d": 0.238385,
+          "putOi": 365886,
+          "putVolume": 587897,
+          "putWall": 725.0,
+          "underlying": "SPY",
+          "underlyingPrice": 735.29
+        }
+      ]
+    },
+    {
+      "table": "option_iv_term",
+      "rows": [
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.1748,
+          "atmStrike": 373.0,
+          "callOi": 12691,
+          "callVolume": 13457,
+          "dte": 3,
+          "expiration": "2026-11-09",
+          "putOi": 3330,
+          "putVolume": 6328,
+          "underlying": "GLD"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.22405,
+          "atmStrike": 373.0,
+          "callOi": 8254,
+          "callVolume": 3530,
+          "dte": 4,
+          "expiration": "2026-11-10",
+          "putOi": 973,
+          "putVolume": 1674,
+          "underlying": "GLD"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.2298,
+          "atmStrike": 373.0,
+          "callOi": 8053,
+          "callVolume": 609,
+          "dte": 28,
+          "expiration": "2026-12-04",
+          "putOi": 2061,
+          "putVolume": 431,
+          "underlying": "GLD"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.2333,
+          "atmStrike": 373.0,
+          "callOi": 1208,
+          "callVolume": 2153,
+          "dte": 35,
+          "expiration": "2026-12-11",
+          "putOi": 1077,
+          "putVolume": 90,
+          "underlying": "GLD"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.22925,
+          "atmStrike": 373.0,
+          "callOi": 10077,
+          "callVolume": 1125,
+          "dte": 55,
+          "expiration": "2026-12-31",
+          "putOi": 9963,
+          "putVolume": 532,
+          "underlying": "GLD"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.17785,
+          "atmStrike": 735.0,
+          "callOi": 48766,
+          "callVolume": 450688,
+          "dte": 3,
+          "expiration": "2026-11-09",
+          "putOi": 142276,
+          "putVolume": 489660,
+          "underlying": "SPY"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.2105,
+          "atmStrike": 735.0,
+          "callOi": 51111,
+          "callVolume": 85023,
+          "dte": 4,
+          "expiration": "2026-11-10",
+          "putOi": 53471,
+          "putVolume": 60743,
+          "underlying": "SPY"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.20275,
+          "atmStrike": 735.0,
+          "callOi": 15725,
+          "callVolume": 12105,
+          "dte": 28,
+          "expiration": "2026-12-04",
+          "putOi": 34297,
+          "putVolume": 19491,
+          "underlying": "SPY"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.20225,
+          "atmStrike": 735.0,
+          "callOi": 10621,
+          "callVolume": 6167,
+          "dte": 35,
+          "expiration": "2026-12-11",
+          "putOi": 15576,
+          "putVolume": 11027,
+          "underlying": "SPY"
+        },
+        {
+          "asOf": "2026-11-06",
+          "atmIv": 0.1929,
+          "atmStrike": 735.0,
+          "callOi": 26031,
+          "callVolume": 5084,
+          "dte": 55,
+          "expiration": "2026-12-31",
+          "putOi": 120266,
+          "putVolume": 6976,
+          "underlying": "SPY"
+        }
+      ]
+    }
+  ],
+  "warnings": ["cboe chain SPY: skipped 4 rows without a standard OCC symbol"]
+}

@@ -65,6 +65,8 @@
       "build",
       "coverage/**",
       "packages/operator/coverage/coverage-summary.json",
+      "packages/api/openapi.json",
+      "services/research/tests/fixtures/nautilus_backtest/golden.json",
       "dist",
       "graphify-out",
       "node_modules",

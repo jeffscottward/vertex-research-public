@@ -10,6 +10,7 @@ import {
 import { VertexRuntimeModelPrivacyDecisionSchema } from "./vertex-runtime-model-evidence.ts";
 import {
   ChatModelPrivacyReviewSchema,
+  SelectedChatModelPrivacyReviewSchema,
   researchChatModelPrivacyResource,
   type ChatModelPrivacyReviewInput,
 } from "./vertex-research-chat-model-privacy.ts";
@@ -123,6 +124,22 @@ describe("research chat original model privacy issuer", {
       decision: review.privacyDecision,
       expiresAt: review.expiresAt,
     });
+    // The phase-bound native review shape shares the same grant-expiry bound.
+    const native = {
+      ...review,
+      profile: "vertex-research-chat-native-model-privacy-review-v1",
+      nativePhase: { phaseOrdinal: 1, phaseSha256: "c".repeat(64) },
+    };
+    expect(SelectedChatModelPrivacyReviewSchema.parse(native)).toEqual(native);
+    expect(
+      SelectedChatModelPrivacyReviewSchema.safeParse({
+        ...native,
+        reviewerGrants: native.reviewerGrants.map((pin) => ({
+          ...pin,
+          expiresAt: review.reviewedAt,
+        })),
+      }).success
+    ).toBe(false);
     return expect(dispatches(f)).toHaveLength(0);
   });
   it("replays exact authenticated input without a new review or dispatch", async () => {

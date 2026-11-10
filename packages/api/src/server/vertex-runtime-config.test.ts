@@ -303,6 +303,28 @@ describe("strict bounded runtime configuration", () => {
       true
     );
   });
+  it("requires policy for every dependent group even when worker is absent", () => {
+    const { format, policy, modelUse, gateway } = fixture();
+    expect(
+      parseVertexRuntimeConfiguration(JSON.stringify({ format, policy }))
+    ).not.toBeNull();
+    expect(
+      parseVertexRuntimeConfiguration(
+        JSON.stringify({ format, policy, gateway })
+      )
+    ).not.toBeNull();
+    expect(
+      parseVertexRuntimeConfiguration(
+        JSON.stringify({ format, policy, modelUse })
+      )
+    ).not.toBeNull();
+    expect(
+      parseVertexRuntimeConfiguration(JSON.stringify({ format, modelUse }))
+    ).toBeNull();
+    return expect(
+      parseVertexRuntimeConfiguration(JSON.stringify({ format, gateway }))
+    ).toBeNull();
+  });
   return it("accepts only explicit bounded enrolled public-key evidence, never private keys", () => {
     const value = fixture();
     value.nativeEpoch = {

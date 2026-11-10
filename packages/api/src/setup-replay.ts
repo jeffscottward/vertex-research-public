@@ -148,7 +148,13 @@ const OUTCOMES: Readonly<
     Exclude<InstantTrade["exitReason"], "end">,
     SetupReplayOccurrence["outcome"]
   >
-> = { signal: "time", stop: "stop", target: "target" };
+> = {
+  // Setup replays pass no closeAt mask; a market-on-close exit would be a time exit.
+  sessionClose: "time",
+  signal: "time",
+  stop: "stop",
+  target: "target",
+};
 
 const mean = (values: readonly number[]): number | null =>
   values.length === 0
@@ -248,7 +254,7 @@ export type SetupReplayEngineRun = Readonly<{
 /**
  * Runs one setup over the bars: the definition's ATR stop and target, no costs, and a time exit
  * after `maxHoldBars`. The same run as runStrategyDefinition(bars, definition, 0, undefined,
- * undefined, maxHoldBars), which the engine comparison repeats on Nautilus. Throws
+ * undefined, undefined, undefined, undefined, maxHoldBars), which the engine comparison repeats on Nautilus. Throws
  * InstantBacktestInputError when the series is too short for the setup's indicators.
  */
 export const setupReplayEngineRun = (

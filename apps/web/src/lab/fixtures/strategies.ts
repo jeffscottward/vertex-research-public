@@ -308,6 +308,9 @@ type LabStrategySeed = Readonly<{
   section: string | null;
   favorite: boolean;
   tags: readonly string[];
+  // Defaults: normal priority and no external claim.
+  priority?: StrategySummaryOutput["priority"];
+  externalValidation?: StrategySummaryOutput["externalValidation"];
 }>;
 
 const STRATEGY_SEEDS: NonEmpty<LabStrategySeed> = [
@@ -342,6 +345,30 @@ const STRATEGY_SEEDS: NonEmpty<LabStrategySeed> = [
     section: "Options",
     status: "idea",
     tags: ["options"],
+  },
+  // High priority and externally pre-validated: a fictional third-party claim (never a Vertex validation).
+  {
+    externalValidation: {
+      claimedMethod:
+        "Fictional claim: 1,000 demo strategies on 4 demo markets, ranked by total net R with no correction for the number of strategies tried.",
+      claimedMetrics: [
+        { label: "Rank", value: "1 of 1,000 by total net R" },
+        { label: "Trades", value: "412" },
+        { label: "Win rate", value: "18%" },
+        { label: "Max drawdown", value: "44R" },
+      ],
+      publishedOn: "2026-09-24",
+      sourceAuthor: "Demo channel, video site",
+      sourceTitle: "Demo video: the best of 1,000 backtested strategies",
+      sourceUrl: "https://video.example.test/demo-volume-spike",
+    },
+    favorite: false,
+    id: "s-demo-volume-spike",
+    name: "Demo volume spike breakout",
+    priority: "high",
+    section: "Reel ideas",
+    status: "backtested",
+    tags: ["research-only", "externally-pre-validated", "breakout"],
   },
 ];
 
@@ -394,6 +421,8 @@ const labStrategySummary = (
     name: seed.name,
     params: strategyParams,
     presetCount: 1,
+    priority: seed.priority ?? "normal",
+    externalValidation: seed.externalValidation ?? null,
     section: seed.section,
     slug: seed.id.slice(2),
     sourceRef: `demo/strategies/${seed.id.slice(2)}.py`,

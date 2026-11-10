@@ -12,27 +12,20 @@ import {
   type ResolvedLeg,
   resolveLegs,
 } from "./position.ts";
+import { quantModel, quantTables } from "./quant/index.ts";
+import { type DataTable, nth } from "./scene-kit.ts";
 import {
   buildScene,
   effectiveHorizon,
   expectedPnl,
   gammaFlip,
   gexProfile,
-  nth,
   probabilityOfProfit,
   sizingPaths,
   usd,
   volPath,
 } from "./scenes.ts";
 import type { LessonSpec, Scene } from "./schema.ts";
-
-export type DataTable = Readonly<{
-  id: string;
-  title: string;
-  columns: readonly string[];
-  rows: readonly (readonly string[])[];
-  note?: string;
-}>;
 
 const fixed = (value: number, digits = 2): string =>
   Number.isFinite(value) ? value.toFixed(digits) : "∞";
@@ -53,7 +46,29 @@ const inputsTable = (
   title: "Inputs",
 });
 
-const constantsTable = (scene: Scene): DataTable => ({
+const quantConstantsTable = (
+  scene: Extract<Scene, { type: "quant" }>
+): DataTable => ({
+  columns: ["Constant", "Value"],
+  id: "constants",
+  rows: [
+    ["Model", quantModel(scene.mode)],
+    ["Trading days per year", "252"],
+    [
+      "Random numbers",
+      "Seeded generator (mulberry32): the same inputs and seed draw the same chart",
+    ],
+    ["Data", "Illustrative values. Not market data and not a forecast."],
+  ],
+  title: "Constants and model",
+});
+
+const constantsTable = (scene: Scene): DataTable =>
+  scene.type === "quant"
+    ? quantConstantsTable(scene)
+    : optionConstantsTable(scene);
+
+const optionConstantsTable = (scene: Scene): DataTable => ({
   columns: ["Constant", "Value"],
   id: "constants",
   rows: [
@@ -409,6 +424,8 @@ export const buildTables = (
     constantsTable(lesson.scene),
   ];
   const spec = lesson.scene;
+  if (spec.type === "quant")
+    return [...tables, ...quantTables(spec.mode, values, t)];
   if (spec.type === "ivrv")
     return [...tables, ...ivrvTables(values, scene.now)];
   if (spec.type === "gex") return [...tables, ...gexTables(values, scene.now)];

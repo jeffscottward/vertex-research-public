@@ -3,11 +3,15 @@
 // client-supplied numbers never change a gate verdict. Rule conflicts need the owner's password
 // (Better Auth step-up) and an explanation naming each rule, recorded in audit_records.
 import {
+  academyStrategySlug,
   type BacktestResult,
   checkOverride,
+  courseOf,
   evaluateDeployGates,
   type GateResult,
+  isAcademyStrategySlug,
   type Lesson,
+  lessonSpecPath,
   payoffSummary,
   realizedVol,
   resolveRules,
@@ -40,8 +44,8 @@ import {
 } from "../contracts/academy.ts";
 import { downsampleIndexes } from "../instant-backtest-engine.ts";
 import { OWNER_RISK_CAPS } from "../risk-allocator.ts";
+import { academyContentRouter } from "./academy-content.ts";
 import type { ApiContext } from "./context.ts";
-import { ACADEMY_STRATEGY_PREFIX } from "./deployment-requests.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   PASSWORD_FAILURE_LIMIT,
@@ -55,7 +59,6 @@ import {
 
 const api = implement(appContract).$context<ApiContext>();
 
-const ACADEMY_STRATEGY_SECTION = "Define Your Risk Academy";
 const NLV_MAX_AGE_MS = 15 * 60_000;
 const NLV_MAX_FUTURE_SKEW_MS = 60_000;
 const WARMUP_BARS = 30;
@@ -370,7 +373,8 @@ const openAllocations = async (
         message: `${DEPLOYMENT_REQUESTS_MAX_LISTED}+ ${status} deployment requests: the Academy allocation total cannot be verified; close old requests first`,
       });
     for (const row of rows) {
-      if (!row.strategySlug.startsWith(ACADEMY_STRATEGY_PREFIX)) continue;
+      // The Academy allocation cap counts the requests of every course.
+      if (!isAcademyStrategySlug(row.strategySlug)) continue;
       if (row.strategySlug === strategySlug && row.symbol === ticker)
         duplicateOpen = true;
       const value = Number(row.params?.["allocationPct"]);
@@ -407,7 +411,7 @@ const evaluate = async (
   );
   const open = await openAllocations(
     context,
-    `${ACADEMY_STRATEGY_PREFIX}${lesson.slug}`,
+    academyStrategySlug(lesson),
     input.ticker,
     errors
   );
@@ -517,7 +521,8 @@ const ensureStrategy = async (
     throw factories(errors).STORAGE_ERROR({
       message: "Strategy library unavailable",
     });
-  const slug = `${ACADEMY_STRATEGY_PREFIX}${lesson.slug}`;
+  const course = courseOf(lesson);
+  const slug = academyStrategySlug(lesson);
   const existing = (await library.list({ limit: 20, search: slug })).find(
     (row) => row.slug === slug
   );
@@ -525,15 +530,15 @@ const ensureStrategy = async (
   return await library.create({
     description: lesson.summary.slice(0, 2000),
     kind: "external",
-    name: `DYR: ${lesson.title}`.slice(0, 200),
+    name: `${course.shortTitle}: ${lesson.title}`.slice(0, 200),
     params: strategyParams(structure, rules),
-    section: ACADEMY_STRATEGY_SECTION,
+    section: course.librarySection,
     slug,
     // The library requires a repository-relative source; the Instagram URL stays on the lesson page.
-    sourceRef: `packages/academy/src/lessons/specs/${lesson.slug}.json`,
+    sourceRef: lessonSpecPath(lesson),
     status: "idea",
     tags: [
-      "define-your-risk",
+      course.strategyTag,
       structure.replace(/_/gu, "-"),
       ...lesson.tags.instruments,
     ].slice(0, 12),
@@ -877,6 +882,7 @@ const deployRequest = api.academy.deployRequest
   );
 
 export const academyRouter = {
+  ...academyContentRouter,
   backtest,
   deployPreview,
   deployRequest,

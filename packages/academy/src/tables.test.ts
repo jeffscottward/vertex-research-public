@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { lessonBySlug } from "./lessons/index.ts";
 import { defaultValues } from "./position.ts";
-import { buildTables, type DataTable } from "./tables.ts";
+import type { DataTable } from "./scene-kit.ts";
+import { buildTables } from "./tables.ts";
 
 const moveRow = (
   tables: readonly DataTable[],

@@ -16,7 +16,9 @@ import {
   TabsTrigger,
 } from "@darkfactory/ui/client/tabs";
 import {
+  type Dispatch,
   lazy,
+  type SetStateAction,
   Suspense,
   useCallback,
   useEffect,
@@ -39,18 +41,33 @@ import {
 import {
   COST_PROFILE_OPTIONS,
   costRows,
+  type DefinitionGetter,
+  definitionSeries,
+  describeLinkedDefinition,
   describeRevision,
   describeUniverseBatch,
   describeUniversePlan,
+  exitReasonLabel,
   isCostProfilePresetId,
   isFinished,
   isNotFound,
   isoDate,
+  type LinkedDefinition,
   latestSucceededRunId,
+  loadLinkedDefinition,
   metricRows,
+  type OptionsBook,
+  optionsLinkSymbol,
+  optionsMetricRows,
+  optionsRunSymbols,
+  optionsSignalRows,
+  optionTradesHeading,
   pickInitialRunId,
   type RunForm,
+  readDefinitionLink,
   replayGeometry,
+  runsOptionsDefinition,
+  todayUtc,
   toSubmitInput,
   toUniverseSubmitInputs,
 } from "./backtest-runs-model.ts";
@@ -66,9 +83,9 @@ import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
 
 // Backtest runs: queue a run over a date range, follow it until it finishes, then read the report
-// (metrics, equity and drawdown charts, trade list and trade-by-trade replay). Research only; no
-// order path exists on this page or behind its API.
-
+// (metrics, equity and drawdown charts, trade list and trade-by-trade replay; the options book of an
+// options definition). A link from the strategy library opens the form with a stored strategy
+// definition. Research only; no order path exists on this page or behind its API.
 const LazyBacktestSeriesChart = lazy(async () => ({
   default: (await import("../../features/charts/backtest-series.tsx"))
     .BacktestSeriesChart,
@@ -84,6 +101,8 @@ const REPLAY_WIDTH = 960;
 const REPLAY_HEIGHT = 260;
 
 export interface BacktestRunsGateway {
+  /** backtestRuns.definitions.get: the latest revision, or the given one, of a stored definition. */
+  readonly definition?: DefinitionGetter;
   readonly get: (id: string) => Promise<BacktestRun>;
   readonly list: () => Promise<readonly BacktestRunSummary[]>;
   readonly series: () => Promise<readonly InstantBacktestSeries[]>;
@@ -93,9 +112,18 @@ export interface BacktestRunsGateway {
   readonly submit: (input: BacktestRunSubmitInput) => Promise<BacktestRun>;
 }
 
+// backtestRuns.definitions.get with the revision left out for the latest one.
+const definitionGetter =
+  (client: ApiClient): DefinitionGetter =>
+  (id, revision) =>
+    client.backtestRuns.definitions.get(
+      revision === undefined ? { id } : { id, revision }
+    );
+
 export const createBacktestRunsGateway = (
   client: ApiClient
 ): BacktestRunsGateway => ({
+  definition: definitionGetter(client),
   get: (id) => client.backtestRuns.get({ id }),
   list: async () => (await client.backtestRuns.list({ limit: 50 })).runs,
   series: async () => (await client.instantBacktest.series()).series,
@@ -108,11 +136,10 @@ export const createBacktestRunsGateway = (
 
 /** Builds the API client on each call, so server rendering never reads `window`. */
 export const createBrowserBacktestRunsGateway = (): BacktestRunsGateway => {
-  const current = () =>
-    createBacktestRunsGateway(
-      createApiClient({ baseUrl: window.location.origin })
-    );
+  const client = () => createApiClient({ baseUrl: window.location.origin });
+  const current = () => createBacktestRunsGateway(client());
   return {
+    definition: (id, revision) => definitionGetter(client())(id, revision),
     get: (id) => current().get(id),
     list: () => current().list(),
     series: () => current().series(),
@@ -241,6 +268,104 @@ const RunReplay = ({
   );
 };
 
+// Options book of an options definition: metrics, entry signals per symbol and the option verticals.
+// Option prices are modeled, not quotes; nothing here is an order.
+const OptionsBookPanel = ({ book }: Readonly<{ book: OptionsBook }>) => (
+  <section
+    aria-label="Options book"
+    className="grid min-w-0 gap-6"
+    data-options-book=""
+  >
+    <p className="rounded-md border p-3 text-sm" data-options-modeled="">
+      Modeled option prices: Black-Scholes on volatility-index proxies (IV
+      indices stand in for each option's implied volatility), not market quotes.
+      Research only; no orders.
+    </p>
+    <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      {optionsMetricRows(book).map((row) => (
+        <div
+          className="flex justify-between gap-4 border-b py-1"
+          key={row.label}
+        >
+          <dt className="text-muted-foreground">{row.label}</dt>
+          <dd className="font-medium tabular-nums">{row.value}</dd>
+        </div>
+      ))}
+    </dl>
+    <section aria-label="Signals per symbol" className="grid gap-2">
+      <h3 className="font-semibold text-base">Entry signals per symbol</h3>
+      <ul
+        className="flex flex-wrap gap-2 text-sm tabular-nums"
+        data-options-signals=""
+      >
+        {optionsSignalRows(book).map((row) => (
+          <li className="rounded-md border px-2 py-1" key={row.symbol}>
+            {row.symbol}: {row.signals}
+          </li>
+        ))}
+      </ul>
+    </section>
+    <section aria-label="Option trades" className="grid min-w-0 gap-2">
+      <h3 className="font-semibold text-base">{optionTradesHeading(book)}</h3>
+      {book.trades.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No option trades.</p>
+      ) : (
+        <div className="max-h-96 overflow-auto rounded-md border">
+          <table
+            className="w-full whitespace-nowrap text-sm tabular-nums"
+            data-option-trades=""
+          >
+            <thead className="sticky top-0 bg-background text-left">
+              <tr>
+                <th className="p-2">#</th>
+                <th className="p-2">Symbol</th>
+                <th className="p-2">Structure</th>
+                <th className="p-2">Expiry</th>
+                <th className="p-2">Strikes (long / short)</th>
+                <th className="p-2">Entry</th>
+                <th className="p-2">Exit</th>
+                <th className="p-2">Contracts</th>
+                <th className="p-2">Entry price</th>
+                <th className="p-2">Entry fee</th>
+                <th className="p-2">Exit price</th>
+                <th className="p-2">Exit fee</th>
+                <th className="p-2">P/L</th>
+                <th className="p-2">Return on risk</th>
+                <th className="p-2">Exit reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {book.trades.map((trade) => (
+                <tr className="border-t" key={trade.id}>
+                  <td className="p-2">{trade.id}</td>
+                  <td className="p-2">{trade.symbol}</td>
+                  <td className="p-2">{trade.structure}</td>
+                  <td className="p-2">{trade.expiry}</td>
+                  <td className="p-2">
+                    {trade.longStrike} / {trade.shortStrike}
+                  </td>
+                  <td className="p-2">{trade.entryDate}</td>
+                  <td className="p-2">{trade.exitDate}</td>
+                  <td className="p-2">{trade.contracts}</td>
+                  <td className="p-2">{trade.entryPrice.toFixed(2)}</td>
+                  <td className="p-2">{trade.entryFee.toFixed(2)}</td>
+                  <td className="p-2">{trade.exitPrice.toFixed(2)}</td>
+                  <td className="p-2">{trade.exitFee.toFixed(2)}</td>
+                  <td className="p-2">{trade.pnl.toFixed(2)}</td>
+                  <td className="p-2">
+                    {(trade.returnOnRisk * 100).toFixed(2)}%
+                  </td>
+                  <td className="p-2">{exitReasonLabel(trade.exitReason)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  </section>
+);
+
 const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
   const report = run.report;
   if (run.status === "failed")
@@ -276,6 +401,11 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
             <TabsTrigger className="flex-none" value="performance">
               Performance
             </TabsTrigger>
+            {report.options === undefined ? null : (
+              <TabsTrigger className="flex-none" value="options">
+                Options book
+              </TabsTrigger>
+            )}
             <TabsTrigger className="flex-none" value="analysis">
               Trades Analysis
             </TabsTrigger>
@@ -323,6 +453,15 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
             </Suspense>
           </ChartRendererBoundary>
         </TabsContent>
+        {report.options === undefined ? null : (
+          <TabsContent
+            className="pt-4 data-[state=inactive]:hidden"
+            forceMount
+            value="options"
+          >
+            <OptionsBookPanel book={report.options} />
+          </TabsContent>
+        )}
         <TabsContent className="pt-4" value="analysis">
           <TradesAnalysisPanel report={report} />
         </TabsContent>
@@ -366,7 +505,9 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
                       <td className="p-2">
                         {(trade.netReturn * 100).toFixed(2)}%
                       </td>
-                      <td className="p-2">{trade.exitReason}</td>
+                      <td className="p-2">
+                        {exitReasonLabel(trade.exitReason)}
+                      </td>
                       <td className="p-2">{trade.balanceAfter.toFixed(2)}</td>
                     </tr>
                   ))}
@@ -383,6 +524,233 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
         Engine {run.engineVersion}. Data SHA-256{" "}
         {report.seriesSha256.slice(0, 12)}….
         {describeRevision(run)} Research only; no orders.
+      </p>
+    </div>
+  );
+};
+
+// The Rule select and its fields: SMA cross or breakout settings with stop-loss and take-profit,
+// or the stored definition of a ?definition= link (it sets entries, exits and sizing itself).
+const RuleFields = ({
+  form,
+  linkedDefinition,
+  setForm,
+}: Readonly<{
+  form: RunForm;
+  linkedDefinition: LinkedDefinition | null;
+  setForm: Dispatch<SetStateAction<RunForm>>;
+}>) => {
+  const ruleId = useId();
+  const { params } = form;
+  const definition = form.definition ?? null;
+  const setParam = (key: keyof RunForm["params"], value: number) =>
+    setForm((current) => ({
+      ...current,
+      params: { ...current.params, [key]: value },
+    }));
+  return (
+    <>
+      <div className="grid gap-1">
+        <label className="font-medium text-sm" htmlFor={ruleId}>
+          Rule
+        </label>
+        <select
+          className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+          id={ruleId}
+          onChange={(event) => {
+            const value = event.target.value;
+            setForm((current) => ({
+              ...current,
+              definition: value === "definition" ? linkedDefinition : null,
+              params: {
+                ...current.params,
+                ruleKind:
+                  value === "breakout"
+                    ? "breakout"
+                    : value === "smaCross"
+                      ? "smaCross"
+                      : current.params.ruleKind,
+              },
+            }));
+          }}
+          value={definition === null ? params.ruleKind : "definition"}
+        >
+          <option value="smaCross">Moving-average cross</option>
+          <option value="breakout">Breakout</option>
+          {linkedDefinition === null ? null : (
+            <option value="definition">
+              Stored definition: {linkedDefinition.name}
+            </option>
+          )}
+        </select>
+      </div>
+      {definition === null ? (
+        params.ruleKind === "smaCross" ? (
+          <>
+            <NumberField
+              label="Fast average (bars)"
+              onChange={(v) => setParam("fast", v)}
+              value={params.fast}
+            />
+            <NumberField
+              label="Slow average (bars)"
+              onChange={(v) => setParam("slow", v)}
+              value={params.slow}
+            />
+          </>
+        ) : (
+          <>
+            <NumberField
+              label="Entry lookback (bars)"
+              onChange={(v) => setParam("entryLookback", v)}
+              value={params.entryLookback}
+            />
+            <NumberField
+              label="Exit lookback (bars)"
+              onChange={(v) => setParam("exitLookback", v)}
+              value={params.exitLookback}
+            />
+            <NumberField
+              label="Trend average (bars, 0 = off)"
+              onChange={(v) => setParam("trendSma", v)}
+              value={params.trendSma}
+            />
+          </>
+        )
+      ) : (
+        <div
+          className="grid gap-1 text-sm [overflow-wrap:anywhere] md:col-span-2"
+          data-linked-definition={definition.id}
+        >
+          <p>{describeLinkedDefinition(definition)}</p>
+          <p className="text-muted-foreground">
+            The definition sets entries, exits and sizing.
+            {definition.definition.options === undefined
+              ? ""
+              : " Options definitions run on daily bars (1d); option prices are modeled (Black-Scholes on volatility-index proxies)."}{" "}
+            Research only; no orders.
+          </p>
+        </div>
+      )}
+      {definition === null ? (
+        <>
+          <NumberField
+            label="Stop-loss (%)"
+            onChange={(v) => setParam("stopLossPct", v)}
+            step={0.5}
+            value={params.stopLossPct}
+          />
+          <NumberField
+            label="Take-profit (%)"
+            onChange={(v) => setParam("takeProfitPct", v)}
+            step={1}
+            value={params.takeProfitPct}
+          />
+        </>
+      ) : null}
+    </>
+  );
+};
+
+// Flat cost per side and cost profile. An options definition locks both: the options book charges
+// its own costs, so the run sends a flat cost of 0 and no profile.
+const CostFields = ({
+  form,
+  setForm,
+}: Readonly<{
+  form: RunForm;
+  setForm: Dispatch<SetStateAction<RunForm>>;
+}>) => {
+  const costProfileId = useId();
+  const locked = runsOptionsDefinition(form);
+  return (
+    <>
+      <NumberField
+        disabled={locked}
+        label="Cost per side (bps)"
+        onChange={(v) =>
+          setForm((current) => ({
+            ...current,
+            params: { ...current.params, costBps: v },
+          }))
+        }
+        step={0.5}
+        value={locked ? 0 : form.params.costBps}
+      />
+      <div className="grid gap-1">
+        <label className="font-medium text-sm" htmlFor={costProfileId}>
+          Cost profile
+        </label>
+        <select
+          className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm disabled:opacity-60"
+          disabled={locked}
+          id={costProfileId}
+          onChange={(event) => {
+            const value = event.target.value;
+            setForm((current) => ({
+              ...current,
+              costProfile: isCostProfilePresetId(value) ? value : "",
+            }));
+          }}
+          value={locked ? "" : form.costProfile}
+        >
+          <option value="">None (flat cost only)</option>
+          {COST_PROFILE_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {locked ? (
+        <p
+          className="text-muted-foreground text-sm md:col-span-2 lg:col-span-3"
+          data-options-costs=""
+        >
+          The options book charges its own costs: $0.65 per contract per leg
+          plus half the bid-ask spread. Flat cost and cost profile are off for
+          this definition.
+        </p>
+      ) : null}
+    </>
+  );
+};
+
+// The symbol of an options definition run. Options runs read the daily series store (Core 7
+// closes, IV indices and futures), so the stored bar series and their dates do not limit them.
+const StoreSymbolField = ({
+  form,
+  onChange,
+  value,
+}: Readonly<{
+  form: RunForm;
+  onChange: (symbol: string) => void;
+  value: string;
+}>) => {
+  const id = useId();
+  // Shown only while an options definition is selected.
+  const definition = (form.definition as LinkedDefinition).definition;
+  return (
+    <div className="grid gap-1 md:col-span-2" data-store-symbol="">
+      <label className="font-medium text-sm" htmlFor={id}>
+        Symbol (daily series store, 1d)
+      </label>
+      <select
+        className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {optionsRunSymbols(definition).map((symbol) => (
+          <option key={symbol} value={symbol}>
+            {symbol}
+          </option>
+        ))}
+      </select>
+      <p className="text-muted-foreground text-sm">
+        Options runs use the daily series store, not the stored bar series: the
+        run reads the store from From to To (a To after the last stored day is
+        fine).
       </p>
     </div>
   );
@@ -423,6 +791,9 @@ export const BacktestRunsWorkspace = ({
   // client render stay equal.
   const autoPick = useRef(initialRunId === null);
   const linkedRun = useRef(initialRunId);
+  // The stored definition of a ?definition= link; the Rule select offers it once loaded.
+  const [linkedDefinition, setLinkedDefinition] =
+    useState<LinkedDefinition | null>(null);
   const [latestId, setLatestId] = useState<string | null>(null);
   useEffect(() => {
     if (autoPick.current) return;
@@ -432,10 +803,10 @@ export const BacktestRunsWorkspace = ({
   const [reload, setReload] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // The symbol of an options definition run (daily series store); "" until a definition loads.
+  const [optionsSymbol, setOptionsSymbol] = useState("");
   const seriesId = useId();
   const strategyId = useId();
-  const costProfileId = useId();
-  const ruleId = useId();
   const fromId = useId();
   const toId = useId();
 
@@ -484,6 +855,49 @@ export const BacktestRunsWorkspace = ({
         if (linked !== undefined)
           setForm((current) => ({ ...current, strategyId: linked.id }));
         applySeries(visibleSeries(loadedSeries, choice).series[0]);
+        // A link with ?definition=<id> (a strategy library definition) opens the form with that
+        // stored definition and the link's series, start date, capital and cost.
+        const link = readDefinitionLink(window.location.search);
+        const getDefinition = gateway.definition;
+        if (link === null || getDefinition === undefined) return;
+        loadLinkedDefinition(getDefinition, link).then(
+          (loaded) => {
+            if (!active) return;
+            setLinkedDefinition(loaded);
+            // Options runs read the daily series store, not the stored bar series: any allowed
+            // symbol runs, from the link's start to its end or today (UTC).
+            const options = loaded.definition.options !== undefined;
+            if (options)
+              setOptionsSymbol(optionsLinkSymbol(link, loaded.definition));
+            const picked = options
+              ? undefined
+              : definitionSeries(loadedSeries, link);
+            // The series select lists the universe only; show every series for one outside it.
+            if (
+              picked !== undefined &&
+              !visibleSeries(loadedSeries, choice).series.includes(picked)
+            )
+              setUniverse("all");
+            applySeries(picked);
+            setForm((current) => ({
+              ...current,
+              definition: loaded,
+              from: link.from ?? current.from,
+              initialCapital: link.initialCapital ?? current.initialCapital,
+              params: {
+                ...current.params,
+                costBps: link.costBps ?? current.params.costBps,
+              },
+              to: link.to ?? (options ? todayUtc() : current.to),
+            }));
+          },
+          (error: unknown) => {
+            if (active)
+              setMessage(
+                `The strategy definition ${link.id} could not be loaded. ${describeMarketDataFailure(error).message}`
+              );
+          }
+        );
       },
       (error: unknown) => {
         if (!active) return;
@@ -564,17 +978,22 @@ export const BacktestRunsWorkspace = ({
     (entry) => seriesKey(entry) === selectedSeries
   );
   const visible = visibleSeries(load.series, universe);
+  // An options definition runs on a store symbol, so it needs no stored bar series and has no
+  // batch run over a universe of stored series.
+  const storeRun = runsOptionsDefinition(form);
   // One run per series needs a universe with more than one stored series.
   const batchReady =
-    universe !== "all" && !visible.fallback && visible.series.length > 1;
+    !storeRun &&
+    universe !== "all" &&
+    !visible.fallback &&
+    visible.series.length > 1;
   const plan = toUniverseSubmitInputs(form, visible.series);
-  const request = series === undefined ? null : toSubmitInput(form, series);
+  const runSeries = storeRun
+    ? { symbol: optionsSymbol, timeframe: "1d" as const }
+    : series;
+  const request =
+    runSeries === undefined ? null : toSubmitInput(form, runSeries);
   const canRun = request !== null && !("error" in request);
-  const setParam = (key: keyof RunForm["params"], value: number) =>
-    setForm((current) => ({
-      ...current,
-      params: { ...current.params, [key]: value },
-    }));
 
   const submit = async () => {
     if (request === null || "error" in request) return;
@@ -619,7 +1038,6 @@ export const BacktestRunsWorkspace = ({
     setSubmitting(false);
   };
 
-  const { params } = form;
   return (
     <div className="grid gap-8">
       {load.series.length === 0 ? (
@@ -635,49 +1053,59 @@ export const BacktestRunsWorkspace = ({
           void submit();
         }}
       >
-        <UniverseSelect
-          fallback={visible.fallback}
-          onChange={(choice) => {
-            setUniverse(choice);
-            writeQuery(
-              { universe: choice },
-              { universe: DEFAULT_UNIVERSE_CHOICE }
-            );
-            applySeries(visibleSeries(load.series, choice).series[0]);
-          }}
-          selectClassName="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
-          storedSymbols={load.series.map((entry) => entry.symbol)}
-          value={universe}
-        />
-        <div className="grid gap-1">
-          <label className="font-medium text-sm" htmlFor={seriesId}>
-            Symbol and timeframe
-          </label>
-          <select
-            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
-            id={seriesId}
-            onChange={(event) => {
-              const next = load.series.find(
-                (entry) => seriesKey(entry) === event.target.value
-              );
-              setSelectedSeries(event.target.value);
-              if (next !== undefined)
-                setForm((current) => ({
-                  ...current,
-                  from: isoDate(next.firstT),
-                  to: isoDate(next.lastT),
-                }));
-            }}
-            value={selectedSeries}
-          >
-            {visible.series.map((entry) => (
-              <option key={seriesKey(entry)} value={seriesKey(entry)}>
-                {entry.symbol} {entry.timeframe} ({isoDate(entry.firstT)} to{" "}
-                {isoDate(entry.lastT)})
-              </option>
-            ))}
-          </select>
-        </div>
+        {storeRun ? (
+          <StoreSymbolField
+            form={form}
+            onChange={setOptionsSymbol}
+            value={optionsSymbol}
+          />
+        ) : (
+          <>
+            <UniverseSelect
+              fallback={visible.fallback}
+              onChange={(choice) => {
+                setUniverse(choice);
+                writeQuery(
+                  { universe: choice },
+                  { universe: DEFAULT_UNIVERSE_CHOICE }
+                );
+                applySeries(visibleSeries(load.series, choice).series[0]);
+              }}
+              selectClassName="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+              storedSymbols={load.series.map((entry) => entry.symbol)}
+              value={universe}
+            />
+            <div className="grid gap-1">
+              <label className="font-medium text-sm" htmlFor={seriesId}>
+                Symbol and timeframe
+              </label>
+              <select
+                className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+                id={seriesId}
+                onChange={(event) => {
+                  const next = load.series.find(
+                    (entry) => seriesKey(entry) === event.target.value
+                  );
+                  setSelectedSeries(event.target.value);
+                  if (next !== undefined)
+                    setForm((current) => ({
+                      ...current,
+                      from: isoDate(next.firstT),
+                      to: isoDate(next.lastT),
+                    }));
+                }}
+                value={selectedSeries}
+              >
+                {visible.series.map((entry) => (
+                  <option key={seriesKey(entry)} value={seriesKey(entry)}>
+                    {entry.symbol} {entry.timeframe} ({isoDate(entry.firstT)} to{" "}
+                    {isoDate(entry.lastT)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
         <div className="grid gap-1">
           <label className="font-medium text-sm" htmlFor={strategyId}>
             Strategy (optional)
@@ -701,103 +1129,12 @@ export const BacktestRunsWorkspace = ({
             ))}
           </select>
         </div>
-        <div className="grid gap-1">
-          <label className="font-medium text-sm" htmlFor={ruleId}>
-            Rule
-          </label>
-          <select
-            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
-            id={ruleId}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                params: {
-                  ...current.params,
-                  ruleKind:
-                    event.target.value === "breakout" ? "breakout" : "smaCross",
-                },
-              }))
-            }
-            value={params.ruleKind}
-          >
-            <option value="smaCross">Moving-average cross</option>
-            <option value="breakout">Breakout</option>
-          </select>
-        </div>
-        {params.ruleKind === "smaCross" ? (
-          <>
-            <NumberField
-              label="Fast average (bars)"
-              onChange={(v) => setParam("fast", v)}
-              value={params.fast}
-            />
-            <NumberField
-              label="Slow average (bars)"
-              onChange={(v) => setParam("slow", v)}
-              value={params.slow}
-            />
-          </>
-        ) : (
-          <>
-            <NumberField
-              label="Entry lookback (bars)"
-              onChange={(v) => setParam("entryLookback", v)}
-              value={params.entryLookback}
-            />
-            <NumberField
-              label="Exit lookback (bars)"
-              onChange={(v) => setParam("exitLookback", v)}
-              value={params.exitLookback}
-            />
-            <NumberField
-              label="Trend average (bars, 0 = off)"
-              onChange={(v) => setParam("trendSma", v)}
-              value={params.trendSma}
-            />
-          </>
-        )}
-        <NumberField
-          label="Stop-loss (%)"
-          onChange={(v) => setParam("stopLossPct", v)}
-          step={0.5}
-          value={params.stopLossPct}
+        <RuleFields
+          form={form}
+          linkedDefinition={linkedDefinition}
+          setForm={setForm}
         />
-        <NumberField
-          label="Take-profit (%)"
-          onChange={(v) => setParam("takeProfitPct", v)}
-          step={1}
-          value={params.takeProfitPct}
-        />
-        <NumberField
-          label="Cost per side (bps)"
-          onChange={(v) => setParam("costBps", v)}
-          step={0.5}
-          value={params.costBps}
-        />
-        <div className="grid gap-1">
-          <label className="font-medium text-sm" htmlFor={costProfileId}>
-            Cost profile
-          </label>
-          <select
-            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
-            id={costProfileId}
-            onChange={(event) => {
-              const value = event.target.value;
-              setForm((current) => ({
-                ...current,
-                costProfile: isCostProfilePresetId(value) ? value : "",
-              }));
-            }}
-            value={form.costProfile}
-          >
-            <option value="">None (flat cost only)</option>
-            {COST_PROFILE_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <CostFields form={form} setForm={setForm} />
         <NumberField
           label="Initial capital"
           onChange={(v) =>

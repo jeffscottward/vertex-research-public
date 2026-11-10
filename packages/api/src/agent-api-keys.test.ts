@@ -251,7 +251,7 @@ const expectCode = async (
 };
 
 describe("agent API key scope", () => {
-  it("admits only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedure paths, the autopilot tick and the sector rotation collect and snapshot", () => {
+  it("admits only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedure paths, the autopilot tick and the sector rotation collect and snapshot", () => {
     expect(AGENT_API_KEY_PROCEDURE_ROOTS).toEqual([
       "agentOps",
       "papers",
@@ -261,6 +261,7 @@ describe("agent API key scope", () => {
       "todos",
       "priceAlerts",
       "agentModelRuns",
+      "openbb",
     ]);
     expect(AGENT_API_KEY_PROCEDURE_PATHS).toEqual([
       "autopilot.campaigns.tick",
@@ -302,6 +303,7 @@ describe("agent API key scope", () => {
       "agentOps",
       "backtestRuns",
       "marketData",
+      "openbb",
       "papers",
       "priceAlerts",
       "strategyLibrary",

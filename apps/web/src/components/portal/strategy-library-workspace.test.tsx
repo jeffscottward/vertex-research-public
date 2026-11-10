@@ -157,6 +157,8 @@ const summary = (
   createdAt: at,
   updatedAt: at,
   presetCount: 0,
+  priority: "normal",
+  externalValidation: null,
   backtestCount: 0,
   latestBacktest: null,
   ...overrides,
@@ -355,6 +357,107 @@ describe("strategy library board", () => {
     await click(button("Cards"));
     expect(container.querySelectorAll("[data-strategy-card]")).toHaveLength(3);
     return expect(container.querySelector("[data-strategy-row]")).toBeNull();
+  });
+
+  it("shows the High priority and Externally pre-validated badges in rows and cards, and none otherwise", async () => {
+    const claimed = summary({
+      id: "s-spike",
+      slug: "volume-spike-breakout",
+      name: "Volume spike breakout",
+      section: "Reel ideas",
+      tags: ["research-only", "externally-pre-validated"],
+      priority: "high",
+      externalValidation: {
+        sourceUrl: "https://youtu.be/XLMG6-SATRk",
+        sourceTitle: "I Backtested 10,000 Strategies",
+        sourceAuthor: "Lil Fish, YouTube",
+        publishedOn: "2026-09-24",
+        claimedMethod: "10,500 strategies ranked by total net R.",
+        claimedMetrics: [{ label: "Rank", value: "1 of 10,500" }],
+      },
+    });
+    const urgent = summary({
+      id: "s-urgent",
+      name: "Urgent",
+      priority: "high",
+    });
+    const gateway = gatewayWith({
+      list: vi.fn(async () => [claimed, urgent, ...rows()]),
+    });
+    const container = await mount(
+      <StrategyLibraryWorkspace gateway={gateway} initialStrategyId={null} />
+    );
+    const badges = (selector: string) =>
+      [...container.querySelectorAll(`${selector} [data-strategy-badge]`)].map(
+        (badge) => badge.textContent
+      );
+    expect(badges('[data-strategy-row="s-spike"]')).toEqual([
+      "High priority",
+      "Externally pre-validated (source claim, not validated by Vertex)",
+    ]);
+    // Beside the name, inside the row header cell.
+    expect(
+      container
+        .querySelector('[data-strategy-row="s-spike"] th[scope="row"]')
+        ?.querySelectorAll("[data-strategy-badge]")
+    ).toHaveLength(2);
+    expect(badges('[data-strategy-row="s-urgent"]')).toEqual(["High priority"]);
+    expect(badges('[data-strategy-row="s-hmm"]')).toEqual([]);
+    expect(
+      container.querySelector(
+        '[data-strategy-row="s-hmm"] [data-strategy-badges]'
+      )
+    ).toBeNull();
+    expect(container.querySelectorAll("[data-strategy-badge]")).toHaveLength(3);
+    expect(
+      container.querySelectorAll('[data-strategy-priority="high"]')
+    ).toHaveLength(2);
+    expect(
+      container.querySelector(
+        '[data-strategy-row="s-spike"] [data-strategy-external-validation]'
+      )?.textContent
+    ).toBe("Externally pre-validated (source claim, not validated by Vertex)");
+    expect(
+      container.querySelectorAll("[data-strategy-external-validation]")
+    ).toHaveLength(1);
+    await click(button("Cards"));
+    expect(badges('[data-strategy-card="s-spike"]')).toEqual([
+      "High priority",
+      "Externally pre-validated (source claim, not validated by Vertex)",
+    ]);
+    expect(badges('[data-strategy-card="s-urgent"]')).toEqual([
+      "High priority",
+    ]);
+    expect(badges('[data-strategy-card="s-jump"]')).toEqual([]);
+    expect(
+      container.querySelectorAll(
+        '[data-strategy-card="s-spike"] [data-strategy-priority="high"], [data-strategy-card="s-spike"] [data-strategy-external-validation]'
+      )
+    ).toHaveLength(2);
+    expect(
+      container.querySelector(
+        '[data-strategy-card="s-spike"] [data-strategy-external-validation] .sr-only'
+      )?.textContent
+    ).toBe(" (source claim, not validated by Vertex)");
+    // The board lists; it offers no arm, order or deploy control for the row.
+    const card = container.querySelector('[data-strategy-card="s-spike"]')!;
+    return expect(
+      [...card.querySelectorAll("button, a")].map(
+        (control) => control.getAttribute("aria-label") ?? control.textContent
+      )
+    ).toEqual(["Volume spike breakout", "Favorite Volume spike breakout"]);
+  });
+
+  it("explains a storage error with the migrations to apply", async () => {
+    const gateway = gatewayWith({
+      list: vi.fn(async () => Promise.reject({ code: "STORAGE_ERROR" })),
+    });
+    const container = await mount(
+      <StrategyLibraryWorkspace gateway={gateway} initialStrategyId={null} />
+    );
+    return expect(container.textContent).toContain(
+      "Strategy library storage unavailable (503): its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065)."
+    );
   });
 
   it("links the source dashboard and code named in a description", async () => {
@@ -659,6 +762,21 @@ describe("strategy library helpers", () =>
       "Regime",
       "Unsorted",
     ]);
+    // A section with a high-priority strategy comes first, also the unsorted one.
+    expect(
+      groupBySection(
+        rows().map((row) =>
+          row.id === "s-jump" ? { ...row, priority: "high" as const } : row
+        )
+      ).map((group) => group.label)
+    ).toEqual(["Regime", "Options", "Unsorted"]);
+    expect(
+      groupBySection(
+        rows().map((row) =>
+          row.section === null ? { ...row, priority: "high" as const } : row
+        )
+      ).map((group) => group.label)
+    ).toEqual(["Unsorted", "Options", "Regime"]);
     expect(descriptionLinks(null)).toEqual([]);
     expect(
       descriptionLinks(

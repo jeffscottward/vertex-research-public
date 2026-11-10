@@ -21,83 +21,25 @@ import {
   type ResolvedLeg,
   resolveLegs,
 } from "./position.ts";
+import { QUANT_COLORS, quantScene } from "./quant/index.ts";
+import {
+  clamp01,
+  grid,
+  type Marker,
+  nth,
+  type Panel,
+  type SceneCtx,
+  type SceneData,
+  type Series,
+  type Surface,
+  span,
+  withZero,
+} from "./scene-kit.ts";
 import type { ColorToken, LessonSpec, Scene } from "./schema.ts";
-
-export type Point = readonly [number, number];
-
-export type Series = Readonly<{
-  element: string;
-  label: string;
-  points: readonly Point[];
-  dashed?: boolean;
-  width?: number;
-  /** Fill to y = 0 split by sign: green above, red below. */
-  signFill?: boolean;
-  /** Fill to y = 0 in the series color. */
-  fill?: boolean;
-  /** Draw only up to this x (time-revealed series). */
-  revealTo?: number;
-}>;
-
-export type Marker = Readonly<{
-  element: string;
-  label: string;
-  kind: "vline" | "hline" | "dot" | "band";
-  x?: number;
-  y?: number;
-  x2?: number;
-}>;
-
-export type Bar = Readonly<{
-  element: string;
-  x: number;
-  y: number;
-  width: number;
-}>;
-
-export type Surface = Readonly<{
-  element: string;
-  xs: readonly number[];
-  ys: readonly number[];
-  /** z[yIndex][xIndex] */
-  z: readonly (readonly number[])[];
-  xLabel: string;
-  yLabel: string;
-  zLabel: string;
-  /** Highlighted y slice (current time). */
-  sliceY?: number;
-}>;
-
-export type Panel = Readonly<{
-  id: string;
-  title: string;
-  xLabel: string;
-  yLabel: string;
-  xDomain: readonly [number, number];
-  yDomain: readonly [number, number];
-  series: readonly Series[];
-  markers: readonly Marker[];
-  bars: readonly Bar[];
-  surface?: Surface;
-  /** Elements this panel draws; the panel shows once any of them is revealed. */
-  elements: readonly string[];
-  xFormat: "price" | "day" | "pct" | "count";
-  yFormat: "usd" | "pct" | "price" | "num";
-}>;
-
-export type SceneData = Readonly<{
-  panels: readonly Panel[];
-  /** Horizon of the time scrubber in its own units. */
-  horizon: number;
-  timeLabel: string;
-  timeUnit: "days" | "trades" | "pct";
-  /** Current time position in scrubber units. */
-  now: number;
-  layout: "stack" | "grid";
-}>;
 
 /** Default element colors. A lesson step that reveals an element overrides its color. */
 export const DEFAULT_ELEMENT_COLORS: Readonly<Record<string, ColorToken>> = {
+  ...QUANT_COLORS,
   a: "gold",
   axes: "gray",
   b: "blue",
@@ -155,36 +97,6 @@ export const elementColors = (
   return colors;
 };
 
-/** Element at an index the caller guarantees is in range (negative counts from the end). */
-export const nth = <T>(values: readonly T[], index: number): T =>
-  values.at(index) as T;
-
-const clamp01 = (value: number): number => Math.min(Math.max(value, 0), 1);
-
-const span = (values: readonly number[], pad = 0.08): [number, number] => {
-  const finite = values.filter((value) => Number.isFinite(value));
-  if (finite.length === 0) return [-1, 1];
-  let low = Math.min(...finite);
-  let high = Math.max(...finite);
-  if (high - low < 1e-9) {
-    low -= 1;
-    high += 1;
-  }
-  const margin = (high - low) * pad;
-  return [low - margin, high + margin];
-};
-
-const withZero = (domain: [number, number]): [number, number] => [
-  Math.min(domain[0], 0),
-  Math.max(domain[1], 0),
-];
-
-const grid = (low: number, high: number, count: number): number[] =>
-  Array.from(
-    { length: count },
-    (_, index) => low + ((high - low) * index) / (count - 1)
-  );
-
 /** Price range wide enough for strikes and a 2.5 sigma move over the horizon. */
 const priceRange = (
   spot: number,
@@ -201,7 +113,7 @@ const priceRange = (
   return [Math.max(low, 0.01), high];
 };
 
-type Ctx = Readonly<{ values: ParamValues; t: number; azimuth: number }>;
+type Ctx = SceneCtx;
 
 const strikeMarkers = (legs: readonly ResolvedLeg[]): Marker[] => {
   const unique = [
@@ -1503,5 +1415,7 @@ export const buildScene = (
       return portfolioScene(scene, ctx);
     case "pricepath":
       return pricepathScene(scene, ctx);
+    case "quant":
+      return quantScene(scene.mode, ctx);
   }
 };

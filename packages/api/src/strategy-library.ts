@@ -1,4 +1,5 @@
-// Strategy library read rules: latest-backtest return statistics and board sort order.
+// Strategy library read rules: latest-backtest return statistics and board sort order (high priority
+// first, then the selected sort).
 // Statistics come from returnStats over the latest linked backtest's reported equity, the same
 // derivation the backtest detail view uses; reported metrics are never used for sorting.
 import {
@@ -7,6 +8,7 @@ import {
 } from "./backtest-analytics.ts";
 import type {
   StrategyLatestBacktestOutput,
+  StrategyPriorityValue,
   StrategySortValue,
 } from "./contracts/strategy-library.ts";
 
@@ -34,9 +36,11 @@ export const latestBacktestStats = (
 type Sortable = Readonly<{
   id: string;
   name: string;
+  priority: StrategyPriorityValue;
   updatedAt: Date;
   latestBacktest: StrategyLatestBacktestOutput | null;
 }>;
+type Compare = (left: Sortable, right: Sortable) => number;
 
 const byName = (left: Sortable, right: Sortable): number => {
   return (
@@ -64,27 +68,35 @@ const byMetric =
     return b - a || byName(left, right);
   };
 
+// Priority is the first key of every sort: high-priority strategies come first, then the selected sort.
+const highFirst =
+  (selected: Compare): Compare =>
+  (left, right) => {
+    if (left.priority !== right.priority)
+      return left.priority === "high" ? -1 : 1;
+    return selected(left, right);
+  };
+
+const selectedSort = (sort: StrategySortValue): Compare => {
+  switch (sort) {
+    case "name": {
+      return byName;
+    }
+    case "sharpe": {
+      return byMetric((latest) => latest.sharpe);
+    }
+    case "return": {
+      return byMetric((latest) => latest.totalReturn);
+    }
+    default: {
+      return byUpdated;
+    }
+  }
+};
+
 export const sortStrategies = <T extends Sortable>(
   rows: readonly T[],
   sort: StrategySortValue = "updated"
 ): T[] => {
-  const copy = [...rows];
-  switch (sort) {
-    case "name": {
-      copy.sort(byName);
-      break;
-    }
-    case "sharpe": {
-      copy.sort(byMetric((latest) => latest.sharpe));
-      break;
-    }
-    case "return": {
-      copy.sort(byMetric((latest) => latest.totalReturn));
-      break;
-    }
-    default: {
-      copy.sort(byUpdated);
-    }
-  }
-  return copy;
+  return [...rows].sort(highFirst(selectedSort(sort)));
 };

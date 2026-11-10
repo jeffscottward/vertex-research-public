@@ -27,6 +27,9 @@ export * from "./vertex-research-chat-native-evidence.ts";
 export * from "./research-reports.ts";
 export * from "./research-studies.ts";
 export * from "./flow.ts";
+export * from "./openbb.ts";
+export * from "./semantic-layer.ts";
+export * from "./academy-content.ts";
 
 import { sql } from "drizzle-orm";
 import {
@@ -912,6 +915,24 @@ export interface StrategyParam {
   options?: string[];
 }
 export type StrategyPresetValues = Record<string, StrategyParamValue>;
+// high lists a strategy first inside every library sort.
+export const STRATEGY_PRIORITIES = ["normal", "high"] as const;
+export type StrategyPriority = (typeof STRATEGY_PRIORITIES)[number];
+// A third party's published claim about a strategy (source, claimed method, claimed metrics).
+// Non-null is the single source of the label "Externally pre-validated"; it never means
+// validated by Vertex. null means no external claim.
+export interface StrategyExternalValidationMetric {
+  label: string;
+  value: string;
+}
+export interface StrategyExternalValidation {
+  sourceUrl: string;
+  sourceTitle: string;
+  sourceAuthor: string;
+  publishedOn: string;
+  claimedMethod: string;
+  claimedMetrics: StrategyExternalValidationMetric[];
+}
 
 export const strategies = pgTable(
   "strategies",
@@ -927,6 +948,13 @@ export const strategies = pgTable(
     favorite: boolean("favorite").default(false).notNull(),
     section: text("section"),
     params: jsonb("params").$type<StrategyParam[]>().default([]).notNull(),
+    priority: text("priority")
+      .$type<StrategyPriority>()
+      .default("normal")
+      .notNull(),
+    externalValidation: jsonb(
+      "external_validation"
+    ).$type<StrategyExternalValidation>(),
     createdAt: utcTimestamp("created_at").defaultNow().notNull(),
     updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
   },
@@ -957,6 +985,14 @@ export const strategies = pgTable(
     check(
       "strategies_json_check",
       sql`jsonb_typeof(${table.tags}) = 'array' and jsonb_array_length(${table.tags}) <= 20 and octet_length(${table.tags}::text) <= 2048 and jsonb_typeof(${table.params}) = 'array' and jsonb_array_length(${table.params}) <= 60 and octet_length(${table.params}::text) <= 65536`
+    ),
+    check(
+      "strategies_priority_check",
+      sql`${table.priority} in ('normal', 'high')`
+    ),
+    check(
+      "strategies_external_validation_check",
+      sql`${table.externalValidation} is null or jsonb_typeof(${table.externalValidation}) = 'object'`
     ),
   ]
 );
@@ -2138,6 +2174,66 @@ export const marketBars = pgTable(
     check(
       "market_bars_price_check",
       sql`${table.o} > 0 and ${table.h} > 0 and ${table.l} > 0 and ${table.c} > 0 and ${table.l} <= least(${table.o}, ${table.c}) and ${table.h} >= greatest(${table.o}, ${table.c}) and (${table.v} is null or ${table.v} >= 0)`
+    ),
+  ]
+);
+
+// Stored daily research series of the QuantConnect idea ports (ETFs, continuous futures,
+// volatility and rate indices, and derived series such as EY_TNX_RATIO). One row per series with
+// the source file's SHA-256 for provenance; points keep every row whose close is a finite number,
+// with open, high, low and adj_close null where the source has no usable value. Research input
+// only; nothing here places orders.
+export const MARKET_DAILY_SERIES_KINDS = [
+  "etf",
+  "future",
+  "index",
+  "derived",
+] as const;
+export type MarketDailySeriesKind = (typeof MARKET_DAILY_SERIES_KINDS)[number];
+
+export const marketDailySeries = pgTable(
+  "market_daily_series",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").$type<MarketDailySeriesKind>().notNull(),
+    source: text("source").notNull(),
+    sourceSha256: text("source_sha256").notNull(),
+    pointCount: integer("point_count").notNull(),
+    firstDate: date("first_date", { mode: "string" }).notNull(),
+    lastDate: date("last_date", { mode: "string" }).notNull(),
+    importedAt: utcTimestamp("imported_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "market_daily_series_text_check",
+      sql`${table.id} ~ '^[A-Z0-9._^=-]{1,20}$' and ${table.kind} in ('etf', 'future', 'index', 'derived') and char_length(trim(${table.source})) between 1 and 300 and ${table.sourceSha256} ~ '^[0-9a-f]{64}$'`
+    ),
+    check(
+      "market_daily_series_range_check",
+      sql`${table.pointCount} >= 1 and ${table.firstDate} <= ${table.lastDate} and (${table.pointCount} > 1 or ${table.firstDate} = ${table.lastDate})`
+    ),
+  ]
+);
+
+export const marketDailyPoints = pgTable(
+  "market_daily_points",
+  {
+    seriesId: text("series_id")
+      .notNull()
+      .references(() => marketDailySeries.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    open: doublePrecision("open"),
+    high: doublePrecision("high"),
+    low: doublePrecision("low"),
+    close: doublePrecision("close").notNull(),
+    adjClose: doublePrecision("adj_close"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.seriesId, table.date] }),
+    // NaN sorts above Infinity in Postgres, so `< 'Infinity'` also refuses NaN.
+    check(
+      "market_daily_points_finite_check",
+      sql`${table.close} > '-Infinity'::float8 and ${table.close} < 'Infinity'::float8 and (${table.open} is null or (${table.open} > '-Infinity'::float8 and ${table.open} < 'Infinity'::float8)) and (${table.high} is null or (${table.high} > '-Infinity'::float8 and ${table.high} < 'Infinity'::float8)) and (${table.low} is null or (${table.low} > '-Infinity'::float8 and ${table.low} < 'Infinity'::float8)) and (${table.adjClose} is null or (${table.adjClose} > '-Infinity'::float8 and ${table.adjClose} < 'Infinity'::float8))`
     ),
   ]
 );

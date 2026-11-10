@@ -28,6 +28,7 @@ The UI lab is a component browser for layout review. Route `/lab` lists one entr
 
 - `theme=dark|light` (default `dark`).
 - Each entry reads the params its page reads, for example `/lab/charts?symbol=NVDA`, `/lab/backtests?id=<id>`, `/lab/baskets?symbol=<basket>`, `/lab/portfolio?tab=options`.
+- Entries without a portal route: `/lab/command-palette?q=<text>` opens the Cmd+K palette with that text (for example `q=chart%20NVDA%201D`); a jump shows the link it would open instead of leaving the page.
 
 ## Commands
 

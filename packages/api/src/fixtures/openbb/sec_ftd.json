@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "sec-ftd",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "sec_ftd",
+      "rows": [
+        {
+          "settlementDate": "2026-10-15",
+          "symbol": "SPY",
+          "cusip": "78462F103",
+          "quantity": 123456,
+          "price": 580.12
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

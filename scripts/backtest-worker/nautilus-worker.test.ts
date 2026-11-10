@@ -481,6 +481,27 @@ describe("nautilus worker cycle", () => {
     });
   });
 
+  it("adds the batch's daily series rows to the request only when there are rows", () => {
+    const batch = claimedBatch(1);
+    const rows = {
+      VIX: {
+        adjClose: [null],
+        close: [15],
+        dates: ["1970-01-02"],
+        high: [null],
+        low: [null],
+        open: [null],
+      },
+    };
+    const request = JSON.parse(batchRequest(batch.bars, [batchRun("a")], rows));
+    expect(request.series).toEqual(rows);
+    expect(request.cases).toHaveLength(1);
+    for (const none of [null, undefined])
+      expect(
+        JSON.parse(batchRequest(batch.bars, [batchRun("a")], none))
+      ).not.toHaveProperty("series");
+  });
+
   it("splits runs into nearly equal contiguous parts", () => {
     expect(splitRuns([1, 2, 3, 4, 5], 2)).toEqual([
       [1, 2],
@@ -1170,6 +1191,47 @@ describe("readBatchOutput", () => {
         `The worker engine nautilus-trader-2 does not match the run engine ${engine}`
       ),
     });
+  });
+
+  it("posts an options runner result as it is, with each run's own series hash", () => {
+    const options = {
+      bookSkipped: 0,
+      capital: 100_000,
+      dates: ["1970-01-02", "1970-01-05"],
+      equity: [100_000, 100_010],
+      kind: "options",
+      metrics: { sharpe: 1 },
+      nautilusGap: 0,
+      openPositions: [0, 1],
+      signals: { SPY: 1 },
+      skipped: [],
+      trades: [],
+    };
+    const own = "e".repeat(64);
+    const stdout = JSON.stringify({
+      engine,
+      results: [
+        { id: "run-1", result: options, wallMs: 3 },
+        {
+          id: "run-2",
+          result: { equity: [1, 1], stats: {}, trades: [] },
+          wallMs: 1,
+        },
+      ],
+      usage: { cpuMs: 5, wallMs: 6 },
+    });
+    const output = readBatchOutput(
+      outcome({ stdout }),
+      [{ ...batchRun("run-1"), seriesSha256: own }, batchRun("run-2")],
+      context
+    );
+    expect(output.failure).toBeNull();
+    expect(output.items[0]).toMatchObject({
+      id: "run-1",
+      result: options,
+      seriesSha256: own,
+    });
+    expect(output.items[1]).toMatchObject({ id: "run-2", seriesSha256: SHA });
   });
 
   it("bounds case errors and fails runs the output left out", () => {
