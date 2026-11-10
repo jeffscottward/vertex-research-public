@@ -2,11 +2,11 @@
   "audit": {
     "grader": "OMP judge_batch (typesafe/jev-1.14.0), one call per answer with the question and its reference from tests/integration/semantic-layer/questions.ts",
     "instructions": "Grade the assistant answer against the reference for the question. correct: gives the reference value/conclusion; for a NOT AVAILABLE reference, saying it is not available without giving a value is correct. wrong: presents a wrong value or conclusion, or a value from the wrong account/source, as the answer. declined: says data is unavailable when the reference has a value.",
-    "gradedAt": "2026-11-08T23:47:17.052Z"
+    "gradedAt": "2026-11-09T23:42:17.000Z"
   },
   "model": "omp-completion",
   "note": "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.",
-  "recordedAt": "2026-11-08T23:47:16.629Z",
+  "recordedAt": "2026-11-09T23:41:59.452Z",
   "schemaVersion": 1,
   "trials": [
     {
@@ -1152,115 +1152,103 @@
       "audit": "correct"
     },
     {
-      "answer": "The latest successful Opening Range Breakout backtest has a Sharpe of 0.82 (annualized).\n\n- Source: the certified term backtest_sharpe, from the Postgres ledger, as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (engine runs linked to a strategy). No runs without a strategy matched ORB.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- One newer ORB run has not succeeded. It either failed or is still queued or running, so 0.82 may not reflect the most recent attempt.\n- The strategy library also links an agent notebook record, bt_orb_nb, from 2026-09-12. It shows no Sharpe, and the certified term leaves notebook records out.\n\nI can look up that newer run's status if you want. Either way, a backtest Sharpe doesn't authorize any trading.",
+      "answer": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82 (annualized).\n\n- Source: certified term backtest_sharpe, from postgres, as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (engine runs linked to a strategy). The per run spec grouping has no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: one newer run for this strategy exists that has not succeeded (failed, queued or still running), so 0.82 is the latest succeeded run, not necessarily the latest submitted one.\n\nThe strategy library also links an agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; the certified term excludes notebook records.",
       "completions": [
         {
           "content": "",
           "inputDigest": "95b045ff09d16fb3a35fa41c1ae183161419b9e63607b846084cdba8ca4de897",
           "toolCalls": [
             {
-              "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
+              "arguments": "{\"term\": \"backtest_sharpe\", \"params\": {\"strategy\": \"Opening Range Breakout\"}}",
               "id": "Q13.1_0.0",
-              "name": "strategies_list"
+              "name": "terms_query"
             },
             {
-              "arguments": "{}",
+              "arguments": "{\"search\": \"Opening Range Breakout\", \"limit\": 5}",
               "id": "Q13.1_0.1",
-              "name": "terms_list"
+              "name": "strategies_list"
             }
           ]
         },
         {
-          "content": "",
-          "inputDigest": "0c7dceb55f27e20f2c0af3619c8d72ba60f6e83033f91f1bbd252277388cc5ec",
-          "toolCalls": [
-            {
-              "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"ORB\"}}",
-              "id": "Q13.1_1.0",
-              "name": "terms_query"
-            }
-          ]
-        },
-        {
-          "content": "The latest successful Opening Range Breakout backtest has a Sharpe of 0.82 (annualized).\n\n- Source: the certified term backtest_sharpe, from the Postgres ledger, as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (engine runs linked to a strategy). No runs without a strategy matched ORB.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- One newer ORB run has not succeeded. It either failed or is still queued or running, so 0.82 may not reflect the most recent attempt.\n- The strategy library also links an agent notebook record, bt_orb_nb, from 2026-09-12. It shows no Sharpe, and the certified term leaves notebook records out.\n\nI can look up that newer run's status if you want. Either way, a backtest Sharpe doesn't authorize any trading.",
-          "inputDigest": "b30d3eceb9ef67e959dc6449bcbbca3559a5d0cf48b6eb3df4213130e66c1efd",
+          "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82 (annualized).\n\n- Source: certified term backtest_sharpe, from postgres, as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (engine runs linked to a strategy). The per run spec grouping has no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: one newer run for this strategy exists that has not succeeded (failed, queued or still running), so 0.82 is the latest succeeded run, not necessarily the latest submitted one.\n\nThe strategy library also links an agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; the certified term excludes notebook records.",
+          "inputDigest": "da08cbf11aeb205c48271ce00ae9c95402a160ae191d4844c9d07b2b717d7dcb",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "Q13",
       "tools": [
-        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})",
-        "terms_list({})",
-        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"ORB\"}})"
+        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
+        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
       ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "The Sharpe of the latest succeeded Opening Range Breakout engine run is 0.82 (annualized). This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC), in the per strategy grouping.\n\n- Run br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- 1 newer run for this strategy did not succeed: it either failed or is still queued or running. So 0.82 is the latest succeeded run, not necessarily the newest run.\n- The per run spec grouping, for runs with no linked strategy, returned no matching rows.\n\nThe strategy library links this strategy to a different, older record: notebook backtest bt_orb_nb from 2026-09-12. That record shows no Sharpe, and agent notebook records like it are excluded from the certified measure. If you want, I can look up the newer run that didn't succeed and check its status.",
+      "answer": "The Sharpe is 0.82 (annualized), from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy (grain: strategy), strategy Opening Range Breakout (slug opening-range-breakout).\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC. This is the latest succeeded engine run.\n- Caveat: 1 newer run for this strategy has not succeeded (failed, queued or still running), so 0.82 is not from the most recently submitted run.\n- The per run spec grouping (engine runs with no strategy) is certified but has no matching rows.\n\nThe strategy library also links an agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; the certified term excludes notebook records.",
       "completions": [
         {
           "content": "",
           "inputDigest": "95b045ff09d16fb3a35fa41c1ae183161419b9e63607b846084cdba8ca4de897",
           "toolCalls": [
             {
-              "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
+              "arguments": "{\"term\": \"backtest_sharpe\", \"params\": {\"strategy\": \"Opening Range Breakout\"}}",
               "id": "Q13.2_0.0",
-              "name": "strategies_list"
+              "name": "terms_query"
             },
             {
-              "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}}",
+              "arguments": "{\"search\": \"Opening Range Breakout\", \"limit\": 5}",
               "id": "Q13.2_0.1",
-              "name": "terms_query"
+              "name": "strategies_list"
             }
           ]
         },
         {
-          "content": "The Sharpe of the latest succeeded Opening Range Breakout engine run is 0.82 (annualized). This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC), in the per strategy grouping.\n\n- Run br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- 1 newer run for this strategy did not succeed: it either failed or is still queued or running. So 0.82 is the latest succeeded run, not necessarily the newest run.\n- The per run spec grouping, for runs with no linked strategy, returned no matching rows.\n\nThe strategy library links this strategy to a different, older record: notebook backtest bt_orb_nb from 2026-09-12. That record shows no Sharpe, and agent notebook records like it are excluded from the certified measure. If you want, I can look up the newer run that didn't succeed and check its status.",
-          "inputDigest": "7701f5b1419649c457ac87045e0f04891ec4e38933d52fcaec5de877ea2281e1",
+          "content": "The Sharpe is 0.82 (annualized), from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy (grain: strategy), strategy Opening Range Breakout (slug opening-range-breakout).\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC. This is the latest succeeded engine run.\n- Caveat: 1 newer run for this strategy has not succeeded (failed, queued or still running), so 0.82 is not from the most recently submitted run.\n- The per run spec grouping (engine runs with no strategy) is certified but has no matching rows.\n\nThe strategy library also links an agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; the certified term excludes notebook records.",
+          "inputDigest": "eec38401c0ea980fa8ca3821338ce4e2e553b7a3a66976bfae4b42ad68745fcb",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "Q13",
       "tools": [
-        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})",
-        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})"
+        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
+        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
       ],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "The latest Opening Range Breakout backtest has a Sharpe of 0.82 (annualized).\n\n- Source: certified term backtest_sharpe (postgres), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain \"strategy\"), meaning engine runs linked to the strategy. The per run spec grouping, for engine runs with no strategy, had no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC. This is the latest run that succeeded.\n- There is 1 newer engine run for this strategy that didn't succeed (it failed or is still queued or running), so it isn't counted here.\n\nThe strategy library also lists a notebook backtest, bt_orb_nb, from 2026-09-12. It has no Sharpe recorded, and the certified term leaves notebook records out, so 0.82 is the number to use.\n\nThis is a research measure only and doesn't authorize any trading.",
+      "answer": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82 (annualized).\n\n- Source: certified term backtest_sharpe, from postgres, as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (engine runs linked to a strategy). The per run spec grouping has no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: one newer run for this strategy has not succeeded (failed, queued or still running), so 0.82 is from the latest succeeded run, not necessarily the most recent attempt.\n\nThe strategy library also links an older agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe; the certified term excludes notebook records.",
       "completions": [
         {
           "content": "",
           "inputDigest": "95b045ff09d16fb3a35fa41c1ae183161419b9e63607b846084cdba8ca4de897",
           "toolCalls": [
             {
-              "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
+              "arguments": "{\"term\": \"backtest_sharpe\", \"params\": {\"strategy\": \"Opening Range Breakout\"}}",
               "id": "Q13.3_0.0",
-              "name": "strategies_list"
+              "name": "terms_query"
             },
             {
-              "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}}",
+              "arguments": "{\"search\": \"Opening Range Breakout\", \"limit\": 5}",
               "id": "Q13.3_0.1",
-              "name": "terms_query"
+              "name": "strategies_list"
             }
           ]
         },
         {
-          "content": "The latest Opening Range Breakout backtest has a Sharpe of 0.82 (annualized).\n\n- Source: certified term backtest_sharpe (postgres), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain \"strategy\"), meaning engine runs linked to the strategy. The per run spec grouping, for engine runs with no strategy, had no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC. This is the latest run that succeeded.\n- There is 1 newer engine run for this strategy that didn't succeed (it failed or is still queued or running), so it isn't counted here.\n\nThe strategy library also lists a notebook backtest, bt_orb_nb, from 2026-09-12. It has no Sharpe recorded, and the certified term leaves notebook records out, so 0.82 is the number to use.\n\nThis is a research measure only and doesn't authorize any trading.",
-          "inputDigest": "9ae21e5103e2f23d90449a640e275d9348b0b361a1a244cd75b52d31ef9677ba",
+          "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82 (annualized).\n\n- Source: certified term backtest_sharpe, from postgres, as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (engine runs linked to a strategy). The per run spec grouping has no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: one newer run for this strategy has not succeeded (failed, queued or still running), so 0.82 is from the latest succeeded run, not necessarily the most recent attempt.\n\nThe strategy library also links an older agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe; the certified term excludes notebook records.",
+          "inputDigest": "8b82093349be8e1e78bfafb205121d6337a36c4e04aac7ef94273edd0c7277ac",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "Q13",
       "tools": [
-        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})",
-        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})"
+        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
+        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
       ],
       "trial": 3,
       "audit": "correct"
@@ -2382,14 +2370,14 @@
       "audit": "correct"
     },
     {
-      "answer": "The latest engine run linked to RSI Mean Reversion (s_mr) is br_mr_1, finished 2026-10-15. Its report gives a win rate of 0.61 (61%) over 96 trades. Win rate isn't a certified term, so this number comes straight from the run report and nothing has verified it.\n\nI'd be careful using it, because the run has several problems:\n- The rule isn't RSI. The run used an SMA crossover (fast 20, slow 50) on QQQ 1m bars from 2021-01-01 to 2026-09-30, with a cost of 1 bp and no stop loss or take profit. It's linked to this strategy but doesn't test an RSI mean-reversion rule. The strategy also has no params or saved revision.\n- The numbers don't add up. The report says 96 trades and a 61% win rate, but it also shows 0 winning trades, 0 losing trades, 0 net profit and a final equity of 100,000. At the same time it reports a 26.4% total return.\n- There's no detail behind it. The trade list and equity series are empty, and the series hash says \"synthetic\".\n- The strategy library shows 0 linked backtests for this strategy, even though this run exists.\n\nIf you need a Sharpe or max drawdown for this strategy, I can look those up through the certified terms. They'd come back for the per-strategy grouping. My advice would be to re-run with an actual RSI rule before relying on any of these numbers.",
+      "answer": "The latest backtest run for RSI Mean Reversion (s_mr) reports a win rate of 0.61 (61%) over 96 trades. This is run br_mr_1, finished 2026-10-15, on QQQ 1m from 2021-01-01 to 2026-09-30. The figure comes from the engine run report, not a certified term.\n\nTreat it with caution:\n- The run's rule is an SMA cross (20/50), not an RSI rule, so it may not reflect this strategy's logic.\n- The report is internally inconsistent: it shows 0 winning and 0 losing trades, zero gross profit and loss, and net profit 0, alongside 96 total trades and a 26.4% total return.\n- The trade list and equity series are empty and the series hash reads \"synthetic\", so the win rate cannot be verified from the trades.\n- The strategy has no linked backtests in the ledger (backtestCount 0); this engine run is the only one.",
       "completions": [
         {
           "content": "",
           "inputDigest": "c5572b6386b71abe763bb70275f23d91fddcfb637e2574bf384eb3a2b630ec44",
           "toolCalls": [
             {
-              "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
+              "arguments": "{\"search\": \"RSI Mean Reversion\", \"limit\": 5}",
               "id": "H4.1_0.0",
               "name": "strategies_list"
             }
@@ -2397,29 +2385,34 @@
         },
         {
           "content": "",
-          "inputDigest": "64535544a26a53c267f6886e50262092f144c4ad9cb838388a4981c40cbeb464",
+          "inputDigest": "7e44143576bc492a54aa1c05ac919d11798c18af3fc27ce5c34e3e5c5af9f8a5",
           "toolCalls": [
             {
-              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
+              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 5}",
               "id": "H4.1_1.0",
+              "name": "backtests_list"
+            },
+            {
+              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 5}",
+              "id": "H4.1_1.1",
               "name": "backtest_runs_list"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "d7aae80ac25ec272610410453890804e7cbb39f0b5d429f6fa092c3319c3419a",
+          "inputDigest": "1c8f03dca1efcfe37e0127a36af5becff1b0ad9222c34ae6bb2215c9bb388f9d",
           "toolCalls": [
             {
-              "arguments": "{\"id\":\"br_mr_1\"}",
+              "arguments": "{\"id\": \"br_mr_1\"}",
               "id": "H4.1_2.0",
               "name": "backtest_runs_get"
             }
           ]
         },
         {
-          "content": "The latest engine run linked to RSI Mean Reversion (s_mr) is br_mr_1, finished 2026-10-15. Its report gives a win rate of 0.61 (61%) over 96 trades. Win rate isn't a certified term, so this number comes straight from the run report and nothing has verified it.\n\nI'd be careful using it, because the run has several problems:\n- The rule isn't RSI. The run used an SMA crossover (fast 20, slow 50) on QQQ 1m bars from 2021-01-01 to 2026-09-30, with a cost of 1 bp and no stop loss or take profit. It's linked to this strategy but doesn't test an RSI mean-reversion rule. The strategy also has no params or saved revision.\n- The numbers don't add up. The report says 96 trades and a 61% win rate, but it also shows 0 winning trades, 0 losing trades, 0 net profit and a final equity of 100,000. At the same time it reports a 26.4% total return.\n- There's no detail behind it. The trade list and equity series are empty, and the series hash says \"synthetic\".\n- The strategy library shows 0 linked backtests for this strategy, even though this run exists.\n\nIf you need a Sharpe or max drawdown for this strategy, I can look those up through the certified terms. They'd come back for the per-strategy grouping. My advice would be to re-run with an actual RSI rule before relying on any of these numbers.",
-          "inputDigest": "6a4718173eb14f8d41c9483a7609d61eaf1d03624bc40cf0a0e51ad8f40465aa",
+          "content": "The latest backtest run for RSI Mean Reversion (s_mr) reports a win rate of 0.61 (61%) over 96 trades. This is run br_mr_1, finished 2026-10-15, on QQQ 1m from 2021-01-01 to 2026-09-30. The figure comes from the engine run report, not a certified term.\n\nTreat it with caution:\n- The run's rule is an SMA cross (20/50), not an RSI rule, so it may not reflect this strategy's logic.\n- The report is internally inconsistent: it shows 0 winning and 0 losing trades, zero gross profit and loss, and net profit 0, alongside 96 total trades and a 26.4% total return.\n- The trade list and equity series are empty and the series hash reads \"synthetic\", so the win rate cannot be verified from the trades.\n- The strategy has no linked backtests in the ledger (backtestCount 0); this engine run is the only one.",
+          "inputDigest": "f476f0a4403622943b1b268134160afa2c7e089640af5f3fa064e999f200563c",
           "toolCalls": []
         }
       ],
@@ -2427,6 +2420,7 @@
       "question": "H4",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
+        "backtests_list({\"strategyId\":\"s_mr\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
         "backtest_runs_get({\"id\":\"br_mr_1\"})"
       ],
@@ -2434,14 +2428,14 @@
       "audit": "correct"
     },
     {
-      "answer": "The latest backtest run for RSI Mean Reversion (s_mr) is br_mr_1. It finished on 2026-10-15 and its engine report shows a win rate of 0.61, or 61%, over 96 trades. Win rate isn't a certified term, so this number comes straight from the run report and not from the semantic layer.\n\nI wouldn't rely on it yet, because the run has several problems:\n- The report contradicts itself. It lists 96 trades and a 61% win rate, but 0 winning trades, 0 losing trades, 0 net profit and a final equity of 100,000. Even so, it shows a 26.4% total return.\n- The report's data fingerprint (seriesSha256) is just \"synthetic\", and the equity, price and trade lists are all empty. It looks like placeholder or test output, not a real run.\n- The run doesn't match the strategy. It tested a 20/50 SMA crossover on QQQ 1-minute bars (2021-01-01 to 2026-09-30), not an RSI rule. It also isn't tied to a strategy revision.\n- The strategy library shows 0 linked backtests and no latest backtest for this strategy, even though this run points to it.\n\nIf you want, I can pull the certified Sharpe and max drawdown for s_mr. Re-running a proper RSI backtest would be a change, so you'd need to switch to Act mode for that.",
+      "answer": "The win rate is 0.61 (61%) on RSI Mean Reversion's latest backtest run, br_mr_1 (source: backtest_runs_get report metrics; win rate is not a certified term).\n\nRun details:\n- QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit\n- Finished 2026-10-15, status succeeded, 96 total trades\n- It is the only engine run linked to the strategy; there are no ledger backtests for it\n\nCaveats on trusting the figure:\n- The report is internally inconsistent: it shows 0 profit trades and 0 loss trades, gross profit and loss of 0, and net profit 0 alongside 96 trades and a 61% win rate.\n- The trade list and equity series are empty, and the series hash reads \"synthetic\", so the win rate cannot be checked against trades.\n- The run's rule is an SMA cross (20/50), not an RSI rule, so it may not reflect the strategy its name suggests.",
       "completions": [
         {
           "content": "",
           "inputDigest": "c5572b6386b71abe763bb70275f23d91fddcfb637e2574bf384eb3a2b630ec44",
           "toolCalls": [
             {
-              "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
+              "arguments": "{\"search\": \"RSI Mean Reversion\", \"limit\": 5}",
               "id": "H4.2_0.0",
               "name": "strategies_list"
             }
@@ -2449,29 +2443,34 @@
         },
         {
           "content": "",
-          "inputDigest": "fe5fa08196b6761a9eac6b0131d0af7df45e72b7a22105442598d2d858261be1",
+          "inputDigest": "bd401527659a89f8f9794d1f418e0f0f793e0f2059e4db12891047afb7951ab7",
           "toolCalls": [
             {
-              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
+              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 5}",
               "id": "H4.2_1.0",
               "name": "backtest_runs_list"
+            },
+            {
+              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 5}",
+              "id": "H4.2_1.1",
+              "name": "backtests_list"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "af856d1d09fa550e9dfa028d6bbd3b101f4a8e76cab8ba63f7d2e77e7fb24657",
+          "inputDigest": "94971c0bfad29d75fd340eac964288abe22cc97eeeb8f274b4137512c20e4e1d",
           "toolCalls": [
             {
-              "arguments": "{\"id\":\"br_mr_1\"}",
+              "arguments": "{\"id\": \"br_mr_1\"}",
               "id": "H4.2_2.0",
               "name": "backtest_runs_get"
             }
           ]
         },
         {
-          "content": "The latest backtest run for RSI Mean Reversion (s_mr) is br_mr_1. It finished on 2026-10-15 and its engine report shows a win rate of 0.61, or 61%, over 96 trades. Win rate isn't a certified term, so this number comes straight from the run report and not from the semantic layer.\n\nI wouldn't rely on it yet, because the run has several problems:\n- The report contradicts itself. It lists 96 trades and a 61% win rate, but 0 winning trades, 0 losing trades, 0 net profit and a final equity of 100,000. Even so, it shows a 26.4% total return.\n- The report's data fingerprint (seriesSha256) is just \"synthetic\", and the equity, price and trade lists are all empty. It looks like placeholder or test output, not a real run.\n- The run doesn't match the strategy. It tested a 20/50 SMA crossover on QQQ 1-minute bars (2021-01-01 to 2026-09-30), not an RSI rule. It also isn't tied to a strategy revision.\n- The strategy library shows 0 linked backtests and no latest backtest for this strategy, even though this run points to it.\n\nIf you want, I can pull the certified Sharpe and max drawdown for s_mr. Re-running a proper RSI backtest would be a change, so you'd need to switch to Act mode for that.",
-          "inputDigest": "110c31766a1d3493d5a0d364db4d7e1baa0b7d761c6e03e715ad647c1d2d6000",
+          "content": "The win rate is 0.61 (61%) on RSI Mean Reversion's latest backtest run, br_mr_1 (source: backtest_runs_get report metrics; win rate is not a certified term).\n\nRun details:\n- QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit\n- Finished 2026-10-15, status succeeded, 96 total trades\n- It is the only engine run linked to the strategy; there are no ledger backtests for it\n\nCaveats on trusting the figure:\n- The report is internally inconsistent: it shows 0 profit trades and 0 loss trades, gross profit and loss of 0, and net profit 0 alongside 96 trades and a 61% win rate.\n- The trade list and equity series are empty, and the series hash reads \"synthetic\", so the win rate cannot be checked against trades.\n- The run's rule is an SMA cross (20/50), not an RSI rule, so it may not reflect the strategy its name suggests.",
+          "inputDigest": "35f0ac147b282adb18146c1fd0c8be9d80315112414b4e0cbe9855ae27bfe8c5",
           "toolCalls": []
         }
       ],
@@ -2480,20 +2479,21 @@
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
+        "backtests_list({\"strategyId\":\"s_mr\",\"limit\":5})",
         "backtest_runs_get({\"id\":\"br_mr_1\"})"
       ],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "The latest backtest run for RSI Mean Reversion (s_mr) is br_mr_1, which finished 2026-10-15. Its engine report gives a win rate of 0.61, or 61%. Win rate isn't one of the certified terms, so this number comes straight from the run report.\n\nI wouldn't rely on it yet, for three reasons:\n- The run's rule is an SMA crossover (fast 20, slow 50) on QQQ 1m from 2021-01-01 to 2026-09-30. It's not an RSI rule, so this run may not actually test the strategy its name describes.\n- The report contradicts itself. It lists 96 total trades and a 0.61 win rate, but 0 winning trades, 0 losing trades, 0 net profit and a final equity of 100000. Its series hash is marked \"synthetic\".\n- The strategy library shows 0 linked backtests for s_mr, even though this run is tied to it.\n\nYou could ask me to check the certified Sharpe and max drawdown for this strategy (terms_query, per-strategy grouping). It may also be worth rerunning with the actual RSI rule.",
+      "answer": "The win rate of RSI Mean Reversion's latest backtest run is 0.61 (61%), across 96 total trades.\n\n- Source: engine run br_mr_1 (backtest_runs_get), finished 2026-10-15, status succeeded. It is the only run linked to strategy s_mr; the strategy has no entries in the backtests ledger.\n- Spec: QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit.\n\nCaveats on this run:\n- The rule in the spec is an SMA cross (fast 20, slow 50), not an RSI rule, so it may not reflect the strategy as named.\n- The report is internally inconsistent: it shows 0 profit trades and 0 loss trades, net profit 0 and final equity equal to the 100000 initial capital, alongside a 61% win rate and 0.264 total return. The trade list and equity series are empty and the series hash reads \"synthetic\".\n\nI would treat the 61% as the reported figure only, not a verified one. Win rate is not a certified term, so this comes straight from the run report.",
       "completions": [
         {
           "content": "",
           "inputDigest": "c5572b6386b71abe763bb70275f23d91fddcfb637e2574bf384eb3a2b630ec44",
           "toolCalls": [
             {
-              "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
+              "arguments": "{\"search\": \"RSI Mean Reversion\", \"limit\": 5}",
               "id": "H4.3_0.0",
               "name": "strategies_list"
             }
@@ -2501,29 +2501,34 @@
         },
         {
           "content": "",
-          "inputDigest": "2d530a9a33eaea7391c458e501a155f00150a32b8664bb76bb8f53adb6c92750",
+          "inputDigest": "fab83befdcd23278108c5dc364364b94024744e37b983421c319e9537370e8c5",
           "toolCalls": [
             {
-              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
+              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 1}",
               "id": "H4.3_1.0",
               "name": "backtest_runs_list"
+            },
+            {
+              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 1}",
+              "id": "H4.3_1.1",
+              "name": "backtests_list"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "3121fb5095e8d2c50277539e7a79923121eba957b712fa54765ed5c35e78cae6",
+          "inputDigest": "7e6f43708c83bf0eb03b8ecbfe486d16aec0ff23c13e50c8eb49ac69618d7062",
           "toolCalls": [
             {
-              "arguments": "{\"id\":\"br_mr_1\"}",
+              "arguments": "{\"id\": \"br_mr_1\"}",
               "id": "H4.3_2.0",
               "name": "backtest_runs_get"
             }
           ]
         },
         {
-          "content": "The latest backtest run for RSI Mean Reversion (s_mr) is br_mr_1, which finished 2026-10-15. Its engine report gives a win rate of 0.61, or 61%. Win rate isn't one of the certified terms, so this number comes straight from the run report.\n\nI wouldn't rely on it yet, for three reasons:\n- The run's rule is an SMA crossover (fast 20, slow 50) on QQQ 1m from 2021-01-01 to 2026-09-30. It's not an RSI rule, so this run may not actually test the strategy its name describes.\n- The report contradicts itself. It lists 96 total trades and a 0.61 win rate, but 0 winning trades, 0 losing trades, 0 net profit and a final equity of 100000. Its series hash is marked \"synthetic\".\n- The strategy library shows 0 linked backtests for s_mr, even though this run is tied to it.\n\nYou could ask me to check the certified Sharpe and max drawdown for this strategy (terms_query, per-strategy grouping). It may also be worth rerunning with the actual RSI rule.",
-          "inputDigest": "8493082bb84604ed7474bae573f35e90f8cacb1935dd2c0ae4046a99defacf9f",
+          "content": "The win rate of RSI Mean Reversion's latest backtest run is 0.61 (61%), across 96 total trades.\n\n- Source: engine run br_mr_1 (backtest_runs_get), finished 2026-10-15, status succeeded. It is the only run linked to strategy s_mr; the strategy has no entries in the backtests ledger.\n- Spec: QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit.\n\nCaveats on this run:\n- The rule in the spec is an SMA cross (fast 20, slow 50), not an RSI rule, so it may not reflect the strategy as named.\n- The report is internally inconsistent: it shows 0 profit trades and 0 loss trades, net profit 0 and final equity equal to the 100000 initial capital, alongside a 61% win rate and 0.264 total return. The trade list and equity series are empty and the series hash reads \"synthetic\".\n\nI would treat the 61% as the reported figure only, not a verified one. Win rate is not a certified term, so this comes straight from the run report.",
+          "inputDigest": "f93e314cd087dac6e19c6d80196547bc3ec26528f6adcf0a93bca46574a01ff8",
           "toolCalls": []
         }
       ],
@@ -2531,7 +2536,8 @@
       "question": "H4",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
-        "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
+        "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":1})",
+        "backtests_list({\"strategyId\":\"s_mr\",\"limit\":1})",
         "backtest_runs_get({\"id\":\"br_mr_1\"})"
       ],
       "trial": 3,

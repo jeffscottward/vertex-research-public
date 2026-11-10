@@ -915,6 +915,24 @@ export interface StrategyParam {
   options?: string[];
 }
 export type StrategyPresetValues = Record<string, StrategyParamValue>;
+// high lists a strategy first inside every library sort.
+export const STRATEGY_PRIORITIES = ["normal", "high"] as const;
+export type StrategyPriority = (typeof STRATEGY_PRIORITIES)[number];
+// A third party's published claim about a strategy (source, claimed method, claimed metrics).
+// Non-null is the single source of the label "Externally pre-validated"; it never means
+// validated by Vertex. null means no external claim.
+export interface StrategyExternalValidationMetric {
+  label: string;
+  value: string;
+}
+export interface StrategyExternalValidation {
+  sourceUrl: string;
+  sourceTitle: string;
+  sourceAuthor: string;
+  publishedOn: string;
+  claimedMethod: string;
+  claimedMetrics: StrategyExternalValidationMetric[];
+}
 
 export const strategies = pgTable(
   "strategies",
@@ -930,6 +948,13 @@ export const strategies = pgTable(
     favorite: boolean("favorite").default(false).notNull(),
     section: text("section"),
     params: jsonb("params").$type<StrategyParam[]>().default([]).notNull(),
+    priority: text("priority")
+      .$type<StrategyPriority>()
+      .default("normal")
+      .notNull(),
+    externalValidation: jsonb(
+      "external_validation"
+    ).$type<StrategyExternalValidation>(),
     createdAt: utcTimestamp("created_at").defaultNow().notNull(),
     updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
   },
@@ -960,6 +985,14 @@ export const strategies = pgTable(
     check(
       "strategies_json_check",
       sql`jsonb_typeof(${table.tags}) = 'array' and jsonb_array_length(${table.tags}) <= 20 and octet_length(${table.tags}::text) <= 2048 and jsonb_typeof(${table.params}) = 'array' and jsonb_array_length(${table.params}) <= 60 and octet_length(${table.params}::text) <= 65536`
+    ),
+    check(
+      "strategies_priority_check",
+      sql`${table.priority} in ('normal', 'high')`
+    ),
+    check(
+      "strategies_external_validation_check",
+      sql`${table.externalValidation} is null or jsonb_typeof(${table.externalValidation}) = 'object'`
     ),
   ]
 );

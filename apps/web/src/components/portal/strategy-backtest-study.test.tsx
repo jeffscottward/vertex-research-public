@@ -281,6 +281,8 @@ describe("strategy library detail: Backtest study section", () => {
     name: "IV-Rank Gate for Credit Spreads",
     params,
     presetCount: 0,
+    priority: "normal",
+    externalValidation: null,
     section: "QuantConnect ideas",
     slug: "qc-iv-rank-gate",
     sourceRef: "docs/specs/strategies/qc-iv-rank-gate.md",

@@ -67,10 +67,21 @@ const mapStrategyError = (
   if (error instanceof DatabasePersistenceError) {
     throw failures.STORAGE_ERROR({
       message:
-        "Strategy library storage unavailable. Apply migration 0019 if the tables are missing.",
+        "Strategy library storage unavailable: its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).",
     });
   }
   throw error;
+};
+
+// The repository already parsed the stored claim; this copies it so the output shares no reference.
+const toExternalValidationOutput = (
+  claim: Strategy["externalValidation"]
+): StrategyOutput["externalValidation"] => {
+  if (claim === null) return null;
+  return {
+    ...claim,
+    claimedMetrics: claim.claimedMetrics.map((metric) => ({ ...metric })),
+  };
 };
 
 const toStrategyOutput = (row: Strategy): StrategyOutput => ({
@@ -85,6 +96,8 @@ const toStrategyOutput = (row: Strategy): StrategyOutput => ({
   favorite: row.favorite,
   section: row.section ?? null,
   params: (row.params ?? []).map((param) => ({ ...param })),
+  priority: row.priority,
+  externalValidation: toExternalValidationOutput(row.externalValidation),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 });
@@ -204,6 +217,10 @@ const strategyLibraryCreate = api.strategyLibrary.create
         ...(input.favorite === undefined ? {} : { favorite: input.favorite }),
         ...(input.section === undefined ? {} : { section: input.section }),
         ...(input.params === undefined ? {} : { params: input.params }),
+        ...(input.priority === undefined ? {} : { priority: input.priority }),
+        ...(input.externalValidation === undefined
+          ? {}
+          : { externalValidation: input.externalValidation }),
       });
       return toStrategyOutput(row);
     } catch (error) {
@@ -231,6 +248,10 @@ const strategyLibraryUpdate = api.strategyLibrary.update
         ...(input.favorite === undefined ? {} : { favorite: input.favorite }),
         ...(input.section === undefined ? {} : { section: input.section }),
         ...(input.params === undefined ? {} : { params: input.params }),
+        ...(input.priority === undefined ? {} : { priority: input.priority }),
+        ...(input.externalValidation === undefined
+          ? {}
+          : { externalValidation: input.externalValidation }),
       });
     } catch (error) {
       return mapStrategyError(error, errors);

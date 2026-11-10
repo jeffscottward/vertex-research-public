@@ -67,6 +67,7 @@ import {
   type Strategy,
   type StrategyKind,
   type StrategyPreset,
+  type StrategyPriority,
   type DeploymentRequest,
   type DeploymentRequestStatus,
   type StrategyStatus,
@@ -193,17 +194,20 @@ import {
   STRATEGY_SEARCH_MAX_LENGTH,
   StrategyInputError,
   normalizeStrategyDescription,
+  normalizeStrategyExternalValidation,
   normalizeStrategyFavorite,
   normalizeStrategyKind,
   normalizeStrategyName,
   normalizeStrategyParams,
   normalizeStrategyPresetName,
+  normalizeStrategyPriority,
   normalizeStrategyPresetValues,
   normalizeStrategySection,
   normalizeStrategySlug,
   normalizeStrategySourceRef,
   normalizeStrategyStatus,
   normalizeStrategyTags,
+  parseStoredStrategyFields,
   slugifyStrategyName,
 } from "./strategy-library.ts";
 import {
@@ -3136,6 +3140,9 @@ export type CreateStrategyInput = Readonly<{
   favorite?: boolean;
   section?: string | null;
   params?: unknown;
+  priority?: StrategyPriority;
+  // A third party's claim; null (or omitted on create) means no external claim.
+  externalValidation?: unknown;
 }>;
 
 export type UpdateStrategyInput = Readonly<{
@@ -3148,6 +3155,9 @@ export type UpdateStrategyInput = Readonly<{
   favorite?: boolean;
   section?: string | null;
   params?: unknown;
+  priority?: StrategyPriority;
+  // A third party's claim; null (or omitted on create) means no external claim.
+  externalValidation?: unknown;
 }>;
 
 export type SaveStrategyPresetInput = Readonly<{
@@ -3206,11 +3216,25 @@ const strategyListColumns = {
   backtestCount: sql<number>`(${sql.raw(STRATEGY_BACKTEST_COUNT_SQL)})`,
 };
 
+// priority and external_validation are parsed on every read: a stored value that does not parse
+// is a storage error, never silently dropped.
+const storedStrategy = <T extends Strategy>(row: T): T => {
+  try {
+    return { ...row, ...parseStoredStrategyFields(row) };
+  } catch (error) {
+    if (error instanceof StrategyInputError)
+      throw new DatabasePersistenceError(
+        `strategy ${row.id} read (stored ${error.message})`
+      );
+    throw error;
+  }
+};
+
 const withStrategyCounts = (
   row: Strategy & Readonly<{ presetCount: unknown; backtestCount: unknown }>
 ): StrategyListRow => {
   return {
-    ...row,
+    ...storedStrategy(row),
     presetCount: Number(row.presetCount ?? 0),
     backtestCount: Number(row.backtestCount ?? 0),
   };
@@ -3275,7 +3299,12 @@ export const createStrategyLibraryRepository = (
           .select(strategyListColumns)
           .from(strategies)
           .where(conditions.length === 0 ? undefined : andWhere(...conditions))
-          .orderBy(desc(strategies.updatedAt), desc(strategies.id))
+          // High priority first, before the limit, so a limited list never cuts a high-priority row.
+          .orderBy(
+            sql`case when ${strategies.priority} = 'high' then 0 else 1 end`,
+            desc(strategies.updatedAt),
+            desc(strategies.id)
+          )
           .limit(limit);
         return rows.map(withStrategyCounts);
       } catch (error) {
@@ -3327,6 +3356,13 @@ export const createStrategyLibraryRepository = (
               : normalizeStrategyFavorite(input.favorite),
           section: normalizeStrategySection(input.section) ?? null,
           params: normalizeStrategyParams(input.params ?? []),
+          priority:
+            input.priority === undefined
+              ? ("normal" as StrategyPriority)
+              : normalizeStrategyPriority(input.priority),
+          externalValidation:
+            normalizeStrategyExternalValidation(input.externalValidation) ??
+            null,
         };
       });
       const timestamp = dependencies.now();
@@ -3340,7 +3376,7 @@ export const createStrategyLibraryRepository = (
             updatedAt: timestamp,
           })
           .returning();
-        return required(row, "row");
+        return storedStrategy(required(row, "row"));
       } catch (error) {
         return mapAgentOpsMutationError(error, "strategy");
       }
@@ -3375,6 +3411,16 @@ export const createStrategyLibraryRepository = (
         ...(input.params === undefined
           ? {}
           : { params: normalizeStrategyParams(input.params) }),
+        ...(input.priority === undefined
+          ? {}
+          : { priority: normalizeStrategyPriority(input.priority) }),
+        ...(input.externalValidation === undefined
+          ? {}
+          : {
+              externalValidation:
+                normalizeStrategyExternalValidation(input.externalValidation) ??
+                null,
+            }),
       }));
       if (Object.keys(changes).length === 0) {
         throw new InvalidRepositoryInputError(
@@ -3417,7 +3463,7 @@ export const createStrategyLibraryRepository = (
             .set({ ...changes, updatedAt: dependencies.now() })
             .where(eq(strategies.id, input.id))
             .returning();
-          return row ?? null;
+          return row === undefined ? null : storedStrategy(row);
         });
       } catch (error) {
         return mapAgentOpsMutationError(error, "strategy");
