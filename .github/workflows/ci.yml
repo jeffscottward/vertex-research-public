@@ -37,6 +37,10 @@ jobs:
   # lists the changed files and decides whether the heavy jobs run; see
   # scripts/ci/ci-changes.sh. It runs on a GitHub-hosted runner so the light lane
   # never waits in the rig runner queue to start.
+  # The draft flag in the event can be stale (card vertex-ci-draft-ready-race): when
+  # `gh pr ready` follows `gh pr create --draft` at once, the run for the draft event
+  # can cancel the run for the ready event. So a run for a draft event reads the
+  # pull request's draft state from GitHub and reports it as the output `draft`.
   changes:
     name: Changes
     runs-on: ubuntu-latest
@@ -46,6 +50,7 @@ jobs:
       pull-requests: read
     outputs:
       heavy: ${{ steps.plan.outputs.heavy }}
+      draft: ${{ steps.plan.outputs.draft }}
       exclude: ${{ steps.plan.outputs.exclude }}
     steps:
       - name: Check out the CI scripts
@@ -410,8 +415,11 @@ jobs:
   # A draft run reports as "ci-gate (draft)": after `gh pr ready` the new run's gate
   # starts only when its jobs finish, so a green draft result must never stand in
   # for the required "ci-gate" check on the same commit.
+  # A run for a draft event reports as "ci-gate" when the changes job found the pull
+  # request ready (card vertex-ci-draft-ready-race): that run chose its lanes as a
+  # ready run does. A cancelled draft run has no answer and stays "ci-gate (draft)".
   ci-gate:
-    name: ${{ github.event.pull_request.draft && 'ci-gate (draft)' || 'ci-gate' }}
+    name: ${{ github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}
     needs: [changes, coverage-shards, verification, verification-coverage]
     if: ${{ always() }}
     runs-on: ubuntu-latest
