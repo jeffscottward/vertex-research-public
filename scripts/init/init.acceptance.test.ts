@@ -235,6 +235,9 @@ describe("bun run init", () => {
       // checkout. CI's checkout already is one; a full local checkout is not,
       // so clone one commit (--depth needs file://; --local ignores it).
       cloneRepository(clone, pathToFileURL(repositoryRoot).href, ["--depth=1"]);
+      expect(gitIn(clone, "rev-parse", "--is-shallow-repository").trim()).toBe(
+        "true"
+      );
       const git = (...arguments_: string[]): string =>
         gitIn(clone, ...arguments_);
       const head = git("rev-parse", "HEAD").trim();
