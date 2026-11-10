@@ -115,9 +115,9 @@ def test_run_spec_record_has_engine_field_and_matches_stdlib():
     stdlib = backtest.run_spec(spec, b, None, data_label="synthetic")
     nautilus = backtest.run_spec(spec, b, None, data_label="synthetic", engine="nautilus")
     assert (stdlib["engine"], nautilus["engine"]) == ("stdlib-daily-v1", "nautilus-trader-1.227.0")
-    assert stdlib["strategy"].endswith("(walk-forward)")
-    assert nautilus["strategy"].endswith("(walk-forward, nautilus-trader-1.227.0)")
-    assert "engine" not in nautilus["runConfig"]  # the stored runConfig is a closed contract
+    # The engine is a runConfig field, not part of the strategy label.
+    assert (stdlib["runConfig"]["engine"], nautilus["runConfig"]["engine"]) == (stdlib["engine"], nautilus["engine"])
+    assert stdlib["strategy"] == nautilus["strategy"] and nautilus["strategy"].endswith("(walk-forward)")
     assert set(nautilus) == set(stdlib) and set(nautilus["metrics"]) == set(stdlib["metrics"])
     assert [(t["entry_t"], t["exit_t"]) for t in nautilus["trades"]] == \
         [(t["entry_t"], t["exit_t"]) for t in stdlib["trades"]]
