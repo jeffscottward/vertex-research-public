@@ -191,7 +191,7 @@ const featureRow = (summary: FeatureSummary): string => {
 };
 
 const STYLE =
-  "body{background:#0f1115;color:#e7e7e7;font:15px/1.5 system-ui,sans-serif;margin:0;padding:16px;max-width:1150px}h1{font-size:20px}h2{font-size:16px;margin-top:26px}.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid #2a2e36;padding:6px 8px;text-align:left;vertical-align:top}th{color:#c9a54a}code{color:#c9a54a}li{margin:4px 0}.muted{color:#8a8f98}.warn{color:#e8a33d}a{color:#5aa8e6}";
+  "body{background:#0f1115;color:#e7e7e7;font:15px/1.5 system-ui,sans-serif;margin:0;padding:16px;max-width:1150px}h1{font-size:20px}h2{font-size:16px;margin-top:26px}.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid #2a2e36;padding:6px 8px;text-align:left;vertical-align:top}th{color:#c9a54a}code{color:#c9a54a}li{margin:4px 0}.muted{color:#8a8f98}.warn{color:#e8a33d}.chart svg{min-width:900px;display:block}a{color:#5aa8e6}";
 
 const table = (head: readonly string[], rows: readonly string[]): string =>
   `<div class="wrap"><table><tr>${head.map((cell) => `<th>${cell}</th>`).join("")}</tr>${rows.join("")}</table></div>`;
@@ -247,7 +247,7 @@ export const renderReport = (
 <p>Pass condition (switch plan): ${model.step4.daysNeeded} days of live side-by-side data for the instant backtest, the parameter sweep and the Autopilot gate. The dual run is on in production since ${model.step4.since}. <span${model.step4.met ? "" : ' class="warn"'}>${escapeHtml(model.step4.verdict)}</span></p>
 <ul>${model.step4.lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
 <h2>Timeline of stored runs</h2>
-${timelineSvg(model)}
+<div class="wrap chart">${timelineSvg(model)}</div>
 <p class="muted">${(Object.keys(KIND_COLORS) as TimelinePoint["kind"][]).map((kind) => `<span style="color:${KIND_COLORS[kind]}">●</span> ${KIND_LABELS[kind]}`).join(" &nbsp; ")} &nbsp; <span style="color:#e05252">▮</span> worker outage</p>
 <h2>Worker outages</h2>
 ${model.outages.length === 0 ? "<p>None found.</p>" : `${table(["From", "To", "Length", "Runs created in it", "Cause"], outageRows)}<p class="muted">A run created during an outage waits in the queue until the worker is back; its queue wait counts the outage. The TypeScript result is never held up.</p>`}
@@ -261,7 +261,7 @@ ${nautilusRows.length === 0 ? "<p>None.</p>" : table(["Created", "Strategy", "Ba
 ${model.nautilusListFull ? '<p class="warn">The run list returned its maximum; older Nautilus runs are not shown.</p>' : ""}
 <h2>Rig benchmark (${minute(bench.measuredAt)}, not re-measured)</h2>
 <p class="muted">${escapeHtml(bench.conditions)}. Engine time alone in a warm process: ${formatMs(bench.warmEngineMs)} for the instant backtest, so most of a cold Nautilus run is Python start.${options.snapshotHref === undefined ? "" : ` Original page: <a href="${escapeHtml(options.snapshotHref)}">snapshot of 2026-11-06</a>.`}</p>
-${benchmarkSvg(model)}
+<div class="wrap chart">${benchmarkSvg(model)}</div>
 ${table(["Feature", "TS wall p50 / p95", "TS CPU", "Nautilus wall p50 / p95", "Processes", "Nautilus CPU"], benchRows)}
 <ul>${bench.differences.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
 <h3>GPU (${escapeHtml(bench.gpu.device)})</h3>

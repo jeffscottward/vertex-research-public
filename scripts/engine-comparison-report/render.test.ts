@@ -123,6 +123,8 @@ describe("renderReport", () => {
     expect(html).toContain('href="snapshot-2026-11-06/"');
     expect(html).toContain("worker journal from 2026-11-10 19:00Z (1 lines)");
     expect(html).not.toContain("<iron");
+    // Charts scroll sideways on a phone instead of shrinking to unreadable text.
+    expect(html.match(/<div class="wrap chart"><svg/g)).toHaveLength(2);
   });
 
   it("renders a quiet period with no data", () => {
