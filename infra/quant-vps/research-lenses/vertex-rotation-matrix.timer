@@ -1,0 +1,11 @@
+[Unit]
+Description=Rotation matrix after the US close (weekdays 16:40 and 18:30 local) and at boot
+
+[Timer]
+OnCalendar=Mon..Fri 16:40
+OnCalendar=Mon..Fri 18:30
+OnBootSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -378,13 +378,13 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
       "ibkr-account-classes.json",
       "ibkr-account-snapshot-{stamp}.json",
     ],
-    "infra/quant-vps/exec-node/runtime/scripts/nautilus-arm.sh": [
-      "/opt/vertex-exec-node/data/nautilus/arm-audit.jsonl",
-    ],
     "infra/quant-vps/exec-node/runtime/scripts/nautilus_health_alert.py": [
       "/opt/vertex-exec-node/data/nautilus/health.json",
       "/var/lib/vertex-nautilus-health-alert/state.json",
       "data/nautilus/health.json",
+    ],
+    "infra/quant-vps/exec-node/runtime/scripts/nautilus-arm.sh": [
+      "/opt/vertex-exec-node/data/nautilus/arm-audit.jsonl",
     ],
     "infra/quant-vps/exec-node/runtime/scripts/request-ibkr-2fa-until-ready.sh":
       ["data/nautilus/health.json"],
@@ -396,14 +396,17 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     "infra/quant-vps/recovery/vertex_ibkr_recovery.py": ["state.json"],
     "infra/quant-vps/release.ts": ["release-manifest.json"],
     "infra/quant-vps/research-lenses/push-research-lenses.sh": [
-      "${DEEP_VALUE_JSON:-$HOME/Github/trading/vertex-research-wt-deep-value/data/deep-value/latest.json",
-      "${ROTATION_JSON:-$HOME/Github/trading/vertex-research/data/rotation-matrix/latest.json",
+      "${DEEP_VALUE_JSON:-$HOME/.local/share/vertex-research-lenses/data/deep-value/latest.json",
+      "${ROTATION_JSON:-$HOME/.local/share/vertex-research-lenses/data/rotation-matrix/latest.json",
       "deep-value.json",
       "rotation-matrix.json",
     ],
+    "infra/quant-vps/research-lenses/vertex-deep-value.service": [
+      "%h/.local/share/vertex-research-lenses/data/rotation-matrix/latest.json",
+    ],
     "infra/quant-vps/research-lenses/vertex-research-lenses-push.path": [
-      "%h/Github/trading/vertex-research-wt-deep-value/data/deep-value/latest.json",
-      "%h/Github/trading/vertex-research/data/rotation-matrix/latest.json",
+      "%h/.local/share/vertex-research-lenses/data/deep-value/latest.json",
+      "%h/.local/share/vertex-research-lenses/data/rotation-matrix/latest.json",
     ],
     "infra/quant-vps/status/Caddyfile.status": ["/status.json"],
     "infra/quant-vps/status/Caddyfile.status.v2": [
