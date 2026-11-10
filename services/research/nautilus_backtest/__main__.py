@@ -2,6 +2,7 @@
 
   python -m nautilus_backtest run <request.json|->        one run, result JSON on stdout
   python -m nautilus_backtest batch <in.json|-> <out.json|->  many runs on one bar series
+  python -m nautilus_backtest academy <request.json|->    one Academy options run, result JSON on stdout
 
 request.json: {"bars": {"t": [...], "o": [...], "h": [...], "l": [...], "c": [...], "v": [...]?}, "spec": {...}}
 in.json:      {"bars": {...}, "series": {...}?, "cases": [{"id": "...", "spec": {...}, "slice": [first, end]?}, ...]}
@@ -12,7 +13,13 @@ context (spec "context", the run symbol); a dsl case with an options block runs 
 runner (strategies.qc_ports.portfolio.run_spec_json: ledger plus NautilusTrader parity) on those
 rows instead of the bars. Output: RunResult.to_json() (options: the run_spec_json document), or
 {"error": "..."} for an input error (exit status 2 for `run`; exit status 3 for both when
-nautilus-trader is missing). A batch writes {"engine": ..., "results": [{"id": ..., "wallMs": ...,
+nautilus-trader is missing). A spec with rule {"kind": "academy", "structure": ..., "rules": {...},
+"iv": [...]?} runs the Academy modelled options backtest (academy/engine.py) on the closes with
+spec "initialCapital" as the capital and returns it in the same result shape (academy/result.py);
+"iv" holds one implied volatility (or null) per bar of the case. The `academy` command takes
+{"bars": {"t": [...], "c": [...], "iv": [...]?}, "structure": ..., "rules": {...}, "capital": n}
+and prints the full Academy result (the TypeScript `BacktestResult` fields; equity as one number
+per bar from "firstIndex"). A batch writes {"engine": ..., "results": [{"id": ..., "wallMs": ...,
 "result": {...}} | {"id": ..., "wallMs": ..., "error": "..."}], "usage": {"cpuMs": ..., "wallMs":
 ...}}: the engine time of each case and the CPU time (user + system) and wall time of this process.
 """
@@ -44,6 +51,8 @@ def _run_case(bars: Bars, spec: dict, rows: dict | None) -> dict:
     """One case: the options runner for an options definition, else run_spec (with the series context
     when the definition reads series and rows are given)."""
     rule = spec.get("rule") or {}
+    if rule.get("kind") == "academy":
+        return _run_academy_case(bars, spec, rule)
     if rule.get("kind") == "dsl" and rule.get("definition", {}).get("options") is not None:
         from strategies.qc_ports.portfolio import run_spec_json
 
@@ -59,6 +68,22 @@ def _run_case(bars: Bars, spec: dict, rows: dict | None) -> dict:
         last = spec.get("to") or _bar_date(bars.t[-1])
         spec = {**spec, "context": context_from_rows(_rows_until(rows, last))}
     return run_spec(bars, spec).to_json()
+
+
+def _run_academy_case(bars: Bars, spec: dict, rule: dict) -> dict:
+    """An Academy rule: the modelled options backtest on the closes, in the engine result shape."""
+    from .academy.engine import ACADEMY_MODEL_VERSION, run_academy
+    from .academy.result import engine_result
+    from .academy.simulator import AcademyInput
+
+    iv = rule.get("iv")
+    if iv is not None and (not isinstance(iv, list) or len(iv) != len(bars.t)):
+        raise InputError("rule.iv must hold one value per bar")
+    data = AcademyInput.from_json({
+        "bars": {"t": list(bars.t), "c": list(bars.c), "iv": iv}, "structure": rule.get("structure"),
+        "rules": rule.get("rules"), "capital": spec.get("initialCapital")})
+    mapped = engine_result(run_academy(data), data)
+    return {"engine": ENGINE_ID, "modelVersion": ACADEMY_MODEL_VERSION, "capital": data.capital, **mapped}
 
 
 def _bar_date(t: float) -> str:
@@ -99,6 +124,20 @@ def main(argv: list[str]) -> int:
         request = _load(argv[1])
         try:
             result = _run_case(Bars.from_columns(request["bars"]), request["spec"], request.get("series"))
+        except InputError as error:
+            print(_dump({"error": str(error)}))
+            return 2
+        except NautilusUnavailable as error:
+            print(str(error), file=sys.stderr)
+            return 3
+        print(_dump(result))
+        return 0
+    if len(argv) == 2 and argv[0] == "academy":
+        from .academy.engine import run_academy
+        from .academy.simulator import AcademyInput
+
+        try:
+            result = run_academy(AcademyInput.from_json(_load(argv[1])))
         except InputError as error:
             print(_dump({"error": str(error)}))
             return 2

@@ -88,6 +88,7 @@ adapters/tests/test_model_and_review.py
 adapters/tests/test_privacy_rendezvous.py
 knowledge/tests/test_knowledge_boundaries.py
 tests/test_nautilus_backtest_signals.py
+tests/test_nautilus_backtest_academy.py
 tests/test_nautilus_backtest_engine.py
 tests/test_qc_ports_options.py
 tests/test_qc_ports_calendar.py

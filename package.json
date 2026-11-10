@@ -120,6 +120,7 @@
     "research:calendar-spread": "bun --no-env-file scripts/research-calendar-spread.ts",
     "research:quantjourney": "bun scripts/research-quantjourney.ts",
     "research:core7": "bun scripts/vertex-core7-rerun.ts",
+    "research:academy-golden": "bun scripts/research-academy-golden.ts",
     "research:nautilus-golden": "bun scripts/research-nautilus-golden.ts",
     "research:qc-port-definitions": "bun --no-env-file scripts/research-qc-port-definitions.ts",
     "research:nautilus-parity": "bun scripts/research-nautilus-parity.ts",
