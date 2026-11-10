@@ -79,6 +79,7 @@ import {
 } from "./server/instant-backtest.ts";
 import { AGENT_API_KEY_READ_PROCEDURES } from "./server/operator-access.ts";
 import type { SectorQuadrantSource } from "./server/sector-quadrant-series.ts";
+import { setupReplayDefinition } from "./setup-replay.ts";
 import {
   runInputsSha256,
   strategySeriesInput,
@@ -2090,6 +2091,131 @@ describe("backtestRuns.drift paper forward runner", () => {
     ).toBe("The baseline backtest run is not available");
   });
 
+  it("queues one Nautilus repeat per caught-up tick when engine comparison is on", async () => {
+    const bars = fakeBars({
+      loadColumns: vi.fn(async () => waveColumns(3500)),
+    });
+    const { drift, monitor, run, runs } = await prepared({ bars });
+    const client = clientFor({ bars, comparison: "on", drift, runs });
+    const repeats = () =>
+      [...runs.rows.values()].filter(
+        (row) => row.spec.comparison !== undefined
+      );
+    // A tick that records only part of the new bars queues nothing; the one that catches up does.
+    const partial = await client.backtestRuns.drift.paperTick({
+      id: monitor.id,
+    });
+    expect(partial.results[0]?.note).toBe(
+      "Recorded part of the new bars; the next tick continues"
+    );
+    expect(repeats()).toHaveLength(0);
+    const caughtUp = await client.backtestRuns.drift.paperTick({
+      id: monitor.id,
+    });
+    expect(caughtUp.results[0]?.note).toBeNull();
+    expect(repeats()).toHaveLength(1);
+    const { comparison: _none, ...baseline } = (
+      runs.rows.get(run.id) as BacktestRunRecord
+    ).spec;
+    const [row] = repeats();
+    expect(row).toMatchObject({
+      engineVersion: BACKTEST_RUN_NAUTILUS_ENGINE,
+      requestedBy: "operator",
+      spec: { ...baseline, from: "1970-01-01", to: "1979-08-01" },
+      status: "queued",
+    });
+    const comparison = EngineComparisonSpecSchema.parse(row?.spec.comparison);
+    expect(comparison).toMatchObject({
+      feature: "paperForward",
+      groupId: `paperForward:${monitor.id}:1979-08-01`,
+      key: monitor.id,
+      label: "SPY 1d paper forward smaCross",
+    });
+    // The TypeScript side is the backtest over the same bars with the baseline's settings.
+    expect(comparison.typescript.stats).toEqual(
+      runInstantBacktest(waveColumns(3500), runParamsForSpec(baseline)).stats
+    );
+    // No new bars: nothing new is recorded or queued.
+    await client.backtestRuns.drift.paperTick({ id: monitor.id });
+    expect(repeats()).toHaveLength(1);
+  });
+
+  it("queues every monitor of a batch tick; none supersedes another", async () => {
+    const { client: plain, drift, monitor, run, runs, bars } = await prepared();
+    const second = await plain.backtestRuns.drift.create({
+      baselineRunId: run.id,
+      expectedRevision: run.strategyRevision,
+      label: "Paper runner 2",
+    });
+    for (const id of [monitor.id, second.id])
+      await plain.backtestRuns.drift.paperSet({ id, running: true });
+    const client = clientFor({ bars, comparison: "on", drift, runs });
+    const batch = await client.backtestRuns.drift.paperTick({});
+    expect(batch.results).toHaveLength(2);
+    const repeats = [...runs.rows.values()].filter(
+      (row) => row.spec.comparison !== undefined
+    );
+    expect(repeats.map((row) => row.status)).toEqual(["queued", "queued"]);
+    expect(
+      repeats
+        .map((row) => EngineComparisonSpecSchema.parse(row.spec.comparison).key)
+        .sort()
+    ).toEqual([monitor.id, second.id].sort());
+  });
+
+  it("queues nothing for a setup replay or paper tick with comparison off", async () => {
+    const { bars, drift, monitor, runs } = await prepared();
+    const client = clientFor({ bars, comparison: "off", drift, runs });
+    await client.setupReplay.run({
+      maxHoldBars: 5,
+      paths: 1000,
+      seriesId: "SPY:1d",
+      setup: "gapUpHold",
+      stop: { kind: "atr", multiple: 1 },
+      targetR: 1,
+    });
+    await client.backtestRuns.drift.paperTick({ id: monitor.id });
+    expect(
+      [...runs.rows.values()].filter((row) => row.spec.comparison !== undefined)
+    ).toEqual([]);
+  });
+
+  it("keeps the paper tick when the clock is frozen or the comparison queue fails", async () => {
+    const { bars, drift, monitor, runs } = await prepared();
+    vi.spyOn(performance, "now").mockReturnValue(7);
+    const frozen = await clientFor({
+      bars,
+      comparison: "on",
+      drift,
+      runs,
+    }).backtestRuns.drift.paperTick({ id: monitor.id });
+    vi.restoreAllMocks();
+    expect(frozen.results[0]?.note).toBeNull();
+    const [row] = [...runs.rows.values()].filter(
+      (candidate) => candidate.spec.comparison !== undefined
+    );
+    expect(
+      EngineComparisonSpecSchema.parse(row?.spec.comparison)
+    ).toMatchObject({
+      typescript: { wallMs: null, wallNote: TIMER_FROZEN_NOTE },
+    });
+    const failing = await prepared();
+    const broken = clientFor({
+      bars: failing.bars,
+      comparison: "on",
+      drift: failing.drift,
+      runs: {
+        ...failing.runs,
+        enqueueGroup: async () => Promise.reject(new Error("db")),
+      },
+    });
+    const ticked = await broken.backtestRuns.drift.paperTick({
+      id: failing.monitor.id,
+    });
+    expect(ticked.results[0]?.newPoints).toBeGreaterThan(50);
+    expect(ticked.results[0]?.note).toBeNull();
+  });
+
   it("records a long gap over several ticks and stops when storage is full", async () => {
     const bars = fakeBars({
       loadColumns: vi.fn(async () => waveColumns(7000)),
@@ -3413,6 +3539,141 @@ describe("engine comparison (dual run)", () => {
       )
     ).toHaveLength(1);
     vi.useRealTimers();
+  });
+
+  const replayInput = {
+    maxHoldBars: 10,
+    paths: 1000,
+    seriesId: "SPY:1d",
+    setup: "breakout20" as const,
+    stop: { kind: "atr" as const, multiple: 1.5 },
+    targetR: 2,
+  };
+
+  it("queues a setup replay on Nautilus; the stored spec repeats the TypeScript run exactly", async () => {
+    const runs = memoryRuns();
+    const off = await clientFor({ bars: fakeBars(), runs }).setupReplay.run(
+      replayInput
+    );
+    expect(off).not.toHaveProperty("comparison");
+    expect(runs.rows.size).toBe(0);
+
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    const { comparison: timing, ...answer } =
+      await client.setupReplay.run(replayInput);
+    // The replay itself is the TypeScript answer, unchanged by the comparison.
+    expect(answer).toEqual(off);
+    expect(timing).toMatchObject({ groupId: expect.any(String), host });
+    const [row] = comparisonRuns(runs);
+    expect(row).toMatchObject({
+      engineVersion: engine,
+      requestedBy: "operator",
+      spec: {
+        costBps: 0,
+        from: "1970-01-01",
+        initialCapital: BACKTEST_RUN_DEFAULT_CAPITAL,
+        maxHoldBars: 10,
+        rule: { definition: setupReplayDefinition(replayInput), kind: "dsl" },
+        stopLossPct: 0,
+        symbol: "SPY",
+        takeProfitPct: 0,
+        timeframe: "1d",
+        to: "1972-09-26",
+      },
+      status: "queued",
+    });
+    const comparison = comparisonOf(row as BacktestRunRecord);
+    expect(comparison).toMatchObject({
+      feature: "setupReplay",
+      groupId: timing?.groupId,
+      label: "SPY 1d setup breakout20",
+    });
+    expect(comparison.typescript.tradeCount).toBeGreaterThan(0);
+
+    // The worker gets maxHoldBars; the run executor's engine call on the claimed spec gives the
+    // TypeScript side bit for bit, so a matching Nautilus result has no differences.
+    const { batch } = await client.backtestRuns.engine.claim({
+      engine,
+      max: 50,
+    });
+    const claimed = batch as Batch;
+    const claimedRun = claimed.runs[0] as Batch["runs"][number];
+    const spec = claimedRun.spec as BacktestRunRecord["spec"];
+    expect(spec.maxHoldBars).toBe(10);
+    const column = (values: readonly (number | null)[]) =>
+      Float64Array.from(
+        values.slice(claimedRun.first, claimedRun.end),
+        (value) => value ?? Number.NaN
+      );
+    const definition = StrategyDefinitionSchema.parse(
+      (spec.rule as { definition: unknown }).definition
+    );
+    const result = runStrategyDefinition(
+      {
+        c: column(claimed.bars.c),
+        h: column(claimed.bars.h),
+        l: column(claimed.bars.l),
+        o: column(claimed.bars.o),
+        t: column(claimed.bars.t),
+      },
+      definition,
+      spec.costBps,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      spec.maxHoldBars
+    );
+    expect(result.stats).toEqual(comparison.typescript.stats);
+    const { outcomes } = await client.backtestRuns.engine.completeMany({
+      engine,
+      items: [
+        {
+          engineRun,
+          id: claimedRun.id,
+          result: {
+            equity: Array.from(result.equity),
+            stats: result.stats,
+            trades: [...result.trades],
+          },
+          seriesSha256: claimed.seriesSha256,
+        },
+      ],
+    });
+    expect(outcomes).toEqual([{ id: claimedRun.id, status: "succeeded" }]);
+    expect(runs.rows.get(claimedRun.id)?.report?.["differences"]).toEqual({
+      items: [],
+      ok: true,
+    });
+  });
+
+  it("keeps the setup replay answer when the clock is frozen or the queue fails", async () => {
+    vi.spyOn(performance, "now").mockReturnValue(1000);
+    const runs = memoryRuns();
+    const frozen = await clientFor({
+      bars: fakeBars(),
+      comparison: "on",
+      runs,
+    }).setupReplay.run(replayInput);
+    expect(frozen.comparison).toMatchObject({
+      wallMs: null,
+      wallNote: TIMER_FROZEN_NOTE,
+    });
+    vi.restoreAllMocks();
+    const broken = await clientFor({
+      bars: fakeBars(),
+      comparison: "on",
+      runs: {
+        ...memoryRuns(),
+        enqueueGroup: async () => Promise.reject(new Error("db")),
+      },
+    }).setupReplay.run(replayInput);
+    expect(broken.comparison).toMatchObject({
+      error: COMPARISON_QUEUE_ERROR,
+      groupId: null,
+    });
+    expect(broken.summary).toEqual(frozen.summary);
   });
 
   it("records a frozen Worker clock as no time, and a failed queue as an error only", async () => {

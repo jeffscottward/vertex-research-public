@@ -2040,7 +2040,8 @@ export const runStrategyDefinition = (
   sectorQuadrants?: SectorQuadrantSeries,
   timeframe?: string,
   support?: StrategyServerSupport,
-  seriesInput?: StrategySeriesInput
+  seriesInput?: StrategySeriesInput,
+  maxHoldBars?: number
 ): InstantRunResult => {
   // The equity engine would trade the underlying of an options block, so options are refused
   // whatever `support` says (the options runner is separate; callers that want only the signals
@@ -2057,6 +2058,7 @@ export const runStrategyDefinition = (
   return runSignalBacktest(bars, compiled.signals, {
     costBps,
     ...(costs === undefined ? {} : { costs }),
+    ...(maxHoldBars === undefined ? {} : { maxHoldBars }),
     exits: compiled.exits,
     stopLossPct:
       definition.stopLoss.kind === "pct" ? definition.stopLoss.pct : 0,

@@ -11,6 +11,7 @@ import {
 } from "./contracts/setup-replay.ts";
 import {
   type BarColumns,
+  type InstantRunResult,
   type InstantTrade,
   runSignalBacktest,
 } from "./instant-backtest-engine.ts";
@@ -243,17 +244,25 @@ export type SetupReplayResult = Readonly<{
   monteCarlo: SetupReplayMonteCarlo | null;
 }>;
 
+/** The engine run of one setup replay: the DSL definition, its stop distances and the run. */
+export type SetupReplayEngineRun = Readonly<{
+  definition: StrategyDefinition;
+  stopDistance: Float64Array;
+  result: InstantRunResult;
+}>;
+
 /**
- * Replays one setup over the bars. `dataKey` identifies the bar data (series and version); with the
- * parameters it fixes the Monte Carlo seed, so a rerun gives the same numbers. Throws
+ * Runs one setup over the bars: the definition's ATR stop and target, no costs, and a time exit
+ * after `maxHoldBars`. The same run as runStrategyDefinition(bars, definition, 0, undefined,
+ * undefined, undefined, undefined, undefined, maxHoldBars), which the engine comparison repeats on Nautilus. Throws
  * InstantBacktestInputError when the series is too short for the setup's indicators.
  */
-export const runSetupReplay = (
+export const setupReplayEngineRun = (
   bars: BarColumns,
-  params: SetupReplayParams,
-  dataKey: string
-): SetupReplayResult => {
-  const compiled = compileStrategy(bars, setupReplayDefinition(params));
+  params: Pick<SetupReplayParams, "setup" | "stop" | "targetR" | "maxHoldBars">
+): SetupReplayEngineRun => {
+  const definition = setupReplayDefinition(params);
+  const compiled = compileStrategy(bars, definition);
   // Both levels are ATR distances, so the compiler always returns them.
   const stopDistance = compiled.stopDistance as Float64Array;
   const result = runSignalBacktest(bars, compiled.signals, {
@@ -265,6 +274,22 @@ export const runSetupReplay = (
     takeProfitPct: 0,
     targetDistance: compiled.targetDistance as Float64Array,
   });
+  return { definition, result, stopDistance };
+};
+
+/**
+ * Replays one setup over the bars. `dataKey` identifies the bar data (series and version); with the
+ * parameters it fixes the Monte Carlo seed, so a rerun gives the same numbers. `engineRun` is the
+ * setupReplayEngineRun of the same bars and parameters (computed here when absent). Throws
+ * InstantBacktestInputError when the series is too short for the setup's indicators.
+ */
+export const runSetupReplay = (
+  bars: BarColumns,
+  params: SetupReplayParams,
+  dataKey: string,
+  engineRun: SetupReplayEngineRun = setupReplayEngineRun(bars, params)
+): SetupReplayResult => {
+  const { result, stopDistance } = engineRun;
   const occurrences = result.trades.flatMap((trade): SetupReplayOccurrence[] =>
     trade.exitReason === "end"
       ? []

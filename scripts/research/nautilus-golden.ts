@@ -1934,6 +1934,8 @@ interface Spec {
   sectorQuadrants: SectorQuadrantSeries | null;
   stopLossPct: number;
   takeProfitPct: number;
+  /** DSL rules only: the time exit (setup replay). */
+  maxHoldBars?: number;
 }
 
 const LENGTHS = [2, 5, 14, 20, 50, 200];
@@ -2365,7 +2367,11 @@ const buildEngine = (
       definition,
       spec.costBps,
       spec.costs ?? undefined,
-      spec.sectorQuadrants ?? undefined
+      spec.sectorQuadrants ?? undefined,
+      undefined,
+      undefined,
+      undefined,
+      spec.maxHoldBars
     );
     engine.push({ id, spec, symbol, ...resultJson(result) });
   };
@@ -2419,6 +2425,14 @@ const buildEngine = (
       kind: "dsl",
     })
   );
+  // The setup replay time exit (switch plan step 5): ATR stop and target with maxHoldBars.
+  for (const symbol of ["SPY", "QQQ"]) {
+    dslCase(`template:atrExpansion:max-hold-7:${symbol}`, symbol, {
+      ...baseSpec({ definition: STRATEGY_TEMPLATES.atrExpansion, kind: "dsl" }),
+      costBps: 0,
+      maxHoldBars: 7,
+    });
+  }
   dslCase("extra:sector:SPY", "SPY", {
     ...baseSpec({
       definition: extraDefinitions[4]?.definition,

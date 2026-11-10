@@ -10,7 +10,17 @@ import {
   FORWARD_DRIFT_RECORD_MAX,
   type PaperForwardTickResult,
 } from "../contracts/forward-drift.ts";
-import { InstantBacktestInputError } from "../instant-backtest-engine.ts";
+import {
+  barDate,
+  type ComparisonQueue,
+  measureWall,
+  typescriptSide,
+  type WallTime,
+} from "../engine-comparison.ts";
+import {
+  type InstantRunResult,
+  InstantBacktestInputError,
+} from "../instant-backtest-engine.ts";
 import { paperForwardStep } from "../paper-forward.ts";
 import { runParamsForSpec } from "./backtest-run-params.ts";
 import { appendObservations, baselineOf } from "./forward-drift-append.ts";
@@ -19,7 +29,9 @@ import { appendObservations, baselineOf } from "./forward-drift-append.ts";
 // history path), runs the baseline strategy from the run's start date to the newest bar, and
 // appends the settled paper points and closed trades after the forward start (the day after the
 // run's end date) to the drift monitor, which evaluates drift and raises alerts. Fills are
-// simulated by the backtest engine with the run's cost settings. There is no broker client,
+// simulated by the backtest engine with the run's cost settings. With engine comparison on, a tick
+// that caught up with the newest bar also queues the same engine run on Nautilus (dual run, owner
+// decision 2026-11-08); the paper results stay the TypeScript ones. There is no broker client,
 // order path or network call here; a guard test checks the import graph.
 
 const DAY_MS = 86_400_000;
@@ -28,7 +40,47 @@ export type PaperForwardDependencies = Readonly<{
   drift: ForwardDriftRepository;
   runs: BacktestRunsRepository;
   marketBars: MarketBarsRepository;
+  /** Engine comparison queue (null or absent: off). */
+  comparison?: ComparisonQueue | null;
 }>;
+
+type StoredSpec = NonNullable<
+  Awaited<ReturnType<BacktestRunsRepository["get"]>>
+>["spec"];
+
+/**
+ * Queues the tick's engine run on Nautilus: the baseline spec over the same bars (its start to the
+ * newest bar), one group per monitor and newest bar. No `latest`: other monitors of the same batch
+ * share the feature and the requester, so superseding would cancel their runs. A queue failure is
+ * ignored; the paper results never depend on it.
+ */
+const queuePaperForwardComparison = async (
+  queue: ComparisonQueue,
+  monitorId: string,
+  spec: StoredSpec,
+  bars: MarketBarColumns,
+  run: InstantRunResult,
+  wall: WallTime
+): Promise<void> => {
+  const { comparison: _comparison, ...base } = spec;
+  const to = barDate(bars.t.at(-1) as number);
+  try {
+    await queue.enqueue({
+      feature: "paperForward",
+      groupId: `paperForward:${monitorId}:${to}`,
+      runs: [
+        {
+          key: monitorId,
+          label: `${spec.symbol} ${spec.timeframe} paper forward ${spec.rule.kind}`,
+          spec: { ...base, from: barDate(bars.t[0] as number), to },
+          typescript: typescriptSide(run, wall, queue.host),
+        },
+      ],
+    });
+  } catch {
+    // The comparison is optional; the tick result stands.
+  }
+};
 
 const result = (
   monitorId: string,
@@ -118,12 +170,17 @@ export const tickPaperForward = async (
     return finish(`No stored ${spec.timeframe} bars for ${spec.symbol}`);
   const columns = await dependencies.marketBars.loadColumns(series.id);
   const bars = sliceFrom(columns, Date.parse(`${spec.from}T00:00:00Z`));
-  const step = paperForwardStep(bars, runParamsForSpec(spec), {
-    afterPointT: monitor.points.at(-1)?.t ?? Number.NEGATIVE_INFINITY,
-    afterTradeT: monitor.trades.at(-1)?.t ?? Number.NEGATIVE_INFINITY,
-    capital: spec.initialCapital,
-    forwardStartT: Date.parse(`${spec.to}T00:00:00Z`) + DAY_MS,
-  });
+  const measured = measureWall(
+    () => performance.now(),
+    () =>
+      paperForwardStep(bars, runParamsForSpec(spec), {
+        afterPointT: monitor.points.at(-1)?.t ?? Number.NEGATIVE_INFINITY,
+        afterTradeT: monitor.trades.at(-1)?.t ?? Number.NEGATIVE_INFINITY,
+        capital: spec.initialCapital,
+        forwardStartT: Date.parse(`${spec.to}T00:00:00Z`) + DAY_MS,
+      })
+  );
+  const step = measured.value;
   // A long gap is recorded over several ticks, oldest first, within the request limit.
   const points = step.points.slice(0, FORWARD_DRIFT_RECORD_MAX);
   const pointsEnd = points.at(-1)?.t ?? Number.POSITIVE_INFINITY;
@@ -150,6 +207,22 @@ export const tickPaperForward = async (
   }
   const more =
     step.points.length > points.length || step.trades.length > trades.length;
+  // Once per newest bar: a tick that recorded only part of the bars leaves the queueing to the
+  // tick that catches up. `step.run` is set here (new points need at least 2 bars).
+  if (!more && dependencies.comparison)
+    await queuePaperForwardComparison(
+      dependencies.comparison,
+      monitorId,
+      spec,
+      bars,
+      step.run as InstantRunResult,
+      {
+        wallMs: measured.wallMs,
+        ...(measured.wallNote === undefined
+          ? {}
+          : { wallNote: measured.wallNote }),
+      }
+    );
   return finish(
     more ? "Recorded part of the new bars; the next tick continues" : null,
     {

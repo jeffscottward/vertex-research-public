@@ -1,6 +1,7 @@
 import {
   type BarColumns,
   type InstantRunParams,
+  type InstantRunResult,
   type InstantTrade,
   runInstantBacktest,
 } from "./instant-backtest-engine.ts";
@@ -32,6 +33,8 @@ export type PaperForwardStep = Readonly<{
   trades: PaperForwardTrade[];
   /** Index of the newest settled bar, or -1 when no bar is settled yet. */
   settledIndex: number;
+  /** The whole engine run over the bars (the engine comparison repeats it); null below 2 bars. */
+  run: InstantRunResult | null;
 }>;
 
 /** Closed trades that a backtest over the same bars reports and a paper run can also report. */
@@ -57,7 +60,7 @@ export const paperForwardStep = (
 ): PaperForwardStep => {
   const size = bars.t.length;
   const settledIndex = size - 1 - SETTLE_LAG;
-  if (size < 2) return { points: [], settledIndex: -1, trades: [] };
+  if (size < 2) return { points: [], run: null, settledIndex: -1, trades: [] };
   const result = runInstantBacktest(bars, params);
   const points: PaperForwardPoint[] = [];
   for (let index = 0; index <= settledIndex; index += 1) {
@@ -74,5 +77,5 @@ export const paperForwardStep = (
       t: bars.t[trade.exitIndex] as number,
     }))
     .filter((trade) => trade.t > cursor.afterTradeT);
-  return { points, settledIndex, trades };
+  return { points, run: result, settledIndex, trades };
 };

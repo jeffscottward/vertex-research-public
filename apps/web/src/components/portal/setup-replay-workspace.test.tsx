@@ -517,6 +517,83 @@ describe("SetupReplayWorkspace", () => {
     expect(container.textContent).not.toContain("Showing the newest");
   });
 
+  it("shows the Nautilus repeat of a replay when engine comparison is on", async () => {
+    const comparisons = vi.fn(async () => ({ runs: [] }));
+    const timing = {
+      groupId: "setupReplay-abc",
+      host: "web server",
+      wallMs: 12,
+    };
+    const { container } = await mount(
+      <SetupReplayWorkspace
+        comparisonGateway={{ comparisons }}
+        gateway={gatewayWith({
+          run: vi.fn(async () => output({ comparison: timing })),
+        })}
+      />
+    );
+    await settle();
+    expect(container.querySelector("[data-engine-comparison]")).not.toBeNull();
+    expect(comparisons).toHaveBeenCalledWith("setupReplay-abc");
+  });
+
+  it("asks the server again for a cached replay that carries a comparison", async () => {
+    const run = vi.fn(async () =>
+      output({
+        comparison: {
+          groupId: "setupReplay-abc",
+          host: "web server",
+          wallMs: 1,
+        },
+      })
+    );
+    const { container } = await mount(
+      <SetupReplayWorkspace
+        comparisonGateway={{ comparisons: vi.fn(async () => ({ runs: [] })) }}
+        gateway={gatewayWith({ run })}
+      />
+    );
+    await settle();
+    await choose(container, "Target", 0);
+    await settle();
+    await choose(container, "Target", 2);
+    await settle();
+    // The same choices again: the server reuses or requeues the Nautilus group.
+    expect(run).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows a comparison that could not be queued without reading runs", async () => {
+    const comparisons = vi.fn(async () => ({ runs: [] }));
+    const { container } = await mount(
+      <SetupReplayWorkspace
+        comparisonGateway={{ comparisons }}
+        gateway={gatewayWith({
+          run: vi.fn(async () =>
+            output({
+              comparison: {
+                error: "Nautilus comparison could not be queued",
+                groupId: null,
+                host: "web server",
+                wallMs: 3,
+              },
+            })
+          ),
+        })}
+      />
+    );
+    await settle();
+    expect(container.querySelector("[data-engine-comparison]")).not.toBeNull();
+    expect(comparisons).not.toHaveBeenCalled();
+  });
+
+  it("shows no Nautilus card without a comparison", async () => {
+    const { container } = await mount(
+      <SetupReplayWorkspace gateway={gatewayWith()} />
+    );
+    await settle();
+    expect(container.querySelector("[data-engine-comparison]")).toBeNull();
+  });
+
   it("shows run failures as alerts", async () => {
     const { container } = await mount(
       <SetupReplayWorkspace
