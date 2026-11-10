@@ -106,6 +106,26 @@ describe("vertex-breadth-90 units", () => {
     );
   });
 
+  it("the wrapper exits 127 with a message when the pinned bun is not installed", () => {
+    const root = mkdtempSync(join(tmpdir(), "b90-units-"));
+    roots.push(root);
+    mkdirSync(join(root, "runner"));
+    writeFileSync(join(root, "runner", ".bun-version"), "9.8.7\n");
+    const result = spawnSync(
+      "bash",
+      [fileURLToPath(new URL("./vertex-breadth-90-run", import.meta.url))],
+      {
+        encoding: "utf8",
+        env: { BREADTH90_RUNNER_DIR: join(root, "runner"), HOME: root },
+      }
+    );
+    expect(result.status).toBe(127);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(
+      `the pinned bun is not installed (${root}/.local/share/mise/installs/bun/9.8.7/bin/bun); run mise install in ${root}/runner`
+    );
+  });
+
   it("the wrapper reads the write key only when push is enabled", () => {
     expect(
       runWrapper({ BREADTH90_PUSH: "1", VERTEX_ORIGIN: "https://v" })

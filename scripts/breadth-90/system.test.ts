@@ -59,6 +59,12 @@ describe("breadth-90 system commands", () => {
     ).toEqual({ code: 3, stderr: "body" });
   });
 
+  it("returns the command's result when the command never reads stdin", async () => {
+    // More than a pipe holds, so the write is still pending when the command exits.
+    const body = "x".repeat(4 * 1024 * 1024);
+    expect(await runCommand("true", [], body)).toEqual({ code: 0, stderr: "" });
+  });
+
   it("reports a signal kill as exit code 1", async () => {
     expect(await runCommand("sh", ["-c", "kill -9 $$"], "")).toEqual({
       code: 1,

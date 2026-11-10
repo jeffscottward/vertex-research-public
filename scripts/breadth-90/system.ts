@@ -62,6 +62,9 @@ export const runCommand = async (
     done.resolve(127);
   });
   child.on("close", (code) => done.resolve(code ?? 1));
+  // A command that exits before it reads stdin breaks the pipe. That is the command's result, not
+  // a failure here: without this listener the runtime reports an unhandled error.
+  child.stdin.on("error", () => undefined);
   child.stdin.end(stdin);
   return { code: await done.promise, stderr };
 };

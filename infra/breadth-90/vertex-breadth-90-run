@@ -6,6 +6,10 @@ set -euo pipefail
 cd "${BREADTH90_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-ticks-runner}"
 # The bun version is the pin of the runner checkout (.bun-version), installed by mise.
 BUN="$HOME/.local/share/mise/installs/bun/$(tr -d '[:space:]' < .bun-version)/bin"
+if [[ ! -x "$BUN/bun" ]]; then
+  echo "vertex-breadth-90-run: the pinned bun is not installed ($BUN/bun); run mise install in $PWD" >&2
+  exit 127
+fi
 export PATH="$BUN:/usr/local/bin:/usr/bin:/bin"
 KEYF="${BREADTH90_KEY_FILE:-$HOME/.config/vertex/sector-rotation-key}"
 if [[ "${BREADTH90_PUSH:-0}" == "1" && -n "${VERTEX_ORIGIN:-}" && -r "$KEYF" ]]; then
