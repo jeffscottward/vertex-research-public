@@ -2329,6 +2329,58 @@ describe("Graphify configured source corpus", () => {
     ).toBe(true);
   });
 
+  it("excludes leftover Vite build test temp directories by single-segment glob", async () => {
+    const config = parseGraphConfig(
+      await readFile(".graphify/config.json", "utf8")
+    );
+    // One path for each mkdtemp prefix of the Vite build tests (.gitignore
+    // ignores the same directories, but the scan does not read .gitignore).
+    for (const leftover of [
+      "packages/ai/.groq-browser-bundle-Ab12Cd/entry.mjs",
+      "packages/analytics/.posthog-browser-bundle-Ab12Cd/entry.mjs",
+      "packages/api/.server-browser-bundle-3WDUN6/entry.mjs",
+      "packages/db/.server-worker-bundle-Ab12Cd/entry.mjs",
+      "packages/email/.server-production-bundle-Ab12Cd/dist/entry.js",
+      "packages/jobs/.inline-browser-bundle-Ab12Cd/entry.mjs",
+      "packages/observability/.vite-browser-boundary-CJrPue/entry.ts",
+      ".server-browser-bundle-Ab12Cd/entry.mjs",
+    ]) {
+      expect(
+        isGraphSourceExcluded(leftover, config.source.excludes),
+        leftover
+      ).toBe(true);
+    }
+    for (const authored of [
+      "packages/api/src/server-bundle.test.ts",
+      "packages/ai/src/server/groq-bundle.test.ts",
+      "packages/observability/src/server/boundary.test.ts",
+      "packages/api/server-browser-bundle-x/entry.mjs",
+      "packages/api/.authored/source.ts",
+    ]) {
+      expect(
+        isGraphSourceExcluded(authored, config.source.excludes),
+        authored
+      ).toBe(false);
+    }
+
+    const temp = [".*-bundle-*", ".vite-browser-boundary-*"];
+    // A glob matches inside one path segment only.
+    expect(isGraphSourceExcluded(".x/y-bundle-z/a.ts", temp)).toBe(false);
+    expect(isGraphSourceExcluded("src/bundle.ts", temp)).toBe(false);
+    // Every other character of a glob is literal.
+    expect(isGraphSourceExcluded("a.b+c/x.ts", ["a.b+*"])).toBe(true);
+    expect(isGraphSourceExcluded("axb+c/x.ts", ["a.b+*"])).toBe(false);
+    // Existing exclude forms keep their meaning beside a glob.
+    const mixed = ["coverage/**", "node_modules", ...temp];
+    expect(isGraphSourceExcluded("coverage/x.json", mixed)).toBe(true);
+    expect(isGraphSourceExcluded("scripts/coverage/coverage.ts", mixed)).toBe(
+      false
+    );
+    return expect(
+      isGraphSourceExcluded("packages/api/node_modules/p/index.js", mixed)
+    ).toBe(true);
+  });
+
   return it("keeps authored dotfiles but excludes generated framework and recovery output", async () => {
     const root = await mkdtemp(join(tmpdir(), "darkfactory-system-corpus-"));
     const generated = join(root, ".next", "types", "routes.d.ts");
