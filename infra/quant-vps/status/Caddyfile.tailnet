@@ -33,6 +33,16 @@ https://__TS_HOST__:8443 {
       }
     }
   }
+  # Deploy status v1 (vertex-status, published on 127.0.0.1:8790 only): the rig and this VPS's own
+  # tailnet addresses. Replaces the retired public https://vertex.xyz/vertex-status/v1 (2026-11-05).
+  # vertex-status checks the bearer token.
+  @status_v1_caller {
+    remote_ip __RIG_IP__ __TS_IP__
+    path /vertex-status/v1
+  }
+  handle @status_v1_caller {
+    reverse_proxy 127.0.0.1:8790
+  }
   @not_rig not remote_ip __RIG_IP__
   handle @not_rig {
     respond "forbidden" 403

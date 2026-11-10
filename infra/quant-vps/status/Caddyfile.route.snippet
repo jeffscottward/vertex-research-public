@@ -1,26 +1,8 @@
-# Main Caddy (/opt/vertex-exec-node/deploy/Caddyfile, container ibkr-nautilus-exec-node-caddy-1), vertex.xyz block.
-# Deployed form (unchanged since 2026-09-30; token check lives in the vertex-status container):
-vertex.xyz {
-  encode zstd gzip
-  handle /vertex-status/v1 {
-    reverse_proxy vertex-status:8080
-  }
-  handle {
-    reverse_proxy portfolio-ui:4177
-  }
-}
-
-# NOT APPLIED. Allow-list form, for when Vertex has a stable, exclusive source address
-# (host notes are kept private). The bearer-token check in vertex-status stays in force;
-# this only adds a source filter in front of it.
+# RETIRED 2026-11-05 (owner decision: "No use of vertex.XYZ at all", card sec20-vertex-xyz-exposure).
+# The main Caddy (/opt/vertex-exec-node/deploy/Caddyfile, container ibkr-nautilus-exec-node-caddy-1)
+# serves no public site. The former vertex.xyz block (v1 status + portfolio-ui) is removed.
 #
-#   handle /vertex-status/v1 {
-#     @denied not remote_ip <STABLE_CIDR_1> <STABLE_CIDR_2>
-#     respond @denied "forbidden" 403
-#     reverse_proxy vertex-status:8080
-#   }
-#
-# Apply: back up the Caddyfile to /opt/vertex-status/rollback-<UTC>/Caddyfile.before, edit in place
-# (keep the inode; it is a bind mount), then run
-#   docker exec ibkr-nautilus-exec-node-caddy-1 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-#   docker exec ibkr-nautilus-exec-node-caddy-1 caddy reload   --config /etc/caddy/Caddyfile --adapter caddyfile
+# Deploy status v1 now:
+#   https://quant-vps-host.example-tailnet.ts.net:8443/vertex-status/v1   (Caddyfile.tailnet, @status_v1_caller)
+#   -> vertex-status container, published on 127.0.0.1:8790 only, bearer token required.
+# Do not add a public route back.
