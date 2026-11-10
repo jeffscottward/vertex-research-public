@@ -199,7 +199,7 @@ describe("bun run init", () => {
     }
   }, 180_000);
 
-  it("turns a plain clone into one fresh, operator-free commit that passes check and tests", async () => {
+  it("turns a shallow clone into one fresh, operator-free commit that passes check and tests", async () => {
     const directory = await mkdtemp(join(tmpdir(), "init-fresh-"));
     const clone = join(directory, "project");
     stubGitIdentity();
@@ -230,7 +230,11 @@ describe("bun run init", () => {
       }
     };
     try {
-      cloneRepository(clone);
+      // Vertex's history starts at its own snapshot root, not the template's
+      // (TEMPLATE_ROOT_COMMIT), so --fresh-history accepts only a shallow
+      // checkout. CI's checkout already is one; a full local checkout is not,
+      // so clone one commit (--depth needs file://; --local ignores it).
+      cloneRepository(clone, pathToFileURL(repositoryRoot).href, ["--depth=1"]);
       const git = (...arguments_: string[]): string =>
         gitIn(clone, ...arguments_);
       const head = git("rev-parse", "HEAD").trim();
