@@ -5,9 +5,16 @@
 // library. Read-only research display.
 // Used by: components/portal/order-flow-panel.tsx.
 import type {
+  ExhaustionRun,
   MarketBarsOutput,
   MarketDepthOutput,
   MarketTicksOutput,
+} from "@darkfactory/api";
+import {
+  describeSigning,
+  SIGNING_METHOD_LABELS,
+  type SigningCounts,
+  type TradeSide,
 } from "@darkfactory/api";
 import {
   Table,
@@ -18,7 +25,6 @@ import {
   TableRow,
 } from "@darkfactory/ui";
 import { useId, useState } from "react";
-
 import type { DeltaSeries } from "../../features/order-flow/delta.ts";
 import {
   buildDepthLadder,
@@ -38,12 +44,6 @@ import {
   timeZoneLabel,
 } from "../../features/order-flow/time-and-sales.ts";
 import type { TpoProfile, TpoSession } from "../../features/order-flow/tpo.ts";
-import {
-  describeSigning,
-  SIGNING_METHOD_LABELS,
-  type SigningCounts,
-  type TradeSide,
-} from "@darkfactory/api";
 
 const DASH = "—";
 const headCell = "py-1 pr-3 font-normal text-muted-foreground";
@@ -575,9 +575,11 @@ const CHART_HEIGHT = 120;
 const BAR_WIDTH = 24;
 
 export const DeltaChart = ({
+  exhaustion = [],
   series,
   timeZone,
 }: {
+  readonly exhaustion?: readonly ExhaustionRun[];
   readonly series: DeltaSeries;
   readonly timeZone: string;
 }) => {
@@ -634,6 +636,20 @@ export const DeltaChart = ({
               );
             })}
           </svg>
+          {exhaustion.length > 0 ? (
+            <ul className="text-muted-foreground text-xs" data-exhaustion="">
+              {exhaustion.map((run) => (
+                <li key={`${run.direction}-${run.start}`}>
+                  Exhaustion {run.direction}: {run.buckets} buckets{" "}
+                  {formatClock(run.start, timeZone)}–
+                  {formatClock(run.end, timeZone)}, volume{" "}
+                  {formatSize(run.firstVolume)} → {formatSize(run.lastVolume)},
+                  delta {formatSigned(run.firstDelta)} →{" "}
+                  {formatSigned(run.lastDelta)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <p className="text-muted-foreground text-xs">
             Cumulative volume delta (from 0 at the first fetched print)
           </p>
