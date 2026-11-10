@@ -64,6 +64,9 @@ import { fetchBoundedJson } from "./research-lenses.ts";
 // one fixed-text ntfy push per owner with a fire (the price alert destination). The browser shows
 // events from priceAlerts.signals.events as in-app and OS notifications. No order path.
 
+// A forming IBKR bar counts only from a service copy at most this old (as price alerts' quote limit).
+const FORMING_BAR_MAX_AGE_MS = 60_000;
+
 const api = implement(appContract).$context<ApiContext>();
 
 const YAHOO_USER_AGENT =
@@ -172,9 +175,12 @@ const signalBarOf = (
     ? newYorkTime(historyDate(bar.t), minutes.end).getTime()
     : start.getTime() + SIGNAL_ALERT_TIMEFRAME_MS[timeframe];
   // The service answers from its cache: a bar that has closed by now but was still forming when the
-  // copy was fetched holds a partial close, so it is dropped. A bar still forming now is kept: the
-  // evaluator treats it as forming (once and per-bar rules may fire on it).
-  if (end > historyFetchedAt(history).getTime() && end <= now.getTime())
+  // copy was fetched holds a partial close, so it is dropped. A bar still forming now is kept only from a
+  // copy at most FORMING_BAR_MAX_AGE_MS old (once and per-bar rules may fire on it); an older copy's
+  // forming bar is dropped, so no rule fires on a partial close up to one cache lifetime old.
+  const fetchedAt = historyFetchedAt(history).getTime();
+  if (end > fetchedAt && end <= now.getTime()) return null;
+  if (end > now.getTime() && now.getTime() - fetchedAt > FORMING_BAR_MAX_AGE_MS)
     return null;
   return { close: bar.c, high: bar.h, low: bar.l, open: bar.o, start };
 };

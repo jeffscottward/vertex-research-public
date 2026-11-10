@@ -1022,4 +1022,27 @@ describe("signal alert series from IBKR history", () => {
       result.events.map((event) => new Date(event.barAt).getTime())
     ).toContain(START + 75 * MINUTE);
   });
+
+  it("does not fire on a forming IBKR bar from a copy older than a minute", async () => {
+    // Fetched 15:47, checked 15:50: the 15:45 bar's close is three minutes old, so it is dropped.
+    const history = withHistory(
+      (url) =>
+        url.includes("endDateTime")
+          ? historyResponse(url, [])
+          : historyResponse(url, quarterHours(CLOSES), {
+              fetchedAt: "2026-11-02T15:47:00Z",
+            }),
+      yahoo
+    );
+    use(history.fetch);
+    const { repository } = memoryRules([record({ frequency: "per-bar" })]);
+    const result = await clientFor({
+      marketHistory: HISTORY_CONFIG,
+      ntfy: NTFY,
+      rules: repository,
+    }).priceAlerts.signals.check({});
+    expect(
+      result.events.map((event) => new Date(event.barAt).getTime())
+    ).not.toContain(START + 75 * MINUTE);
+  });
 });

@@ -271,7 +271,12 @@ const fetchCloses = async (
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         now: clock,
         ...(scheduled
-          ? { maxPacedWaitMs: 30_000, pacedRetries: 1 }
+          ? {
+              maxPacedWaitMs: COLLECT_MAX_PACED_WAIT_MS,
+              pacedRetries: 1,
+              timeoutMs: COLLECT_REQUEST_TIMEOUT_MS,
+              unavailableRetries: 0,
+            }
           : { timeoutMs: LIVE_HISTORY_TIMEOUT_MS }),
       },
       fillBefore: historyDate(
@@ -324,13 +329,21 @@ const fetchAllBars = async (
   return out;
 };
 
-/** collect waits for IBKR at most this long in total (the scheduler unit stops the run at 300 s). */
-const COLLECT_IBKR_BUDGET_MS = 150_000;
+// collect and IBKR pacing (the service allows 6 requests per 120 s, >= 10 s apart): 12 cold symbols take
+// about 175-190 s, because the 7th waits for the first request's 120 s window (a 429 with retry_after of
+// about 66 s). Each symbol: one request (20 s timeout), at most one paced wait (70 s), one retry (20 s).
+// A symbol starts only when its worst case still ends inside the IBKR budget; the scheduler unit allows
+// 600 s (TimeoutStartSec), which leaves room for the Yahoo fallback, storage and notifications.
+const COLLECT_REQUEST_TIMEOUT_MS = 20_000;
+const COLLECT_MAX_PACED_WAIT_MS = 70_000;
+const COLLECT_SYMBOL_WORST_MS =
+  2 * COLLECT_REQUEST_TIMEOUT_MS + COLLECT_MAX_PACED_WAIT_MS;
+const COLLECT_IBKR_BUDGET_MS = 400_000;
 
 /**
  * The closes of one collect run from one source: IBKR for every symbol (one at a time, waiting for the
- * service pacing: one paced retry of at most 30 s per symbol), or Yahoo for every symbol when IBKR is
- * not configured, any symbol fails or IBKR has not served all symbols within COLLECT_IBKR_BUDGET_MS,
+ * service pacing, see COLLECT_SYMBOL_WORST_MS), or Yahoo for every symbol when IBKR is not configured,
+ * any symbol fails or the next symbol's worst case would end past COLLECT_IBKR_BUDGET_MS,
  * so stored points never mix sources within a run.
  */
 const collectCloses = async (
@@ -343,7 +356,8 @@ const collectCloses = async (
   const out = new Map<string, BarsResult>();
   for (const symbol of symbols) {
     const read =
-      clock().getTime() - started > COLLECT_IBKR_BUDGET_MS
+      clock().getTime() - started + COLLECT_SYMBOL_WORST_MS >
+      COLLECT_IBKR_BUDGET_MS
         ? null
         : await fetchCloses(symbol, COLLECT_RANGE, config, true);
     if (read?.ibkr !== true) return fetchAllBars(symbols, COLLECT_RANGE, null);

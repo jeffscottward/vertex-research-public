@@ -1168,7 +1168,8 @@ describe("sector rotation closes from IBKR history", () => {
       "XLK",
     ]);
     expect(yahoo).toHaveBeenCalledTimes(12);
-    // IBKR serves each symbol but the run passes its 150 s budget after the third: Yahoo for all.
+    // IBKR serves each symbol in 60 s: after the fifth (300 s) the next symbol's 110 s worst case would end
+    // past the 400 s budget, so the run reads Yahoo for all.
     yahoo.mockClear();
     let clock = NOW.getTime();
     const slow = withHistory((url) => {
@@ -1181,7 +1182,7 @@ describe("sector rotation closes from IBKR history", () => {
       now: () => new Date(clock),
     });
     expect((await collect()).asOf).toBe(LAST_DATE);
-    expect(slow.urls).toHaveLength(3);
+    expect(slow.urls).toHaveLength(5);
     expect(yahoo).toHaveBeenCalledTimes(12);
   });
 
