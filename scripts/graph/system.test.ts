@@ -2329,6 +2329,138 @@ describe("Graphify configured source corpus", () => {
     ).toBe(true);
   });
 
+  it("excludes leftover Vite build test temp directories by single-segment glob", async () => {
+    const config = parseGraphConfig(
+      await readFile(".graphify/config.json", "utf8")
+    );
+    // One path for each mkdtemp prefix of the Vite build tests (.gitignore
+    // ignores the same directories, but the scan does not read .gitignore).
+    for (const leftover of [
+      "packages/ai/.groq-browser-bundle-Ab12Cd/entry.mjs",
+      "packages/analytics/.posthog-browser-bundle-Ab12Cd/entry.mjs",
+      "packages/api/.server-browser-bundle-3WDUN6/entry.mjs",
+      "packages/db/.server-worker-bundle-Ab12Cd/entry.mjs",
+      "packages/email/.server-production-bundle-Ab12Cd/dist/entry.js",
+      "packages/jobs/.inline-browser-bundle-Ab12Cd/entry.mjs",
+      "packages/observability/.vite-browser-boundary-CJrPue/entry.ts",
+      ".server-browser-bundle-Ab12Cd/entry.mjs",
+    ]) {
+      expect(
+        isGraphSourceExcluded(leftover, config.source.excludes),
+        leftover
+      ).toBe(true);
+    }
+    for (const authored of [
+      "packages/api/src/server-bundle.test.ts",
+      "packages/ai/src/server/groq-bundle.test.ts",
+      "packages/observability/src/server/boundary.test.ts",
+      "packages/api/server-browser-bundle-x/entry.mjs",
+      "packages/api/.authored/source.ts",
+    ]) {
+      expect(
+        isGraphSourceExcluded(authored, config.source.excludes),
+        authored
+      ).toBe(false);
+    }
+
+    const temp = [".*-bundle-*", ".vite-browser-boundary-*"];
+    // A glob matches inside one path segment only.
+    expect(isGraphSourceExcluded(".x/y-bundle-z/a.ts", temp)).toBe(false);
+    expect(isGraphSourceExcluded("src/bundle.ts", temp)).toBe(false);
+    // Existing exclude forms keep their meaning beside a glob.
+    const mixed = [
+      "coverage/**",
+      "node_modules",
+      "packages/api/openapi.json",
+      ...temp,
+    ];
+    expect(isGraphSourceExcluded("coverage/x.json", mixed)).toBe(true);
+    expect(isGraphSourceExcluded("scripts/coverage/coverage.ts", mixed)).toBe(
+      false
+    );
+    expect(isGraphSourceExcluded("packages/api/openapi.json", mixed)).toBe(
+      true
+    );
+    expect(isGraphSourceExcluded("x/packages/api/openapi.json", mixed)).toBe(
+      false
+    );
+    return expect(
+      isGraphSourceExcluded("packages/api/node_modules/p/index.js", mixed)
+    ).toBe(true);
+  });
+
+  it("matches a glob against one whole path segment with only * special", () => {
+    for (const [glob, segment, expected] of [
+      ["a*b*c", "abc", true],
+      ["a*b*c", "aXbYc", true],
+      ["a*b*c", "ab", false],
+      ["a*b*c", "ac", false],
+      ["a*b*c", "acb", false],
+      ["a*b*c", "xabc", false],
+      ["a*b*c", "abcx", false],
+      // Each literal between two "*" is found after the one before it.
+      ["*a*a*", "a", false],
+      ["*a*a*", "aa", true],
+      ["a*b*c*d", "acbd", false],
+      ["a*b*c*d", "abcd", true],
+      ["*ab*ba*", "aba", false],
+      ["*ab*ba*", "abba", true],
+      // The first and the last literal must not overlap.
+      ["ab*ba", "aba", false],
+      ["ab*ba", "abba", true],
+      ["a*a*a", "aa", false],
+      ["a*a*a", "aaa", true],
+      ["*ab*ab", "ab", false],
+      ["*ab*ab", "abab", true],
+      ["*-bundle-*", "-bundle-", true],
+      [".*", ".env", true],
+      [".*", "env", false],
+      ["**", "anything", true],
+      // Every other character is literal.
+      ["a.b+*", "a.b+c", true],
+      ["a.b+*", "axb+c", false],
+      ["a(b)[c]{d}|e^f$g*", "a(b)[c]{d}|e^f$gX", true],
+      ["a|b*", "ab", false],
+      ["a?c*", "abc", false],
+      // Case matters, as for a plain name.
+      [".*-bundle-*", ".A-BUNDLE-b", false],
+    ] as const) {
+      expect(
+        isGraphSourceExcluded(segment, [glob]),
+        `${glob} against ${segment}`
+      ).toBe(expected);
+    }
+    // Several "*" against a long segment. A matcher that backtracks needs
+    // seconds for this input; one forward search for each literal needs less
+    // than a millisecond.
+    const manyStars = `${"*a".repeat(4)}*b`;
+    const started = performance.now();
+    expect(isGraphSourceExcluded("a".repeat(255), [manyStars])).toBe(false);
+    expect(isGraphSourceExcluded(`${"a".repeat(255)}b`, [manyStars])).toBe(
+      true
+    );
+    return expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it("excludes every dot-prefixed temp directory glob that .gitignore ignores", async () => {
+    // The scan does not read .gitignore. A test temp directory that is ignored
+    // there must also be a source exclude, or a leftover becomes a graph source.
+    const config = parseGraphConfig(
+      await readFile(".graphify/config.json", "utf8")
+    );
+    const ignoredTempDirectories = (await readFile(".gitignore", "utf8"))
+      .split("\n")
+      .filter((rule) => /^\.[^/]*\*[^/]*\/$/.test(rule))
+      .map((rule) => rule.slice(0, -1));
+
+    expect(ignoredTempDirectories).toEqual(
+      expect.arrayContaining([".*-bundle-*", ".vite-browser-boundary-*"])
+    );
+    return expect(config.source.excludes).toEqual(
+      expect.arrayContaining(ignoredTempDirectories)
+    );
+  });
+
   return it("keeps authored dotfiles but excludes generated framework and recovery output", async () => {
     const root = await mkdtemp(join(tmpdir(), "darkfactory-system-corpus-"));
     const generated = join(root, ".next", "types", "routes.d.ts");
