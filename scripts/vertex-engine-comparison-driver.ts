@@ -8,9 +8,7 @@ process.exitCode = await runEngineComparisonDriver({
   env: process.env,
   now: () => Date.now(),
   post: (url, init) => globalThis.fetch(url, init),
-  sleep: async (ms) => {
-    await delay(ms);
-  },
+  sleep: (ms) => delay(ms),
   stderr: process.stderr,
   stdout: process.stdout,
 });
