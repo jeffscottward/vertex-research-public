@@ -40,8 +40,9 @@ Model:
   on the settlement bar (no early assignment, no exercise into shares).
 - Expiry: a contract's `expiration_ns` is its modelled expiry, or 5 ns after the bar on which the
   rules settle it when that is later (the first bar at or after the expiry). So Nautilus's own
-  expiry processing never finds an open position. Nautilus timestamps end in the year 2262: a
-  later expiry (a dte of tens of thousands of days) is an input error here.
+  expiry processing never finds an open position. Nautilus timestamps run from 1970 to the year
+  2262: a later expiry (a dte of tens of thousands of days) and bars before 1970 are input errors
+  here.
 - Known differences: prices, fees and cash flows have 9 decimals. That stays far inside the parity
   tolerances (docs/vertex-rebuild/nautilus-backtest-engine.md). The trade records carry the
   Nautilus fill prices and the modelled fees.
@@ -135,8 +136,8 @@ def _plan(data: AcademyInput) -> tuple[Simulation, dict]:
 
 
 def _openings(simulation: Simulation) -> list[tuple]:
-    """Bar and contract of every leg a pass opened, in order (not the units)."""
-    return [(leg.open_index, leg.role, leg.side, _contract_key(leg)) for leg in simulation.opened]
+    """Opening bar, closing bar and contract of every leg of a pass, in order (not the units)."""
+    return [(leg.open_index, leg.close_index, leg.role, leg.side, _contract_key(leg)) for leg in simulation.opened]
 
 
 def run_academy(data: AcademyInput) -> dict:
@@ -148,11 +149,15 @@ def run_academy(data: AcademyInput) -> dict:
     # would then drift from the TypeScript ledger by half a cent on every fill.
     usd = nt["Currency"](LEDGER_CURRENCY, PRECISION, 0, "US dollar (9 decimals, research ledger)",
                          nt["CurrencyType"].FIAT)
+    # Nautilus keeps currencies by code for the whole process: make this definition the one it holds.
+    nt["Currency"].register(usd, overwrite=True)
     buy, sell = nt["OrderSide"].BUY, nt["OrderSide"].SELL
     times = data.t
     stamps = [int(round(time)) * NS_PER_MS for time in times]
     if any(later <= earlier for earlier, later in itertools.pairwise(stamps)):
         raise InputError("Bar times must be strictly increasing")
+    if stamps[0] < 0:
+        raise InputError("Bar times before 1970 cannot run on Nautilus")
 
     venue = nt["Venue"](f"ACD{next(_RUN_COUNTER)}")
     tick = price_of(10 ** -PRECISION, PRECISION)
@@ -311,7 +316,7 @@ def run_academy(data: AcademyInput) -> dict:
     if _openings(simulation) != _openings(plan):
         # The quotes were built for the plan's openings: another bar or contract fills at a quote
         # that is missing or not the entry quote.
-        raise RuntimeError("the Nautilus run left the modelled plan: a leg opened on another bar or contract")
+        raise RuntimeError("the Nautilus run left the modelled plan: a leg opened or closed on another bar or contract")
     if open_positions or simulation.book is not None:
         raise RuntimeError("nautilus academy backtest ended with an open position")
     if strategy.filled != len(charges):

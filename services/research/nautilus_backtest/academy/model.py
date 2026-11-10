@@ -28,6 +28,8 @@ _PAYOFF_STEPS = 1600
 _SLOPE_EPS = 1e-6
 _JS_POSITIONAL_FROM = 1e-6
 _JS_EXPONENT_FROM = 1e21
+# From 2**53 up a float is a whole number whose shortest digits are not its exact value.
+_JS_SAFE_INTEGER = 2.0 ** 53
 
 
 def js_number(value: float) -> str:
@@ -35,7 +37,7 @@ def js_number(value: float) -> str:
     number = float(value)
     if number == 0:
         return "0"
-    if number.is_integer() and abs(number) < _JS_EXPONENT_FROM:
+    if number.is_integer() and abs(number) < _JS_SAFE_INTEGER:
         return str(int(number))
     # Both languages print the shortest digits that round-trip; only the notation differs:
     # JavaScript is positional from 1e-6 up to 1e21, Python's repr from 1e-4 up to 1e16.

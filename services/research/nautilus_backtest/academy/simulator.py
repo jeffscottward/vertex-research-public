@@ -39,6 +39,7 @@ DAY_MS = 86_400_000
 RATE = 0.04
 WARMUP = 20
 STOCK_LOT = 100
+JS_MAX_TIME_MS = 8_640_000_000_000_000
 _ROLES = ("cycle", "core")
 
 
@@ -46,8 +47,12 @@ def iso_date(ms: float) -> str:
     """The UTC date of a time in ms, as `new Date(ms).toISOString().slice(0, 10)`: YYYY-MM-DD, and
     for a year outside 0..9999 the first 10 characters of JavaScript's signed six-digit year form
     ("+010233-10"; a rule with a huge dte gives such a label)."""
+    # JavaScript truncates a fractional time toward zero and has no date beyond 8.64e15 ms.
+    ms = math.trunc(ms)
+    if abs(ms) > JS_MAX_TIME_MS:
+        raise InputError("Invalid time value")
     # Days to a civil date (proleptic Gregorian), for any year: datetime stops at year 9999.
-    shifted = math.floor(ms / DAY_MS) + 719_468
+    shifted = ms // DAY_MS + 719_468
     era = shifted // 146_097
     day_of_era = shifted - era * 146_097
     year_of_era = (day_of_era - day_of_era // 1460 + day_of_era // 36_524 - day_of_era // 146_096) // 365

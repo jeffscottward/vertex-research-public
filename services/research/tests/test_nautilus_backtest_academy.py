@@ -149,6 +149,10 @@ def test_javascript_number_text_and_normal_distribution():
     assert [js_number(value) for value in (0.00001, 0.000001, 1e-7, 1.5e-7, 1e20, 1e21, 1.25e22, -0.5, 0, 123456789.125)] == [
         "0.00001", "0.000001", "1e-7", "1.5e-7", "100000000000000000000", "1e+21", "1.25e+22", "-0.5", "0",
         "123456789.125"]
+    # Whole numbers from 2**53 up: JavaScript prints the shortest digits, not the exact value.
+    assert js_number(25732502797880530.0) == "25732502797880530"
+    assert js_number(9007199254740991.0) == "9007199254740991"
+    assert js_number(-0.0) == "0"
     assert norm_cdf(0) == 0.5
     assert math.isclose(norm_cdf(1.96), 0.9750021048517795, rel_tol=1e-12)
     assert math.isclose(norm_cdf(-8) + norm_cdf(8), 1.0, rel_tol=1e-12)
@@ -264,6 +268,30 @@ def test_nautilus_run_is_deterministic():
 
 
 @needs_nautilus
+def test_nautilus_run_refuses_bars_before_1970():
+    request = _request(RUNS[0])
+    times = [time - 2_000_000_000_000 for time in request["bars"]["t"]]
+    data = AcademyInput.from_json({**request, "bars": {**request["bars"], "t": times}})
+    assert run_model(data)["trades"]
+    with pytest.raises(InputError, match="^Bar times before 1970 cannot run on Nautilus$"):
+        academy_engine.run_academy(data)
+
+
+@needs_nautilus
+def test_nautilus_ledger_keeps_nine_decimals_when_the_currency_code_was_registered_before():
+    from nautilus_trader.model.enums import CurrencyType
+    from nautilus_trader.model.objects import Currency
+
+    # What Nautilus registers when the unknown code is looked up first: a crypto currency, 8 decimals.
+    Currency.register(Currency(academy_engine.LEDGER_CURRENCY, 8, 0, "USDX", CurrencyType.CRYPTO), overwrite=True)
+    assert Currency.from_str(academy_engine.LEDGER_CURRENCY).precision == 8
+    case = next(item for item in RUNS if item["id"] == "long_put:low:small-capital")
+    got = academy_engine.run_academy(_input(case))
+    assert max(_rel(a, b) for a, b in zip(got["equity"], case["result"]["equity"], strict=True)) <= 1e-8
+    assert Currency.from_str(academy_engine.LEDGER_CURRENCY).precision == 9
+
+
+@needs_nautilus
 def test_nautilus_run_refuses_bar_times_that_do_not_increase():
     request = _request(RUNS[0])
     times = list(request["bars"]["t"])
@@ -352,6 +380,12 @@ def test_iso_date_is_the_javascript_date_text():
     assert iso_date(260_000_000_000_000) == "+010209-01"
     assert iso_date(-62_200_000_000_000) == "-000002-12"
     assert iso_date(253_402_300_799_999) == "9999-12-31"
+    # A fractional time truncates toward zero; beyond 8.64e15 ms JavaScript has no date.
+    assert iso_date(-0.5) == "1970-01-01"
+    assert iso_date(86_399_999.9) == "1970-01-01"
+    assert iso_date(-62_167_219_200_000.5) == "0000-01-01"
+    with pytest.raises(InputError, match="^Invalid time value$"):
+        iso_date(8_640_000_000_000_001)
 
 
 def test_a_huge_days_to_expiry_runs_in_the_port_and_is_an_input_error_on_nautilus():
