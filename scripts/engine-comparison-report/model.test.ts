@@ -47,13 +47,11 @@ describe("findOutages", () => {
       },
       ...Array.from({ length: 305 }, (_, index) => ({
         at: at("2026-11-07T21:08:54Z") + index * 3 * MINUTE,
-        message:
-          "nautilus worker: getaddrinfo ENOTFOUND quantvps-vertex.tail.ts.net",
+        message: "nautilus worker: getaddrinfo ENOTFOUND api.example.test",
       })),
       {
         at: at("2026-11-08T12:23:45Z"),
-        message:
-          "nautilus worker: getaddrinfo ENOTFOUND quantvps-vertex.tail.ts.net",
+        message: "nautilus worker: getaddrinfo ENOTFOUND api.example.test",
       },
       { at: at("2026-11-08T12:23:46Z"), message: "alert posted to omp-alerts" },
       {
