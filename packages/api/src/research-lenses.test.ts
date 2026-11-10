@@ -35,6 +35,12 @@ import {
   setResearchLensOptionsForTesting,
 } from "./server/research-lenses.ts";
 
+// Host match on the parsed URL (CodeQL js/incomplete-url-substring-sanitization).
+const onHost = (url: string, host: string): boolean => {
+  const { hostname } = new URL(url);
+  return hostname === host || hostname.endsWith(`.${host}`);
+};
+
 // Synthetic lens documents and market data only.
 
 const at = new Date("2026-10-21T20:30:00.000Z");
@@ -818,7 +824,7 @@ describe("deep value prices from IBKR history", () => {
     (url) =>
       answer(url);
   const yahooCalls = (calls: readonly { url: string }[]) =>
-    calls.filter((call) => call.url.includes("finance.yahoo.com"));
+    calls.filter((call) => onHost(call.url, "finance.yahoo.com"));
 
   afterEach(() => {
     resetIbkrPacing();

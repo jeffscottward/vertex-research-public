@@ -34,6 +34,12 @@ import {
 } from "./server/market-news.ts";
 import { clearResearchLensCacheForTesting } from "./server/research-lenses.ts";
 
+// Host match on the parsed URL (CodeQL js/incomplete-url-substring-sanitization).
+const onHost = (url: string, host: string): boolean => {
+  const { hostname } = new URL(url);
+  return hostname === host || hostname.endsWith(`.${host}`);
+};
+
 // Upstream fixtures: day-trader-skill tests/fixtures/trader-news (MIT, see fixtures/day-trader-skill/NOTICE.md).
 const fixtureBytes = (name: string): Uint8Array<ArrayBuffer> =>
   new Uint8Array(
@@ -322,7 +328,7 @@ describe("ticker feeds", () => {
     const options = { fetch, now: () => NOW };
     const failing = () => Promise.reject(new Error("SEC list down"));
     const yahooCalls = () =>
-      calls.filter((url) => url.includes("feeds.finance.yahoo.com")).length;
+      calls.filter((url) => onHost(url, "feeds.finance.yahoo.com")).length;
     const first = await loadTickerFeeds("KO", options, failing);
     expect(first.headlines).toHaveLength(4);
     expect(first.errors).toEqual(["filings: SEC list down"]);
@@ -567,7 +573,7 @@ describe("merged headline sources", () => {
     expect(news.tickers[0]?.headlines).toEqual([]);
     expect(news.tickers[0]?.errors).toEqual([]);
     expect(news.tickers[0]?.filings.length).toBeGreaterThan(0);
-    return expect(calls.filter((url) => !url.includes("sec.gov"))).toEqual([]);
+    return expect(calls.filter((url) => !onHost(url, "sec.gov"))).toEqual([]);
   });
 
   it("caches IBKR headlines per symbol, but not while the SEC ticker list is down", async () => {
@@ -703,7 +709,7 @@ describe("merged headline sources", () => {
     });
     // Yahoo answers only once the 8-K feed has been requested: a sequential read would hang.
     const fetch: Fetch = async (url, init) => {
-      if (url.includes("feeds.finance.yahoo.com")) await yahooGate;
+      if (onHost(url, "feeds.finance.yahoo.com")) await yahooGate;
       if (url.includes("browse-edgar")) releaseYahoo();
       return base(url, init);
     };
@@ -831,7 +837,7 @@ describe("merged headline sources", () => {
     });
     const options = { fetch, now: () => now };
     const yahooCalls = () =>
-      calls.filter((url) => url.includes("feeds.finance.yahoo.com")).length;
+      calls.filter((url) => onHost(url, "feeds.finance.yahoo.com")).length;
     const all = async () => {
       for (const symbol of ["KO", "AAPL", "TSLA"])
         await loadTickerFeeds(symbol, options);
@@ -1070,6 +1076,6 @@ describe("marketNews.watchlist procedure", () => {
       include: "filings",
     });
     expect(filings.tickers[0]?.headlines).toEqual([]);
-    return expect(calls.every((url) => url.includes("sec.gov"))).toBe(true);
+    return expect(calls.every((url) => onHost(url, "sec.gov"))).toBe(true);
   });
 });
