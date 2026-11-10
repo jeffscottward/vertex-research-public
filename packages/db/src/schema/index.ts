@@ -2266,6 +2266,14 @@ export interface BacktestRunSpec {
         kind: "dsl";
         /** Strategy definition (version 1), validated by the API contract. */
         definition: Record<string, unknown>;
+      }
+    | {
+        /** Academy comparison runs only: a modelled options structure on the daily closes. */
+        kind: "academy";
+        structure: string;
+        rules: Record<string, number>;
+        /** One implied volatility (or null) per bar from `from` to `to`; absent: modelled. */
+        iv?: (number | null)[];
       };
   stopLossPct: number;
   takeProfitPct: number;

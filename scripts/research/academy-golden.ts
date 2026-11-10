@@ -11,6 +11,7 @@ import { gaussian, mulberry32 } from "../../packages/academy/src/math.ts";
 import type { StructureId } from "../../packages/academy/src/schema.ts";
 import { STRUCTURE_DEFS } from "../../packages/academy/src/structures.ts";
 import { academyEngineResult } from "../../packages/api/src/academy-engine-result.ts";
+import type { InstantRunResult } from "../../packages/api/src/instant-backtest-engine.ts";
 
 export const ACADEMY_GOLDEN_FIXTURE =
   "services/research/tests/fixtures/nautilus_backtest/academy-golden.json";
@@ -18,7 +19,6 @@ export const ACADEMY_GOLDEN_FIXTURE =
 const DAY_MS = 86_400_000;
 const TRADING_DAYS = 252;
 const FRIDAY = 5;
-const SATURDAY = 6;
 
 export type GoldenSeries = Readonly<{
   t: number[];
@@ -98,11 +98,8 @@ export const buildSeries = (plan: SeriesPlan): GoldenSeries => {
         ? null
         : round(plan.vol * (1.05 + 0.25 * Math.sin(index / 17)), 4)
     );
-    const weekday = new Date(time).getUTCDay();
-    let step = 1;
-    if (weekday === FRIDAY) step = 3;
-    else if (weekday === SATURDAY) step = 2;
-    time += step * DAY_MS;
+    // The series starts on a Monday: after a Friday comes the next Monday.
+    time += (new Date(time).getUTCDay() === FRIDAY ? 3 : 1) * DAY_MS;
   }
   return plan.iv ? { c, iv, t } : { c, t };
 };
@@ -245,10 +242,11 @@ const engineJson = (
     },
     capital
   );
-  if (mapped === null) return null;
+  // Every fixture case keeps a positive equity (the mapping returns null otherwise).
+  const { stats, trades } = mapped as InstantRunResult;
   return {
-    stats: mapped.stats,
-    trades: mapped.trades.map((trade) => [
+    stats,
+    trades: trades.map((trade) => [
       trade.entryIndex,
       trade.exitIndex,
       trade.exitReason,
@@ -271,7 +269,8 @@ const resultJson = (
     assumptions: result.assumptions,
     engine: engineJson(result, series, capital),
     equity: result.equity.map((point) => point.equity),
-    firstIndex: indexOf.get(result.equity[0]?.t ?? ""),
+    // The engine marks at least 40 bars (60 bars minimum, 20 warm-up).
+    firstIndex: indexOf.get((result.equity[0] as { t: string }).t),
     ivSource: result.ivSource,
     rules: result.rules,
     stats: result.stats,

@@ -277,6 +277,16 @@ describe("helpers", () => {
         })
       )
     ).toBe("TEST 1d Definition RSI reversion 1970-01-01..1971-01-01");
+    expect(
+      describeRun(
+        runOf("d", {
+          spec: {
+            ...runOf("d").spec,
+            rule: { kind: "academy", rules: {}, structure: "pmcc" },
+          },
+        })
+      )
+    ).toBe("TEST 1d Academy pmcc 1970-01-01..1971-01-01");
     expect(equityPath([], 10, 10)).toBe("");
     expect(
       equityPath(

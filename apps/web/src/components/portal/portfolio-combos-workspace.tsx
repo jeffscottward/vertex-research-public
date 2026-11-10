@@ -91,6 +91,7 @@ const ruleLabel = (rule: BacktestRunSummary["spec"]["rule"]): string => {
   if (rule.kind === "smaCross") return `SMA ${rule.fast}/${rule.slow}`;
   if (rule.kind === "breakout")
     return `Breakout ${rule.entryLookback}/${rule.exitLookback}`;
+  if (rule.kind === "academy") return `Academy ${rule.structure}`;
   return `Definition ${rule.definition.name}`;
 };
 

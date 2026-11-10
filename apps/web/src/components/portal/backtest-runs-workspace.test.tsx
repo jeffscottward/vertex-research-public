@@ -851,6 +851,13 @@ describe("BacktestRunsWorkspace", () => {
             },
           },
         }),
+        runOf({
+          id: "run-5",
+          spec: {
+            ...runOf().spec,
+            rule: { kind: "academy", rules: {}, structure: "iron_condor" },
+          },
+        }),
       ]),
     });
     await mount(
@@ -861,6 +868,10 @@ describe("BacktestRunsWorkspace", () => {
       />
     );
     expect(document.body.textContent).toContain("The backtest is queued.");
+    expect(
+      ([...document.querySelectorAll("li button")][3] as HTMLButtonElement)
+        .textContent
+    ).toContain("Academy: iron_condor");
     const listed = [
       ...document.querySelectorAll("li button"),
     ][0] as HTMLButtonElement;

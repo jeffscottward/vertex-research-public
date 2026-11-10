@@ -1,12 +1,19 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { runOptionsBacktest } from "../../packages/academy/src/backtest.ts";
+import type { StructureId } from "../../packages/academy/src/schema.ts";
+import { academyEngineResult } from "../../packages/api/src/academy-engine-result.ts";
 import { COST_PROFILE_PRESETS } from "../../packages/api/src/backtest-costs.ts";
 import { buildBacktestRunReport } from "../../packages/api/src/backtest-run-report.ts";
 import {
   BACKTEST_RUN_NAUTILUS_ENGINE,
   BacktestRunEngineCompleteManyInputSchema,
 } from "../../packages/api/src/contracts/backtest-runs.ts";
+import {
+  compareEngineResults,
+  typescriptSide,
+} from "../../packages/api/src/engine-comparison.ts";
 import {
   barsInPositionOf,
   type InstantRunResult,
@@ -219,6 +226,101 @@ describe.skipIf(python === undefined)(
           exitReason,
         }));
       expect(shape(input.result.trades)).toEqual(shape(typescript.trades));
+    });
+
+    it("runs an Academy rule on Nautilus option instruments; no differences to the TypeScript Academy engine", {
+      timeout: 120_000,
+    }, async () => {
+      const capital = 100_000;
+      // Implied volatility on most bars; a missing value (null) is modelled by both engines.
+      const iv = close.map((_, index) =>
+        index % 25 === 3 ? null : 0.18 + 0.04 * Math.sin(index / 30)
+      );
+      const academySpec = (structure: StructureId, withIv: boolean) => ({
+        costBps: 0,
+        from: "1970-01-01",
+        initialCapital: capital,
+        rule: {
+          ...(withIv ? { iv } : {}),
+          kind: "academy" as const,
+          rules: { riskPct: 8 },
+          structure,
+        },
+        stopLossPct: 0,
+        symbol: "SPY",
+        takeProfitPct: 0,
+        timeframe: "1d" as const,
+        to: "1971-02-04",
+      });
+      const cases = [
+        { id: "run-condor", structure: "iron_condor" as const, withIv: true },
+        { id: "run-pmcc", structure: "pmcc" as const, withIv: false },
+      ];
+      const api = fakeApi([
+        {
+          bars,
+          runs: cases.map(({ id, structure, withIv }) => ({
+            costs: null,
+            end: SIZE,
+            first: 0,
+            id,
+            sectorQuadrants: null,
+            spec: academySpec(structure, withIv),
+          })),
+          seriesSha256: SHA,
+        },
+      ]);
+      expect(await runNautilusWorker(["--once"], ioFor(api.post))).toBe(0);
+      const many = BacktestRunEngineCompleteManyInputSchema.parse(
+        api.posted.find((call) => call.path.endsWith("/completeMany"))?.input
+      );
+      for (const { id, structure, withIv } of cases) {
+        const item = many.items.find((entry) => entry.id === id);
+        if (item === undefined || !("result" in item) || "kind" in item.result)
+          throw new Error(`expected an equity result for ${id}`);
+        const equity = Float64Array.from(item.result.equity);
+        const trades = item.result.trades as InstantRunResult["trades"];
+        expect(equity).toHaveLength(SIZE);
+        // The API recomputes the stats from the equity and trades; the worker result must agree.
+        const stats = summarize(
+          columns,
+          equity,
+          trades,
+          barsInPositionOf(trades)
+        );
+        expect(engineStatsMismatch(item.result.stats, stats)).toBeNull();
+        expect(
+          buildBacktestRunReport(
+            columns,
+            { equity, stats, trades },
+            capital,
+            undefined
+          ).bars
+        ).toBe(SIZE);
+
+        const typescript = academyEngineResult(
+          runOptionsBacktest({
+            bars: {
+              c: bars.c,
+              t: bars.t,
+              ...(withIv ? { iv: iv.map((value) => value ?? Number.NaN) } : {}),
+            },
+            capital,
+            rules: { riskPct: 8 },
+            structure,
+          }),
+          columns,
+          capital
+        );
+        if (typescript === null) throw new Error("expected an engine result");
+        expect(typescript.trades.length).toBeGreaterThan(3);
+        expect(
+          compareEngineResults(
+            typescriptSide(typescript, { wallMs: 1 }, "test"),
+            { stats, trades }
+          )
+        ).toEqual({ items: [], ok: true });
+      }
     });
 
     it("fails a run with the engine input error message", {

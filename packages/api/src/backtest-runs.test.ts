@@ -1,4 +1,9 @@
 import { readFileSync } from "node:fs";
+import {
+  type BacktestResult,
+  runOptionsBacktest as runAcademyBacktest,
+  type StructureId,
+} from "@darkfactory/academy";
 
 import {
   type AgentApiKeyService,
@@ -23,6 +28,7 @@ import type {
 import { ORPCError } from "@orpc/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { academyEngineResult } from "./academy-engine-result.ts";
 import { COST_PROFILE_PRESETS, ZERO_COST_PROFILE } from "./backtest-costs.ts";
 import { sliceColumnsByDate } from "./bar-slice.ts";
 import { canonicalJson, sha256Hex } from "./canonical-json.ts";
@@ -64,7 +70,9 @@ import {
   ENGINE_STATS_TOLERANCE,
 } from "./server/backtest-run-engine.ts";
 import { runParamsForSpec } from "./server/backtest-run-params.ts";
+import { queueAcademyComparison } from "./server/academy.ts";
 import {
+  ACADEMY_RUN_ENGINE_ERROR,
   BACKTEST_RUN_STORAGE_ERROR,
   executeBacktestRun,
   NAUTILUS_UNCLAIMED_ERROR,
@@ -3674,6 +3682,286 @@ describe("engine comparison (dual run)", () => {
       groupId: null,
     });
     expect(broken.summary).toEqual(frozen.summary);
+  });
+
+  const academyInput = {
+    end: "1972-06-30",
+    slug: "itm-debit-call-spread",
+    start: "1970-06-01",
+    ticker: "SPY",
+  };
+
+  it("queues an Academy backtest on Nautilus; the claimed spec repeats the TypeScript run exactly", async () => {
+    const runs = memoryRuns();
+    const off = await clientFor({ bars: fakeBars(), runs }).academy.backtest(
+      academyInput
+    );
+    expect(off).not.toHaveProperty("comparison");
+    expect(runs.rows.size).toBe(0);
+    // A read key gets the answer and queues nothing.
+    const read = await clientFor({
+      apiKeyAccess: "read",
+      bars: fakeBars(),
+      comparison: "on",
+      runs,
+    })
+      .academy.backtest(academyInput)
+      .catch((error: unknown) => error);
+    expect(read).not.toHaveProperty("comparison");
+    expect(runs.rows.size).toBe(0);
+
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    const { comparison: timing, ...answer } =
+      await client.academy.backtest(academyInput);
+    // The backtest itself is the TypeScript answer, unchanged by the comparison.
+    expect(answer).toEqual(off);
+    expect(timing).toMatchObject({ groupId: expect.any(String), host });
+    const [row] = comparisonRuns(runs);
+    // The run read the bars from 30 bars before the start (the handler's warm-up) to the end.
+    expect(row).toMatchObject({
+      engineVersion: engine,
+      requestedBy: "operator",
+      spec: {
+        costBps: 0,
+        from: "1970-05-02",
+        initialCapital: 100_000,
+        rule: { kind: "academy", structure: "call_debit_spread" },
+        stopLossPct: 0,
+        symbol: "SPY",
+        takeProfitPct: 0,
+        timeframe: "1d",
+        to: "1972-06-30",
+      },
+      status: "queued",
+    });
+    const comparison = comparisonOf(row as BacktestRunRecord);
+    expect(comparison).toMatchObject({
+      feature: "academy",
+      groupId: timing?.groupId,
+      label: "SPY 1d academy call_debit_spread",
+    });
+    expect(comparison.typescript.tradeCount).toBeGreaterThan(0);
+
+    // The worker gets the structure, the rules, the capital and one implied volatility per bar.
+    // The Academy engine on the claimed bars and spec gives the TypeScript side bit for bit, so a
+    // matching Nautilus result has no differences.
+    const { batch } = await client.backtestRuns.engine.claim({
+      engine,
+      max: 50,
+    });
+    const claimed = batch as Batch;
+    const claimedRun = claimed.runs[0] as Batch["runs"][number];
+    const spec = claimedRun.spec as BacktestRunRecord["spec"];
+    const rule = spec.rule as Extract<
+      BacktestRunRecord["spec"]["rule"],
+      { kind: "academy" }
+    >;
+    const column = (values: readonly (number | null)[]) =>
+      Float64Array.from(
+        values.slice(claimedRun.first, claimedRun.end),
+        (value) => value ?? Number.NaN
+      );
+    const bars = {
+      c: column(claimed.bars.c),
+      h: column(claimed.bars.h),
+      l: column(claimed.bars.l),
+      o: column(claimed.bars.o),
+      t: column(claimed.bars.t),
+    };
+    // fakeBars answers every symbol, so the VIX lookup of SPY supplies the implied volatility.
+    expect(rule.iv).toHaveLength(bars.t.length);
+    expect(rule.iv?.[0]).toBe((bars.c[0] as number) / 100);
+    expect(rule.rules).toEqual(off.rules);
+    const result = runAcademyBacktest({
+      bars: {
+        c: bars.c,
+        iv: (rule.iv ?? []).map((value) => value ?? Number.NaN),
+        t: bars.t,
+      },
+      capital: spec.initialCapital,
+      rules: rule.rules,
+      structure: rule.structure as StructureId,
+    });
+    expect(result.stats.finalEquity).toBe(off.stats.finalEquity);
+    const mapped = academyEngineResult(result, bars, spec.initialCapital);
+    if (mapped === null) throw new Error("expected an engine result");
+    expect(mapped.stats).toEqual(comparison.typescript.stats);
+    const { outcomes } = await client.backtestRuns.engine.completeMany({
+      engine,
+      items: [
+        {
+          engineRun,
+          id: claimedRun.id,
+          result: {
+            equity: Array.from(mapped.equity),
+            stats: mapped.stats,
+            trades: [...mapped.trades],
+          },
+          seriesSha256: claimed.seriesSha256,
+        },
+      ],
+    });
+    expect(outcomes).toEqual([{ id: claimedRun.id, status: "succeeded" }]);
+    expect(runs.rows.get(claimedRun.id)?.report?.["differences"]).toEqual({
+      items: [],
+      ok: true,
+    });
+    const listed = await client.backtestRuns.comparisons.list({
+      feature: "academy",
+      limit: 10,
+    });
+    expect(listed.runs).toHaveLength(1);
+    expect(listed.runs[0]).toMatchObject({
+      comparison: { feature: "academy" },
+      differences: { ok: true },
+      engineRun: { host: "rig" },
+      status: "succeeded",
+    });
+  });
+
+  it("queues an Academy backtest without implied volatility when no VIX series supplies it", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({
+      bars: fakeBars({
+        getSeries: vi.fn(async (symbol: string) =>
+          symbol === "^VIX" ? null : seriesRow
+        ),
+      }),
+      comparison: "on",
+      runs,
+    });
+    const answer = await client.academy.backtest(academyInput);
+    expect(answer.ivSource).toBe("rv-model");
+    const [row] = comparisonRuns(runs);
+    expect(row?.spec.rule).toEqual({
+      kind: "academy",
+      rules: answer.rules,
+      structure: "call_debit_spread",
+    });
+  });
+
+  it("stores a missing implied volatility as null in the Academy rule", async () => {
+    const runs = memoryRuns();
+    const columns = waveColumns(1000);
+    // Every 20th VIX bar is missing: over 90% of the bars still have a value.
+    const vix = {
+      ...columns,
+      t: columns.t.map((value, index) =>
+        index % 20 === 0 ? -1 - index : value
+      ),
+    };
+    const client = clientFor({
+      bars: fakeBars({
+        getSeries: vi.fn(async (symbol: string) => ({
+          ...seriesRow,
+          id: symbol === "^VIX" ? "vix" : seriesRow.id,
+        })),
+        loadColumns: vi.fn(async (id: string) =>
+          id === "vix" ? vix : columns
+        ),
+      }),
+      comparison: "on",
+      runs,
+    });
+    const answer = await client.academy.backtest(academyInput);
+    expect(answer.ivSource).toBe("supplied");
+    const rule = comparisonRuns(runs)[0]?.spec.rule as {
+      iv: (number | null)[];
+    };
+    expect(rule.iv.filter((value) => value === null).length).toBeGreaterThan(
+      30
+    );
+    expect(rule.iv.every((value) => value === null || value > 0)).toBe(true);
+  });
+
+  it("keeps the Academy answer when the clock is frozen, the queue fails or the equity cannot be mapped", async () => {
+    vi.spyOn(performance, "now").mockReturnValue(1000);
+    const runs = memoryRuns();
+    const frozen = await clientFor({
+      bars: fakeBars(),
+      comparison: "on",
+      runs,
+    }).academy.backtest(academyInput);
+    expect(frozen.comparison).toMatchObject({
+      wallMs: null,
+      wallNote: TIMER_FROZEN_NOTE,
+    });
+    vi.restoreAllMocks();
+    const broken = await clientFor({
+      bars: fakeBars(),
+      comparison: "on",
+      runs: {
+        ...memoryRuns(),
+        enqueueGroup: async () => Promise.reject(new Error("db")),
+      },
+    }).academy.backtest(academyInput);
+    expect(broken.comparison).toMatchObject({
+      error: COMPARISON_QUEUE_ERROR,
+      groupId: null,
+    });
+    expect(broken.stats).toEqual(frozen.stats);
+
+    // An equity at or below zero has no engine result: nothing is queued.
+    const stored = memoryRuns();
+    const lost: Pick<BacktestResult, "equity" | "trades"> = {
+      equity: [{ equity: 0, t: "1970-01-02" }],
+      trades: [],
+    };
+    await expect(
+      queueAcademyComparison(
+        {
+          callerCanWrite: true,
+          engineComparison: "on",
+          principal: { userId: "operator" },
+          repositories: { backtestRuns: stored },
+        } as unknown as Parameters<typeof queueAcademyComparison>[0],
+        {
+          capital: 1000,
+          closes: [100, 101],
+          iv: undefined,
+          ivSeries: undefined,
+          rules: {},
+          series: seriesRow,
+          structure: "long_call",
+          times: [0, DAY_MS],
+        },
+        lost as BacktestResult,
+        { wallMs: 1 }
+      )
+    ).resolves.toBeUndefined();
+    expect(stored.rows.size).toBe(0);
+  });
+
+  it("fails an Academy rule on the TypeScript run executor: only the Nautilus worker runs it", async () => {
+    const runs = memoryRuns();
+    const bars = fakeBars();
+    const run = await runs.create({
+      engineVersion: BACKTEST_RUN_ENGINE_VERSION,
+      requestedBy: "operator",
+      spec: {
+        costBps: 0,
+        from: "1970-01-01",
+        initialCapital: 100_000,
+        rule: { kind: "academy", rules: {}, structure: "long_call" },
+        stopLossPct: 0,
+        symbol: "SPY",
+        takeProfitPct: 0,
+        timeframe: "1d",
+        to: "1972-06-30",
+      },
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    await executeBacktestRun({ marketBars: bars, runs }, run.id);
+    expect(runs.rows.get(run.id)).toMatchObject({
+      error: ACADEMY_RUN_ENGINE_ERROR,
+      status: "failed",
+    });
+    expect(bars.getSeries).not.toHaveBeenCalled();
+    expect(() => runParamsForSpec(run.spec)).toThrow(
+      "An Academy run has no fixed-rule parameters"
+    );
   });
 
   it("records a frozen Worker clock as no time, and a failed queue as an error only", async () => {
