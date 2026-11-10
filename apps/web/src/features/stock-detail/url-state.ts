@@ -9,7 +9,7 @@ import {
 // URL state for /stock/<SYMBOL>?interval=&expiry=&tab=. Missing or invalid values fall back
 // to the defaults (1D chart, nearest expiry, chart tab), so every link opens a useful page.
 
-export const STOCK_TABS = ["chart", "options", "analytics"] as const;
+export const STOCK_TABS = ["chart", "options", "analytics", "filings"] as const;
 export type StockTab = (typeof STOCK_TABS)[number];
 
 export type StockQuery = Readonly<{
@@ -20,8 +20,8 @@ export type StockQuery = Readonly<{
 }>;
 
 const EXPIRY = /^\d{4}-\d{2}-\d{2}$/u;
-// A real calendar day: Date.parse rolls 2026-02-31 over to March, so it must read back.
-const realDay = (value: string): boolean => {
+/** A real calendar day as YYYY-MM-DD: Date.parse rolls 2026-02-31 over to March, so it must read back. */
+export const isRealDay = (value: string): boolean => {
   const time = EXPIRY.test(value)
     ? Date.parse(`${value}T00:00:00Z`)
     : Number.NaN;
@@ -33,7 +33,7 @@ export const parseStockQuery = (search: string): StockQuery => {
   const expiry = params.get("expiry") ?? "";
   const tab = params.get("tab") ?? "";
   return {
-    expiry: realDay(expiry) ? expiry : null,
+    expiry: isRealDay(expiry) ? expiry : null,
     interval: parseIntervalParam(search),
     tab: (STOCK_TABS as readonly string[]).includes(tab)
       ? (tab as StockTab)

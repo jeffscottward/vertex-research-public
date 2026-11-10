@@ -1102,11 +1102,14 @@ describe("feature item mutation repository", () => {
       "optimizationRuns",
       "quantLab",
       "researchStudies",
+      "academyContent",
       "flow",
       "strategyLibrary",
       "deploymentRequests",
       "assistant",
       "marketBars",
+      "marketDailySeries",
+      "openbb",
       "backtestRuns",
       "forwardDrift",
       "agentModelRuns",
@@ -1121,6 +1124,7 @@ describe("feature item mutation repository", () => {
       "researchReports",
       "sectorRotation",
       "clickLog",
+      "semanticLayer",
     ]);
     return expect(repositories.generated).toEqual({});
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Lesson } from "@darkfactory/academy";
+import { courseOf, DEFAULT_COURSE_ID, type Lesson } from "@darkfactory/academy";
 import { PageHeader, StatusBadge } from "@darkfactory/ui";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import Link from "next/link";
@@ -12,7 +12,7 @@ import {
 } from "./academy-client.ts";
 import type { AcademyMediaEntry } from "./academy-gallery.tsx";
 import { AcademyThemeScope, AcademyThemeToggle } from "./academy-theme.tsx";
-import { LABELS, labelOf } from "./labels.ts";
+import { labelOf } from "./labels.ts";
 import { LessonBacktest } from "./lesson-backtest.tsx";
 import { LessonDeploy } from "./lesson-deploy.tsx";
 import { LessonInteractive } from "./lesson-interactive.tsx";
@@ -61,9 +61,10 @@ export const AcademyLesson = ({
     () => injected ?? createBrowserAcademyGateway(),
     [injected]
   );
+  const course = courseOf(lesson);
   const strategy = lesson.kind === "strategy" && lesson.backtest !== undefined;
   const sections = [
-    ["video", "Video"],
+    ["video", course.narrated ? "Video" : "Animation"],
     ["interactive", "Interactive example"],
     ...(strategy
       ? [
@@ -91,6 +92,18 @@ export const AcademyLesson = ({
                 >
                   <ArrowLeft aria-hidden className="size-4" /> Academy
                 </Link>
+                {course.id === DEFAULT_COURSE_ID ? null : (
+                  <>
+                    {" / "}
+                    <Link
+                      className="inline-flex min-h-11 items-center hover:text-foreground"
+                      href={`/academy/c/${course.id}`}
+                      prefetch={false}
+                    >
+                      {course.title}
+                    </Link>
+                  </>
+                )}
               </nav>
             }
             description={lesson.summary}
@@ -119,6 +132,20 @@ export const AcademyLesson = ({
               </span>
             ))}
           </div>
+          {course.narrated ? null : (
+            <p className="text-sm">
+              <a
+                className="inline-flex min-h-11 items-center gap-1 font-medium underline"
+                data-source-reel
+                href={lesson.source.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Source reel by {course.creator}{" "}
+                <ExternalLink aria-hidden className="size-4" />
+              </a>
+            </p>
+          )}
           <nav aria-label="Lesson sections" className="flex flex-wrap gap-2">
             {sections.map(([id, label]) => (
               <a
@@ -131,8 +158,15 @@ export const AcademyLesson = ({
             ))}
           </nav>
         </div>
-        <Section id="video" title="Chart video">
-          <LessonVideo lesson={lesson} media={media} />
+        <Section
+          id="video"
+          title={course.narrated ? "Chart video" : "Chart animation"}
+        >
+          <LessonVideo
+            lesson={lesson}
+            media={media}
+            narrated={course.narrated}
+          />
         </Section>
         <Section id="interactive" title="Interactive example">
           <LessonInteractive lesson={lesson} />
@@ -149,7 +183,7 @@ export const AcademyLesson = ({
           <div className="rounded-lg border border-border p-3">
             <h2 className="mb-2 font-semibold text-sm">Caveats</h2>
             <ul className="list-disc space-y-1 pl-5 text-muted-foreground text-sm">
-              {[...lesson.caveats, LABELS.disclaimer].map((item) => (
+              {[...lesson.caveats, course.disclaimer].map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -186,25 +220,48 @@ export const AcademyLesson = ({
               <ExternalLink aria-hidden className="size-3" />
             </a>{" "}
             · published {lesson.source.publishedAt.slice(0, 10)} ·{" "}
-            {clock(lesson.source.durationSeconds)}. Timestamps are estimated
-            from word position (speech-to-text without segment times).
+            {clock(lesson.source.durationSeconds)}.
+            {lesson.source.transcript.length === 0
+              ? null
+              : course.timestamps === "estimated"
+                ? " Timestamps are estimated from word position (speech-to-text without segment times)."
+                : " Timestamps are the speech-to-text segment start times."}
           </p>
-          <ol
-            className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm"
-            data-transcript
-          >
-            {lesson.source.transcript.map((line) => (
-              <li
-                className="flex gap-3"
-                key={`${line.start}-${line.text.slice(0, 12)}`}
-              >
-                <span className="w-12 shrink-0 text-muted-foreground tabular-nums">
-                  {clock(line.start)}
-                </span>
-                <span>{line.text}</span>
-              </li>
-            ))}
-          </ol>
+          {lesson.source.transcript.length === 0 ? (
+            <div className="flex flex-col gap-2 text-sm" data-transcript-empty>
+              <p className="text-muted-foreground">
+                No spoken narration in this reel (music only).
+                {lesson.source.caption.trim() === ""
+                  ? null
+                  : " The caption is shown below."}
+              </p>
+              {lesson.source.caption.trim() === "" ? null : (
+                <blockquote
+                  className="whitespace-pre-line border-border border-l-2 pl-3"
+                  data-source-caption
+                >
+                  {lesson.source.caption.trim()}
+                </blockquote>
+              )}
+            </div>
+          ) : (
+            <ol
+              className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm"
+              data-transcript
+            >
+              {lesson.source.transcript.map((line) => (
+                <li
+                  className="flex gap-3"
+                  key={`${line.start}-${line.text.slice(0, 12)}`}
+                >
+                  <span className="w-12 shrink-0 text-muted-foreground tabular-nums">
+                    {clock(line.start)}
+                  </span>
+                  <span>{line.text}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </Section>
         <nav
           aria-label="More lessons"

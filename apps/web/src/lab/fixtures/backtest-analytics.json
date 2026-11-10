@@ -458,6 +458,9 @@
       }
     },
     "monteCarlo": {
+      "paths": 1000,
+      "seed": 3758482066,
+      "pnlSource": "trades",
       "reshuffle": {
         "finalPnl": {
           "p5": 2904.8199999999924,
@@ -475,6 +478,10 @@
         },
         "probabilityOfProfit": 1,
         "riskOfRuin": 0,
+        "worst": {
+          "finalPnl": 2904.8199999999924,
+          "maxDrawdown": -0.052053854262551824
+        },
         "fan": [
           {
             "step": 1,
@@ -607,6 +614,10 @@
         },
         "probabilityOfProfit": 0.777,
         "riskOfRuin": 0,
+        "worst": {
+          "finalPnl": -8858.260000000024,
+          "maxDrawdown": -0.09120720000000015
+        },
         "fan": [
           {
             "step": 1,
@@ -721,6 +732,17 @@
             "p95": 9398.267000000018
           }
         ]
+      },
+      "worst": {
+        "finalPnl": -8858.260000000024,
+        "maxDrawdown": -0.09120720000000015,
+        "riskOfRuin": 0
+      },
+      "sizing": {
+        "basis": "worst_run",
+        "drawdownBudget": 0.2,
+        "worstMaxDrawdown": -0.09120720000000015,
+        "sizeScale": 1
       }
     },
     "benchmark": null,
@@ -1238,6 +1260,9 @@
       }
     },
     "monteCarlo": {
+      "paths": 1000,
+      "seed": 508183699,
+      "pnlSource": "trades",
       "reshuffle": {
         "finalPnl": {
           "p5": 13697.419999999984,
@@ -1255,6 +1280,10 @@
         },
         "probabilityOfProfit": 1,
         "riskOfRuin": 0,
+        "worst": {
+          "finalPnl": 13697.419999999984,
+          "maxDrawdown": -0.01975669999999996
+        },
         "fan": [
           {
             "step": 1,
@@ -1387,6 +1416,10 @@
         },
         "probabilityOfProfit": 0.998,
         "riskOfRuin": 0,
+        "worst": {
+          "finalPnl": -443.04000000000815,
+          "maxDrawdown": -0.05722053755240475
+        },
         "fan": [
           {
             "step": 1,
@@ -1501,6 +1534,17 @@
             "p95": 20053.70999999999
           }
         ]
+      },
+      "worst": {
+        "finalPnl": -443.04000000000815,
+        "maxDrawdown": -0.05722053755240475,
+        "riskOfRuin": 0
+      },
+      "sizing": {
+        "basis": "worst_run",
+        "drawdownBudget": 0.2,
+        "worstMaxDrawdown": -0.05722053755240475,
+        "sizeScale": 1
       }
     },
     "benchmark": null,
@@ -2018,6 +2062,9 @@
       }
     },
     "monteCarlo": {
+      "paths": 1000,
+      "seed": 1949306865,
+      "pnlSource": "trades",
       "reshuffle": {
         "finalPnl": {
           "p5": -581.5999999999913,
@@ -2035,6 +2082,10 @@
         },
         "probabilityOfProfit": 0,
         "riskOfRuin": 0,
+        "worst": {
+          "finalPnl": -581.5999999999913,
+          "maxDrawdown": -0.01870830000000001
+        },
         "fan": [
           {
             "step": 1,
@@ -2167,6 +2218,10 @@
         },
         "probabilityOfProfit": 0.258,
         "riskOfRuin": 0,
+        "worst": {
+          "finalPnl": -3020.8300000000017,
+          "maxDrawdown": -0.030208299999999966
+        },
         "fan": [
           {
             "step": 1,
@@ -2281,6 +2336,17 @@
             "p95": 1082.2535000000094
           }
         ]
+      },
+      "worst": {
+        "finalPnl": -3020.8300000000017,
+        "maxDrawdown": -0.030208299999999966,
+        "riskOfRuin": 0
+      },
+      "sizing": {
+        "basis": "worst_run",
+        "drawdownBudget": 0.2,
+        "worstMaxDrawdown": -0.030208299999999966,
+        "sizeScale": 1
       }
     },
     "benchmark": null,
@@ -2798,6 +2864,9 @@
       }
     },
     "monteCarlo": {
+      "paths": 1000,
+      "seed": 3131986871,
+      "pnlSource": "trades",
       "reshuffle": {
         "finalPnl": {
           "p5": 458.6000000000349,
@@ -2815,6 +2884,10 @@
         },
         "probabilityOfProfit": 1,
         "riskOfRuin": 0,
+        "worst": {
+          "finalPnl": 458.6000000000349,
+          "maxDrawdown": -0.02694124833021294
+        },
         "fan": [
           {
             "step": 1,
@@ -2947,6 +3020,10 @@
         },
         "probabilityOfProfit": 0.603,
         "riskOfRuin": 0,
+        "worst": {
+          "finalPnl": -4840.7199999999575,
+          "maxDrawdown": -0.04859039999999948
+        },
         "fan": [
           {
             "step": 1,
@@ -3061,6 +3138,17 @@
             "p95": 3466.542500000019
           }
         ]
+      },
+      "worst": {
+        "finalPnl": -4840.7199999999575,
+        "maxDrawdown": -0.04859039999999948,
+        "riskOfRuin": 0
+      },
+      "sizing": {
+        "basis": "worst_run",
+        "drawdownBudget": 0.2,
+        "worstMaxDrawdown": -0.04859039999999948,
+        "sizeScale": 1
       }
     },
     "benchmark": null,

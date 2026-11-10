@@ -97,7 +97,35 @@ const link = (container: HTMLElement, label: string): HTMLAnchorElement => {
   return found;
 };
 
+vi.mock("../openbb/openbb-panels.tsx", () => ({
+  OpenbbFilingsTab: (props: { gateway?: unknown; symbol: string }) => (
+    <div
+      data-filings={props.symbol}
+      data-gateway={props.gateway === undefined ? "browser" : "supplied"}
+    />
+  ),
+}));
+
 describe("StockDetailWorkspace", () => {
+  it("passes a supplied openbb gateway to the filings tab", async () => {
+    window.history.pushState(null, "", "/stock/AAPL?tab=filings");
+    const gateways = spies();
+    const container = await mount(
+      <StockDetailWorkspace
+        marketData={gateways.market}
+        openbb={{} as never}
+        optionsAnalytics={gateways.analytics}
+        optionsChain={gateways.chain}
+        symbol="AAPL"
+      />
+    );
+    expect(
+      container
+        .querySelector('[data-filings="AAPL"]')
+        ?.getAttribute("data-gateway")
+    ).toBe("supplied");
+  });
+
   it("opens with the 1D chart and the nearest expiry chain without input", async () => {
     window.history.replaceState(null, "", "/stock/NVDA");
     const gateways = spies();
@@ -195,6 +223,14 @@ describe("StockDetailWorkspace", () => {
       flowHours: 24,
       symbol: "NVDA",
     });
+    await run(() => link(container, "Filings").click());
+    expect(window.location.search).toContain("tab=filings");
+    expect(
+      container
+        .querySelector('[data-filings="NVDA"]')
+        ?.getAttribute("data-gateway")
+    ).toBe("browser");
+    expect(container.querySelector("[data-chain-panel]")).toBeNull();
     // Back to the chart tab via history.
     window.history.pushState(null, "", "/stock/NVDA?interval=5m");
     await run(() => window.dispatchEvent(new PopStateEvent("popstate")));

@@ -6,6 +6,7 @@ import {
   VertexResearchChatInputPolicyV1Schema,
   VertexResearchChatStorageReviewInputSchema,
   VertexResearchChatStorageEvidenceV1Schema,
+  VertexResearchChatNativeEvidenceConfigurationV1Schema,
 } from "./vertex-research-chat-execution.ts";
 
 const sha = "a".repeat(64);
@@ -251,5 +252,90 @@ describe("private one-expert governance contracts", () => {
       false
     );
     return expect(invoked).toBe(false);
+  });
+});
+
+describe("native-evidence first-mate configuration", () => {
+  const plan = descriptivePlan();
+  const configuration = {
+    schemaVersion: "1.0.0",
+    format: "vertex-research-chat-native-evidence-configuration-v1",
+    accountAlias: "fixture",
+    environment: "research",
+    participantId: "first-mate",
+    participantLabel: "First Mate",
+    personaText: "Synthetic persona",
+    collectionId: plan.collectionId,
+    snapshotId: plan.snapshotId,
+    taskContract: plan.taskContract,
+    provider: plan.provider,
+    modelPolicy: inputPolicy.modelPolicy,
+    budgets: {
+      requestTokens: 1000,
+      attemptTokens: 1000,
+      requestCostUsd: "1",
+      attemptCostUsd: "1",
+      tokenizeCostUsd: "0.1",
+      completionCostUsd: "0.9",
+    },
+    reviewPins: plan.reviewPins,
+    nativeEvidence: {
+      profile: "first-mate-read-reviewed-evidence-v1",
+      toolName: "read_reviewed_evidence",
+      maximumCalls: 1,
+      phaseCount: 2,
+      derivationProfile: "reviewed-evidence-single-projection-v1",
+      serializerProfile: "agno-1.7.12-openai-1.93.0-native-single-invoke-v1",
+      nativeCapability: { ...evidence, artifactId: "synthetic-capability" },
+      operationCeilings: ([1, 2] as const).flatMap((phaseOrdinal) => [
+        {
+          phaseOrdinal,
+          operation: "model-tokenize",
+          maximumInputTokens: 100,
+          maximumOutputTokens: 0,
+          maximumCostUsd: "0.01",
+        },
+        {
+          phaseOrdinal,
+          operation: "model-completion",
+          maximumInputTokens: 100,
+          maximumOutputTokens: 50,
+          maximumCostUsd: "0.1",
+        },
+      ]),
+      aggregateTokens: 768,
+      aggregateCostUsd: "0.22",
+      maximumIntermediateBytes: 262_144,
+    },
+    advisoryMaximumBytes: 1000,
+    expiresAt: "2026-09-26T00:00:00Z",
+  };
+  const [pin] = plan.reviewPins;
+
+  it("accepts one collection of unique review pins under a bounded provider", () => {
+    return expect(
+      VertexResearchChatNativeEvidenceConfigurationV1Schema.parse(configuration)
+    ).toEqual(configuration);
+  });
+
+  return it("rejects duplicate review pins, foreign collections and unbounded output", () => {
+    const parses = (value: unknown): boolean =>
+      VertexResearchChatNativeEvidenceConfigurationV1Schema.safeParse(value)
+        .success;
+    expect(parses({ ...configuration, reviewPins: [pin, { ...pin }] })).toBe(
+      false
+    );
+    expect(
+      parses({
+        ...configuration,
+        reviewPins: [{ ...pin, collectionId: "foreign-collection" }],
+      })
+    ).toBe(false);
+    return expect(
+      parses({
+        ...configuration,
+        provider: { ...plan.provider, maximumOutputTokens: 1000 },
+      })
+    ).toBe(false);
   });
 });

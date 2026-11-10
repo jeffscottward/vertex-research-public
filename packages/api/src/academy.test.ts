@@ -585,6 +585,46 @@ describe("academy.deployRequest", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("refuses the strategies of every Academy course on the generic path", async () => {
+    for (const slug of ["dyr-wheel", "qftg-binomial-tree"]) {
+      const store = stores();
+      (
+        store.strategyLibrary as unknown as {
+          get: (id: string) => Promise<unknown>;
+        }
+      ).get = async (id) => ({ strategy: { id, slug }, presets: [] });
+      (
+        store.deploymentRequests as unknown as {
+          get: (id: string) => Promise<DeploymentRequestRow>;
+        }
+      ).get = async (id) => row({ id, strategySlug: slug });
+      const { client } = clientFor(store);
+      await expect(
+        client.deploymentRequests.create({
+          strategyId: "st-any",
+          symbol: "SPY",
+          timeframe: "1d",
+          limits: {
+            maxOrderSize: 1,
+            maxPosition: 1,
+            maxOrdersPerMinute: 1,
+            dailyLossLimit: 1,
+          },
+        }),
+        slug
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        client.deploymentRequests.update({ id: "dr-1", symbol: "QQQ" }),
+        slug
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        client.deploymentRequests.submit({ id: "dr-1" }),
+        slug
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect(store.created).toHaveLength(0);
+    }
+  });
+
   it("refuses agent API keys", async () => {
     portfolio(1_000_000);
     const store = stores();
@@ -741,6 +781,28 @@ describe("academy allocation total counts every open Academy request", () => {
     expect(store.deploymentRequests.list).toHaveBeenCalledWith(
       expect.objectContaining({ status: "approved", limit: 200 })
     );
+  });
+
+  it("counts open requests of every Academy course in the allocation total", async () => {
+    portfolio(1_000_000);
+    const store = stores();
+    store.created.push(
+      row({
+        id: "q",
+        status: "requested",
+        strategySlug: "qftg-binomial-tree",
+        params: { allocationPct: 11 },
+      }),
+      row({
+        id: "d",
+        status: "approved",
+        strategySlug: "dyr-d",
+        params: { allocationPct: 7 },
+      })
+    );
+    const { client } = clientFor(store);
+    const preview = await client.academy.deployPreview(PASSING);
+    expect(preview.otherAllocationsPct).toBe(18);
   });
 
   it("ignores closed and non-Academy rows and non-numeric allocations", async () => {

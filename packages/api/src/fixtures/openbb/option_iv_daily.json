@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "cboe-option-iv",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "option_iv_daily",
+      "rows": [
+        {
+          "asOf": "2026-11-06",
+          "underlying": "SPY",
+          "underlyingPrice": 589.42,
+          "atmIv30d": 0.1532,
+          "putIv25d30d": 0.1911,
+          "callIv25d30d": 0.1288,
+          "callOi": 8123456,
+          "putOi": 12543210,
+          "callVolume": 2345678,
+          "putVolume": 3456789,
+          "netGex": -1250000000.0,
+          "gammaFlip": 584.5,
+          "callWall": 600.0,
+          "putWall": 570.0,
+          "contracts": 9876
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

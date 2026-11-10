@@ -55,6 +55,8 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "priceAlerts.signals.events",
   "priceAlerts.signals.backfill",
   "sectorRotation.snapshot",
+  "semanticTerms.list",
+  "semanticTerms.query",
   "agentModelRuns.list",
   "agentModelRuns.get",
   "agentModelRuns.breakdown",
@@ -68,6 +70,14 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "pickLists.proposal",
   "pickLists.screen",
   "flow.snapshot",
+  "openbb.status",
+  "openbb.volContext",
+  "openbb.cot",
+  "openbb.macro",
+  "openbb.events",
+  "openbb.shorts",
+  "openbb.sec",
+  "openbb.factors",
 ]);
 
 type OperatorErrorFactories = Readonly<{

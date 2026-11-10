@@ -31,6 +31,12 @@ import {
   historyContent,
 } from "./server/assistant.ts";
 import {
+  ARTIFACT_NOT_STORED,
+  ASSISTANT_CHART_TOOLS,
+  jsonbTextBytes,
+} from "./server/assistant-chart-tools.ts";
+import {
+  ASSISTANT_DEFERRED_TOOL_PATTERN,
   ASSISTANT_MAX_PROPOSALS_PER_TURN,
   ASSISTANT_MAX_STEPS,
   ASSISTANT_MAX_TOOL_CALLS_PER_STEP,
@@ -58,11 +64,6 @@ import {
 import { type CallProcedure, listMcpTools, MCP_TOOLS } from "./server/mcp.ts";
 import { present } from "./server/present.ts";
 import { ASSISTANT_CONFIRM_TOOLS } from "./server/research-tools.ts";
-import {
-  ARTIFACT_NOT_STORED,
-  ASSISTANT_CHART_TOOLS,
-  jsonbTextBytes,
-} from "./server/assistant-chart-tools.ts";
 
 // chart_script's compile result is fixed here (the engine has its own tests; one chart tool test
 // in server/assistant-chart-tools.engine.test.ts runs the real engine).
@@ -202,9 +203,10 @@ describe("assistant tools", () => {
       expect(tool.function.description.length).toBeGreaterThan(10);
       expect(tool.function.description).not.toMatch(/write key/i);
     }
-    const readNames = MCP_TOOLS.filter((tool) => tool.readOnly).map(
-      (tool) => tool.name
-    );
+    const readNames = MCP_TOOLS.filter(
+      (tool) =>
+        tool.readOnly && !ASSISTANT_DEFERRED_TOOL_PATTERN.test(tool.name)
+    ).map((tool) => tool.name);
     // Act = read-only MCP tools + record-keeping writes + confirm tools + chart tools.
     expect(tools.map((tool) => tool.function.name).sort()).toEqual(
       [
@@ -231,13 +233,23 @@ describe("assistant tools", () => {
       [
         ...MCP_TOOLS.filter(
           (tool) =>
-            tool.readOnly && !ASSISTANT_CONFIRM_TOOLS.includes(tool.name)
+            tool.readOnly &&
+            !ASSISTANT_CONFIRM_TOOLS.includes(tool.name) &&
+            !ASSISTANT_DEFERRED_TOOL_PATTERN.test(tool.name)
         ).map((tool) => tool.name),
         ...CHART_TOOL_NAMES,
       ].sort()
     );
     for (const name of [...ASSISTANT_WRITE_TOOLS, ...ASSISTANT_CONFIRM_TOOLS])
       expect(plan).not.toContain(name);
+    // OpenBB tools exist on /api/mcp but wait for the semantic-layer eval re-record.
+    expect(MCP_TOOLS.some((tool) => tool.name === "openbb_status")).toBe(true);
+    for (const mode of ["plan", "act"] as const)
+      expect(
+        assistantToolsFor(mode).filter((tool) =>
+          tool.function.name.startsWith("openbb_")
+        )
+      ).toEqual([]);
     expect(plan).toContain("backtests_list");
     return expect(plan).toContain("market_bars");
   });

@@ -413,6 +413,72 @@ const fanCheckpoints = <T,>(fan: readonly T[]): T[] => {
   return [...new Set(picked)];
 };
 
+// Worst simulated path across both methods; sizing reads this run, never the median.
+const WorstRunStats = ({
+  monteCarlo,
+}: {
+  readonly monteCarlo: Analytics["monteCarlo"];
+}) =>
+  monteCarlo === null ? null : (
+    <>
+      <Stat
+        help="Deepest drawdown of any simulated path, both methods."
+        label="Worst run max DD"
+        value={pct(monteCarlo.worst.maxDrawdown)}
+      />
+      <Stat
+        label="Worst run final P&L"
+        value={signed(monteCarlo.worst.finalPnl)}
+      />
+      <Stat
+        help={`Sized from worst run: ${pct(monteCarlo.sizing.drawdownBudget, 0)} drawdown budget divided by the worst simulated drawdown, capped at 1. Never the median.`}
+        label="Size scale (sized from worst run)"
+        value={num(monteCarlo.sizing.sizeScale)}
+      />
+    </>
+  );
+
+// Always shown on the overview: every backtest gets a Monte Carlo pass, no toggle.
+export const MonteCarloOverview = ({
+  analytics,
+}: {
+  readonly analytics: Analytics;
+}) => {
+  const mc = analytics.monteCarlo;
+  return (
+    <section aria-labelledby="backtest-mc-overview" className="space-y-2">
+      <SectionTitle
+        {...(mc === null
+          ? {}
+          : {
+              help: `${mc.paths} paths per method (trade-order shuffle and bootstrap of ${mc.pnlSource === "trades" ? "trade P&L" : "per-bar equity changes"}). Seed ${mc.seed}.`,
+            })}
+        id="backtest-mc-overview"
+      >
+        Monte Carlo
+      </SectionTitle>
+      {mc === null ? (
+        <p className="text-muted-foreground text-xs">
+          Not enough data to simulate (needs two or more trades or equity
+          changes and a starting capital).
+        </p>
+      ) : (
+        <StatGrid label="Monte Carlo summary">
+          <Stat
+            label="Risk of ruin (worst method)"
+            value={pct(mc.worst.riskOfRuin, 1)}
+          />
+          <Stat
+            label="Median max DD (bootstrap)"
+            value={pct(mc.bootstrap.maxDrawdown.p50)}
+          />
+          <WorstRunStats monteCarlo={mc} />
+        </StatGrid>
+      )}
+    </section>
+  );
+};
+
 export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
   const [mode, setMode] = useState<"reshuffle" | "bootstrap">("bootstrap");
   const run = analytics.monteCarlo?.[mode] ?? null;
@@ -440,6 +506,7 @@ export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
           label="Median max DD (sim)"
           value={run === null ? DASH : pct(run.maxDrawdown.p50)}
         />
+        <WorstRunStats monteCarlo={analytics.monteCarlo} />
       </StatGrid>
       <section aria-labelledby="backtest-mc-heading" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">

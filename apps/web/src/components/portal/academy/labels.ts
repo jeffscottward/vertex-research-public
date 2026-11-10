@@ -1,4 +1,5 @@
-// Display labels for Academy tags and scene types.
+// Display labels for Academy tags and scene types. Course copy (disclaimers) lives in the course
+// registry (@darkfactory/academy courses.ts).
 const NAMES: Readonly<Record<string, string>> = {
   any: "Any regime",
   bullish: "Bullish",
@@ -40,11 +41,7 @@ const NAMES: Readonly<Record<string, string>> = {
   ivrv: "IV vs RV",
   gex: "Gamma exposure",
   pricepath: "Price path",
+  quant: "Quant model",
 };
 
 export const labelOf = (value: string): string => NAMES[value] ?? value;
-
-export const LABELS = {
-  disclaimer:
-    "Educational content based on Define Your Risk videos. Charts use illustrative values and Black-Scholes pricing. Backtests are modeled, not historical option fills. Nothing here is advice or an order.",
-} as const;

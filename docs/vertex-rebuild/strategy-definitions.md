@@ -1,6 +1,6 @@
 # Strategy definitions and the strategy builder
 
-Updated: 2026-10-23. Research and backtest use only. A strategy definition never creates, routes or simulates broker orders.
+Updated: 2026-11-08. Research and backtest use only. A strategy definition never creates, routes or simulates broker orders.
 
 ## Purpose
 
@@ -11,7 +11,8 @@ A strategy definition is a small declarative description of a long-only strategy
 | Part | File |
 | --- | --- |
 | Schema, validation, text parser, templates | `packages/api/src/strategy-dsl.ts` |
-| Indicators, compiler, run | `packages/api/src/strategy-dsl-compile.ts` |
+| Indicators, compiler, run, entry filters | `packages/api/src/strategy-dsl-compile.ts` |
+| Python mirror of the compiler (Nautilus engine), golden parity fixture | `services/research/nautilus_backtest/signals.py`, `scripts/research/nautilus-golden.ts` |
 | Signal engine (fills, stops, targets, risk sizing) | `runSignalBacktest` in `packages/api/src/instant-backtest-engine.ts` |
 | Backtest run rule `{ kind: "dsl", definition }` | `packages/api/src/contracts/backtest-runs.ts`, `packages/api/src/server/backtest-runs.ts` |
 | Page `/strategy-builder` | `apps/web/src/app/(portal)/strategy-builder/`, `apps/web/src/components/portal/strategy-builder-workspace.tsx`, `strategy-builder-model.ts` |
@@ -22,19 +23,28 @@ A strategy definition is a small declarative description of a long-only strategy
 | --- | --- |
 | `version` | Always `1`. |
 | `name`, `description` | Display text. |
-| `entry.all` | 1 to 8 conditions. The strategy enters when ALL are true on the signal bar. |
+| `entry.all` | 0 to 8 conditions. The strategy enters when ALL are true on the signal bar. |
+| `entry.any` | Optional, 0 to 8 conditions, no default. When it is not empty, at least one of them must also be true on the signal bar. `entry.all` may be empty when `entry.any` is not; together they need at least one condition. |
 | `exit.any` | 0 to 8 conditions. An open position exits when ANY is true, also on bars where the entry conditions hold. While flat, entry wins when both are true. |
-| `sizing` | `{ "mode": "allIn" }` (default) or `{ "mode": "riskPct", "riskPct": 1 }`. Risk sizing needs a stop loss. The position loses about `riskPct` of equity when the stop fills, before costs and gaps, and is capped at the available cash. |
+| `side` | Optional `"long"` or `"short"`, no default; absent means long (see [Short side](#short-side)). |
+| `sizing` | `{ "mode": "allIn" }` (default), `{ "mode": "riskPct", "riskPct": 1 }` or `{ "mode": "volTarget", "targetPct": 2, "length": 14, "maxLeverage": 4 }` (see [Volatility-target sizing](#volatility-target-sizing-voltarget)). Risk sizing needs a stop loss. The position loses about `riskPct` of equity when the stop fills, before costs and gaps, and is capped at the available cash. With the optional `"maxLeverage": 1..50` (riskPct only, no default) the cap is cash × `maxLeverage` instead (see [Stop management and leverage](#stop-management-and-leverage)). |
 | `stopLoss`, `takeProfit` | `{ "kind": "none" }` (default), `{ "kind": "pct", "pct": 5 }` (percent of the entry price) or `{ "kind": "atr", "length": 14, "multiple": 2 }` (ATR at the signal bar times the multiple). While the ATR is not available yet (too few bars), the strategy does not enter. |
+| `management` | Optional stop management of an open position, no default: `{ "breakevenR": 2, "trail": { "activateR": 1, "length": 14, "multiple": 2 } }`, either part or both. Needs a stop loss and no `options` block (see [Stop management and leverage](#stop-management-and-leverage)). |
+| `intraday` | Optional New York regular session of intraday bars, no default (see [Intraday sessions](#intraday-sessions-intraday)). It enables the session indicators and the market-on-close exit. |
 | `session` | Optional `{ "startUtc": "13:30", "endUtc": "20:00" }`. Entries happen only on signal bars whose UTC time is in [start, end). A window can pass midnight. Exits are not limited. |
+| `filters` | Optional, 1 to 4 entry filters (see [Entry filters](#entry-filters)). Every filter must pass for an entry; exits are never blocked. |
+| `options` | Optional defined-risk option vertical traded on the signals (see [Options block](#options-block)). |
 
-A condition is `{ "left": <expr>, "op": <op>, "right": <expr> }`. Operators: `>`, `>=`, `<`, `<=`, `crossesAbove`, `crossesBelow`. A cross is true on a bar where the relation holds and did not hold on the previous bar.
+A condition is `{ "left": <expr>, "op": <op>, "right": <expr>, "oncePerLevel": true (optional) }`. Operators: `>`, `>=`, `<`, `<=`, `crossesAbove`, `crossesBelow`, `breaksAbove`, `breaksBelow`. A cross is true on a bar where the relation holds and did not hold on the previous bar. A break compares the previous left value with the current right value: `breaksAbove` at bar i is `left[i] > right[i]` and `left[i − 1] <= right[i]` (`breaksBelow`: `left[i] < right[i]` and `left[i − 1] >= right[i]`). It differs from a cross when the level moves: when the level rises past a close that was above the old level, the next close above the new level is a break but not a cross; when the level falls below an unchanged close, that bar is a cross but not a break. Both are false on the first bar and when a value is not available.
+
+`oncePerLevel` (optional, no default) works only with `crossesAbove`, `crossesBelow`, `breaksAbove` and `breaksBelow`. When true, a bar where the condition holds is dropped if the same right value (an exact number) already made it hold on an earlier bar, so each level fires once. With a constant right value the condition fires at most once in the whole run. A level is used up on any bar where the condition holds, whether or not a trade follows (already in a position, another condition false, a filter closed), so the result depends on where the run starts: a walk-forward fold that starts later can fire on a level the full run already used.
 
 Expressions:
 
 - `{ "type": "price", "field": "open" | "high" | "low" | "close", "offset": 0..1000 (optional) }`
 - `{ "type": "const", "value": 30 }`
-- `{ "type": "indicator", "name": <name>, "length": 1..1000, "source": <price field, default close>, "offset": 0..1000 (optional) }`
+- `{ "type": "indicator", "name": <name>, "length": 1..1000, "source": <price field, default close>, "offset": 0..1000 (optional), "timeframe": "1d" (optional) }`
+- Session indicators (need an `intraday` block, see [Session indicators](#session-indicators)): `{ "type": "indicator", "name": "vwap" }`, `{ "type": "indicator", "name": "sessionReturn", "from": "prevClose" | "open" | "HH:MM", "to": "HH:MM" }` and `{ "type": "indicator", "name": "noiseBand", "band": "upper" | "lower", "length": 1..60, "multiple": above 0 to 100 (optional, absent means 1) }`. They take no `length` (except `noiseBand`), `source`, `offset` or `timeframe`.
 
 Indicators: `sma`, `ema` (seeded with the simple average), `rsi` and `atr` (Wilder smoothing; `atr` ignores `source`), `highest` and `lowest` (of the `length` bars BEFORE the signal bar, a Donchian channel), `adx`, `rvol`, `zscore` and `realizedVol`. An indicator value is not available until enough bars exist. A comparison with a value that is not available is false.
 
@@ -60,9 +70,235 @@ Example, "ADX(14) falling over 5 bars" (use `>` for rising):
 
 A cross operator works with an offset too: `close crossesAbove close offset 1` is true on the first bar of a series of higher closes.
 
+### Daily levels on intraday bars (`timeframe: "1d"`)
+
+An indicator with `"timeframe": "1d"` (optional, no default) runs on daily bars built from the signal bars, so an hourly strategy can read daily levels. A session day starts at 17:00 New York: the day of a bar is the New York date of its time + 7 hours, so US regular-hours bars keep their date and FX or futures days start at the 17:00 New York roll, on both sides of a daylight saving change. A daily bar is the first open, the highest high, the lowest low, the last close and the summed volume of its signal bars.
+
+The daily values map back to the signal bars without look-ahead:
+
+- `highest` and `lowest` on a bar of day D read the value at day D, which is the extreme of the `length` days BEFORE D (the current day is never in the window), so a breakout of yesterday's 20-day high can fire during day D.
+- Every other indicator (`sma`, `ema`, `rsi`, `atr`, `adx`, `zscore`, `realizedVol`) reads day D − 1, the last completed day. On the first day the value is not available.
+- `length` counts days and must not exceed the number of daily bars in the run (an input error, even when there are enough signal bars). `realizedVol` keeps its √252 factor, which is right for daily bars.
+- `offset` still counts signal bars and applies after the mapping.
+- The first session day may be partial (the data starts in the middle of it); it still counts as a day in the windows.
+- `rvol` takes no `timeframe`: it already compares whole sessions.
+
+### Stop management and leverage
+
+`management` moves the stop of an open position up; it never moves it down. R is the entry price minus the initial stop. At the close of every bar the position is open (the entry bar included), after that bar's stop and target check:
+
+- `breakevenR` (above 0, at most 100): once the highest high since entry reaches entry + `breakevenR` × R, the stop becomes at least the entry price.
+- `trail` (`activateR` and `multiple` above 0 and at most 100, `length` 1 to 1000): once the highest high since entry reaches entry + `activateR` × R, the stop becomes at least the highest close since entry − `multiple` × ATR(`length`) of that bar (the Wilder ATR of the signal bars). A bar where that ATR is not available leaves the stop.
+- A new stop applies from the next bar, so the bar that raised it cannot stop out on it; a gap through the raised stop fills at the open.
+
+With both parts the higher stop wins. Without a stop loss nothing moves, which is why the schema needs one.
+
+`sizing.maxLeverage` (1 to 50, riskPct only) caps the position cost at cash × `maxLeverage` instead of the cash. The borrowed part makes the unused cash negative; equity is that cash plus the position marked at the close. The TypeScript engine and the Nautilus engine charge no financing; the LD34 study runner (`services/research/strategies/ld34/metrics.py`) charges it in research.
+
+Ruin rule (both engines, every definition): when equity marked at a bar's close is at or below 0, an open position exits at that close with reason `stop`, and the run takes no further entries; equity stays at the cash left (which can be negative). With leverage this usually follows a gap through the stop: riskPct 10 with a stop 1 below an entry at 100 and `maxLeverage` 20 buys 0.1 units with 9 borrowed; a gap to 50 fills the stop at 50 and leaves equity at −4, after which the strategy no longer trades. Entry costs at high leverage can also take the marked equity below 0 before the stop is reached; then the position exits at the close.
+
+### Intraday sessions (`intraday`)
+
+```json
+{ "timezone": "America/New_York", "open": "09:30", "close": "16:00", "entryFrom": "10:00", "entryTo": "15:30", "decisionEvery": 30 }
+```
+
+All times are New York `HH:MM`; `timezone` must be `"America/New_York"`. `decisionEvery` (1 to 390 minutes) is optional with no default. The schema needs `open` < `close` and `open` < `entryFrom` <= `entryTo` < `close`.
+
+- Bar duration: the most common gap between bars of one New York date (a tie takes the smaller gap). A bar closes at its time + the duration.
+- Regular bars open at or after `open` and close at or before `close` (the close time uses the New York offset at the bar's open). Other bars (pre-market, after hours) never take an entry, never hold a position (the market-on-close exit closes it first) and are not available in the session indicators. A session day is the New York date of its regular bars.
+- Entries: only on regular bars closing in [`entryFrom`, `entryTo`], on the decision grid when `decisionEvery` is set (the bar close is a whole number of `decisionEvery` minutes after `open`), and never on the last regular bar of a session day.
+- Exit conditions count only on regular bars on the decision grid (every regular bar without `decisionEvery`). Stops and targets stay live on every bar.
+- Market on close (MOC): a position still open at the close of the last regular bar of its session day exits at that bar's close (exit reason `sessionClose`); that bar is held, so the API counts it when it recomputes a Nautilus result's exposure from the trades. On an early-close day (a day whose bars stop before `close`) the last regular bar present is the MOC bar, so the position exits at the early close. The session-last bar comes from the bars present in the data: there is no exchange calendar of early closes, so a day missing its final bars (a data gap) also exits at its last bar present, and an early close is only detected when the data stops early.
+- `filters` may not hold a `calendarWindow` filter, and `options` may not be set, with an `intraday` block.
+- The block needs intraday bars: a run whose bars have no two bars on one New York date (daily or weekly bars) is refused with `STRATEGY_INTRADAY_DAILY_UNSUPPORTED` (see [Where definitions run](#where-definitions-run)).
+- Times must sit on the bar grid: `open`, `close`, `entryFrom`, `entryTo` and every `HH:MM` time of a `sessionReturn` (minutes since midnight New York) and `decisionEvery` must each be a whole multiple of the bar duration (so the times are on the grid anchored at `open`). Otherwise compiling refuses with `STRATEGY_INTRADAY_GRID_MISALIGNED`; for example 60-minute bars refuse `open` 09:30.
+
+### Session indicators
+
+`vwap`, `sessionReturn` and `noiseBand` read only the regular bars of the current session day and are not available (NaN) on other bars. A definition that uses one without an `intraday` block is refused at validation (`<name> reads the intraday session; add an intraday block`, at the condition side's path). A `series` filter condition may not use them.
+
+- `vwap`: sum(typical × volume) / sum(volume) since the first regular bar of the session day, typical = (high + low + close) / 3. While the summed volume is 0, or the bars have no volume, it is the running mean of the typical prices.
+- `sessionReturn`: price at `to` / price at `from` − 1. `to` is the close of today's bar closing at `to`; `from` is `"prevClose"` (the last regular close of the previous session day), `"open"` (the open of today's first regular bar) or `"HH:MM"` (the close of today's bar closing then; must be before `to`). Not available before the bar closing at `to`, on the first session day with `"prevClose"`, and on a day without a bar closing at `to` or at the `from` time. From the `to` bar on it holds the same value to the end of the session day.
+- `noiseBand`: for each bar, sigma = mean of |close / session open − 1| at the same minutes since `open` over the previous `length` session days that have a bar then (days without a bar at that time are skipped, not counted as missing). `upper` = max(session open, previous session close) × (1 + `multiple` × sigma), `lower` = min(session open, previous session close) × (1 − `multiple` × sigma). Today's moves never enter today's sigma (no look-ahead). Not available until `length` earlier days have a bar at that time, and on the first session day (no previous close).
+
+### Volatility-target sizing (`volTarget`)
+
+`{ "mode": "volTarget", "targetPct": 2, "length": 14, "maxLeverage": 4 }`: `targetPct` (a daily volatility target, percent) above 0 and at most 100, `length` 2 to 252, `maxLeverage` above 0 and at most 50. At each entry the position cost is cash × leverage, leverage = min(`maxLeverage`, `targetPct` / 100 / sigma), read at the signal bar. sigma (daily: one return per session day, not annualized) is the sample standard deviation (ddof 1) of the last `length` close-to-close returns of completed session days; a day's close is its last regular bar with an `intraday` block, otherwise the last bar of its New York date. The leverage changes at that last bar, so a day uses the value known at the previous day's close. Until `length` + 1 day closes exist there is no leverage and no entry; a sigma of 0 gives `maxLeverage`. Leverage above 1 makes the unused cash negative, like `maxLeverage` with `riskPct`, and the ruin rule applies. An `options` block refuses `volTarget`.
+
+### Short side
+
+`"side": "short"` sells at the entry and buys back at the exit; P&L = units × (entry price − exit price). The sizing is that of a long of the same notional (allIn, riskPct with the stop distance above the entry, maxLeverage, volTarget). The percent stop is above the entry (entry × (1 + pct / 100)) and the percent target below it (entry × (1 − pct / 100), so `takeProfit.pct` must be below 100); ATR distances are added above for the stop and subtracted below for the target. The stop-first rule reads the bar's high: a bar that reaches the stop exits at the stop, a gap above it at the open. Costs are charged on the sale and the buy-back. A short definition may not have `management` (it raises a long stop) or an `options` block (the structure sets the direction).
+
+### LD34 example
+
+LD34 (nested Donchian long-only breakout) enters when the close breaks above any of the 20, 50, 100 and 200-day highest highs or lowest lows (a return above a Donchian low counts too), once per level, risks 1% of equity on a 2 × ATR(14) stop with up to 20× leverage, moves the stop to breakeven at 2R and trails 2 × ATR(14) below the highest close from 1R. The golden fixture runs it on 400 days of hourly FX-week bars (`reel:ld34:*` in `scripts/research/nautilus-golden.ts`).
+
+```json
+{
+  "version": 1,
+  "name": "LD34 nested Donchian long-only breakout",
+  "entry": {
+    "all": [],
+    "any": [
+      { "left": { "type": "price", "field": "close" }, "op": "breaksAbove", "oncePerLevel": true,
+        "right": { "type": "indicator", "name": "highest", "length": 20, "source": "high", "timeframe": "1d" } },
+      { "left": { "type": "price", "field": "close" }, "op": "breaksAbove", "oncePerLevel": true,
+        "right": { "type": "indicator", "name": "lowest", "length": 20, "source": "low", "timeframe": "1d" } }
+    ]
+  },
+  "stopLoss": { "kind": "atr", "length": 14, "multiple": 2 },
+  "sizing": { "mode": "riskPct", "riskPct": 1, "maxLeverage": 20 },
+  "management": { "breakevenR": 2, "trail": { "activateR": 1, "length": 14, "multiple": 2 } }
+}
+```
+
+The full definition repeats both conditions for 50, 100 and 200 days (eight `entry.any` conditions).
+
+### Series and arithmetic expressions
+
+These expressions read daily series and combine other expressions. They nest (at most 6 levels, at most 40 expression nodes in one condition or one selection score). A value that is not finite (for example a division by 0) is not available.
+
+| Expression | Value on bar t |
+| --- | --- |
+| `{ "type": "series", "series": <id or ref>, "offset": 0..1000 (optional) }` | The series value on the bar (the latest value dated on or before the bar date, carried at most 5 bar dates, as the `series` filter aligns), `offset` bars ago. |
+| `{ "type": "math", "op": "add" \| "sub" \| "mul" \| "div", "left": <expr>, "right": <expr> }` | left op right. |
+| `{ "type": "change", "of": <expr>, "length": 1..1000, "offset": 0..1000 (optional) }` | of[t − offset] / of[t − offset − length] − 1. |
+| `{ "type": "returnStdev", "of": <expr>, "length": 2..1000 }` | Sample standard deviation (n − 1) of the last `length` one-bar simple returns of `of`. Needs all `length + 1` values. |
+| `{ "type": "regression", "y": <expr>, "x": <expr>, "length": 3..1000, "lag": 0..1000 }` | Forecast a0 + a1 × x[t], from the least-squares fit of y[s] on x[s − lag] over s = t − length + 1 … t. Needs every pair and x[t]; not available when x is flat. |
+| `{ "type": "seasonal", "of": <expr>, "monthsAhead": 0..11, "minCount": 1..1000 }` | Mean of the values of `of` at bar t and earlier bars whose calendar month is `monthsAhead` months after the month of bar t. Not available with fewer than `minCount` values. |
+
+Series ids are the ids of the `series` filter (below) plus `$tr`, `$iv` and `$future`, which name a series of the traded symbol: its total-return close (`SPY:TR` for SPY), its implied-volatility index (VIX for SPY) and its futures twin (ES=F for SPY). Price and indicator expressions read the bars of the frame (see [Portfolio block](#portfolio-block)). A `series` filter condition cannot use these expressions; it reads one series close.
+
+Example, the futures trend of qc-futures-trend-carry, T = (F_t / F_t−252 − 1) / (σ × √252), σ the sample deviation of the last 252 daily returns of the futures twin F:
+
+```json
+{ "type": "math", "op": "div",
+  "left": { "type": "change", "of": { "type": "series", "series": "$future" }, "length": 252 },
+  "right": { "type": "math", "op": "mul",
+    "left": { "type": "returnStdev", "of": { "type": "series", "series": "$future" }, "length": 252 },
+    "right": { "type": "const", "value": 15.874507866387544 } } }
+```
+
+## Entry filters
+
+A filter gates entries only: the entry signal needs every entry condition and every filter; exit conditions still close a position on any bar. `filters`, the filter fields marked optional and `options` have no default, so a definition without them keeps the same canonical JSON and revision (pinned in `strategy-dsl.test.ts`).
+
+| Filter | Passes on a bar when |
+| --- | --- |
+| `{ "type": "sectorQuadrant", "sector": "XLK", "quadrants": ["leading"], "timeframe": "weekly" }` | The latest stored sector rotation point of `sector` dated on or before the bar has a quadrant in `quadrants` ([sector-rotation.md](sector-rotation.md)). `timeframe` defaults to `weekly`. |
+| `{ "type": "ivRank", "length": 252, "min": 50, "max": 100 }` | The IV rank of the traded symbol's implied-volatility index on the bar date is in [`min`, `max`]. IV rank = 100 × (v − min) / (max − min) over the last `length` index values (20 to 1000, default 252), the current one included. Not available before `length` values, on a flat window, or without an index value on the bar date. At least one of `min`, `max` (0 to 100). |
+| `{ "type": "vixTermStructure", "maxRatio": 0.95, "minRatio": 0.8 }` | VIX / VIX3M on the bar date is in [`minRatio`, `maxRatio`] (below 1 is contango). Both indices need a value on that date. At least one bound. |
+| `{ "type": "volRegime", "maxVix": 20, "maxTermRatio": 1, "trendLength": 200 }` | On the bar date VIX ≤ `maxVix`, VIX / VIX3M ≤ `maxTermRatio` and the SPY close is above its `trendLength`-day simple average (default 200, over the SPY series' own dates). |
+| `{ "type": "calendarWindow", "window": "turnOfMonth", "fromDay": -2, "toDay": 3 }` | The bar is one of the last `-fromDay` trading days of its month (-1 is the last) or one of the first `toDay` trading days (1 is the first). `fromDay` -10 to -1, `toDay` 1 to 10. |
+| `{ "type": "calendarWindow", "window": "opexWeek" }` | The bar is between the last trading day before the Monday-to-Friday week of the monthly expiration and the expiration itself (the third Friday, or the trading day before it when that Friday is a holiday). |
+| `{ "type": "calendarWindow", "window": "months", "months": [1, 12] }` | The bar is in one of the listed months (1 to 12, no repeats). |
+| `{ "type": "series", "series": "ES=F", "condition": <condition> }` | `condition` holds on another daily series (cross-asset). |
+
+Calendar windows run on daily bars only and take trading days from the NYSE holiday rules (`nyseHolidays` / `isNyseTradingDay` in `strategy-dsl-compile.ts`, Python `nyse_holidays`; the same rules as the qc-ports research calendar): weekdays except New Year (not observed on a Saturday), Martin Luther King Jr. Day, Washington's Birthday, Good Friday, Memorial Day, Juneteenth (from 2022), Independence Day, Labor Day, Thanksgiving and Christmas, with Saturday holidays observed on Friday and Sunday holidays on Monday. Special full-day closures since 1998 are listed in `NYSE_SPECIAL_CLOSURES` (Python `signals.NYSE_SPECIAL_CLOSURES`): 2001-09-11 to 2001-09-14, 2004-06-11, 2007-01-02, 2012-10-29, 2012-10-30, 2018-12-05 and 2025-01-09. A Python test checks the calendar against the qc-ports research calendar over the SPY bar dates (the repo fixture, and the local qc-ports data when present). A bar on a day that does not trade is outside the `turnOfMonth` and `opexWeek` windows. On intraday bars the UTC date misplaces the exchange session, so `runStrategyDefinition(..., timeframe)` and `plan_run` (spec `timeframe`) refuse a `calendarWindow` filter on a known timeframe other than `1d` or `1w`, and as a fallback compiling one on bars spaced less than 20 hours apart throws `StrategyUnsupportedError` with code `STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED`.
+
+Series ids: Core 7 ETFs `SPY QQQ DIA IWM GLD SLV USO`, futures `ES=F NQ=F YM=F RTY=F GC=F SI=F CL=F`, indices `VIX VIX3M VXN VXD RVX GVZ OVX VXSLV IRX TNX`, and `EY_TNX_RATIO` (Shiller earnings yield lagged 6 months over TNX). The IV index of each traded symbol: SPY VIX, QQQ VXN, DIA VXD, IWM RVX, GLD GVZ, SLV VXSLV, USO OVX.
+
+A series is one value per date (the close), so a `series` condition may use only the close price, constants and close-sourced indicators other than `atr`, `adx` and `rvol`. Its indicators and offsets run over the series' own dates; then each side takes the latest series value dated on or before the bar date (a series date missing in the bars, such as a futures Sunday, carries forward), and the operator compares the aligned sides bar by bar, so a cross is relative to the previous bar.
+
+Series data reaches the compiler like the sector points: `compileStrategy(bars, definition, sectorQuadrants?, seriesInput?)`, where `seriesInput` is `{ context: { [seriesId]: { "YYYY-MM-DD": value } }, symbol }`; `symbol` is the traded symbol for `ivRank`. Values that are not finite count as missing. A filter whose series is not in the context throws `StrategySeriesDataError` ("Series data is not available for VIX"); `ivRank` without a known traded symbol throws an input error. The Python port takes the same mapping: `compile_strategy(bars, definition, sector_quadrants, context, symbol)`; `plan_run` is the server engine and refuses series filters. The server paths do not load series or pass a symbol yet; they refuse these filters up front (see [Where definitions run](#where-definitions-run)). The research runners pass the context.
+
+Look-ahead: a daily value is known after its close. Daily bars (signal at the close) use values dated on the bar date; intraday bars use only values dated before the bar date. `ivRank`, `vixTermStructure` and `volRegime` need the value on the bar date itself (the latest earlier date for intraday bars); `series` carries the latest earlier value for at most 5 trading days (`STRATEGY_SERIES_MAX_FILL_DAYS`: distinct bar dates without a newer value, as in the research loader `qc_ports/data.align`). After that the value is missing and the filter blocks entries.
+
+## Options block
+
+```json
+{
+  "structure": "putCreditVertical",
+  "dte": { "target": 45, "min": 21 },
+  "shortDelta": 0.2,
+  "widthSigma": 0.5,
+  "profitTakePct": 50,
+  "exitDte": 7,
+  "maxLossPct": 2
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `structure` | `callDebitVertical`, `putDebitVertical`, `putCreditVertical` or `callCreditVertical`. Defined risk only. |
+| `dte` | `target` 7 to 400, `min` 1 to 400 and at most `target`: the standard monthly expiry nearest `target` with at least `min` days. |
+| `longDelta`, `shortDelta` | 0.05 to 0.95. `longDelta` only on debit verticals (runner default 0.5), `shortDelta` only on credit verticals (runner default 0.25). |
+| `widthSigma` | 0.1 to 3. Strike distance between the legs = `widthSigma` × ATM IV × √T × spot, at least one strike step. |
+| `profitTakePct` | Optional, 1 to 100. Credit: close when the spread value ≤ (1 − p/100) × credit. Debit: close at +p% of the debit. |
+| `exitDte` | Optional, 0 to 400 and below `dte.min`: close when DTE ≤ `exitDte`. |
+| `maxLossPct` | Above 0 and at most 2: contracts = floor(`maxLossPct`% of equity / max loss per contract). Above 2 is refused. |
+
+With `options`, `sizing` must be `allIn` (or omitted) and `stopLoss` and `takeProfit` must be `none`: the options block sizes and exits the spread. The compiler still produces the entry and exit signal arrays, and `CompiledStrategy.options` and `.portfolio` (Python `Compiled.options`, `.portfolio`) are the blocks unchanged for the options runner, which turns signal bars into spreads.
+
+### The options runner
+
+One runner, written twice with the same arithmetic: `packages/api/src/options-engine` (TypeScript, the instant engine of backtest runs) and `services/research/strategies/qc_ports` (Python: `portfolio.run_definition`, booked again in NautilusTrader 1.227.0 by the Nautilus worker). Golden fixtures pin TypeScript to Python.
+
+- Pricing: Black-Scholes-Merton with a dividend yield per symbol, the risk-free rate from IRX, and an ATM implied volatility from the symbol's volatility index (0.9 × VIX, VXN, VXD, RVX; 0.95 × GVZ, OVX, VXSLV) with a per-symbol skew. Expiries are the standard monthly expiries; strikes are on a 1-dollar grid (0.5 below 25 dollars).
+- Costs: 0.65 dollars per contract and leg plus half the bid-ask spread (a per-symbol percent of the mid, at least 1 cent), on entry and exit. A spread held to expiry settles at its payoff value without exit cost.
+- Sizing: contracts = floor(`maxLossPct`% of equity / max loss per contract), where the max loss includes the entry cost and the worst exit cost, and at most what the cash pays for.
+- A signal at bar i opens the spread at the close of bar i + 1. Exits, checked at each close: expiry, a missing IV index (after 5 trading days), `exitDte`, the profit take, the exit signal (one bar after it), the end of the data.
+- The ledger books every amount in cents and marks equity on each SPY trading date from the run start. Metrics: total return, CAGR, Sharpe (daily, × √252), the probabilistic Sharpe (deflated Sharpe with one trial), max drawdown, worst month, trades, win rate, exposure, skipped trades, the largest open risk and the stale-IV exits.
+
+## Portfolio block
+
+```json
+{
+  "symbols": ["SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"],
+  "policy": "roll",
+  "frame": "monthly",
+  "select": { "score": <expr>, "tieBreak": <expr>, "top": 2 },
+  "legs": [ { "entry": { "all": [...] }, "exit": { "any": [...] }, "filters": [...], "options": {...} } ]
+}
+```
+
+An options definition may name the symbols it trades and how it turns signals into spreads. Without the block it trades the run symbol with the `flat` policy on every bar.
+
+| Field | Meaning |
+| --- | --- |
+| `symbols` | 1 to 7 Core 7 ETFs (each has an IV index and a futures twin), no repeats. The order is the order of the run legs and the last tie-break of `select`. |
+| `policy` | `roll`: at each month-end bar where the leg enters, one spread that closes at the next month-end. `flat`: one open spread per run leg; a candidate bar opens a spread only when the last one has closed; the exit is the first later bar where an exit condition holds. `window`: one spread per run of entry bars, opened after the first bar and closed after the last. |
+| `cadence` | Required with `flat` and only there: `daily` (every bar) or `monthEnd` (month-end bars) are the candidate bars. |
+| `frame` | Optional, `roll` only: `monthly` compiles the conditions on month-end bars whose open, high, low and close are the total-return close. Lengths and offsets count months. Series are aligned on the daily bars first (5 trading days at most) and then read at the month-end. These bars have no range and no volume, so `atr`, `adx` and `rvol` are refused anywhere in the definition. |
+| `shift` | Optional, `window` only, 1 to 5: reads the window that many bars ahead. Allowed only when every leg has the entry `close > 0`, no exit and calendarWindow filters only (the trading calendar is known in advance). |
+| `select` | Optional, `roll` only: on each month-end, among the members whose leg enters and whose `score` (and `tieBreak`) is available, the `top` with the highest score are kept (then the highest tieBreak, then the symbol order). |
+| `legs` | Optional, 1 to 3 more legs (entry, exit, filters, options) on every symbol, after the definition's own leg. |
+
+A month-end bar is the last bar of each calendar month of the symbol's bars; the month of the last bar is not complete and has none. A member joins at its first bar with an IV index value; signals before it, or before the run start, are ignored. Each (leg, symbol) is one run leg; trade ids follow the entry date, then the run leg (leg by leg, symbol by symbol), then the entry bar.
+
+The 11 QuantConnect idea ports are portfolio definitions ([qc ports](../specs/strategies/), `services/research/strategies/qc_ports/ideas.py`); their run A definitions are stored as `qc-<idea>` definitions.
+
+## Where definitions run
+
+`serverStrategyRefusal` (`strategy-dsl.ts`) names what a server path cannot run with what it loads (`support`: `options`, `series`), and every server path refuses it rather than ignoring it:
+
+| Code | Refused |
+| --- | --- |
+| `STRATEGY_OPTIONS_UNSUPPORTED` | A definition with an `options` block, on a path without the options runner (paper hand-off, Autopilot, the instant tools). |
+| `STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED` | An `options` block on any timeframe except `1d`. |
+| `STRATEGY_SERIES_FILTERS_UNSUPPORTED` | An `ivRank`, `vixTermStructure`, `volRegime` or `series` filter or a series expression (in `entry.all`, `entry.any`, `exit.any`, a portfolio leg or the portfolio selection), on a path without the series loader. `sectorQuadrant` and `calendarWindow` filters are allowed everywhere. |
+| `STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED` | A `calendarWindow` filter on an intraday timeframe (every timeframe except `1d` and `1w`). |
+| `STRATEGY_INTRADAY_DAILY_UNSUPPORTED` | An `intraday` block on a daily timeframe (`1d`, `1w`). Without a known timeframe `compileStrategy` / `compile_strategy` refuse it when the bars have no two bars on one New York date. |
+| `STRATEGY_INTRADAY_GRID_MISALIGNED` | An `intraday` block time (`open`, `close`, `entryFrom`, `entryTo`, a `sessionReturn` `HH:MM` time) or `decisionEvery` that is not a whole multiple of the bar duration. |
+
+Backtest runs and Autopilot load daily series from the series store (`market_daily_series`, loader `packages/api/src/server/strategy-series.ts`): the refs the definition reads, resolved for the run symbol (`<ETF>:TR` is the adjusted close of the ETF row), up to the run's `to` with the whole history before `from`. A missing series fails the run with `Series data is not available for <id>` (an Autopilot tick retries instead); a server without the series store fails it with `The daily series store is not available on this server (needed for <ids>)`. Options runs load what the options runner reads (`optionsDefinitionSeriesIds`: each symbol's row and IV index, IRX and SPY, plus the definition's refs).
+
+| Path | Behaviour |
+| --- | --- |
+| `backtestRuns.submit` (portal, assistant and MCP `backtest_runs_submit`) | Support `{options, series}`. Refused definitions get `VALIDATION_ERROR` (422) with the code in the message; nothing is queued. An options definition also needs `costBps` 0, no `costProfile`, `stopLossPct` and `takeProfitPct` 0 (the book has its own costs and exits) and a symbol in `portfolio.symbols` (without a portfolio block, a symbol with an IV index: SPY, QQQ, DIA, IWM, GLD, SLV, USO). |
+| TypeScript engine (`instant-2`) | Equity definitions run with their series input; options definitions run in `options-engine` (`runOptionsDefinition` from `from` to `to` with the run capital). The report has the ledger equity, the spreads as trades (units = contracts, netReturn = return on risk, balanceAfter = ledger equity at the exit date), the run symbol's series store row on the ledger dates as prices (options runs never read `market_bars`) and `options` (capital, `optionsRunMetrics`, signals, symbols, trades, `nautilusGap` null). `seriesSha256` hashes the series rows (equity runs that read series: the bar hash and the rows). A run written past the submit check fails with the same message. |
+| Nautilus worker claim (single or batch) | The claim sends `series` (store rows, null when the run reads none); `seriesSha256` then covers bars and rows (options runs: the rows, their bars being the run symbol's row) (in a batch, loaded once: each series run has its own `seriesSha256`, and `series` holds each row up to the latest `to`). Rows over 40 MB fail the run at claim. An options run is claimed alone; one in a comparison batch fails. `complete`/`completeMany` accept the options runner document (`kind: "options"`, validated strictly); the API reloads the rows, checks the hash, runs the options runner on the same rows and requires the worker's ledger to be that run (days, trade identities, skips and signals equal; equity, prices, `maxLoss` and metrics within 1e-9; fees and P&L within one cent; `nautilusGap` at most 1e-6) and builds the same report with the worker's `nautilusGap`. |
+| `autopilot.campaigns.create` and ticks | Support `{series}`: series filters are accepted and every gate, in-sample, neighbour and comparison run reads the campaign's series (loaded once per tick; a missing series or store retries next tick). Options blocks stay refused. |
+| `autopilot.candidates.sendToPaper` | No support: `VALIDATION_ERROR` before any write for options or series definitions. |
+| `autopilot.candidates.get` | The tearsheet shows, but `nautilus` (the paper config) is null for a definition paper refuses. |
+| `runStrategyDefinition` (TypeScript) and `plan_run` (Python Nautilus engine) | Always refuse an options block (`StrategyUnsupportedError`); series filters run only with `support.series` and a series input (Python: the spec `context`). Research runners call `compileStrategy` / `compile_strategy` with their series context. |
+
+`backtestRuns.definitions.validate` and `.save` accept these definitions: saving stores a revision and runs nothing (decision 2026-11-08, card vertex-qc-ports: save accepts and runs nothing; execution follows the table above). Paper-forward monitors run fixed rules only (a definition run has no fixed-rule parameters), and pick lists do not read definitions.
+
 ## Execution model
 
-The compiler turns a definition into one signal per bar and runs the engine model of the instant backtest: signals use data up to the close of the signal bar and fill at the next open; stops and targets are checked inside each bar and a gap fills at the open; costs are charged in basis points on each side. In a backtest run, the run-level `stopLossPct` and `takeProfitPct` apply only to the fixed rules; a definition carries its own stop, target and sizing.
+The compiler turns a definition into one signal per bar and runs the engine model of the instant backtest: signals use data up to the close of the signal bar and fill at the next open; stops and targets are checked inside each bar and a gap fills at the open; costs are charged in basis points on each side. `management` raises the stop at bar closes as described in [Stop management and leverage](#stop-management-and-leverage). In a backtest run, the run-level `stopLossPct` and `takeProfitPct` apply only to the fixed rules; a definition carries its own stop, target, sizing, management and leverage.
 
 ## Versioning
 
@@ -78,14 +314,17 @@ A definition run without a library strategy stores a snapshot that depends only 
 
 ## Tests
 
-- Schema validation and templates: `packages/api/src/strategy-dsl.test.ts`.
-- Compile parity: a definition SMA cross equals the golden `smaCross` rule (trades, equity, statistics), and the Donchian template equals the golden `breakout` rule without a trend filter: `packages/api/src/strategy-dsl-compile.test.ts`, `packages/api/src/backtest-runs.test.ts`.
-- Builder page: `apps/web/src/components/portal/strategy-builder-workspace.test.tsx`.
+- Schema validation, templates, the filters and options schema, and the pinned revisions of existing definitions: `packages/api/src/strategy-dsl.test.ts`.
+- Compile parity: a definition SMA cross equals the golden `smaCross` rule (trades, equity, statistics), and the Donchian template equals the golden `breakout` rule without a trend filter: `packages/api/src/strategy-dsl-compile.test.ts`, `packages/api/src/backtest-runs.test.ts`. The entry filters are covered there too.
+- DSL extensions (`timeframe: "1d"`, breaks, `oncePerLevel`, `entry.any`, `management`, `maxLeverage`): schema checks in `strategy-dsl.test.ts`, compiled series in `strategy-dsl-compile.test.ts` (hand-built session days across the 17:00 New York roll), the engine stop management and leverage sizing in `packages/api/src/instant-backtest-engine.test.ts`, and the same cases in Python in `services/research/tests/test_nautilus_backtest_signals.py` and `test_nautilus_backtest_engine.py`.
+- TypeScript and Python parity: `bun run research:nautilus-golden` writes `services/research/tests/fixtures/nautilus_backtest/golden.json` with definitions using each filter (the `qc:*` cases, on synthetic VIX, VIX3M, VXN, SPY, ES=F and GC=F series and a spring 2019 calendar with a Good Friday expiration) and the `reel:*` cases (LD34 and a mixed daily-level definition that enters, on 400 days of hourly bars); `services/research/tests/test_nautilus_backtest_signals.py` must match the signals exactly, and `scripts/research/nautilus-golden.test.ts` checks the committed file is current.
+- Intraday sessions, session indicators, `volTarget` and `side`: schema checks and every refusal in `strategy-dsl.test.ts`; hand-checked session layout (early close, ties of the bar gap), `vwap`, `sessionReturn` (`prevClose`, `open`, `HH:MM`, missing bars), `noiseBand` (skipped slots, no look-ahead, `multiple`), the entry window, `decisionEvery`, `volTargetLeverage` and a volTarget short to its MOC exit on an early-close day in `strategy-dsl-compile.test.ts`; the engine short side, MOC and leverage sizing in `instant-backtest-engine.test.ts`; the same hand-checked cases in Python in `test_nautilus_backtest_signals.py` and `test_nautilus_backtest_engine.py`; and the `intraday:*` golden cases (5-minute bars with GHLZ and ZAB, long and short).
+- Builder page: `apps/web/src/components/portal/strategy-builder-workspace.test.tsx`. The visual builder edits `entry.all`, `exit.any`, the stop, target and sizing; it keeps `entry.any`, `oncePerLevel`, `timeframe`, `management`, `maxLeverage`, `side`, the `intraday` block, the session indicators and `volTarget` sizing written in the JSON editor.
 - Headless browser flow, including builder-made SMA 10/40 against the golden rule on `/backtest-runs`: `tests/e2e/strategy-builder.spec.ts`.
 
 ## Limits
 
-- Long only. No short positions, pyramiding or partial exits.
+- One position at a time, long or short (`side`). No pyramiding or partial exits.
 - The text editor accepts JSON only.
 - Research and backtest use only. There is no order or broker path.
 - `offset` reaches at most 1000 bars back. `rvol` `length` is at most 100 sessions. `rvol` needs bar volume. Stored bars load their volume; a null stored volume is not available, so `rvol` is not available in that session and the sessions after it that use it.

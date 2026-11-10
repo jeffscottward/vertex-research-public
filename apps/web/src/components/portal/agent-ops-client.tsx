@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  createApiClient,
   type AgentApiKeyCreateOutput,
   type AgentApiKeyOutput,
   type AgentOpsSummaryOutput,
@@ -16,6 +15,7 @@ import {
   type BacktestGetOutput,
   type BacktestListInput,
   type BacktestResultSummaryOutput,
+  createApiClient,
   type DeploymentRequestCreateInput,
   type DeploymentRequestListInput,
   type DeploymentRequestOutput,
@@ -40,86 +40,86 @@ import {
 import { Info } from "lucide-react";
 
 export interface AgentOpsGateway {
-  readonly summary: () => Promise<AgentOpsSummaryOutput>;
-  readonly listTasks: (
-    input?: AgentTaskListInput
-  ) => Promise<AgentTaskOutput[]>;
-  readonly getTask: (id: string) => Promise<AgentTaskGetOutput>;
-  readonly createTask: (
-    input: AgentTaskCreateInput
-  ) => Promise<AgentTaskOutput>;
-  readonly updateTask: (
-    input: AgentTaskUpdateInput
-  ) => Promise<AgentTaskOutput>;
   readonly appendEvent: (
     input: AgentTaskAppendEventInput
   ) => Promise<AgentTaskEventOutput>;
+  readonly createTask: (
+    input: AgentTaskCreateInput
+  ) => Promise<AgentTaskOutput>;
+  readonly getTask: (id: string) => Promise<AgentTaskGetOutput>;
+  readonly listTasks: (
+    input?: AgentTaskListInput
+  ) => Promise<AgentTaskOutput[]>;
+  readonly summary: () => Promise<AgentOpsSummaryOutput>;
+  readonly updateTask: (
+    input: AgentTaskUpdateInput
+  ) => Promise<AgentTaskOutput>;
 }
 
 export interface PapersGateway {
-  readonly list: () => Promise<ResearchPaperOutput[]>;
   readonly add: (input: PapersAddInput) => Promise<ResearchPaperOutput>;
-  readonly update: (input: PapersUpdateInput) => Promise<ResearchPaperOutput>;
   readonly addFromArxiv: (arxiv: string) => Promise<PapersAddFromArxivOutput>;
+  readonly list: () => Promise<ResearchPaperOutput[]>;
+  readonly update: (input: PapersUpdateInput) => Promise<ResearchPaperOutput>;
 }
 
 // Operator reads of agent-reported backtests. Writes come from agents (agentOps.backtests.record).
 export interface BacktestsGateway {
+  readonly get: (id: string) => Promise<BacktestGetOutput>;
   readonly list: (
     input?: BacktestListInput
   ) => Promise<BacktestResultSummaryOutput[]>;
-  readonly get: (id: string) => Promise<BacktestGetOutput>;
 }
 
 const createBacktestsGateway = (client: ApiClient): BacktestsGateway => ({
+  get: (id) => client.agentOps.backtests.get({ id }),
   list: async (input = {}) =>
     (await client.agentOps.backtests.list(input)).backtests,
-  get: (id) => client.agentOps.backtests.get({ id }),
 });
 
 // Operator reads of agent-recorded optimizer runs. Writes come from agents (agentOps.optimizations.record).
 export interface OptimizationsGateway {
+  readonly get: (id: string) => Promise<OptimizationGetOutput>;
   readonly list: (
     input?: OptimizationListInput
   ) => Promise<OptimizationSummaryOutput[]>;
-  readonly get: (id: string) => Promise<OptimizationGetOutput>;
 }
 
 const createOptimizationsGateway = (
   client: ApiClient
 ): OptimizationsGateway => ({
+  get: (id) => client.agentOps.optimizations.get({ id }),
   list: async (input = {}) =>
     (await client.agentOps.optimizations.list(input)).optimizations,
-  get: (id) => client.agentOps.optimizations.get({ id }),
 });
 
 // Operator strategy library (strategyLibrary.*).
 export interface StrategyLibraryGateway {
+  readonly create: (input: StrategyCreateInput) => Promise<StrategyOutput>;
+  readonly get: (id: string) => Promise<StrategyGetOutput>;
   readonly list: (
     input?: StrategyListInput
   ) => Promise<StrategySummaryOutput[]>;
-  readonly get: (id: string) => Promise<StrategyGetOutput>;
-  readonly create: (input: StrategyCreateInput) => Promise<StrategyOutput>;
-  readonly update: (input: StrategyUpdateInput) => Promise<StrategyOutput>;
+  readonly removePreset: (strategyId: string, id: string) => Promise<void>;
   readonly savePreset: (
     input: StrategyPresetSaveInput
   ) => Promise<StrategyPresetOutput>;
-  readonly removePreset: (strategyId: string, id: string) => Promise<void>;
+  readonly update: (input: StrategyUpdateInput) => Promise<StrategyOutput>;
 }
 
 const createStrategyLibraryGateway = (
   client: ApiClient
 ): StrategyLibraryGateway => ({
+  create: (input) => client.strategyLibrary.create(input),
+  get: (id) => client.strategyLibrary.get({ id }),
   list: async (input = {}) =>
     (await client.strategyLibrary.list(input)).strategies,
-  get: (id) => client.strategyLibrary.get({ id }),
-  create: (input) => client.strategyLibrary.create(input),
-  update: (input) => client.strategyLibrary.update(input),
-  savePreset: (input) => client.strategyLibrary.presets.save(input),
   removePreset: async (strategyId, id) => {
-    await client.strategyLibrary.presets.remove({ strategyId, id });
+    await client.strategyLibrary.presets.remove({ id, strategyId });
     return;
   },
+  savePreset: (input) => client.strategyLibrary.presets.save(input),
+  update: (input) => client.strategyLibrary.update(input),
 });
 
 // Read-only QuantVPS deployment state (agentOps.deployment.status). No write procedures exist.
@@ -134,25 +134,25 @@ const createDeploymentGateway = (client: ApiClient): DeploymentGateway => ({
 // Paper deployment requests (deploymentRequests.*): session-only records. Approve records a decision;
 // nothing is dispatched.
 export interface DeploymentRequestsGateway {
-  readonly list: (
-    input?: DeploymentRequestListInput
-  ) => Promise<DeploymentRequestOutput[]>;
-  readonly get: (id: string) => Promise<DeploymentRequestOutput>;
-  readonly create: (
-    input: DeploymentRequestCreateInput
-  ) => Promise<DeploymentRequestOutput>;
-  readonly update: (
-    input: DeploymentRequestUpdateInput
-  ) => Promise<DeploymentRequestOutput>;
-  readonly submit: (id: string) => Promise<DeploymentRequestOutput>;
   readonly approve: (
     id: string,
     confirmSlug: string,
     note?: string
   ) => Promise<DeploymentRequestOutput>;
+  readonly create: (
+    input: DeploymentRequestCreateInput
+  ) => Promise<DeploymentRequestOutput>;
+  readonly get: (id: string) => Promise<DeploymentRequestOutput>;
+  readonly list: (
+    input?: DeploymentRequestListInput
+  ) => Promise<DeploymentRequestOutput[]>;
   readonly reject: (
     id: string,
     note: string
+  ) => Promise<DeploymentRequestOutput>;
+  readonly submit: (id: string) => Promise<DeploymentRequestOutput>;
+  readonly update: (
+    input: DeploymentRequestUpdateInput
   ) => Promise<DeploymentRequestOutput>;
   readonly withdraw: (id: string) => Promise<DeploymentRequestOutput>;
 }
@@ -160,36 +160,36 @@ export interface DeploymentRequestsGateway {
 const createDeploymentRequestsGateway = (
   client: ApiClient
 ): DeploymentRequestsGateway => ({
-  list: async (input = {}) =>
-    (await client.deploymentRequests.list(input)).requests,
-  get: (id) => client.deploymentRequests.get({ id }),
-  create: (input) => client.deploymentRequests.create(input),
-  update: (input) => client.deploymentRequests.update(input),
-  submit: (id) => client.deploymentRequests.submit({ id }),
   approve: (id, confirmSlug, note) =>
     client.deploymentRequests.approve({
-      id,
       confirmSlug,
+      id,
       ...(note === undefined ? {} : { note }),
     }),
+  create: (input) => client.deploymentRequests.create(input),
+  get: (id) => client.deploymentRequests.get({ id }),
+  list: async (input = {}) =>
+    (await client.deploymentRequests.list(input)).requests,
   reject: (id, note) => client.deploymentRequests.reject({ id, note }),
+  submit: (id) => client.deploymentRequests.submit({ id }),
+  update: (input) => client.deploymentRequests.update(input),
   withdraw: (id) => client.deploymentRequests.withdraw({ id }),
 });
 
 // Session-only key management. The full key exists only in the create result.
 export interface AgentApiKeysGateway {
-  readonly list: () => Promise<AgentApiKeyOutput[]>;
   readonly create: (
     name: string,
     access?: "read" | "write"
   ) => Promise<AgentApiKeyCreateOutput>;
+  readonly list: () => Promise<AgentApiKeyOutput[]>;
   readonly revoke: (id: string) => Promise<void>;
 }
 
 const createAgentApiKeysGateway = (client: ApiClient): AgentApiKeysGateway => ({
-  list: async () => (await client.agentApiKeys.list({})).keys,
   create: (name, access = "read") =>
-    client.agentApiKeys.create({ name, access }),
+    client.agentApiKeys.create({ access, name }),
+  list: async () => (await client.agentApiKeys.list({})).keys,
   revoke: async (id) => {
     await client.agentApiKeys.revoke({ id });
     return;
@@ -197,20 +197,20 @@ const createAgentApiKeysGateway = (client: ApiClient): AgentApiKeysGateway => ({
 });
 
 const createAgentOpsGateway = (client: ApiClient): AgentOpsGateway => ({
-  summary: () => client.agentOps.summary({}),
+  appendEvent: (input) => client.agentOps.tasks.appendEvent(input),
+  createTask: (input) => client.agentOps.tasks.create(input),
+  getTask: (id) => client.agentOps.tasks.get({ id }),
   listTasks: async (input = {}) =>
     (await client.agentOps.tasks.list(input)).tasks,
-  getTask: (id) => client.agentOps.tasks.get({ id }),
-  createTask: (input) => client.agentOps.tasks.create(input),
+  summary: () => client.agentOps.summary({}),
   updateTask: (input) => client.agentOps.tasks.update(input),
-  appendEvent: (input) => client.agentOps.tasks.appendEvent(input),
 });
 
 const createPapersGateway = (client: ApiClient): PapersGateway => ({
-  list: async () => (await client.papers.list({})).papers,
   add: (input) => client.papers.add(input),
-  update: (input) => client.papers.update(input),
   addFromArxiv: (arxiv) => client.papers.addFromArxiv({ arxiv }),
+  list: async () => (await client.papers.list({})).papers,
+  update: (input) => client.papers.update(input),
 });
 
 let browserClient: ApiClient | undefined;
@@ -221,24 +221,24 @@ const currentClient = (): ApiClient => {
 
 export const createBrowserAgentOpsGateway = (): AgentOpsGateway => {
   return Object.freeze({
-    summary: () => createAgentOpsGateway(currentClient()).summary(),
-    listTasks: (input?: AgentTaskListInput) =>
-      createAgentOpsGateway(currentClient()).listTasks(input),
-    getTask: (id: string) => createAgentOpsGateway(currentClient()).getTask(id),
-    createTask: (input: AgentTaskCreateInput) =>
-      createAgentOpsGateway(currentClient()).createTask(input),
-    updateTask: (input: AgentTaskUpdateInput) =>
-      createAgentOpsGateway(currentClient()).updateTask(input),
     appendEvent: (input: AgentTaskAppendEventInput) =>
       createAgentOpsGateway(currentClient()).appendEvent(input),
+    createTask: (input: AgentTaskCreateInput) =>
+      createAgentOpsGateway(currentClient()).createTask(input),
+    getTask: (id: string) => createAgentOpsGateway(currentClient()).getTask(id),
+    listTasks: (input?: AgentTaskListInput) =>
+      createAgentOpsGateway(currentClient()).listTasks(input),
+    summary: () => createAgentOpsGateway(currentClient()).summary(),
+    updateTask: (input: AgentTaskUpdateInput) =>
+      createAgentOpsGateway(currentClient()).updateTask(input),
   });
 };
 
 export const createBrowserAgentApiKeysGateway = (): AgentApiKeysGateway => {
   return Object.freeze({
-    list: () => createAgentApiKeysGateway(currentClient()).list(),
     create: (name: string, access?: "read" | "write") =>
       createAgentApiKeysGateway(currentClient()).create(name, access),
+    list: () => createAgentApiKeysGateway(currentClient()).list(),
     revoke: (id: string) =>
       createAgentApiKeysGateway(currentClient()).revoke(id),
   });
@@ -269,13 +269,13 @@ export const describeAgentApiKeyFailure = (error: unknown): string => {
 
 export const createBrowserPapersGateway = (): PapersGateway => {
   return Object.freeze({
-    list: () => createPapersGateway(currentClient()).list(),
     add: (input: PapersAddInput) =>
       createPapersGateway(currentClient()).add(input),
-    update: (input: PapersUpdateInput) =>
-      createPapersGateway(currentClient()).update(input),
     addFromArxiv: (arxiv: string) =>
       createPapersGateway(currentClient()).addFromArxiv(arxiv),
+    list: () => createPapersGateway(currentClient()).list(),
+    update: (input: PapersUpdateInput) =>
+      createPapersGateway(currentClient()).update(input),
   });
 };
 
@@ -288,45 +288,45 @@ export const createBrowserDeploymentGateway = (): DeploymentGateway => {
 export const createBrowserStrategyLibraryGateway =
   (): StrategyLibraryGateway => {
     return Object.freeze({
-      list: (input?: StrategyListInput) =>
-        createStrategyLibraryGateway(currentClient()).list(input),
-      get: (id: string) =>
-        createStrategyLibraryGateway(currentClient()).get(id),
       create: (input: StrategyCreateInput) =>
         createStrategyLibraryGateway(currentClient()).create(input),
-      update: (input: StrategyUpdateInput) =>
-        createStrategyLibraryGateway(currentClient()).update(input),
-      savePreset: (input: StrategyPresetSaveInput) =>
-        createStrategyLibraryGateway(currentClient()).savePreset(input),
+      get: (id: string) =>
+        createStrategyLibraryGateway(currentClient()).get(id),
+      list: (input?: StrategyListInput) =>
+        createStrategyLibraryGateway(currentClient()).list(input),
       removePreset: (strategyId: string, id: string) =>
         createStrategyLibraryGateway(currentClient()).removePreset(
           strategyId,
           id
         ),
+      savePreset: (input: StrategyPresetSaveInput) =>
+        createStrategyLibraryGateway(currentClient()).savePreset(input),
+      update: (input: StrategyUpdateInput) =>
+        createStrategyLibraryGateway(currentClient()).update(input),
     });
   };
 
 export const createBrowserDeploymentRequestsGateway =
   (): DeploymentRequestsGateway => {
     return Object.freeze({
-      list: (input?: DeploymentRequestListInput) =>
-        createDeploymentRequestsGateway(currentClient()).list(input),
-      get: (id: string) =>
-        createDeploymentRequestsGateway(currentClient()).get(id),
-      create: (input: DeploymentRequestCreateInput) =>
-        createDeploymentRequestsGateway(currentClient()).create(input),
-      update: (input: DeploymentRequestUpdateInput) =>
-        createDeploymentRequestsGateway(currentClient()).update(input),
-      submit: (id: string) =>
-        createDeploymentRequestsGateway(currentClient()).submit(id),
       approve: (id: string, confirmSlug: string, note?: string) =>
         createDeploymentRequestsGateway(currentClient()).approve(
           id,
           confirmSlug,
           note
         ),
+      create: (input: DeploymentRequestCreateInput) =>
+        createDeploymentRequestsGateway(currentClient()).create(input),
+      get: (id: string) =>
+        createDeploymentRequestsGateway(currentClient()).get(id),
+      list: (input?: DeploymentRequestListInput) =>
+        createDeploymentRequestsGateway(currentClient()).list(input),
       reject: (id: string, note: string) =>
         createDeploymentRequestsGateway(currentClient()).reject(id, note),
+      submit: (id: string) =>
+        createDeploymentRequestsGateway(currentClient()).submit(id),
+      update: (input: DeploymentRequestUpdateInput) =>
+        createDeploymentRequestsGateway(currentClient()).update(input),
       withdraw: (id: string) =>
         createDeploymentRequestsGateway(currentClient()).withdraw(id),
     });
@@ -334,17 +334,17 @@ export const createBrowserDeploymentRequestsGateway =
 
 export const createBrowserOptimizationsGateway = (): OptimizationsGateway => {
   return Object.freeze({
+    get: (id: string) => createOptimizationsGateway(currentClient()).get(id),
     list: (input?: OptimizationListInput) =>
       createOptimizationsGateway(currentClient()).list(input),
-    get: (id: string) => createOptimizationsGateway(currentClient()).get(id),
   });
 };
 
 export const createBrowserBacktestsGateway = (): BacktestsGateway => {
   return Object.freeze({
+    get: (id: string) => createBacktestsGateway(currentClient()).get(id),
     list: (input?: BacktestListInput) =>
       createBacktestsGateway(currentClient()).list(input),
-    get: (id: string) => createBacktestsGateway(currentClient()).get(id),
   });
 };
 
@@ -384,6 +384,7 @@ export const OPERATOR_FEATURE_COPY = Object.freeze({
   optimizations: "Optimization runs are limited to operators.",
   papers: "The research paper pipeline is limited to operators.",
   plays: "The plays list is limited to operators.",
+  "semantic-terms": "The semantic term catalog is limited to operators.",
   "strategy-library": "The strategy library is limited to operators.",
   "watchlist-analysis":
     "Watchlist relationships and exposure (IBKR bars and positions) are limited to operators.",
@@ -440,22 +441,22 @@ export const describeAgentOpsFailure = (error: unknown): string => {
 };
 
 export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  blocked: "Blocked",
+  cancelled: "Cancelled",
+  failed: "Failed",
+  needs_review: "Needs review",
   queued: "Queued",
   running: "Running",
-  needs_review: "Needs review",
-  blocked: "Blocked",
   succeeded: "Succeeded",
-  failed: "Failed",
-  cancelled: "Cancelled",
 });
 
 export const STAGE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  queued: "Queued",
-  ingested: "Ingested",
-  spec_extracted: "Spec extracted",
-  implemented: "Implemented",
   backtested: "Backtested",
   forward_tested: "Forward tested",
+  implemented: "Implemented",
+  ingested: "Ingested",
+  queued: "Queued",
+  spec_extracted: "Spec extracted",
   verdict: "Verdict",
 });
 

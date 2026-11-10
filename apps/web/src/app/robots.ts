@@ -52,6 +52,7 @@ export default function robots() {
         "/flow",
         "/deployments",
         "/engines",
+        "/semantic-terms",
         "/forgot-password",
         "/reset-password",
         "/settings",

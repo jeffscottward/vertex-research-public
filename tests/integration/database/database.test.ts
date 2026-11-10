@@ -62,6 +62,8 @@ const EXPECTED_TABLES = [
 // constraints (Vertex uniqueness uses named unique indexes).
 const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   agent_model_run_events: "id",
+  academy_lesson_sources: "source_id",
+  academy_lesson_specs: "slug",
   agent_model_runs: "id",
   agent_task_events: "id",
   agent_tasks: "id",
@@ -88,6 +90,8 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   forward_drift_monitors: "id",
   market_bar_series: "id",
   market_bars: "series_id,t",
+  market_daily_points: "series_id,date",
+  market_daily_series: "id",
   notification_admissions:
     "tenant_key,recipient_key,channel,purpose,idempotency_key",
   notification_authority_current:
@@ -95,6 +99,22 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   notification_authority_versions:
     "tenant_key,account_alias,environment,record_kind,authority_id,version",
   notification_cooldowns: "tenant_key,recipient_key,channel",
+  openbb_cot_positions: "report_date,market_code,category",
+  openbb_event_calendar: "source,event_key",
+  openbb_factor_returns: "date,frequency,factor",
+  openbb_finra_otc_weekly: "week_start,symbol,venue",
+  openbb_ingest_runs: "id",
+  openbb_macro_points: "series_id,date",
+  openbb_macro_series: "id",
+  openbb_option_iv_daily: "as_of,underlying",
+  openbb_option_iv_term: "as_of,underlying,expiration",
+  openbb_sec_13f_holdings: "filer_cik,period_ending,cusip,option_type",
+  openbb_sec_filings: "accession_number,symbol",
+  openbb_sec_ftd: "settlement_date,symbol",
+  openbb_sec_insider_trades: "accession_number,row_number",
+  openbb_short_interest: "settlement_date,symbol",
+  openbb_short_volume_daily: "date,symbol",
+  openbb_vx_curve: "as_of,contract_month",
   optimization_runs: "id",
   paper_captures: "id",
   pick_list_members: "snapshot_id,symbol",
@@ -111,6 +131,9 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   research_studies: "id",
   sector_rotation_alerts: "symbol,quadrant,entered_on",
   sector_rotation_points: "timeframe,symbol,date",
+  semantic_relationships: "id",
+  semantic_sql_attributes: "id",
+  semantic_terms: "id",
   signal_alert_events: "id",
   signal_alert_rules: "id",
   strategies: "id",
@@ -739,7 +762,13 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     for (const [tableName, columns] of Object.entries(VERTEX_PRIMARY_KEYS)) {
       expectedKeys.push(`p:${tableName}:${columns}`);
     }
-    expectedKeys.push("u:rate_limit:key", "u:session:token", "u:user:email");
+    expectedKeys.push(
+      // Target of academy_lesson_specs_source_fk (a lesson's course is its source's course).
+      "u:academy_lesson_sources:source_id,course",
+      "u:rate_limit:key",
+      "u:session:token",
+      "u:user:email"
+    );
     expectedKeys.sort();
 
     return expect(actualKeys).toEqual(expectedKeys);

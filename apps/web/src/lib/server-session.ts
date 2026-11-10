@@ -68,6 +68,7 @@ const PORTAL_PATH_ROOTS = [
   "/flow",
   "/deployments",
   "/engines",
+  "/semantic-terms",
   "/watchlist",
   "/price-alerts",
   "/news",

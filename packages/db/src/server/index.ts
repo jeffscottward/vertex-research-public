@@ -248,6 +248,61 @@ export {
   marketBarSeriesId,
 } from "./market-bars.ts";
 export type {
+  MarketDailyColumns,
+  MarketDailyPoint,
+  MarketDailyRange,
+  MarketDailySeries,
+  MarketDailySeriesInput,
+  MarketDailySeriesRepository,
+  MarketDailyUpsertResult,
+} from "./market-daily-series.ts";
+export {
+  createMarketDailySeriesRepository,
+  isMarketDailyDate,
+  MARKET_DAILY_SERIES_ID_PATTERN,
+  MarketDailySeriesInputError,
+  validateMarketDailySeries,
+} from "./market-daily-series.ts";
+export type {
+  Openbb13fRow,
+  OpenbbCotRow,
+  OpenbbEventRow,
+  OpenbbFactorRow,
+  OpenbbFtdRow,
+  OpenbbInsiderRow,
+  OpenbbMacroPointInput,
+  OpenbbMacroPointRow,
+  OpenbbMacroSeriesRow,
+  OpenbbOptionIvDailyRow,
+  OpenbbOptionIvTermRow,
+  OpenbbOtcRow,
+  OpenbbRepository,
+  OpenbbRun,
+  OpenbbRunInput,
+  OpenbbSecFilingRow,
+  OpenbbShortInterestRow,
+  OpenbbShortVolumeRow,
+  OpenbbTableStat,
+  OpenbbUpsertRows,
+  OpenbbUpsertTable,
+  OpenbbVxCurveRow,
+} from "./openbb.ts";
+export {
+  createOpenbbRepository,
+  OPENBB_UPSERT_TABLES,
+} from "./openbb.ts";
+export type {
+  MarketDailyBars,
+  MarketDailyViews,
+} from "./market-daily-views.ts";
+export {
+  createMarketDailyViews,
+  marketDailyBars,
+  marketDailyCloses,
+  marketDailyTotalReturn,
+  TOTAL_RETURN_SUFFIX,
+} from "./market-daily-views.ts";
+export type {
   ResearchCatalogImport,
   ResearchCategoryInput,
   ResearchCompanyResearchInput,
@@ -274,6 +329,37 @@ export {
   CLICK_LOG_RETENTION_DAYS,
   createClickLogRepository,
 } from "./click-log.ts";
+export type {
+  SemanticAttributePatch,
+  SemanticAttributeResult,
+  SemanticAttributeRunOptions,
+  SemanticCatalog,
+  SemanticCatalogKind,
+  SemanticCertification,
+  SemanticJsonValue,
+  SemanticLayerRepository,
+  SemanticParamValue,
+  SemanticRelationshipPatch,
+  SemanticRelationshipRow,
+  SemanticRow,
+  SemanticRunFailure,
+  SemanticSqlAttributeRow,
+  SemanticTermPatch,
+  SemanticTermRow,
+} from "./semantic-layer.ts";
+export type {
+  CertifiedStatement,
+  SemanticReader,
+  SemanticReaderClient,
+  SemanticReaderConnection,
+} from "./semantic-layer.ts";
+export {
+  certifiedStatement,
+  createSemanticLayerRepository,
+  createSemanticReader,
+  SEMANTIC_READER_ROLE,
+  SemanticSqlParameterError,
+} from "./semantic-layer.ts";
 export {
   createResearchReportsRepository,
   ResearchReportsInputError,
@@ -322,6 +408,7 @@ export type {
 export {
   createPlaysRepository,
   PLAY_MAX_LEGS,
+  normalizePlayInput,
   validatePlayLegs,
 } from "./plays-repository.ts";
 export {
@@ -415,6 +502,20 @@ export {
   type ResearchStudyUpsertInput,
   type ResearchStudyUpsertResult,
 } from "./research-studies.ts";
+export {
+  type AcademyContentRepository,
+  type AcademyCourseImportInput,
+  type AcademyCourseImportResult,
+  type AcademyImportCounts,
+  type AcademyLessonListEntry,
+  type AcademyLessonRecord,
+  type AcademyLessonSourceRecord,
+  type AcademyLessonSpecRecord,
+  academyLessonSpecHash,
+  createAcademyContentRepository,
+  parseAcademyCourseImport,
+  type ValidatedAcademyImport,
+} from "./academy-content.ts";
 export type {
   QuantLabBacktestRow,
   QuantLabCaptureRow,

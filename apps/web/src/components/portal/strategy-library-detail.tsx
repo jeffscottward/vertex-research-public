@@ -1,5 +1,6 @@
 "use client";
 
+import { lessonSlugOfStrategy } from "@darkfactory/academy/courses";
 import {
   STRATEGY_STATUS_VALUES,
   type StrategyGetOutput,
@@ -8,6 +9,7 @@ import {
   type StrategyStatusValue,
 } from "@darkfactory/api";
 import {
+  Badge,
   Button,
   Input,
   Table,
@@ -32,8 +34,16 @@ import {
   reportedSharpe,
 } from "./backtests-workspace.tsx";
 import { newRequestHref } from "./deployment-requests-model.ts";
+import type { ResearchStudyGateway } from "./filter-studies-section.tsx";
+import {
+  QcPortDefinitionLink,
+  StrategyBacktestStudy,
+} from "./strategy-backtest-study.tsx";
+import { QC_IDEA_TAG } from "./strategy-backtest-study-model.ts";
 import {
   descriptionLinks,
+  EXTERNAL_CLAIM_HEADING,
+  EXTERNAL_CLAIM_NOTICE,
   formatParamValue,
   formatPresetValues,
   formatRatio,
@@ -49,8 +59,11 @@ import {
   STRATEGY_TAB_LABELS,
   STRATEGY_TABS,
   type StrategyTab,
+  strategyBadges,
 } from "./strategy-library-model.ts";
 import { ParamField, selectClass } from "./strategy-param-field.tsx";
+import { StrategyReelStudy } from "./strategy-reel-study.tsx";
+import { BACKTEST_STUDY_TAG } from "./strategy-reel-study-model.ts";
 
 // External links from a strategy description (source dashboard, code), opened in a new tab.
 export const StrategyLinks = ({
@@ -79,6 +92,96 @@ export const StrategyLinks = ({
   );
 };
 
+// "High priority" and "Externally pre-validated" beside a strategy name (board rows, cards and the
+// detail header). Text labels on theme tokens; nothing renders when neither applies.
+export const StrategyBadges = ({
+  strategy,
+}: Readonly<{
+  strategy: Pick<
+    StrategyGetOutput["strategy"],
+    "priority" | "externalValidation"
+  >;
+}>) => {
+  const badges = strategyBadges(strategy);
+  if (badges.length === 0) return null;
+  return (
+    <span className="inline-flex flex-wrap gap-1" data-strategy-badges="">
+      {badges.map((badge) => (
+        <Badge
+          data-strategy-badge={badge.key}
+          {...(badge.key === "high-priority"
+            ? { "data-strategy-priority": "high" }
+            : { "data-strategy-external-validation": "" })}
+          key={badge.key}
+          title={badge.hint}
+          variant={badge.key === "high-priority" ? "default" : "outline"}
+        >
+          {badge.label}
+          {badge.srText === null ? null : (
+            <span className="sr-only">{badge.srText}</span>
+          )}
+        </Badge>
+      ))}
+    </span>
+  );
+};
+
+// The third party's claim as published: source, author, date, claimed method and claimed metrics.
+// Read-only; it carries no arm, order or deploy control.
+const ExternalClaim = ({
+  strategy,
+}: Readonly<{ strategy: StrategyGetOutput["strategy"] }>) => {
+  const claim = strategy.externalValidation;
+  if (claim === null) return null;
+  return (
+    <section
+      aria-labelledby="strategy-external-claim-heading"
+      className="space-y-2 rounded-md border border-border p-3 text-xs [overflow-wrap:anywhere]"
+      data-click-private=""
+      data-strategy-external-claim={strategy.id}
+    >
+      <h3 className="font-medium text-sm" id="strategy-external-claim-heading">
+        {EXTERNAL_CLAIM_HEADING}
+      </h3>
+      <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1">
+        <dt className="text-muted-foreground">Source</dt>
+        <dd>
+          <a
+            className="inline-flex min-h-11 items-center underline underline-offset-2 hover:text-foreground"
+            data-strategy-external-claim-source=""
+            href={claim.sourceUrl}
+            rel="noreferrer noopener"
+            target="_blank"
+          >
+            {claim.sourceTitle}
+          </a>
+        </dd>
+        <dt className="text-muted-foreground">Author</dt>
+        <dd data-external-claim-author="">{claim.sourceAuthor}</dd>
+        <dt className="text-muted-foreground">Published</dt>
+        <dd className="font-mono" data-external-claim-published="">
+          <time dateTime={claim.publishedOn}>{claim.publishedOn}</time>
+        </dd>
+        <dt className="text-muted-foreground">Claimed method</dt>
+        <dd data-external-claim-method="">{claim.claimedMethod}</dd>
+      </dl>
+      <h4 className="text-muted-foreground">Claimed metrics</h4>
+      <dl
+        className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1"
+        data-external-claim-metrics=""
+      >
+        {claim.claimedMetrics.map((metric, index) => (
+          <div className="contents" key={index}>
+            <dt className="text-muted-foreground">{metric.label}</dt>
+            <dd className="font-mono">{metric.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p data-external-claim-notice="">{EXTERNAL_CLAIM_NOTICE}</p>
+    </section>
+  );
+};
+
 const cell = "py-1 pr-3";
 const headCell = "py-1 pr-3 font-normal";
 const linkButton =
@@ -94,36 +197,31 @@ export interface StrategyDetailProps {
   readonly onChanged: () => Promise<void>;
   readonly onClose: () => void;
   readonly onTab: (tab: StrategyTab) => void;
+  // researchStudies.get for the Backtest study section (QuantConnect idea ports and entries tagged
+  // backtest-study); the browser API by default.
+  readonly researchStudies?: ResearchStudyGateway;
   readonly tab: StrategyTab;
 }
 
-// Roving focus for the tab list: arrows move and select, Home/End jump.
+// Roving focus for the tab list: arrows move and select (wrapping), Home/End jump.
 const tabKeyTarget = (
   key: string,
   current: StrategyTab
 ): StrategyTab | null => {
+  const count = STRATEGY_TABS.length;
   const index = STRATEGY_TABS.indexOf(current);
-  switch (key) {
-    case "ArrowRight": {
-      return STRATEGY_TABS[(index + 1) % STRATEGY_TABS.length] ?? null;
-    }
-    case "ArrowLeft": {
-      return (
-        STRATEGY_TABS[
-          (index - 1 + STRATEGY_TABS.length) % STRATEGY_TABS.length
-        ] ?? null
-      );
-    }
-    case "Home": {
-      return STRATEGY_TABS[0];
-    }
-    case "End": {
-      return STRATEGY_TABS.at(-1) ?? null;
-    }
-    default: {
-      return null;
-    }
-  }
+  const target =
+    key === "ArrowRight"
+      ? (index + 1) % count
+      : key === "ArrowLeft"
+        ? (index - 1 + count) % count
+        : key === "Home"
+          ? 0
+          : key === "End"
+            ? count - 1
+            : null;
+  // Every target is an index of STRATEGY_TABS.
+  return target === null ? null : (STRATEGY_TABS[target] as StrategyTab);
 };
 
 const Message = ({
@@ -191,6 +289,7 @@ const OverviewTab = ({
 
   return (
     <div className="space-y-5">
+      <ExternalClaim strategy={strategy} />
       <form
         className="grid gap-3 md:grid-cols-2"
         data-strategy-overview-form=""
@@ -739,11 +838,40 @@ const ParametersTab = ({
   );
 };
 
-const BacktestsTab = ({ detail }: { readonly detail: Detail }) => {
+const BacktestsTab = ({
+  detail,
+  researchStudies,
+}: {
+  readonly detail: Detail;
+  readonly researchStudies: ResearchStudyGateway | undefined;
+}) => {
   const { strategy, backtests } = detail;
   const latest = strategy.latestBacktest;
   return (
     <div className="space-y-3">
+      {/* QuantConnect idea ports and entries tagged backtest-study keep their backtest study in
+          research_studies under the slug; QuantConnect idea ports also link their stored strategy
+          definition (Run backtest opens Backtest runs with it). */}
+      {strategy.tags.includes(QC_IDEA_TAG) ? (
+        <>
+          <QcPortDefinitionLink
+            params={strategy.params}
+            strategyId={strategy.id}
+          />
+          <StrategyBacktestStudy
+            gateway={researchStudies}
+            key={strategy.slug}
+            slug={strategy.slug}
+          />
+        </>
+      ) : null}
+      {strategy.tags.includes(BACKTEST_STUDY_TAG) ? (
+        <StrategyReelStudy
+          gateway={researchStudies}
+          key={strategy.slug}
+          slug={strategy.slug}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs" data-latest-summary="">
           <span className="text-muted-foreground">Latest</span>
@@ -919,8 +1047,11 @@ export const StrategyDetail = ({
   onClose,
   onChanged,
   describeFailure,
+  researchStudies,
 }: StrategyDetailProps) => {
   const { strategy } = detail;
+  // Lesson behind an Academy strategy of any course (dyr-*, qftg-*, ...), or null.
+  const academyLesson = lessonSlugOfStrategy(strategy.slug);
   const onTabKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     const next = tabKeyTarget(event.key, tab);
     if (next === null) return;
@@ -942,6 +1073,7 @@ export const StrategyDetail = ({
           >
             {strategy.name}
           </h2>
+          <StrategyBadges strategy={strategy} />
           <p className="break-words text-muted-foreground text-xs [overflow-wrap:anywhere]">
             <span className="font-mono">{strategy.slug}</span> ·{" "}
             {STRATEGY_KIND_LABELS[strategy.kind] ?? strategy.kind} ·{" "}
@@ -956,22 +1088,30 @@ export const StrategyDetail = ({
           <StrategyLinks description={strategy.description} />
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Academy strategies deploy only from their lesson page (rule gates, password, audit). */}
-          {strategy.slug.startsWith("dyr-") ? (
-            <a
-              className={linkButton}
-              data-strategy-academy-lesson={strategy.slug}
-              href={`/academy/${strategy.slug.slice(4)}#deploy`}
+          {/* Academy strategies deploy only from their lesson page (rule gates, password, audit).
+              Strategies tagged research-only offer no deployment or order action at all. */}
+          {strategy.tags.includes("research-only") ? (
+            <span
+              className="text-muted-foreground text-sm"
+              data-strategy-research-only={strategy.id}
             >
-              Deploy from the Academy lesson
-            </a>
-          ) : (
+              Research only: no deployment
+            </span>
+          ) : academyLesson === null ? (
             <a
               className={linkButton}
               data-strategy-request-deployment={strategy.id}
               href={newRequestHref(strategy.id)}
             >
               Request paper deployment
+            </a>
+          ) : (
+            <a
+              className={linkButton}
+              data-strategy-academy-lesson={strategy.slug}
+              href={`/academy/${academyLesson}#deploy`}
+            >
+              Deploy from the Academy lesson
             </a>
           )}
           <Button onClick={onClose} type="button" variant="secondary">
@@ -1029,7 +1169,7 @@ export const StrategyDetail = ({
             onChanged={onChanged}
           />
         ) : (
-          <BacktestsTab detail={detail} />
+          <BacktestsTab detail={detail} researchStudies={researchStudies} />
         )}
       </div>
     </section>

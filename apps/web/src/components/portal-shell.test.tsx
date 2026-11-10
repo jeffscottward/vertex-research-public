@@ -113,6 +113,20 @@ describe("PortalShell", () => {
     ) {
       return this.setAttribute("open", "");
     };
+    // The opened palette (cmdk) sizes its list with ResizeObserver and scrolls the selected
+    // row into view; jsdom has neither.
+    globalThis.ResizeObserver ??= class {
+      observe() {
+        return;
+      }
+      unobserve() {
+        return;
+      }
+      disconnect() {
+        return;
+      }
+    };
+    Element.prototype.scrollIntoView ??= () => undefined;
     renderShell();
     const search = document.querySelector<HTMLButtonElement>(
       '[data-slot="portal-search"]'

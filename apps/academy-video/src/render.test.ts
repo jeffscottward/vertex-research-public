@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { lessonVtt, narrationTimingFor } from "@darkfactory/academy";
+import { courseOf, lessonVtt, narrationTimingFor } from "@darkfactory/academy";
 import { ACADEMY_LESSONS, lessonBySlug } from "@darkfactory/academy/lessons";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -120,7 +120,8 @@ afterEach(() => {
 describe("lessonSpecHash", () => {
   it("hashes the spec without its knowledge-base source", () => {
     const value = lesson(SLUG_A);
-    const { source: _source, ...spec } = value;
+    // The default course is not part of the hash (hashes recorded before courses stay valid).
+    const { source: _source, course: _course, ...spec } = value;
     const narration = narrationTimingFor(value);
     expect(lessonSpecHash(value)).toBe(
       createHash("sha256")
@@ -142,7 +143,7 @@ describe("lessonSpecHash", () => {
     const value = lesson(SLUG_A);
     const unnarrated = { ...value, steps: value.steps.slice(1) };
     expect(narrationTimingFor(unnarrated)).toBeNull();
-    const { source: _source, ...spec } = unnarrated;
+    const { source: _source, course: _course, ...spec } = unnarrated;
     expect(lessonSpecHash(unnarrated)).toBe(
       createHash("sha256")
         .update(JSON.stringify(spec))
@@ -151,10 +152,18 @@ describe("lessonSpecHash", () => {
     );
   });
 
+  it("hashes the course of a lesson outside the default course", () => {
+    const value = lesson(SLUG_A);
+    expect(lessonSpecHash({ ...value, course: "quantfinancetogo" })).not.toBe(
+      lessonSpecHash(value)
+    );
+  });
+
   it("includes narration timing in the hash of a narrated lesson", () => {
     const value = lesson(SLUG_A);
     expect(narrationTimingFor(value)).not.toBeNull();
-    const { source: _source, ...spec } = value;
+    // The default course is not part of the hash (hashes recorded before courses stay valid).
+    const { source: _source, course: _course, ...spec } = value;
     expect(lessonSpecHash(value)).not.toBe(
       createHash("sha256")
         .update(JSON.stringify(spec))
@@ -192,9 +201,13 @@ describe("renderLessons", () => {
       fakes({ durationInFrames: 90, fps: 30 })
     );
     expect(code).toBe(0);
-    expect(stdout).toEqual([
-      `0 of ${ACADEMY_LESSONS.length} lessons need rendering\n`,
-    ]);
+    // --all selects narrated courses only. The package catalog holds only narrated courses now
+    // (unnarrated QuantFinanceToGo lessons live in Postgres and have no video).
+    const narrated = ACADEMY_LESSONS.filter(
+      (lesson) => courseOf(lesson).narrated
+    ).length;
+    expect(narrated).toBe(ACADEMY_LESSONS.length);
+    expect(stdout).toEqual([`0 of ${narrated} lessons need rendering\n`]);
     expect(calls["bundle"]).toEqual([]);
   });
 

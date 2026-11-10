@@ -842,3 +842,37 @@ describe.skipIf(skipWithoutTestPython)(
     );
   }
 );
+
+// Pure profile validation of the same fixture; no Python child is spawned.
+describe("bounded HMM recipe profile", () => {
+  return it("accepts the reviewed recipe and refuses foreign or self-referential sources", async () => {
+    const f = await fixture();
+    const recipe = f.payload.recipe;
+    expect(SleeveResearchRecipeSchema.safeParse(recipe).success).toBe(true);
+    const [first, ...rest] = recipe.inputs;
+    expect(
+      SleeveResearchRecipeSchema.safeParse({
+        ...recipe,
+        inputs: [
+          {
+            ...first,
+            review: { ...first.review, collectionId: "foreign-collection" },
+          },
+          ...rest,
+        ],
+      }).success
+    ).toBe(false);
+    return expect(
+      SleeveResearchRecipeSchema.safeParse({
+        ...recipe,
+        inputs: [
+          {
+            ...first,
+            review: { ...first.review, evidenceId: f.publication.evidenceId },
+          },
+          ...rest,
+        ],
+      }).success
+    ).toBe(false);
+  });
+});

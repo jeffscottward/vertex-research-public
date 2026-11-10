@@ -30,6 +30,7 @@ import { quantLabContract } from "./contracts/quant-lab.ts";
 import { researchReportsContract } from "./contracts/research-reports.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { flowContract } from "./contracts/flow.ts";
+import { semanticTermsContract } from "./contracts/semantic-terms.ts";
 import { clickLogContract } from "./contracts/click-log.ts";
 import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
 import { strategyLibraryContract } from "./contracts/strategy-library.ts";
@@ -41,6 +42,7 @@ import { instantBacktestContract } from "./contracts/instant-backtest.ts";
 import { playsContract } from "./contracts/plays.ts";
 import { setupReplayContract } from "./contracts/setup-replay.ts";
 import { researchLensesContract } from "./contracts/research-lenses.ts";
+import { openbbContract } from "./contracts/openbb.ts";
 import { sectorRotationContract } from "./contracts/sector-rotation.ts";
 import { congressTradesContract } from "./contracts/congress-trades.ts";
 import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
@@ -304,6 +306,7 @@ export const appContract = {
   researchReports: researchReportsContract,
   researchStudies: researchStudiesContract,
   flow: flowContract,
+  semanticTerms: semanticTermsContract,
   clickLog: clickLogContract,
   papers: papersContract,
   agentModelRuns: agentModelRunsContract,
@@ -321,6 +324,7 @@ export const appContract = {
   backtestRuns: backtestRunsContract,
   autopilot: autopilotContract,
   researchLenses: researchLensesContract,
+  openbb: openbbContract,
   sectorRotation: sectorRotationContract,
   congressTrades: congressTradesContract,
   riskAllocator: riskAllocatorContract,

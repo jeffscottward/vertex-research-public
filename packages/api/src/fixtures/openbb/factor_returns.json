@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "famafrench",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "factor_returns",
+      "rows": [
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "factor": "mkt_rf",
+          "value": 0.42
+        },
+        {
+          "date": "2026-10-31",
+          "frequency": "monthly",
+          "factor": "mom",
+          "value": -1.3
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

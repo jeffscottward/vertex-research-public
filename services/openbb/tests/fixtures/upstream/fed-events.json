@@ -1,0 +1,1892 @@
+{
+  "job": "fed-events",
+  "today": "2026-11-08",
+  "argv": ["fed-events"],
+  "env": {},
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "helper:federal_reserve:events_calendar",
+      "result": [
+        {
+          "description": "New Technology, Old Questions: Assessing Productivity Puzzles and Their Implications for Macroeconomic Activity",
+          "live": "https://cvent.me/8AmwNV",
+          "location": "At the University of California San Diego Economics Roundtable, La Jolla, Calif.",
+          "title": "Speech - Vice Chair Philip N. Jefferson",
+          "time": "7:00 p.m.",
+          "month": "2026-11",
+          "days": "13",
+          "type": "Speeches"
+        },
+        {
+          "description": "Supervision and Regulation",
+          "location": "At the Connecticut Bankers Association Annual Meeting and Conference 2026 (virtual)",
+          "title": "Discussion - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "10:50 a.m.",
+          "month": "2026-11",
+          "days": "13",
+          "type": "Speeches"
+        },
+        {
+          "description": "Artificial Intelligence and Inequality",
+          "live": "https://youtube.com/live/O2NvR1shSI0?feature=share",
+          "location": "At A Conversation with Michael S. Barr (virtual)",
+          "title": "Speech - Governor Michael S. Barr",
+          "time": "10:00 a.m.",
+          "month": "2026-11",
+          "days": "12",
+          "type": "Speeches"
+        },
+        {
+          "description": "Economic Outlook",
+          "live": "https://us06web.zoom.us/j/82913231287?pwd=LVtmihv49gUcWXnQz4q9by5b5aixiP.1",
+          "location": "At A View from the Federal Reserve Board (virtual)",
+          "title": "Speech - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "6:30 p.m.",
+          "month": "2026-11",
+          "days": "10",
+          "type": "Speeches"
+        },
+        {
+          "description": "Economic Outlook",
+          "location": "At the C. Peter McColough Series on International Economics with Michelle Bowman, Washington, D.C.",
+          "title": "Speech - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "3:30 p.m.",
+          "month": "2026-11",
+          "days": "10",
+          "type": "Speeches"
+        },
+        {
+          "description": "Economic Outlook",
+          "live": "https://teams.microsoft.com/meet/3555893727932509?p=Jzb3qhkJr8SKStNZlD",
+          "location": "At The Bank of England and its Watchers Conference 2026, London, United Kingdom",
+          "title": "Speech - Governor Christopher J. Waller",
+          "time": "4:00 a.m.",
+          "month": "2026-11",
+          "days": "10",
+          "type": "Speeches"
+        },
+        {
+          "description": "Community Banking",
+          "location": "At the Mutual Board Summit Conference, Boston, Mass.",
+          "title": "Discussion - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "8:40 a.m.",
+          "month": "2026-11",
+          "days": "9",
+          "type": "Speeches"
+        },
+        {
+          "description": "Supervision and Regulation",
+          "live": "https://olemiss.zoom.us/j/83516188915?pwd=wHQgE4aZSqUdn2oBqJ93yHDWHT56cY.1&from=addon",
+          "location": "At the University of Mississippi Banking and Finance Symposium, Oxford, Miss.",
+          "title": "Discussion - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "12:15 p.m.",
+          "month": "2026-11",
+          "days": "6",
+          "type": "Speeches"
+        },
+        {
+          "description": "Conversation between IMF Managing Director Georgieva and Federal Reserve Chairman Warsh",
+          "live": "https://www.youtube.com/watch?v=T20jWBJ66X0&list=PLGHsBhoupusk&index=31",
+          "location": "At the Fireside Chat with International Monetary Fund (IMF) Managing Director Kristalina Georgieva, Bangkok, Thailand",
+          "title": "Discussion - Chairman Kevin Warsh",
+          "time": "11:30 p.m.",
+          "month": "2026-10",
+          "days": "15",
+          "type": "Speeches"
+        },
+        {
+          "description": "Supervision and Regulation",
+          "live": "https://www.youtube.com/live/V7H5F2C5PNc",
+          "location": "At the Bangkok Economic Festival 2026",
+          "title": "Speech - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "10:55 p.m.",
+          "month": "2026-10",
+          "days": "14",
+          "type": "Speeches"
+        },
+        {
+          "description": "Supervision and Regulation",
+          "location": "At the 2026 IIF Annual Membership Summit, Bangkok, Thailand",
+          "title": "Discussion - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "5:40 a.m.",
+          "month": "2026-10",
+          "days": "14",
+          "type": "Speeches"
+        },
+        {
+          "description": "AI",
+          "live": "https://www.youtube.com/@BloombergNewEconomy",
+          "location": "At the Bloomberg New Economy Forum 2026, New Delhi, India",
+          "title": "Discussion - Governor Christopher J. Waller",
+          "time": "3:45 a.m.",
+          "month": "2026-10",
+          "days": "13",
+          "type": "Speeches"
+        },
+        {
+          "description": "Economic Outlook",
+          "live": "https://istanbulef.org/eng/yayin/",
+          "location": "At the Central Bank of the Republic of Türkiye (TCMB) İstanbul Economic Forum, Ümraniye/İstanbul, Türkiye ",
+          "title": "Speech - Governor Christopher J. Waller",
+          "time": "4:30 a.m.",
+          "month": "2026-10",
+          "days": "8",
+          "type": "Speeches"
+        },
+        {
+          "description": "Modernizing Regulation and Supervision",
+          "live": "https://www.communitybanking.org/",
+          "location": "At the 2026 Community Banking Research Conference, St. Louis, Missouri",
+          "title": "Speech - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "10:45 a.m.",
+          "month": "2026-10",
+          "days": "6",
+          "type": "Speeches"
+        },
+        {
+          "description": "Global Central Banking",
+          "location": "At the Central Banking Seminar (Virtual)",
+          "title": "Discussion - Governor Lisa D. Cook ",
+          "time": "3:30 p.m.",
+          "month": "2026-10",
+          "days": "1",
+          "type": "Speeches"
+        },
+        {
+          "description": "Modernizing Financial Regulation: Initial Observations from eSLR",
+          "live": "https://www.youtube.com/watch?v=UosIN7C-ZCE",
+          "location": "At the Atlantic Council&#8217;s Conversation with Michelle W. Bowman, Washington, D.C.",
+          "title": "Speech - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "3:00 p.m.",
+          "month": "2026-10",
+          "days": "1",
+          "type": "Speeches"
+        },
+        {
+          "description": "U.S. Economy and Monetary Policy",
+          "live": "https://darden-virginia.zoom.us/j/92232791521",
+          "location": "At a Talk and Q&amp;A with Federal Reserve Board Vice Chair Philip N. Jefferson, Charlottesville, Va.",
+          "title": "Speech - Vice Chair Philip N. Jefferson",
+          "time": "1:30 p.m.",
+          "month": "2026-10",
+          "days": "1",
+          "type": "Speeches"
+        },
+        {
+          "description": "Federal Reserve Economic Data",
+          "live": "https://www.youtube.com/live/1fK5omRbOvM?si=9mToIa7-cn6iDC9F",
+          "location": "At FRED Con: Navigating Trust, AI &amp; Storytelling in a World of Data, St. Louis, Mo.",
+          "title": "Speech - Governor Christopher J. Waller",
+          "time": "10:00 a.m.",
+          "month": "2026-10",
+          "days": "1",
+          "type": "Speeches"
+        },
+        {
+          "description": "Rural Economy",
+          "location": "At the 2026 Investing in Rural America Conference, Asheville, N.C.",
+          "title": "Speech - Governor Lisa D. Cook ",
+          "time": "3:25 p.m.",
+          "month": "2026-09",
+          "days": "30",
+          "type": "Speeches"
+        },
+        {
+          "description": "Payments",
+          "live": "https://vimeo.com/event/6186977/6099e85d01",
+          "location": "At the Sibos 2026 Conference, Miami Beach, Fla.",
+          "title": "Speech - Governor Christopher J. Waller",
+          "time": "3:00 p.m.",
+          "month": "2026-09",
+          "days": "29",
+          "type": "Speeches"
+        },
+        {
+          "description": "Economic Outlook",
+          "live": "https://youtube.com/live/ZcKwcEHku7w",
+          "location": "At A Conversation with Michael S. Barr on the State of the Economy, Detroit, Mich.",
+          "title": "Speech - Governor Michael S. Barr",
+          "time": "12:40 p.m.",
+          "month": "2026-09",
+          "days": "29",
+          "type": "Speeches"
+        },
+        {
+          "description": "Opening Remarks (via pre-recorded video)",
+          "location": "At the Federal Reserve System Community Bank Cyber Workshop (Virtual)",
+          "title": "Speech - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "11:00 a.m.",
+          "month": "2026-09",
+          "days": "29",
+          "type": "Speeches"
+        },
+        {
+          "description": "AI and Emerging Tech",
+          "location": "At Oakland Tech Week 2026, Oakland, Calif.",
+          "title": "Speech - Governor Lisa D. Cook",
+          "time": "1:25 p.m.",
+          "month": "2026-09",
+          "days": "28",
+          "type": "Speeches"
+        },
+        {
+          "description": "Recent Developments in Bank Supervision and Regulation",
+          "live": "https://teams.microsoft.com/meet/212992571985590?p=yY3nvqkkrbQw6RMUL6",
+          "location": "At the Military Banking Summit 2026 (Virtual)",
+          "title": "Discussion - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "8:15 a.m.",
+          "month": "2026-09",
+          "days": "28",
+          "type": "Speeches"
+        },
+        {
+          "description": "&lt;p&gt;The daily and weekly statistical releases scheduled for today will be released on Thursday, November 12.&lt;/p&gt;",
+          "title": "Holiday - Veterans Day",
+          "time": "",
+          "month": "2026-11",
+          "days": "11",
+          "type": "Other"
+        },
+        {
+          "description": "Economic Outlook and Housing",
+          "live": "https://www.chicagofed.org/events/2026/housing-affordability-community-development-summit",
+          "location": "At the Housing Affordability 2026: A Community Development Summit, Federal Reserve Bank of Chicago, Chicago, Ill.",
+          "title": "Speech - Governor Michael S. Barr",
+          "time": "10:05 a.m.",
+          "month": "2026-09",
+          "days": "23",
+          "type": "Speeches"
+        },
+        {
+          "description": "Discount Window Modernization and Treasury Market Functioning",
+          "live": "https://www.newyorkfed.org/newsevents/events/markets/2026/0922-2026",
+          "location": "At the 2026 Treasury Market Conference, Federal Reserve Bank of New York, New York. N.Y.",
+          "title": "Speech - Vice Chair Philip N. Jefferson",
+          "time": "10:20 a.m.",
+          "month": "2026-09",
+          "days": "22",
+          "type": "Speeches"
+        },
+        {
+          "description": "Stress Testing",
+          "live": "https://www.youtube.com/live/WRJnz2auuZs",
+          "location": "At a Chat with U.S. Federal Reserve Vice Chair for Supervision Michelle Bowman, London, United Kingdom",
+          "title": "Speech - Vice Chair for Supervision Michelle W. Bowman",
+          "time": "9:30 a.m.",
+          "month": "2026-09",
+          "days": "18",
+          "type": "Speeches"
+        },
+        {
+          "description": "Economic Outlook",
+          "live": "https://events.reutersevents.com/reuters/newsmaker/christopherwaller",
+          "location": "At the Reuters NEXT Newsmaker Interview (Virtual)",
+          "title": "Speech - Governor Christopher J. Waller",
+          "time": "8:30 a.m.",
+          "month": "2026-09",
+          "days": "3",
+          "type": "Speeches"
+        },
+        {
+          "description": "Economic Outlook and Financial Inclusion",
+          "live": "https://jpmchase.zoom.us/j/95033879625",
+          "location": "At the Second Chance Lending Forum, hosted by Prosperity Now and the Collateral Consequences Resource Center, Washington D.C.",
+          "title": "Speech - Governor Michael S. Barr",
+          "time": "9:05 a.m.",
+          "month": "2026-09",
+          "days": "1",
+          "type": "Speeches"
+        },
+        {
+          "description": "&lt;p&gt;Meeting of December 8-9&lt;/p&gt;",
+          "title": "FOMC Minutes",
+          "time": "2:00 p.m.",
+          "month": "2026-12",
+          "days": "30",
+          "type": "FOMC"
+        },
+        {
+          "description": "&lt;p&gt;Meeting of October 27-28&lt;/p&gt;",
+          "title": "FOMC Minutes",
+          "time": "2:00 p.m.",
+          "month": "2026-11",
+          "days": "18",
+          "type": "FOMC"
+        },
+        {
+          "description": "&lt;p&gt;Meeting of September 15-16&lt;/p&gt;",
+          "title": "FOMC Minutes",
+          "time": "2:00 p.m.",
+          "month": "2026-10",
+          "days": "7",
+          "type": "FOMC"
+        },
+        {
+          "title": "Senior Credit Officer Opinion Survey on Dealer Financing Terms (SCOOS)",
+          "time": "2:00 p.m.",
+          "month": "2026-12",
+          "days": "17",
+          "type": "Stat"
+        },
+        {
+          "title": "G.5 - Foreign Exchange Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-12",
+          "days": "1",
+          "type": "Stat"
+        },
+        {
+          "title": "G.5 - Foreign Exchange Rates ",
+          "time": "4:15 p.m.",
+          "month": "2026-11",
+          "days": "2",
+          "type": "Stat"
+        },
+        {
+          "title": "Senior Loan Officer Opinion Survey on Bank Lending Practices (SLOOS)",
+          "time": "2:00 p.m.",
+          "month": "2026-11",
+          "days": "2",
+          "type": "Stat"
+        },
+        {
+          "title": "Beige Book",
+          "time": "2:00 p.m.",
+          "month": "2026-11",
+          "days": "25",
+          "type": "Beige"
+        },
+        {
+          "title": "Beige Book",
+          "time": "2:00 p.m.",
+          "month": "2026-10",
+          "days": "14",
+          "type": "Beige"
+        },
+        {
+          "title": "Beige Book",
+          "time": "2:00 p.m.",
+          "month": "2026-09",
+          "days": "2",
+          "type": "Beige"
+        },
+        {
+          "title": "G.5 - Foreign Exchange Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-10",
+          "days": "1",
+          "type": "Stat"
+        },
+        {
+          "title": "G.17 - Industrial Production and Capacity Utilization",
+          "time": "9:15 a.m.",
+          "month": "2026-11",
+          "days": "17",
+          "type": "Stat"
+        },
+        {
+          "title": "Senior Credit Officer Opinion Survey on Dealer Financing Terms (SCOOS)",
+          "time": "2:00 p.m.",
+          "month": "2026-09",
+          "days": "24",
+          "type": "Stat"
+        },
+        {
+          "title": "G.5 - Foreign Exchange Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-09",
+          "days": "1",
+          "type": "Stat"
+        },
+        {
+          "description": "&lt;p&gt;The daily and weekly statistical releases scheduled for today will be released on Monday December 28.&lt;/p&gt;",
+          "title": "Holiday - Christmas Day",
+          "time": "",
+          "month": "2026-12",
+          "days": "25",
+          "type": "Other"
+        },
+        {
+          "description": "&lt;p&gt;The daily and weekly statistical releases scheduled for today will be released on Tuesday, October 13.&lt;/p&gt;",
+          "title": "Holiday - Columbus Day",
+          "time": "",
+          "month": "2026-10",
+          "days": "12",
+          "type": "Other"
+        },
+        {
+          "description": "&lt;p&gt;The daily and weekly statistical releases scheduled for today will be released on Friday, November 27.&lt;/p&gt;",
+          "title": "Holiday - Thanksgiving Day",
+          "time": "",
+          "month": "2026-11",
+          "days": "26",
+          "type": "Other"
+        },
+        {
+          "description": "&lt;p&gt;The daily and weekly statistical releases scheduled for today will be released on Tuesday, September 8.&lt;/p&gt;",
+          "title": "Holiday - Labor Day",
+          "time": "",
+          "month": "2026-09",
+          "days": "7",
+          "type": "Other"
+        },
+        {
+          "link": "https://www.federalreserve.gov/live-broadcast.htm",
+          "title": "FOMC Press Conference",
+          "time": "2:30 p.m.",
+          "month": "2026-12",
+          "days": "9",
+          "type": "FOMC"
+        },
+        {
+          "link": "https://www.federalreserve.gov/live-broadcast.htm",
+          "title": "FOMC Press Conference",
+          "time": "2:30 p.m.",
+          "month": "2026-10",
+          "days": "28",
+          "type": "FOMC"
+        },
+        {
+          "link": "https://www.federalreserve.gov/live-broadcast.htm",
+          "title": "FOMC Press Conference",
+          "time": "2:30 p.m.",
+          "month": "2026-09",
+          "days": "16",
+          "type": "FOMC"
+        },
+        {
+          "description": "&lt;p&gt;Publication date for this release is approximate.&lt;/p&gt;",
+          "title": "G.20 - Finance Companies",
+          "time": "",
+          "month": "2026-12",
+          "days": "31",
+          "type": "Stat"
+        },
+        {
+          "description": "&lt;p&gt;Publication date for this release is approximate.&lt;/p&gt;",
+          "title": "G.20 - Finance Companies",
+          "time": "",
+          "month": "2026-11",
+          "days": "30",
+          "type": "Stat"
+        },
+        {
+          "description": "&lt;p&gt;Publication date for this release is approximate.&lt;/p&gt;",
+          "title": "G.20 - Finance Companies",
+          "time": "",
+          "month": "2026-10",
+          "days": "30",
+          "type": "Stat"
+        },
+        {
+          "description": "&lt;p&gt;Publication date for this release is approximate.&lt;/p&gt;",
+          "title": "G.20 - Finance Companies",
+          "time": "",
+          "month": "2026-09",
+          "days": "30",
+          "type": "Stat"
+        },
+        {
+          "title": "Z.1 - Financial Accounts of the United States",
+          "time": "12:00 p.m.",
+          "month": "2026-12",
+          "days": "10",
+          "type": "Stat"
+        },
+        {
+          "title": "Z.1 - Financial Accounts of the United States",
+          "time": "12:00 p.m.",
+          "month": "2026-09",
+          "days": "11",
+          "type": "Stat"
+        },
+        {
+          "title": "G.19 - Consumer Credit",
+          "time": "3:00 p.m.",
+          "month": "2026-12",
+          "days": "7",
+          "type": "Stat"
+        },
+        {
+          "title": "G.17 - Industrial Production and Capacity Utilization",
+          "time": "9:15 a.m.",
+          "month": "2026-12",
+          "days": "16",
+          "type": "Stat"
+        },
+        {
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "time": "4:30 p.m.",
+          "month": "2026-12",
+          "days": "3, 10, 17, 24, 31",
+          "type": "Stat"
+        },
+        {
+          "title": "H.6 - Money Stock Measures",
+          "time": "1:00 p.m.",
+          "month": "2026-12",
+          "days": "22",
+          "type": "Stat"
+        },
+        {
+          "title": "G.19 - Consumer Credit",
+          "time": "3:00 p.m.",
+          "month": "2026-11",
+          "days": "6",
+          "type": "Stat"
+        },
+        {
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "time": "4:30 p.m.",
+          "month": "2026-11",
+          "days": "5, 12, 19, 27",
+          "type": "Stat"
+        },
+        {
+          "title": "H.6 - Money Stock Measures",
+          "time": "1:00 p.m.",
+          "month": "2026-11",
+          "days": "24",
+          "type": "Stat"
+        },
+        {
+          "title": "G.19 - Consumer Credit",
+          "time": "3:00 p.m.",
+          "month": "2026-10",
+          "days": "7",
+          "type": "Stat"
+        },
+        {
+          "title": "G.17 - Industrial Production and Capacity Utilization",
+          "time": "9:15 a.m.",
+          "month": "2026-10",
+          "days": "16",
+          "type": "Stat"
+        },
+        {
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "time": "4:30 p.m.",
+          "month": "2026-10",
+          "days": "1, 8, 15, 22, 29",
+          "type": "Stat"
+        },
+        {
+          "title": "H.6 - Money Stock Measures",
+          "time": "1:00 p.m.",
+          "month": "2026-10",
+          "days": "27",
+          "type": "Stat"
+        },
+        {
+          "title": "G.19 - Consumer Credit",
+          "time": "3:00 p.m.",
+          "month": "2026-09",
+          "days": "8",
+          "type": "Stat"
+        },
+        {
+          "title": "G.17 - Industrial Production and Capacity Utilization",
+          "time": "9:15 a.m.",
+          "month": "2026-09",
+          "days": "18",
+          "type": "Stat"
+        },
+        {
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "time": "4:30 p.m.",
+          "month": "2026-09",
+          "days": "3, 10, 17, 24",
+          "type": "Stat"
+        },
+        {
+          "title": "H.6 - Money Stock Measures",
+          "time": "1:00 p.m.",
+          "month": "2026-09",
+          "days": "22",
+          "type": "Stat"
+        },
+        {
+          "title": "H.10 - Foreign Exchange Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-12",
+          "days": "7, 14, 21, 28",
+          "type": "Stat"
+        },
+        {
+          "title": "H.10 - Foreign Exchange Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-11",
+          "days": "2, 9, 16, 23, 30",
+          "type": "Stat"
+        },
+        {
+          "title": "H.10 - Foreign Exchange Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-10",
+          "days": "5, 13, 19, 26",
+          "type": "Stat"
+        },
+        {
+          "title": "H.10 - Foreign Exchange Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-09",
+          "days": "8, 14, 21, 28",
+          "type": "Stat"
+        },
+        {
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "time": "4:15 p.m.",
+          "month": "2026-12",
+          "days": "4, 11, 18, 24",
+          "type": "Stat"
+        },
+        {
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "time": "4:15 p.m.",
+          "month": "2026-11",
+          "days": "6, 13, 20, 27",
+          "type": "Stat"
+        },
+        {
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "time": "4:15 p.m.",
+          "month": "2026-10",
+          "days": "2, 9, 16, 23, 30",
+          "type": "Stat"
+        },
+        {
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "time": "4:15 p.m.",
+          "month": "2026-09",
+          "days": "4, 11, 18, 25",
+          "type": "Stat"
+        },
+        {
+          "description": "&lt;p&gt;Two-day meeting, December 8 - 9&lt;/p&gt;&#10;&#10;&lt;p&gt;Press Conference&lt;/p&gt;",
+          "title": "FOMC Meeting",
+          "time": "2:00 p.m.",
+          "month": "2026-12",
+          "days": "9",
+          "type": "FOMC"
+        },
+        {
+          "title": "CP - Commercial Paper",
+          "time": "1:00 p.m.",
+          "month": "2026-12",
+          "days": "1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 28, 29, 30, 31",
+          "type": "Stat"
+        },
+        {
+          "title": "CP - Commercial Paper",
+          "time": "1:00 p.m.",
+          "month": "2026-11",
+          "days": "2, 3, 4, 5, 6, 9, 10, 12, 13, 16, 17, 18, 19, 20, 23, 24, 25, 27, 30",
+          "type": "Stat"
+        },
+        {
+          "description": "&lt;p&gt;Two-day meeting, October 27 - 28&lt;/p&gt;&#10;&#10;&lt;p&gt;Press Conference&lt;/p&gt;",
+          "title": "FOMC Meeting",
+          "time": "2:00 p.m.",
+          "month": "2026-10",
+          "days": "28",
+          "type": "FOMC"
+        },
+        {
+          "title": "CP - Commercial Paper",
+          "time": "1:00 p.m.",
+          "month": "2026-10",
+          "days": "1, 2, 5, 6, 7, 8, 9, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30",
+          "type": "Stat"
+        },
+        {
+          "description": "&lt;p&gt;Two-day meeting, September 15 - 16&lt;/p&gt;&#10;&#10;&lt;p&gt;Press Conference&lt;/p&gt;",
+          "title": "FOMC Meeting",
+          "time": "2:00 p.m.",
+          "month": "2026-09",
+          "days": "16",
+          "type": "FOMC"
+        },
+        {
+          "title": "CP - Commercial Paper",
+          "time": "1:00 p.m.",
+          "month": "2026-09",
+          "days": "1, 2, 3, 4, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30",
+          "type": "Stat"
+        },
+        {
+          "title": "H.15 - Selected Interest Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-12",
+          "days": "1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 28, 29, 30, 31",
+          "type": "Stat"
+        },
+        {
+          "title": "H.15 - Selected Interest Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-11",
+          "days": "2, 3, 4, 5, 6, 9, 10, 12, 13, 16, 17, 18, 19, 20, 23, 24, 25, 27, 30",
+          "type": "Stat"
+        },
+        {
+          "title": "H.15 - Selected Interest Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-10",
+          "days": "1, 2, 5, 6, 7, 8, 9, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30",
+          "type": "Stat"
+        },
+        {
+          "title": "H.15 - Selected Interest Rates",
+          "time": "4:15 p.m.",
+          "month": "2026-09",
+          "days": "1, 2, 3, 4, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30",
+          "type": "Stat"
+        }
+      ]
+    },
+    {
+      "key": "fetcher:federal_reserve:FomcDocuments:{\"year\":2026}",
+      "result": [
+        {
+          "date": "2026-10-28",
+          "doc_type": "monetary_policy",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/monetary20261028a1.pdf"
+        },
+        {
+          "date": "2026-10-28",
+          "doc_type": "press_conference",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20261028.htm"
+        },
+        {
+          "date": "2026-10-14",
+          "doc_type": "beige_book",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20261014.pdf"
+        },
+        {
+          "date": "2026-09-16",
+          "doc_type": "monetary_policy",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/monetary20260916a1.pdf"
+        },
+        {
+          "date": "2026-09-16",
+          "doc_type": "press_conference",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260916.htm"
+        },
+        {
+          "date": "2026-09-16",
+          "doc_type": "projections",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcprojtabl20260916.pdf"
+        },
+        {
+          "date": "2026-09-16",
+          "doc_type": "projections",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcprojtabl20260916.htm"
+        },
+        {
+          "date": "2026-09-16",
+          "doc_type": "minutes",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcminutes20260916.pdf"
+        },
+        {
+          "date": "2026-09-16",
+          "doc_type": "minutes",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"
+        },
+        {
+          "date": "2026-09-02",
+          "doc_type": "beige_book",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260902.pdf"
+        },
+        {
+          "date": "2026-07-29",
+          "doc_type": "monetary_policy",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/monetary20260729a1.pdf"
+        },
+        {
+          "date": "2026-07-29",
+          "doc_type": "press_conference",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260729.htm"
+        },
+        {
+          "date": "2026-07-29",
+          "doc_type": "minutes",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcminutes20260729.pdf"
+        },
+        {
+          "date": "2026-07-29",
+          "doc_type": "minutes",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260729.htm"
+        },
+        {
+          "date": "2026-07-15",
+          "doc_type": "beige_book",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260715.pdf"
+        },
+        {
+          "date": "2026-06-17",
+          "doc_type": "monetary_policy",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/monetary20260617a1.pdf"
+        },
+        {
+          "date": "2026-06-17",
+          "doc_type": "press_conference",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260617.htm"
+        },
+        {
+          "date": "2026-06-17",
+          "doc_type": "projections",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcprojtabl20260617.pdf"
+        },
+        {
+          "date": "2026-06-17",
+          "doc_type": "projections",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcprojtabl20260617.htm"
+        },
+        {
+          "date": "2026-06-17",
+          "doc_type": "minutes",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcminutes20260617.pdf"
+        },
+        {
+          "date": "2026-06-17",
+          "doc_type": "minutes",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260617.htm"
+        },
+        {
+          "date": "2026-06-03",
+          "doc_type": "beige_book",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260603.pdf"
+        },
+        {
+          "date": "2026-04-29",
+          "doc_type": "monetary_policy",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/monetary20260429a1.pdf"
+        },
+        {
+          "date": "2026-04-29",
+          "doc_type": "press_conference",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260429.htm"
+        },
+        {
+          "date": "2026-04-29",
+          "doc_type": "minutes",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcminutes20260429.pdf"
+        },
+        {
+          "date": "2026-04-29",
+          "doc_type": "minutes",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260429.htm"
+        },
+        {
+          "date": "2026-04-15",
+          "doc_type": "beige_book",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260415.pdf"
+        },
+        {
+          "date": "2026-03-18",
+          "doc_type": "monetary_policy",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/monetary20260318a1.pdf"
+        },
+        {
+          "date": "2026-03-18",
+          "doc_type": "press_conference",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260318.htm"
+        },
+        {
+          "date": "2026-03-18",
+          "doc_type": "projections",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcprojtabl20260318.pdf"
+        },
+        {
+          "date": "2026-03-18",
+          "doc_type": "projections",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcprojtabl20260318.htm"
+        },
+        {
+          "date": "2026-03-18",
+          "doc_type": "minutes",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcminutes20260318.pdf"
+        },
+        {
+          "date": "2026-03-18",
+          "doc_type": "minutes",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260318.htm"
+        },
+        {
+          "date": "2026-03-04",
+          "doc_type": "beige_book",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260304.pdf"
+        },
+        {
+          "date": "2026-01-28",
+          "doc_type": "monetary_policy",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/monetary20260128a1.pdf"
+        },
+        {
+          "date": "2026-01-28",
+          "doc_type": "",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcpressconf20260128.htm"
+        },
+        {
+          "date": "2026-01-28",
+          "doc_type": "minutes",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/fomcminutes20260128.pdf"
+        },
+        {
+          "date": "2026-01-28",
+          "doc_type": "minutes",
+          "doc_format": "htm",
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260128.htm"
+        },
+        {
+          "date": "2026-01-14",
+          "doc_type": "beige_book",
+          "doc_format": "pdf",
+          "url": "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20260114.pdf"
+        }
+      ]
+    },
+    {
+      "key": "helper:federal_reserve:release_schedule",
+      "result": [
+        {
+          "date": "2026-10-05",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-05",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-05",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-06",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-06",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-07",
+          "time": "3:00 p.m.",
+          "release": "G.19",
+          "title": "G.19 - Consumer Credit",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-07",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-07",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-08",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-08",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-08",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-09",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-09",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-09",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-13",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-13",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-13",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-14",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-14",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-15",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-15",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-15",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-16",
+          "time": "9:15 a.m.",
+          "release": "G.17",
+          "title": "G.17 - Industrial Production and Capacity Utilization",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-16",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-16",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-16",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-19",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-19",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-19",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-20",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-20",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-21",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-21",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-22",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-22",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-22",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-23",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-23",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-23",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-26",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-26",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-26",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-27",
+          "time": "1:00 p.m.",
+          "release": "H.6",
+          "title": "H.6 - Money Stock Measures",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-27",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-27",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-28",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-28",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-29",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-29",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-29",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-30",
+          "time": null,
+          "release": "G.20",
+          "title": "G.20 - Finance Companies",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-30",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-30",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-10-30",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-02",
+          "time": "4:15 p.m.",
+          "release": null,
+          "title": "G.5 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-02",
+          "time": "2:00 p.m.",
+          "release": "SLOOS",
+          "title": "Senior Loan Officer Opinion Survey on Bank Lending Practices (SLOOS)",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-02",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-02",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-02",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-03",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-03",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-04",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-04",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-05",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-05",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-05",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-06",
+          "time": "3:00 p.m.",
+          "release": "G.19",
+          "title": "G.19 - Consumer Credit",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-06",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-06",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-06",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-09",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-09",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-09",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-10",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-10",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-12",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-12",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-12",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-13",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-13",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-13",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-16",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-16",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-16",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-17",
+          "time": "9:15 a.m.",
+          "release": "G.17",
+          "title": "G.17 - Industrial Production and Capacity Utilization",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-17",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-17",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-18",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-18",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-19",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-19",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-19",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-20",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-20",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-20",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-23",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-23",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-23",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-24",
+          "time": "1:00 p.m.",
+          "release": "H.6",
+          "title": "H.6 - Money Stock Measures",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-24",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-24",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-25",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-25",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-27",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-27",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-27",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-27",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-30",
+          "time": null,
+          "release": "G.20",
+          "title": "G.20 - Finance Companies",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-30",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-30",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-11-30",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-01",
+          "time": "4:15 p.m.",
+          "release": null,
+          "title": "G.5 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-01",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-01",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-02",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-02",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-03",
+          "time": "4:30 p.m.",
+          "release": "H.4.1",
+          "title": "H.4.1 - Factors Affecting Reserve Balances",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-03",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-03",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-04",
+          "time": "4:15 p.m.",
+          "release": "H.8",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S.",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-04",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-04",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-07",
+          "time": "3:00 p.m.",
+          "release": "G.19",
+          "title": "G.19 - Consumer Credit",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-07",
+          "time": "4:15 p.m.",
+          "release": "H.10",
+          "title": "H.10 - Foreign Exchange Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-07",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-07",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-08",
+          "time": "1:00 p.m.",
+          "release": "CP",
+          "title": "CP - Commercial Paper",
+          "event_type": "Stat"
+        },
+        {
+          "date": "2026-12-08",
+          "time": "4:15 p.m.",
+          "release": "H.15",
+          "title": "H.15 - Selected Interest Rates",
+          "event_type": "Stat"
+        }
+      ]
+    },
+    {
+      "key": "http:https://www.treasurydirect.gov/TA_WS/securities/upcoming?format=json",
+      "result": "[{\"cusip\": \"91282CRW3\", \"securityType\": \"Note\", \"securityTerm\": \"3-Year\", \"competitiveAuctionCloseDate\": \"2026-11-09T00:00:00\", \"announcementDate\": \"2026-11-04T00:00:00\", \"issueDate\": \"2026-11-16T00:00:00\", \"offeringAmount\": \"58000000000\", \"reopening\": \"No\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"91282CRX1\", \"securityType\": \"Note\", \"securityTerm\": \"10-Year\", \"competitiveAuctionCloseDate\": \"2026-11-10T00:00:00\", \"announcementDate\": \"2026-11-04T00:00:00\", \"issueDate\": \"2026-11-16T00:00:00\", \"offeringAmount\": \"42000000000\", \"reopening\": \"No\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912810UY2\", \"securityType\": \"Bond\", \"securityTerm\": \"30-Year\", \"competitiveAuctionCloseDate\": \"2026-11-12T00:00:00\", \"announcementDate\": \"2026-11-04T00:00:00\", \"issueDate\": \"2026-11-16T00:00:00\", \"offeringAmount\": \"25000000000\", \"reopening\": \"No\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797WB9\", \"securityType\": \"Bill\", \"securityTerm\": \"13-Week\", \"competitiveAuctionCloseDate\": \"2026-11-09T00:00:00\", \"announcementDate\": \"2026-11-05T00:00:00\", \"issueDate\": \"2026-11-12T00:00:00\", \"offeringAmount\": \"95000000000\", \"reopening\": \"Yes\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797UX3\", \"securityType\": \"Bill\", \"securityTerm\": \"26-Week\", \"competitiveAuctionCloseDate\": \"2026-11-09T00:00:00\", \"announcementDate\": \"2026-11-05T00:00:00\", \"issueDate\": \"2026-11-12T00:00:00\", \"offeringAmount\": \"82000000000\", \"reopening\": \"Yes\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797TC1\", \"securityType\": \"Bill\", \"securityTerm\": \"6-Week\", \"competitiveAuctionCloseDate\": \"2026-11-09T00:00:00\", \"announcementDate\": \"2026-11-05T00:00:00\", \"issueDate\": \"2026-11-12T00:00:00\", \"offeringAmount\": \"100000000000\", \"reopening\": \"Yes\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797XH5\", \"securityType\": \"Bill\", \"securityTerm\": \"17-Week\", \"competitiveAuctionCloseDate\": \"2026-11-12T00:00:00\", \"announcementDate\": \"2026-11-10T00:00:00\", \"issueDate\": \"2026-11-17T00:00:00\", \"offeringAmount\": \"\", \"reopening\": \"No\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797WF0\", \"securityType\": \"Bill\", \"securityTerm\": \"4-Week\", \"competitiveAuctionCloseDate\": \"2026-11-12T00:00:00\", \"announcementDate\": \"2026-11-10T00:00:00\", \"issueDate\": \"2026-11-17T00:00:00\", \"offeringAmount\": \"\", \"reopening\": \"Yes\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797WP8\", \"securityType\": \"Bill\", \"securityTerm\": \"8-Week\", \"competitiveAuctionCloseDate\": \"2026-11-12T00:00:00\", \"announcementDate\": \"2026-11-10T00:00:00\", \"issueDate\": \"2026-11-17T00:00:00\", \"offeringAmount\": \"\", \"reopening\": \"Yes\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797TV9\", \"securityType\": \"Bill\", \"securityTerm\": \"13-Week\", \"competitiveAuctionCloseDate\": \"2026-11-16T00:00:00\", \"announcementDate\": \"2026-11-12T00:00:00\", \"issueDate\": \"2026-11-19T00:00:00\", \"offeringAmount\": \"\", \"reopening\": \"Yes\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797XD4\", \"securityType\": \"Bill\", \"securityTerm\": \"26-Week\", \"competitiveAuctionCloseDate\": \"2026-11-16T00:00:00\", \"announcementDate\": \"2026-11-12T00:00:00\", \"issueDate\": \"2026-11-19T00:00:00\", \"offeringAmount\": \"\", \"reopening\": \"No\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912797VJ3\", \"securityType\": \"Bill\", \"securityTerm\": \"6-Week\", \"competitiveAuctionCloseDate\": \"2026-11-17T00:00:00\", \"announcementDate\": \"2026-11-12T00:00:00\", \"issueDate\": \"2026-11-19T00:00:00\", \"offeringAmount\": \"\", \"reopening\": \"Yes\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"912810UZ9\", \"securityType\": \"Bond\", \"securityTerm\": \"20-Year\", \"competitiveAuctionCloseDate\": \"2026-11-18T00:00:00\", \"announcementDate\": \"2026-11-12T00:00:00\", \"issueDate\": \"2026-11-30T00:00:00\", \"offeringAmount\": \"\", \"reopening\": \"No\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}, {\"cusip\": \"91282CRE3\", \"securityType\": \"Note\", \"securityTerm\": \"9-Year 8-Month\", \"competitiveAuctionCloseDate\": \"2026-11-19T00:00:00\", \"announcementDate\": \"2026-11-12T00:00:00\", \"issueDate\": \"2026-11-30T00:00:00\", \"offeringAmount\": \"\", \"reopening\": \"Yes\", \"highYield\": \"\", \"highRate\": \"\", \"interestRate\": \"\", \"bidToCoverRatio\": \"\"}]"
+    }
+  ]
+}

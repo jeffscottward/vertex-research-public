@@ -1,0 +1,2533 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "famafrench",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "factor_returns",
+      "rows": [
+        {
+          "date": "2026-07-01",
+          "factor": "cma",
+          "frequency": "monthly",
+          "value": 2.27
+        },
+        {
+          "date": "2026-07-01",
+          "factor": "hml",
+          "frequency": "monthly",
+          "value": 2.11
+        },
+        {
+          "date": "2026-07-01",
+          "factor": "mkt_rf",
+          "frequency": "monthly",
+          "value": -0.61
+        },
+        {
+          "date": "2026-07-01",
+          "factor": "mom",
+          "frequency": "monthly",
+          "value": -12.21
+        },
+        {
+          "date": "2026-07-01",
+          "factor": "rf",
+          "frequency": "monthly",
+          "value": 0.33
+        },
+        {
+          "date": "2026-07-01",
+          "factor": "rmw",
+          "frequency": "monthly",
+          "value": 11.07
+        },
+        {
+          "date": "2026-07-01",
+          "factor": "smb",
+          "frequency": "monthly",
+          "value": -0.09
+        },
+        {
+          "date": "2026-07-13",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.92
+        },
+        {
+          "date": "2026-07-13",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 1.26
+        },
+        {
+          "date": "2026-07-13",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.78
+        },
+        {
+          "date": "2026-07-13",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -1.38
+        },
+        {
+          "date": "2026-07-13",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-13",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.24
+        },
+        {
+          "date": "2026-07-13",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.27
+        },
+        {
+          "date": "2026-07-14",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.94
+        },
+        {
+          "date": "2026-07-14",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.64
+        },
+        {
+          "date": "2026-07-14",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.37
+        },
+        {
+          "date": "2026-07-14",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 1.78
+        },
+        {
+          "date": "2026-07-14",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-14",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.76
+        },
+        {
+          "date": "2026-07-14",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.17
+        },
+        {
+          "date": "2026-07-15",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.49
+        },
+        {
+          "date": "2026-07-15",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.15
+        },
+        {
+          "date": "2026-07-15",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.42
+        },
+        {
+          "date": "2026-07-15",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.99
+        },
+        {
+          "date": "2026-07-15",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-15",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.08
+        },
+        {
+          "date": "2026-07-15",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.32
+        },
+        {
+          "date": "2026-07-16",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 1.55
+        },
+        {
+          "date": "2026-07-16",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 1.88
+        },
+        {
+          "date": "2026-07-16",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.52
+        },
+        {
+          "date": "2026-07-16",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -2.83
+        },
+        {
+          "date": "2026-07-16",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-16",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.66
+        },
+        {
+          "date": "2026-07-16",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.97
+        },
+        {
+          "date": "2026-07-17",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.9
+        },
+        {
+          "date": "2026-07-17",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.15
+        },
+        {
+          "date": "2026-07-17",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -1.03
+        },
+        {
+          "date": "2026-07-17",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 1.25
+        },
+        {
+          "date": "2026-07-17",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-17",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.47
+        },
+        {
+          "date": "2026-07-17",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.15
+        },
+        {
+          "date": "2026-07-20",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.62
+        },
+        {
+          "date": "2026-07-20",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.21
+        },
+        {
+          "date": "2026-07-20",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.29
+        },
+        {
+          "date": "2026-07-20",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.67
+        },
+        {
+          "date": "2026-07-20",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-20",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.36
+        },
+        {
+          "date": "2026-07-20",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.42
+        },
+        {
+          "date": "2026-07-21",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.38
+        },
+        {
+          "date": "2026-07-21",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.24
+        },
+        {
+          "date": "2026-07-21",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.87
+        },
+        {
+          "date": "2026-07-21",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 3.06
+        },
+        {
+          "date": "2026-07-21",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-21",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -1.48
+        },
+        {
+          "date": "2026-07-21",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.2
+        },
+        {
+          "date": "2026-07-22",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.39
+        },
+        {
+          "date": "2026-07-22",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 1.19
+        },
+        {
+          "date": "2026-07-22",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.18
+        },
+        {
+          "date": "2026-07-22",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.8
+        },
+        {
+          "date": "2026-07-22",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-22",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.65
+        },
+        {
+          "date": "2026-07-22",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.85
+        },
+        {
+          "date": "2026-07-23",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.44
+        },
+        {
+          "date": "2026-07-23",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.26
+        },
+        {
+          "date": "2026-07-23",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -1.37
+        },
+        {
+          "date": "2026-07-23",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.55
+        },
+        {
+          "date": "2026-07-23",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-23",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.03
+        },
+        {
+          "date": "2026-07-23",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.13
+        },
+        {
+          "date": "2026-07-24",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 1.18
+        },
+        {
+          "date": "2026-07-24",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.67
+        },
+        {
+          "date": "2026-07-24",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.01
+        },
+        {
+          "date": "2026-07-24",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -1.79
+        },
+        {
+          "date": "2026-07-24",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-24",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.68
+        },
+        {
+          "date": "2026-07-24",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.13
+        },
+        {
+          "date": "2026-07-27",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.45
+        },
+        {
+          "date": "2026-07-27",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.84
+        },
+        {
+          "date": "2026-07-27",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.15
+        },
+        {
+          "date": "2026-07-27",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -2.48
+        },
+        {
+          "date": "2026-07-27",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-27",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.37
+        },
+        {
+          "date": "2026-07-27",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.86
+        },
+        {
+          "date": "2026-07-28",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.53
+        },
+        {
+          "date": "2026-07-28",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.44
+        },
+        {
+          "date": "2026-07-28",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.27
+        },
+        {
+          "date": "2026-07-28",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -2.81
+        },
+        {
+          "date": "2026-07-28",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-28",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.49
+        },
+        {
+          "date": "2026-07-28",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.76
+        },
+        {
+          "date": "2026-07-29",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.9
+        },
+        {
+          "date": "2026-07-29",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.32
+        },
+        {
+          "date": "2026-07-29",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -1.52
+        },
+        {
+          "date": "2026-07-29",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -1.97
+        },
+        {
+          "date": "2026-07-29",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-29",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.14
+        },
+        {
+          "date": "2026-07-29",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.44
+        },
+        {
+          "date": "2026-07-30",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -1.87
+        },
+        {
+          "date": "2026-07-30",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -1.36
+        },
+        {
+          "date": "2026-07-30",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 1.6
+        },
+        {
+          "date": "2026-07-30",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 2.11
+        },
+        {
+          "date": "2026-07-30",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-30",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -2.23
+        },
+        {
+          "date": "2026-07-30",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -1.14
+        },
+        {
+          "date": "2026-07-31",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -2.9
+        },
+        {
+          "date": "2026-07-31",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.6
+        },
+        {
+          "date": "2026-07-31",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.68
+        },
+        {
+          "date": "2026-07-31",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.86
+        },
+        {
+          "date": "2026-07-31",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-07-31",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.1
+        },
+        {
+          "date": "2026-07-31",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.38
+        },
+        {
+          "date": "2026-08-01",
+          "factor": "cma",
+          "frequency": "monthly",
+          "value": -2.01
+        },
+        {
+          "date": "2026-08-01",
+          "factor": "hml",
+          "frequency": "monthly",
+          "value": -3.54
+        },
+        {
+          "date": "2026-08-01",
+          "factor": "mkt_rf",
+          "frequency": "monthly",
+          "value": 2.56
+        },
+        {
+          "date": "2026-08-01",
+          "factor": "mom",
+          "frequency": "monthly",
+          "value": -5.6
+        },
+        {
+          "date": "2026-08-01",
+          "factor": "rf",
+          "frequency": "monthly",
+          "value": 0.29
+        },
+        {
+          "date": "2026-08-01",
+          "factor": "rmw",
+          "frequency": "monthly",
+          "value": -4.09
+        },
+        {
+          "date": "2026-08-01",
+          "factor": "smb",
+          "frequency": "monthly",
+          "value": -0.52
+        },
+        {
+          "date": "2026-08-03",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -1.73
+        },
+        {
+          "date": "2026-08-03",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -1.17
+        },
+        {
+          "date": "2026-08-03",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 1.55
+        },
+        {
+          "date": "2026-08-03",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -1.64
+        },
+        {
+          "date": "2026-08-03",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-03",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.41
+        },
+        {
+          "date": "2026-08-03",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.77
+        },
+        {
+          "date": "2026-08-04",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.17
+        },
+        {
+          "date": "2026-08-04",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -1.2
+        },
+        {
+          "date": "2026-08-04",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 1.81
+        },
+        {
+          "date": "2026-08-04",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.96
+        },
+        {
+          "date": "2026-08-04",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-04",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -1.55
+        },
+        {
+          "date": "2026-08-04",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.21
+        },
+        {
+          "date": "2026-08-05",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.16
+        },
+        {
+          "date": "2026-08-05",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.31
+        },
+        {
+          "date": "2026-08-05",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.24
+        },
+        {
+          "date": "2026-08-05",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.34
+        },
+        {
+          "date": "2026-08-05",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-05",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.35
+        },
+        {
+          "date": "2026-08-05",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.33
+        },
+        {
+          "date": "2026-08-06",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.14
+        },
+        {
+          "date": "2026-08-06",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.27
+        },
+        {
+          "date": "2026-08-06",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.18
+        },
+        {
+          "date": "2026-08-06",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.31
+        },
+        {
+          "date": "2026-08-06",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-06",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.3
+        },
+        {
+          "date": "2026-08-06",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.39
+        },
+        {
+          "date": "2026-08-07",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.05
+        },
+        {
+          "date": "2026-08-07",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.74
+        },
+        {
+          "date": "2026-08-07",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.74
+        },
+        {
+          "date": "2026-08-07",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.63
+        },
+        {
+          "date": "2026-08-07",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-07",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -1.49
+        },
+        {
+          "date": "2026-08-07",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.27
+        },
+        {
+          "date": "2026-08-10",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.46
+        },
+        {
+          "date": "2026-08-10",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.3
+        },
+        {
+          "date": "2026-08-10",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.03
+        },
+        {
+          "date": "2026-08-10",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.19
+        },
+        {
+          "date": "2026-08-10",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-10",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.01
+        },
+        {
+          "date": "2026-08-10",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.67
+        },
+        {
+          "date": "2026-08-11",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.34
+        },
+        {
+          "date": "2026-08-11",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.41
+        },
+        {
+          "date": "2026-08-11",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.31
+        },
+        {
+          "date": "2026-08-11",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.56
+        },
+        {
+          "date": "2026-08-11",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-11",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.72
+        },
+        {
+          "date": "2026-08-11",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.56
+        },
+        {
+          "date": "2026-08-12",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.26
+        },
+        {
+          "date": "2026-08-12",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.31
+        },
+        {
+          "date": "2026-08-12",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.25
+        },
+        {
+          "date": "2026-08-12",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 1.84
+        },
+        {
+          "date": "2026-08-12",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-12",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.08
+        },
+        {
+          "date": "2026-08-12",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.07
+        },
+        {
+          "date": "2026-08-13",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.02
+        },
+        {
+          "date": "2026-08-13",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.06
+        },
+        {
+          "date": "2026-08-13",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.58
+        },
+        {
+          "date": "2026-08-13",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -1.44
+        },
+        {
+          "date": "2026-08-13",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-13",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.02
+        },
+        {
+          "date": "2026-08-13",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.05
+        },
+        {
+          "date": "2026-08-14",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.02
+        },
+        {
+          "date": "2026-08-14",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.64
+        },
+        {
+          "date": "2026-08-14",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.21
+        },
+        {
+          "date": "2026-08-14",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 1.07
+        },
+        {
+          "date": "2026-08-14",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-14",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.61
+        },
+        {
+          "date": "2026-08-14",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.19
+        },
+        {
+          "date": "2026-08-17",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.08
+        },
+        {
+          "date": "2026-08-17",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.09
+        },
+        {
+          "date": "2026-08-17",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.55
+        },
+        {
+          "date": "2026-08-17",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 2.44
+        },
+        {
+          "date": "2026-08-17",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-17",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.2
+        },
+        {
+          "date": "2026-08-17",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.27
+        },
+        {
+          "date": "2026-08-18",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.84
+        },
+        {
+          "date": "2026-08-18",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.14
+        },
+        {
+          "date": "2026-08-18",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.67
+        },
+        {
+          "date": "2026-08-18",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.98
+        },
+        {
+          "date": "2026-08-18",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-18",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.87
+        },
+        {
+          "date": "2026-08-18",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.11
+        },
+        {
+          "date": "2026-08-19",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.69
+        },
+        {
+          "date": "2026-08-19",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.44
+        },
+        {
+          "date": "2026-08-19",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.29
+        },
+        {
+          "date": "2026-08-19",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -2.34
+        },
+        {
+          "date": "2026-08-19",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-19",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.28
+        },
+        {
+          "date": "2026-08-19",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.35
+        },
+        {
+          "date": "2026-08-20",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.04
+        },
+        {
+          "date": "2026-08-20",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.39
+        },
+        {
+          "date": "2026-08-20",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.99
+        },
+        {
+          "date": "2026-08-20",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.21
+        },
+        {
+          "date": "2026-08-20",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-20",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.37
+        },
+        {
+          "date": "2026-08-20",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.2
+        },
+        {
+          "date": "2026-08-21",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.32
+        },
+        {
+          "date": "2026-08-21",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.15
+        },
+        {
+          "date": "2026-08-21",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.53
+        },
+        {
+          "date": "2026-08-21",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.27
+        },
+        {
+          "date": "2026-08-21",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-21",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.25
+        },
+        {
+          "date": "2026-08-21",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.38
+        },
+        {
+          "date": "2026-08-24",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.26
+        },
+        {
+          "date": "2026-08-24",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.19
+        },
+        {
+          "date": "2026-08-24",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.32
+        },
+        {
+          "date": "2026-08-24",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.83
+        },
+        {
+          "date": "2026-08-24",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-24",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.07
+        },
+        {
+          "date": "2026-08-24",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.28
+        },
+        {
+          "date": "2026-08-25",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.3
+        },
+        {
+          "date": "2026-08-25",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.33
+        },
+        {
+          "date": "2026-08-25",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.31
+        },
+        {
+          "date": "2026-08-25",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.05
+        },
+        {
+          "date": "2026-08-25",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-25",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.89
+        },
+        {
+          "date": "2026-08-25",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.0
+        },
+        {
+          "date": "2026-08-26",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.46
+        },
+        {
+          "date": "2026-08-26",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.2
+        },
+        {
+          "date": "2026-08-26",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.06
+        },
+        {
+          "date": "2026-08-26",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.21
+        },
+        {
+          "date": "2026-08-26",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-26",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.26
+        },
+        {
+          "date": "2026-08-26",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.13
+        },
+        {
+          "date": "2026-08-27",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.89
+        },
+        {
+          "date": "2026-08-27",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -1.14
+        },
+        {
+          "date": "2026-08-27",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.72
+        },
+        {
+          "date": "2026-08-27",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.23
+        },
+        {
+          "date": "2026-08-27",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-27",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.78
+        },
+        {
+          "date": "2026-08-27",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.17
+        },
+        {
+          "date": "2026-08-28",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.49
+        },
+        {
+          "date": "2026-08-28",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.28
+        },
+        {
+          "date": "2026-08-28",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.34
+        },
+        {
+          "date": "2026-08-28",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -1.47
+        },
+        {
+          "date": "2026-08-28",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-28",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 1.66
+        },
+        {
+          "date": "2026-08-28",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.37
+        },
+        {
+          "date": "2026-08-31",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.03
+        },
+        {
+          "date": "2026-08-31",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.39
+        },
+        {
+          "date": "2026-08-31",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.33
+        },
+        {
+          "date": "2026-08-31",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.15
+        },
+        {
+          "date": "2026-08-31",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-08-31",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -1.09
+        },
+        {
+          "date": "2026-08-31",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.29
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 1.23
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.87
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.81
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.56
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.7
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.58
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "cma",
+          "frequency": "monthly",
+          "value": 1.08
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "hml",
+          "frequency": "monthly",
+          "value": -1.55
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "mkt_rf",
+          "frequency": "monthly",
+          "value": -1.07
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "mom",
+          "frequency": "monthly",
+          "value": 6.7
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "rf",
+          "frequency": "monthly",
+          "value": 0.31
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "rmw",
+          "frequency": "monthly",
+          "value": -3.22
+        },
+        {
+          "date": "2026-09-01",
+          "factor": "smb",
+          "frequency": "monthly",
+          "value": -4.6
+        },
+        {
+          "date": "2026-09-02",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.03
+        },
+        {
+          "date": "2026-09-02",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.57
+        },
+        {
+          "date": "2026-09-02",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.5
+        },
+        {
+          "date": "2026-09-02",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.35
+        },
+        {
+          "date": "2026-09-02",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-02",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.11
+        },
+        {
+          "date": "2026-09-02",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.63
+        },
+        {
+          "date": "2026-09-03",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.84
+        },
+        {
+          "date": "2026-09-03",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.12
+        },
+        {
+          "date": "2026-09-03",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 1.11
+        },
+        {
+          "date": "2026-09-03",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.57
+        },
+        {
+          "date": "2026-09-03",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-03",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.29
+        },
+        {
+          "date": "2026-09-03",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.7
+        },
+        {
+          "date": "2026-09-04",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.4
+        },
+        {
+          "date": "2026-09-04",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.56
+        },
+        {
+          "date": "2026-09-04",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.42
+        },
+        {
+          "date": "2026-09-04",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 1.05
+        },
+        {
+          "date": "2026-09-04",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-04",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.11
+        },
+        {
+          "date": "2026-09-04",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.71
+        },
+        {
+          "date": "2026-09-08",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.68
+        },
+        {
+          "date": "2026-09-08",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.03
+        },
+        {
+          "date": "2026-09-08",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.6
+        },
+        {
+          "date": "2026-09-08",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 1.18
+        },
+        {
+          "date": "2026-09-08",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-08",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -1.46
+        },
+        {
+          "date": "2026-09-08",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.69
+        },
+        {
+          "date": "2026-09-09",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.2
+        },
+        {
+          "date": "2026-09-09",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.38
+        },
+        {
+          "date": "2026-09-09",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.54
+        },
+        {
+          "date": "2026-09-09",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.54
+        },
+        {
+          "date": "2026-09-09",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-09",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.24
+        },
+        {
+          "date": "2026-09-09",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.94
+        },
+        {
+          "date": "2026-09-10",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 1.26
+        },
+        {
+          "date": "2026-09-10",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.79
+        },
+        {
+          "date": "2026-09-10",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.62
+        },
+        {
+          "date": "2026-09-10",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.29
+        },
+        {
+          "date": "2026-09-10",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-10",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.7
+        },
+        {
+          "date": "2026-09-10",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.33
+        },
+        {
+          "date": "2026-09-11",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.43
+        },
+        {
+          "date": "2026-09-11",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.0
+        },
+        {
+          "date": "2026-09-11",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.84
+        },
+        {
+          "date": "2026-09-11",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.13
+        },
+        {
+          "date": "2026-09-11",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-11",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.09
+        },
+        {
+          "date": "2026-09-11",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.47
+        },
+        {
+          "date": "2026-09-14",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.36
+        },
+        {
+          "date": "2026-09-14",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.62
+        },
+        {
+          "date": "2026-09-14",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.4
+        },
+        {
+          "date": "2026-09-14",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -1.66
+        },
+        {
+          "date": "2026-09-14",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-14",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.25
+        },
+        {
+          "date": "2026-09-14",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.65
+        },
+        {
+          "date": "2026-09-15",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.45
+        },
+        {
+          "date": "2026-09-15",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.69
+        },
+        {
+          "date": "2026-09-15",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.49
+        },
+        {
+          "date": "2026-09-15",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 1.22
+        },
+        {
+          "date": "2026-09-15",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-15",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.21
+        },
+        {
+          "date": "2026-09-15",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.38
+        },
+        {
+          "date": "2026-09-16",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.09
+        },
+        {
+          "date": "2026-09-16",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -1.17
+        },
+        {
+          "date": "2026-09-16",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.47
+        },
+        {
+          "date": "2026-09-16",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.67
+        },
+        {
+          "date": "2026-09-16",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-16",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.4
+        },
+        {
+          "date": "2026-09-16",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.01
+        },
+        {
+          "date": "2026-09-17",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.24
+        },
+        {
+          "date": "2026-09-17",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.49
+        },
+        {
+          "date": "2026-09-17",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 1.1
+        },
+        {
+          "date": "2026-09-17",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.77
+        },
+        {
+          "date": "2026-09-17",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-17",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -1.19
+        },
+        {
+          "date": "2026-09-17",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.68
+        },
+        {
+          "date": "2026-09-18",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.36
+        },
+        {
+          "date": "2026-09-18",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.3
+        },
+        {
+          "date": "2026-09-18",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.04
+        },
+        {
+          "date": "2026-09-18",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.83
+        },
+        {
+          "date": "2026-09-18",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-18",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.03
+        },
+        {
+          "date": "2026-09-18",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.61
+        },
+        {
+          "date": "2026-09-21",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.92
+        },
+        {
+          "date": "2026-09-21",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -1.25
+        },
+        {
+          "date": "2026-09-21",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 1.45
+        },
+        {
+          "date": "2026-09-21",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.48
+        },
+        {
+          "date": "2026-09-21",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-21",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -1.14
+        },
+        {
+          "date": "2026-09-21",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.87
+        },
+        {
+          "date": "2026-09-22",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.23
+        },
+        {
+          "date": "2026-09-22",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.45
+        },
+        {
+          "date": "2026-09-22",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.0
+        },
+        {
+          "date": "2026-09-22",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.46
+        },
+        {
+          "date": "2026-09-22",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-22",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.83
+        },
+        {
+          "date": "2026-09-22",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.6
+        },
+        {
+          "date": "2026-09-23",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.49
+        },
+        {
+          "date": "2026-09-23",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.3
+        },
+        {
+          "date": "2026-09-23",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.8
+        },
+        {
+          "date": "2026-09-23",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.3
+        },
+        {
+          "date": "2026-09-23",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-23",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.34
+        },
+        {
+          "date": "2026-09-23",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.94
+        },
+        {
+          "date": "2026-09-24",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.48
+        },
+        {
+          "date": "2026-09-24",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.23
+        },
+        {
+          "date": "2026-09-24",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.04
+        },
+        {
+          "date": "2026-09-24",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.71
+        },
+        {
+          "date": "2026-09-24",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-24",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.27
+        },
+        {
+          "date": "2026-09-24",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.17
+        },
+        {
+          "date": "2026-09-25",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.26
+        },
+        {
+          "date": "2026-09-25",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": 0.41
+        },
+        {
+          "date": "2026-09-25",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": 0.43
+        },
+        {
+          "date": "2026-09-25",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.43
+        },
+        {
+          "date": "2026-09-25",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-25",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.6
+        },
+        {
+          "date": "2026-09-25",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.32
+        },
+        {
+          "date": "2026-09-28",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.39
+        },
+        {
+          "date": "2026-09-28",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.5
+        },
+        {
+          "date": "2026-09-28",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.82
+        },
+        {
+          "date": "2026-09-28",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 1.63
+        },
+        {
+          "date": "2026-09-28",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-28",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": 0.68
+        },
+        {
+          "date": "2026-09-28",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.27
+        },
+        {
+          "date": "2026-09-29",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": -0.43
+        },
+        {
+          "date": "2026-09-29",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.5
+        },
+        {
+          "date": "2026-09-29",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.21
+        },
+        {
+          "date": "2026-09-29",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": -0.31
+        },
+        {
+          "date": "2026-09-29",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-29",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.26
+        },
+        {
+          "date": "2026-09-29",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": -0.03
+        },
+        {
+          "date": "2026-09-30",
+          "factor": "cma",
+          "frequency": "daily",
+          "value": 0.19
+        },
+        {
+          "date": "2026-09-30",
+          "factor": "hml",
+          "frequency": "daily",
+          "value": -0.88
+        },
+        {
+          "date": "2026-09-30",
+          "factor": "mkt_rf",
+          "frequency": "daily",
+          "value": -0.26
+        },
+        {
+          "date": "2026-09-30",
+          "factor": "mom",
+          "frequency": "daily",
+          "value": 0.32
+        },
+        {
+          "date": "2026-09-30",
+          "factor": "rf",
+          "frequency": "daily",
+          "value": 0.01
+        },
+        {
+          "date": "2026-09-30",
+          "factor": "rmw",
+          "frequency": "daily",
+          "value": -0.35
+        },
+        {
+          "date": "2026-09-30",
+          "factor": "smb",
+          "frequency": "daily",
+          "value": 0.1
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

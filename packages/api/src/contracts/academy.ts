@@ -1,7 +1,19 @@
+import { COURSE_IDS } from "@darkfactory/academy/courses";
+import {
+  LessonSourceSchema,
+  LessonSpecSchema,
+  SCENE_ELEMENTS,
+  type SceneType,
+  STRUCTURES,
+} from "@darkfactory/academy/schema";
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
-// Vertex Academy (Define Your Risk lessons). Two procedure groups:
+// Vertex Academy. Three procedure groups:
+// - lessons, lesson: read the lesson catalog, operator-only (the transcripts are private). A course's
+//   `store` (courses.ts) says where its lessons live: "package" (Define Your Risk, shipped in
+//   @darkfactory/academy) or "database" (QuantFinanceToGo, Postgres academy_lesson_specs and
+//   academy_lesson_sources, loaded by `bun run vertex:academy:import`). Both answer the same shape.
 // - backtest: a MODELED options backtest of one lesson's structure over stored daily bars. Option prices
 //   come from Black-Scholes, never from historical quotes; every output says so. Research only.
 // - deploy: evaluates the master-rule and owner-cap gates and creates a PAPER deployment request in the
@@ -206,6 +218,56 @@ export const AcademyDeployRequestOutputSchema = z
   })
   .strict();
 
+const courseSchema = z.enum(COURSE_IDS);
+export const ACADEMY_LESSONS_MAX = 500;
+
+export const AcademyLessonsInputSchema = z
+  .object({ course: courseSchema })
+  .strict();
+
+/** A lesson card of a course gallery (LessonSummary of @darkfactory/academy). */
+export const AcademyLessonSummarySchema = z
+  .object({
+    course: courseSchema,
+    slug: slugSchema,
+    title: z.string(),
+    summary: z.string(),
+    kind: LessonSpecSchema.shape.kind,
+    tags: LessonSpecSchema.shape.tags,
+    sceneType: z.enum(
+      Object.keys(SCENE_ELEMENTS) as [SceneType, ...SceneType[]]
+    ),
+    structure: z.enum(STRUCTURES).nullable(),
+    publishedAt: z.string(),
+  })
+  .strict();
+
+export const AcademyLessonsOutputSchema = z
+  .object({
+    course: courseSchema,
+    /** Knowledge-base videos of the course, not counting recorded exact duplicates. */
+    sourceCount: z.number().int().nonnegative(),
+    /** Newest source first. */
+    lessons: z.array(AcademyLessonSummarySchema).max(ACADEMY_LESSONS_MAX),
+  })
+  .strict();
+
+export const AcademyLessonInputSchema = z.object({ slug: slugSchema }).strict();
+
+const lessonLinkSchema = z
+  .object({ slug: slugSchema, title: z.string() })
+  .strict();
+
+/** One lesson: its spec (the page builds its chart from it), its source and its course neighbours. */
+export const AcademyLessonOutputSchema = z
+  .object({
+    spec: LessonSpecSchema,
+    source: LessonSourceSchema,
+    previous: lessonLinkSchema.nullable(),
+    next: lessonLinkSchema.nullable(),
+  })
+  .strict();
+
 export const ACADEMY_ERRORS = {
   BAD_REQUEST: { status: 400, message: "Invalid Academy request" },
   UNAUTHORIZED: { status: 401, message: "Authentication required" },
@@ -216,6 +278,29 @@ export const ACADEMY_ERRORS = {
 } as const;
 
 const academy = oc.errors(ACADEMY_ERRORS);
+
+const lessons = academy
+  .route({
+    method: "GET",
+    path: "/academy/lessons",
+    operationId: "academy.lessons",
+    summary: "List the lessons of one Academy course (operator-only)",
+    tags: ["Academy"],
+  })
+  .input(AcademyLessonsInputSchema)
+  .output(AcademyLessonsOutputSchema);
+
+const lesson = academy
+  .route({
+    method: "GET",
+    path: "/academy/lessons/{slug}",
+    operationId: "academy.lesson",
+    summary:
+      "Read one Academy lesson with its knowledge-base source and course neighbours (operator-only)",
+    tags: ["Academy"],
+  })
+  .input(AcademyLessonInputSchema)
+  .output(AcademyLessonOutputSchema);
 
 const tickers = academy
   .route({
@@ -264,12 +349,16 @@ const deployRequest = academy
   .output(AcademyDeployRequestOutputSchema);
 
 export const academyContract = {
+  lessons,
+  lesson,
   tickers,
   backtest,
   deployPreview,
   deployRequest,
 };
 
+export type AcademyLessonsOutput = z.infer<typeof AcademyLessonsOutputSchema>;
+export type AcademyLessonOutput = z.infer<typeof AcademyLessonOutputSchema>;
 export type AcademyBacktestInput = z.input<typeof AcademyBacktestInputSchema>;
 export type AcademyBacktestOutput = z.infer<typeof AcademyBacktestOutputSchema>;
 export type AcademyTickersOutput = z.infer<typeof AcademyTickersOutputSchema>;

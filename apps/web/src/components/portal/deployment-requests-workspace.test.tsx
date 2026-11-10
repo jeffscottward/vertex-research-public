@@ -175,6 +175,8 @@ const summary = (
   name: "HMM forward filter",
   params: [lookback, side],
   presetCount: 1,
+  priority: "normal",
+  externalValidation: null,
   section: null,
   slug: "hmm",
   sourceRef: null,
@@ -686,6 +688,54 @@ describe("DeploymentsView", () => {
     )!;
     expect(link.textContent).toBe("Deploy from the Academy lesson");
     return expect(link.getAttribute("href")).toBe("/academy/wheel#deploy");
+  });
+
+  it("sends a strategy of any Academy course to its lesson deploy gate", async () => {
+    const container = await mount(
+      <StrategyDetail
+        describeFailure={() => ""}
+        detail={strategyDetail(summary({ slug: "qftg-binomial-tree" }))}
+        gateway={strategiesGateway()}
+        onChanged={async () => undefined}
+        onClose={() => undefined}
+        onTab={() => undefined}
+        tab="overview"
+      />
+    );
+    expect(
+      container.querySelector("[data-strategy-request-deployment]")
+    ).toBeNull();
+    const link = container.querySelector<HTMLAnchorElement>(
+      '[data-strategy-academy-lesson="qftg-binomial-tree"]'
+    )!;
+    return expect(link.getAttribute("href")).toBe(
+      "/academy/binomial-tree#deploy"
+    );
+  });
+
+  it("offers no deployment action for a research-only strategy", async () => {
+    const container = await mount(
+      <StrategyDetail
+        describeFailure={() => ""}
+        detail={strategyDetail(
+          summary({ slug: "qc-turn-of-the-month", tags: ["research-only"] })
+        )}
+        gateway={strategiesGateway()}
+        onChanged={async () => undefined}
+        onClose={() => undefined}
+        onTab={() => undefined}
+        tab="overview"
+      />
+    );
+    expect(
+      container.querySelector("[data-strategy-request-deployment]")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-strategy-academy-lesson]")
+    ).toBeNull();
+    return expect(
+      container.querySelector("[data-strategy-research-only]")?.textContent
+    ).toBe("Research only: no deployment");
   });
 
   return it("links a strategy library detail to a prefilled paper deployment request", async () => {

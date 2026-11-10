@@ -64,7 +64,17 @@ describe("MCP tool registry", () => {
       "deployment_status",
       "market_bars",
       "options_gex_context",
+      "terms_list",
+      "terms_query",
       "flow_snapshot",
+      "openbb_status",
+      "openbb_vol_context",
+      "openbb_cot",
+      "openbb_macro",
+      "openbb_events",
+      "openbb_shorts",
+      "openbb_sec",
+      "openbb_factors",
       "strategies_list",
       "strategies_get",
       "optimizations_list",
@@ -151,6 +161,40 @@ describe("callMcpTool", () => {
       schemaVersion: "flow-snapshot.v1",
       symbol: "ES",
     });
+  });
+
+  it("forwards the read-only openbb tools to their openbb procedures", async () => {
+    const cases: [
+      string,
+      Record<string, unknown>,
+      string,
+      Record<string, unknown>,
+    ][] = [
+      ["openbb_status", {}, "openbb/status", {}],
+      [
+        "openbb_vol_context",
+        { asOf: "2026-11-06" },
+        "openbb/volContext",
+        { asOf: "2026-11-06" },
+      ],
+      ["openbb_cot", { market: "ES" }, "openbb/cot", { market: "ES" }],
+      ["openbb_macro", { ids: ["EFFR"] }, "openbb/macro", { ids: ["EFFR"] }],
+      ["openbb_events", {}, "openbb/events", {}],
+      ["openbb_shorts", { symbol: "spy" }, "openbb/shorts", { symbol: "spy" }],
+      ["openbb_sec", { symbol: "AAPL" }, "openbb/sec", { symbol: "AAPL" }],
+      [
+        "openbb_factors",
+        { frequency: "daily" },
+        "openbb/factors",
+        { frequency: "daily" },
+      ],
+    ];
+    for (const [tool, args, procedure, input] of cases) {
+      const call = okCall({ ok: true });
+      const result = await callMcpTool(tool, args, call);
+      expect(call).toHaveBeenCalledWith(procedure, input);
+      expect(result["structuredContent"]).toEqual({ ok: true });
+    }
   });
 
   it("returns the GEX headline and its context from options_gex_context", async () => {

@@ -34,8 +34,12 @@ import {
   AutopilotGateSchema,
   type AutopilotTickResult,
 } from "../contracts/autopilot.ts";
-import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
 import {
+  StrategyDefinitionSchema,
+  serverStrategyRefusal,
+} from "../strategy-dsl.ts";
+import {
+  AUTOPILOT_SUPPORT,
   type AutopilotRunnerDependencies,
   seriesKey,
   tickAutopilotCampaign,
@@ -92,13 +96,15 @@ const runnerFor = (
   context: ApiContext,
   failures: Failures
 ): AutopilotRunnerDependencies => {
-  const { marketBars, sectorRotation } = context.repositories;
+  const { marketBars, marketDailySeries, sectorRotation } =
+    context.repositories;
   if (marketBars === undefined) throw failures.STORAGE_ERROR();
   return {
     autopilot: repositoryFor(context, failures),
     clock: () => performance.now(),
     generateId: () => crypto.randomUUID(),
     marketBars,
+    ...(marketDailySeries === undefined ? {} : { marketDailySeries }),
     ...(sectorRotation === undefined ? {} : { sectorRotation }),
   };
 };
@@ -107,6 +113,14 @@ const create = api.autopilot.campaigns.create
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
+    // Campaign filters join every candidate; the runner loads sector points and daily series.
+    const refusal = serverStrategyRefusal(
+      { filters: input.filters },
+      input.timeframe,
+      AUTOPILOT_SUPPORT
+    );
+    if (refusal !== undefined)
+      throw failures.VALIDATION_ERROR({ message: refusal.message });
     const repository = repositoryFor(context, failures);
     const marketBars = context.repositories.marketBars;
     if (marketBars === undefined) throw failures.STORAGE_ERROR();
@@ -257,8 +271,10 @@ const candidateGet = api.autopilot.candidates.get
         paperRequestId: row.deploymentRequestId,
         verified: row.status === "verified",
       }),
+      // No paper config for a definition the paper path refuses (options block, series filters).
       nautilus:
-        row.status === "verified"
+        row.status === "verified" &&
+        serverStrategyRefusal(definition, campaign.timeframe) === undefined
           ? nautilusPaperConfig(
               row,
               {
@@ -331,6 +347,10 @@ const sendToPaper = api.autopilot.candidates.sendToPaper
       throw failures.VALIDATION_ERROR({ message: (error as Error).message });
     }
     const definition = StrategyDefinitionSchema.parse(row.definition);
+    // The paper path runs equity definitions only; refuse before any write.
+    const refusal = serverStrategyRefusal(definition, campaign.timeframe);
+    if (refusal !== undefined)
+      throw failures.VALIDATION_ERROR({ message: refusal.message });
     const sha256 = await strategyDefinitionSha256(definition);
     const definitionId = autopilotDefinitionId(row.id);
     await strategyDefinitions.insert({
