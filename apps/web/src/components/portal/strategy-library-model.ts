@@ -48,6 +48,51 @@ export const STRATEGY_SORT_LABELS: Readonly<Record<StrategySortValue, string>> =
     return: "Return (latest backtest)",
   });
 
+// Badges beside a strategy name. "Externally pre-validated" records a third party's claim; it is
+// shown exactly when the strategy carries an external claim and never means validated by Vertex.
+const HIGH_PRIORITY_LABEL = "High priority";
+const EXTERNALLY_PRE_VALIDATED_LABEL = "Externally pre-validated";
+export const EXTERNAL_CLAIM_HEADING =
+  "External claim (not validated by Vertex)";
+export const EXTERNAL_CLAIM_NOTICE =
+  "This is the source's claim. Vertex shows its own test result on the Backtests tab. A strategy counts as validated by Vertex only after the Vertex replication and gates pass.";
+
+export type StrategyBadgeKey = "high-priority" | "externally-pre-validated";
+export type StrategyBadge = Readonly<{
+  key: StrategyBadgeKey;
+  label: string;
+  hint: string;
+  // Read by screen readers after the label; null when the label says it all.
+  srText: string | null;
+}>;
+const EXTERNAL_CLAIM_SR_TEXT = " (source claim, not validated by Vertex)";
+export const strategyBadges = (
+  strategy: Pick<StrategySummaryOutput, "priority" | "externalValidation">
+): StrategyBadge[] => {
+  return [
+    ...(strategy.priority === "high"
+      ? [
+          {
+            hint: "Listed first in every sort.",
+            key: "high-priority" as const,
+            label: HIGH_PRIORITY_LABEL,
+            srText: null,
+          },
+        ]
+      : []),
+    ...(strategy.externalValidation === null
+      ? []
+      : [
+          {
+            hint: "A third party published a backtest of this strategy. This is the source's claim, not a Vertex validation.",
+            key: "externally-pre-validated" as const,
+            label: EXTERNALLY_PRE_VALIDATED_LABEL,
+            srText: EXTERNAL_CLAIM_SR_TEXT,
+          },
+        ]),
+  ];
+};
+
 const UNSORTED_SECTION_LABEL = "Unsorted";
 
 export type SectionGroup = Readonly<{
@@ -56,7 +101,11 @@ export type SectionGroup = Readonly<{
   rows: StrategySummaryOutput[];
 }>;
 
-// Groups keep the server order inside each section; sections sort by name with Unsorted last.
+const hasHighPriority = (rows: readonly StrategySummaryOutput[]): boolean =>
+  rows.some((row) => row.priority === "high");
+
+// Groups keep the server order inside each section. A section that holds a high-priority strategy
+// comes first; then sections sort by name with Unsorted last.
 export const groupBySection = (
   rows: readonly StrategySummaryOutput[]
 ): SectionGroup[] => {
@@ -66,7 +115,10 @@ export const groupBySection = (
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
   return [...groups.entries()]
-    .sort(([left], [right]) => {
+    .sort(([left, leftRows], [right, rightRows]) => {
+      const byPriority =
+        Number(hasHighPriority(rightRows)) - Number(hasHighPriority(leftRows));
+      if (byPriority !== 0) return byPriority;
       if (left === "") return 1;
       if (right === "") return -1;
       return left.localeCompare(right, "en", { sensitivity: "base" });

@@ -8,3 +8,4 @@ tests/test_qc_ports_nautilus.py
 tests/test_golden_pandas_reference.py
 tests/test_rvol_at_time.py
 tests/test_imom_study.py
+tests/test_volspike_study.py
