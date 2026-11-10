@@ -11,7 +11,8 @@ vi.mock("next/navigation", () => ({
 
 // The real Better Auth session store stays mounted for 1 s after its last
 // listener leaves, then removes a window listener. In this file that timer can
-// fire after Vitest has removed the jsdom window.
+// fire after Vitest has removed the jsdom window. The timer test below fails
+// if this mock is removed.
 const session = vi.hoisted(() => {
   const unsubscribe = vi.fn();
   return { subscribe: vi.fn(() => unsubscribe), unsubscribe };
@@ -32,6 +33,8 @@ let mobile = false;
 
 beforeEach(() => {
   mobile = false;
+  session.subscribe.mockClear();
+  session.unsubscribe.mockClear();
   // biome-ignore lint/suspicious/noDocumentCookie: clears the assistant panel cookie; jsdom has no Cookie Store API.
   document.cookie = "vx.assistantPanel=; Path=/; Max-Age=0";
   vi.stubGlobal(
@@ -182,6 +185,7 @@ describe("PortalShell", () => {
       document.querySelector('[data-slot="portal-topbar"]')
     ).not.toBeNull();
     act(() => root?.unmount());
+    root = undefined;
     expect(session.subscribe).toHaveBeenCalledOnce();
     expect(session.unsubscribe).toHaveBeenCalledOnce();
     // A timer that outlives the unmount can fire after Vitest removes the
