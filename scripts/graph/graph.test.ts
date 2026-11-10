@@ -1599,6 +1599,8 @@ const pinnedFixture = (
     versions.set(options.cachedPython, options.cachedVersion ?? null);
   const commands: Array<readonly [string, readonly string[]]> = [];
   const provisioned: string[] = [];
+  const replaceRequests: boolean[] = [];
+  const versionProbeTimeouts: unknown[] = [];
   const dependencies: GraphDependencies = {
     files: state.dependencies.files,
     process: {
@@ -1609,6 +1611,7 @@ const pinnedFixture = (
         if (command !== "graphify")
           expect(arguments_.slice(0, 2)).toEqual(["-m", "graphify"]);
         if (graphifyArguments[0] === "--version") {
+          versionProbeTimeouts.push(commandOptions?.timeoutMs);
           const version = versions.get(command);
           return version
             ? { exitCode: 0, stderr: "", stdout: `graphify ${version}\n` }
@@ -1627,15 +1630,23 @@ const pinnedFixture = (
         if (options.pinnedError) throw options.pinnedError;
         return "2.4.0";
       },
-      provision: async () => {
+      provision: async ({ replaceExisting }) => {
         provisioned.push(FRESH_PYTHON);
+        replaceRequests.push(replaceExisting);
         if (options.provisionError) throw options.provisionError;
         versions.set(FRESH_PYTHON, options.provisionVersion ?? null);
         return FRESH_PYTHON;
       },
     },
   };
-  return { ...state, commands, dependencies, provisioned };
+  return {
+    ...state,
+    commands,
+    dependencies,
+    provisioned,
+    replaceRequests,
+    versionProbeTimeouts,
+  };
 };
 
 describe("pinned Graphify toolchain", () => {
@@ -1718,24 +1729,30 @@ describe("pinned Graphify toolchain", () => {
   });
 
   it("provisions the pinned venv when none exists or the cached one reports another version", async () => {
-    for (const cached of [
-      { cachedPython: null, pathVersion: null },
-      {
-        cachedPython: "/cache/darkfactory/graphify/stale/bin/python",
-        cachedVersion: "1.0.0",
-        pathVersion: "9.9.9",
-      },
-    ]) {
+    for (const [cached, replaceExisting] of [
+      [{ cachedPython: null, pathVersion: null }, false],
+      [
+        {
+          cachedPython: "/cache/darkfactory/graphify/stale/bin/python",
+          cachedVersion: "1.0.0",
+          pathVersion: "9.9.9",
+        },
+        true,
+      ],
+    ] as const) {
       const state = pinnedFixture({ ...cached, provisionVersion: "2.4.0" });
 
       await expect(
         runGraphAction("build", state.dependencies)
       ).resolves.toMatchObject({ graphifyVersion: "2.4.0", ok: true });
       expect(state.provisioned).toEqual([FRESH_PYTHON]);
+      expect(state.replaceRequests).toEqual([replaceExisting]);
       expect(state.commands).toContainEqual([
         FRESH_PYTHON,
         ["-m", "graphify", ...SNAPSHOT_EXTRACT],
       ]);
+      // A cold uv-managed Python can take seconds to import Graphify.
+      expect(new Set(state.versionProbeTimeouts)).toEqual(new Set([30_000]));
     }
 
     const unreadableCache = pinnedFixture({ provisionVersion: "2.4.0" });
@@ -1752,7 +1769,8 @@ describe("pinned Graphify toolchain", () => {
         },
       })
     ).resolves.toMatchObject({ ok: true });
-    return expect(unreadableCache.provisioned).toEqual([FRESH_PYTHON]);
+    expect(unreadableCache.provisioned).toEqual([FRESH_PYTHON]);
+    return expect(unreadableCache.replaceRequests).toEqual([false]);
   });
 
   return it("fails closed without extracting when the pinned Graphify cannot be resolved", async () => {

@@ -1057,6 +1057,10 @@ const GRAPHIFY_LOCK_PATH = "scripts/graph/requirements.lock";
 const GRAPHIFY_PYTHON = "3.12";
 const GRAPHIFY_PROVISION_TIMEOUT_MS = 900_000;
 const MAX_LOCK_BYTES = 262_144;
+// Provisioning is bounded by two uv runs of 15 min; an older staging venv is
+// the leftover of an interrupted run.
+const STALE_STAGING_MS = 86_400_000;
+const STAGING_PREFIX = ".provision-";
 
 export type GraphToolchainOptions = Readonly<{
   lockPath: string;
@@ -1081,6 +1085,20 @@ const isPresent = async (path: string): Promise<boolean> => {
     return true;
   } catch {
     return false;
+  }
+};
+
+const removeStaleStaging = async (cacheRoot: string): Promise<void> => {
+  const cutoff = Date.now() - STALE_STAGING_MS;
+  for (const name of await readdir(cacheRoot)) {
+    if (!name.startsWith(STAGING_PREFIX)) continue;
+    const path = join(cacheRoot, name);
+    try {
+      if ((await stat(path)).mtimeMs < cutoff)
+        await rm(path, { force: true, recursive: true });
+    } catch {
+      // Another run removed it first.
+    }
   }
 };
 
@@ -1126,18 +1144,19 @@ export const createGraphToolchain = (
       return (await isPresent(python)) ? python : null;
     },
     pinnedVersion: async () => parsePinnedGraphifyVersion(await readLock()),
-    provision: async () => {
+    provision: async ({ replaceExisting }) => {
       const lock = await readLock();
       parsePinnedGraphifyVersion(lock);
       const venv = venvFor(lock);
       await mkdir(options.cacheRoot, { mode: 0o700, recursive: true });
+      await removeStaleStaging(options.cacheRoot);
       // A venv whose interpreter vanished (for example a removed uv-managed
       // Python) cannot recover.
       if (!(await isPresent(pythonOf(venv))))
         await rm(venv, { force: true, recursive: true });
       const staging = join(
         options.cacheRoot,
-        `.provision-${process.pid}-${randomUUID()}`
+        `${STAGING_PREFIX}${process.pid}-${randomUUID()}`
       );
       try {
         await runUv(
@@ -1158,6 +1177,9 @@ export const createGraphToolchain = (
           ],
           "pip install"
         );
+        // The cached venv runs but reports another version: it cannot repair
+        // itself, and the rename below keeps an existing venv.
+        if (replaceExisting) await rm(venv, { force: true, recursive: true });
         try {
           await rename(staging, venv);
         } catch (error) {

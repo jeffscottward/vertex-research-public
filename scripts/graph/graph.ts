@@ -88,8 +88,11 @@ export type GraphToolchain = Readonly<{
   pinnedVersion: () => Promise<string>;
   // Python of an existing pinned venv, or null when none was provisioned yet.
   pinnedPython: () => Promise<string | null>;
-  // Builds the pinned venv when needed and returns its Python.
-  provision: () => Promise<string>;
+  // Builds the pinned venv and returns its Python. replaceExisting: a cached
+  // venv runs but does not report the pinned version, so it is rebuilt.
+  provision: (
+    options: Readonly<{ replaceExisting: boolean }>
+  ) => Promise<string>;
 }>;
 
 export type GraphDependencies = Readonly<{
@@ -607,7 +610,9 @@ const resolveGraphify = async (
   const requirement = `Graphify ${pinned} is required (PATH has ${pathVersion ?? "none"})`;
   let provisioned: string;
   try {
-    provisioned = await toolchain.provision();
+    provisioned = await toolchain.provision({
+      replaceExisting: existing !== null,
+    });
   } catch (error) {
     const detail =
       error instanceof Error ? error.message : "unknown provisioning failure";

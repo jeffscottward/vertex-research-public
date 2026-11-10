@@ -10,6 +10,7 @@ import {
   rm,
   symlink,
   truncate,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -3400,7 +3401,7 @@ describe("pinned Graphify toolchain", () => {
 
     await expect(state.toolchain.pinnedVersion()).resolves.toBe("2.4.0");
     await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
-    const python = await state.toolchain.provision();
+    const python = await state.toolchain.provision({ replaceExisting: false });
 
     expect(dirname(dirname(dirname(python)))).toBe(state.cacheRoot);
     expect(python.endsWith(join("bin", "python"))).toBe(true);
@@ -3434,20 +3435,83 @@ describe("pinned Graphify toolchain", () => {
 
     await writeFile(state.lockPath, "graphifyy==2.5.0\n");
     await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
-    return expect(await state.toolchain.provision()).not.toBe(python);
+    return expect(
+      await state.toolchain.provision({ replaceExisting: false })
+    ).not.toBe(python);
   });
 
   it("keeps a venv another run installed first and rebuilds one whose Python vanished", async () => {
     const state = await toolchainFixture();
-    const python = await state.toolchain.provision();
+    const python = await state.toolchain.provision({ replaceExisting: false });
 
-    await expect(state.toolchain.provision()).resolves.toBe(python);
+    await expect(
+      state.toolchain.provision({ replaceExisting: false })
+    ).resolves.toBe(python);
     expect(await stagingEntries(state.cacheRoot)).toEqual([]);
 
     await rm(python);
     await expect(state.toolchain.pinnedPython()).resolves.toBeNull();
-    await expect(state.toolchain.provision()).resolves.toBe(python);
+    await expect(
+      state.toolchain.provision({ replaceExisting: false })
+    ).resolves.toBe(python);
     return expect(await exists(python)).toBe(true);
+  });
+
+  it("rebuilds a cached venv that runs but reports another version", async () => {
+    const state = await toolchainFixture();
+    const python = await state.toolchain.provision({ replaceExisting: false });
+    const marker = join(dirname(dirname(python)), "broken-install");
+    await writeFile(marker, "");
+
+    // Without replaceExisting an installed venv wins (a concurrent first run).
+    await state.toolchain.provision({ replaceExisting: false });
+    expect(await exists(marker)).toBe(true);
+
+    await expect(
+      state.toolchain.provision({ replaceExisting: true })
+    ).resolves.toBe(python);
+    expect(await exists(marker)).toBe(false);
+    expect(await exists(python)).toBe(true);
+    return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+  });
+
+  it("names the venv by Python minor and lock digest, shared with other DarkFactory repos", async () => {
+    const state = await toolchainFixture();
+    const python = await state.toolchain.provision({ replaceExisting: false });
+    const key = createHash("sha256")
+      .update(`3.12\0${LOCK}`)
+      .digest("hex")
+      .slice(0, 32);
+    return expect(relative(state.cacheRoot, python)).toBe(
+      join(key, "bin", "python")
+    );
+  });
+
+  it("removes staging venvs of interrupted runs older than a day", async () => {
+    const state = await toolchainFixture();
+    await mkdir(state.cacheRoot, { recursive: true });
+    const old = join(state.cacheRoot, ".provision-1-interrupted");
+    const recent = join(state.cacheRoot, ".provision-2-running");
+    const other = join(state.cacheRoot, "unrelated-old");
+    for (const path of [old, recent, other])
+      await mkdir(join(path, "bin"), { recursive: true });
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
+    await utimes(old, twoDaysAgo, twoDaysAgo);
+    await utimes(other, twoDaysAgo, twoDaysAgo);
+
+    await state.toolchain.provision({ replaceExisting: false });
+    expect(await exists(old)).toBe(false);
+    expect(await exists(recent)).toBe(true);
+    expect(await exists(other)).toBe(true);
+
+    // A staging venv another run removes between listing and stat is skipped.
+    await utimes(recent, twoDaysAgo, twoDaysAgo);
+    mocks.fileSystem.readdir.mockImplementationOnce(async () => [
+      ".provision-3-gone",
+      ".provision-2-running",
+    ]);
+    await state.toolchain.provision({ replaceExisting: false });
+    return expect(await exists(recent)).toBe(false);
   });
 
   it("reports uv failures and leaves no staging venv behind", async () => {
@@ -3456,7 +3520,9 @@ describe("pinned Graphify toolchain", () => {
       exitCode: 2,
       stderr: "warning: slow\nerror: no interpreter for 3.12\n",
     });
-    await expect(state.toolchain.provision()).rejects.toThrow(
+    await expect(
+      state.toolchain.provision({ replaceExisting: false })
+    ).rejects.toThrow(
       "uv venv failed (exit 2): error: no interpreter for 3.12"
     );
 
@@ -3464,8 +3530,15 @@ describe("pinned Graphify toolchain", () => {
       { exitCode: 0, stderr: "" },
       { exitCode: 1, stderr: "" }
     );
-    await expect(state.toolchain.provision()).rejects.toThrow(
-      "uv pip install failed (exit 1): is uv on PATH?"
+    await expect(
+      state.toolchain.provision({ replaceExisting: false })
+    ).rejects.toThrow("uv pip install failed (exit 1): is uv on PATH?");
+
+    state.failures.push({ exitCode: 3, stderr: `error: ${"x".repeat(400)}\n` });
+    await expect(
+      state.toolchain.provision({ replaceExisting: false })
+    ).rejects.toThrow(
+      new Error(`uv venv failed (exit 3): error: ${"x".repeat(293)}`)
     );
     expect(await stagingEntries(state.cacheRoot)).toEqual([]);
     return expect(state.toolchain.pinnedPython()).resolves.toBeNull();
@@ -3477,13 +3550,15 @@ describe("pinned Graphify toolchain", () => {
       code: "EROFS",
     });
     mocks.fileSystem.rename.mockRejectedValueOnce(failure);
-    await expect(state.toolchain.provision()).rejects.toBe(failure);
+    await expect(
+      state.toolchain.provision({ replaceExisting: false })
+    ).rejects.toBe(failure);
     expect(await stagingEntries(state.cacheRoot)).toEqual([]);
 
     mocks.fileSystem.rename.mockRejectedValueOnce(
       Object.assign(new Error("exists"), { code: "EEXIST" })
     );
-    const python = await state.toolchain.provision();
+    const python = await state.toolchain.provision({ replaceExisting: false });
     expect(await stagingEntries(state.cacheRoot)).toEqual([]);
     return expect(await exists(python)).toBe(false);
   });
@@ -3500,9 +3575,9 @@ describe("pinned Graphify toolchain", () => {
     );
 
     const unpinned = await toolchainFixture("numpy==2.5.1\n");
-    await expect(unpinned.toolchain.provision()).rejects.toThrow(
-      "Graphify lock must pin exactly one graphifyy version"
-    );
+    await expect(
+      unpinned.toolchain.provision({ replaceExisting: false })
+    ).rejects.toThrow("Graphify lock must pin exactly one graphifyy version");
     expect(oversized.uvCalls).toEqual([]);
     return expect(unpinned.uvCalls).toEqual([]);
   });
