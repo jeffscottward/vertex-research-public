@@ -52,15 +52,20 @@ export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
 };
 /** No tick fetch (any symbol) within this many seconds of another one. */
 const FLOW_TICKS_STAGGER_SECONDS = 110;
-/** Fetch ticks only while the IBKR 120 s window holds at most this many requests (of 6). */
+/**
+ * Fetch ticks only while the IBKR 120 s window holds at most this many requests (of 6). A starved
+ * symbol (FLOW_TICKS_STARVED_SECONDS) has a higher limit.
+ */
 const FLOW_IBKR_MAX_RECENT = 2;
 /**
- * A symbol whose newest tick sample is older than this stops yielding to /charts: it fetches as soon
- * as the window has room for its two requests. Without this limit a steady client (a bar backfill at
- * 3 to 4 requests per 120 s) kept every tick sample out for hours. 360 s leaves time for both
- * staggered symbols before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s).
+ * A symbol whose newest tick attempt (ok, empty or unavailable) is older than this is starved and
+ * stops yielding to /charts: it fetches as soon as the window has room for its two requests. Without
+ * this limit a steady client (a bar backfill at 3 to 4 requests per 120 s) kept every tick sample
+ * out for hours. 350 s is the sixth 60 s timer run after the attempt, so both staggered symbols get
+ * a sample before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s). A failed starved fetch
+ * is an attempt too: the symbol then yields again for 350 s and does not retry every minute.
  */
-export const FLOW_TICKS_STARVED_SECONDS = 360;
+export const FLOW_TICKS_STARVED_SECONDS = 350;
 /** The vertex-history limit (6 per 120 s) minus the two requests of one tick fetch. */
 const FLOW_IBKR_MAX_RECENT_STARVED = 4;
 export const FLOW_TICKS_COUNT = 1000;
@@ -186,15 +191,14 @@ const ticksBlocked = async (
   if (pacing === null) return "IBKR pacing unknown (history health failed)";
   if (pacing.backoffSeconds > 0)
     return `IBKR pacing back-off, ${pacing.backoffSeconds} s left`;
-  // The operator seed always yields; a sampled symbol yields only while its ticks are recent.
+  // The operator seed always yields; a sampled symbol yields only while its last attempt is recent.
   const starved =
     !state.seed &&
     secondsSince(state, state.last.get(sampleKey(symbol, "ticks"))) >
       FLOW_TICKS_STARVED_SECONDS;
-  const maxRecent = starved
-    ? FLOW_IBKR_MAX_RECENT_STARVED
-    : FLOW_IBKR_MAX_RECENT;
-  if (pacing.recentRequests > maxRecent)
+  if (starved && pacing.recentRequests > FLOW_IBKR_MAX_RECENT_STARVED)
+    return `IBKR window full (${pacing.recentRequests}/6 in 120 s); no room for 2 requests`;
+  if (!starved && pacing.recentRequests > FLOW_IBKR_MAX_RECENT)
     return `IBKR window busy (${pacing.recentRequests}/6 in 120 s); /charts has priority`;
   // Count the two historical requests (TRADES, BID_ASK) against the window for the next symbol.
   state.pacing = { ...pacing, recentRequests: pacing.recentRequests + 2 };
@@ -214,6 +218,15 @@ const collectTicks = async (
   } catch (error) {
     return failed(error);
   }
+  // vertex-history answers a paced-out request with its previous payload (up to 15 min old).
+  if (output.cache.stale)
+    return {
+      events: 0,
+      items: 0,
+      message: `stale copy (${output.cache.ageSeconds} s old, request paced out); not stored`,
+      record: true,
+      status: "unavailable",
+    };
   const signed = signTrades(output.trades, output.quotes);
   const minTick = output.minTick ?? DEFAULT_MIN_TICK[instrument.symbol];
   const features = buildMinuteFeatures(instrument, signed, minTick);

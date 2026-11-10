@@ -41,27 +41,32 @@ Code:
 
 `vertex-history` paces every historical request, bars and ticks alike: at least 10 s apart, at most
 6 per 120 s, with a 10-minute back-off after an IBKR pacing violation. `/charts` and the collector
-share that budget, and `/charts` keeps priority:
+share that budget, and `/charts` keeps priority, except for a starved symbol (below):
 
 - One tick fetch costs two historical requests (TRADES, then BID_ASK).
 - The collector fetches ticks for one symbol at a time, at most once every ~2 minutes across both
   symbols (so each symbol about every 4 minutes): 2 of the 6 slots per 120 s at most.
 - Before each tick fetch it reads the pacer through `GET /vertex-history/v1/health`
-  (`pacing.recent_requests`, `pacing.backoff_seconds`). It fetches only when at most 2 requests are in
-  the current window and no back-off is running, so at least 2 slots stay free for `/charts`. If the
-  health read fails, it does not fetch.
-- The wait behind a busy window has a limit. A symbol whose newest tick sample is older than 360 s
-  (or that has none) fetches as soon as the window has room for its two requests (at most 4 in the
-  window), so a steady client such as a long bar backfill cannot keep ticks stale (stale on `/flow`
-  means older than 600 s). A back-off still stops every tick fetch. The operator seed
-  (`seed: true`) always keeps the limit of 2.
+  (`pacing.recent_requests`, `pacing.backoff_seconds`). It normally fetches only when at most 2
+  requests are in the current window and no back-off is running, so at least 2 slots stay free for
+  `/charts`. If the health read fails, it does not fetch.
+- The wait behind a busy window has a limit. A symbol whose newest tick attempt (ok, empty or
+  unavailable) is older than 350 s, or that has none, is starved: it fetches as soon as the window
+  has room for its two requests (at most 4 in the window). A steady client such as a long bar
+  backfill then cannot keep ticks stale (stale on `/flow` means older than 600 s). A starved fetch
+  can fill the window to 6 of 6, so a new bar request may be paced (or get a cached copy) for up to
+  about 70 s. A failed starved fetch counts as an attempt: the symbol yields again for 350 s. A
+  back-off still stops every tick fetch. The operator seed (`seed: true`) always keeps the limit of 2.
+- A tick answer marked `cache.stale` (the previous payload, served because a request was paced out)
+  is recorded as `unavailable` and not stored, so `/flow` never shows old ticks as a fresh sample.
 - Depth uses its own subscription pacer (one at a time, at least 3 s apart) and does not count
   against the historical budget.
 - The service pacer remains the hard limit: it never sends more than 6 per 120 s, whatever the
   callers do.
 
 The tick client prints one line per symbol and source to the journal of `vertex-flow.service`, with
-the reason when a fetch was held back (`IBKR window busy (n/6 in 120 s); /charts has priority`).
+the reason when a fetch was held back (`IBKR window busy (n/6 in 120 s); /charts has priority`, or
+for a starved symbol `IBKR window full (n/6 in 120 s); no room for 2 requests`).
 
 Sampling means coverage gaps: 1000 SPY prints can cover only seconds of a busy regular session.
 Each minute records `coveredSeconds` (how much of it a sample saw), and the page shows coverage.

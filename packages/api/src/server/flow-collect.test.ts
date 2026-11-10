@@ -542,7 +542,7 @@ describe("runFlowCollect due and pacing", () => {
     });
     const { run } = await collect(deps, { symbols: ["ES"] });
     expect(run("ES", "ticks").message).toBe(
-      "IBKR window busy (5/6 in 120 s); /charts has priority"
+      "IBKR window full (5/6 in 120 s); no room for 2 requests"
     );
     expect(deps.ticks).not.toHaveBeenCalled();
   });
@@ -556,6 +556,39 @@ describe("runFlowCollect due and pacing", () => {
     });
     const { run } = await collect(deps, { symbols: ["ES"] });
     expect(run("ES", "ticks").message).toBe("IBKR pacing back-off, 12 s left");
+    expect(deps.ticks).not.toHaveBeenCalled();
+  });
+
+  it("lets one starved symbol per run take the window; the other one is staggered", async () => {
+    const deps = depsWith({
+      pacing: vi.fn(async () => ({ backoffSeconds: 0, recentRequests: 4 })),
+      repository: fakeRepository([
+        sample("SPY", "ticks", FLOW_TICKS_STARVED_SECONDS + 1),
+        sample("ES", "ticks", FLOW_TICKS_STARVED_SECONDS + 1),
+      ]),
+    });
+    const { run } = await collect(deps);
+    expect(run("SPY", "ticks").status).toBe("ok");
+    expect(run("ES", "ticks").message).toBe(
+      "staggered: another tick sample 0 s ago"
+    );
+    expect(deps.ticks).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts a failed attempt: no retry behind a busy window for the starved time", async () => {
+    const deps = depsWith({
+      pacing: vi.fn(async () => ({ backoffSeconds: 0, recentRequests: 4 })),
+      repository: fakeRepository([
+        {
+          ...sample("ES", "ticks", FLOW_DUE_SECONDS.ticks + 5),
+          status: "unavailable",
+        },
+      ]),
+    });
+    const { run } = await collect(deps, { symbols: ["ES"] });
+    expect(run("ES", "ticks").message).toBe(
+      "IBKR window busy (4/6 in 120 s); /charts has priority"
+    );
     expect(deps.ticks).not.toHaveBeenCalled();
   });
 });
@@ -585,6 +618,23 @@ describe("runFlowCollect ticks", () => {
     expect(run("ES", "ticks").message).toMatch(/ \(cache\)$/);
     const [minutes] = deps.repository.upsertMinutes.mock.calls[0] ?? [];
     expect(minutes?.length).toBeGreaterThan(0);
+  });
+
+  it("does not store a stale copy served for a paced-out request as a fresh sample", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () =>
+        ticksOutput({
+          cache: { ageSeconds: 400, hit: true, stale: true, ttlSeconds: 15 },
+        })
+      ),
+    });
+    const { run } = await collect(deps, { symbols: ["ES"] });
+    expect(run("ES", "ticks")).toMatchObject({
+      message: "stale copy (400 s old, request paced out); not stored",
+      status: "unavailable",
+    });
+    expect(deps.repository.upsertMinutes).not.toHaveBeenCalled();
+    expect(recorded(deps)).toContain("ES:ticks:unavailable");
   });
 
   it("reports an empty tick window", async () => {
