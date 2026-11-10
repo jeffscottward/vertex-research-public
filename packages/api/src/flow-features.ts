@@ -1,5 +1,5 @@
 // What: turns one sample of signed IBKR prints into per-minute order-flow features and derived
-// events (large prints, off-exchange prints, absorption, stacked imbalances), and one depth
+// events (large prints, off-exchange prints, absorption, stacked imbalances, exhaustion), and one depth
 // snapshot into book pressure. Pure; the collector (server/flow-collect.ts) stores the result.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
@@ -7,6 +7,7 @@ import type {
   FlowEventKind,
   FlowSymbol,
 } from "./contracts/flow.ts";
+import { findExhaustion } from "./flow-exhaustion.ts";
 import type { SignedTrade } from "./flow-trade-signing.ts";
 
 export type FlowInstrument = Readonly<{
@@ -317,6 +318,30 @@ export const buildMinuteFeatures = (
       vwap: totals.volume > 0 ? totals.notional / totals.volume : close,
     });
   }
+  // Exhaustion only over fully covered minutes, and only for runs with a full minute on both
+  // sides: such a run cannot grow either way in a later sample, so its key (start) is stable.
+  const full = minutes.filter((row) => row.coveredSeconds === 60);
+  const closes = new Map(full.map((row) => [row.minute.getTime(), row.close]));
+  const fullStarts = [...closes.keys()].map((ms) => ms / 1000);
+  const firstFull = Math.min(...fullStarts);
+  const lastFull = Math.max(...fullStarts);
+  const fullTrades = ordered.filter((trade) =>
+    closes.has(Math.floor(trade.t / 60) * 60_000)
+  );
+  for (const run of findExhaustion(fullTrades, 60))
+    if (run.start > firstFull && run.end < lastFull)
+      events.push({
+        at: new Date(run.end * 1000),
+        detail: `${run.direction === "up" ? "Higher highs" : "Lower lows"} on less fuel for ${run.buckets} min: volume ${run.firstVolume} → ${run.lastVolume}, delta ${run.firstDelta} → ${run.lastDelta}`,
+        direction: run.direction === "up" ? "bearish" : "bullish",
+        key: `exhaustion:${run.direction}:${run.start}`,
+        kind: "exhaustion",
+        premium: null,
+        price: closes.get(run.end * 1000) as number,
+        size: run.lastVolume,
+        source: "ibkr",
+        symbol,
+      });
   return { events, minutes };
 };
 
