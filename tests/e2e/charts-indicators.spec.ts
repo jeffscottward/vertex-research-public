@@ -111,7 +111,7 @@ const fulfillOptionsSnapshot = async (route: Route) =>
   });
 
 const chartCanvases = (page: Page) =>
-  page.locator("figure.vx-chart-panel canvas");
+  page.locator("[data-chart-canvas] canvas");
 
 test.beforeAll(() => resetDatabase());
 

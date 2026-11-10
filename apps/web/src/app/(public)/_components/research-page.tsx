@@ -44,7 +44,9 @@ export const ResearchPublicPage = ({
               </dt>
               <dd>
                 <p>{section.body}</p>
-                <p className="vx-caption mt-4">{section.note}</p>
+                <p className="mt-4 text-muted-foreground text-sm leading-relaxed">
+                  {section.note}
+                </p>
               </dd>
             </div>
           ))}

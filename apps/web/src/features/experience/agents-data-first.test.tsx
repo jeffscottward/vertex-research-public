@@ -58,7 +58,7 @@ describe("Agents data-first research records", () => {
     const visible = withoutHelp(html);
     expect(visible).toMatch(
       new RegExp(
-        `<table class="[^"]*vx-ex-table[^"]*" data-slot="data-table" aria-labelledby="${headingId}">`
+        `<table class="[^"]*tabular-nums[^"]*" data-slot="data-table" aria-labelledby="${headingId}">`
       )
     );
     expect(visible).toContain('aria-sort="none" scope="col"');

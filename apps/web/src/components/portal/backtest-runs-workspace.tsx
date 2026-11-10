@@ -81,6 +81,14 @@ import {
 import { DEFAULT_INSTANT_PARAMS } from "./instant-backtest-workspace.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 
 // Backtest runs: queue a run over a date range, follow it until it finishes, then read the report
 // (metrics, equity and drawdown charts, trade list and trade-by-trade replay; the options book of an
@@ -478,42 +486,61 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
               {report.tradesTruncated ? ` (first ${report.trades.length})` : ""}
             </h3>
             <div className="max-h-96 overflow-auto rounded-md border">
-              <table className="w-full text-sm tabular-nums">
-                <thead className="sticky top-0 bg-background text-left">
-                  <tr>
-                    <th className="p-2">#</th>
-                    <th className="p-2">Entry</th>
-                    <th className="p-2">Exit</th>
-                    <th className="p-2">Entry price</th>
-                    <th className="p-2">Exit price</th>
-                    <th className="p-2">Units</th>
-                    <th className="p-2">P/L</th>
-                    <th className="p-2">Return</th>
-                    <th className="p-2">Exit reason</th>
-                    <th className="p-2">Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table
+                containerClassName="overflow-visible"
+                className="w-full text-sm tabular-nums"
+              >
+                <TableHeader className="sticky top-0 bg-background text-left">
+                  <TableRow>
+                    <TableHead className="p-2">#</TableHead>
+                    <TableHead className="p-2">Entry</TableHead>
+                    <TableHead className="p-2">Exit</TableHead>
+                    <TableHead className="p-2">Entry price</TableHead>
+                    <TableHead className="p-2">Exit price</TableHead>
+                    <TableHead className="p-2">Units</TableHead>
+                    <TableHead className="p-2">P/L</TableHead>
+                    <TableHead className="p-2">Return</TableHead>
+                    <TableHead className="p-2">Exit reason</TableHead>
+                    <TableHead className="p-2">Balance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {report.trades.map((trade) => (
-                    <tr className="border-t" key={trade.n}>
-                      <td className="p-2">{trade.n}</td>
-                      <td className="p-2">{isoDate(trade.entryT)}</td>
-                      <td className="p-2">{isoDate(trade.exitT)}</td>
-                      <td className="p-2">{trade.entryPrice.toFixed(2)}</td>
-                      <td className="p-2">{trade.exitPrice.toFixed(2)}</td>
-                      <td className="p-2">{trade.units.toFixed(2)}</td>
-                      <td className="p-2">{trade.pnl.toFixed(2)}</td>
-                      <td className="p-2">
+                    <TableRow className="border-t" key={trade.n}>
+                      <TableCell className="whitespace-normal p-2">
+                        {trade.n}
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
+                        {isoDate(trade.entryT)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
+                        {isoDate(trade.exitT)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
+                        {trade.entryPrice.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
+                        {trade.exitPrice.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
+                        {trade.units.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
+                        {trade.pnl.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
                         {(trade.netReturn * 100).toFixed(2)}%
-                      </td>
-                      <td className="p-2">
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
                         {exitReasonLabel(trade.exitReason)}
-                      </td>
-                      <td className="p-2">{trade.balanceAfter.toFixed(2)}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="whitespace-normal p-2">
+                        {trade.balanceAfter.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </section>
         </TabsContent>

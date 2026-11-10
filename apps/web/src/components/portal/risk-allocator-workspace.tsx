@@ -313,7 +313,7 @@ const ResultRow = ({ row }: { readonly row: RiskAllocatorRow }) => (
             {row.limits.map((item) => (
               <TableRow className="border-border border-b" key={item.id}>
                 <TableHead
-                  className="whitespace-normal py-2 pr-3 font-normal"
+                  className="h-auto whitespace-normal py-2 pr-3 font-normal"
                   scope="row"
                 >
                   {item.label}

@@ -482,29 +482,50 @@ export const PapersWorkspace = ({
                 <TableCaption className="sr-only">Research papers</TableCaption>
                 <TableHeader>
                   <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Paper
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Stage
                       <InfoGlyph text="Queued → ingested → spec extracted → implemented → backtested → forward tested → verdict." />
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Verdict
                       <InfoGlyph text="Pending until a reproduced backtest and forward test exist." />
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Blockers
                       <InfoGlyph text="Unresolved specification details or missing data that stop the next stage." />
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Reported / reproduced
                       <InfoGlyph text="Reported: values claimed by the source, unverified. Reproduced: values from our own runs." />
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Updated (UTC)
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       <span className="sr-only">Actions</span>
                     </TableHead>
                   </TableRow>
@@ -520,7 +541,7 @@ export const PapersWorkspace = ({
                         key={paper.id}
                       >
                         <TableHead
-                          className="min-w-72 max-w-md whitespace-normal py-1 font-normal"
+                          className="h-auto min-w-72 max-w-md whitespace-normal py-1 font-normal"
                           scope="row"
                         >
                           {paper.sourceUrl === null ? (

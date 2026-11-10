@@ -227,7 +227,7 @@ const OurNames = ({ matrix }: { readonly matrix: RotationMatrixOutput }) => {
             <TableBody>
               {covered.map((name) => (
                 <TableRow className="border-border border-b" key={name.symbol}>
-                  <TableHead className="whitespace-normal" scope="row">
+                  <TableHead className="h-auto whitespace-normal" scope="row">
                     <TickerLink symbol={name.symbol} />
                   </TableHead>
                   <TableCell className="whitespace-normal">
@@ -570,7 +570,7 @@ export const RotationMatrixWorkspace = ({
                 <TableBody key={sector.sector}>
                   <TableRow className="border-border border-b bg-muted/40">
                     <TableHead
-                      className="py-1 text-left font-semibold"
+                      className="h-auto whitespace-normal py-1 text-left font-semibold"
                       colSpan={5}
                       scope="rowgroup"
                     >
@@ -594,7 +594,7 @@ export const RotationMatrixWorkspace = ({
                       key={industry.industry}
                     >
                       <TableHead
-                        className="whitespace-normal py-1 pr-2 text-left font-normal"
+                        className="h-auto whitespace-normal py-1 pr-2 text-left font-normal"
                         scope="row"
                       >
                         {industry.industry}

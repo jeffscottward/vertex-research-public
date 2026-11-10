@@ -287,7 +287,7 @@ const RowsView = ({
                 <FavoriteButton busy={busy} onToggle={onToggle} row={row} />
               </TableCell>
               <TableHead
-                className="whitespace-normal py-0 pr-3 font-normal"
+                className="h-auto whitespace-normal py-0 pr-3 font-normal"
                 scope="row"
               >
                 <span className="flex flex-wrap items-center gap-x-2">

@@ -391,7 +391,7 @@ const Results = ({ ran }: { readonly ran: Ran }) => {
                     key={`${entry.entryDate}-${entry.exitDate}`}
                   >
                     <TableHead
-                      className="whitespace-normal p-2 text-left font-normal"
+                      className="h-auto whitespace-normal p-2 text-left font-normal"
                       scope="row"
                     >
                       {entry.entryDate}
