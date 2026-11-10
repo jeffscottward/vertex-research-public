@@ -231,10 +231,39 @@ const validateGraphSource = async (
     throw error;
   }
 };
+// True when one path segment matches a glob whose only special character is
+// "*" (any characters). The glob must contain a "*". The text before the first
+// "*" and after the last "*" must be the start and the end of the segment.
+// Each literal between them is found with one forward search, so a glob with
+// many "*" stays fast.
+const matchesSegmentGlob = (segment: string, glob: string): boolean => {
+  const firstStar = glob.indexOf("*");
+  const lastStar = glob.lastIndexOf("*");
+  const end = segment.length - (glob.length - 1 - lastStar);
+  if (
+    end < firstStar ||
+    !segment.startsWith(glob.slice(0, firstStar)) ||
+    !segment.endsWith(glob.slice(lastStar + 1))
+  )
+    return false;
+  let from = firstStar;
+  for (const literal of glob.slice(firstStar + 1, lastStar).split("*")) {
+    const at = segment.indexOf(literal, from);
+    if (at === -1 || at + literal.length > end) return false;
+    from = at + literal.length;
+  }
+  return true;
+};
+// An exclude is one of three forms: "name/**" (that root path and everything
+// below it), a glob with "*" and no "/" (any one path segment that matches;
+// "*" stands for any characters inside the segment, every other character is
+// literal), or a plain path (the same path, a path below it, or any segment
+// with that name).
 export const isGraphSourceExcluded = (
   path: string,
   excludes: readonly string[]
 ): boolean => {
+  const segments = path.split("/");
   return excludes.some((excluded) => {
     if (excluded.endsWith("/**")) {
       const rootPath = excluded.slice(0, -3);
@@ -243,10 +272,12 @@ export const isGraphSourceExcluded = (
         (path === rootPath || path.startsWith(`${rootPath}/`))
       );
     }
+    if (excluded.includes("*") && !excluded.includes("/"))
+      return segments.some((segment) => matchesSegmentGlob(segment, excluded));
     return (
       path === excluded ||
       path.startsWith(`${excluded}/`) ||
-      path.split("/").includes(excluded)
+      segments.includes(excluded)
     );
   });
 };
