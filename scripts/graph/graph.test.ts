@@ -790,6 +790,26 @@ describe("Graphify workflow", () => {
     expect(() => parseGraphConfig(JSON.stringify(invalidExclude))).toThrow(
       /nonempty string array/i
     );
+    const multiSegmentGlob = JSON.parse(CONFIG);
+    multiSegmentGlob.source.excludes = ["packages/*-bundle-*"];
+    expect(() => parseGraphConfig(JSON.stringify(multiSegmentGlob))).toThrow(
+      /one path segment/i
+    );
+    const multiSegmentGlobRoot = JSON.parse(CONFIG);
+    multiSegmentGlobRoot.source.excludes = ["packages/*/coverage/**"];
+    expect(() =>
+      parseGraphConfig(JSON.stringify(multiSegmentGlobRoot))
+    ).toThrow(/one path segment/i);
+    const globBeforeRootSuffix = JSON.parse(CONFIG);
+    globBeforeRootSuffix.source.excludes = [".*-bundle-*/**"];
+    expect(() =>
+      parseGraphConfig(JSON.stringify(globBeforeRootSuffix))
+    ).toThrow(/one path segment/i);
+    const singleSegmentGlob = JSON.parse(CONFIG);
+    singleSegmentGlob.source.excludes = [".*-bundle-*", "coverage/**"];
+    expect(
+      parseGraphConfig(JSON.stringify(singleSegmentGlob)).source.excludes
+    ).toEqual([".*-bundle-*", "coverage/**"]);
 
     const shortVerification = JSON.parse(CONFIG);
     shortVerification.verificationPath = ["only"];
