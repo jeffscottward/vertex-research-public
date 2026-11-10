@@ -130,3 +130,6 @@ def test_calendar_check_and_splice():
     chk = calendar_check([s for s in sp if s.day != date(2021, 1, 5)], closes)
     assert chk["missing_sessions"] == ["2021-01-05"]
     assert chk["last_close_vs_daily_median_abs"] == 0.0 and chk["daily_source"] == "yahoo"
+    assert chk["last_close_vs_yahoo_median_abs"] == 0.0 and chk["yahoo_sessions_in_range"] == 4
+    merged = calendar_check([s for s in sp if s.day != date(2021, 1, 5)], closes, "ibkr 2021-01-04..2021-01-08")
+    assert "yahoo_sessions_in_range" not in merged and merged["daily_sessions_in_range"] == 4

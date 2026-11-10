@@ -203,13 +203,18 @@ def calendar_check(sessions: Sequence[Session], closes: dict[date, float], sourc
     lo, hi = sessions[0].day, sessions[-1].day
     missing = sorted(d for d in closes if lo <= d <= hi and d not in have)
     diffs = sorted(abs(s.bars[-1].close / closes[s.day] - 1.0) for s in sessions if s.day in closes)
-    return {
+    out = {
         "daily_source": source,
         "daily_sessions_in_range": sum(1 for d in closes if lo <= d <= hi),
         "missing_sessions": [d.isoformat() for d in missing],
         "last_close_vs_daily_median_abs": round(diffs[len(diffs) // 2], 6) if diffs else None,
         "last_close_vs_daily_over_0.5pct": sum(1 for x in diffs if x > 0.005),
     }
+    if source == "yahoo":  # the key names of reports written before the IBKR merge, still true for Yahoo data
+        out["yahoo_sessions_in_range"] = out["daily_sessions_in_range"]
+        out["last_close_vs_yahoo_median_abs"] = out["last_close_vs_daily_median_abs"]
+        out["last_close_vs_yahoo_over_0.5pct"] = out["last_close_vs_daily_over_0.5pct"]
+    return out
 
 
 # ---------------------------------------------------------------- evaluation

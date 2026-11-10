@@ -75,8 +75,8 @@ PACED_WAIT_MAX_SECONDS = 660.0
 CONTFUT_YEARS = 2
 YIELD_TENTHS_ABOVE = 20.0
 # A start date counts as covered when the first bar is at most this many calendar days later
-# (weekends, holidays, a long market closure such as 2001-09-11..17).
-COVER_SLACK_DAYS = 5
+# (weekends, holidays, and the longest closure since 1990: a 2001-09-11 start, first bar 2001-09-17).
+COVER_SLACK_DAYS = 6
 # A seam whose close ratio (newer / older source on the same date) is further than this from 1 is
 # reported in Merged.warnings (roll basis, a unit mismatch or a bad bar).
 SEAM_WARN_TOLERANCE = 0.02

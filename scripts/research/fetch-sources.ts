@@ -2,11 +2,9 @@
 // Why: since card vertex-yahoo-terms-decision (owner 2026-11-10) those scripts read IBKR history first and let
 // Yahoo (then Cboe, Treasury) fill gaps; each merged file records its per-source date spans
 // (services/research/ibkr_history.py Merged.summary(): {rows: {<source>: {rows, first, last}}, ...}) in a
-// manifest or SOURCES.json. These helpers turn that record into a label; data written before the change has
-// no record and gets the neutral MERGED_SOURCE label.
+// manifest or SOURCES.json. These helpers turn that record into a label. Data written before the change has
+// no record and was Yahoo (or Cboe) only: callers pass that old label as the fallback.
 import { z } from "zod";
-
-export const MERGED_SOURCE = "IBKR first, Yahoo fills gaps";
 
 const SpanSchema = z.object({ first: z.string(), last: z.string() });
 const SummarySchema = z.object({ rows: z.record(z.string(), SpanSchema) });
@@ -26,13 +24,20 @@ export const sourceSpans = (summary: unknown): SourceSpans | undefined => {
 /** "ibkr 2001-01-02..2026-11-06, yahoo 1993-01-29..2000-12-29" (record order), or `fallback`. */
 export const describeSpans = (
   spans: SourceSpans | undefined,
-  fallback: string = MERGED_SOURCE
+  fallback: string
 ): string =>
   spans === undefined
     ? fallback
     : Object.entries(spans)
         .map(([name, span]) => `${name} ${span.first}..${span.last}`)
         .join(", ");
+
+const SPAN_LABEL =
+  /(?:^|, )([a-z]+) \d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}(?=, |$)/g;
+
+/** The source names of a describeSpans label (empty for any other text, such as an old fallback label). */
+export const spanNames = (label: string): string[] =>
+  [...label.matchAll(SPAN_LABEL)].map((match) => match[1] as string);
 
 /** Files per source over many merge summaries ("ibkr 33 files, yahoo 34 files"); undefined when none has spans. */
 export const countSources = (

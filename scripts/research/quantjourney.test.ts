@@ -777,9 +777,9 @@ describe("CLI and rendering", () => {
 });
 
 describe("quantjourneySource", () => {
-  it("names the merge and the files per source when the manifest records them", () => {
+  it("names the files per source when the manifest records them, else the old Yahoo label", () => {
     expect(quantjourneySource("{}")).toBe(
-      "IBKR first, Yahoo fills gaps (research/backtests/quantjourney/fetch_data.py)"
+      "Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py)"
     );
     const manifest = JSON.stringify({
       files: {
@@ -791,7 +791,7 @@ describe("quantjourneySource", () => {
       },
     });
     expect(quantjourneySource(manifest)).toBe(
-      "IBKR first, Yahoo fills gaps (research/backtests/quantjourney/fetch_data.py); daily files by source: ibkr 1 file; hourly Yahoo"
+      "daily files by source: ibkr 1 file; hourly: Yahoo via yfinance (research/backtests/quantjourney/fetch_data.py)"
     );
   });
 });

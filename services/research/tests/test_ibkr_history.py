@@ -666,7 +666,8 @@ def test_weekend_or_holiday_start_counts_as_covered():
     merged = ih.merge_sources([source("ibkr", [bar("2000-01-10", 1.0)], calls=calls),
                                source("yahoo", [bar("2000-01-03", 0.5)], calls=calls)], start="2000-01-01")
     assert calls[1:] == ["ibkr", "yahoo"]  # 9 days later: not covered
-    assert ih.covers("2000-01-06", "2000-01-01") and not ih.covers("2000-01-07", "2000-01-01")
+    assert ih.covers("2000-01-07", "2000-01-01") and not ih.covers("2000-01-08", "2000-01-01")
+    assert ih.covers("2001-09-17", "2001-09-11")
 
 
 def test_paged_needs_no_extra_page_for_a_weekend_start():
@@ -814,9 +815,21 @@ def test_core7_source_text_stays_under_the_importer_limit(monkeypatch):
                                     "yahoo": {"rows": 900, "first": "1993-01-29", "last": "1996-11-08"}})
     for symbol in ("SPY", "ES=F"):
         text = module.source_text(symbol, "2026-11-10", merged)
-        assert len(text) <= 240 and text.startswith("IBKR vertex-history") and "scaled to IBKR" in text
+        assert len(text) <= 240 and text.startswith("IBKR ") and "scaled to IBKR at the seam" in text
+    assert "split-adjusted, no dividends; ADJUSTED_LAST adj_close" in module.source_text("SPY", "2026-11-10", merged)
     only = ih.Merged([], sources={"yahoo": {"rows": 900, "first": "1993-01-29", "last": "2026-11-06"}})
-    assert module.source_text("SPY", "2026-11-10", only).startswith("Yahoo yfinance fake split-adjusted")
+    assert module.source_text("SPY", "2026-11-10", only) == (
+        "Yahoo yfinance fake OHLC split-adjusted without dividends, adj_close with dividends "
+        "1993-01-29..2026-11-06; fetched 2026-11-10")
+    assert module.source_text("ES=F", "2026-11-10", only).startswith(
+        "Yahoo yfinance fake continuous front month, not back-adjusted 1993")
+
+
+def test_core7_largest_moves_carry_no_prices(monkeypatch):
+    module = load_script("core7", monkeypatch)
+    kept = [("2020-01-02", 0, 1, 1, 1, 100.0, 1), ("2020-01-03", 0, 1, 1, 1, 110.0, 1)]
+    assert module.largest_moves(kept) == [{"date": "2020-01-03", "previousDate": "2020-01-02",
+                                           "change": pytest.approx(0.1)}]
     with pytest.raises(ValueError, match="300"):
         module.source_text("SPY", "2026-11-10", ih.Merged([], sources={
             f"s{i}": {"rows": 1, "first": "2000-01-01", "last": "2000-01-02"} for i in range(9)}))

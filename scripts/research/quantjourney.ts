@@ -39,7 +39,7 @@ import {
   typescriptEngine,
   typescriptRunner,
 } from "./dsl-engine.ts";
-import { MERGED_SOURCE, manifestSourceCounts } from "./fetch-sources.ts";
+import { manifestSourceCounts } from "./fetch-sources.ts";
 import { renderDoc } from "./quantjourney-render.ts";
 
 export const RESEARCH_DIR = "research/backtests/quantjourney";
@@ -666,16 +666,17 @@ export const fileInputs = async (
   };
 };
 
+const QUANTJOURNEY_FETCH = "research/backtests/quantjourney/fetch_data.py";
+
 /**
- * The data source label of a re-run: daily IBKR first, Yahoo fills gaps (hourly Yahoo only), with the files
- * per source from manifest.json (`files.<file>.sources`) when the fetch recorded them.
+ * The data source label of a re-run: the daily files per source recorded in manifest.json
+ * (`files.<file>.sources`, hourly files Yahoo), or the Yahoo label of a fetch made before that record existed.
  */
 export const quantjourneySource = (manifestText: string): string => {
   const counts = manifestSourceCounts(manifestText);
-  const base = `${MERGED_SOURCE} (research/backtests/quantjourney/fetch_data.py)`;
   return counts === undefined
-    ? base
-    : `${base}; daily files by source: ${counts}; hourly Yahoo`;
+    ? `Yahoo Finance via yfinance 0.2.66 (${QUANTJOURNEY_FETCH})`
+    : `daily files by source: ${counts}; hourly: Yahoo via yfinance (${QUANTJOURNEY_FETCH})`;
 };
 
 /**

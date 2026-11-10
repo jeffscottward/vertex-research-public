@@ -429,7 +429,7 @@ describe("CLI", () => {
 
 describe("manifestDataFile", () => {
   const base = { normalizedSha256: sha("b"), sourceSha256: sha("c") };
-  it("labels the bars from the manifest's source spans, its source text or the neutral label", () => {
+  it("labels the bars from the manifest's source spans, its source text or the old Yahoo label", () => {
     const spans = {
       rows: {
         ibkr: { first: "2024-11-11", last: "2026-11-06" },
@@ -449,7 +449,32 @@ describe("manifestDataFile", () => {
       ).source
     ).toBe("Yahoo Finance chart v8");
     expect(manifestDataFile(JSON.stringify(base), sha("a")).source).toBe(
-      "IBKR first, Yahoo fills gaps"
+      "Yahoo Finance via yfinance 0.2.66"
     );
+  });
+
+  it("words data and method per symbol only when a manifest records IBKR rows", () => {
+    const yahooOnly = buildCore7Results(sample, texts(), {
+      files: files(),
+      generated: "g",
+    });
+    expect(yahooOnly.data.source).toBe(
+      "Yahoo Finance via yfinance 0.2.66 (research/backtests/core7/fetch_data.py)"
+    );
+    expect(yahooOnly.method[0]).toContain("full Yahoo daily history");
+    const merged = files();
+    merged.set("ES=F", {
+      ...file(),
+      source: "ibkr 2024-11-11..2026-11-06, yahoo 2000-09-18..2024-11-08",
+    });
+    const results = buildCore7Results(sample, texts(), {
+      files: merged,
+      generated: "g",
+    });
+    expect(results.data.source).toContain(
+      "sources per symbol, see data.symbols.<SYMBOL>.source"
+    );
+    expect(results.method.join(" ")).not.toContain("full Yahoo daily history");
+    expect(results.method[4]).toContain("scaled to IBKR at the seam");
   });
 });

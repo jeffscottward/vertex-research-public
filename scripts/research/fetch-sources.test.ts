@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   countSources,
   describeSpans,
-  MERGED_SOURCE,
   manifestSourceCounts,
   sourceSpans,
+  spanNames,
 } from "./fetch-sources.ts";
 
 const merged = {
@@ -18,8 +18,13 @@ const merged = {
 
 describe("fetch source labels", () => {
   it("reads the per-source spans of a merge summary", () => {
-    expect(describeSpans(sourceSpans(merged))).toBe(
+    const label = describeSpans(sourceSpans(merged), "old");
+    expect(label).toBe(
       "ibkr 2001-01-02..2026-11-06, yahoo 1993-01-29..2000-12-29"
+    );
+    expect(spanNames(label)).toEqual(["ibkr", "yahoo"]);
+    expect(spanNames("Yahoo Finance chart v8 2001-01-02..2026-11-06")).toEqual(
+      []
     );
   });
 
@@ -33,7 +38,6 @@ describe("fetch source labels", () => {
     ]) {
       expect(sourceSpans(summary)).toBeUndefined();
     }
-    expect(describeSpans(undefined)).toBe(MERGED_SOURCE);
     expect(describeSpans(undefined, "Yahoo")).toBe("Yahoo");
   });
 

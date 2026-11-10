@@ -561,7 +561,7 @@ export const runNautilusParity = (
   io.makeDir(out);
   const report = {
     costBps: COST_BPS,
-    data: "Core 7 daily bars, IBKR first, Yahoo fills gaps, via research/backtests/core7/fetch_data.py (import CSVs, split-adjusted OHLC; per-symbol sources in import/<SYMBOL>-1d.manifest.json)",
+    data: "Core 7 daily bars via research/backtests/core7/fetch_data.py (import CSVs, split-adjusted OHLC); sources per symbol in import/<SYMBOL>-1d.manifest.json (Yahoo only for fetches before 2026-11-10)",
     engines: {
       nautilus: engine,
       ts: "packages/api/src/instant-backtest-engine.ts (instant-2)",

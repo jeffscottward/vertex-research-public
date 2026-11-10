@@ -1,9 +1,9 @@
 // Imports the daily research series of the QuantConnect idea ports into market_daily_series.
 // Usage: DATABASE_URL=... bun run vertex:series:import -- [--dry-run] [<dir>]
 // <dir> defaults to $VERTEX_QC_PORTS_DATA, then ~/Documents/reports/vertex-qc-ports/data: the
-// output of research/backtests/qc-ports/fetch_data.py (IBKR first, Yahoo fills gaps; CBOE and
-// Treasury fallbacks for indices; Shiller; SOURCES.json with the per-source spans of each file; and
-// SHA256SUMS). Every file is verified against SHA256SUMS before anything is parsed or written.
+// output of research/backtests/qc-ports/fetch_data.py (since 2026-11-10 IBKR first, Yahoo fills gaps,
+// CBOE and Treasury fallbacks for indices, and SOURCES.json with the per-source spans of each file;
+// older fetches: Yahoo and CBOE only, no SOURCES.json; Shiller; SHA256SUMS). Every file is verified against SHA256SUMS before anything is parsed or written.
 // Rows mirror services/research/strategies/qc_ports/data.py: a row is kept when its close parses
 // to a finite number with Python float() rules; open, high, low and adj_close are null where they
 // do not. EY_TNX_RATIO is derived exactly as data.ey_tnx_ratio. Each series is replaced in one
@@ -24,7 +24,7 @@ import {
 
 import {
   describeSpans,
-  MERGED_SOURCE,
+  type SourceSpans,
   sourceSpans,
 } from "../research/fetch-sources.ts";
 
@@ -60,7 +60,11 @@ export const INDICES = [
 ] as const;
 /** Indices without Yahoo history: the fetch reads IBKR, then the CBOE public history CSV. */
 const CBOE_INDICES = new Set<string>(["RVX", "VXSLV"]);
-const YIELD_INDICES = new Set<string>(["IRX", "TNX"]);
+/** The Treasury par yield column the fetch falls back to for each yield index. */
+const TREASURY_TENOR: Readonly<Record<string, string>> = {
+  IRX: "3-month",
+  TNX: "10-year",
+};
 /** Per-file source record of the fetch (ibkr_history.Merged.summary() by file name); absent before 2026-11-10. */
 const SOURCES_FILE = "SOURCES.json";
 
@@ -75,14 +79,18 @@ export const parseSourcesRecord = (
   return raw as Record<string, unknown>;
 };
 
-/** Label when SOURCES.json has no spans for an index file (data fetched before the record existed). */
-const indexFallback = (id: string): string => {
-  if (CBOE_INDICES.has(id)) {
-    return `IBKR first, then the CBOE public history CSV ${id}_History.csv`;
-  }
-  if (YIELD_INDICES.has(id)) return `${MERGED_SOURCE}, then US Treasury yields`;
-  return `${MERGED_SOURCE}, then the CBOE public history CSV`;
-};
+/** "; treasury = US Treasury 10-year par yield" when the spans of a yield index include Treasury rows. */
+const treasuryNote = (id: string, spans: SourceSpans): string =>
+  spans["treasury"] === undefined || TREASURY_TENOR[id] === undefined
+    ? ""
+    : `; treasury = US Treasury ${TREASURY_TENOR[id]} par yield`;
+
+/** Label of an index file fetched before SOURCES.json existed (Yahoo, or the CBOE CSV for RVX and VXSLV). */
+const oldIndexLabel = (id: string): string =>
+  CBOE_INDICES.has(id)
+    ? `CBOE public history CSV ${id}_History.csv, daily close`
+    : `Yahoo daily close ^${id}`;
+
 /** Months between the Shiller month and its use (earnings are published late), as data.py. */
 const EARNINGS_LAG_MONTHS = 6;
 const DATA_ENV = "VERTEX_QC_PORTS_DATA";
@@ -291,8 +299,15 @@ export const loadSeriesImports = async (
     await verified(SOURCES_FILE);
     record = parseSourcesRecord(texts.get(SOURCES_FILE) as string);
   }
-  const spans = (id: string, fallback: string): string =>
-    describeSpans(sourceSpans(record[`${id}.csv`]), fallback);
+  const spans = (id: string): SourceSpans | undefined =>
+    sourceSpans(record[`${id}.csv`]);
+  // With a SOURCES.json record: the per-source spans; without one (an older fetch): the old Yahoo/CBOE label.
+  const label = (id: string, what: string, old: string): string => {
+    const found = spans(id);
+    return found === undefined
+      ? old
+      : `${what}: ${describeSpans(found, old)}${treasuryNote(id, found)}`;
+  };
   const imports: SeriesImport[] = [];
   const add = async (
     id: string,
@@ -319,27 +334,36 @@ export const loadSeriesImports = async (
     await add(
       id,
       "etf",
-      `daily bars ${id}, split-adjusted close: ${spans(id, MERGED_SOURCE)}`
+      label(
+        id,
+        `daily bars ${id}, split-adjusted close`,
+        `Yahoo daily bars ${id}, auto_adjust=False`
+      )
     );
   }
   for (const id of FUTURES) {
     await add(
       id,
       "future",
-      `daily bars ${id} (continuous future): ${spans(id, MERGED_SOURCE)}`
+      label(
+        id,
+        `daily bars ${id} (continuous future)`,
+        `Yahoo daily bars ${id} (continuous future), auto_adjust=False`
+      )
     );
   }
   for (const id of INDICES) {
-    await add(
-      id,
-      "index",
-      `daily close ^${id}: ${spans(id, indexFallback(id))}`
-    );
+    await add(id, "index", label(id, `daily close ^${id}`, oldIndexLabel(id)));
   }
   const shillerDigest = await verified("SHILLER.csv");
   const tnx = imports.find(
     (entry) => entry.series.id === "TNX"
   ) as SeriesImport;
+  const tnxSpans = spans("TNX");
+  const tnxOrigin =
+    tnxSpans === undefined
+      ? "Yahoo ^TNX"
+      : `^TNX (TNX.csv sources: ${Object.keys(tnxSpans).join(", ")}${treasuryNote("TNX", tnxSpans)})`;
   imports.push({
     points: eyTnxRatio(
       parseShiller(texts.get("SHILLER.csv") as string),
@@ -349,7 +373,7 @@ export const loadSeriesImports = async (
       id: "EY_TNX_RATIO",
       kind: "derived",
       // Digest of the SHA256SUMS lines of both inputs.
-      source: `${FETCH}: derived as data.ey_tnx_ratio, 100 * Shiller earnings / price (month - ${EARNINGS_LAG_MONTHS}) / TNX yield %; Shiller ie_data.xls (shillerdata.com) and ^TNX (${MERGED_SOURCE}); fetched ${fetched}`,
+      source: `${FETCH}: derived as data.ey_tnx_ratio, 100 * Shiller earnings / price (month - ${EARNINGS_LAG_MONTHS}) / TNX yield %; Shiller ie_data.xls (shillerdata.com) and ${tnxOrigin}; fetched ${fetched}`,
       sourceSha256: sha256(
         `${shillerDigest}  SHILLER.csv\n${tnx.series.sourceSha256}  TNX.csv\n`
       ),

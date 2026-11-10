@@ -56,7 +56,7 @@ def main() -> int:
         sources[f"{etf}.csv"] = merged.summary()
         print(etf, index, len(rows), rows[0][0] if rows else "-", rows[-1][0] if rows else "-",
               ih.source_note(merged))
-    (folder / "sources.json").write_text(json.dumps(sources, indent=1, sort_keys=True) + "\n")
+    (folder / "sources.json").write_text(json.dumps(sources, indent=1) + "\n")  # rows newest first
     return 0
 
 

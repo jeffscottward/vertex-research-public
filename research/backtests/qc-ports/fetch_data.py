@@ -137,7 +137,8 @@ def main() -> None:
         sums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
         print(f"{name}: {len(rows) - 1} rows {rows[1].split(',')[0]} .. {rows[-1].split(',')[0]}")
     path = out / "SOURCES.json"
-    path.write_text(json.dumps(sources, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    # No sort_keys: files in fetch order, rows newest source first (read in that order by labels).
+    path.write_text(json.dumps(sources, indent=1) + "\n", encoding="utf-8")
     sums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
     (out / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
 

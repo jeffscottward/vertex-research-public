@@ -28,7 +28,8 @@ Output (in --out; not committed, the Yahoo and IBKR terms do not allow redistrib
   sourceSha256 is the SHA-256 of daily/<SYMBOL>.csv; normalizedSha256 the SHA-256 of the CSV.
 * coverage.json: per-symbol coverage against the SPY trading calendar of the same fetch, and for
   each future the 5 largest close-to-close moves and the 5 largest differences from the ETF
-  twin's move on the same day (roll gaps show up in the second list).
+  twin's move on the same day (roll gaps show up in the second list). Counts, dates and percent
+  changes only, no prices: the --coverage copy may live in the repository.
 """
 from __future__ import annotations
 
@@ -90,19 +91,24 @@ SOURCE_MAX = 300  # validateMarketBars: source is 1 to 300 characters
 
 
 def source_text(symbol: str, fetched: str, merged: ih.Merged) -> str:
-    """The importer manifest's source line (at most about 230 characters; SOURCE_MAX is 300)."""
+    """The importer manifest's source line (at most about 235 characters; SOURCE_MAX is 300)."""
     future = symbol.endswith("=F")
     parts = []
     for name, info in merged.sources.items():
         span = f"{info['first']}..{info['last']}"
+        seam = "ibkr" in merged.sources
         if name == "ibkr":
-            kind = "CONTFUT front month, all hours" if future else "TRADES OHLC + ADJUSTED_LAST adj_close"
-            parts.append(f"IBKR vertex-history {kind} {span}")
+            kind = ("CONTFUT front month, all hours" if future
+                    else "TRADES OHLC split-adjusted, no dividends; ADJUSTED_LAST adj_close")
+            parts.append(f"IBKR {kind} {span}")
+        elif future:
+            scaled = ", OHLC scaled to IBKR at the seam" if seam else ""
+            parts.append(f"{name.capitalize()} yfinance {str(yf.__version__)[:12]} continuous front month, "
+                         f"not back-adjusted{scaled} {span}")
         else:
-            kind = ("continuous front month, not back-adjusted" if future
-                    else "split-adjusted OHLC, adj_close with dividends")
-            scaled = ", scaled to IBKR at the seam" if "ibkr" in merged.sources else ""
-            parts.append(f"{name.capitalize()} yfinance {str(yf.__version__)[:12]} {kind}{scaled} {span}")
+            kind = ("OHLC split-adjusted, no dividends; adj_close scaled to IBKR at the seam" if seam
+                    else "OHLC split-adjusted without dividends, adj_close with dividends")
+            parts.append(f"{name.capitalize()} yfinance {str(yf.__version__)[:12]} {kind} {span}")
     text = "; ".join(parts) + f"; fetched {fetched}"
     if len(text) > SOURCE_MAX:
         raise ValueError(f"{symbol}: source text longer than {SOURCE_MAX} characters")
@@ -172,9 +178,10 @@ def write_import(symbol: str, kept, raw_path: Path, out: Path, fetched: str, mer
 
 
 def largest_moves(kept) -> list[dict]:
+    """Dates and percent changes only: coverage.json may be copied into the repository (--coverage), and
+    prices (IBKR or Yahoo) must not land there."""
     moves = [
-        {"date": kept[i][0], "previousDate": kept[i - 1][0], "previousClose": kept[i - 1][5],
-         "close": kept[i][5], "change": kept[i][5] / kept[i - 1][5] - 1}
+        {"date": kept[i][0], "previousDate": kept[i - 1][0], "change": kept[i][5] / kept[i - 1][5] - 1}
         for i in range(1, len(kept))
     ]
     moves.sort(key=lambda m: abs(m["change"]), reverse=True)

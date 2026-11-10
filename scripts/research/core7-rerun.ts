@@ -36,7 +36,7 @@ import {
   typescriptEngine,
   typescriptRunner,
 } from "./dsl-engine.ts";
-import { describeSpans, MERGED_SOURCE, sourceSpans } from "./fetch-sources.ts";
+import { describeSpans, sourceSpans, spanNames } from "./fetch-sources.ts";
 import {
   combineSleeves,
   type LibraryDoc,
@@ -52,20 +52,27 @@ export const CORE7_DIR = "research/backtests/core7";
 export const RESULTS_PATH = `${CORE7_DIR}/rerun-results.json`;
 // Vertex research cost: 10 bp per side, the same value as VERTEX_COST_BPS in quantjourney.ts.
 export const CORE7_COST_BPS = 10;
-const DATA_SOURCE =
-  "IBKR first, Yahoo fills gaps (research/backtests/core7/fetch_data.py); per symbol: data.symbols.<SYMBOL>.source";
+// Data fetched before 2026-11-10 (no per-source record in the manifests) is Yahoo only.
+const YAHOO_DATA_SOURCE =
+  "Yahoo Finance via yfinance 0.2.66 (research/backtests/core7/fetch_data.py)";
+const MERGED_DATA_SOURCE =
+  "research/backtests/core7/fetch_data.py; sources per symbol, see data.symbols.<SYMBOL>.source";
 export const ADAPTER_REASON =
   "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7";
 export const HOURLY_REASON =
   "hourly (1h) definition; the Core 7 data set is daily only; not re-run on Core 7";
-const METHOD = [
-  "Each symbol runs on its full daily history (IBKR first, Yahoo fills the earlier dates), so per-symbol figures cover different periods.",
+const methodLines = (ibkr: boolean): readonly string[] => [
+  ibkr
+    ? "Each symbol runs on its full daily history (sources per symbol, see data.symbols.<SYMBOL>.source; Yahoo fills the dates before IBKR's first), so per-symbol figures cover different periods."
+    : "Each symbol runs on its full Yahoo daily history, so per-symbol figures cover different periods.",
   "Prices come from parsePriceCsv (scripts/research/quantjourney.ts): OHLC scaled by adj_close / close, so ETF runs include dividends. For the futures adj_close equals close.",
   "Rows that the Vertex bar importer rejects (non-positive price, low above open or close, high below open or close) are dropped, as in the import files.",
   "Combined: equal starting capital per member, never rebalanced (combineSleeves), on the common window of all members. Each sleeve is rebased to 1 at the window start.",
-  "The futures are continuous front-month series (IBKR CONTFUT for the latest window, Yahoo before it, scaled to IBKR at the seam), not back-adjusted by Vertex: a roll gap counts as a return.",
+  ibkr
+    ? "The futures are continuous front-month series (sources per symbol, see data.symbols.<SYMBOL>.source; where IBKR CONTFUT covers the latest window, the Yahoo part before it is scaled to IBKR at the seam), not back-adjusted by Vertex: a roll gap counts as a return."
+    : "The futures are Yahoo continuous front-month series, not back-adjusted: a roll gap counts as a return.",
   "Statistics: Vertex returnStats (risk-free rate 0). Cost: 10 bp per side on every position change.",
-] as const;
+];
 
 export type Compact = Readonly<{
   cagr: number;
@@ -322,16 +329,20 @@ export const buildCore7Results = (
       ];
     })
   );
+  // IBKR rows in any symbol (manifest spans): label the data and method per symbol, else the old Yahoo texts.
+  const ibkr = Object.values(symbols).some((file) =>
+    spanNames(file.source ?? "").includes("ibkr")
+  );
   return {
     buyAndHold: BACKTEST_UNIVERSES.map((universe) =>
       universeRun(universe, (symbol) => buyAndHoldEquity(table(symbol)))
     ),
     costBps: CORE7_COST_BPS,
-    data: { source: DATA_SOURCE, symbols },
+    data: { source: ibkr ? MERGED_DATA_SOURCE : YAHOO_DATA_SOURCE, symbols },
     engine: engine.engine,
     engineParity: engine.parity,
     generated: meta.generated,
-    method: METHOD,
+    method: methodLines(ibkr),
     promoted: [],
     researchOnly: true,
     strategies: library.strategies.map((strategy) =>
@@ -359,7 +370,10 @@ export const manifestDataFile = (
   return {
     manifestSha256,
     normalizedSha256,
-    source: describeSpans(sourceSpans(sources), source ?? MERGED_SOURCE),
+    source: describeSpans(
+      sourceSpans(sources),
+      source ?? "Yahoo Finance via yfinance 0.2.66"
+    ),
     sourceSha256,
   };
 };
