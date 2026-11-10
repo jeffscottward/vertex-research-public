@@ -2,6 +2,7 @@
 
 import {
   MARKET_NEWS_HOURS,
+  MARKET_NEWS_SOURCE_LABELS,
   type MarketNewsFiling,
   type MarketNewsHeadline,
   type MarketNewsHeadlineTag,
@@ -31,8 +32,9 @@ import {
   type MarketNewsGateway,
 } from "./market-news-client.ts";
 
-// News monitor: Yahoo Finance headlines and SEC 8-K filings for each watchlist ticker. Item labels
-// and keyword tags are adapted from day-trader-skill trader-news (MIT). Research only; no orders.
+// News monitor: merged IBKR, Reuters, Seeking Alpha and Yahoo Finance headlines (each labelled
+// with its source) and SEC 8-K filings for each watchlist ticker. Item labels and keyword tags are
+// adapted from day-trader-skill trader-news (MIT). Research only; no orders.
 
 const MARKET_NEWS_WINDOW_LABELS: Readonly<Record<MarketNewsHours, string>> = {
   24: "last 24 hours",
@@ -122,27 +124,45 @@ const HeadlineRow = ({
   headline,
 }: {
   readonly headline: MarketNewsHeadline;
-}) => (
-  <li className="border-border border-b pb-1 last:border-b-0">
-    <a
-      className={`block ${EXTERNAL_LINK}`}
-      href={headline.url}
-      rel="noopener noreferrer"
-      target="_blank"
-    >
-      {headline.title}
-    </a>
-    <p className="flex flex-wrap items-center gap-2 pb-1 text-muted-foreground text-xs">
-      <span>{formatNewsTime(headline.publishedAt)}</span>
-      {headline.publisher === null ? null : <span>{headline.publisher}</span>}
-      {headline.tags.map((tag) => (
-        <Badge key={tag} variant="secondary">
-          {MARKET_NEWS_TAG_LABELS[tag]}
-        </Badge>
-      ))}
-    </p>
-  </li>
-);
+}) => {
+  const source = MARKET_NEWS_SOURCE_LABELS[headline.source];
+  return (
+    <li className="border-border border-b pb-1 last:border-b-0">
+      {/* IBKR headlines have no public article link. */}
+      {headline.url === null ? (
+        <p className="min-h-11 content-center break-words font-medium">
+          {headline.title}
+        </p>
+      ) : (
+        <a
+          className={`block ${EXTERNAL_LINK}`}
+          href={headline.url}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {headline.title}
+        </a>
+      )}
+      <p className="flex flex-wrap items-center gap-2 pb-1 text-muted-foreground text-xs">
+        <span
+          className="rounded-sm border border-border px-1 font-medium text-foreground"
+          data-news-source={headline.source}
+        >
+          {source}
+        </span>
+        <span>{formatNewsTime(headline.publishedAt)}</span>
+        {headline.publisher === null || headline.publisher === source ? null : (
+          <span>{headline.publisher}</span>
+        )}
+        {headline.tags.map((tag) => (
+          <Badge key={tag} variant="secondary">
+            {MARKET_NEWS_TAG_LABELS[tag]}
+          </Badge>
+        ))}
+      </p>
+    </li>
+  );
+};
 
 /** Newest headlines shown per ticker before "Show all". */
 export const HEADLINE_PREVIEW_COUNT = 5;
@@ -155,9 +175,12 @@ const splitSourceErrors = (
   headlines: string | null;
   other: string[];
 }> => {
+  // Each headline source fails on its own, so all of its failures are listed.
   const detail = (source: string): string | null => {
-    const hit = errors.find((error) => error.startsWith(`${source}: `));
-    return hit === undefined ? null : hit.slice(source.length + 2);
+    const hits = errors
+      .filter((error) => error.startsWith(`${source}: `))
+      .map((error) => error.slice(source.length + 2));
+    return hits.length === 0 ? null : hits.join("; ");
   };
   return {
     filings: detail("filings"),
@@ -229,7 +252,10 @@ const TickerSection = ({
           {ticker.headlines.length === 0 ? null : (
             <ul className="space-y-1">
               {shown.map((headline) => (
-                <HeadlineRow headline={headline} key={headline.url} />
+                <HeadlineRow
+                  headline={headline}
+                  key={`${headline.source}:${headline.title}`}
+                />
               ))}
             </ul>
           )}
@@ -520,9 +546,9 @@ export const MarketNewsWorkspace = ({
               ))}
             </div>
             <p className="border-t px-4 py-3 text-muted-foreground text-xs">
-              Sources: Yahoo Finance headline RSS and SEC EDGAR 8-K feeds,
-              cached for 5 minutes. Updated{" "}
-              {formatNewsTime(state.news.receivedAt)}.
+              Sources: IBKR news, Reuters (via Google News), Seeking Alpha and
+              Yahoo Finance headline RSS, and SEC EDGAR 8-K feeds, cached for 5
+              minutes. Updated {formatNewsTime(state.news.receivedAt)}.
             </p>
           </>
         ) : null}

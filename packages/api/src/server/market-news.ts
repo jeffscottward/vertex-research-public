@@ -14,13 +14,19 @@ import {
 } from "../contracts/market-news.ts";
 import {
   decodeFeedBytes,
+  ibkrHeadlines,
+  mergeHeadlines,
+  parseReutersRss,
   parseSecAtom,
+  parseSeekingAlphaRss,
   parseYahooRss,
   selectNewsSymbols,
   withinHours,
   yahooSymbol,
 } from "../market-news.ts";
 import type { ApiContext } from "./context.ts";
+import type { DeployStatusConfig } from "./deploy-status.ts";
+import { fetchHistoryNews } from "./ibkr-history.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   ResearchLensError,
@@ -31,10 +37,13 @@ import {
   secUserAgent,
 } from "./research-lenses.ts";
 
-// Watchlist news monitor: Yahoo Finance headline RSS and SEC EDGAR 8-K Atom per ticker, for the
-// operator's own watchlist. GET only, bounded time and size, redirects never followed,
-// schema-validated, 5 min per-source cache. One failing source or ticker never fails the page:
-// failures are recorded per ticker. Read-only research; no orders.
+// Watchlist news monitor for the operator's own watchlist. Headlines per ticker from IBKR
+// (vertex-history /news, skipped when VERTEX_HISTORY_URL is not configured), Reuters (Google News
+// RSS limited to reuters.com), Seeking Alpha per-symbol RSS and Yahoo Finance headline RSS,
+// merged into one list (one copy per story, ibkr > reuters > seekingalpha > yahoo); SEC EDGAR 8-K
+// Atom per ticker. GET only, bounded time and size, redirects never followed, schema-validated,
+// 5 min per-source cache. One failing source or ticker never fails the page: failures are
+// recorded per ticker. Read-only research; no orders.
 
 // Cold SEC EDGAR answers take over 10 s; same budget as the research lenses.
 const NEWS_TIMEOUT_MS = 20_000;
@@ -43,11 +52,15 @@ const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
 // Bounds the module cache: watchlists can name any symbol, and Yahoo answers unknown ones too.
 export const NEWS_CACHE_MAX_ENTRIES = 500;
 const NEWS_CONCURRENCY = 4;
-const YAHOO_NEWS_USER_AGENT =
+const FEED_USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) vertex-research/news-monitor";
 const XML_CONTENT_TYPE = /^(?:text|application)\/(?:(?:rss|atom)\+)?xml\b/iu;
 
-export type MarketNewsOptions = ResearchLensOptions;
+export type MarketNewsOptions = ResearchLensOptions &
+  Readonly<{
+    /** vertex-history service for IBKR headlines; null or absent skips that source. */
+    marketHistory?: DeployStatusConfig | null;
+  }>;
 
 type TextRequest = Readonly<{
   url: string;
@@ -188,6 +201,14 @@ type TickerFeeds = Readonly<{
   errors: string[];
 }>;
 
+type HeadlineFeed = Readonly<{
+  /** Cache key prefix; the MarketNewsSource name. */
+  key: string;
+  /** Names the source in its error, e.g. "headlines: Reuters headlines returned HTTP 503". */
+  label: string;
+  load: () => Promise<MarketNewsHeadline[]>;
+}>;
+
 /** Every headline and 8-K for one ticker (unfiltered); per-source failures land in `errors`. */
 export const loadTickerFeeds = async (
   symbol: string,
@@ -196,7 +217,6 @@ export const loadTickerFeeds = async (
 ): Promise<TickerFeeds> => {
   const now = (options.now ?? (() => new Date()))().getTime();
   const errors: string[] = [];
-  let headlines: MarketNewsHeadline[] = [];
   let filings: MarketNewsFiling[] = [];
   // The SEC company title names the issuer for headline tagging and locates its 8-K feed.
   const lookup = await tickerList().then(
@@ -206,28 +226,82 @@ export const loadTickerFeeds = async (
     }),
     (error: unknown) => ({ company: undefined, failure: { error } })
   );
+  const subject = { name: lookup.company?.title ?? null, symbol };
+  const rssFeed = (
+    key: string,
+    label: string,
+    url: string,
+    parse: typeof parseYahooRss
+  ): HeadlineFeed => ({
+    key,
+    label,
+    load: async () =>
+      parse(
+        await fetchBoundedText(
+          { headers: { "user-agent": FEED_USER_AGENT }, label, url },
+          options
+        ),
+        subject
+      ),
+  });
+  const history = options.marketHistory ?? null;
+  const upper = encodeURIComponent(symbol.toUpperCase());
+  const feeds: HeadlineFeed[] = [
+    ...(history === null
+      ? []
+      : [
+          {
+            key: "ibkr",
+            label: "IBKR news",
+            load: async () =>
+              ibkrHeadlines(
+                await fetchHistoryNews(history, symbol, 20, options),
+                subject
+              ),
+          },
+        ]),
+    rssFeed(
+      "reuters",
+      "Reuters headlines",
+      `https://news.google.com/rss/search?q=${upper}+site:reuters.com&hl=en-US&gl=US&ceid=US:en`,
+      parseReutersRss
+    ),
+    rssFeed(
+      "seekingalpha",
+      "Seeking Alpha headlines",
+      `https://seekingalpha.com/api/sa/combined/${upper}.xml`,
+      parseSeekingAlphaRss
+    ),
+    rssFeed(
+      "yahoo",
+      "Yahoo headlines",
+      `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(yahooSymbol(symbol))}&region=US&lang=en-US`,
+      parseYahooRss
+    ),
+  ];
+  // Sources load in parallel, each on its own: one failing source never drops the others.
   // Headline tags use the SEC company name, so headlines read while the SEC list failed are not
   // cached: the next request tags them again with the name.
-  const loadHeadlines = async (): Promise<MarketNewsHeadline[]> =>
-    parseYahooRss(
-      await fetchBoundedText(
-        {
-          headers: { "user-agent": YAHOO_NEWS_USER_AGENT },
-          label: "Yahoo headlines",
-          url: `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(yahooSymbol(symbol))}&region=US&lang=en-US`,
-        },
-        options
-      ),
-      { name: lookup.company?.title ?? null, symbol }
-    );
-  try {
-    headlines =
-      lookup.failure === null
-        ? await cachedSource(`yahoo:${symbol}`, now, loadHeadlines)
-        : await loadHeadlines();
-  } catch (error) {
-    errors.push(`headlines: ${reason(error)}`);
-  }
+  const reads = await Promise.all(
+    feeds.map(({ key, label, load }) =>
+      (lookup.failure === null
+        ? cachedSource(`${key}:${symbol}`, now, load)
+        : load()
+      ).then(
+        (list) => ({ error: null, headlines: list }),
+        (error: unknown) => {
+          const message = reason(error);
+          return {
+            error: message.startsWith(label) ? message : `${label}: ${message}`,
+            headlines: [],
+          };
+        }
+      )
+    )
+  );
+  for (const read of reads)
+    if (read.error !== null) errors.push(`headlines: ${read.error}`);
+  const headlines = mergeHeadlines(reads.map((read) => read.headlines));
   try {
     filings = await cachedSource(`sec:${symbol}`, now, async () => {
       if (lookup.failure !== null) throw lookup.failure.error;
@@ -333,8 +407,8 @@ export const setMarketNewsOptionsForTesting = (
   marketNewsOptions = options;
 };
 
-// Operator only: sign-up is public, each request fans out to Yahoo and SEC, and the SEC
-// requests carry the operator's contact address.
+// Operator only: sign-up is public, each request fans out to IBKR, Reuters, Seeking Alpha, Yahoo
+// and SEC, and the SEC requests carry the operator's contact address.
 const watchlistNews = api.marketNews.watchlist
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -349,11 +423,10 @@ const watchlistNews = api.marketNews.watchlist
         throw failures.STORAGE_ERROR();
       throw error;
     }
-    return buildMarketNews(
-      selectNewsSymbols(items),
-      input.hours,
-      marketNewsOptions
-    );
+    return buildMarketNews(selectNewsSymbols(items), input.hours, {
+      marketHistory: context.marketHistory ?? null,
+      ...marketNewsOptions,
+    });
   });
 
 export const marketNewsRouter = { watchlist: watchlistNews };

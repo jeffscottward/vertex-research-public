@@ -92,6 +92,7 @@ const aapl: MarketNewsTicker = {
     {
       publishedAt: new Date("2026-10-13T20:36:44.000Z"),
       publisher: "Reuters",
+      source: "yahoo",
       tags: ["legal", "deal"],
       title: "Judge orders OpenAI to turn over hiring records",
       url: "https://finance.yahoo.com/news/judge.html",
@@ -99,6 +100,7 @@ const aapl: MarketNewsTicker = {
     {
       publishedAt: new Date("2026-10-13T19:46:52.000Z"),
       publisher: null,
+      source: "yahoo",
       tags: [],
       title: "Apple may have a way to dominate the smart home space",
       url: "https://finance.yahoo.com/video/home.html",
@@ -295,6 +297,7 @@ describe("news monitor workspace", () => {
       headlines: Array.from({ length: 7 }, (_, index) => ({
         publishedAt: new Date(Date.UTC(2026, 9, 13, 20 - index)),
         publisher: null,
+        source: "yahoo",
         tags: [],
         title: `Headline ${index + 1}`,
         url: `https://finance.yahoo.com/news/${index + 1}.html`,
@@ -323,6 +326,80 @@ describe("news monitor workspace", () => {
     expect(toggle()?.getAttribute("aria-expanded")).toBe("true");
     await click(container, "Show the newest 5 only");
     return expect(items()).toHaveLength(HEADLINE_PREVIEW_COUNT);
+  });
+
+  it("labels each headline with its source and lists every failed headline source", async () => {
+    const merged: MarketNewsTicker = {
+      errors: [
+        "headlines: Seeking Alpha headlines returned HTTP 503",
+        "headlines: Reuters headlines: not an RSS 2.0 document",
+      ],
+      filings: [],
+      headlines: [
+        {
+          publishedAt: new Date("2026-10-13T22:00:00.000Z"),
+          publisher: "Dow Jones Newsletters",
+          source: "ibkr",
+          tags: ["executive"],
+          title: "Coca-Cola names new CFO",
+          url: null,
+        },
+        {
+          publishedAt: new Date("2026-10-13T21:05:00.000Z"),
+          publisher: "Reuters",
+          source: "reuters",
+          tags: [],
+          title: "Coca-Cola beats quarterly profit estimates",
+          url: "https://news.google.com/rss/articles/CBMiKO1?oc=5",
+        },
+        {
+          publishedAt: new Date("2026-10-13T18:50:00.000Z"),
+          publisher: "Dividend Desk",
+          source: "seekingalpha",
+          tags: [],
+          title: "Coca-Cola Has Raised Dividends for 63 Years",
+          url: "https://seekingalpha.com/article/2-coca-cola-dividends",
+        },
+        {
+          publishedAt: new Date("2026-10-13T12:40:02.000Z"),
+          publisher: null,
+          source: "yahoo",
+          tags: [],
+          title: "Is Coca-Cola (KO) Stock Outpacing Its Peers?",
+          url: "https://finance.yahoo.com/news/ko.html",
+        },
+      ],
+      symbol: "KO",
+    };
+    const container = await render({
+      watchlist: vi.fn(async () => news([merged])),
+    });
+    const labels = [...container.querySelectorAll("[data-news-source]")];
+    expect(labels.map((label) => label.textContent)).toEqual([
+      "IBKR",
+      "Reuters",
+      "Seeking Alpha",
+      "Yahoo Finance",
+    ]);
+    expect(
+      labels.map((label) => label.getAttribute("data-news-source"))
+    ).toEqual(["ibkr", "reuters", "seekingalpha", "yahoo"]);
+    // Theme tokens only, so the label reads in light and dark mode.
+    expect(labels[0]?.className).toContain("text-foreground");
+    const rows = labels.map((label) => label.closest("li"));
+    // IBKR headlines have no public link: plain text, not an anchor.
+    expect(rows[0]?.querySelector("a")).toBeNull();
+    expect(rows[0]?.textContent).toContain("Coca-Cola names new CFO");
+    expect(rows[0]?.textContent).toContain("Dow Jones Newsletters");
+    expect(rows[1]?.querySelector("a")?.getAttribute("href")).toBe(
+      "https://news.google.com/rss/articles/CBMiKO1?oc=5"
+    );
+    // A publisher equal to the source label is not repeated.
+    expect(rows[1]?.textContent?.match(/Reuters/gu)).toHaveLength(1);
+    expect(rows[2]?.textContent).toContain("Dividend Desk");
+    return expect(container.textContent).toContain(
+      "Headlines unavailable: Seeking Alpha headlines returned HTTP 503; Reuters headlines: not an RSS 2.0 document"
+    );
   });
 
   it("reloads for a new window and on refresh", async () => {

@@ -1,20 +1,27 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import type { MarketNewsHeadline } from "./contracts/market-news.ts";
 import {
   childAttribute,
   childText,
   decodeFeedBytes,
   decodeXmlText,
   describe8kItems,
+  headlineKey,
   IMPORTANT_8K_ITEMS,
   ITEMS_8K,
+  ibkrHeadlines,
   MarketNewsParseError,
   mentionPattern,
+  mergeHeadlines,
   parseFeedTime,
+  parseReutersRss,
   parseSecAtom,
+  parseSeekingAlphaRss,
   parseYahooRss,
   selectNewsSymbols,
+  stripSourceSuffix,
   tagHeadline,
   withinHours,
   xmlBlocks,
@@ -64,8 +71,9 @@ describe("Yahoo headline RSS", () => {
     );
     expect(oldest?.publisher).toBeNull();
     expect(headlines[2]?.tags).toEqual(["legal"]);
+    expect(headlines.every((item) => item.source === "yahoo")).toBe(true);
     return expect(
-      headlines.every((item) => item.url.startsWith("https://"))
+      headlines.every((item) => item.url?.startsWith("https://"))
     ).toBe(true);
   });
 
@@ -109,6 +117,7 @@ describe("Yahoo headline RSS", () => {
       {
         publishedAt: new Date("2026-10-13T20:02:03Z"),
         publisher: "Wire – Desk",
+        source: "yahoo",
         tags: [],
         title: "Acme & Co <b>beats</b>",
         url: "https://example.com/a?x=1&y=2",
@@ -116,6 +125,7 @@ describe("Yahoo headline RSS", () => {
       {
         publishedAt: new Date("2026-10-13T08:00:00Z"),
         publisher: null,
+        source: "yahoo",
         tags: [],
         title: "Older",
         url: "http://example.com/e",
@@ -396,5 +406,235 @@ describe("tags, items and selection", () => {
     return expect(
       withinHours(records, (date) => date, 72, now, 2)
     ).toHaveLength(2);
+  });
+});
+
+// Small inline stand-ins shaped like the live feeds read on 2026-11-10.
+const SA_FEED = `<?xml version="1.0"?>
+<rss xmlns:sa="https://seekingalpha.com/api/1.0" xmlns:media="http://search.yahoo.com/mrss/" version="2.0">
+  <channel>
+    <title>Apple Inc. - News and Analysis on Seeking Alpha</title>
+    <link>https://seekingalpha.com</link>
+    <item>
+      <title>Apple holds capex steady as peers accelerate AI infrastructure buildout</title>
+      <link>https://seekingalpha.com/symbol/AAPL/news?source=feed_symbol_AAPL</link>
+      <guid isPermaLink="false">https://seekingalpha.com/MarketCurrent:4669982</guid>
+      <pubDate>Tue, 10 Nov 2026 12:18:52 -0500</pubDate>
+      <sa:author_name>Jason Capul</sa:author_name>
+      <media:thumbnail url=""/>
+      <sa:stock><sa:symbol>AAPL</sa:symbol><sa:company_name>Apple Inc.</sa:company_name></sa:stock>
+    </item>
+    <item>
+      <title>Apple price target raised at Wedbush</title>
+      <link>https://seekingalpha.com/symbol/AAPL/news?source=feed_symbol_AAPL</link>
+      <guid isPermaLink="false">https://seekingalpha.com/MarketCurrent:4669990</guid>
+      <pubDate>Tue, 10 Nov 2026 14:00:00 -0500</pubDate>
+      <sa:author_name>Seeking Alpha News</sa:author_name>
+    </item>
+    <item>
+      <title>Apple price target raised at Wedbush (repeat)</title>
+      <link>https://seekingalpha.com/symbol/AAPL/news?source=feed_symbol_AAPL</link>
+      <guid isPermaLink="false">https://seekingalpha.com/MarketCurrent:4669990</guid>
+      <pubDate>Tue, 10 Nov 2026 14:01:00 -0500</pubDate>
+    </item>
+    <item>
+      <title>Where To Buy The Dip</title>
+      <link>https://seekingalpha.com/article/4965290-where-to-buy-the-dip?source=feed_symbol_AAPL</link>
+      <pubDate>Mon, 09 Nov 2026 16:04:00 -0500</pubDate>
+    </item>
+  </channel>
+</rss>`;
+
+const GOOGLE_REUTERS_FEED = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><generator>NFE/5.0</generator><title>"AAPL site:reuters.com" - Google News</title><link>https://news.google.com/search?q=AAPL+site:reuters.com&amp;hl=en-US&amp;gl=US&amp;ceid=US:en</link>
+<item><title>Apple raises $7.5 billion from bond sale, term sheet seen by Reuters shows - Reuters</title><link>https://news.google.com/rss/articles/CBMiswFBVV95cUxP?oc=5</link><guid isPermaLink="false">CBMiswFBVV95cUxP</guid><pubDate>Thu, 05 Nov 2026 23:43:27 GMT</pubDate><description>&lt;a href="https://news.google.com/rss/articles/CBMiswFBVV95cUxP?oc=5" target="_blank"&gt;Apple raises $7.5 billion from bond sale&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;font color="#6f6f6f"&gt;Reuters&lt;/font&gt;</description><source url="https://www.reuters.com">Reuters</source></item>
+<item><title>Apple faces EU antitrust probe over App Store fees - Reuters</title><link>https://news.google.com/rss/articles/CBMizAFBVV95cUxO?oc=5</link><guid isPermaLink="false">CBMizAFBVV95cUxO</guid><pubDate>Fri, 06 Nov 2026 10:15:00 GMT</pubDate><description>&lt;a href="https://news.google.com/rss/articles/CBMizAFBVV95cUxO?oc=5"&gt;Apple faces EU probe&lt;/a&gt;</description><source url="https://www.reuters.com">Reuters</source></item>
+</channel></rss>`;
+
+const IBKR_NEWS = {
+  items: [
+    {
+      headline: "Apple  price target raised at Wedbush",
+      provider: "BRFG",
+      time: "2026-11-10T19:30:00Z",
+    },
+    {
+      headline: "Apple names new CFO",
+      provider: "DJ-N",
+      time: "2026-11-10T21:00:00Z",
+    },
+    {
+      headline: "Apple quiet day",
+      provider: null,
+      time: "2026-11-10T18:00:00Z",
+    },
+    // Dropped: repeats a story, an unreadable time, a blank headline.
+    {
+      headline: "APPLE NAMES NEW CFO!",
+      provider: "BRFG",
+      time: "2026-11-10T20:00:00Z",
+    },
+    { headline: "Bad time", provider: "BRFG", time: "not a time" },
+    { headline: "   ", provider: "BRFG", time: "2026-11-10T18:00:00Z" },
+  ],
+  providers: [{ code: "BRFG", name: "Briefing.com General Market Columns" }],
+} as const;
+
+describe("Seeking Alpha, Reuters and IBKR headlines", () => {
+  it("parses Seeking Alpha per-symbol RSS: guid repeats, author as publisher", () => {
+    const headlines = parseSeekingAlphaRss(SA_FEED, APPLE);
+    expect(
+      headlines.map((item) => [item.title, item.publisher, item.tags])
+    ).toEqual([
+      [
+        "Apple price target raised at Wedbush",
+        "Seeking Alpha News",
+        ["analyst"],
+      ],
+      [
+        "Apple holds capex steady as peers accelerate AI infrastructure buildout",
+        "Jason Capul",
+        [],
+      ],
+      ["Where To Buy The Dip", null, []],
+    ]);
+    expect(headlines.every((item) => item.source === "seekingalpha")).toBe(
+      true
+    );
+    // News items share the symbol-page link; the guid keeps them apart.
+    expect(headlines[0]?.url).toBe(
+      "https://seekingalpha.com/symbol/AAPL/news?source=feed_symbol_AAPL"
+    );
+    expect(headlines[0]?.publishedAt).toEqual(new Date("2026-11-10T19:00:00Z"));
+    return expect(() => parseSeekingAlphaRss("<html></html>", APPLE)).toThrow(
+      "not an RSS 2.0 document"
+    );
+  });
+
+  it("parses Reuters from Google News RSS without the ' - Reuters' suffix", () => {
+    const headlines = parseReutersRss(GOOGLE_REUTERS_FEED, APPLE);
+    expect(headlines).toEqual([
+      {
+        publishedAt: new Date("2026-11-06T10:15:00Z"),
+        publisher: "Reuters",
+        source: "reuters",
+        // Tagged from the description text, its HTML markup removed.
+        tags: ["legal"],
+        title: "Apple faces EU antitrust probe over App Store fees",
+        url: "https://news.google.com/rss/articles/CBMizAFBVV95cUxO?oc=5",
+      },
+      {
+        publishedAt: new Date("2026-11-05T23:43:27Z"),
+        publisher: "Reuters",
+        source: "reuters",
+        tags: [],
+        title:
+          "Apple raises $7.5 billion from bond sale, term sheet seen by Reuters shows",
+        url: "https://news.google.com/rss/articles/CBMiswFBVV95cUxP?oc=5",
+      },
+    ]);
+    // Words inside description markup ("deal" in a link) never tag a headline.
+    return expect(
+      parseReutersRss(
+        rss(
+          `<item><title>Apple supplier story</title><description>&lt;a href="https://example.com/deal"&gt;Apple outlook&lt;/a&gt;</description><link>https://news.google.com/x</link><pubDate>Fri, 06 Nov 2026 10:15:00 GMT</pubDate></item>`
+        ),
+        APPLE
+      )[0]?.tags
+    ).toEqual(["guidance"]);
+  });
+
+  return it("maps IBKR news to unlinked headlines named by provider", () =>
+    expect(ibkrHeadlines(IBKR_NEWS, APPLE)).toEqual([
+      {
+        publishedAt: new Date("2026-11-10T21:00:00Z"),
+        publisher: "DJ-N",
+        source: "ibkr",
+        tags: ["executive"],
+        title: "Apple names new CFO",
+        url: null,
+      },
+      {
+        publishedAt: new Date("2026-11-10T19:30:00Z"),
+        publisher: "Briefing.com General Market Columns",
+        source: "ibkr",
+        tags: ["analyst"],
+        title: "Apple price target raised at Wedbush",
+        url: null,
+      },
+      {
+        publishedAt: new Date("2026-11-10T18:00:00Z"),
+        publisher: null,
+        source: "ibkr",
+        tags: [],
+        title: "Apple quiet day",
+        url: null,
+      },
+    ]));
+});
+
+const headline = (
+  source: MarketNewsHeadline["source"],
+  title: string,
+  at: string
+): MarketNewsHeadline => ({
+  publishedAt: new Date(at),
+  publisher: null,
+  source,
+  tags: [],
+  title,
+  url: source === "ibkr" ? null : `https://example.com/${source}/${at}`,
+});
+
+describe("headline merge", () => {
+  it("normalises titles: case, punctuation, spacing and publisher suffixes", () => {
+    expect(stripSourceSuffix("Apple beats - Reuters")).toBe("Apple beats");
+    expect(stripSourceSuffix("Apple beats | Seeking Alpha")).toBe(
+      "Apple beats"
+    );
+    expect(stripSourceSuffix("Apple beats – Yahoo Finance")).toBe(
+      "Apple beats"
+    );
+    expect(stripSourceSuffix("Reuters-Ipsos poll")).toBe("Reuters-Ipsos poll");
+    expect(headlineKey("  Apple’s Q3:  BEATS estimates!! - Reuters")).toBe(
+      "apple s q3 beats estimates"
+    );
+    return expect(headlineKey("Apple's Q3 beats estimates")).toBe(
+      "apple s q3 beats estimates"
+    );
+  });
+
+  return it("keeps one copy per story from the highest-priority source, newest first", () => {
+    const yahoo = [
+      headline("yahoo", "Apple beats estimates", "2026-11-10T12:00:00Z"),
+      headline("yahoo", "Only on Yahoo", "2026-11-10T09:00:00Z"),
+      headline("yahoo", "Tie at eight", "2026-11-10T08:00:00Z"),
+    ];
+    const seekingAlpha = [
+      headline(
+        "seekingalpha",
+        "APPLE BEATS ESTIMATES!",
+        "2026-11-10T12:05:00Z"
+      ),
+      headline("seekingalpha", "Apple names new CFO", "2026-11-10T10:00:00Z"),
+      headline("seekingalpha", "Other tie", "2026-11-10T08:00:00Z"),
+    ];
+    const reuters = [
+      headline("reuters", "Apple beats estimates", "2026-11-10T12:01:00Z"),
+    ];
+    const ibkr = [
+      headline("ibkr", "Apple names new CFO.", "2026-11-10T10:02:00Z"),
+    ];
+    // Lower-priority lists come first and last: the kept copy never depends on list order.
+    const merged = mergeHeadlines([yahoo, ibkr, seekingAlpha, reuters]);
+    expect(merged.map((item) => [item.source, item.title])).toEqual([
+      ["reuters", "Apple beats estimates"],
+      ["ibkr", "Apple names new CFO."],
+      ["yahoo", "Only on Yahoo"],
+      // Same time: the higher-priority source first.
+      ["seekingalpha", "Other tie"],
+      ["yahoo", "Tie at eight"],
+    ]);
+    expect(mergeHeadlines([reuters, yahoo])[0]?.source).toBe("reuters");
+    return expect(mergeHeadlines([])).toEqual([]);
   });
 });

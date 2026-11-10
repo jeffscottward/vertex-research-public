@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
 import { createApiContext } from "./server/context.ts";
+import type { DeployStatusConfig } from "./server/deploy-status.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import {
   buildMarketNews,
@@ -47,7 +48,11 @@ type Fetch = NonNullable<MarketNewsOptions["fetch"]>;
 const xml = (body: BodyInit | null, contentType = "application/rss+xml") =>
   new Response(body, { headers: { "content-type": contentType } });
 
-// Public feed stand-ins: Yahoo RSS by symbol, SEC ticker list and 8-K Atom by CIK.
+const EMPTY_RSS =
+  '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title></channel></rss>';
+
+// Public feed stand-ins: Yahoo RSS by symbol, empty Seeking Alpha and Google News (Reuters) RSS,
+// SEC ticker list and 8-K Atom by CIK. Overrides key by Yahoo `s` or by URL path.
 const feeds = (overrides: Record<string, () => Response> = {}) => {
   const calls: string[] = [];
   const fetch: Fetch = vi.fn(async (url: string) => {
@@ -61,6 +66,11 @@ const feeds = (overrides: Record<string, () => Response> = {}) => {
         ? xml(fixtureBytes(`yahoo-${symbol}.xml`))
         : xml(null, "text/html");
     }
+    if (
+      parsed.hostname === "seekingalpha.com" ||
+      parsed.hostname === "news.google.com"
+    )
+      return xml(EMPTY_RSS, "application/xml; charset=utf-8");
     if (parsed.pathname === "/files/company_tickers.json")
       return new Response(fixtureBytes("company_tickers.json"), {
         headers: { "content-type": "application/json" },
@@ -300,7 +310,8 @@ describe("ticker feeds", () => {
     expect(calls.length).toBe(first + 1); // the failed Yahoo read is retried
     now = new Date(NOW.getTime() + 5 * 60 * 1000);
     await loadTickerFeeds("KO", options);
-    return expect(calls.length).toBe(first + 3);
+    // Expired: Reuters, Seeking Alpha, Yahoo and the 8-K feed are read again.
+    return expect(calls.length).toBe(first + 5);
   });
 
   it("does not cache headlines tagged while the SEC ticker list failed", async () => {
@@ -379,6 +390,162 @@ describe("ticker feeds", () => {
   });
 });
 
+// vertex-history /news stand-in (IBKR API news), shaped like vertex-history-news-v1.
+const HISTORY: DeployStatusConfig = {
+  token: "h".repeat(43),
+  url: "https://history.example.test",
+};
+const ibkrNews = (): Response => {
+  const items = [
+    {
+      articleId: "DJ-N$1",
+      headline: "Coca-Cola names new CFO",
+      provider: "DJ-N",
+      t: 1_791_936_000,
+      time: "2026-10-13T22:00:00Z",
+    },
+  ];
+  return Response.json({
+    cache: { ageSeconds: 0, hit: false, stale: false, ttlSeconds: 300 },
+    client_id: 77,
+    contract: {
+      conId: 8894,
+      currency: "USD",
+      exchange: "SMART",
+      lastTradeDateOrContractMonth: null,
+      localSymbol: "KO",
+      longName: "COCA-COLA CO/THE",
+      matches: 1,
+      multiplier: null,
+      secType: "STK",
+      timeZoneId: "US/Eastern",
+    },
+    count: items.length,
+    fetchedAt: "2026-10-13T23:00:00Z",
+    items,
+    providers: [{ code: "DJ-N", name: "Dow Jones Newsletters" }],
+    request: {
+      count: 20,
+      currency: "USD",
+      exchange: "SMART",
+      secType: "STK",
+      symbol: "KO",
+    },
+    schema: "vertex-history-news-v1",
+    source: "ibkr-gateway",
+  });
+};
+
+const SA_KO = `<?xml version="1.0"?><rss xmlns:sa="https://seekingalpha.com/api/1.0" version="2.0"><channel><title>The Coca-Cola Company - News and Analysis on Seeking Alpha</title>
+<item><title>Coca-Cola beats quarterly profit estimates</title><link>https://seekingalpha.com/symbol/KO/news?source=feed_symbol_KO</link><guid isPermaLink="false">https://seekingalpha.com/MarketCurrent:1</guid><pubDate>Tue, 13 Oct 2026 17:00:00 -0400</pubDate><sa:author_name>Seeking Alpha News</sa:author_name></item>
+<item><title>Coca-Cola Has Raised Dividends for 63 Years: Can It Make It Another Decade?</title><link>https://seekingalpha.com/article/2-coca-cola-dividends?source=feed_symbol_KO</link><guid isPermaLink="false">https://seekingalpha.com/Article:2</guid><pubDate>Tue, 13 Oct 2026 14:50:00 -0400</pubDate><sa:author_name>Dividend Desk</sa:author_name></item>
+</channel></rss>`;
+
+const REUTERS_KO = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><rss version="2.0"><channel><title>"KO site:reuters.com" - Google News</title>
+<item><title>Coca-Cola beats quarterly profit estimates - Reuters</title><link>https://news.google.com/rss/articles/CBMiKO1?oc=5</link><guid isPermaLink="false">CBMiKO1</guid><pubDate>Tue, 13 Oct 2026 21:05:00 GMT</pubDate><description>&lt;a href="https://news.google.com/rss/articles/CBMiKO1?oc=5"&gt;Coca-Cola beats&lt;/a&gt;</description><source url="https://www.reuters.com">Reuters</source></item>
+<item><title>Coca-Cola names new CFO - Reuters</title><link>https://news.google.com/rss/articles/CBMiKO2?oc=5</link><guid isPermaLink="false">CBMiKO2</guid><pubDate>Tue, 13 Oct 2026 22:01:00 GMT</pubDate><source url="https://www.reuters.com">Reuters</source></item>
+</channel></rss>`;
+
+const koFeeds = (overrides: Record<string, () => Response> = {}) =>
+  feeds({
+    "/api/sa/combined/KO.xml": () =>
+      xml(SA_KO, "application/xml; charset=utf-8"),
+    "/news": ibkrNews,
+    "/rss/search": () => xml(REUTERS_KO, "application/xml; charset=utf-8"),
+    ...overrides,
+  });
+
+describe("merged headline sources", () => {
+  it("merges IBKR, Reuters, Seeking Alpha and Yahoo newest first, one copy per story", async () => {
+    const { calls, fetch } = koFeeds();
+    const news = await buildMarketNews(["KO"], 168, {
+      fetch,
+      marketHistory: HISTORY,
+      now: () => NOW,
+    });
+    const [ko] = news.tickers;
+    expect(ko?.errors).toEqual([]);
+    expect(
+      ko?.headlines.map((item) => [item.source, item.title, item.tags])
+    ).toEqual([
+      // Also on Reuters: IBKR ranks first.
+      ["ibkr", "Coca-Cola names new CFO", ["executive"]],
+      // Also on Seeking Alpha: Reuters ranks above it. "earnings" needs the SEC company name.
+      ["reuters", "Coca-Cola beats quarterly profit estimates", ["earnings"]],
+      [
+        "yahoo",
+        "Coca-Cola or Chevron: The One Dividend Stock I’d Hold for the Next 20 Years",
+        [],
+      ],
+      // Near-identical to Yahoo's "…63 Years. Can It…": Seeking Alpha ranks above Yahoo.
+      [
+        "seekingalpha",
+        "Coca-Cola Has Raised Dividends for 63 Years: Can It Make It Another Decade?",
+        [],
+      ],
+      [
+        "yahoo",
+        "PepsiCo Trades Near 52-Week Low: Should You Buy Now or Wait?",
+        [],
+      ],
+      [
+        "yahoo",
+        "Is Coca-Cola (KO) Stock Outpacing Its Consumer Staples Peers This Year?",
+        [],
+      ],
+    ]);
+    expect(ko?.headlines[0]?.url).toBeNull();
+    expect(ko?.headlines[0]?.publisher).toBe("Dow Jones Newsletters");
+    expect(ko?.headlines[1]?.url).toBe(
+      "https://news.google.com/rss/articles/CBMiKO1?oc=5"
+    );
+    expect(calls).toContain(
+      "https://history.example.test/news?symbol=KO&count=20"
+    );
+    expect(calls).toContain("https://seekingalpha.com/api/sa/combined/KO.xml");
+    return expect(calls).toContain(
+      "https://news.google.com/rss/search?q=KO+site:reuters.com&hl=en-US&gl=US&ceid=US:en"
+    );
+  });
+
+  it("keeps the other sources when one fails, naming each failed source", async () => {
+    const { fetch } = koFeeds({
+      "/api/sa/combined/KO.xml": () => new Response("busy", { status: 503 }),
+      "/news": () => new Response(null, { status: 503 }),
+      "/rss/search": () => xml("<html>consent</html>", "application/xml"),
+    });
+    const feedsFor = await loadTickerFeeds("KO", {
+      fetch,
+      marketHistory: HISTORY,
+      now: () => NOW,
+    });
+    expect(feedsFor.headlines).toHaveLength(4);
+    expect(feedsFor.headlines.every((item) => item.source === "yahoo")).toBe(
+      true
+    );
+    expect(feedsFor.filings).toHaveLength(3);
+    return expect(feedsFor.errors).toEqual([
+      "headlines: IBKR news: History endpoint returned HTTP 503",
+      "headlines: Reuters headlines: not an RSS 2.0 document",
+      "headlines: Seeking Alpha headlines returned HTTP 503",
+    ]);
+  });
+
+  return it("skips IBKR without a vertex-history config", async () => {
+    const { calls, fetch } = koFeeds();
+    const feedsFor = await loadTickerFeeds("KO", {
+      fetch,
+      marketHistory: null,
+      now: () => NOW,
+    });
+    expect(calls.some((url) => url.startsWith(HISTORY.url))).toBe(false);
+    expect(feedsFor.errors).toEqual([]);
+    return expect(
+      feedsFor.headlines.map((item) => [item.source, item.title])
+    ).toContainEqual(["reuters", "Coca-Cola names new CFO"]);
+  });
+});
+
 const at = new Date("2026-10-01T00:00:00.000Z");
 const watchRow = (symbol: string, minute: number): WatchlistItem => ({
   buyZoneHigh: null,
@@ -426,7 +593,8 @@ const repositoryWith = (
 
 const clientFor = (
   requireSession: () => Promise<SafeAuthSession>,
-  watchlist?: WatchlistRepository
+  watchlist?: WatchlistRepository,
+  marketHistory?: DeployStatusConfig
 ) => {
   const repositories = {
     addresses: {},
@@ -447,6 +615,7 @@ const clientFor = (
           emailDelivery: false,
           telemetryExport: false,
         },
+        ...(marketHistory === undefined ? {} : { marketHistory }),
         operatorEmails: ["alice@domain.test"],
         repositories,
         requestId: "request-1",
@@ -570,5 +739,24 @@ describe("marketNews.watchlist procedure", () => {
       "BAD_REQUEST",
       400
     );
+  });
+
+  it("reads IBKR headlines through the request's vertex-history config", async () => {
+    const { calls, fetch } = koFeeds();
+    setMarketNewsOptionsForTesting({ fetch, now: () => NOW });
+    const client = clientFor(
+      async () => session("alice"),
+      repositoryWith(async () => [watchRow("KO", 0)]),
+      HISTORY
+    );
+    const news = await client.marketNews.watchlist({ hours: 168 });
+    expect(calls).toContain(
+      "https://history.example.test/news?symbol=KO&count=20"
+    );
+    return expect(news.tickers[0]?.headlines[0]).toMatchObject({
+      source: "ibkr",
+      title: "Coca-Cola names new CFO",
+      url: null,
+    });
   });
 });

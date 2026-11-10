@@ -1,12 +1,14 @@
 import {
   MARKET_NEWS_HEADLINE_TAGS,
   MARKET_NEWS_MAX_TICKERS,
+  MARKET_NEWS_SOURCES,
   type MarketNewsFiling,
   type MarketNewsFilingItem,
   MarketNewsFilingSchema,
   type MarketNewsHeadline,
   MarketNewsHeadlineSchema,
   type MarketNewsHeadlineTag,
+  type MarketNewsSource,
 } from "./contracts/market-news.ts";
 
 // Pure parsing and tagging for the watchlist news monitor. The Worker runtime has no DOMParser,
@@ -231,10 +233,36 @@ export const parseFeedTime = (value: string): Date | null => {
 export const yahooSymbol = (symbol: string): string =>
   symbol.toUpperCase().replace(/\./gu, "-");
 
-/** Yahoo Finance headline RSS 2.0 -> validated headlines, newest first, one per story. */
-export const parseYahooRss = (
+// A trailing publisher name that aggregators append to titles ("… - Reuters").
+const SOURCE_SUFFIX =
+  /\s+[-–—|]\s+(?:Reuters|Seeking Alpha|Yahoo Finance|Yahoo)$/iu;
+
+/** A title without an aggregator's trailing publisher name ("… - Reuters"). */
+export const stripSourceSuffix = (title: string): string =>
+  title.replace(SOURCE_SUFFIX, "");
+
+/**
+ * Dedupe key for one story across sources: the title without a publisher suffix, lower case,
+ * letters and digits only, single-spaced. Case, punctuation and spacing differences collapse.
+ */
+export const headlineKey = (title: string): string =>
+  stripSourceSuffix(title)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+/** How one RSS 2.0 headline feed is read. */
+type RssHeadlineFeed = Readonly<{
+  source: MarketNewsSource;
+  /** In-feed repeat key: the item link, or its guid where one link serves many items. */
+  identity: "link" | "guid";
+}>;
+
+/** RSS 2.0 headlines -> validated headlines from `feed.source`, newest first, one per story. */
+const parseRssHeadlines = (
   xml: string,
-  subject: HeadlineSubject
+  subject: HeadlineSubject,
+  feed: RssHeadlineFeed
 ): MarketNewsHeadline[] => {
   if (!(/<rss[\s>]/u.test(xml) && /<channel[\s>]/u.test(xml)))
     throw new MarketNewsParseError("not an RSS 2.0 document");
@@ -242,26 +270,132 @@ export const parseYahooRss = (
   const seen = new Set<string>();
   const out: MarketNewsHeadline[] = [];
   for (const item of xmlBlocks(xml, "item")) {
-    const title = childText(item, "title");
-    const description = childText(item, "description");
-    const publisher = childText(item, "source");
+    const title = stripSourceSuffix(childText(item, "title"));
+    // Google News descriptions are escaped HTML: markup is dropped before keyword matching.
+    const description = childText(item, "description").replace(
+      /<[^>]*>/gu,
+      " "
+    );
+    // <source> on Yahoo and Google News items; Seeking Alpha names the author instead.
+    const publisher =
+      childText(item, "source") || childText(item, "sa:author_name");
+    const url = childText(item, "link");
     const parsed = MarketNewsHeadlineSchema.safeParse({
       publishedAt: parseFeedTime(childText(item, "pubDate")),
       publisher: publisher === "" ? null : publisher,
+      source: feed.source,
       tags: tagHeadline(title, description, mention),
       title,
-      url: childText(item, "link"),
+      url,
     });
     if (!parsed.success) continue;
     const keys = [
-      parsed.data.url,
-      parsed.data.title.toLowerCase().replace(/\W+/gu, " ").trim(),
+      feed.identity === "guid" ? childText(item, "guid") || url : url,
+      headlineKey(parsed.data.title),
     ];
     if (keys.some((key) => seen.has(key))) continue;
     for (const key of keys) seen.add(key);
     out.push(parsed.data);
   }
   return out.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
+};
+
+/** Yahoo Finance headline RSS 2.0 -> validated headlines, newest first, one per story. */
+export const parseYahooRss = (
+  xml: string,
+  subject: HeadlineSubject
+): MarketNewsHeadline[] =>
+  parseRssHeadlines(xml, subject, { identity: "link", source: "yahoo" });
+
+/**
+ * Seeking Alpha per-symbol RSS (`/api/sa/combined/{SYMBOL}.xml`) -> validated headlines. News
+ * items share one symbol-page link, so repeats are keyed by guid.
+ */
+export const parseSeekingAlphaRss = (
+  xml: string,
+  subject: HeadlineSubject
+): MarketNewsHeadline[] =>
+  parseRssHeadlines(xml, subject, {
+    identity: "guid",
+    source: "seekingalpha",
+  });
+
+/**
+ * Google News RSS search restricted to reuters.com -> validated Reuters headlines. Titles lose
+ * their " - Reuters" suffix; links stay the Google News redirect URLs as given.
+ */
+export const parseReutersRss = (
+  xml: string,
+  subject: HeadlineSubject
+): MarketNewsHeadline[] =>
+  parseRssHeadlines(xml, subject, { identity: "link", source: "reuters" });
+
+/** The part of a vertex-history /news answer the monitor reads (see server/ibkr-history.ts). */
+export type IbkrNews = Readonly<{
+  providers: readonly Readonly<{ code: string; name: string | null }>[];
+  items: readonly Readonly<{
+    time: string;
+    provider: string | null;
+    headline: string;
+  }>[];
+}>;
+
+/** IBKR API news headlines -> validated headlines (no public link), newest first, one per story. */
+export const ibkrHeadlines = (
+  news: IbkrNews,
+  subject: HeadlineSubject
+): MarketNewsHeadline[] => {
+  const mention = mentionPattern(subject);
+  const names = new Map(
+    news.providers.map((provider) => [provider.code, provider.name])
+  );
+  const seen = new Set<string>();
+  const out: MarketNewsHeadline[] = [];
+  for (const item of news.items) {
+    const title = item.headline.replace(/\s+/gu, " ").trim();
+    const parsed = MarketNewsHeadlineSchema.safeParse({
+      publishedAt: new Date(item.time),
+      publisher:
+        item.provider === null
+          ? null
+          : (names.get(item.provider) ?? item.provider),
+      source: "ibkr",
+      tags: tagHeadline(title, "", mention),
+      title,
+      url: null,
+    });
+    if (!parsed.success) continue;
+    const key = headlineKey(parsed.data.title);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(parsed.data);
+  }
+  return out.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
+};
+
+const sourceRank = (headline: MarketNewsHeadline): number =>
+  MARKET_NEWS_SOURCES.indexOf(headline.source);
+
+/**
+ * One list from every source, newest first. Near-identical titles (same `headlineKey`) are one
+ * story: the copy from the highest-priority source (MARKET_NEWS_SOURCES order) is kept.
+ */
+export const mergeHeadlines = (
+  lists: readonly (readonly MarketNewsHeadline[])[]
+): MarketNewsHeadline[] => {
+  const kept = new Map<string, MarketNewsHeadline>();
+  for (const list of lists)
+    for (const headline of list) {
+      const key = headlineKey(headline.title);
+      const held = kept.get(key);
+      if (held === undefined || sourceRank(headline) < sourceRank(held))
+        kept.set(key, headline);
+    }
+  return [...kept.values()].sort(
+    (a, b) =>
+      b.publishedAt.getTime() - a.publishedAt.getTime() ||
+      sourceRank(a) - sourceRank(b)
+  );
 };
 
 /** 8-K item numbers found in an EDGAR `items-desc` string, labelled. */

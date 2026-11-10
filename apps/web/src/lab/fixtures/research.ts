@@ -413,6 +413,7 @@ const newsTicker = (
   headlines: HEADLINES.map(([publisher, tags, text], index) => ({
     publishedAt: at(((index + 1) * hours * 60) / 4 + offset * 37),
     publisher,
+    source: "yahoo",
     tags: [...tags],
     title: `${symbol} ${text}`,
     url: `https://example.test/news/${symbol.toLowerCase()}-${index + 1}`,
