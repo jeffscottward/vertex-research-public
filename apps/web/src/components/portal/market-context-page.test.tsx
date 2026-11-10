@@ -120,6 +120,20 @@ describe("Market context page", () => {
     expect(refreshButton(container)?.disabled).toBe(true);
   });
 
+  it("renders the slot directly under the header, above both workspaces", async () => {
+    const container = await mount({
+      belowHeader: <section data-slot="below-header" />,
+      contextGateway: { volatility: () => new Promise(() => undefined) },
+      feedsGateway: { context: () => new Promise(() => undefined) },
+    });
+    const body = container.firstElementChild;
+    expect(body?.children[0]?.querySelector("h1")?.textContent).toBe(
+      "Market context"
+    );
+    expect(body?.children[1]?.getAttribute("data-slot")).toBe("below-header");
+    expect(body?.children.length).toBeGreaterThan(2);
+  });
+
   it("sums both feeds into the chip and refreshes both on Refresh", async () => {
     let stale = false;
     const volatility = vi.fn(async () => VOLATILITY);

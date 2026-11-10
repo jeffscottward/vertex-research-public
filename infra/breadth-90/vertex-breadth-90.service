@@ -1,0 +1,17 @@
+# Vertex breadth-90 tick (research only: public NYSE breadth data, local state, ntfy/email/Discord
+# alerts per docs/vertex-rebuild/breadth-90.md, no orders). Install: copy this file and the .timer to
+# ~/.config/systemd/user/, copy vertex-breadth-90-run to ~/.local/bin/ (mode 0755) and run
+# systemctl --user daemon-reload && systemctl --user enable --now vertex-breadth-90.timer
+# Environment file (nonsecret values only): BREADTH90_EMAIL_TO (without it the email channel fails and a
+# tick with a due alert exits 1), BREADTH90_RUNNER_DIR, VERTEX_ORIGIN, BREADTH90_PUSH=1 to push to Vertex.
+# The wrapper changes to the runner checkout, so the unit sets no WorkingDirectory.
+[Unit]
+Description=Vertex breadth-90 tick (research only)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/vertex/breadth-90.env
+ExecStart=%h/.local/bin/vertex-breadth-90-run
+TimeoutStartSec=180
+NoNewPrivileges=yes

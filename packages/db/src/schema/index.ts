@@ -2997,3 +2997,118 @@ export const sectorRotationAlerts = pgTable(
 );
 
 export type SectorRotationAlertRow = typeof sectorRotationAlerts.$inferSelect;
+
+// Breadth-90 signal (breadth90.*): NYSE up/down volume and advance/decline sessions pushed by the
+// rig tick (scripts/breadth-90), the ARMED/FORMING/FIRED/THRUST events (insert-once by kind, date
+// and tier) and one status row per market. Research only: no order path.
+export type Breadth90DayKindValue =
+  | "UP_90"
+  | "UP_80"
+  | "NEUTRAL"
+  | "DOWN_80"
+  | "DOWN_90";
+export type Breadth90StateValue = "IDLE" | "ARMED" | "FORMING" | "FIRED";
+export type Breadth90EventKindValue = "ARMED" | "FORMING" | "FIRED" | "THRUST";
+export type Breadth90TierValue =
+  | "strict"
+  | "standard"
+  | "major"
+  | "volume-only";
+export type Breadth90TriggerValue = "UP_90" | "UP_80_X2";
+export type Breadth90GradeValue = "major" | "volume-only";
+export interface Breadth90BasketValue {
+  asOf: string | null;
+  reportPath: string | null;
+  rulesNote: string | null;
+  summary: string | null;
+  tiers: {
+    id: string;
+    label: string;
+    tickers: string[];
+    weightPctNlv: number | null;
+  }[];
+}
+
+export const breadth90Days = pgTable(
+  "breadth90_days",
+  {
+    date: date("date", { mode: "string" }).primaryKey(),
+    uvol: doublePrecision("uvol").notNull(),
+    dvol: doublePrecision("dvol").notNull(),
+    adv: integer("adv").notNull(),
+    decl: integer("decl").notNull(),
+    upPct: doublePrecision("up_pct").notNull(),
+    advPct: doublePrecision("adv_pct"),
+    kind: text("kind").$type<Breadth90DayKindValue>().notNull(),
+    final: boolean("final").notNull(),
+    source: text("source").notNull(),
+    /** The source's own timestamp, kept as sent (sources differ in format). */
+    sourceAsOf: text("source_as_of").notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "breadth90_days_fields_check",
+      sql`${table.kind} in ('UP_90', 'UP_80', 'NEUTRAL', 'DOWN_80', 'DOWN_90') and char_length(${table.source}) between 1 and 40 and char_length(${table.sourceAsOf}) between 1 and 64`
+    ),
+    check(
+      "breadth90_days_values_check",
+      sql`${table.uvol} >= 0 and ${table.uvol} < 'Infinity'::double precision and ${table.dvol} >= 0 and ${table.dvol} < 'Infinity'::double precision and ${table.adv} >= 0 and ${table.decl} >= 0 and ${table.upPct} between 0 and 100 and (${table.advPct} is null or ${table.advPct} between 0 and 100)`
+    ),
+  ]
+);
+
+export type Breadth90DayRow = typeof breadth90Days.$inferSelect;
+
+export const breadth90Events = pgTable(
+  "breadth90_events",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").$type<Breadth90EventKindValue>().notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    tier: text("tier").$type<Breadth90TierValue>().notNull(),
+    upPct: doublePrecision("up_pct").notNull(),
+    advPct: doublePrecision("adv_pct"),
+    armedOn: date("armed_on", { mode: "string" }),
+    strict: boolean("strict").notNull(),
+    trigger: text("trigger").$type<Breadth90TriggerValue>(),
+    grade: text("grade").$type<Breadth90GradeValue>(),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("breadth90_events_kind_date_tier_idx").on(
+      table.kind,
+      table.date,
+      table.tier
+    ),
+    index("breadth90_events_date_idx").on(table.date),
+    check(
+      "breadth90_events_fields_check",
+      sql`${table.kind} in ('ARMED', 'FORMING', 'FIRED', 'THRUST') and ${table.tier} in ('strict', 'standard', 'major', 'volume-only') and (${table.trigger} is null or ${table.trigger} in ('UP_90', 'UP_80_X2')) and (${table.grade} is null or ${table.grade} in ('major', 'volume-only')) and ${table.upPct} between 0 and 100 and (${table.advPct} is null or ${table.advPct} between 0 and 100)`
+    ),
+  ]
+);
+
+export type Breadth90EventRow = typeof breadth90Events.$inferSelect;
+
+export const breadth90Status = pgTable(
+  "breadth90_status",
+  {
+    id: text("id").primaryKey(),
+    state: text("state").$type<Breadth90StateValue>().notNull(),
+    armedOn: date("armed_on", { mode: "string" }),
+    strict: boolean("strict").notNull(),
+    sessionsLeft: integer("sessions_left"),
+    asOf: utcTimestamp("as_of").notNull(),
+    basket: jsonb("basket").$type<Breadth90BasketValue>(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "breadth90_status_fields_check",
+      sql`${table.id} = 'nyse' and ${table.state} in ('IDLE', 'ARMED', 'FORMING', 'FIRED') and (${table.sessionsLeft} is null or ${table.sessionsLeft} >= 0)`
+    ),
+  ]
+);
+
+export type Breadth90StatusRow = typeof breadth90Status.$inferSelect;

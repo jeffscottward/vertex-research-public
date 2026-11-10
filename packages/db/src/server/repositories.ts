@@ -238,6 +238,10 @@ import {
   createBasketRepository,
 } from "./basket-repository.ts";
 import {
+  type Breadth90Repository,
+  createBreadth90Repository,
+} from "./breadth-90.ts";
+import {
   createPickListRepository,
   type PickListRepository,
 } from "./pick-list-repository.ts";
@@ -4357,6 +4361,7 @@ export type Repositories = Readonly<{
   sectorRotation?: SectorRotationRepository;
   clickLog?: ClickLogRepository;
   semanticLayer?: SemanticLayerRepository;
+  breadth90?: Breadth90Repository;
 }>;
 
 export const createRepositories = (
@@ -4451,5 +4456,9 @@ export const createRepositories = (
   semanticLayer: createSemanticLayerRepository(
     database,
     resolveDependencies(dependencies).now
+  ),
+  breadth90: createBreadth90Repository(
+    database,
+    resolveDependencies(dependencies)
   ),
 });

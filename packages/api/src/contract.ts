@@ -44,6 +44,7 @@ import { setupReplayContract } from "./contracts/setup-replay.ts";
 import { researchLensesContract } from "./contracts/research-lenses.ts";
 import { openbbContract } from "./contracts/openbb.ts";
 import { sectorRotationContract } from "./contracts/sector-rotation.ts";
+import { breadth90Contract } from "./contracts/breadth-90.ts";
 import { congressTradesContract } from "./contracts/congress-trades.ts";
 import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
 import { marketDataContract } from "./contracts/market-data.ts";
@@ -326,6 +327,7 @@ export const appContract = {
   researchLenses: researchLensesContract,
   openbb: openbbContract,
   sectorRotation: sectorRotationContract,
+  breadth90: breadth90Contract,
   congressTrades: congressTradesContract,
   riskAllocator: riskAllocatorContract,
   portfolioMonitor: portfolioMonitorContract,
