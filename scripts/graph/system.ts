@@ -231,10 +231,15 @@ const validateGraphSource = async (
     throw error;
   }
 };
+// An exclude is one of three forms: "name/**" (that root path and everything
+// below it), a glob with "*" and no "/" (any one path segment that matches;
+// "*" stands for any characters inside the segment), or a plain path (the same
+// path, a path below it, or any segment with that name).
 export const isGraphSourceExcluded = (
   path: string,
   excludes: readonly string[]
 ): boolean => {
+  const segments = path.split("/");
   return excludes.some((excluded) => {
     if (excluded.endsWith("/**")) {
       const rootPath = excluded.slice(0, -3);
@@ -243,10 +248,17 @@ export const isGraphSourceExcluded = (
         (path === rootPath || path.startsWith(`${rootPath}/`))
       );
     }
+    if (excluded.includes("*") && !excluded.includes("/")) {
+      const literals = excluded
+        .split("*")
+        .map((part) => part.replace(/[.+?^$()|[\]{}\\]/g, "\\$&"));
+      const pattern = new RegExp(`^${literals.join("[^/]*")}$`);
+      return segments.some((segment) => pattern.test(segment));
+    }
     return (
       path === excluded ||
       path.startsWith(`${excluded}/`) ||
-      path.split("/").includes(excluded)
+      segments.includes(excluded)
     );
   });
 };

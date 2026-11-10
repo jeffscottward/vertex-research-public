@@ -800,6 +800,11 @@ describe("Graphify workflow", () => {
     expect(() =>
       parseGraphConfig(JSON.stringify(multiSegmentGlobRoot))
     ).toThrow(/one path segment/i);
+    const globBeforeRootSuffix = JSON.parse(CONFIG);
+    globBeforeRootSuffix.source.excludes = [".*-bundle-*/**"];
+    expect(() =>
+      parseGraphConfig(JSON.stringify(globBeforeRootSuffix))
+    ).toThrow(/one path segment/i);
     const singleSegmentGlob = JSON.parse(CONFIG);
     singleSegmentGlob.source.excludes = [".*-bundle-*", "coverage/**"];
     expect(

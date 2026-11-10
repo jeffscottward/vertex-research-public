@@ -160,6 +160,16 @@ export const parseGraphConfig = (source: string): GraphConfig => {
     if (!isSafeRelative(path))
       throw new Error(`Graph config contains an unsafe path: ${path}`);
   }
+  // "*" is a glob only in an exclude with no "/"; the one other use is the
+  // "/**" suffix. Any other "*" would match nothing, so it is an error.
+  const multiSegmentGlob = excludes.find(
+    (excluded) =>
+      excluded.includes("/") && excluded.replace(/\/\*\*$/, "").includes("*")
+  );
+  if (multiSegmentGlob !== undefined)
+    throw new Error(
+      `Graph config exclude globs must be one path segment: ${multiSegmentGlob}`
+    );
   for (const path of roots) {
     if (!isSafeRoot(path))
       throw new Error(`Graph config contains an unsafe path: ${path}`);
