@@ -2,9 +2,9 @@
 
 Ports `math.ts` (normal distribution, Black-Scholes price and delta, strike by delta, realized
 volatility), `structures.ts` (the 19 structures, rule defaults, `resolveRules`, `structureLegs`) and
-the part of `position.ts` that sizing needs (`payoffSummary`). TypeScript is the reference: the
-golden fixture `tests/fixtures/nautilus_backtest/academy-golden.json` holds its results and
-`tests/test_nautilus_backtest_academy.py` compares. Pure functions: no network, no orders.
+the part of `position.ts` that sizing needs (`payoffSummary`). TypeScript is the reference:
+`tests/test_nautilus_backtest_academy.py` compares this port with its golden results (written by
+scripts/research-academy-golden.ts). Pure functions: no network, no orders.
 """
 from __future__ import annotations
 
