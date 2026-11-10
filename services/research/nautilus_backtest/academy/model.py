@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from decimal import Decimal
 
 from ..bars import InputError
 
@@ -25,13 +26,26 @@ _SQRT_2PI = math.sqrt(2 * math.pi)
 _BISECTION_STEPS = 80
 _PAYOFF_STEPS = 1600
 _SLOPE_EPS = 1e-6
+_JS_POSITIONAL_FROM = 1e-6
+_JS_EXPONENT_FROM = 1e21
 
 
 def js_number(value: float) -> str:
-    """A number as JavaScript prints it in a template string (labels and assumption texts)."""
-    if isinstance(value, float) and value.is_integer() and abs(value) < 1e21:
-        return str(int(value))
-    return repr(value) if isinstance(value, float) else str(value)
+    """A finite number as JavaScript prints it in a template string (labels and assumption texts)."""
+    number = float(value)
+    if number == 0:
+        return "0"
+    if number.is_integer() and abs(number) < _JS_EXPONENT_FROM:
+        return str(int(number))
+    # Both languages print the shortest digits that round-trip; only the notation differs:
+    # JavaScript is positional from 1e-6 up to 1e21, Python's repr from 1e-4 up to 1e16.
+    digits = Decimal(repr(number))
+    if _JS_POSITIONAL_FROM <= abs(number) < _JS_EXPONENT_FROM:
+        return format(digits, "f")
+    mantissa, _, exponent = f"{digits:e}".partition("e")
+    if "." in mantissa:
+        mantissa = mantissa.rstrip("0").rstrip(".")
+    return f"{mantissa}e{'+' if int(exponent) >= 0 else '-'}{abs(int(exponent))}"
 
 
 def js_round(value: float) -> float:

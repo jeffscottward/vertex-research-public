@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
 from ..bars import InputError
 from .model import (
@@ -44,8 +43,30 @@ _ROLES = ("cycle", "core")
 
 
 def iso_date(ms: float) -> str:
-    """YYYY-MM-DD (UTC) of a time in ms, as `new Date(ms).toISOString().slice(0, 10)`."""
-    return datetime.fromtimestamp(ms / 1000, tz=UTC).date().isoformat()
+    """The UTC date of a time in ms, as `new Date(ms).toISOString().slice(0, 10)`: YYYY-MM-DD, and
+    for a year outside 0..9999 the first 10 characters of JavaScript's signed six-digit year form
+    ("+010233-10"; a rule with a huge dte gives such a label)."""
+    # Days to a civil date (proleptic Gregorian), for any year: datetime stops at year 9999.
+    shifted = math.floor(ms / DAY_MS) + 719_468
+    era = shifted // 146_097
+    day_of_era = shifted - era * 146_097
+    year_of_era = (day_of_era - day_of_era // 1460 + day_of_era // 36_524 - day_of_era // 146_096) // 365
+    day_of_year = day_of_era - (365 * year_of_era + year_of_era // 4 - year_of_era // 100)
+    month_index = (5 * day_of_year + 2) // 153
+    day = day_of_year - (153 * month_index + 2) // 5 + 1
+    month = month_index + 3 if month_index < 10 else month_index - 9
+    year = year_of_era + era * 400 + (1 if month <= 2 else 0)
+    if 0 <= year <= 9999:
+        return f"{year:04d}-{month:02d}-{day:02d}"
+    return f"{'+' if year > 0 else '-'}{abs(year):06d}-{month:02d}-{day:02d}"[:10]
+
+
+def _total(values) -> float:
+    """Left-to-right float sum, as a JavaScript `reduce` (Python's sum() compensates since 3.12)."""
+    total = 0.0
+    for value in values:
+        total += value
+    return total
 
 
 def _number_list(name: str, values) -> list[float]:
@@ -229,8 +250,8 @@ class Simulation:
     def mark_book(self, index: int, roles: tuple[str, ...]) -> float:
         if self.book is None:
             return 0.0
-        return sum((leg.sign * leg.qty * leg.multiplier * self.leg_value(leg, index)
-                    for leg in self.book.legs if leg.role in roles), 0.0)
+        return _total((leg.sign * leg.qty * leg.multiplier * self.leg_value(leg, index)
+                    for leg in self.book.legs if leg.role in roles))
 
     # ------------------------------------------------------------ trades
 
@@ -288,8 +309,8 @@ class Simulation:
         equity_now = self.broker.cash()
 
         def premium() -> float:
-            return sum(((1 if leg.side == "long" else -1) * leg.entry * CONTRACT_MULTIPLIER * leg.qty
-                        for leg in legs if leg.kind != "stock"), 0.0)
+            return _total(((1 if leg.side == "long" else -1) * leg.entry * CONTRACT_MULTIPLIER * leg.qty
+                        for leg in legs if leg.kind != "stock"))
 
         if self.structure.uses_shares:
             return math.floor((equity_now * 0.98) / max(spot * 100 + premium(), 1))
@@ -361,10 +382,10 @@ class Simulation:
     # ------------------------------------------------------------ result
 
     def _trade_json(self, trade: _Trade) -> dict:
-        entry_net = sum((leg.sign * leg.qty * leg.multiplier * leg.entry for leg in trade.legs), 0.0)
-        value = sum((leg.sign * leg.qty * leg.multiplier * leg.exit for leg in trade.legs), 0.0)
+        entry_net = _total((leg.sign * leg.qty * leg.multiplier * leg.entry for leg in trade.legs))
+        value = _total((leg.sign * leg.qty * leg.multiplier * leg.exit for leg in trade.legs))
         # TS order: the entry fees of the role first, then each exit fee.
-        fees = sum((leg.entry_fee for leg in trade.legs), 0.0)
+        fees = _total((leg.entry_fee for leg in trade.legs))
         for leg in trade.legs:
             fees += leg.exit_fee
         return {
@@ -391,14 +412,14 @@ class Simulation:
             peak = max(peak, value)
             drawdown.append(value / peak - 1 if peak > 0 else 0.0)
         returns = [equity[i] / max(equity[i - 1], 1e-9) - 1 for i in range(1, len(equity))]
-        mean = sum(returns, 0.0) / max(len(returns), 1)
-        variance = sum(((value - mean) ** 2 for value in returns), 0.0) / max(len(returns) - 1, 1)
+        mean = _total(returns) / max(len(returns), 1)
+        variance = _total(((value - mean) ** 2 for value in returns)) / max(len(returns) - 1, 1)
         years = max((data.t[-1] - data.t[self.first_index]) / (DAYS_PER_YEAR * DAY_MS), 1 / DAYS_PER_YEAR)
         trades = [self._trade_json(trade) for trade in self.trades]
         closed = [t for t in trades if t["role"] == "cycle"] if self.has_core and self.has_cycle else trades
         wins = [t for t in closed if t["pnl"] > 0]
-        gross_win = sum((t["pnl"] for t in wins), 0.0)
-        gross_loss = sum((-t["pnl"] for t in closed if t["pnl"] < 0), 0.0)
+        gross_win = _total((t["pnl"] for t in wins))
+        gross_loss = _total((-t["pnl"] for t in closed if t["pnl"] < 0))
         final = equity[-1]
         growth = final / capital
         benchmark_shares = capital / data.c[self.first_index]
@@ -436,7 +457,7 @@ class Simulation:
                 "winRate": 0 if not closed else len(wins) / len(closed),
                 "trades": len(closed),
                 "wins": len(wins),
-                "avgPnl": 0 if not closed else sum((t["pnl"] for t in closed), 0.0) / len(closed),
+                "avgPnl": 0 if not closed else _total((t["pnl"] for t in closed)) / len(closed),
                 "profitFactor": gross_win / gross_loss if gross_loss > 0 else None,
                 "exposure": self.exposed / max(len(equity), 1),
                 "finalEquity": final,

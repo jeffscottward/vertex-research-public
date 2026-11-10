@@ -35,6 +35,7 @@ import { implement } from "@orpc/server";
 
 import { academyEngineResult } from "../academy-engine-result.ts";
 import { returnStats } from "../backtest-analytics.ts";
+import { sliceColumnsByDate } from "../bar-slice.ts";
 import { appContract } from "../contract.ts";
 import {
   ACADEMY_EQUITY_MAX_POINTS,
@@ -165,6 +166,8 @@ export type AcademyRun = Readonly<{
   iv: readonly number[] | undefined;
   rules: Readonly<Record<string, number>>;
   series: MarketBarSeries;
+  /** Every stored bar of the series (the worker's bars are cut from these by date). */
+  columns: MarketBarColumns;
   /** The VIX series when it supplied `iv`. */
   ivSeries: MarketBarSeries | undefined;
   structure: StructureId;
@@ -200,10 +203,16 @@ export const queueAcademyComparison = async (
     run.capital
   );
   if (mapped === null) return undefined;
+  const from = barDate(run.times[0] as number);
+  const to = barDate(run.times.at(-1) as number);
+  // The worker gets the stored bars of the date range. With two bars on one UTC date at an end of
+  // the range that is not the window this run read: no like-for-like run exists, queue nothing.
+  if (sliceColumnsByDate(run.columns, from, to).t.length !== run.times.length)
+    return undefined;
   const timing = { host: queue.host, ...wall };
   const spec = {
     costBps: 0,
-    from: barDate(run.times[0] as number),
+    from,
     initialCapital: run.capital,
     rule: {
       // JSON has no NaN: a missing implied volatility is null (the engine then models it).
@@ -220,7 +229,7 @@ export const queueAcademyComparison = async (
     symbol: run.series.symbol,
     takeProfitPct: 0,
     timeframe: run.series.timeframe,
-    to: barDate(run.times.at(-1) as number),
+    to,
   };
   try {
     // As the instant backtest: an identical request reuses its group; a new one replaces the older
@@ -358,6 +367,7 @@ const backtest = api.academy.backtest
         {
           capital: input.capital,
           closes,
+          columns: daily.columns,
           iv,
           ivSeries,
           rules,

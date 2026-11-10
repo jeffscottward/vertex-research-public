@@ -6,8 +6,10 @@ quotes to Nautilus OptionContract instruments. The rules are those of the TypeSc
 the cash and position ledger.
 
 Model:
-- One simulated venue "ACD<n>", CASH account in USD with the run capital (cash borrowing allowed, so
-  a short option books its premium as cash, as in TypeScript), netting.
+- One simulated venue "ACD<n>", CASH account with the run capital (cash borrowing allowed, so a
+  short option books its premium as cash, as in TypeScript), netting. The account currency is the
+  US dollar with 9 decimals (code "USDX"): Nautilus's built-in USD books whole cents, which would
+  round every fee and cash flow.
 - Instruments: the underlying as an Equity "VTX" (stock legs trade it in shares) and one
   OptionContract per kind, strike and expiry that the structure trades (multiplier 100, whole
   contracts, 9-decimal prices).
@@ -16,8 +18,10 @@ Model:
   trades at; the intrinsic value at or after expiry). The underlying quotes its close.
 - Which contracts exist is found by a first pass of the same rules on the float ledger
   (simulator.run_model): the instruments and quotes must be loaded before Nautilus runs. The second
-  pass decides again from the Nautilus account; if it ever needs a contract the first pass did not
-  list, the run stops with an error instead of trading something else.
+  pass decides again from the Nautilus account. If it opens a leg on another bar or contract than
+  the first pass (its quotes would then be missing or the wrong ones), the run stops with an error
+  instead of trading something else. A different number of units alone is not an error: it shows
+  as a difference in the result.
 - Each bar i is six timestamps 1 ns apart, starting at the bar time. +0: the mark quotes of the
   contracts held from earlier bars. +1: the decision (an underlying quote): the strategy runs the
   rules and sends the closing market orders, which Nautilus fills at those quotes in the same
@@ -34,12 +38,13 @@ Model:
   premium; stock: 0.5 cent per share plus 5 bp) as commission. An expired option settles at its
   intrinsic value without a fee: the strategy closes it with a market order at the intrinsic quote
   on the settlement bar (no early assignment, no exercise into shares).
-- Expiry: a contract's `expiration_ns` is its modelled expiry, or 2 ns after the bar on which the
+- Expiry: a contract's `expiration_ns` is its modelled expiry, or 5 ns after the bar on which the
   rules settle it when that is later (the first bar at or after the expiry). So Nautilus's own
-  expiry processing never finds an open position.
-- Known differences: Nautilus books fees and cash flows in whole cents and prices have 9 decimals.
-  Both stay inside the parity tolerances (docs/vertex-rebuild/nautilus-backtest-engine.md). The
-  trade records carry the Nautilus fill prices and the unrounded modelled fees.
+  expiry processing never finds an open position. Nautilus timestamps end in the year 2262: a
+  later expiry (a dte of tens of thousands of days) is an input error here.
+- Known differences: prices, fees and cash flows have 9 decimals. That stays far inside the parity
+  tolerances (docs/vertex-rebuild/nautilus-backtest-engine.md). The trade records carry the
+  Nautilus fill prices and the modelled fees.
 - No orders leave the process: there is no live client, broker or network.
 """
 from __future__ import annotations
@@ -65,7 +70,10 @@ NS_PER_MS = 1_000_000
 HELD_QUOTES, DECIDE, ENTRY_QUOTES, OPEN, OPENED_QUOTES, MARK = range(6)
 STRIKE_SCALE = 1000
 QUOTE_SIZE = 10 ** 9
+# Nautilus timestamps are nanoseconds in 64 bits (signed in parts of the engine): 2262-04-11.
+MAX_TIMESTAMP_NS = 2 ** 63 - 1
 UNDERLYING = "VTX"
+LEDGER_CURRENCY = "USDX"
 # Nautilus registers cash borrowing per venue for the whole process, so each run gets a new venue.
 _RUN_COUNTER = itertools.count(1)
 
@@ -75,7 +83,8 @@ _NAUTILUS_NAMES = {
     "FeeModel": ("nautilus_trader.backtest.models", "FeeModel"),
     "LoggingConfig": ("nautilus_trader.config", "LoggingConfig"),
     "StrategyConfig": ("nautilus_trader.config", "StrategyConfig"),
-    "USD": ("nautilus_trader.model.currencies", "USD"),
+    "Currency": ("nautilus_trader.model.objects", "Currency"),
+    "CurrencyType": ("nautilus_trader.model.enums", "CurrencyType"),
     "QuoteTick": ("nautilus_trader.model.data", "QuoteTick"),
     "AccountType": ("nautilus_trader.model.enums", "AccountType"),
     "AssetClass": ("nautilus_trader.model.enums", "AssetClass"),
@@ -125,11 +134,20 @@ def _plan(data: AcademyInput) -> tuple[Simulation, dict]:
     return plan, contracts
 
 
+def _openings(simulation: Simulation) -> list[tuple]:
+    """Bar and contract of every leg a pass opened, in order (not the units)."""
+    return [(leg.open_index, leg.role, leg.side, _contract_key(leg)) for leg in simulation.opened]
+
+
 def run_academy(data: AcademyInput) -> dict:
     """Runs the Academy backtest in a Nautilus BacktestEngine. Same result JSON as simulator.run_model."""
     plan, contracts = _plan(data)
     nt = _nautilus()
-    usd, money, price_of, quantity = nt["USD"], nt["Money"], nt["Price"], nt["Quantity"]
+    money, price_of, quantity = nt["Money"], nt["Price"], nt["Quantity"]
+    # US dollars with 9 decimals: the built-in USD books whole cents, and a fee of $1.325 per fill
+    # would then drift from the TypeScript ledger by half a cent on every fill.
+    usd = nt["Currency"](LEDGER_CURRENCY, PRECISION, 0, "US dollar (9 decimals, research ledger)",
+                         nt["CurrencyType"].FIAT)
     buy, sell = nt["OrderSide"].BUY, nt["OrderSide"].SELL
     times = data.t
     stamps = [int(round(time)) * NS_PER_MS for time in times]
@@ -155,6 +173,8 @@ def run_academy(data: AcademyInput) -> dict:
     for number, (key, contract) in enumerate(contracts.items(), start=1):
         kind, strike, expiry = key
         expiry_ns = int(round(expiry)) * NS_PER_MS
+        if expiry_ns > MAX_TIMESTAMP_NS:
+            raise InputError("An option expiry after the year 2262 cannot run on Nautilus")
         # Settled by the rules on a bar at or after the expiry: the contract lives until that fill.
         expiration_ns = max(expiry_ns, stamps[contract["settle"]] + MARK)
         symbol = nt["Symbol"](f"{UNDERLYING}-{number}-{'C' if kind == 'call' else 'P'}"
@@ -251,7 +271,8 @@ def run_academy(data: AcademyInput) -> dict:
         def on_order_filled(self, event):
             leg, opening = charges[event.client_order_id]
             shares = leg.qty * (STOCK_LOT if leg.kind == "stock" else 1)
-            if float(event.last_qty) != shares:
+            # int(): float(Quantity) is not exact for every whole number.
+            if int(event.last_qty) != shares:
                 problems.append(f"{leg.label}: filled {event.last_qty} of {shares}")
             self.filled += 1
             # The trade record reports what Nautilus filled.
@@ -287,6 +308,10 @@ def run_academy(data: AcademyInput) -> dict:
     simulation: Simulation = strategy.simulation
     if problems:
         raise RuntimeError(f"nautilus academy backtest: {problems[0]}")
+    if _openings(simulation) != _openings(plan):
+        # The quotes were built for the plan's openings: another bar or contract fills at a quote
+        # that is missing or not the entry quote.
+        raise RuntimeError("the Nautilus run left the modelled plan: a leg opened on another bar or contract")
     if open_positions or simulation.book is not None:
         raise RuntimeError("nautilus academy backtest ended with an open position")
     if strategy.filled != len(charges):

@@ -27,7 +27,7 @@ import pytest
 from nautilus_backtest.academy import engine as academy_engine
 from nautilus_backtest.academy.model import STRUCTURES, js_number, norm_cdf, resolve_rules
 from nautilus_backtest.academy.result import EXIT_REASONS, engine_result
-from nautilus_backtest.academy.simulator import AcademyInput, run_model
+from nautilus_backtest.academy.simulator import AcademyInput, iso_date, run_model
 from nautilus_backtest.bars import InputError
 
 RESEARCH = Path(__file__).resolve().parents[1]
@@ -42,7 +42,8 @@ EQUITY_REL_TOL = 1e-5
 PRICE_REL_TOL = 1e-6
 SHARPE_ABS_TOL = 1e-3
 RETURN_ABS_TOL = 1e-5
-# Nautilus prices have 9 decimals: a fill is at most half a tick from the modelled price.
+# Nautilus prices have 9 decimals: a fill is at most half a tick from the modelled price. The ledger
+# currency has 9 decimals too (engine.LEDGER_CURRENCY), so fees are not rounded to cents.
 HALF_TICK = 0.5e-9
 MONEY_KEYS = ("entryNet", "exitValue", "pnl")
 STOCK_LOT = 100
@@ -144,6 +145,10 @@ def test_rules_and_inputs_are_checked():
 
 def test_javascript_number_text_and_normal_distribution():
     assert [js_number(value) for value in (430.0, 432.5, 2, 0.65, 1.1)] == ["430", "432.5", "2", "0.65", "1.1"]
+    # JavaScript's notation: positional from 1e-6 up to 1e21, else an exponent without padding.
+    assert [js_number(value) for value in (0.00001, 0.000001, 1e-7, 1.5e-7, 1e20, 1e21, 1.25e22, -0.5, 0, 123456789.125)] == [
+        "0.00001", "0.000001", "1e-7", "1.5e-7", "100000000000000000000", "1e+21", "1.25e+22", "-0.5", "0",
+        "123456789.125"]
     assert norm_cdf(0) == 0.5
     assert math.isclose(norm_cdf(1.96), 0.9750021048517795, rel_tol=1e-12)
     assert math.isclose(norm_cdf(-8) + norm_cdf(8), 1.0, rel_tol=1e-12)
@@ -222,8 +227,8 @@ def test_nautilus_run_matches_typescript(case):
         for label, fill, modelled in zip(mine["legs"], mine["legFills"], ported["legFills"], strict=True):
             quantity += _leg_quantity(label)
             for side in ("entry", "exit"):
-                assert (abs(fill[side] - modelled[side]) <= HALF_TICK * 1.01
-                        or _rel(fill[side], modelled[side]) <= PRICE_REL_TOL), (label, side)
+                assert abs(fill[side] - modelled[side]) <= HALF_TICK * 1.01, (label, side)
+                assert _rel(fill[side], modelled[side]) <= PRICE_REL_TOL or modelled[side] < 1e-3, (label, side)
         # The cash of the fills: relative tolerance, or the price grid on a value near zero.
         for key in MONEY_KEYS:
             assert math.isclose(mine[key], theirs[key], rel_tol=PRICE_REL_TOL,
@@ -333,3 +338,55 @@ def test_cli_academy_command_prints_the_academy_result_and_exits_2_on_an_input_e
     failed = _cli("academy", "-", stdin=_request(ERRORS[0]))
     assert failed.returncode == 2
     assert json.loads(failed.stdout) == {"error": ERRORS[0]["error"]}
+
+
+def test_iso_date_is_the_javascript_date_text():
+    day = 86_400_000
+    assert iso_date(0) == "1970-01-01"
+    assert iso_date(1_709_164_800_000) == "2024-02-29"
+    assert iso_date(1_709_164_800_000 + day - 1) == "2024-02-29"
+    assert iso_date(-1) == "1969-12-31"
+    assert iso_date(951_782_400_000) == "2000-02-29"
+    assert iso_date(4_102_444_800_000) == "2100-01-01"
+    # new Date(260_000_000_000_000).toISOString().slice(0, 10) and new Date(-62_200_000_000_000)...
+    assert iso_date(260_000_000_000_000) == "+010209-01"
+    assert iso_date(-62_200_000_000_000) == "-000002-12"
+    assert iso_date(253_402_300_799_999) == "9999-12-31"
+
+
+def test_a_huge_days_to_expiry_runs_in_the_port_and_is_an_input_error_on_nautilus():
+    request = {**_request(RUNS[0]), "structure": "call_debit_spread", "rules": {"dte": 3_000_000}}
+    data = AcademyInput.from_json(request)
+    labels = [leg for trade in run_model(data)["trades"] for leg in trade["legs"]]
+    assert labels and all(label.split()[-1].startswith("+0102") for label in labels)
+    if _installed():
+        with pytest.raises(InputError, match="^An option expiry after the year 2262 cannot run on Nautilus$"):
+            academy_engine.run_academy(data)
+
+
+@needs_nautilus
+def test_nautilus_run_fills_whole_quantities_that_a_float_cannot_hold():
+    """float(Quantity.from_int(950100)) is not 950100.0; the fill check compares whole numbers."""
+    case = next(item for item in RUNS if item["id"] == "covered_call:mid")
+    data = AcademyInput.from_json({**_request(case), "capital": 100_000_000})
+    got = academy_engine.run_academy(data)
+    want = run_model(data)
+    assert [_identity(trade) for trade in got["trades"]] == [_identity(trade) for trade in want["trades"]]
+    assert any("Long 950100 shares" in trade["legs"] for trade in got["trades"])
+    assert max(_rel(a, b) for a, b in zip(got["equity"], want["equity"], strict=True)) <= EQUITY_REL_TOL
+
+
+@needs_nautilus
+def test_nautilus_run_stops_when_it_leaves_the_modelled_plan(monkeypatch):
+    """The quotes exist for the first pass's openings only: another bar or contract is an error."""
+    data = _input(next(item for item in RUNS if item["id"] == "long_call:mid"))
+    real = academy_engine._plan
+
+    def shifted(value):
+        plan, contracts = real(value)
+        plan.opened[0].open_index += 1
+        return plan, contracts
+
+    monkeypatch.setattr(academy_engine, "_plan", shifted)
+    with pytest.raises(RuntimeError, match="left the modelled plan"):
+        academy_engine.run_academy(data)

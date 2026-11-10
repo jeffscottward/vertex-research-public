@@ -319,7 +319,7 @@ export const BacktestRunSpecSchema = z.object({
      * Academy comparison runs only (the dual run of the Academy modelled options backtest): the
      * structure and its resolved rules on the daily closes of `symbol`, with `initialCapital` as
      * the capital. `iv` holds one implied volatility (or null) per bar from `from` to `to`.
-     * Only the Nautilus research worker runs it; `backtestRuns.create` does not accept it.
+     * Only the Nautilus research worker runs it; `backtestRuns.submit` does not accept it.
      */
     z.object({
       iv: z

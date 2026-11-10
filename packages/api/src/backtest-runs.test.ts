@@ -3917,6 +3917,7 @@ describe("engine comparison (dual run)", () => {
         {
           capital: 1000,
           closes: [100, 101],
+          columns: waveColumns(2),
           iv: undefined,
           ivSeries: undefined,
           rules: {},
@@ -3928,6 +3929,20 @@ describe("engine comparison (dual run)", () => {
         { wallMs: 1 }
       )
     ).resolves.toBeUndefined();
+    expect(stored.rows.size).toBe(0);
+
+    // Two stored bars on the first UTC date of the window (the run starts at the second): the
+    // worker's date cut would hold one bar more than this run read, so nothing is queued.
+    const sameDay = waveColumns(1000);
+    sameDay.t[120] = sameDay.t[121] as number;
+    sameDay.t[121] = (sameDay.t[120] as number) + 5 * 3_600_000;
+    const answer = await clientFor({
+      bars: fakeBars({ loadColumns: vi.fn(async () => sameDay) }),
+      comparison: "on",
+      runs: stored,
+    }).academy.backtest(academyInput);
+    expect(answer.data).toMatchObject({ first: "1970-05-02" });
+    expect(answer).not.toHaveProperty("comparison");
     expect(stored.rows.size).toBe(0);
   });
 

@@ -177,6 +177,22 @@ const VARIANTS: readonly CasePlan[] = [
     series: "high",
     structure: "synthetic_long",
   },
+  // The API's smallest capital with many trades and a per-contract fee with half a cent: a ledger
+  // in whole cents drifts from TypeScript by more than the equity tolerance on such runs.
+  {
+    capital: 1000,
+    id: "long_put:low:small-capital",
+    rules: {
+      costPerContract: 0.325,
+      dte: 30,
+      exitDte: 5,
+      profitTakePct: 30,
+      riskPct: 15,
+      stopLossPct: 30,
+    },
+    series: "low",
+    structure: "long_put",
+  },
   {
     bars: 60,
     capital: 100_000,
