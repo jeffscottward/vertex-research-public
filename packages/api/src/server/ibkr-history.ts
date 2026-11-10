@@ -239,6 +239,8 @@ export type PagedHistoryOptions = FetchMarketBarsOptions &
     pacedWaitMs?: number;
     // A paced page whose wait is longer (for example a 600 s pacing-violation back-off) fails at once.
     maxPacedWaitMs?: number;
+    // Retries of an UNAVAILABLE page (default 1); live callers that must not exceed a request budget pass 0.
+    unavailableRetries?: number;
   }>;
 
 // The service shares about 3 requests per minute with /charts and /ticks: 20 pages hold it for ~7 minutes.
@@ -260,7 +262,8 @@ const retryWaitMs = (
   // fetchHistoryBars reports every failure as a MarketDataError.
   const { code, retryAfterSeconds } = error as MarketDataError;
   const base = options.pacedWaitMs ?? 25_000;
-  if (code === "UNAVAILABLE") return attempt < 1 ? base : null;
+  if (code === "UNAVAILABLE")
+    return attempt < (options.unavailableRetries ?? 1) ? base : null;
   if (code !== "PACED" || attempt >= (options.pacedRetries ?? 3)) return null;
   const wait = Math.max(base, (retryAfterSeconds ?? 0) * 1000);
   return wait > (options.maxPacedWaitMs ?? 120_000) ? null : wait;

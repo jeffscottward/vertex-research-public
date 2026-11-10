@@ -461,6 +461,16 @@ describe("fetchHistoryBarsPaged", () => {
     );
     expect(once.bars).toHaveLength(1);
     expect(flaky.urls).toHaveLength(2);
+    const noRetry = recorder(() => down());
+    await expect(
+      fetchHistoryBarsPaged(
+        config,
+        { barSize: "1 hour", duration: "31 D", symbol: "SPY" },
+        1,
+        { fetch: noRetry.fetch, sleep, unavailableRetries: 0 }
+      )
+    ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    expect(noRetry.urls).toHaveLength(1);
     const later = recorder((url, index) =>
       index === 0 ? json(document(url, [bar(t0), bar(t0 + 3600)])) : down()
     );
