@@ -80,11 +80,16 @@ const apiOf = (io: SectorRotationTickIo): Api => ({
   origin: new URL(required(io.env, "VERTEX_ORIGIN")).origin,
 });
 
+// Chat posts and their write-backs run after a collect that may take minutes (IBKR pacing): each gets
+// its own bound so a hanging endpoint cannot hold the run until systemd stops it (TimeoutStartSec).
+const SIDE_REQUEST_TIMEOUT_MS = 10_000;
+
 const callApi = (
   io: SectorRotationTickIo,
   api: Api,
   procedure: string,
-  input: unknown
+  input: unknown,
+  signal?: AbortSignal
 ): Promise<Response> =>
   io.post(`${api.origin}/api/orpc/sectorRotation/${procedure}`, {
     body: JSON.stringify({ json: input }),
@@ -94,6 +99,7 @@ const callApi = (
       "x-api-key": api.apiKey,
     },
     method: "POST",
+    ...(signal === undefined ? {} : { signal }),
   });
 
 const tick = async (
@@ -143,12 +149,18 @@ const writeBack = async (
   let response: Response | undefined;
   let reason = "";
   try {
-    response = await callApi(io, apiOf(io), "recordChatDelivery", {
-      delivery,
-      enteredOn: alert.date,
-      quadrant: alert.to,
-      symbol: alert.symbol,
-    });
+    response = await callApi(
+      io,
+      apiOf(io),
+      "recordChatDelivery",
+      {
+        delivery,
+        enteredOn: alert.date,
+        quadrant: alert.to,
+        symbol: alert.symbol,
+      },
+      AbortSignal.timeout(SIDE_REQUEST_TIMEOUT_MS)
+    );
   } catch (error) {
     reason = `: ${messageOf(error)}`;
   }
@@ -172,6 +184,7 @@ const postChat = async (
       body: JSON.stringify({ channel, text: alert.line }),
       headers: { "content-type": "application/json" },
       method: "POST",
+      signal: AbortSignal.timeout(SIDE_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     return messageOf(error);
