@@ -89,9 +89,6 @@ const healthyDependencies = (
       if (command === "uv") {
         return { exitCode: 0, stdout: "uv 0.11.32\n", stderr: "" };
       }
-      if (command === "graphify") {
-        return { exitCode: 0, stdout: "graphify 0.9.2\n", stderr: "" };
-      }
       if (command === "bunx" && arguments_.includes("portless")) {
         return { exitCode: 0, stdout: "0.15.6\n", stderr: "" };
       }
@@ -360,7 +357,7 @@ describe("doctor", () => {
             if (command === "pnpm" && arguments_.includes("vinext")) {
               return { exitCode: 0, stdout: "", stderr: "" };
             }
-            if (command === "graphify") {
+            if (command === "uv") {
               return { exitCode: 0, stdout: "   \n", stderr: "" };
             }
             return base.process.run(command, arguments_, options);
@@ -436,7 +433,7 @@ describe("doctor", () => {
       healthyDependencies({
         process: {
           run: async (command) => {
-            return command === "graphify"
+            return command === "uv"
               ? {
                   exitCode: 1,
                   stdout: "",
@@ -465,8 +462,7 @@ describe("doctor", () => {
         process: {
           run: async (command, arguments_, options) => {
             calls.push({ command, arguments_: [...arguments_], options });
-            if (command === "graphify")
-              throw new Error("private command failure");
+            if (command === "uv") throw new Error("private command failure");
             if (command === "bunx" && arguments_.includes("portless")) {
               return { exitCode: 0, stdout: oversized, stderr: "" };
             }

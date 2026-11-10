@@ -58,7 +58,7 @@ plan → contract → failing test → implement → bun run verify:prepush → 
 - **PR:** done when the eight required checks pass: the four CI lanes `Verification (core)`, `Verification (coverage)`, `Verification (integration)` and `Verification (browser)`, plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
 - **Exact-SHA evidence** is required only for a release or deploy. Dispatch `ci.yml` on the exact commit and confirm the run's `head_sha` before deploying ([docs/deploy.md](docs/deploy.md#release-checklist)).
 
-Graphify is optional: `bun run graph:build` builds a local graph for navigation. It is never committed or required.
+Graphify is optional: `bun run graph:build` builds a local graph for navigation. It is never committed or required. The wrapper always runs the Graphify pinned in `scripts/graph/requirements.lock` from a hash-locked venv in `${XDG_CACHE_HOME:-~/.cache}/darkfactory/graphify/`, never a `graphify` on `PATH`; it builds the venv with `uv` on first use, which needs network access for Python 3.12 and the locked wheels (one venv per lock, shared by all worktrees; delete it to force a rebuild). A relative `XDG_CACHE_HOME` is ignored.
 
 ## Agent roles
 
