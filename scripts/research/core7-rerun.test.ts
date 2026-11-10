@@ -22,6 +22,12 @@ import {
   rerunOnCore7,
   runCore7RerunCli,
 } from "./core7-rerun.ts";
+import { fakeNautilus } from "./dsl-engine.test-support.ts";
+import {
+  NAUTILUS_ENGINE_ID,
+  nautilusEngine,
+  TYPESCRIPT_ENGINE_ID,
+} from "./dsl-engine.ts";
 import {
   type LibraryDoc,
   type LibraryStrategy,
@@ -221,6 +227,8 @@ describe("re-run assembly", () => {
     });
     expect(results).toMatchObject({
       costBps: 10,
+      engine: TYPESCRIPT_ENGINE_ID,
+      engineParity: null,
       generated: "2026-11-03T00:00:00.000Z",
       promoted: [],
       researchOnly: true,
@@ -248,15 +256,54 @@ describe("re-run assembly", () => {
       buildCore7Results(sample, texts(), { files: noFile, generated: "g" })
     ).toThrow("missing manifest for CL=F");
   });
+
+  it("runs every daily DSL job on Nautilus in one batch per symbol", () => {
+    const nautilus = fakeNautilus();
+    const results = buildCore7Results(
+      sample,
+      texts(),
+      { files: files(), generated: "g" },
+      (jobs) =>
+        nautilusEngine(jobs, { ...nautilus, python: "py", root: "/repo" })
+    );
+    const typescript = buildCore7Results(sample, texts(), {
+      files: files(),
+      generated: "g",
+    });
+    expect(nautilus.calls).toHaveLength(core7Symbols().length);
+    expect(nautilus.calls[0]?.args.slice(0, 3)).toEqual([
+      "-m",
+      "nautilus_backtest",
+      "batch",
+    ]);
+    expect(nautilus.calls[0]).toMatchObject({
+      cwd: "/repo/services/research",
+      python: "py",
+    });
+    expect(results.engine).toBe(NAUTILUS_ENGINE_ID);
+    expect(results.engineParity).toMatchObject({
+      against: TYPESCRIPT_ENGINE_ID,
+      jobs: core7Symbols().length,
+      maxEquityRel: 0,
+      pass: core7Symbols().length,
+    });
+    return expect(results.strategies).toEqual(typescript.strategies);
+  });
 });
 
 describe("CLI", () => {
   const io = (root: string, out: string[]) => ({
+    defaultPython: "venv-python",
+    nautilus,
     now: () => new Date("2026-11-03T12:00:00.000Z"),
     root,
     sha256: (text: string) => `sha:${text.length}`,
     stderr: { write: (text: string) => out.push(text) },
     stdout: { write: (text: string) => out.push(text) },
+  });
+  let nautilus = fakeNautilus();
+  afterEach(() => {
+    nautilus = fakeNautilus();
   });
 
   it("rejects bad arguments", async () => {
@@ -265,10 +312,24 @@ describe("CLI", () => {
     expect(await runCore7RerunCli(["--bogus", "x"], io(tempDir(), out))).toBe(
       2
     );
+    const data = ["--data", tempDir()];
+    for (const extra of [
+      ["--engine", "ts"],
+      ["--python"],
+      ["--engine"],
+      ["--data", "again"],
+    ])
+      expect(
+        await runCore7RerunCli([...data, ...extra], io(tempDir(), out))
+      ).toBe(2);
     return expect(out.join("")).toContain("usage: bun run research:core7");
   });
 
-  it("reads the data directory and writes rerun-results.json", async () => {
+  const setup = (): Readonly<{
+    root: string;
+    data: string;
+    manifest: string;
+  }> => {
     const root = tempDir();
     const data = tempDir();
     mkdirSync(join(root, RESEARCH_DIR), { recursive: true });
@@ -291,17 +352,76 @@ describe("CLI", () => {
         manifest
       );
     }
+    return { data, manifest, root };
+  };
+
+  it("reads the data directory and writes rerun-results.json (Nautilus by default)", async () => {
+    const { data, manifest, root } = setup();
     const out: string[] = [];
     expect(await runCore7RerunCli(["--data", data], io(root, out))).toBe(0);
-    expect(out.join("")).toBe(`wrote ${RESULTS_PATH}\n`);
+    expect(out.join("")).toBe(
+      `wrote ${RESULTS_PATH} (${NAUTILUS_ENGINE_ID})\n`
+    );
+    expect(nautilus.calls[0]?.python).toBe("venv-python");
     const written = JSON.parse(
       await readFile(join(root, RESULTS_PATH), "utf8")
     );
     expect(written.generated).toBe("2026-11-03T12:00:00.000Z");
+    expect(written.engine).toBe(NAUTILUS_ENGINE_ID);
+    expect(written.engineParity.pass).toBe(written.engineParity.jobs);
     return expect(written.data.symbols.SPY).toMatchObject({
       manifestSha256: `sha:${manifest.length}`,
       normalizedSha256: sha("d"),
       sourceSha256: sha("e"),
     });
+  });
+
+  it("keeps the TypeScript engine behind --engine typescript", async () => {
+    const { data, root } = setup();
+    const out: string[] = [];
+    expect(
+      await runCore7RerunCli(
+        ["--engine", "typescript", "--data", data],
+        io(root, out)
+      )
+    ).toBe(0);
+    expect(nautilus.calls).toHaveLength(0);
+    const written = JSON.parse(
+      await readFile(join(root, RESULTS_PATH), "utf8")
+    );
+    return expect(written).toMatchObject({
+      engine: TYPESCRIPT_ENGINE_ID,
+      engineParity: null,
+    });
+  });
+
+  it("prints one line with a hint when the Nautilus batch cannot run", async () => {
+    const { data, root } = setup();
+    const out: string[] = [];
+    expect(
+      await runCore7RerunCli(
+        ["--data", data, "--python", "missing"],
+        io(root, out)
+      )
+    ).toBe(1);
+    expect(out.join("")).toContain(
+      "nautilus batch failed (spawnSync missing ENOENT); pass --python"
+    );
+    return expect(readFile(join(root, RESULTS_PATH), "utf8")).rejects.toThrow();
+  });
+
+  it("writes nothing when Nautilus is outside the parity tolerance", async () => {
+    const { data, root } = setup();
+    nautilus = fakeNautilus({ scale: 1.001 });
+    const out: string[] = [];
+    expect(
+      await runCore7RerunCli(
+        ["--data", data, "--python", "/v/bin/python"],
+        io(root, out)
+      )
+    ).toBe(1);
+    expect(nautilus.calls[0]?.python).toBe("/v/bin/python");
+    expect(out.join("")).toContain("Nautilus differs from");
+    return expect(readFile(join(root, RESULTS_PATH), "utf8")).rejects.toThrow();
   });
 });

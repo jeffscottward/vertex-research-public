@@ -127,7 +127,7 @@ def test_run_spec_record_has_engine_field_and_matches_stdlib():
 
 # Error paths (no Nautilus needed)
 
-def test_package_imports_without_nautilus_and_stdlib_stays_default(monkeypatch):
+def test_package_imports_without_nautilus_and_stdlib_stays_selectable(monkeypatch):
     monkeypatch.setitem(sys.modules, "nautilus_trader", None)  # import now raises ImportError
     simulate, engine_id = backtest.select_engine("stdlib")
     assert simulate is engine.simulate and engine_id == engine.ENGINE_ID == "stdlib-daily-v1"
@@ -148,20 +148,41 @@ def test_wrong_nautilus_version_is_refused(monkeypatch):
         nautilus_engine.require()
 
 
-def test_cli_reports_missing_engine_and_writes_nothing(monkeypatch, tmp_path, capsys):
-    monkeypatch.setitem(sys.modules, "nautilus_trader", None)
-    monkeypatch.setenv("QUANTLAB_HOME", str(tmp_path / "home"))
+# Validation windows that fit the synthetic bars (2001 to about 2012), as in the run_spec test above.
+SHORT_VALIDATION = {**DRAFT["validation"], "in_sample_end": "2006-12-31",
+                    "walk_forward": {"train_years": 3, "test_years": 2, "lookback_grid": [3, 6], "objective": "sharpe"}}
+
+
+def _cli_inputs(tmp_path, n=40):
     csv = tmp_path / "bars.csv"
     rows = ["date,open,high,low,close,adj_close,volume"] + [
-        f"{x.date},{x.open:.6f},{x.open:.6f},{x.open:.6f},{x.close:.6f},{x.adj_close:.6f},0" for x in bars(40)]
+        f"{x.date},{x.open:.6f},{x.open:.6f},{x.open:.6f},{x.close:.6f},{x.adj_close:.6f},0" for x in bars(n)]
     csv.write_text("\n".join(rows) + "\n")
     manifest = {"symbol": "SYN", "source": "synthetic", "path": str(csv),
                 "sha256": hashlib.sha256(csv.read_bytes()).hexdigest()}
     (tmp_path / "bars.json").write_text(json.dumps(manifest))
-    spec = build_spec(capture_from_crossref(ITEM, topic="t", captured_at="2026-10-18T00:00:00Z").to_dict(), DRAFT)
+    spec = build_spec(capture_from_crossref(ITEM, topic="t", captured_at="2026-10-18T00:00:00Z").to_dict(),
+                      {**DRAFT, "validation": SHORT_VALIDATION})
     (tmp_path / "spec.json").write_text(json.dumps(spec))
-    code = cli.main(["backtest", "--spec", str(tmp_path / "spec.json"), "--bars", str(tmp_path / "bars.json"),
-                     "--engine", "nautilus"])
+    return ["backtest", "--spec", str(tmp_path / "spec.json"), "--bars", str(tmp_path / "bars.json")]
+
+
+@pytest.mark.parametrize("engine_args", [["--engine", "nautilus"], []], ids=["explicit", "default"])
+def test_cli_reports_missing_engine_and_writes_nothing(monkeypatch, tmp_path, capsys, engine_args):
+    # Nautilus is the CLI default since 2026-11-08 (switch plan step 3), so a bare run needs it too.
+    monkeypatch.setitem(sys.modules, "nautilus_trader", None)
+    monkeypatch.setenv("QUANTLAB_HOME", str(tmp_path / "home"))
+    code = cli.main(_cli_inputs(tmp_path) + engine_args)
     assert code == 2
-    assert "not installed" in json.loads(capsys.readouterr().err)["error"]
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert "not installed" in error and "--engine stdlib" in error
     assert not (tmp_path / "home" / "results").exists()
+
+
+def test_cli_stdlib_engine_still_runs_without_nautilus(monkeypatch, tmp_path, capsys):
+    monkeypatch.setitem(sys.modules, "nautilus_trader", None)
+    monkeypatch.setenv("QUANTLAB_HOME", str(tmp_path / "home"))
+    assert cli.main(_cli_inputs(tmp_path, n=3000) + ["--engine", "stdlib"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["engine"] == "stdlib-daily-v1"
+    assert not Path(out["written"]).name.endswith("-stdlib.json")  # stored names stay as before

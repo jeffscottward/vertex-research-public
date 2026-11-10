@@ -62718,7 +62718,9 @@
                                     "enum": [
                                       "instant",
                                       "sweep",
-                                      "autopilotGate"
+                                      "autopilotGate",
+                                      "setupReplay",
+                                      "paperForward"
                                     ],
                                     "type": "string"
                                   },
@@ -63124,6 +63126,11 @@
                               },
                               "initialCapital": {
                                 "type": "number"
+                              },
+                              "maxHoldBars": {
+                                "maximum": 9007199254740991,
+                                "minimum": 1,
+                                "type": "integer"
                               },
                               "rule": {
                                 "anyOf": [
@@ -68065,7 +68072,9 @@
                               "enum": [
                                 "instant",
                                 "sweep",
-                                "autopilotGate"
+                                "autopilotGate",
+                                "setupReplay",
+                                "paperForward"
                               ],
                               "type": "string"
                             },
@@ -68471,6 +68480,11 @@
                         },
                         "initialCapital": {
                           "type": "number"
+                        },
+                        "maxHoldBars": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
                         },
                         "rule": {
                           "anyOf": [
@@ -71806,7 +71820,9 @@
                               "enum": [
                                 "instant",
                                 "sweep",
-                                "autopilotGate"
+                                "autopilotGate",
+                                "setupReplay",
+                                "paperForward"
                               ],
                               "type": "string"
                             },
@@ -72212,6 +72228,11 @@
                         },
                         "initialCapital": {
                           "type": "number"
+                        },
+                        "maxHoldBars": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
                         },
                         "rule": {
                           "anyOf": [
@@ -75365,7 +75386,9 @@
               "enum": [
                 "instant",
                 "sweep",
-                "autopilotGate"
+                "autopilotGate",
+                "setupReplay",
+                "paperForward"
               ],
               "type": "string"
             }
@@ -75414,7 +75437,9 @@
                                 "enum": [
                                   "instant",
                                   "sweep",
-                                  "autopilotGate"
+                                  "autopilotGate",
+                                  "setupReplay",
+                                  "paperForward"
                                 ],
                                 "type": "string"
                               },
@@ -76475,7 +76500,9 @@
                                             "enum": [
                                               "instant",
                                               "sweep",
-                                              "autopilotGate"
+                                              "autopilotGate",
+                                              "setupReplay",
+                                              "paperForward"
                                             ],
                                             "type": "string"
                                           },
@@ -76881,6 +76908,11 @@
                                       },
                                       "initialCapital": {
                                         "type": "number"
+                                      },
+                                      "maxHoldBars": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 1,
+                                        "type": "integer"
                                       },
                                       "rule": {
                                         "anyOf": [
@@ -78189,7 +78221,9 @@
                                       "enum": [
                                         "instant",
                                         "sweep",
-                                        "autopilotGate"
+                                        "autopilotGate",
+                                        "setupReplay",
+                                        "paperForward"
                                       ],
                                       "type": "string"
                                     },
@@ -78595,6 +78629,11 @@
                                 },
                                 "initialCapital": {
                                   "type": "number"
+                                },
+                                "maxHoldBars": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 1,
+                                  "type": "integer"
                                 },
                                 "rule": {
                                   "anyOf": [
@@ -160628,6 +160667,54 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "comparison": {
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "host": {
+                          "type": "string"
+                        },
+                        "reused": {
+                          "type": "boolean"
+                        },
+                        "superseded": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "wallMs": {
+                          "anyOf": [
+                            {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "wallNote": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "groupId",
+                        "host",
+                        "wallMs"
+                      ],
+                      "type": "object"
+                    },
                     "monteCarlo": {
                       "anyOf": [
                         {

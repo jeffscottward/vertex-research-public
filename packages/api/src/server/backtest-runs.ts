@@ -407,7 +407,8 @@ const executeClaimed = async (
     BACKTEST_RUN_SUPPORT,
     daily === null
       ? undefined
-      : strategySeriesInput(definition, spec.symbol, daily.rows)
+      : strategySeriesInput(definition, spec.symbol, daily.rows),
+    spec.maxHoldBars
   );
   await dependencies.runs.complete(run.id, {
     ...buildBacktestRunReport(

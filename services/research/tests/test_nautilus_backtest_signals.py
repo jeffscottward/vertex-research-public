@@ -330,6 +330,16 @@ def test_plan_run_atr_expansion_uses_definition_levels() -> None:
     assert options.risk_pct == 1
     assert options.stop_loss_pct == 0 and options.take_profit_pct == 0
     assert compiled.stop_distance is not None and compiled.target_distance is not None
+    assert options.max_hold_bars is None
+
+
+def test_plan_run_passes_max_hold_bars_for_dsl_rules() -> None:
+    """Setup replay sends maxHoldBars (the runStrategyDefinition time exit) with a DSL rule."""
+    spec = next(c for c in ENGINE if c["id"] == "template:atrExpansion:custom-atr:SPY")["spec"]
+    _, options = sig.plan_run(bars_of("SPY"), {**spec, "maxHoldBars": 7})
+    assert options.max_hold_bars == 7
+    with pytest.raises(InputError, match="maxHoldBars must be a whole number of at least 1"):
+        sig.plan_run(bars_of("SPY"), {**spec, "maxHoldBars": 0})
 
 
 def test_schema_defaults_are_applied() -> None:

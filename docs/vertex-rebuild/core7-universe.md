@@ -121,14 +121,17 @@ Rows are the bars in the import file, after dropped rows. All 14 import files pa
 3. Re-run the strategy library:
 
    ```sh
-   bun run research:core7 -- --data ~/Documents/reports/vertex-core7/data
+   bun run research:core7 -- --data ~/Documents/reports/vertex-core7/data \
+     --python ~/.local/share/vertex/nautilus-venv/bin/python
    ```
 
-   This writes `research/backtests/core7/rerun-results.json`. The logic is in `scripts/research/core7-rerun.ts`.
+   This writes `research/backtests/core7/rerun-results.json`. The logic is in `scripts/research/core7-rerun.ts`. The engine is NautilusTrader 1.227.0 by default (switch plan step 3 in [nautilus-backtest-engine.md](nautilus-backtest-engine.md#switch-plan)); `--python` (or `VERTEX_NAUTILUS_PYTHON`) is a virtual environment with `services/research/requirements-nautilus-linux-py312.lock`. The run also runs every job on the TypeScript engine and writes nothing when a unit-equity difference is above 0.00001 (`engineParity` in the file). `--engine typescript` keeps the TypeScript engine.
 
 4. Format the two JSON files before a commit (the repository formatter checks JSON): `bunx --bun --no-install biome format --write research/backtests/core7/`.
 
 ## Re-run results (2026-11-04)
+
+Re-run on NautilusTrader 1.227.0 on 2026-11-08 (switch plan step 3): all 112 strategy and symbol runs match the TypeScript engine within 0.00001 unit equity (largest difference 7.2e-7). Against the 2026-11-04 TypeScript figures the largest differences are 2.6e-7 Sharpe, 1.9e-7 total return, 4.5e-8 max drawdown and 1.8e-8 CAGR, so the tables below are unchanged.
 
 Strategies: the 9 entries of `research/backtests/quantjourney/library.json` with a Vertex DSL definition. 8 are daily and run on every member of both universes. W09 is an hourly definition and is not run, because the Core 7 data set is daily only. The other 41 strategies need the QuantJourney adapter (fixed ticker lists) and are not re-run on Core 7.
 

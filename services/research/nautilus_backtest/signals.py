@@ -2656,10 +2656,12 @@ def plan_run(
 
     "dsl" rules work like runStrategyDefinition: percent stop and target, ATR distances, riskPct
     sizing and the exit mask come from the definition (spec stopLossPct/takeProfitPct are
-    ignored). Fixed rules work like runInstantBacktest with the spec stop and target. Like the
-    TypeScript server engine it refuses (StrategyUnsupportedError) an options block always, and
-    filters and expressions that read series unless `support["series"]` (default: when the spec
-    has a "context"); then the spec "context", "symbol" and "calendar" are the series input.
+    ignored); optional "maxHoldBars" closes a position at the next open after that many bars, as
+    the runStrategyDefinition option of the same name (setup replay uses it). Fixed rules work like
+    runInstantBacktest with the spec stop and target. Like the TypeScript server engine it refuses
+    (StrategyUnsupportedError) an options block always, and filters and expressions that read
+    series unless `support["series"]` (default: when the spec has a "context"); then the spec
+    "context", "symbol" and "calendar" are the series input.
     """
     rule = spec["rule"]
     cost_bps = spec.get("costBps", 0)
@@ -2695,6 +2697,7 @@ def plan_run(
             risk_pct=sizing["riskPct"] if sizing["mode"] == "riskPct" else None,
             max_leverage=sizing.get("maxLeverage") if sizing["mode"] == "riskPct" else None,
             side=definition["side"],
+            max_hold_bars=spec.get("maxHoldBars"),
         )
         size = assert_columns(bars)
     else:
