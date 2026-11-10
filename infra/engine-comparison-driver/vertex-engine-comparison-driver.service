@@ -1,0 +1,22 @@
+# Vertex engine comparison driver (research only: instant backtests, one sweep and research
+# Autopilot campaign ticks on stored bars through the Vertex API, then the comparison report page;
+# no broker, order or deployment calls). Install on the rig: copy this file and the .timer to
+# ~/.config/systemd/user/, copy vertex-engine-comparison-driver-run to ~/.local/bin/ (mode 0755) and run
+# systemctl --user daemon-reload && systemctl --user enable --now vertex-engine-comparison-driver.timer
+# Environment file (nonsecret values only, mode 0600): VERTEX_ORIGIN, VERTEX_DRIVER_KEY_FILE (path of
+# the operator write key file), VERTEX_DRIVER_CAMPAIGN_ID, VERTEX_DRIVER_CAMPAIGN_TICKS,
+# VERTEX_DRIVER_REPORT_OUT, VERTEX_DRIVER_RUNNER_DIR. The wrapper changes to the runner checkout.
+[Unit]
+Description=Vertex engine comparison driver (research only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/vertex/engine-comparison-driver.env
+ExecStart=%h/.local/bin/vertex-engine-comparison-driver-run
+# Nine instant runs each wait for the worker's claim (at most 15 min each when it is slow), the
+# campaign ticks, a 10 min wait for the batch and the report.
+TimeoutStartSec=5400
+Nice=10
+NoNewPrivileges=yes

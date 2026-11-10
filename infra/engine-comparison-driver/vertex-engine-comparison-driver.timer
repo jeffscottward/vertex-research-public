@@ -1,0 +1,13 @@
+# Runs the engine comparison driver once a day at 06:15 New York time (outside market hours, so
+# the research worker and QuantVPS web are quiet). The driver waits out the API's 24-hour reuse
+# window itself, so a slightly early start still records a new group.
+[Unit]
+Description=Vertex engine comparison driver timer (research only)
+
+[Timer]
+OnCalendar=*-*-* 06:15:00 America/New_York
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

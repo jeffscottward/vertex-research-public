@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Daily engine comparison driver (research only, no orders): runs the fixed instant backtests, the
+# sweep and the research Autopilot campaign ticks through the Vertex API with an operator WRITE key
+# (scripts/engine-comparison-driver/driver.ts), waits for the rig research worker to finish them,
+# then rebuilds the "current engine vs Nautilus" report page when the runner checkout has it.
+# The key is read from its 0600 file and never printed. See README.md in this folder.
+set -euo pipefail
+cd "${VERTEX_DRIVER_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-driver-runner}"
+# The bun version is the pin of the runner checkout (.bun-version), installed by mise.
+BUN="$HOME/.local/share/mise/installs/bun/$(tr -d '[:space:]' < .bun-version)/bin"
+if [[ ! -x "$BUN/bun" ]]; then
+  echo "vertex-engine-comparison-driver-run: the pinned bun is not installed ($BUN/bun); run mise install in $PWD" >&2
+  exit 127
+fi
+export PATH="$BUN:/usr/local/bin:/usr/bin:/bin"
+KEYF="${VERTEX_DRIVER_KEY_FILE:-}"
+if [[ -z "${VERTEX_ORIGIN:-}" || -z "$KEYF" || ! -r "$KEYF" ]]; then
+  echo "vertex-engine-comparison-driver-run: VERTEX_ORIGIN and a readable VERTEX_DRIVER_KEY_FILE (operator write key) are required" >&2
+  exit 2
+fi
+VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
+export VERTEX_AGENT_API_KEY
+rc=0
+"$BUN/bun" --no-env-file scripts/vertex-engine-comparison-driver.ts || rc=$?
+unset VERTEX_AGENT_API_KEY
+OUT="${VERTEX_DRIVER_REPORT_OUT:-}"
+if [[ -z "$OUT" ]]; then
+  echo "vertex-engine-comparison-driver-run: VERTEX_DRIVER_REPORT_OUT not set; report not rebuilt"
+  exit "$rc"
+fi
+if ! grep -q '"vertex:engine-comparison-report"' package.json; then
+  echo "vertex-engine-comparison-driver-run: this checkout has no vertex:engine-comparison-report script; report not rebuilt" >&2
+  exit 3
+fi
+# The sweep cells and gate runs are claimed in batches; give the worker time before the report.
+sleep "${VERTEX_DRIVER_REPORT_WAIT_S:-600}"
+report_rc=0
+VERTEX_AGENT_KEY_FILE="$KEYF" "$BUN/bun" run vertex:engine-comparison-report -- --out "$OUT" || report_rc=$?
+if [[ "$rc" -eq 0 ]]; then rc=$report_rc; fi
+exit "$rc"

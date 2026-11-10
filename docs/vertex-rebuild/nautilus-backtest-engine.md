@@ -69,6 +69,8 @@ No flooding: the instant backtest and the sweep page run again on every form cha
 
 Only a caller that may write queues comparison runs: an operator session or a write-access agent key. `backtestRuns.sweep` is a read procedure, so a read-access key or a read-only agent viewer gets the TypeScript result without `comparison` and nothing is queued.
 
+Daily driver (owner choice 2026-11-10, after no instant or gate comparison was recorded from 2026-11-06 to 2026-11-10): a rig timer runs a fixed set of instant backtests and one sweep once a day with an operator write key, ticks one research Autopilot campaign so the gate is compared, and rebuilds the report page. See [infra/engine-comparison-driver](../../infra/engine-comparison-driver/README.md).
+
 | Feature | What is repeated | Cap |
 | --- | --- | --- |
 | Instant backtest | The run over the whole stored series (`from` and `to` are the first and last bar dates) | One run per request |
