@@ -43,6 +43,18 @@ https://__TS_HOST__:8443 {
   handle @status_v1_caller {
     reverse_proxy 127.0.0.1:8790
   }
+  # Research lenses v1 (static JSON pushed by the rig to /opt/vertex-status/private-v2/research-lenses):
+  # the rig and this VPS's own tailnet addresses (Vertex web reads them), bearer VERTEX_STATUS_TOKEN.
+  @lens_caller {
+    remote_ip __RIG_IP__ __TS_IP__
+    path /vertex-research-lenses/v1/*
+    header Authorization "Bearer {$VERTEX_STATUS_TOKEN}"
+  }
+  handle @lens_caller {
+    root * /srv/research-lenses
+    uri strip_prefix /vertex-research-lenses/v1
+    file_server
+  }
   @not_rig not remote_ip __RIG_IP__
   handle @not_rig {
     respond "forbidden" 403
