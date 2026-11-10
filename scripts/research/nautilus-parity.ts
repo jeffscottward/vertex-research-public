@@ -40,7 +40,8 @@ export const PERIODS = [
 ] as const;
 const COST_BPS = 10;
 const PROFILE_CAPITAL = 100_000;
-const DEFAULT_CAPITAL = 1_000_000;
+/** Run capital of every case without a cost profile; dsl-engine.ts uses it too. */
+export const DEFAULT_CAPITAL = 1_000_000;
 
 /** Pass limits per case. Prices and equity are relative; Sharpe and drawdown are absolute. */
 export const TOLERANCES = {

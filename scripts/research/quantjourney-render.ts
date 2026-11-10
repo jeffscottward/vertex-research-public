@@ -139,6 +139,11 @@ const resultsSummary = (library: LibraryDoc, results: ResultsDoc): string => {
     `- Entries: ${library.count}. Re-run: ${run.length}. Not re-run: ${results.strategies.length - run.length} (intraday windows Yahoo no longer serves, or adapter errors).`,
     `- Reproduction (QuantJourney engine on Vertex data versus the published dashboards): ${flagged.length} of ${run.length} re-runs have at least one flag.`,
     `- Gates (${results.trials} trials, Vertex cost ${results.vertexCostBps} bp per side): ${passed.length} pass. Nothing is promoted to paper.`,
+    ...(results.engine === undefined
+      ? []
+      : [
+          `- Vertex re-run engine: \`${results.engine}\`${results.engineParity ? ` (each job also run on \`${results.engineParity.against}\`: ${results.engineParity.pass} of ${results.engineParity.jobs} within ${results.engineParity.equityRelTolerance} unit-equity difference, largest ${results.engineParity.maxEquityRel.toExponential(1)})` : ""}.`,
+        ]),
     `- Highest deflated Sharpe probability among daily re-runs with a positive Sharpe: ${ranked.map((r) => `${r.id} ${cell(r.name)} (${num(r.probability, 3)}; Sharpe ${num(r.summary.sharpe)}; ${years(r.summary)} years)`).join("; ")}.`,
     ...(duplicates.length === 0
       ? []
@@ -190,7 +195,8 @@ const REGENERATE = [
   "uv run --no-project --python 3.12 --with yfinance==0.2.66 python research/backtests/quantjourney/fetch_data.py --out ~/Documents/reports/vertex-quantsmd/data",
   "cd /tmp && uv run --project ~/Github/tools/quantjourney-bt --frozen --extra wf python <repo>/research/backtests/quantjourney/qj_adapter.py --clone ~/Github/tools/quantjourney-bt --data ~/Documents/reports/vertex-quantsmd/data --out ~/Documents/reports/vertex-quantsmd/runs",
   "# the same command again with --cost-bps 10 for the Vertex cost case",
-  "bun run research:quantjourney -- --rerun --data ~/Documents/reports/vertex-quantsmd/data --runs ~/Documents/reports/vertex-quantsmd/runs",
+  "# NautilusTrader by default: --python (or VERTEX_NAUTILUS_PYTHON) is a venv with services/research/requirements-nautilus-linux-py312.lock; --engine typescript keeps the TypeScript engine",
+  "bun run research:quantjourney -- --rerun --data ~/Documents/reports/vertex-quantsmd/data --runs ~/Documents/reports/vertex-quantsmd/runs --python ~/.local/share/vertex/nautilus-venv/bin/python",
   "bunx --bun --no-install biome format --write research/backtests/quantjourney/results.json",
   "```",
   "",

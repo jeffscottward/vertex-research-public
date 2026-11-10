@@ -15,6 +15,7 @@ Research only. No strategy in this file creates, routes or simulates broker orde
 - Entries: 50. Re-run: 46. Not re-run: 4 (intraday windows Yahoo no longer serves, or adapter errors).
 - Reproduction (QuantJourney engine on Vertex data versus the published dashboards): 2 of 46 re-runs have at least one flag.
 - Gates (50 trials, Vertex cost 10 bp per side): 0 pass. Nothing is promoted to paper.
+- Vertex re-run engine: `nautilus-trader-1.227.0` (each job also run on `instant-2`: 39 of 39 within 0.00001 unit-equity difference, largest 1.8e-7).
 - Highest deflated Sharpe probability among daily re-runs with a positive Sharpe: W25 Continuous Futures Trend Proxy (0.494; Sharpe 0.88; 6.7 years); W05 Monthly Inverse Volatility (0.189; Sharpe 0.68; 19.0 years); O17 Monthly Rotation (orders) (0.148; Sharpe 0.65; 19.0 years); W18 Vol-Targeted Momentum (0.140; Sharpe 0.63; 19.0 years); O20 Futures Donchian Contracts (0.124; Sharpe 0.45; 6.7 years).
 - Identical re-run series: O01 = O18; WF01 = WF02. Each still counts as one of the 50 trials, which makes the deflation stricter.
 
@@ -144,7 +145,7 @@ Rules are Vertex summaries of each strategy file; read the file before you rely 
 
 ## QuantJourney published versus Vertex re-run
 
-Data: Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py); manifest SHA-256 `c5b0bc57b0ff44e4a5a93bdb468dea65932335905a1e08fdb4d304ebb376c936`; generated 2026-10-31. Published and engine columns: total return / Sharpe (QuantJourney definition) / maximum drawdown. Vertex columns: CAGR / Sharpe (risk-free 0) / maximum drawdown.
+Data: Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py); manifest SHA-256 `c5b0bc57b0ff44e4a5a93bdb468dea65932335905a1e08fdb4d304ebb376c936`; generated 2026-11-08. Published and engine columns: total return / Sharpe (QuantJourney definition) / maximum drawdown. Vertex columns: CAGR / Sharpe (risk-free 0) / maximum drawdown.
 
 |ID|QuantJourney published|QuantJourney engine on Vertex data|Adapter, Vertex cost|Vertex DSL|Flags|
 |---|---|---|---|---|---|
@@ -268,7 +269,8 @@ Data: Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_d
 uv run --no-project --python 3.12 --with yfinance==0.2.66 python research/backtests/quantjourney/fetch_data.py --out ~/Documents/reports/vertex-quantsmd/data
 cd /tmp && uv run --project ~/Github/tools/quantjourney-bt --frozen --extra wf python <repo>/research/backtests/quantjourney/qj_adapter.py --clone ~/Github/tools/quantjourney-bt --data ~/Documents/reports/vertex-quantsmd/data --out ~/Documents/reports/vertex-quantsmd/runs
 # the same command again with --cost-bps 10 for the Vertex cost case
-bun run research:quantjourney -- --rerun --data ~/Documents/reports/vertex-quantsmd/data --runs ~/Documents/reports/vertex-quantsmd/runs
+# NautilusTrader by default: --python (or VERTEX_NAUTILUS_PYTHON) is a venv with services/research/requirements-nautilus-linux-py312.lock; --engine typescript keeps the TypeScript engine
+bun run research:quantjourney -- --rerun --data ~/Documents/reports/vertex-quantsmd/data --runs ~/Documents/reports/vertex-quantsmd/runs --python ~/.local/share/vertex/nautilus-venv/bin/python
 bunx --bun --no-install biome format --write research/backtests/quantjourney/results.json
 ```
 
