@@ -1,9 +1,9 @@
 [Unit]
-Description=Rotation matrix after the US close (weekdays 16:40 and 18:30 local) and at boot
+Description=Rotation matrix after the US close (weekdays 16:40 and 18:30 New York time) and at boot
 
 [Timer]
-OnCalendar=Mon..Fri 16:40
-OnCalendar=Mon..Fri 18:30
+OnCalendar=Mon..Fri *-*-* 16:40:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 18:30:00 America/New_York
 OnBootSec=10min
 Persistent=true
 

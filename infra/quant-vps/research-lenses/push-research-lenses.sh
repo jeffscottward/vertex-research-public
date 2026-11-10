@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Push the rig research-lens documents to the QuantVPS tailnet file root (read-only lens data).
-# Runs on omarchy-rig. Sources: vertex-research-public scripts/research-lenses data jobs. No credentials are read or written.
+# Runs on dev-rig. Sources: vertex-research-public scripts/research-lenses data jobs. No credentials are read or written.
 # Target: /opt/vertex-status/private-v2/research-lenses/ (mounted read-only into vertex-status-tailnet
 # as /srv/research-lenses and served at :8443/vertex-research-lenses/v1/*).
 set -euo pipefail

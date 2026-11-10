@@ -64,6 +64,23 @@ describe("research-lens rig units", () => {
     expect(argAfter(deepValue, "--rotation")).toBe(rotationLatest);
   });
 
+  it("run deep value after the rotation matrix job when both are queued", () => {
+    expect(read("./vertex-deep-value.service")).toMatch(
+      /^After=.*\bvertex-rotation-matrix\.service\b/mu
+    );
+  });
+
+  it("use the bun version the repo pins", () => {
+    const pinned = JSON.parse(
+      readFileSync(join(repoRoot, "package.json"), "utf8")
+    ).engines.bun;
+    for (const argv of [rotation, deepValue]) {
+      expect(argv[0]).toBe(
+        `%h/.local/share/mise/installs/bun/${pinned}/bin/bun`
+      );
+    }
+  });
+
   it("push exactly the documents the collectors write", () => {
     const watched = read("./vertex-research-lenses-push.path")
       .split("\n")
@@ -123,8 +140,18 @@ describe("vertex-research-lenses-fetch", () => {
     }
   });
 
+  // No developer or hook git state: no global/system config, no inherited GIT_DIR/GIT_INDEX_FILE.
+  const gitEnv = {
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    PATH: process.env["PATH"] ?? "",
+  };
   const git = (cwd: string, ...args: string[]): void => {
-    const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+    const result = spawnSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      env: gitEnv,
+    });
     if (result.status !== 0) {
       throw new Error(`git ${args.join(" ")}: ${result.stderr}`);
     }
@@ -165,10 +192,10 @@ describe("vertex-research-lenses-fetch", () => {
     const run = spawnSync("bash", [here("./vertex-research-lenses-fetch")], {
       encoding: "utf8",
       env: {
+        ...gitEnv,
         HOME: home,
         LENSES_BRANCH: "main",
         LENSES_REPO: clone,
-        PATH: process.env["PATH"] ?? "",
       },
     });
     return { app, run };
@@ -190,6 +217,7 @@ describe("vertex-research-lenses-fetch", () => {
   it("fails and keeps the previous runner directory when the branch has no collector", () => {
     const { app, run } = setup(false);
     expect(run.status).not.toBe(0);
+    expect(run.stderr).toMatch(/collect-rotation-matrix\.ts/u);
     expect(existsSync(join(app, "stale.ts"))).toBe(true);
   });
 });

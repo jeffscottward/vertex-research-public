@@ -3,7 +3,8 @@
 # then writes latest.json, which vertex-research-lenses-push.path pushes to QuantVPS. Install: see README.md.
 [Unit]
 Description=Vertex Research deep value (TRUE SLAP) data job (read-only; public SEC/Yahoo data; no IBKR; places nothing). Code: vertex-research-public scripts/research-lenses
-After=network-online.target
+# Boot catch-up or a manual start can queue both jobs: run after the rotation matrix job.
+After=network-online.target vertex-rotation-matrix.service
 
 [Service]
 Type=oneshot

@@ -5,8 +5,8 @@ Read-only JSON documents for the `/rotation-matrix` and `/deep-value` portal pag
 | File | Role |
 | --- | --- |
 | `vertex-research-lenses-fetch` | ExecStartPre: exports `scripts/research-lenses` from `origin/vertex/rebuild-darkfactory-20260921` into `~/.local/share/vertex-research-lenses/app` |
-| `vertex-rotation-matrix.{service,timer}` | Rotation matrix job (weekdays 16:40, 18:30, at boot) |
-| `vertex-deep-value.{service,timer}` | Deep value job (weekdays 16:55, 18:50, at boot), reads the rotation matrix document |
+| `vertex-rotation-matrix.{service,timer}` | Rotation matrix job (weekdays 16:40 and 18:30 New York time, at boot) |
+| `vertex-deep-value.{service,timer}` | Deep value job (weekdays 16:55 and 18:50 New York time, at boot), runs after the rotation matrix job and reads its document |
 | `push-research-lenses.sh`, `vertex-research-lenses-push.{service,path}` | Push each `latest.json` to QuantVPS when it changes |
 
 ## Install
