@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@darkfactory/ui";
+import { Button, TableBody, TableRow } from "@darkfactory/ui";
 
 import { useEffect, useId, useMemo, useState } from "react";
 import type {
@@ -20,6 +20,14 @@ import {
   useExperienceResource,
   useExperienceServices,
 } from "./shared.tsx";
+import {
+  ExperienceTable,
+  ExperienceTableCaption,
+  ExperienceTableCell,
+  ExperienceTableHead,
+  ExperienceTableHeader,
+  experienceTableScroll,
+} from "./experience-table.tsx";
 
 const exact = (value: string | null): string =>
   value === null ? "Unknown — not supplied" : value;
@@ -43,18 +51,21 @@ export const PortfolioContinuity = ({
   readonly continuity: ProjectionContinuity;
 }) => (
   <section
-    className="vx-ex-section"
+    className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
     id="continuity"
     aria-label="Projection continuity"
   >
     <h2>Projection continuity</h2>
-    <p className="vx-ex-status" role="status">
+    <p
+      className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]"
+      role="status"
+    >
       {continuity.state}
       {" · freshness: "}
       {continuity.freshness.status}
     </p>
     <p>{continuityMessages[continuity.state]}</p>
-    <dl className="vx-ex-facts">
+    <dl className="my-4 grid text-sm leading-[1.75] [&>div]:grid @min-[42rem]:[&>div]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] @min-[42rem]:[&>div]:gap-6 [&>div]:gap-2 [&>div]:border-border [&>div]:border-b [&>div]:py-3 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-muted-foreground">
       <div>
         <dt>Stream</dt>
         <dd>{continuity.streamId}</dd>
@@ -104,7 +115,7 @@ export const PortfolioContinuity = ({
         <dd>{continuity.freshness.maxAgeMs}</dd>
       </div>
     </dl>
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       This projection has no reservation authority. New risk is blocked. Only
       the native owner can establish reservation authority.
     </p>
@@ -152,14 +163,23 @@ export const PortfolioCollection = <Row,>({
     (currentPage + 1) * PAGE_SIZE
   );
   return (
-    <section className="vx-ex-collection" aria-labelledby={headingId}>
-      <div className="vx-ex-toolbar">
+    <section
+      className="my-4 border-border border-y [&>summary]:cursor-pointer [&>summary]:py-4 [&>summary]:font-semibold"
+      aria-labelledby={headingId}
+    >
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <ResearchTableHeading id={headingId} title={title}>
           <p>{description}</p>
         </ResearchTableHeading>
-        <span className="vx-caption">{rows.length} supplied</span>
+        <span className="text-muted-foreground text-sm leading-relaxed">
+          {rows.length} supplied
+        </span>
       </div>
-      {notice === undefined ? null : <p className="vx-caption">{notice}</p>}
+      {notice === undefined ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {notice}
+        </p>
+      )}
       {rows.length === 0 ? (
         <EmptyCollection title={`No ${title.toLowerCase()} supplied`}>
           The source returned an empty collection. This does not establish zero
@@ -167,7 +187,7 @@ export const PortfolioCollection = <Row,>({
         </EmptyCollection>
       ) : (
         <div>
-          <div className="vx-ex-toolbar">
+          <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
             <label htmlFor={inputId}>Search {title.toLowerCase()}</label>
             <input
               id={inputId}
@@ -201,37 +221,42 @@ export const PortfolioCollection = <Row,>({
           ) : (
             <div>
               <div
-                className="vx-ex-table-scroll"
+                className={experienceTableScroll}
                 role="region"
                 aria-label={`${title} observations; scroll horizontally for all fields`}
                 // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
                 tabIndex={0}
               >
-                <table className="vx-ex-table" aria-labelledby={headingId}>
-                  <caption>
+                <ExperienceTable aria-labelledby={headingId}>
+                  <ExperienceTableCaption>
                     {title} — exact source values; no calculated totals
-                  </caption>
-                  <thead>
-                    <tr>
+                  </ExperienceTableCaption>
+                  <ExperienceTableHeader>
+                    <TableRow>
                       {columns.map((column) => (
-                        <th key={column.label} scope="col">
+                        <ExperienceTableHead key={column.label} scope="col">
                           {column.label}
-                        </th>
+                        </ExperienceTableHead>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
+                    </TableRow>
+                  </ExperienceTableHeader>
+                  <TableBody>
                     {visible.map((row) => (
-                      <tr key={identity(row)}>
+                      <TableRow key={identity(row)}>
                         {columns.map((column) => (
-                          <td key={column.label}>{exact(column.value(row))}</td>
+                          <ExperienceTableCell key={column.label}>
+                            {exact(column.value(row))}
+                          </ExperienceTableCell>
                         ))}
-                      </tr>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </ExperienceTable>
               </div>
-              <nav className="vx-ex-pagination" aria-label={`${title} pages`}>
+              <nav
+                className="text-(length:--text-sm) my-4 flex flex-wrap items-center gap-4 border-border border-t pt-4 @min-[42rem]:[&>p]:mr-auto [&>p]:flex-[1_1_100%] @min-[42rem]:[&>p]:basis-auto"
+                aria-label={`${title} pages`}
+              >
                 <Button
                   variant="outline"
                   type="button"
@@ -308,10 +333,13 @@ export const PortfolioObservation = ({
 }: {
   readonly snapshot: PortfolioSnapshot;
 }) => (
-  <div className="vx-ex-stack">
-    <section className="vx-ex-section" aria-label="Portfolio source">
+  <div className="grid gap-8">
+    <section
+      className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
+      aria-label="Portfolio source"
+    >
       <h2>Source observation</h2>
-      <p className="vx-ex-status">
+      <p className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]">
         {snapshot.environment}
         {" · "}
         {snapshot.sourceKind}
@@ -329,7 +357,7 @@ export const PortfolioObservation = ({
           holdings or live balances.
         </p>
       ) : null}
-      <dl className="vx-ex-facts">
+      <dl className="my-4 grid text-sm leading-[1.75] [&>div]:grid @min-[42rem]:[&>div]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] @min-[42rem]:[&>div]:gap-6 [&>div]:gap-2 [&>div]:border-border [&>div]:border-b [&>div]:py-3 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-muted-foreground">
         <div>
           <dt>Account alias</dt>
           <dd>{snapshot.accountAlias}</dd>
@@ -363,14 +391,17 @@ export const PortfolioObservation = ({
           <dd>{snapshot.sourceEventHash}</dd>
         </div>
       </dl>
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         Times and decimal values are preserved exactly as supplied. Refresh
         reads the source again; it does not synchronize a broker or repair
         continuity.
       </p>
     </section>
     <PortfolioContinuity continuity={snapshot.continuity} />
-    <section className="vx-ex-section" aria-label="Observed cash and NAV">
+    <section
+      className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
+      aria-label="Observed cash and NAV"
+    >
       <h2>
         {snapshot.environment === "live"
           ? "Observed cash and live NAV"
@@ -378,7 +409,7 @@ export const PortfolioObservation = ({
             ? "Observed simulation cash and NAV"
             : "Research observations — no live NAV"}
       </h2>
-      <dl className="vx-ex-facts">
+      <dl className="my-4 grid text-sm leading-[1.75] [&>div]:grid @min-[42rem]:[&>div]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] @min-[42rem]:[&>div]:gap-6 [&>div]:gap-2 [&>div]:border-border [&>div]:border-b [&>div]:py-3 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-muted-foreground">
         <div>
           <dt>Cash observation ({snapshot.currency})</dt>
           <dd>{exact(snapshot.cash)}</dd>
@@ -472,8 +503,8 @@ const ScopedPortfolio = ({ scope }: { readonly scope: ExperienceScope }) => {
     return () => resource.clear();
   }, [resource, scope]);
   return (
-    <div className="vx-ex-stack">
-      <div className="vx-ex-toolbar">
+    <div className="grid gap-8">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <ScopeLabel scope={scope} />
         <Button
           variant="outline"

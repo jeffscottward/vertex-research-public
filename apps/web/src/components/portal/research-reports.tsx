@@ -271,7 +271,7 @@ const CatalogGroup = ({ group }: { readonly group: CatalogGroupView }) => (
           {group.reports.map((report) => (
             <TableRow data-research-report={report.id} key={report.id}>
               <TableHead
-                className="min-w-48 whitespace-normal font-normal"
+                className="h-auto min-w-48 whitespace-normal font-normal"
                 scope="row"
               >
                 <Link
@@ -470,7 +470,7 @@ const DatasetPanels = ({
               {view.metrics.map((metric, index) => (
                 <TableRow key={index}>
                   <TableHead
-                    className="min-w-40 whitespace-normal font-normal"
+                    className="h-auto min-w-40 whitespace-normal font-normal"
                     scope="row"
                   >
                     {metric.label}

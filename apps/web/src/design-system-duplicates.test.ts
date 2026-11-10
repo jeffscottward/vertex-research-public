@@ -11,6 +11,71 @@ const RETIRED_CLASSES = [
   "vx-read-notice",
   "vx-read-failure",
   "vx-notice-title",
+  "vx-caption",
+  "vx-ex-table",
+  "vx-ex-table-wrap",
+  "vx-ex-table-scroll",
+  "vx-ex-numeric",
+  "vx-ex-catalog",
+  "vx-ex-check",
+  "vx-ex-inbox",
+  "vx-ex-inbox-item",
+  "vx-ex-prose",
+  "vx-ex-rows",
+  "vx-ex-rule-list",
+  "vx-chart-annotations",
+  "vx-chart-axis",
+  "vx-chart-axis-label",
+  "vx-chart-comparison",
+  "vx-chart-controls",
+  "vx-chart-exact",
+  "vx-chart-facts",
+  "vx-chart-figure",
+  "vx-chart-flow",
+  "vx-chart-grid",
+  "vx-chart-indicator",
+  "vx-chart-legend",
+  "vx-chart-page-actions",
+  "vx-chart-pagination",
+  "vx-chart-profile",
+  "vx-chart-record-source",
+  "vx-chart-renderer-host",
+  "vx-chart-segment",
+  "vx-chart-segment-buy",
+  "vx-chart-segment-sell",
+  "vx-chart-segment-unknown",
+  "vx-chart-source",
+  "vx-chart-status",
+  "vx-chart-svg",
+  "vx-chart-swatch",
+  "vx-chart-swatch-buy",
+  "vx-chart-swatch-sell",
+  "vx-chart-swatch-unknown",
+  "vx-chart-table",
+  "vx-chart-table-block",
+  "vx-chart-table-scroll",
+  "vx-chart-workbench",
+  "vx-ex-stack",
+  "vx-ex-lead",
+  "vx-ex-scope-label",
+  "vx-ex-status",
+  "vx-chart-note",
+  "vx-ex-collection",
+  "vx-ex-record-list",
+  "vx-ex-split",
+  "vx-ex-form",
+  "vx-ex-choice",
+  "vx-ex-toolbar",
+  "vx-ex-filters",
+  "vx-ex-pagination",
+  "vx-ex-facts",
+  "vx-ex-scope",
+  "vx-chart-panel",
+  "vx-chart-canvas",
+  "vx-chart-tanstack",
+  "vx-ex-section",
+  "vx-ex-utility-section",
+  "vx-ex-table-pager",
 ] as const;
 const SOURCE_ROOT = join(import.meta.dirname);
 
@@ -22,6 +87,15 @@ const webSources = (): { file: string; source: string }[] =>
         /\.(?:tsx?|css)$/u.test(entry.name) &&
         !entry.name.includes(".test.")
     )
+    .map((entry) => join(entry.parentPath, entry.name))
+    .map((file) => ({ file, source: readFileSync(file, "utf8") }));
+
+// Browser specs select elements by class too; the browser lane is off, so the guard checks them here.
+const E2E_ROOT = join(import.meta.dirname, "../../../tests/e2e");
+
+const e2eSources = (): { file: string; source: string }[] =>
+  readdirSync(E2E_ROOT, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.ts$/u.test(entry.name))
     .map((entry) => join(entry.parentPath, entry.name))
     .map((file) => ({ file, source: readFileSync(file, "utf8") }));
 
@@ -37,11 +111,42 @@ describe("design-system duplicates", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("keeps browser specs off the retired classes", () => {
+    const pattern = new RegExp(
+      `\\b(?:${RETIRED_CLASSES.join("|")})(?![\\w-])`,
+      "u"
+    );
+    const offenders = e2eSources()
+      .filter(({ source }) => pattern.test(source))
+      .map(({ file }) => relative(E2E_ROOT, file));
+    expect(offenders).toEqual([]);
+  });
+
   it("aligns TableRow cells through child selectors, because cells set align-middle", () => {
     const pattern = /<TableRow\s[^>]*className="[^"]*(?<![:\w-])align-top/u;
     const offenders = webSources()
       .filter(({ source }) => pattern.test(source))
       .map(({ file }) => relative(SOURCE_ROOT, file));
+    expect(offenders).toEqual([]);
+  });
+
+  it("lets body row and row-group headers size and wrap like cells, because TableHead sets h-10 and nowrap", () => {
+    // Matches one level of nested braces in attributes; a deeper block holding ">" cuts the tag short.
+    const tableHead = /<TableHead\b(?:[^>{]|\{[^}]*\})*>/gu;
+    const rowScope = /\bscope=(?:"|'|\{["'])row(?:group)?["']\}?/u;
+    const autoHeight = /(?<![\w:-])h-auto(?![\w-])/u;
+    const wraps = /(?<![\w:-])whitespace-normal(?![\w-])/u;
+    const offenders = webSources().flatMap(({ file, source }) =>
+      [...source.matchAll(tableHead)]
+        .filter(
+          ([tag]) =>
+            rowScope.test(tag) && !(autoHeight.test(tag) && wraps.test(tag))
+        )
+        .map(
+          ({ index }) =>
+            `${relative(SOURCE_ROOT, file)}:${source.slice(0, index).split("\n").length}`
+        )
+    );
     expect(offenders).toEqual([]);
   });
 });

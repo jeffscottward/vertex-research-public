@@ -145,7 +145,7 @@ export const ReturnHistogram = ({
                   key={index}
                 >
                   <TableHead
-                    className="whitespace-normal text-left font-mono font-normal text-muted-foreground"
+                    className="h-auto whitespace-normal text-left font-mono font-normal text-muted-foreground"
                     scope="row"
                   >
                     {formatReturn(bin.from, 2)} to {formatReturn(bin.to, 2)}
@@ -226,7 +226,7 @@ export const SessionTable = ({
               return (
                 <TableRow className="border-border border-b" key={row.key}>
                   <TableHead
-                    className={`${cell} whitespace-normal font-mono font-normal`}
+                    className={`h-auto ${cell} whitespace-normal font-mono font-normal`}
                     scope="row"
                   >
                     {row.label}

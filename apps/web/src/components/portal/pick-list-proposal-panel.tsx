@@ -115,7 +115,10 @@ const ProposalRow = ({
   const spreads = spreadsFor(row, nlv);
   return (
     <TableRow data-tier={row.tier}>
-      <TableHead className="font-medium font-mono" scope="row">
+      <TableHead
+        className="h-auto whitespace-normal font-medium font-mono"
+        scope="row"
+      >
         {row.symbol}
       </TableHead>
       <TableCell className="font-mono">{row.buckets.join(", ")}</TableCell>

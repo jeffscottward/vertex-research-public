@@ -1,7 +1,19 @@
 "use client";
 
 import type { VertexComboPreviewOutput as ComboPreview } from "@darkfactory/api";
-import { Button, Input, Label, StatusBadge } from "@darkfactory/ui";
+import {
+  Button,
+  Input,
+  Label,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { useEffect, useId, useRef, useState } from "react";
 
 import {
@@ -111,34 +123,34 @@ export const ComboOrderDialog = ({
         <h2 className="font-semibold text-lg" id={titleId}>
           {`Close ${draft.symbol} spread (one combo order)`}
         </h2>
-        <table className="w-full text-sm">
-          <caption className="sr-only">Combo legs</caption>
-          <thead>
-            <tr className="text-left text-muted-foreground">
-              <th scope="col">Leg</th>
-              <th scope="col">Side</th>
-              <th className="text-right" scope="col">
+        <Table className="w-full text-sm">
+          <TableCaption className="sr-only">Combo legs</TableCaption>
+          <TableHeader>
+            <TableRow className="text-left">
+              <TableHead scope="col">Leg</TableHead>
+              <TableHead scope="col">Side</TableHead>
+              <TableHead className="text-right" scope="col">
                 Contracts
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {draft.legs.map((leg) => (
-              <tr
+              <TableRow
                 className="border-border border-t"
                 key={`${leg.contract.expiry}-${leg.contract.strike}-${leg.contract.right}`}
               >
-                <td className="py-1.5">
+                <TableCell className="whitespace-normal py-1.5">
                   {`${leg.contract.expiry} ${leg.contract.strike} ${leg.contract.right === "C" ? "call" : "put"}`}
-                </td>
-                <td>{leg.side}</td>
-                <td className="text-right tabular-nums">
+                </TableCell>
+                <TableCell className="whitespace-normal">{leg.side}</TableCell>
+                <TableCell className="whitespace-normal text-right tabular-nums">
                   {leg.ratio * draft.quantity}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
         <div className="space-y-1.5">
           <Label htmlFor={`${titleId}-limit`}>
             Net limit per combo (+ debit / − credit)

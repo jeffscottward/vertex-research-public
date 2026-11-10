@@ -17,6 +17,15 @@ import {
   Stat,
   StatGrid,
 } from "./backtest-analytics-panels.tsx";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+} from "@darkfactory/ui";
 
 type Analytics = BacktestGetOutput["backtest"]["analytics"];
 
@@ -45,17 +54,23 @@ const TestRow = ({
   readonly statistic: string;
   readonly pValue: number;
 }) => (
-  <tr className="border-border border-b" data-test-row={label}>
-    <th className={headCell} scope="row">
+  <TableRow className="border-border border-b" data-test-row={label}>
+    <TableHead className={cn("h-auto whitespace-normal", headCell)} scope="row">
       {label}
-    </th>
-    <td className={numCell}>{estimate}</td>
-    <td className={numCell}>
+    </TableHead>
+    <TableCell className={cn("whitespace-normal", numCell)}>
+      {estimate}
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", numCell)}>
       {lower} to {upper}
-    </td>
-    <td className={numCell}>{statistic}</td>
-    <td className={`${numCell} ${pTone(pValue)}`}>{formatPValue(pValue)}</td>
-  </tr>
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", numCell)}>
+      {statistic}
+    </TableCell>
+    <TableCell className={`whitespace-normal ${numCell} ${pTone(pValue)}`}>
+      {formatPValue(pValue)}
+    </TableCell>
+  </TableRow>
 );
 
 export const SignificancePanel = ({
@@ -79,27 +94,46 @@ export const SignificancePanel = ({
         <Empty>Needs at least three equity returns with some variation.</Empty>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs" data-significance>
-            <thead>
-              <tr className="border-border border-b text-left text-muted-foreground">
-                <th className={headCell} scope="col">
+          <Table
+            containerClassName="overflow-visible"
+            className="w-full text-xs"
+            data-significance
+          >
+            <TableHeader>
+              <TableRow className="border-border border-b text-left text-muted-foreground">
+                <TableHead
+                  className={cn("text-muted-foreground", headCell)}
+                  scope="col"
+                >
                   Test
-                </th>
-                <th className={`${headCell} text-right`} scope="col">
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${headCell} text-right`}
+                  scope="col"
+                >
                   Estimate
-                </th>
-                <th className={`${headCell} text-right`} scope="col">
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${headCell} text-right`}
+                  scope="col"
+                >
                   95% interval
-                </th>
-                <th className={`${headCell} text-right`} scope="col">
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${headCell} text-right`}
+                  scope="col"
+                >
                   Statistic
-                </th>
-                <th className={`${headCell} text-right`} scope="col">
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${headCell} text-right`}
+                  scope="col"
+                >
                   p-value
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {tTest === null ? null : (
                 <TestRow
                   estimate={pct(tTest.mean, 3)}
@@ -132,8 +166,8 @@ export const SignificancePanel = ({
                   )}
                 </>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {tTest === null ? null : (
             <p className={`${cell} text-muted-foreground text-xs`}>
               Two-sided t-test p-value: {formatPValue(tTest.pValueTwoSided)}.

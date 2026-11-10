@@ -25,6 +25,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAcademyTheme } from "./academy-theme.tsx";
 import { elementName } from "./lesson-video.tsx";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 
 const SCRUB_STEPS = 1000;
 
@@ -91,38 +100,44 @@ export const TableView = ({ table }: { readonly table: DataTable }) => (
     className="overflow-x-auto rounded-lg border border-border"
     data-table={table.id}
   >
-    <table className="w-full min-w-max text-sm">
-      <caption className="px-3 py-2 text-left font-semibold">
+    <Table
+      containerClassName="overflow-visible"
+      className="w-full min-w-max text-sm"
+    >
+      <TableCaption className="mt-0 caption-top px-3 py-2 text-left font-semibold text-foreground">
         {table.title}
-      </caption>
-      <thead className="bg-muted/60 text-muted-foreground text-xs">
-        <tr>
+      </TableCaption>
+      <TableHeader className="bg-muted/60 text-muted-foreground text-xs">
+        <TableRow>
           {table.columns.map((column) => (
-            <th
-              className="px-3 py-2 text-left font-medium"
+            <TableHead
+              className="px-3 py-2 text-left font-medium text-muted-foreground"
               key={column}
               scope="col"
             >
               {column}
-            </th>
+            </TableHead>
           ))}
-        </tr>
-      </thead>
-      <tbody>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {table.rows.map((row, index) => (
-          <tr className="border-border border-t" key={`${table.id}-${index}`}>
+          <TableRow
+            className="border-border border-t"
+            key={`${table.id}-${index}`}
+          >
             {row.map((cell, column) => (
-              <td
-                className={`px-3 py-1.5 ${column === 0 ? "" : "tabular-nums"}`}
+              <TableCell
+                className={`whitespace-normal px-3 py-1.5 ${column === 0 ? "" : "tabular-nums"}`}
                 key={`${index}-${column}`}
               >
                 {cell}
-              </td>
+              </TableCell>
             ))}
-          </tr>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
     {table.note === undefined ? null : (
       <p className="border-border border-t px-3 py-2 text-muted-foreground text-xs">
         {table.note}

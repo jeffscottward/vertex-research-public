@@ -1,7 +1,17 @@
 "use client";
 
 import type { AgentApiKeyOutput } from "@darkfactory/api";
-import { Button, Input } from "@darkfactory/ui";
+import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { Copy, KeyRound, RotateCcw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -246,50 +256,70 @@ export const AgentApiKeysSection = ({
       ) : state.keys.length === 0 ? (
         <p className="text-muted-foreground text-sm">No API keys.</p>
       ) : (
-        <table className="w-full text-sm" data-click-private="">
-          <caption className="sr-only">Agent API keys</caption>
-          <thead>
-            <tr className="border-border border-b text-left text-muted-foreground text-xs">
-              <th scope="col">Name</th>
-              <th scope="col">Prefix</th>
-              <th scope="col">Access</th>
-              <th scope="col">Created (UTC)</th>
-              <th scope="col">Last used (UTC)</th>
-              <th scope="col">
+        <Table
+          containerClassName="overflow-visible"
+          className="w-full text-sm"
+          data-click-private=""
+        >
+          <TableCaption className="sr-only">Agent API keys</TableCaption>
+          <TableHeader>
+            <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
+              <TableHead className="text-muted-foreground" scope="col">
+                Name
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
+                Prefix
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
+                Access
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
+                Created (UTC)
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
+                Last used (UTC)
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
                 <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {state.keys.map((row) => {
               return (
-                <tr
+                <TableRow
                   className="border-border border-b"
                   data-api-key-id={row.id}
                   key={row.id}
                 >
-                  <th className="py-1 font-normal" scope="row">
+                  <TableHead
+                    className="h-auto whitespace-normal py-1 font-normal"
+                    scope="row"
+                  >
                     {row.name ?? "(unnamed)"}
-                  </th>
-                  <td className="py-1 font-mono text-xs">
+                  </TableHead>
+                  <TableCell className="whitespace-normal py-1 font-mono text-xs">
                     {displayKeyPrefix(row)}
-                  </td>
-                  <td className="py-1 text-xs" data-col="access">
+                  </TableCell>
+                  <TableCell
+                    className="whitespace-normal py-1 text-xs"
+                    data-col="access"
+                  >
                     {row.access === "write"
                       ? "Read and write"
                       : row.access === "read"
                         ? "Read"
                         : "—"}
-                  </td>
-                  <td className="py-1 font-mono text-xs">
+                  </TableCell>
+                  <TableCell className="whitespace-normal py-1 font-mono text-xs">
                     {formatTimestamp(row.createdAt)}
-                  </td>
-                  <td className="py-1 font-mono text-muted-foreground text-xs">
+                  </TableCell>
+                  <TableCell className="whitespace-normal py-1 font-mono text-muted-foreground text-xs">
                     {row.lastUsedAt === null
                       ? "Never"
                       : formatTimestamp(row.lastUsedAt)}
-                  </td>
-                  <td className="py-1 text-right">
+                  </TableCell>
+                  <TableCell className="whitespace-normal py-1 text-right">
                     <Button
                       aria-label={`${confirmId === row.id ? "Confirm revoke" : "Revoke"} ${row.name ?? row.id}`}
                       disabled={busy}
@@ -302,12 +332,12 @@ export const AgentApiKeysSection = ({
                       <Trash2 aria-hidden="true" className="size-4" />
                       {confirmId === row.id ? "Confirm revoke" : "Revoke"}
                     </Button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
     </section>
   );

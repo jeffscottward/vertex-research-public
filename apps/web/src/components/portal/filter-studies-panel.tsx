@@ -100,7 +100,10 @@ const StudyTable = ({
               data-row={row.key}
               key={row.key}
             >
-              <TableHead className={`${cell} font-normal`} scope="row">
+              <TableHead
+                className={`h-auto whitespace-normal ${cell} font-normal`}
+                scope="row"
+              >
                 {row.strategy}
               </TableHead>
               <TableCell className={cell}>{row.filter}</TableCell>

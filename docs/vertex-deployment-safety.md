@@ -9,6 +9,8 @@ The exact-approved-revision runner now has a concrete Docker backend, not an unc
 - Production Worker: `vertex-research-web`; proposed application/auth origin: `https://app.vertex.xyz`.
 - Staging Worker: `vertex-research-web-staging`; proposed application/auth origin: `https://staging.vertex.xyz`.
 
+> 2026-11-05 owner decision (card sec20-vertex-xyz-exposure): "No use of vertex.XYZ at all". The public `vertex.xyz` site is retired and its public DNS records are being removed. Do not bind these two origins; a Worker deploy needs a new owner-approved origin first.
+
 These origins remain **unbound proposals**, not ownership, active routes, reservations or cutover approval. Do not reroute the current public `vertex.xyz`, delete old subdomains, or change existing DarkFactory/Vertex accounts, services, DNS, routes or email configuration based on this document.
 
 ## Fail-closed destination and authority contract
