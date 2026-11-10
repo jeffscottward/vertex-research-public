@@ -231,10 +231,35 @@ const validateGraphSource = async (
     throw error;
   }
 };
+// True when one path segment matches a glob whose only special character is
+// "*" (any characters). `literals` is the glob split at each "*". Each literal
+// is found with one forward search, so a glob with many "*" stays fast.
+const matchesSegmentGlob = (
+  segment: string,
+  literals: readonly string[]
+): boolean => {
+  const first = literals[0] ?? "";
+  const last = literals.at(-1) ?? "";
+  const end = segment.length - last.length;
+  if (
+    end < first.length ||
+    !segment.startsWith(first) ||
+    !segment.endsWith(last)
+  )
+    return false;
+  let from = first.length;
+  for (const literal of literals.slice(1, -1)) {
+    const at = segment.indexOf(literal, from);
+    if (at === -1 || at + literal.length > end) return false;
+    from = at + literal.length;
+  }
+  return true;
+};
 // An exclude is one of three forms: "name/**" (that root path and everything
 // below it), a glob with "*" and no "/" (any one path segment that matches;
-// "*" stands for any characters inside the segment), or a plain path (the same
-// path, a path below it, or any segment with that name).
+// "*" stands for any characters inside the segment, every other character is
+// literal), or a plain path (the same path, a path below it, or any segment
+// with that name).
 export const isGraphSourceExcluded = (
   path: string,
   excludes: readonly string[]
@@ -249,11 +274,8 @@ export const isGraphSourceExcluded = (
       );
     }
     if (excluded.includes("*") && !excluded.includes("/")) {
-      const literals = excluded
-        .split("*")
-        .map((part) => part.replace(/[.+?^$()|[\]{}\\]/g, "\\$&"));
-      const pattern = new RegExp(`^${literals.join("[^/]*")}$`);
-      return segments.some((segment) => pattern.test(segment));
+      const literals = excluded.split("*");
+      return segments.some((segment) => matchesSegmentGlob(segment, literals));
     }
     return (
       path === excluded ||
