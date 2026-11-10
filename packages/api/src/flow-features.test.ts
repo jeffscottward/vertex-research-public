@@ -197,7 +197,13 @@ describe("buildMinuteFeatures", () => {
   it("flags exhaustion: higher highs on shrinking volume and delta", () => {
     const { events } = buildMinuteFeatures(
       FLOW_INSTRUMENTS.ES,
-      [signed(T0, 100, 3), signed(T0 + 60, 101, 2), signed(T0 + 120, 102, 1)],
+      [
+        signed(T0, 100, 3),
+        signed(T0 + 60, 101, 2),
+        signed(T0 + 120, 102, 1),
+        signed(T0 + 180, 101, 5),
+        signed(T0 + 240, 100, 1),
+      ],
       0.25
     );
     expect(events.filter((event) => event.kind === "exhaustion")).toEqual([
@@ -206,7 +212,7 @@ describe("buildMinuteFeatures", () => {
         detail:
           "Higher highs on less fuel for 3 min: volume 3 → 1, delta 3 → 1",
         direction: "bearish",
-        key: `exhaustion:up:${T0 + 120}`,
+        key: `exhaustion:up:${T0}`,
         kind: "exhaustion",
         premium: null,
         price: 102,
@@ -215,6 +221,20 @@ describe("buildMinuteFeatures", () => {
         symbol: "ES",
       },
     ]);
+  });
+
+  it("holds back an exhaustion run that is still forming or in a partial minute", () => {
+    const { events } = buildMinuteFeatures(
+      FLOW_INSTRUMENTS.ES,
+      [
+        signed(T0 + 30, 100, 3),
+        signed(T0 + 60, 101, 2),
+        signed(T0 + 120, 102, 1),
+        signed(T0 + 180, 103, 1),
+      ],
+      0.25
+    );
+    expect(events.some((event) => event.kind === "exhaustion")).toBe(false);
   });
 
   it("flags buy absorption", () => {

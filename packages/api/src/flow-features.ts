@@ -318,22 +318,28 @@ export const buildMinuteFeatures = (
       vwap: totals.volume > 0 ? totals.notional / totals.volume : close,
     });
   }
-  const closes = new Map(
-    minutes.map((row) => [row.minute.getTime(), row.close])
+  // Exhaustion only over fully covered minutes, and only for runs a later full minute has
+  // already ended: such a run is final, so its key (start minute) is stable across samples.
+  const full = minutes.filter((row) => row.coveredSeconds === 60);
+  const closes = new Map(full.map((row) => [row.minute.getTime(), row.close]));
+  const lastFull = (full.at(-1)?.minute.getTime() ?? 0) / 1000;
+  const fullTrades = ordered.filter((trade) =>
+    closes.has(Math.floor(trade.t / 60) * 60_000)
   );
-  for (const run of findExhaustion(ordered, 60))
-    events.push({
-      at: new Date(run.end * 1000),
-      detail: `${run.direction === "up" ? "Higher highs" : "Lower lows"} on less fuel for ${run.buckets} min: volume ${run.firstVolume} → ${run.lastVolume}, delta ${run.firstDelta} → ${run.lastDelta}`,
-      direction: run.direction === "up" ? "bearish" : "bullish",
-      key: `exhaustion:${run.direction}:${run.end}`,
-      kind: "exhaustion",
-      premium: null,
-      price: closes.get(run.end * 1000) ?? null,
-      size: run.lastVolume,
-      source: "ibkr",
-      symbol,
-    });
+  for (const run of findExhaustion(fullTrades, 60))
+    if (run.end < lastFull)
+      events.push({
+        at: new Date(run.end * 1000),
+        detail: `${run.direction === "up" ? "Higher highs" : "Lower lows"} on less fuel for ${run.buckets} min: volume ${run.firstVolume} → ${run.lastVolume}, delta ${run.firstDelta} → ${run.lastDelta}`,
+        direction: run.direction === "up" ? "bearish" : "bullish",
+        key: `exhaustion:${run.direction}:${run.start}`,
+        kind: "exhaustion",
+        premium: null,
+        price: closes.get(run.end * 1000) ?? null,
+        size: run.lastVolume,
+        source: "ibkr",
+        symbol,
+      });
   return { events, minutes };
 };
 
