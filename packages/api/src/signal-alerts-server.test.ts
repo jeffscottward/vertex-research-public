@@ -856,8 +856,8 @@ describe("signal alert series from IBKR history", () => {
       bars: 5,
       count: 2,
     });
-    // A page walk retries an unavailable first page once, without waiting.
-    expect(failing.urls).toHaveLength(2);
+    // A live page walk does not retry the unavailable first page.
+    expect(failing.urls).toHaveLength(1);
     expect(yahoo).toHaveBeenCalledTimes(1);
     resetIbkrPacing();
     const stale = withHistory(
@@ -874,7 +874,7 @@ describe("signal alert series from IBKR history", () => {
     // Crypto pairs (BTC-USD) have no IBKR form here: Yahoo only.
     use(failing.fetch);
     await backfill("BTC-USD", "1h");
-    expect(failing.urls).toHaveLength(2);
+    expect(failing.urls).toHaveLength(1);
   });
 
   it("fills the bars before IBKR's late first bar from Yahoo", async () => {
@@ -920,12 +920,49 @@ describe("signal alert series from IBKR history", () => {
     const stock = await backfill("SPY", "1d");
     expect(history.urls[1]).toContain("secType=STK");
     expect(stock.backfill).toMatchObject({ count: 1 });
-    // Hourly: one IBKR page of 31 days, Yahoo for the rest of the year.
+    // Hourly: Yahoo only, even when IBKR would answer (its hourly grid differs from Yahoo's).
     resetIbkrPacing();
     yahoo.mockClear();
-    await backfill("SPY", "1h");
-    expect(history.urls[2]).toContain("barSize=1+hour");
-    expect(history.urls[2]).toContain("duration=31+D");
+    const hourly = await backfill("SPY", "1h");
+    expect(history.urls).toHaveLength(2);
     expect(yahoo).toHaveBeenCalledTimes(1);
+    expect(hourly.backfill).toMatchObject({ bars: 1, count: 0 });
+  });
+
+  it("drops IBKR bars that had not ended when the service fetched them", async () => {
+    // Fetched at 15:40: the 15:30 bar (ends 15:45) and the 15:45 bar are dropped.
+    const cached = withHistory(
+      (url) =>
+        url.includes("endDateTime")
+          ? historyResponse(url, [])
+          : historyResponse(url, quarterHours(CLOSES), {
+              fetchedAt: "2026-11-02T15:40:00Z",
+            }),
+      yahoo
+    );
+    use(cached.fetch);
+    const result = await backfill("SPY", "15m");
+    expect(result.backfill).toMatchObject({ bars: 4, count: 2 });
+    // A daily stock bar ends at 16:00 New York: fetched at 15:40 it is dropped.
+    resetIbkrPacing();
+    const daily = withHistory(
+      (url) =>
+        historyResponse(
+          url,
+          ["2026-10-30", "2026-11-02"].map((date, index) =>
+            historyBar(
+              Date.parse(`${date}T00:00:00Z`) / 1000,
+              index === 0 ? 9 : 11
+            )
+          ),
+          { fetchedAt: "2026-11-02T20:40:00Z" }
+        ),
+      yahoo
+    );
+    use(daily.fetch);
+    expect((await backfill("SPY", "1d")).backfill).toMatchObject({
+      bars: 1,
+      count: 0,
+    });
   });
 });

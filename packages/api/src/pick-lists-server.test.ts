@@ -1257,7 +1257,8 @@ describe("pickLists.screen with IBKR history", () => {
     clientFor(session("operator"), repository, undefined, {
       marketHistory: HISTORY_CONFIG,
     }).pickLists;
-  const list = () => pickList("core", [row("AAA", { sector: "Technology" })]);
+  // No sector: the screen reads SPY and AAA only (two requests fit the per-isolate pacing budget).
+  const list = () => pickList("core", [row("AAA")]);
 
   beforeEach(() => {
     resetIbkrPacing();
@@ -1265,13 +1266,14 @@ describe("pickLists.screen with IBKR history", () => {
 
   it("screens from IBKR bars without a Yahoo request, dropping a live or empty bar", async () => {
     const yahoo = yahooWith({});
+    let fetchedAt = "2026-11-10T20:00:00Z";
     const history = withHistory((url) => {
       const bars = yearOfBars();
       // A bar without a positive price is dropped.
       bars[10] = historyBar((bars[10] as { t: number }).t, 0);
       // A bar without volume counts as 0 shares.
       bars[11] = { ...(bars[11] as MarketBar), v: null };
-      return historyResponse(url, bars);
+      return historyResponse(url, bars, { fetchedAt });
     }, yahoo);
     setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
     const repository = pickListRepository([list()]);
@@ -1279,7 +1281,7 @@ describe("pickLists.screen with IBKR history", () => {
     expect(yahoo).not.toHaveBeenCalled();
     expect(
       history.urls.map((url) => new URL(url).searchParams.get("symbol"))
-    ).toEqual(["SPY", "AAA", "XLK"]);
+    ).toEqual(["SPY", "AAA"]);
     expect(history.urls[0]).toContain("barSize=1+day");
     expect(history.urls[0]).toContain("duration=1+Y");
     expect(history.urls[0]).toContain("whatToShow=TRADES");
@@ -1288,12 +1290,10 @@ describe("pickLists.screen with IBKR history", () => {
       reason: null,
       symbol: "AAA",
     });
-    // During the session the newest IBKR bar is live and dropped.
+    // A cached copy fetched during the session holds a live newest bar: it is dropped.
     resetIbkrPacing();
-    setPickListOptionsForTesting({
-      fetch: history.fetch,
-      now: () => new Date("2026-11-05T15:00:00.000Z"),
-    });
+    fetchedAt = "2026-11-05T15:00:00Z";
+    setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
     const live = await ibkrClient(repository).screen({ id: "core" });
     expect(live.members[0]?.lastDate).toBe("2026-11-04");
     expect(yahoo).not.toHaveBeenCalled();
@@ -1312,18 +1312,17 @@ describe("pickLists.screen with IBKR history", () => {
     setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
     const repository = pickListRepository([list()]);
     const result = await ibkrClient(repository).screen({ id: "core" });
-    expect(history.urls).toHaveLength(3);
+    expect(history.urls).toHaveLength(2);
     expect(yahoo.mock.calls.map(([url]) => symbolOf(url))).toEqual([
       "SPY",
       "AAA",
-      "XLK",
     ]);
     expect(result.members[0]).toMatchObject({ last: 111.9, reason: null });
     // The next view inside the pacing window does not ask IBKR again.
     setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
     await ibkrClient(repository).screen({ id: "core" });
-    expect(history.urls).toHaveLength(3);
-    expect(yahoo).toHaveBeenCalledTimes(6);
+    expect(history.urls).toHaveLength(2);
+    expect(yahoo).toHaveBeenCalledTimes(4);
   });
 
   it("fills the days before IBKR's late first bar from Yahoo with continuous volume", async () => {

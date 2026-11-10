@@ -20,7 +20,12 @@ export const historyBar = (t: number, c: number, v = 10): MarketBar => ({
   v,
 });
 
-export type HistoryExtra = Readonly<{ stale?: boolean; longName?: string }>;
+export type HistoryExtra = Readonly<{
+  stale?: boolean;
+  longName?: string;
+  /** When the service fetched the bars (ISO, whole seconds); default 2026-11-10T20:00:00Z. */
+  fetchedAt?: string;
+}>;
 
 /** A vertex-history-bars-v1 response for the request in `url`. */
 export const historyResponse = (
@@ -54,7 +59,7 @@ export const historyResponse = (
       timeZoneId: "US/Eastern",
     },
     count: bars.length,
-    fetched_at: "2026-11-10T20:00:00Z",
+    fetched_at: extra.fetchedAt ?? "2026-11-10T20:00:00Z",
     request: {
       barSize: params.get("barSize"),
       contractMonth: null,

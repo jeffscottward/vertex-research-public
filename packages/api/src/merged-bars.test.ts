@@ -9,6 +9,10 @@ import {
   historyInstrument,
   IBKR_DEFERRED_REASON,
   IBKR_PACING,
+  FallbackFailure,
+  historyFetchedAt,
+  ibkrFallbacks,
+  settle,
   loadMergedBars,
   type MergedBarsPlan,
   newYorkTime,
@@ -50,6 +54,7 @@ const planOf = (
   keyOf: (row) => row.date,
   options: { fetch, now: () => NOW },
   request: STOCK,
+  site: "test",
   yahoo,
   ...overrides,
 });
@@ -124,6 +129,7 @@ describe("loadMergedBars", () => {
     expect((await loadMergedBars(planOf(empty.fetch, yahoo))).ibkrError).toBe(
       "IBKR returned no bars"
     );
+    resetIbkrPacing();
     const dropped = withHistory(
       (url) => historyResponse(url, [historyBar(T0, 0)]),
       noYahoo
@@ -207,7 +213,8 @@ describe("loadMergedBars", () => {
         request: { ...STOCK, barSize: "15 mins", duration: "31 D" },
       })
     );
-    expect(history.urls).toHaveLength(3);
+    // A live walk does not retry the failed page.
+    expect(history.urls).toHaveLength(2);
     expect(merged.history?.complete).toBe(false);
     expect(merged.bars.map((bar) => `${bar.date}:${bar.source}`)).toEqual([
       "2026-09-30:yahoo",
@@ -228,7 +235,10 @@ describe("loadMergedBars", () => {
     const sources: string[] = [];
     for (let index = 0; index <= IBKR_PACING.requests; index += 1)
       sources.push((await loadMergedBars(plan)).bars[0]?.source as string);
-    expect(sources).toEqual(["ibkr", "ibkr", "ibkr", "yahoo"]);
+    expect(sources).toEqual([
+      ...Array.from({ length: IBKR_PACING.requests }, () => "ibkr"),
+      "yahoo",
+    ]);
     expect((await loadMergedBars(plan)).ibkrError).toBe(IBKR_DEFERRED_REASON);
     now += IBKR_PACING.windowMs;
     // Two pages take two slots.
@@ -247,7 +257,7 @@ describe("loadMergedBars", () => {
     ).toBe("ibkr");
   });
 
-  it("retries paced pages offline and rethrows a failure that is not market data", async () => {
+  it("retries paced pages offline and reads Yahoo after a failure that is not market data", async () => {
     let calls = 0;
     const history = withHistory((url) => {
       calls += 1;
@@ -265,19 +275,87 @@ describe("loadMergedBars", () => {
     expect(sleep).toHaveBeenCalledTimes(1);
     expect(merged.bars[0]?.source).toBe("ibkr");
     calls = 0;
-    await expect(
-      loadMergedBars(
-        planOf(history.fetch, noYahoo as never, {
-          offline: true,
-          options: {
-            fetch: history.fetch,
-            sleep: async () => {
-              throw new TypeError("sleep broke");
-            },
+    const broken = await loadMergedBars(
+      planOf(history.fetch, async () => yahooRows(["2026-10-01"]), {
+        offline: true,
+        options: {
+          fetch: history.fetch,
+          sleep: async () => {
+            throw new TypeError("sleep broke");
           },
-        })
-      )
-    ).rejects.toThrow("sleep broke");
+        },
+      })
+    );
+    expect(broken.ibkrError).toBe("IBKR history request failed");
+    expect(broken.bars[0]?.source).toBe("yahoo");
+  });
+
+  it("never fills between or after IBKR bars (hourly grids differ)", async () => {
+    // IBKR hourly: 14:00 and 15:00 UTC; Yahoo 60m: 13:30, 14:30, 15:30.
+    const hourly = (time: string) =>
+      Date.parse(`2026-10-01T${time}:00Z`) / 1000;
+    const history = withHistory(
+      (url) =>
+        historyResponse(url, [
+          historyBar(hourly("14:00"), 10),
+          historyBar(hourly("15:00"), 11),
+        ]),
+      noYahoo
+    );
+    const yahoo = vi.fn(async () =>
+      ["13:30", "14:30", "15:30"].map((time) => ({
+        c: 50,
+        date: new Date(hourly(time) * 1000).toISOString(),
+        v: 1,
+      }))
+    );
+    const merged = await loadMergedBars(
+      planOf(history.fetch, yahoo, {
+        fillBefore: "2026-10-01T13:30:00.000Z",
+        fromIbkr: (bar) => ({
+          c: bar.c,
+          date: new Date(bar.t * 1000).toISOString(),
+          v: bar.v,
+        }),
+      })
+    );
+    expect(
+      merged.bars.map((bar) => `${bar.date.slice(11, 16)}:${bar.source}`)
+    ).toEqual(["13:30:yahoo", "14:00:ibkr", "15:00:ibkr"]);
+  });
+
+  it("treats an old cached copy as a failure and can skip Yahoo (ibkrOnly)", async () => {
+    const cached = withHistory(
+      (url) =>
+        historyResponse(url, [historyBar(T0, 10)], {
+          fetchedAt: "2026-11-10T20:58:00Z",
+        }),
+      noYahoo
+    );
+    const yahoo = vi.fn(async () => yahooRows(["2026-10-01"]));
+    const old = await loadMergedBars(
+      planOf(cached.fetch, yahoo, { maxAgeMs: 60_000 })
+    );
+    expect(old.ibkrError).toBe("IBKR answered with an old cached copy");
+    expect(old.bars[0]?.source).toBe("yahoo");
+    const fresh = await loadMergedBars(
+      planOf(cached.fetch, yahoo, { maxAgeMs: 180_000 })
+    );
+    expect(fresh.bars[0]?.source).toBe("ibkr");
+    yahoo.mockClear();
+    const only = await loadMergedBars(
+      planOf(cached.fetch, yahoo, { config: null, ibkrOnly: true })
+    );
+    expect(only).toEqual({
+      bars: [],
+      history: null,
+      ibkrError: "IBKR history not configured",
+    });
+    expect(yahoo).not.toHaveBeenCalled();
+    expect(ibkrFallbacks()["test"]).toEqual({
+      count: 2,
+      lastReason: "IBKR history not configured",
+    });
   });
 
   it("uses the real clock and global fetch by default", async () => {
@@ -294,6 +372,34 @@ describe("loadMergedBars", () => {
 });
 
 describe("merged-bars helpers", () => {
+  it("settles a fallback failure to its result and anything else to a generic failure", async () => {
+    const result = { ok: false as const, reason: "Yahoo down" };
+    expect(
+      await settle(async () => {
+        throw new FallbackFailure("Yahoo down", result);
+      })
+    ).toBe(result);
+    expect(
+      await settle(async () => {
+        throw new TypeError("broken");
+      })
+    ).toEqual({ ok: false, reason: "broken", unknown: false });
+    expect(
+      await settle(async () => {
+        throw "odd";
+      })
+    ).toEqual({ ok: false, reason: "request failed", unknown: false });
+    expect(await settle(async () => 1)).toBe(1);
+  });
+
+  it("reads the fetch time of a history answer", () => {
+    expect(
+      historyFetchedAt({
+        fetchedAt: "2026-11-10T20:00:00Z",
+      } as never).toISOString()
+    ).toBe("2026-11-10T20:00:00.000Z");
+  });
+
   it("maps Yahoo ranges and IBKR daily times", () => {
     expect(DAILY_HISTORY_DURATION).toEqual({
       "10y": "10 Y",

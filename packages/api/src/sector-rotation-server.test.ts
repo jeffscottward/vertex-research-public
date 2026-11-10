@@ -1044,7 +1044,7 @@ describe("sectorRotation.snapshot", () => {
 });
 
 describe("sector rotation closes from IBKR history", () => {
-  const PHASES: Record<string, number> = { AAPL: LEADING, XLK: LEADING };
+  const PHASES: Record<string, number> = { AAPL: LEADING };
   // IBKR ADJUSTED_LAST bars with the same synthetic closes as the Yahoo stand-in.
   const ibkrBars = (symbol: string, count: number) =>
     weekdays(count).map((date, index) =>
@@ -1057,9 +1057,10 @@ describe("sector rotation closes from IBKR history", () => {
     );
   const symbolOf = (url: string) =>
     new URL(url).searchParams.get("symbol") as string;
+  // SPY and AAPL: two requests fit the per-isolate pacing budget.
   const input = {
     timeframe: "daily" as const,
-    universe: { kind: "custom" as const, symbols: ["AAPL", "XLK"] },
+    universe: { kind: "custom" as const, symbols: ["AAPL"] },
   };
   const specs = {
     ...DEFAULT_SPECS,
@@ -1073,11 +1074,12 @@ describe("sector rotation closes from IBKR history", () => {
 
   it("computes a custom map from IBKR bars without a Yahoo request", async () => {
     const yahoo = yahooWith(specs);
+    let fetchedAt = "2026-11-10T20:00:00Z";
     const history = withHistory((url) => {
       const bars = ibkrBars(symbolOf(url), BARS["2y"]);
       // A bar without a positive close is dropped.
       bars[5] = historyBar((bars[5] as { t: number }).t, 0);
-      return historyResponse(url, bars, { longName: "APPLE INC" });
+      return historyResponse(url, bars, { fetchedAt, longName: "APPLE INC" });
     }, yahoo);
     setSectorRotationOptionsForTesting({
       fetch: history.fetch,
@@ -1085,27 +1087,26 @@ describe("sector rotation closes from IBKR history", () => {
     });
     const result = await client().sectorRotation.map(input);
     expect(yahoo).not.toHaveBeenCalled();
-    expect(history.urls.map(symbolOf)).toEqual(["SPY", "AAPL", "XLK"]);
+    expect(history.urls.map(symbolOf)).toEqual(["SPY", "AAPL"]);
     expect(history.urls[0]).toContain("whatToShow=ADJUSTED_LAST");
     expect(history.urls[0]).toContain("duration=2+Y");
     expect(result.asOf).toBe(LAST_DATE);
+    // The display name never flips to IBKR's contract name.
     expect(result.series.map((series) => [series.symbol, series.name])).toEqual(
-      [
-        ["AAPL", "APPLE INC"],
-        ["XLK", "Technology"],
-      ]
+      [["AAPL", null]]
     );
-    // During the session the newest IBKR bar is live and dropped.
+    // A cached copy fetched during the session holds a live newest bar: it is dropped.
     resetIbkrPacing();
+    fetchedAt = "2026-11-02T15:00:00Z";
     setSectorRotationOptionsForTesting({
       fetch: history.fetch,
-      now: () => new Date("2026-11-02T15:00:00.000Z"),
+      now: () => new Date(NOW.getTime() + 11 * 60_000),
     });
     expect((await client().sectorRotation.map(input)).asOf).toBe("2026-10-30");
     expect(yahoo).not.toHaveBeenCalled();
   });
 
-  it("reads Yahoo when IBKR fails, and for the symbols past the pacing slots", async () => {
+  it("reads Yahoo when IBKR fails", async () => {
     const yahoo = useYahoo(specs);
     const failing = withHistory(
       () => Response.json({ error: "down" }, { status: 503 }),
@@ -1113,15 +1114,16 @@ describe("sector rotation closes from IBKR history", () => {
     );
     setSectorRotationOptionsForTesting({
       fetch: failing.fetch,
-      notify: ntfyAccepting,
       now: () => NOW,
     });
     const result = await client().sectorRotation.map(input);
-    expect(failing.urls).toHaveLength(3);
-    expect(yahoo).toHaveBeenCalledTimes(3);
+    expect(failing.urls).toHaveLength(2);
+    expect(yahoo).toHaveBeenCalledTimes(2);
     expect(result.series[0]?.name).toBe("Apple Inc.");
-    // collect reads 12 symbols: IBKR gets at most 3 a minute, Yahoo serves the rest at once.
-    resetIbkrPacing();
+  });
+
+  it("collects from IBKR for every symbol, or from Yahoo for every symbol when one fails", async () => {
+    const yahoo = yahooWith(DEFAULT_SPECS);
     const served = withHistory(
       (url) => historyResponse(url, ibkrBars(symbolOf(url), BARS["5y"] + 10)),
       yahoo
@@ -1131,17 +1133,41 @@ describe("sector rotation closes from IBKR history", () => {
       notify: ntfyAccepting,
       now: () => NOW,
     });
-    yahoo.mockClear();
-    const { repository } = memoryRepository();
-    const collected = await clientFor({
-      apiKey: PLAINTEXT,
-      marketHistory: HISTORY_CONFIG,
-      repository,
-    }).sectorRotation.collect({ dryRun: true });
-    expect(collected.asOf).toBe(LAST_DATE);
-    expect(served.urls).toHaveLength(3);
+    const collect = () =>
+      clientFor({
+        apiKey: PLAINTEXT,
+        marketHistory: HISTORY_CONFIG,
+        repository: memoryRepository().repository,
+      }).sectorRotation.collect({ dryRun: true });
+    expect((await collect()).asOf).toBe(LAST_DATE);
+    // Scheduled run: no per-isolate budget, every symbol from IBKR, no Yahoo request.
+    expect(served.urls).toHaveLength(12);
     expect(served.urls[0]).toContain("duration=5+Y");
-    expect(yahoo).toHaveBeenCalledTimes(9);
+    expect(yahoo).not.toHaveBeenCalled();
+    const partial = withHistory(
+      (url) =>
+        symbolOf(url) === "XLK"
+          ? Response.json({ error: "no_contract" }, { status: 422 })
+          : historyResponse(url, ibkrBars(symbolOf(url), BARS["5y"] + 10)),
+      yahoo
+    );
+    setSectorRotationOptionsForTesting({
+      fetch: partial.fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+    });
+    expect((await collect()).asOf).toBe(LAST_DATE);
+    // XLK fails after SPY..XLI: the run reads Yahoo for all 12 symbols.
+    expect(partial.urls.map(symbolOf)).toEqual([
+      "SPY",
+      "XLB",
+      "XLC",
+      "XLE",
+      "XLF",
+      "XLI",
+      "XLK",
+    ]);
+    expect(yahoo).toHaveBeenCalledTimes(12);
   });
 
   it("fills the days before IBKR's late first bar from Yahoo without a seam", async () => {
@@ -1157,10 +1183,10 @@ describe("sector rotation closes from IBKR history", () => {
     setSectorRotationOptionsForTesting({ fetch: late.fetch, now: () => NOW });
     yahoo.mockClear();
     const merged = await client().sectorRotation.map(input);
-    expect(late.urls).toHaveLength(3);
-    expect(yahoo).toHaveBeenCalledTimes(3);
+    expect(late.urls).toHaveLength(2);
+    expect(yahoo).toHaveBeenCalledTimes(2);
     expect(merged.series).toEqual(yahooOnly.series);
-    // A failed gap fill keeps IBKR's 10 days (too few for a map) and names the symbol from IBKR.
+    // A failed gap fill keeps IBKR's 10 days (too few for a map).
     resetIbkrPacing();
     const broken = withHistory(
       (url) =>
@@ -1171,7 +1197,6 @@ describe("sector rotation closes from IBKR history", () => {
     const short = await client().sectorRotation.map(input);
     expect(short.errors).toEqual([
       { reason: "Too little price history", symbol: "AAPL" },
-      { reason: "Too little price history", symbol: "XLK" },
     ]);
   });
 });

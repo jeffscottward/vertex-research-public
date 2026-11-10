@@ -36,11 +36,14 @@ import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
 import {
   DAILY_HISTORY_DURATION,
+  FallbackFailure,
   historyDate,
+  historyFetchedAt,
   historyInstrument,
   LIVE_HISTORY_TIMEOUT_MS,
   loadMergedBars,
   sessionRunning,
+  settle,
   windowFillBefore,
 } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -53,9 +56,10 @@ import { fetchBoundedJson, type ResearchLensError } from "./research-lenses.ts";
 // leading or lagging; only a newly recorded alert is sent to the price alert ntfy destination. map
 // reads the stored sector points, or computes a custom list on request (two years of bars, 10-minute
 // in-process cache). snapshot is the versioned research input. Research only: no order path.
-// Closes: IBKR ADJUSTED_LAST history first (merged-bars.ts paces it to about 3 requests per minute
-// for the whole process, so most of the 12 symbols of one run may come from Yahoo), Yahoo adjusted
-// closes for symbols IBKR could not serve and for days before IBKR's first bar.
+// Closes: IBKR ADJUSTED_LAST history first, Yahoo adjusted closes for days before IBKR's first bar.
+// collect takes one source per run: IBKR for all 12 symbols (waiting for the service pacing) or Yahoo
+// for all when any symbol fails. map is a view: IBKR within merged-bars.ts's per-isolate budget, Yahoo
+// for the symbols IBKR could not serve at once.
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -210,34 +214,32 @@ const displayName = (raw: string | null | undefined): string | null => {
   return name === undefined || name === "" ? null : name.slice(0, 80);
 };
 
-type BarsFailure = Extract<BarsResult, { ok: false }>;
-
-class YahooFailure extends Error {
-  readonly result: BarsFailure;
-  constructor(result: BarsFailure) {
-    super(result.reason);
-    this.result = result;
-  }
-}
-
 type CloseRange = typeof COLLECT_RANGE | typeof MAP_RANGE;
+
+type CloseRead = Readonly<{ result: BarsResult; ibkr: boolean }>;
 
 /**
  * Daily adjusted closes of one symbol: IBKR ADJUSTED_LAST first, Yahoo for the whole range when IBKR
  * fails or has no request slot, and Yahoo for the days before IBKR's first bar when IBKR starts late.
- * Both are adjusted back from the newest close, so the seam has no adjustment step. The newest IBKR
- * bar is dropped while its session runs (as with Yahoo). A Yahoo failure is the symbol's result.
+ * Both are adjusted back from the newest close, so the seam has no adjustment step. An IBKR daily bar
+ * whose session was still running when the service fetched it is dropped (as Yahoo's live bar is). A
+ * Yahoo failure is the symbol's result. The display name comes from Yahoo only (null when IBKR alone
+ * served the symbol), so it never flips to IBKR's contract name. `scheduled`: a collect run that may
+ * wait for the service pacing and never reads Yahoo for the whole series (collectCloses decides).
  */
 const fetchCloses = async (
   symbol: string,
   range: CloseRange,
-  config: DeployStatusConfig | null
-): Promise<BarsResult> => {
+  config: DeployStatusConfig | null,
+  scheduled = false
+): Promise<CloseRead> => {
   const now = clock();
   const instrument = historyInstrument(symbol);
   let read: BarsResult | null = null;
-  try {
+  let ibkr = false;
+  const result = await settle(async (): Promise<BarsResult> => {
     const merged = await loadMergedBars<ClosePoint>({
+      site: "sector-rotation",
       config,
       request:
         instrument?.secType === "STK"
@@ -248,43 +250,41 @@ const fetchCloses = async (
               whatToShow: "ADJUSTED_LAST",
             }
           : null,
+      offline: scheduled,
+      ibkrOnly: scheduled,
       options: {
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         now: clock,
-        timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
+        ...(scheduled ? {} : { timeoutMs: LIVE_HISTORY_TIMEOUT_MS }),
       },
       fillBefore: historyDate(
         windowFillBefore(now, RANGE_DAYS[range]).getTime() / 1000
       ),
-      fromIbkr: (bar) => {
+      fromIbkr: (bar, history) => {
         const date = historyDate(bar.t);
-        return sessionRunning(date, now) || bar.c <= 0
+        return sessionRunning(date, historyFetchedAt(history)) || bar.c <= 0
           ? null
           : { close: bar.c, date };
       },
       yahoo: async () => {
-        const result = await fetchDailyBars(symbol, range);
-        read = result;
-        if (!result.ok) throw new YahooFailure(result);
-        return result.bars.closes;
+        const fetched = await fetchDailyBars(symbol, range);
+        read = fetched;
+        if (!fetched.ok) throw new FallbackFailure(fetched.reason, fetched);
+        return fetched.bars.closes;
       },
       keyOf: (point) => point.date,
     });
+    ibkr = merged.history !== null;
     const yahoo = read as BarsResult | null;
     return {
       bars: {
         closes: merged.bars,
-        name:
-          yahoo?.ok === true
-            ? yahoo.bars.name
-            : displayName(merged.history?.contract.longName),
+        name: yahoo?.ok === true ? yahoo.bars.name : null,
       },
       ok: true,
     };
-  } catch (error) {
-    // loadMergedBars turns every IBKR failure into a Yahoo read; only that read throws here.
-    return (error as YahooFailure).result;
-  }
+  });
+  return { ibkr, result };
 };
 
 /** Bars for each symbol, a few requests at a time. */
@@ -301,8 +301,28 @@ const fetchAllBars = async (
       batch.map((symbol) => fetchCloses(symbol, range, config ?? null))
     );
     batch.forEach((symbol, index) => {
-      out.set(symbol, results[index] as BarsResult);
+      out.set(symbol, (results[index] as CloseRead).result);
     });
+  }
+  return out;
+};
+
+/**
+ * The closes of one collect run from one source: IBKR for every symbol (one at a time, waiting for the
+ * service pacing: about 4 minutes for 12 symbols), or Yahoo for every symbol when IBKR is not
+ * configured or any symbol fails, so stored points never mix sources within a run.
+ */
+const collectCloses = async (
+  symbols: readonly string[],
+  config: DeployStatusConfig | null | undefined
+): Promise<Map<string, BarsResult>> => {
+  if (config === null || config === undefined)
+    return fetchAllBars(symbols, COLLECT_RANGE, null);
+  const out = new Map<string, BarsResult>();
+  for (const symbol of symbols) {
+    const read = await fetchCloses(symbol, COLLECT_RANGE, config, true);
+    if (!read.ibkr) return fetchAllBars(symbols, COLLECT_RANGE, null);
+    out.set(symbol, read.result);
   }
   return out;
 };
@@ -475,9 +495,8 @@ const collect = api.sectorRotation.collect
       });
     const repository = repositoryFor(context, failures);
     const now = clock();
-    const fetched = await fetchAllBars(
+    const fetched = await collectCloses(
       [SECTOR_ROTATION_BENCHMARK, ...SECTOR_SYMBOLS],
-      COLLECT_RANGE,
       context.marketHistory
     );
     const benchmark = fetched.get(SECTOR_ROTATION_BENCHMARK) as BarsResult;

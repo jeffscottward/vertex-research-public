@@ -77,12 +77,13 @@ const round = (close: number): number => Math.round(close * 10_000) / 10_000;
 export const freeze = async (
   fetchJson: FetchJson,
   now: Date,
-  history: FreezeHistory | null = null
+  history: FreezeHistory | null = null,
+  log: (line: string) => void = () => undefined
 ): Promise<string> => {
   const symbols: Record<string, FrozenRow[]> = {};
-  let ibkrUsed = false;
   for (const symbol of FREEZE_SYMBOLS) {
     const merged = await loadMergedBars<Close>({
+      site: "sector-rotation-freeze",
       config: history?.config ?? null,
       request: {
         barSize: "1 day",
@@ -91,6 +92,8 @@ export const freeze = async (
         whatToShow: "ADJUSTED_LAST",
       },
       offline: true,
+      // With IBKR configured every symbol must come from IBKR (Yahoo only for older dates).
+      ibkrOnly: history !== null,
       ...(history?.options === undefined ? {} : { options: history.options }),
       fillBefore: FREEZE_FROM,
       fromIbkr: (bar) => {
@@ -107,12 +110,19 @@ export const freeze = async (
         ).map(([date, close]) => ({ close, date })),
       keyOf: (row) => row.date,
     });
-    ibkrUsed ||= merged.history !== null;
+    if (history !== null && merged.history === null)
+      throw new Error(
+        `${symbol}: IBKR history failed (${merged.ibkrError}); unset VERTEX_HISTORY_URL to freeze from Yahoo only`
+      );
+    const ibkr = merged.bars.filter((row) => row.source === "ibkr").length;
+    log(
+      `${symbol}: ${ibkr} IBKR closes, ${merged.bars.length - ibkr} Yahoo closes`
+    );
     symbols[symbol] = merged.bars.map((row) => [row.date, row.close]);
   }
   return `${JSON.stringify({
     fetchedAt: now.toISOString(),
-    source: ibkrUsed ? FREEZE_SOURCE_IBKR : FREEZE_SOURCE,
+    source: history === null ? FREEZE_SOURCE : FREEZE_SOURCE_IBKR,
     symbols,
   })}\n`;
 };
@@ -124,6 +134,8 @@ export type FreezeIo = Readonly<{
   fetch: (url: string, init: RequestInit) => Promise<Response>;
   /** VERTEX_HISTORY_URL and VERTEX_DEPLOY_STATUS_TOKEN select IBKR first; absent = Yahoo only. */
   env?: Readonly<Record<string, string | undefined>>;
+  /** Progress lines: the source chosen and the closes per source of each symbol. */
+  log?: (line: string) => void;
   now: Date;
   out: string;
   write: (path: string, content: string) => void;
@@ -135,6 +147,12 @@ export const runFreeze = async (io: FreezeIo): Promise<number> => {
     io.env?.["VERTEX_HISTORY_URL"],
     io.env?.["VERTEX_DEPLOY_STATUS_TOKEN"]
   );
+  const log = io.log ?? (() => undefined);
+  log(
+    config === null
+      ? "Source: Yahoo only (VERTEX_HISTORY_URL or VERTEX_DEPLOY_STATUS_TOKEN not set)"
+      : "Source: IBKR history (VERTEX_HISTORY_URL set), Yahoo for older dates only"
+  );
   const content = await freeze(
     async (url) => {
       const response = await io.fetch(url, {
@@ -144,7 +162,8 @@ export const runFreeze = async (io: FreezeIo): Promise<number> => {
       return response.json();
     },
     io.now,
-    config === null ? null : { config, options: { fetch: io.fetch } }
+    config === null ? null : { config, options: { fetch: io.fetch } },
+    log
   );
   io.write(io.out, content);
   return 0;

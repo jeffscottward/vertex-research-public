@@ -31,10 +31,12 @@ import {
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
 import {
+  FallbackFailure,
   historyInstrument,
   LIVE_HISTORY_TIMEOUT_MS,
   loadMergedBars,
   sessionOpen,
+  settle,
 } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import { fetchBoundedJson } from "./research-lenses.ts";
@@ -45,8 +47,8 @@ import { signalAlertsRouter } from "./signal-alerts.ts";
 
 // Price alert procedures (priceAlerts.*). Operator-only: a session operator manages their own rules
 // and runs check; an operator agent write key runs tick for every owner (scripts/price-alerts). A run
-// quotes each watched symbol once (IBKR 5-minute history first, paced to about 3 requests per minute
-// for the whole process by merged-bars.ts; public Yahoo for the rest), evaluates the active rules,
+// quotes each watched symbol once (IBKR 5-minute history first within merged-bars.ts's per-isolate
+// budget; public Yahoo for the rest), evaluates the active rules,
 // triggers each rule at most once and sends one fixed-text ntfy notification per owner with a
 // trigger. The topic and token never leave this module and are never logged. No order path.
 
@@ -128,26 +130,20 @@ const fetchYahooQuote = async (
   }
 };
 
-type QuoteFailure = Extract<PriceAlertQuoteResult, { ok: false }>;
-
-class YahooQuoteFailure extends Error {
-  readonly result: QuoteFailure;
-  constructor(result: QuoteFailure) {
-    super(result.reason);
-    this.result = result;
-  }
-}
+/** An IBKR copy fetched longer ago than this is not a quote: the service caches 5-minute bars. */
+const QUOTE_MAX_AGE_MS = 60_000;
 
 // IBKR bars keep their close: the newest one is the last price.
 type QuoteBar = PriceAlertBar & Readonly<{ close?: number }>;
 
 /**
- * Today's 5-minute bars and the last price: IBKR first (5 mins, 1 D; a stale service copy is not
- * used), Yahoo for the whole quote when IBKR fails or has no request slot, and Yahoo for the bars
- * before IBKR's first bar when IBKR starts after `needsFrom` (the earliest window of the symbol's
- * rules, at most back to today's 09:30 New York open: Yahoo's range=1d has nothing older either).
+ * Today's 5-minute bars and the last price: IBKR first (5 mins, 1 D; a stale or more than 60 s old
+ * service copy is not used, so a check never marks time it did not see), Yahoo for the whole quote
+ * when IBKR fails or has no request slot, and Yahoo for the bars before IBKR's first bar when IBKR
+ * starts after `needsFrom` (the earliest window of the symbol's rules, at most back to today's 09:30
+ * New York open: Yahoo's range=1d has nothing older either).
  */
-const fetchQuote = async (
+const fetchQuote = (
   symbol: string,
   config: DeployStatusConfig | null,
   needsFrom: Date
@@ -156,8 +152,9 @@ const fetchQuote = async (
   const instrument = historyInstrument(symbol);
   const open = sessionOpen(now);
   let yahoo: PriceAlertQuoteResult | null = null;
-  try {
+  return settle(async (): Promise<PriceAlertQuoteResult> => {
     const merged = await loadMergedBars<QuoteBar>({
+      site: "price-alerts",
       config,
       request:
         instrument === null
@@ -175,6 +172,7 @@ const fetchQuote = async (
         timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
       },
       rejectStale: true,
+      maxAgeMs: QUOTE_MAX_AGE_MS,
       fillBefore: new Date(
         Math.max(needsFrom.getTime(), open.getTime())
       ).toISOString(),
@@ -190,7 +188,7 @@ const fetchQuote = async (
       yahoo: async () => {
         const result = await fetchYahooQuote(symbol);
         yahoo = result;
-        if (!result.ok) throw new YahooQuoteFailure(result);
+        if (!result.ok) throw new FallbackFailure(result.reason, result);
         return result.quote.bars;
       },
       keyOf: (bar) => bar.start.toISOString(),
@@ -208,10 +206,7 @@ const fetchQuote = async (
         symbol,
       },
     };
-  } catch (error) {
-    // loadMergedBars turns every IBKR failure into a Yahoo read; only that read throws here.
-    return (error as YahooQuoteFailure).result;
-  }
+  });
 };
 
 const sha256Hex = async (text: string): Promise<string> => {

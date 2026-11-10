@@ -825,6 +825,22 @@ describe("price alert quotes from IBKR history", () => {
     expect(second.result.triggered[0]?.state).toMatchObject({
       triggerPrice: "53.64",
     });
+    // A cached copy fetched more than 60 s before the check is not a quote.
+    resetIbkrPacing();
+    yahoo.mockClear();
+    const old = withHistory(
+      (url) =>
+        historyResponse(url, fiveMinute("13:30", [80]), {
+          fetchedAt: "2026-10-13T20:03:00Z",
+        }),
+      yahoo
+    );
+    const third = await run(old.fetch);
+    expect(old.urls).toHaveLength(1);
+    expect(yahoo).toHaveBeenCalledTimes(1);
+    expect(third.result.triggered[0]?.state).toMatchObject({
+      triggerPrice: "53.64",
+    });
     // Class shares (BRK.B) have no IBKR form here: Yahoo only.
     resetIbkrPacing();
     setPriceAlertsOptionsForTesting({

@@ -39,13 +39,17 @@ import {
 import { isAgentViewerEmail } from "./agent-viewer.ts";
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
+import type { HistoryBars } from "./ibkr-history.ts";
 import {
   DAILY_HISTORY_DURATION,
+  FallbackFailure,
   historyDate,
+  historyFetchedAt,
   historyInstrument,
   LIVE_HISTORY_TIMEOUT_MS,
   loadMergedBars,
   sessionRunning,
+  settle,
   windowFillBefore,
 } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -56,7 +60,7 @@ import { fetchBoundedJson, type ResearchLensError } from "./research-lenses.ts";
 // latest snapshot, syncBucket turns the latest snapshot into an equal-weight basket, and screen
 // reads one year of daily bars for the first 60 members in rank order (plus SPY and sector ETFs;
 // 10-minute in-process cache) for the trend gates and rotation quadrants: IBKR history first
-// (TRADES, 1 Y; merged-bars.ts paces it to about 3 requests per minute for the whole process),
+// (TRADES, 1 Y; merged-bars.ts paces it per isolate and reads Yahoo on the service's PACED answer),
 // public Yahoo bars for symbols IBKR could not serve in time and for days before IBKR's first bar.
 // Research only: no order path.
 
@@ -339,10 +343,19 @@ const fetchDailyOhlcv = async (symbol: string): Promise<BarsResult> => {
   };
 };
 
-/** One IBKR daily bar as a screen bar; null while its session runs or without positive prices. */
-const screenBarOf = (bar: MarketBar, now: Date): ScreenBar | null => {
+/**
+ * One IBKR daily bar as a screen bar; null without positive prices or while its session was still
+ * running when the service fetched it (a cached copy can hold a live bar after the close).
+ */
+const screenBarOf = (
+  bar: MarketBar,
+  history: HistoryBars
+): ScreenBar | null => {
   const date = historyDate(bar.t);
-  if (sessionRunning(date, now) || Math.min(bar.o, bar.h, bar.l, bar.c) <= 0)
+  if (
+    sessionRunning(date, historyFetchedAt(history)) ||
+    Math.min(bar.o, bar.h, bar.l, bar.c) <= 0
+  )
     return null;
   return {
     date,
@@ -359,14 +372,15 @@ const screenBarOf = (bar: MarketBar, now: Date): ScreenBar | null => {
  * Yahoo for the whole year when IBKR fails or has no request slot, and Yahoo for the days before
  * IBKR's first bar when IBKR starts late. A Yahoo failure is the symbol's reason.
  */
-const fetchBars = async (
+const fetchBars = (
   symbol: string,
   config: DeployStatusConfig | null
 ): Promise<BarsResult> => {
   const now = clock();
   const instrument = historyInstrument(symbol);
-  try {
+  return settle(async (): Promise<BarsResult> => {
     const merged = await loadMergedBars<ScreenBar>({
+      site: "pick-lists",
       config,
       request:
         instrument === null
@@ -384,18 +398,16 @@ const fetchBars = async (
       fillBefore: historyDate(
         windowFillBefore(now, SCREEN_DAYS).getTime() / 1000
       ),
-      fromIbkr: (bar) => screenBarOf(bar, now),
+      fromIbkr: screenBarOf,
       yahoo: async () => {
         const result = await fetchDailyOhlcv(symbol);
-        if (!result.ok) throw new Error(result.reason);
+        if (!result.ok) throw new FallbackFailure(result.reason, result);
         return result.bars;
       },
       keyOf: (bar) => bar.date,
     });
     return { ok: true, bars: merged.bars };
-  } catch (error) {
-    return { ok: false, reason: (error as Error).message };
-  }
+  });
 };
 
 /** Cached bars when fresh, else one fetch; only successful results are cached. */

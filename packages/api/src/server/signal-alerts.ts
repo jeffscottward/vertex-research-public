@@ -8,7 +8,7 @@ import type { NotificationFetch } from "@darkfactory/notifications/server";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
-import type { MarketBarSize } from "../contracts/market-data.ts";
+import type { MarketBar, MarketBarSize } from "../contracts/market-data.ts";
 import {
   SIGNAL_ALERT_EVENTS_MAX,
   SIGNAL_ALERT_MAX_SERIES_PER_RUN,
@@ -30,6 +30,7 @@ import {
   parseWatchRequest,
   planSignalAlertRun,
   SIGNAL_ALERT_NOTIFICATION,
+  SIGNAL_ALERT_TIMEFRAME_MS,
   type SignalAlertSeriesPlan,
   type SignalBar,
   type SignalBarsResult,
@@ -37,12 +38,16 @@ import {
 } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
+import type { HistoryBars } from "./ibkr-history.ts";
 import {
+  FallbackFailure,
   historyDate,
+  historyFetchedAt,
   historyInstrument,
   LIVE_HISTORY_TIMEOUT_MS,
   loadMergedBars,
   newYorkTime,
+  settle,
   windowFillBefore,
 } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -53,8 +58,8 @@ import {
 import { fetchBoundedJson } from "./research-lenses.ts";
 
 // Signal alert and watch procedures (priceAlerts.signals.*), LuxAlgo P4. Operator-only. A run
-// fetches each symbol/timeframe series once (IBKR history first, paced to about 3 requests per minute
-// for the whole process by merged-bars.ts; public Yahoo for the rest and for older bars), evaluates the active
+// fetches each symbol/timeframe series once (IBKR history first within merged-bars.ts's per-isolate
+// budget; public Yahoo for the rest, for older bars and for 1h series), evaluates the active
 // rules arithmetically (no model call in the tick loop), inserts one event per fired bar and sends
 // one fixed-text ntfy push per owner with a fire (the price alert destination). The browser shows
 // events from priceAlerts.signals.events as in-app and OS notifications. No order path.
@@ -117,48 +122,65 @@ const fetchYahooSeries = async (
 };
 
 /**
- * IBKR request per timeframe and the calendar days the series covers (Yahoo's range). 1h: one IBKR
- * page of 31 days, then Yahoo for the rest of the year: a year of hourly bars is 12 pages, about 4
- * minutes of the service's pacing for one series, and a tick reads up to 20 series. Continuous
- * futures take one page (CONTFUT has no end date), so Yahoo serves their older bars too.
+ * IBKR request per timeframe and the calendar days the series covers (Yahoo's range). 1h has none:
+ * IBKR cannot serve the 1h window (a year of warm-up) in one request, 12 paced pages are about 4
+ * minutes of the service's pacing for one series, and IBKR's hourly grid (09:30, 10:00, 11:00 ...)
+ * differs from Yahoo's (09:30, 10:30 ...), so the two cannot share one series: Yahoo serves 1h.
+ * Continuous futures take one page (CONTFUT has no end date), so Yahoo serves their older bars.
  */
 const IBKR_SERIES: Readonly<
-  Record<
-    SignalAlertTimeframe,
-    Readonly<{
-      barSize: MarketBarSize;
-      duration: string;
-      pages: number;
-      days: number;
-    }>
+  Partial<
+    Record<
+      SignalAlertTimeframe,
+      Readonly<{
+        barSize: MarketBarSize;
+        duration: string;
+        pages: number;
+        days: number;
+      }>
+    >
   >
 > = Object.freeze({
   "1d": { barSize: "1 day", days: 730, duration: "2 Y", pages: 1 },
-  "1h": { barSize: "1 hour", days: 365, duration: "31 D", pages: 1 },
   "5m": { barSize: "5 mins", days: 30, duration: "30 D", pages: 1 },
   "15m": { barSize: "15 mins", days: 60, duration: "31 D", pages: 2 },
 });
 
 // Daily bars start at the regular session open (09:30 New York), or at midnight New York for
-// futures, as Yahoo stamps them; IBKR stamps a daily bar 00:00 UTC of its trading date.
-const DAILY_START_MINUTE = { CONTFUT: 0, STK: 9 * 60 + 30 } as const;
+// futures, as Yahoo stamps them; IBKR stamps a daily bar 00:00 UTC of its trading date. A daily
+// stock bar ends at 16:00 New York, a futures day at 17:00 New York (CME Globex).
+const DAILY_MINUTES = {
+  CONTFUT: { end: 17 * 60, start: 0 },
+  STK: { end: 16 * 60, start: 9 * 60 + 30 },
+} as const;
 
-type SeriesFailure = Extract<SignalBarsResult, { ok: false }>;
-
-class YahooSeriesFailure extends Error {
-  readonly result: SeriesFailure;
-  constructor(result: SeriesFailure) {
-    super(result.reason);
-    this.result = result;
-  }
-}
+/** One IBKR bar as a signal bar; null without positive prices or when it had not ended at fetch. */
+const signalBarOf = (
+  bar: MarketBar,
+  history: HistoryBars,
+  timeframe: SignalAlertTimeframe
+): SignalBar | null => {
+  if (Math.min(bar.o, bar.h, bar.l, bar.c) <= 0) return null;
+  const minutes =
+    DAILY_MINUTES[history.request.secType === "CONTFUT" ? "CONTFUT" : "STK"];
+  const daily = timeframe === "1d";
+  const start = daily
+    ? newYorkTime(historyDate(bar.t), minutes.start)
+    : new Date(bar.t * 1000);
+  const end = daily
+    ? newYorkTime(historyDate(bar.t), minutes.end).getTime()
+    : start.getTime() + SIGNAL_ALERT_TIMEFRAME_MS[timeframe];
+  // The service answers from its cache: a bar still forming when it was fetched is not closed.
+  if (end > historyFetchedAt(history).getTime()) return null;
+  return { close: bar.c, high: bar.h, low: bar.l, open: bar.o, start };
+};
 
 /**
  * One series: IBKR first (a stale service copy is not used), Yahoo for the whole series when IBKR
- * fails or has no request slot, and Yahoo for the bars before IBKR's first bar when IBKR starts
- * later than the timeframe's window.
+ * fails, has no request slot or no request for the timeframe, and Yahoo for the bars older than
+ * IBKR's first bar when IBKR starts later than the timeframe's window.
  */
-const fetchSeries = async (
+const fetchSeries = (
   symbol: string,
   timeframe: SignalAlertTimeframe,
   config: DeployStatusConfig | null
@@ -169,12 +191,13 @@ const fetchSeries = async (
   const daily = timeframe === "1d";
   const keyOf = (bar: SignalBar): string =>
     daily ? newYorkClock(bar.start).day : bar.start.toISOString();
-  const fillBefore = windowFillBefore(now, spec.days);
-  try {
+  const fillBefore = windowFillBefore(now, spec?.days ?? 0);
+  return settle(async (): Promise<SignalBarsResult> => {
     const merged = await loadMergedBars<SignalBar>({
+      site: "signal-alerts",
       config,
       request:
-        instrument === null
+        instrument === null || spec === undefined
           ? null
           : {
               ...instrument,
@@ -182,7 +205,7 @@ const fetchSeries = async (
               duration: spec.duration,
               useRTH: instrument.secType === "STK",
             },
-      pages: instrument?.secType === "STK" ? spec.pages : 1,
+      pages: instrument?.secType === "STK" ? (spec?.pages ?? 1) : 1,
       options: {
         ...(signalAlertsOptions.fetch === undefined
           ? {}
@@ -194,35 +217,16 @@ const fetchSeries = async (
       fillBefore: daily
         ? newYorkClock(fillBefore).day
         : fillBefore.toISOString(),
-      fromIbkr: (bar, history) =>
-        Math.min(bar.o, bar.h, bar.l, bar.c) > 0
-          ? {
-              close: bar.c,
-              high: bar.h,
-              low: bar.l,
-              open: bar.o,
-              start: daily
-                ? newYorkTime(
-                    historyDate(bar.t),
-                    DAILY_START_MINUTE[
-                      history.request.secType === "CONTFUT" ? "CONTFUT" : "STK"
-                    ]
-                  )
-                : new Date(bar.t * 1000),
-            }
-          : null,
+      fromIbkr: (bar, history) => signalBarOf(bar, history, timeframe),
       yahoo: async () => {
         const result = await fetchYahooSeries(symbol, timeframe);
-        if (!result.ok) throw new YahooSeriesFailure(result);
+        if (!result.ok) throw new FallbackFailure(result.reason, result);
         return result.bars;
       },
       keyOf,
     });
     return { bars: merged.bars, ok: true };
-  } catch (error) {
-    // loadMergedBars turns every IBKR failure into a Yahoo read; only that read throws here.
-    return { ok: false, reason: (error as YahooSeriesFailure).result.reason };
-  }
+  });
 };
 
 /** A stored condition that no longer parses is skipped (never evaluated with a guessed meaning). */

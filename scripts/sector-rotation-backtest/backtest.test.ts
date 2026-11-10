@@ -228,12 +228,15 @@ describe("freeze helper", () => {
     ) => {
       const urls: string[] = [];
       const writes: string[] = [];
+      const logs: string[] = [];
       return {
+        logs,
         urls,
         writes,
         run: () =>
           runFreeze({
             env,
+            log: (line) => logs.push(line),
             fetch: async (url) => {
               urls.push(url);
               return url.startsWith(HISTORY_CONFIG.url)
@@ -270,18 +273,33 @@ describe("freeze helper", () => {
       const file = parsed(run.writes[0]);
       expect(file.source).toContain("IBKR");
       expect(file.symbols["SPY"]).toEqual([[FREEZE_FROM, 10.1235]]);
+      expect(run.logs[1]).toBe("SPY: 1 IBKR closes, 0 Yahoo closes");
     });
 
-    it("reads Yahoo when IBKR fails", async () => {
+    it("fails when IBKR is configured but a symbol cannot be served", async () => {
       const run = io(() => Response.json({ error: "bad" }, { status: 400 }));
-      await run.run();
-      const file = parsed(run.writes[0]);
-      expect(file.source).toContain("Yahoo Finance v8");
-      expect(file.source).not.toContain("IBKR");
-      expect(file.symbols["XLK"]).toEqual([
-        [FREEZE_FROM, 2],
-        ["2018-06-20", 3],
-      ]);
+      await expect(run.run()).rejects.toThrow(
+        "SPY: IBKR history failed (History service rejected the request); unset VERTEX_HISTORY_URL"
+      );
+      expect(run.urls.every((url) => url.startsWith(HISTORY_CONFIG.url))).toBe(
+        true
+      );
+      expect(run.writes).toEqual([]);
+      expect(run.logs[0]).toContain("Source: IBKR history");
+    });
+
+    it("logs the Yahoo-only source when the history service is not configured", async () => {
+      const logs: string[] = [];
+      await runFreeze({
+        env: {},
+        fetch: async () => Response.json(body([at(FREEZE_FROM)], [1])),
+        log: (line) => logs.push(line),
+        now: new Date("2026-11-10T00:00:00Z"),
+        out: "/tmp/out.json",
+        write: () => undefined,
+      });
+      expect(logs[0]).toContain("Source: Yahoo only");
+      expect(logs[1]).toBe("SPY: 0 IBKR closes, 1 Yahoo closes");
     });
 
     it("fills the dates before IBKR's late first close from Yahoo", async () => {

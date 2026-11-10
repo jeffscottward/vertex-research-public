@@ -368,6 +368,7 @@ const priceFacts = async (
   const now = config === null ? null : (options.now ?? (() => new Date()))();
   let yahoo: YahooYear | null = null;
   const merged = await loadMergedBars<DatedBar>({
+    site: "research-lenses",
     config,
     request:
       instrument?.secType === "STK"
