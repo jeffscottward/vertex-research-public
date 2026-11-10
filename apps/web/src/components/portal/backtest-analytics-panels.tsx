@@ -312,6 +312,7 @@ export const RunConfigLine = ({
       ? null
       : `slippage ${num(config.slippagePercent, 4)}%`,
     config.leverage === undefined ? null : `leverage ${num(config.leverage)}x`,
+    config.engine === undefined ? null : `engine ${config.engine}`,
   ].filter((part) => part !== null);
   return (
     <p className="font-mono text-muted-foreground text-xs" data-run-config>

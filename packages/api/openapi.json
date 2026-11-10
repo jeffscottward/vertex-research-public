@@ -23925,6 +23925,11 @@
                             "minimum": 0,
                             "type": "number"
                           },
+                          "engine": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          },
                           "fillModel": {
                             "enum": [
                               "bar",
@@ -26445,6 +26450,9 @@
                             },
                             "commissionPerTrade": {
                               "type": "number"
+                            },
+                            "engine": {
+                              "type": "string"
                             },
                             "fillModel": {
                               "enum": [
@@ -29494,6 +29502,9 @@
                                 },
                                 "commissionPerTrade": {
                                   "type": "number"
+                                },
+                                "engine": {
+                                  "type": "string"
                                 },
                                 "fillModel": {
                                   "enum": [
