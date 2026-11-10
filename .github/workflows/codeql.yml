@@ -2,9 +2,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
+    branches: [main, vertex/rebuild-darkfactory-20260921]
   pull_request:
-    branches: [main]
+    branches: [main, vertex/rebuild-darkfactory-20260921]
   schedule:
     - cron: "23 4 * * 1"
 

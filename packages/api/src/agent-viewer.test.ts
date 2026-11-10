@@ -93,8 +93,13 @@ const intercept = async (context: ApiContext, path: string) => {
   return { result, ran: next.mock.calls.length === 1 };
 };
 
-// Owner decision 2026-11-05: a viewer may start its own threads and chat (Plan mode only).
-const VIEWER_CHAT = new Set(["assistant.threads.create", "assistant.send"]);
+// Owner decisions: a viewer may start its own threads and chat in Plan mode (2026-11-05) and run
+// Academy backtests, which are modeled and place no orders (2026-11-10).
+const VIEWER_CHAT = new Set([
+  "assistant.threads.create",
+  "assistant.send",
+  "academy.backtest",
+]);
 
 describe("agent viewer read-only gate", () => {
   it("refuses every write procedure for a viewer and lets every read through", async () => {
@@ -151,6 +156,9 @@ describe("agent viewer read-only gate", () => {
     "autopilot.campaigns.setStatus",
     // Confirm cards stay operator-only
     "assistant.actions.decide",
+    // Academy paper deployment stays operator-only (backtest is allowed)
+    "academy.deployPreview",
+    "academy.deployRequest",
   ])("refuses %s for a viewer", async (path) => {
     expect(isAgentViewerReadProcedure(path.split("."))).toBe(false);
     const { ran, result } = await intercept(contextFor(VIEWER), path);
