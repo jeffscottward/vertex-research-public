@@ -210,6 +210,9 @@ def test_run_spec_produces_a_backtests_page_record():
     assert len(result["equity"]) <= 5000 and len(result["benchmark"]["points"]) == len(result["equity"])
     assert result["periodStart"] <= result["periodEnd"] and result["folds"]
     assert set(result["isSplit"]) == {"in_sample", "out_of_sample"}
+    # The engine is a runConfig field; the strategy label does not name it.
+    assert result["runConfig"]["engine"] == result["engine"] == "stdlib-daily-v1"
+    assert result["strategy"].endswith("(walk-forward)")
 
 
 def test_frozen_snapshot_hash_mismatch_is_rejected(tmp_path):
