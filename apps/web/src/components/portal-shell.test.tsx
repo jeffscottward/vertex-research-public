@@ -9,6 +9,17 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
+// The real Better Auth session store stays mounted for 1 s after its last
+// listener leaves, then removes a window listener. In this file that timer can
+// fire after Vitest has removed the jsdom window.
+const session = vi.hoisted(() => {
+  const unsubscribe = vi.fn();
+  return { subscribe: vi.fn(() => unsubscribe), unsubscribe };
+});
+vi.mock("@darkfactory/auth/client", () => ({
+  authClient: { useSession: { subscribe: session.subscribe } },
+}));
+
 import { portalBreadcrumb, portalPageTitle } from "../lib/portal-page-title.ts";
 import { DEFAULT_ANONYMOUS_THEME } from "../lib/theme.ts";
 import { UiStateProvider } from "../lib/ui-store.tsx";
@@ -162,6 +173,7 @@ describe("PortalShell", () => {
   });
 
   it("leaves no timer behind when a shell with a trusted session scope key unmounts", () => {
+    // setImmediate stays real: jsdom queues <details> toggle events with it.
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
     });
@@ -170,6 +182,8 @@ describe("PortalShell", () => {
       document.querySelector('[data-slot="portal-topbar"]')
     ).not.toBeNull();
     act(() => root?.unmount());
+    expect(session.subscribe).toHaveBeenCalledOnce();
+    expect(session.unsubscribe).toHaveBeenCalledOnce();
     // A timer that outlives the unmount can fire after Vitest removes the
     // jsdom window. Then the run fails with an unhandled "window is not defined".
     return expect(vi.getTimerCount()).toBe(0);
