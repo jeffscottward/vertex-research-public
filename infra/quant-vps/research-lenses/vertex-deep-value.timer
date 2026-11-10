@@ -1,0 +1,11 @@
+[Unit]
+Description=Deep value (TRUE SLAP) after the US close (weekdays 16:55 and 18:50 New York time) and at boot
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 16:55:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 18:50:00 America/New_York
+OnBootSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
