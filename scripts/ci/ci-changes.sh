@@ -3,12 +3,13 @@
 #
 #   ci-changes.sh classify   Read changed paths on stdin; print "docs" or "code".
 #   ci-changes.sh plan       Used by the `changes` job in ci.yml. Writes the outputs
-#                            heavy=true|false and exclude=<matrix exclude JSON> to
-#                            GITHUB_OUTPUT.
+#                            heavy=true|false, draft=true|false and
+#                            exclude=<matrix exclude JSON> to GITHUB_OUTPUT.
 #
 # The light lane (core) always runs. The full lane (coverage shards, coverage merge,
-# integration, browser) runs when code changed, except on a draft pull request.
-# A manual run always takes the full lane. Any error or unknown input means "code".
+# integration, browser) runs when code changed, except on a pull request that is a
+# draft when the run plans its lanes. A manual run always takes the full lane. Any
+# error or unknown input means "code" and "not a draft".
 set -euo pipefail
 
 # A path is documentation when it is a Markdown file anywhere, or a non-code file
@@ -66,8 +67,24 @@ changed_paths() {
   esac
 }
 
+# Print "true" when this run is for a pull request that is a draft now, else "false".
+# The draft flag in the event (DRAFT) can be stale. `gh pr ready` one second after
+# `gh pr create --draft` starts two runs, and the run for the draft event can cancel
+# the run for the ready event (PR #84, card vertex-ci-draft-ready-race). So a run for
+# a draft event asks GitHub for the state now. Only the answer "true" keeps the light
+# lane. A run for a ready event never asks: it always counts as not a draft.
+draft_now() {
+  local live
+  if [[ "${EVENT}" != "pull_request" || "${DRAFT:-false}" != "true" ]]; then
+    echo false
+    return 0
+  fi
+  live="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.draft')" || live=unknown
+  if [[ "${live}" == "true" ]]; then echo true; else echo false; fi
+}
+
 plan() {
-  local kind heavy exclude
+  local kind heavy exclude draft
   if [[ "${EVENT}" == "workflow_dispatch" ]]; then
     kind=code
   elif paths="$(changed_paths)"; then
@@ -76,18 +93,20 @@ plan() {
     echo "Could not list the changed files; taking the full lane."
     kind=code
   fi
+  draft="$(draft_now)"
   heavy=false
-  if [[ "${kind}" == "code" && "${DRAFT:-false}" != "true" ]]; then heavy=true; fi
+  if [[ "${kind}" == "code" && "${draft}" != "true" ]]; then heavy=true; fi
 
   local lanes=()
   if [[ "${heavy}" != "true" ]]; then lanes+=('{"lane":"integration"}'); fi
   if [[ "${heavy}" != "true" || "${BROWSER_TESTS:-}" != "on" ]]; then lanes+=('{"lane":"browser"}'); fi
   exclude="[$(IFS=,; echo "${lanes[*]}")]"
 
-  echo "Event ${EVENT}, draft ${DRAFT:-false}, changes ${kind}: heavy=${heavy}, exclude=${exclude}"
+  echo "Event ${EVENT}, draft in the event ${DRAFT:-false}, draft now ${draft}, changes ${kind}: heavy=${heavy}, exclude=${exclude}"
   {
     echo "kind=${kind}"
     echo "heavy=${heavy}"
+    echo "draft=${draft}"
     echo "exclude=${exclude}"
   } >>"${GITHUB_OUTPUT}"
 }
