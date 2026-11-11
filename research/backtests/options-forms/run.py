@@ -8,6 +8,8 @@ the app never reads it).
 Run (rig, in the venv with services/research/requirements-nautilus-linux-py312.lock):
   python research/backtests/options-forms/run.py --data <data dir> --capital <account value, rounded> \
       --out <report work dir>/results.json
+Diagnostics (not the study model): `--cost-scale 0` (commissions only) and `--chain <chain summary>` (the
+option model the allocation study measured for the Core 7 in a chain snapshot).
 
 Method: research/backtests/options-forms/README.md.
 """
@@ -17,7 +19,6 @@ import argparse
 import csv
 import dataclasses
 import hashlib
-import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -26,9 +27,11 @@ from statistics import mean, median, variance
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "services" / "research"))
 sys.path.insert(0, str(ROOT / "research" / "backtests" / "freestockalerts"))
+sys.path.insert(0, str(ROOT / "research" / "backtests" / "allocation"))
 
+import funded_pie  # noqa: E402  (research/backtests/allocation/funded_pie.py: the owner's lower bar)
+import sensitivity  # noqa: E402  (research/backtests/allocation/sensitivity.py: the measured option model)
 import universe  # noqa: E402  (research/backtests/freestockalerts/universe.py)
-
 from strategies.qc_ports import allocation as al  # noqa: E402
 from strategies.qc_ports import forms as fm  # noqa: E402
 from strategies.qc_ports import forms_library as fl  # noqa: E402
@@ -41,23 +44,14 @@ from strategies.qc_ports.ledger import run_ledger  # noqa: E402
 
 START = "1993-01-29"
 FORMS_SUMS = "FORMS_SHA256SUMS"
-# The lower bar the owner picked on 2026-11-11 for the funded pie of the allocation study (card
-# vertex-allocation-plan). An owner decision, not a repository gate; the table shows it next to the gate.
 # Start delays in bars of the always-on baseline. Its spreads follow each other, so the first entry day sets
 # every later one; the baseline Sharpe of check G7 is the mean over these phases (the later ones in the ledger only).
 BASELINE_DELAYS = (0, 14, 28)
-LOWER_BAR = {"minSharpe": 0.3, "minOosSharpe": 0.0, "minMonteCarloProfit": 0.8, "maxDrawdown": -0.25, "minTrades": 30}
+# research/backtests/allocation/run.py as the allocation scripts import it: its statistics and its parity run.
+base = sensitivity.base
 
 
-def allocation_run():
-    """research/backtests/allocation/run.py as a module (its statistics and its Nautilus parity run)."""
-    spec = importlib.util.spec_from_file_location("allocation_run", ROOT / "research/backtests/allocation/run.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def prior_trials(data: study.StudyData, capital: float, library: Path, base, log) -> dict[str, float]:
+def prior_trials(data: study.StudyData, capital: float, library: Path, log) -> dict[str, float]:
     """Per-day Sharpe of the options-form runs the allocation study counted (its steps 1 and 2).
 
     The reference ledger only: the allocation study checked these runs against NautilusTrader.
@@ -130,12 +124,8 @@ def first_iv_day(market) -> str:
 
 
 def lower_bar(stats: dict) -> bool:
-    carlo = stats["monteCarlo"] or {}
-    if stats["sharpe"] is None:  # every trade sized to 0 contracts
-        return False
-    return (stats["sharpe"] >= LOWER_BAR["minSharpe"] and (stats["oosSharpe"] or 0.0) > LOWER_BAR["minOosSharpe"]
-            and (carlo.get("probabilityOfProfit") or 0.0) >= LOWER_BAR["minMonteCarloProfit"]
-            and stats["maxDrawdown"] >= LOWER_BAR["maxDrawdown"] and stats["trades"] >= LOWER_BAR["minTrades"])
+    """The lower bar the owner picked on 2026-11-11 (funded_pie.LOWER_BAR); a run without a contract fails it."""
+    return stats["sharpe"] is not None and funded_pie.lower_bar(stats)
 
 
 def percent(value, digits=1) -> str:
@@ -193,10 +183,14 @@ def main() -> None:
     parser.add_argument("--library", type=Path, default=ROOT / "research/backtests/quantjourney/library.json")
     parser.add_argument("--cost-scale", type=float, default=1.0,
                         help="diagnostic: multiply every half spread (1 = the study model, 0 = commissions only)")
+    parser.add_argument("--chain", type=Path, default=None,
+                        help="diagnostic: the chain snapshot summary of the allocation study; the Core 7 then use "
+                             "its measured half spreads and skew, the other underlyings keep their class model")
     parser.add_argument("--only", default=None, help="comma-separated form keys (a partial run; trial counts differ)")
     args = parser.parse_args()
     log = lambda text: print(text, file=sys.stderr, flush=True)  # noqa: E731
-    base = allocation_run()
+    if args.chain is not None:
+        sensitivity.apply_model(sensitivity.SCENARIOS["calibrated"], str(args.chain))
     if args.cost_scale != 1.0:
         scale_spread_costs(args.cost_scale)
 
@@ -228,7 +222,7 @@ def main() -> None:
     yields = {symbol: fm.dividend_yield(bars) for symbol, bars in extra.items()}
     reference = dataset.bars[pf.CALENDAR_SYMBOL]
 
-    trials = prior_trials(data, args.capital, args.library, base, log)
+    trials = prior_trials(data, args.capital, args.library, log)
     done: dict[str, dict] = {}
     with fm.proxy_symbols(models, yields):
         markets = {symbol: pf.market_of(dataset, symbol) for symbol in qi.CORE7}
@@ -295,7 +289,8 @@ def main() -> None:
         "generatedFor": dataset.calendar[-1], "engine": traded_runs[0]["engine"],
         "nautilusTrader": study.provenance("", data, True, "")["engine"], "dataSha256": data.manifest,
         "formsDataSha256": hashlib.sha256(sums.read_bytes()).hexdigest() if sums.exists() else None,
-        "gate": al.GATE, "lowerBar": LOWER_BAR, "start": START, "costScale": args.cost_scale,
+        "gate": al.GATE, "lowerBar": funded_pie.LOWER_BAR, "start": START, "costScale": args.cost_scale,
+        "measuredCore7": sensitivity.measured_model(str(args.chain)) if args.chain is not None else None,
         "baselineDelays": list(BASELINE_DELAYS),
         "trials": {"count": n_trials, "prior": sum(1 for key in trials if not key.startswith("form:")),
                    "forms": sum(1 for key in trials if key.startswith("form:")), "dailySharpeVariance": trial_variance},
