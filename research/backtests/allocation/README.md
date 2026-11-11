@@ -17,6 +17,7 @@ directory `vertex-allocation`).
 | `research/backtests/allocation/run.py` | The study: runs every candidate and the combined portfolios on NautilusTrader and writes one JSON document to `--out` |
 | `research/backtests/allocation/sensitivity.py` | The candidates again under changed option-model assumptions (diagnostics) |
 | `research/backtests/allocation/fetch_chain_snapshot.py` | One-day option-chain snapshot: measured half-spread and skew per ETF |
+| `research/backtests/allocation/funded_pie.py` | The lower-bar pie the owner picked: three sleeves in one account under both option models (proposal) |
 
 `run.py` writes its output to a report work directory. The app does not read it (AGENTS.md rule 13).
 
@@ -210,3 +211,30 @@ expiries 37 and 65 days out, quoted spreads.
 
 One day of quotes is not a history: spreads widen in stress, and a limit order inside the spread costs less. The
 option model in `options.py` is unchanged; replacing its constants needs more than one snapshot.
+
+## Lower-bar pie (owner pick, 2026-11-11)
+
+After the sensitivity result the owner picked "lower bar, fund it small". `funded_pie.py` builds that pie as a
+proposal: it arms nothing, sends no order and changes no engine setting. The lower bar is an owner decision, not a
+repository gate: Sharpe at least 0.3, positive out of sample, Monte Carlo profit at least 80%, max drawdown at most
+25%, at least 30 trades.
+
+| Sleeve | Run | Budget | Sharpe alone, study / measured model | Passes the lower bar |
+| --- | --- | ---: | ---: | --- |
+| long index | `oil-predicts-equity/B` | 2% | +0.44 / +0.85 | yes / yes |
+| rotation | `momentum-rotation/A` | 1% | +0.06 / +0.39 | no / yes |
+| vol premium | `regime-put-vrp/A` | 1% | +0.32 / +0.34 | yes / yes |
+
+Limits: 1% of equity at risk per position, at most 4% open, at most 2% in one underlying; cash 96%.
+
+One account on NautilusTrader, 2011-05-31 to 2026-11-10:
+
+| Option model | CAGR | Sharpe | Out-of-sample | Max drawdown | 2022 | Last 3 months | Lower bar |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Measured chain snapshot | +5.06% | +0.76 | +0.47 | -13.6% | -11.2% | -4.7% | yes |
+| Study model | +2.07% | +0.35 | +0.08 | -15.1% | -11.8% | -4.7% | yes |
+
+The long-index sleeve is the always-on baseline of `qc-oil-predicts-equity`, not one of the 97 library strategies.
+The window starts in 2011 and has no 2008. No sleeve passes the repository gate. Before real money the owner must
+re-arm the engine and decide how it may place spreads: the order policy refuses them today (card
+`vertex-order-policy-spreads`).
