@@ -1,0 +1,15 @@
+# Option-chain snapshots on weekdays, New York time: 12:30 and 15:30. The calibration counts the latest
+# run of a day, so 15:30 is the normal sample; 12:30 covers the half days (13:00 close) and a failed
+# 15:30 run. The snapshot itself skips a closed market (holiday, catch-up run after a missed time): it
+# needs a recent SPY option trade and otherwise writes nothing.
+[Unit]
+Description=Vertex option-chain snapshot timer (research only)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 12:30:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 15:30:00 America/New_York
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
