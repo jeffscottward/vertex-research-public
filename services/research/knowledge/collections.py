@@ -50,12 +50,13 @@ def youtube_uri(video_id: str, original: str) -> str:
     return "https://www.youtube.com/embed/" + video_id
 
 
-def _segments(content: bytes, method: str, maximum: int = 64) -> tuple[Segment, ...]:
+def _segments(content: bytes, method: str, maximum: int = 64, *, timed: bool = True) -> tuple[Segment, ...]:
     if len(content) > 2_000_000:
         raise BoundaryError("transcript-byte-budget")
     text = content.decode("utf-8", errors="strict")
     segments = []
-    for match in _TIME_LINE.finditer(text):
+    # Untimed sources (caption/slide OCR) never parse "[9:30]"-like text as a media clock.
+    for match in (_TIME_LINE.finditer(text) if timed else ()):
         timestamp, prose = match.group(1, 2)
         components = timestamp.split(":")
         if any(int(part.split(".")[0]) >= 60 for part in components[1:]):
@@ -68,7 +69,7 @@ def _segments(content: bytes, method: str, maximum: int = 64) -> tuple[Segment, 
                 return tuple(segments)
             segments.append(Segment("timestamp:" + timestamp + ":part:" + str(ordinal), chunk, method))
     if not segments and text.strip():
-        # Crown ASR can be untimed. Character locators do not invent a video timestamp.
+        # Crown ASR and caption/OCR text can be untimed. Character locators do not invent a video timestamp.
         clean = " ".join(text.split())
         for index in range(0, min(len(clean), maximum * 1800), 1800):
             segments.append(Segment("normalized-char:" + str(index), clean[index:index + 1800], method + "; no timestamp available"))
@@ -366,8 +367,9 @@ class CollectionAdapters:
                         raise BoundaryError(prefix + "-raw-digest-mismatch")
                     text = content.decode("utf-8", errors="strict")
                     marker = "## Caption and OCR\n\n" if ocr else "## Transcript\n\n"
-                    # Hash the entire original wrapper, but cite only the speech section.
-                    # Never promote caption/metadata or a normalized/dedup file to speech.
+                    # Hash the entire original wrapper, but cite only the transcript (or, for OCR
+                    # rows, the caption + slide OCR) section; never metadata or a normalized/dedup
+                    # file. Caption/OCR text is never promoted to speech.
                     if text.count(marker) != 1 or not text.endswith("\n"):
                         content, reason = None, "transcript-section-unavailable"
                     else:
@@ -377,7 +379,7 @@ class CollectionAdapters:
                         else:
                             section, review = ("Caption and OCR", "; caption + local OCR unreviewed") if ocr else ("Transcript", "; ASR unreviewed")
                             segments = tuple(Segment("markdown-section:" + section + ":" + segment.locator, segment.text, segment.method)
-                                             for segment in _segments(body.encode("utf-8"), row["extraction_method"] + review))
+                                             for segment in _segments(body.encode("utf-8"), row["extraction_method"] + review, timed=not ocr))
                             reason = None
                 original_source = {key: row.get(key) for key in ("source_id", "shortcode", "canonical_url", "source_type",
                     "published_at_utc", "surfaces", "terminal_status", "extraction_method", "transcript_path", "transcript_sha256",
@@ -390,15 +392,22 @@ class CollectionAdapters:
                             "sourceCompletedAt": manifest.get("completed_at_utc"), "hashContract": original_hash_contract,
                             "citationBodyLocator": ("Markdown section ## Caption and OCR" if ocr else "Markdown section ## Transcript") + "; locators relative to section body",
                             "normalizedAndDeduplicatedContentLoaded": False}
+                # OCR rows stay "raw-transcript"/"transcript": service.py rejects mixed content classes
+                # within a collection and vertex.ts limits sourceType; non-speech is carried by the
+                # method, the Caption and OCR locator section and the limitations below.
                 result.append(SourceInput(source_id, uri, spec.attribution, captured_at,
                     _published(row.get("published_at_utc")), content, segments, rights_policy_id, "raw-transcript",
                     "machine-generated" if content is not None else "unavailable", "transcript", reason,
                     ("Run membership is a captured profile snapshot, not all-time completeness or a rights grant.",
+                     "Raw file hash includes Markdown metadata and final LF; citations cover only the ## Caption and OCR section.",
+                     "Normalized-body and deduplication hashes are distinct source assertions, not verified raw-file hashes.",
+                     "Duplicate identities retain their own raw files and URLs; at most 64 bounded citation segments.",
+                     "Caption and local slide OCR text is machine-extracted, unreviewed and not speech.") if ocr else
+                    ("Run membership is a captured profile snapshot, not all-time completeness or a rights grant.",
                      "Raw file hash includes Markdown metadata and final LF; citations exclude caption/metadata.",
                      "Normalized-body and deduplication hashes are distinct source assertions, not verified raw-file hashes.",
                      "Duplicate identities retain their own raw files and URLs; at most 64 bounded citation segments.",
-                     "ASR completion is not transcript accuracy, speaker validation or human acceptance.")
-                    + (("Caption and local slide OCR text is machine-extracted, unreviewed and not speech.",) if ocr else ()),
+                     "ASR completion is not transcript accuracy, speaker validation or human acceptance."),
                     self.boundary.encode(metadata),
                     digest if content is not None else None))
             return tuple(result)

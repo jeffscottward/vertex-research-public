@@ -32,6 +32,7 @@ COLLECTIONS = {
         (("discovered", 671), ("transcripts", 189), ("transcriptCaptured", 188), ("duplicateMappings", 1), ("captionOcrCaptured", 482), ("nonVideo", 0)),
         ("Captured profile instagram.com/jay_medrow; documented acquisition is not all-time completeness or personal identity verification.",
          "Image/carousel text is caption plus local slide OCR, not speech; it is machine-extracted and unreviewed.",
+         "Raw transcript files, normalized text and deduplicated views are distinct layers; duplicate mappings are not independent corroboration.",
          "Private catalog registration and local acquisition establish no license, model-use, redistribution or execution rights.")),
     "define-your-risk": Collection("define-your-risk", "instagram", "Define Your Risk (captured profile; personal attribution unverified)", ("U25", "U26"), "documented",
         (("discovered", 155), ("transcripts", 153), ("transcriptCaptured", 152), ("duplicateMappings", 1), ("nonVideo", 2)),
