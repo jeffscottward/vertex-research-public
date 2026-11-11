@@ -45,7 +45,9 @@ VARIANTS = {
     "primary": FuturesParams(),
     "stop_plus_1pt": FuturesParams(stop_slip_points=1.0),
     "entries_every_bar": FuturesParams(check_every=5),
-    "dsl_form": FuturesParams(stop_fill="next_open"),
+    "close_based_exit": FuturesParams(stop_fill="next_open"),
+    # Diagnostic added after the graded run (not pre-registered): the same rules without any cost.
+    "frictionless": FuturesParams(commission_rt=0.0, entry_slip_ticks=0.0, stop_slip_ticks=0.0),
 }
 RESAMPLES = 10_000
 SEED = 7
@@ -55,7 +57,8 @@ SEED = 7
 
 def _sessions(rows: Iterable[tuple[datetime, float, float, float, float, float]]) -> tuple[list[Session], dict]:
     """Regular-hours 5-minute sessions from (UTC bar start, o, h, l, c, v) rows. A session is kept only
-    with a 09:30 bar, a last bar at 15:55 (or a half-day close) and no missing bar between."""
+    with a 09:30 bar, a last bar at 15:55 (or a half-day close) and no missing bar between. The session
+    after a skipped one is skipped too: its band reference (the previous close) would be two days old."""
     by_day: dict[date, dict[int, Bar]] = defaultdict(dict)
     for t, o, h, lo, c, v in rows:
         local = t.astimezone(ET)
@@ -64,14 +67,22 @@ def _sessions(rows: Iterable[tuple[datetime, float, float, float, float, float]]
             by_day[local.date()][minute] = Bar(minute, o, h, lo, c, v)
     sessions: list[Session] = []
     skipped: list[str] = []
+    after_skip: list[str] = []
+    gap = False
     for day in sorted(by_day):
         bars = by_day[day]
         last = max(bars)
         if 0 not in bars or (last != FULL_LAST and last not in HALF_LASTS) or len(bars) != last // 5 + 1:
             skipped.append(day.isoformat())
+            gap = True
+            continue
+        if gap:
+            after_skip.append(day.isoformat())
+            gap = False
             continue
         sessions.append(Session(day, tuple(bars[m] for m in sorted(bars))))
-    return sessions, {"sessions": len(sessions), "skipped": len(skipped), "skipped_days": skipped[:50]}
+    return sessions, {"sessions": len(sessions), "skipped": len(skipped), "skipped_days": skipped[:50],
+                      "skipped_after": after_skip[:50]}
 
 
 def load_qqq(path: str) -> tuple[list[Session], dict]:
@@ -140,7 +151,8 @@ def load_nq(paths: Sequence[str]) -> tuple[list[list[Session]], list[list[float]
         adjusted.append((Session(day, tuple(Bar(b.minute, b.open * factor, b.high * factor, b.low * factor,
                                                    b.close * factor, b.volume) for b in s.bars)), 1.0 / factor))
         prev_day = chosen[idx - 1][0] if idx > 0 else None
-        # A roll across a data gap needs no factor: the gap splits the segments below.
+        # If the new contract has no bars on the old one's last day (a data gap), keep the factor: the gap
+        # splits the segments below, and k = 1 / factor keeps P&L in real points either way.
         if prev_day is not None and chosen[idx - 1][1] != name and prev_day in contracts[name]:
             old = contracts[chosen[idx - 1][1]][prev_day].bars[-1].close
             new = contracts[name][prev_day].bars[-1].close
@@ -194,7 +206,8 @@ def summarize(res: FuturesResult, start: date, end: date, ci: bool = True) -> di
     out = {
         "first": days[0].day.isoformat(), "last": days[-1].day.isoformat(), "sessions": n,
         "usd_per_day": mean, "total": sum(pnl), "sharpe": mean / sd * math.sqrt(252) if sd else 0.0,
-        "share_traded": traded / n, "trades": len(trades), "trades_per_traded_session": len(trades) / traded if traded else 0.0,
+        "share_traded": traded / n, "trades": len(trades), "trades_per_session": len(trades) / n,
+        "trades_per_traded_session": len(trades) / traded if traded else 0.0,
         "trade_hit": sum(1 for t in trades if t.usd > 0) / len(trades) if trades else 0.0,
         "stop_exits": sum(1 for t in trades if t.exit_reason == "stop") / len(trades) if trades else 0.0,
         "long_share": sum(1 for t in trades if t.side == 1) / len(trades) if trades else 0.0,
@@ -247,7 +260,7 @@ def main(argv: list[str] | None = None) -> dict:
     sessions = [sessions[i] for i in keep]
     scales = [scales[i] for i in keep]
     data.update(first=sessions[0].day.isoformat(), last=sessions[-1].day.isoformat(),
-                scale_first=scales[0], scale_last=scales[-1], dividends=sum(1 for s in sessions if s.dividend))
+                scale_min=min(scales), scale_max=max(scales), dividends=sum(1 for s in sessions if s.dividend))
 
     out: dict = {"spec": "docs/specs/strategies/session-open-momentum-nq.md", "paper": PAPER, "data": data,
                  "params": {name: asdict(p) for name, p in VARIANTS.items()}, "variants": {}, "verdicts": {}}

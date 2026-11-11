@@ -20,13 +20,15 @@ def rows(day: date, n: int = 78, start=(14, 30), price: float = 100.0, skip: int
 
 
 def test_sessions_keep_full_and_half_days_and_skip_gaps() -> None:
-    d1, d2, d3 = date(2020, 1, 2), date(2020, 1, 3), date(2020, 11, 27)
+    d1, d2, d3, d4 = date(2020, 1, 2), date(2020, 1, 3), date(2020, 1, 6), date(2020, 11, 27)
     pre = [(utc(d1, 14, 0), 1.0, 1.0, 1.0, 1.0, 1.0)]  # 09:00 New York: dropped
-    sessions, info = run._sessions([*pre, *rows(d1), *rows(d2, skip=10), *rows(d3, n=42)])
-    assert [s.day for s in sessions] == [d1, d3]
+    sessions, info = run._sessions([*pre, *rows(d1), *rows(d2, skip=10), *rows(d3), *rows(d4, n=42)])
+    # d2 misses a bar; d3 follows it, so its previous close would be two days old.
+    assert [s.day for s in sessions] == [d1, d4]
     assert [len(s.bars) for s in sessions] == [78, 42]
     assert sessions[0].bars[0].minute == 0 and sessions[0].bars[-1].minute == 385
     assert info["skipped_days"] == [d2.isoformat()]
+    assert info["skipped_after"] == [d3.isoformat()]
 
 
 def test_scales_use_the_previous_close_only() -> None:
@@ -49,11 +51,13 @@ def test_drawdown_summary_and_grades() -> None:
     res = FuturesResult(FuturesParams(), days, [])
     s = run.summarize(res, date(2020, 1, 1), date(2020, 12, 31), ci=False)
     assert s["sessions"] == 4 and s["usd_per_day"] == pytest.approx(3.0) and s["share_traded"] == 0.75
+    assert s["trades_per_session"] == 0.0  # no trades in this result, only day totals
     assert s["max_drawdown"] == 4.0 and s["years"]["2020"]["total"] == 12.0
     assert run.grade("replication", {"ci": [0.1, 5], "usd_per_day": 2}) == "REPLICATES"
     assert run.grade("replication", {"ci": [-1, 5], "usd_per_day": 2}) == "WEAK"
     assert run.grade("replication", {"ci": [-3, 1], "usd_per_day": -1}) == "DOES NOT REPLICATE"
     assert run.grade("before", {"ci": [-0.1, 5], "usd_per_day": 2}) == "DOES NOT HOLD"
+    assert run.grade("before", {"ci": [0.1, 2], "usd_per_day": 1}) == "HOLDS"
 
 
 def test_nq_front_by_prior_volume_back_adjusted(tmp_path) -> None:
@@ -95,3 +99,25 @@ def test_nq_roll_across_a_data_gap_splits_segments(tmp_path) -> None:
     segments, scales, info = run.load_nq([write("NQ_202506", 100.0, early), write("NQ_202509", 110.0, late)])
     assert [len(s) for s in segments] == [2, 2] and info["rolls"] == 1
     assert scales == [[1.0, 1.0], [1.0, 1.0]]
+
+
+def test_nq_roll_with_a_shared_day_before_a_gap_back_adjusts(tmp_path) -> None:
+    def write(name: str, price: float, days: list[date]) -> str:
+        path = tmp_path / f"{name}.csv"
+        lines = ["date,open,high,low,close,volume"]
+        for day in days:
+            vol = 5 if name.endswith("09") else 1
+            for j in range(78):
+                t = utc(day, 13, 30) + timedelta(minutes=5 * j)
+                lines.append(f"{t:%Y%m%d}  {t:%H:%M:%S},{price},{price},{price},{price},{vol}")
+        path.write_text("\n".join(lines))
+        return str(path)
+
+    early = [date(2025, 6, 2) + timedelta(days=i) for i in range(3)]
+    late = [date(2025, 7, 21) + timedelta(days=i) for i in range(2)]
+    # The new contract also has the old one's last two days, so the roll happens before the gap.
+    segments, scales, info = run.load_nq([write("NQ_202506", 100.0, early), write("NQ_202509", 110.0, early[1:] + late)])
+    # 06-03 trades the old contract, back-adjusted by 110/100; from 06-04 on the new one, real prices.
+    assert info["rolls"] == 1 and [len(s) for s in segments] == [2, 2]
+    assert [s.bars[-1].close for s in segments[0]] == pytest.approx([110.0, 110.0])
+    assert scales[0] == pytest.approx([100.0 / 110.0, 1.0]) and scales[1] == [1.0, 1.0]

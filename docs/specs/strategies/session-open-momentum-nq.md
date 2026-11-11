@@ -65,14 +65,14 @@ paper adapts them, not confirmed in the paper's text; **A** a Vertex assumption.
 | # | Rule | Basis |
 | --- | --- | --- |
 | 1 | Instrument NQ traded as 1 MNQ ($2 per index point), regular session 09:30-16:00 New York, 5-minute bars. | P |
-| 2 | σ(t, HH:MM) = mean over the previous 14 sessions of \|close(HH:MM) / open(09:30) − 1\|; at least 13 of the 14 values at that minute. | Z (author page: "the last two weeks of typical moves") |
+| 2 | σ(t, HH:MM) = mean of \|close(HH:MM) / open(09:30) − 1\| over the last 14 sessions that have that minute (so after a half-day the window reaches one session further back); at least 13 values needed. | Z (author page: "the last two weeks of typical moves") |
 | 3 | UpperBound = max(open, previous close) × (1 + σ); LowerBound = min(open, previous close) × (1 − σ). Previous close = the last regular bar of the prior session. | Z |
 | 4 | Entries are decided on the close of the bars ending at HH:00 and HH:30, from 10:00 to 15:30. | Z |
 | 5 | Long when close > UpperBound and close > VWAP; short when close < LowerBound and close < VWAP (the VWAP-side filter). VWAP = session VWAP of (H+L+C)/3 from 09:30. | P (filter named on the author page), Z (form) |
 | 6 | An entry fills at the next bar's open plus one tick (0.25 point) against the trade. | P (ORB cost model, "same costs") |
 | 7 | Resting stop. After the close of every 5-minute bar while a position is open (the decision bar included), the stop is set to max(UpperBound, VWAP) for a long and min(LowerBound, VWAP) for a short, from that bar's band and VWAP. It is active from the next bar. On each bar the stop is checked first: a long is stopped when the low reaches the stop and fills at min(open, stop) minus two ticks; a short mirrors this. The stop is not ratcheted. | P (author's audit: stop checked first, from the level set at the end of the previous bar, a new level each bar), Z (level formula), P (two ticks on stop fills) |
 | 8 | One position at a time. After a stop the rule may enter again at a later decision time. | P (1.35 trades per session) |
-| 9 | Flat at the close of the last regular bar (15:55-16:00; 12:55-13:00 on a half-day), no slippage. | Z / A |
+| 9 | Flat at the close of the last regular bar (15:55-16:00; on a half-day 12:55-13:00, or 13:10-13:15 on CME NQ), no slippage. | Z / A |
 | 10 | Commission and fees $2.00 per round trip per MNQ. | P (ORB rebuild) |
 | 11 | No other filter: no FOMC, holiday or gap exclusion. | A |
 
@@ -93,7 +93,7 @@ paper adapts them, not confirmed in the paper's text; **A** a Vertex assumption.
 
 | Window | Sessions | Role |
 | --- | --- | --- |
-| Replication | 2020-01-02 to 2026-07-03 (the paper's sample) | graded |
+| Replication | 2020-01-02 to 2026-07-02, the last session of the paper's sample (it ends 2026-07-03, a holiday) | graded |
 | Before the paper | 2005-01-03 (after the 14-session warm-up) to 2019-12-31 | graded (out of sample: the paper tested this rule from 2020 only) |
 | After the paper | 2026-07-06 to 2026-11-06 | reported only (about 85 sessions, too short to grade) |
 
@@ -139,52 +139,65 @@ naked short, closed before expiry.
 
 ## Results
 
-Ran 2026-11-11 on the rig with the rules above unchanged since commit `583f2081` (the spec commit that came before any
+Ran 2026-11-11 on the rig with the rules above unchanged since commit `e49308bd` (the spec commit that came before any
 run): `python -m strategies.noise_band_futures_run` (`services/research`), output
-`~/Documents/reports/vertex-session-open-momentum/results.json` (SHA-256 prefix `b3e8dd7b6c5ee4f8`). Data: 5,513 QQQ
-sessions 2004-12-01 to 2026-11-06 (6 skipped for missing bars), 89 dividend ex-dates, k from 40.2 to 41.2.
+`~/Documents/reports/vertex-session-open-momentum/results.json` (SHA-256 prefix `71b6a14a73c1c789`). Data: 5,507 QQQ
+sessions 2004-12-01 to 2026-11-06. Six sessions miss bars and are skipped, and so is the session after each of them,
+because its previous close would be two days old. 89 dividend ex-dates; k between 39.6 and 41.6.
 
 ### Verdict
 
-**Does not hold up.** The rule replicates the paper on the paper's own period almost to the cent, and loses money in the
-fifteen years before it.
+**Does not hold up.** On the paper's own period the rule matches the paper's full-period mean and interval within
+$0.10 per session and its Sharpe within 0.02. In the fifteen years before that period it loses money.
 
-| Window | Grade | $ per session | 95% interval | Daily Sharpe | Sessions traded | Trades | Max drawdown |
+| Window | Grade | $ per session | 95% interval | Daily Sharpe | Sessions traded | Trades per session | Max drawdown |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Paper, 2020-01 to 2026-07 | (reported) | +10.26 | [+3.27, +17.25] | 1.14 | about 60% | 1.35 per session | $2,458 |
-| Replication, 2020-01-02 to 2026-07-03 | **REPLICATES** | +10.18 | [+3.34, +17.32] | 1.12 | 59.7% | 2,218 (1.36 per session) | $2,501 |
-| Before the paper, 2005-01-03 to 2019-12-31 | **DOES NOT HOLD** | −2.99 | [−3.99, −1.95] | −1.46 | 61.6% | 5,323 | $13,326 |
-| After the paper, 2026-07-06 to 2026-11-06 | (reported only) | +12.02 | [−35.32, +65.33] | 0.78 | 50.6% | 114 | $2,098 |
+| Paper, 2020-01 to 2026-07 | (reported) | +10.26 | [+3.27, +17.25] | 1.14 | about 60% | 1.35 | $2,458 |
+| Replication, 2020-01-02 to 2026-07-02 | **REPLICATES** | +10.18 | [+3.34, +17.32] | 1.12 | 59.7% | 1.36 (2,218 trades) | $2,501 |
+| Before the paper, 2005-01-03 to 2019-12-31 | **DOES NOT HOLD** | −3.07 | [−4.10, −2.01] | −1.50 | 61.7% | 1.42 (5,333 trades) | $13,370 |
+| After the paper, 2026-07-06 to 2026-11-06 | (reported only) | +12.02 | [−35.32, +65.33] | 0.78 | 50.6% | 1.28 (114 trades) | $2,098 |
 
 Paper hand-off: none. The pre-set rule needs REPLICATES and HOLDS; the before-the-paper window fails.
 
-### Per year (primary rules, $ for the year on 1 MNQ)
+### Per year ($ per session on 1 MNQ; the paper's year table from the author's page)
+
+| Year | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 (to 07-02) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Paper | +0.20 | +7.99 | +18.83 | +14.15 | +13.85 | +3.38 | +16.23 |
+| Vertex | −0.64 | +7.98 | +16.14 | +14.07 | +15.46 | +2.89 | +20.63 |
+
+The sum over the period is +$16,616 here and +$16,582 in the paper's chart. Single years differ by up to $4.40 per session,
+so the reconstruction is close but not exact.
+
+Before the paper ($ for the year):
 
 | 2005 | 2006 | 2007 | 2008 | 2009 | 2010 | 2011 | 2012 | 2013 | 2014 | 2015 | 2016 | 2017 | 2018 | 2019 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| −1,609 | −1,468 | −1,149 | −912 | −1,702 | −1,678 | −1,061 | −630 | −944 | −541 | −432 | −601 | −549 | +2,697 | −688 |
+| −1,629 | −1,468 | −1,149 | −912 | −1,684 | −1,678 | −1,060 | −630 | −943 | −541 | −431 | −601 | −589 | +2,594 | −840 |
 
-| 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 to Jul 3 | 2026 Jul 6 to Nov 6 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| −162 (paper +49) | +2,012 | +4,050 | +3,518 | +3,896 | +724 (paper +835) | +2,579 | +1,069 |
+After the paper (2026-07-06 to 11-06): +$1,070.
 
 ### Sensitivities (reported, not graded)
 
-| Variant | Replication $/session | Before $/session | After $/session |
+| Variant | 2020-01 to 2026-07 | 2005-2019 | 2026-07 to 11 |
 | --- | --- | --- | --- |
-| One extra point of slippage on every stop fill | +7.87 (−23%; the paper reports −22%) | −5.41 | +9.82 |
-| Entries on every 5-minute bar instead of HH:00 / HH:30 | +1.29 | −8.91 | −3.48 |
-| DSL form (close-based stop checked every 5 minutes, next-open fill) | +12.22 | −1.79 | +18.81 |
-| Diagnostic, added after the run: no commission and no slippage | +14.72 | +1.75 | — |
+| One extra point of slippage on every stop fill | +7.87 (−23%; the paper reports −22%) | −5.50 | +9.82 |
+| Entries on every 5-minute bar instead of HH:00 / HH:30 | +1.29 | −8.96 | −3.48 |
+| Kernel with a close-based exit every 5 minutes, filled at the next open (the signals of the DSL form) | +12.22 | −1.80 | +18.81 |
+| Diagnostic, added after the graded run: no commission and no slippage | +14.72 | +1.69 | +16.32 |
 
-- Before 2020 the gross edge is about +$1.75 per session against about $4.7 of costs per session, so costs, not the
-  signal's sign, sink the early years. The index level was 1,500 to 8,000 points then, so one MNQ moved fewer dollars
-  for the same percentage move while the $2 commission and the tick slippage stayed fixed.
-- Exits: 85% of trades end on the trailing stop; 25% of trades win; 54% of trades are long.
+- The close-based row is the kernel's `stop_fill="next_open"` mode: 1 MNQ, futures costs, two ticks on the exit. The
+  `CHUK_NQ` DSL definition produces the same entry and exit signals
+  (`test_chuk_dsl_signals_match_the_kernel_bands_vwap_and_grid`), but its engine run uses `allIn` sizing and stock
+  costs, so this row is not a DSL engine result.
+- Before 2020 the gross edge is about +$1.69 per session, against about $4.8 per session of costs. Costs sink the early
+  years; the sign of the signal does not. The index stood between about 1,500 and 8,700 points then, so one MNQ earned
+  fewer dollars for the same percentage move, while the $2 commission and the tick slippage stayed the same.
+- Exits: 85% of trades end on the trailing stop; 25% of trades win; 54% of trades are long (paper period).
 
 ### NQ cross-check (real NQ futures, reported only)
 
-NQ 5-minute bars, three rolls, two segments (2024-08-29 to 2025-06-20, 2025-07-21 to 2025-09-19). Over the 218
-sessions both runs share after the warm-up, daily P&L of NQ and of the QQQ proxy correlates at 0.989. The means are
-+$5.31 (NQ) and +$3.13 (QQQ) per session, with 282 and 290 trades. The QQQ proxy tracks the futures closely and, on this
-slice, slightly understates them.
+NQ 5-minute bars: three rolls, two segments (2024-08-29 to 2025-06-20 and 2025-07-21 to 2025-09-19). Over the 218
+sessions both runs share after the warm-up, the daily P&L of NQ and of the QQQ proxy correlates at 0.989. The means are
++$5.31 (NQ) and +$3.13 (QQQ) per session, from 282 and 290 trades. The proxy tracks the day-to-day P&L closely but
+understates the mean by about 40% on this slice.

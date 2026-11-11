@@ -160,6 +160,43 @@ def test_entries_every_bar_when_check_every_is_the_bar() -> None:
     assert run(session, check_every=5)[0].trades[0].entry_minute == 35
 
 
+def test_stop_can_hit_on_the_entry_fill_bar() -> None:
+    # Bar 6 fills the long at its open (100.5) and trades down through the stop set at bar 5's close.
+    res, sessions = run(make_day({5: 100.5, 6: 100.4}, lows={6: 99.0}))
+    first = res.trades[0]
+    assert (first.entry_minute, first.exit_minute, first.exit_reason) == (30, 30, "stop")
+    assert first.exit_price == pytest.approx(min(100.5, stop_level(sessions, 5)) - 2 * TICK)
+
+
+def test_next_open_mode_reverses_on_a_decision_bar_below_the_lower_band() -> None:
+    # Long from 10:00; at 10:30 (bar 11) the close is below LB 99.9 and below VWAP: exit and go short at bar 12.
+    session = make_day({5: 100.5, 6: 100.6, 11: 99.5, 77: 99.0})
+    res, _ = run(session, stop_fill="next_open")
+    assert [(t.side, t.entry_minute, t.exit_minute, t.exit_reason) for t in res.trades] == [
+        (1, 30, 60, "stop"), (-1, 60, 390, "close")]
+    assert res.trades[0].exit_price == pytest.approx(99.5 - 2 * TICK)
+    assert res.trades[1].entry_price == pytest.approx(99.5 - TICK)
+
+
+def test_dividend_lowers_the_band_reference() -> None:
+    # 10:00 close 99.6 is below LB 99.9 (short) unless a 0.5 dividend moves the reference to 99.5 (LB 99.4).
+    start = date(2020, 1, 1)
+    warmup = [warm(start + timedelta(days=i)) for i in range(14)]
+    day = make_day({5: 99.6})
+    plain = run_futures_backtest([*warmup, day], [K] * 15)
+    paid = run_futures_backtest([*warmup, Session(day.day, day.bars, dividend=0.5)], [K] * 15)
+    assert [t.side for t in plain.trades][:1] == [-1]
+    assert paid.trades == []
+
+
+def test_half_day_closes_at_its_last_bar() -> None:
+    day = make_day({5: 100.5, 41: 100.9})
+    half = Session(day.day, day.bars[:42])  # last bar 12:55, the session closes at 13:00
+    res, _ = run(half)
+    [t] = res.trades
+    assert (t.exit_minute, t.exit_reason, t.exit_price) == (210, "close", 100.9)
+
+
 def test_one_scale_per_session() -> None:
     with pytest.raises(ValueError):
         run_futures_backtest([warm(date(2020, 1, 1))], [])

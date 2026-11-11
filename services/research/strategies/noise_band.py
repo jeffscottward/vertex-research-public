@@ -420,7 +420,7 @@ def run_futures_backtest(sessions: Sequence[Session], scales: Sequence[float],
                     close(bar.minute + p.bar_minutes, bar.close, "close")
                 break
             sigma = sigmas[i].get(bar.minute)
-            if sigma is None:
+            if sigma is None:  # only before a minute has 13 prior values; a held stop then stays where it was
                 continue
             ub, lb = _levels(sigma, p.band_mult, hi_ref, lo_ref)
             vwap = vwaps[j]
@@ -437,7 +437,7 @@ def run_futures_backtest(sessions: Sequence[Session], scales: Sequence[float],
             if not (p.entry_from <= end <= p.entry_to and is_check_minute(bar.minute, p.check_every, p.bar_minutes)):
                 continue
             side = 1 if bar.close > ub and bar.close > vwap else (-1 if bar.close < lb and bar.close < vwap else 0)
-            if side == 0 or (exit_next and side == pos):
+            if side == 0:  # a same-side entry cannot coincide with an exit: their conditions exclude each other
                 continue
             pending = side
             stop = max(ub, vwap) if side == 1 else min(lb, vwap)
