@@ -17,6 +17,7 @@ import {
   dslEquity,
   HOURLY_REASON,
   importableRows,
+  manifestDataFile,
   RESULTS_PATH,
   rebased,
   rerunOnCore7,
@@ -423,5 +424,57 @@ describe("CLI", () => {
     expect(nautilus.calls[0]?.python).toBe("/v/bin/python");
     expect(out.join("")).toContain("Nautilus differs from");
     return expect(readFile(join(root, RESULTS_PATH), "utf8")).rejects.toThrow();
+  });
+});
+
+describe("manifestDataFile", () => {
+  const base = { normalizedSha256: sha("b"), sourceSha256: sha("c") };
+  it("labels the bars from the manifest's source spans, its source text or the old Yahoo label", () => {
+    const spans = {
+      rows: {
+        ibkr: { first: "2024-11-11", last: "2026-11-06" },
+        yahoo: { first: "2000-09-18", last: "2024-11-08" },
+      },
+    };
+    expect(
+      manifestDataFile(JSON.stringify({ ...base, sources: spans }), sha("a"))
+    ).toEqual({
+      ...file(),
+      source: "ibkr 2024-11-11..2026-11-06, yahoo 2000-09-18..2024-11-08",
+    });
+    expect(
+      manifestDataFile(
+        JSON.stringify({ ...base, source: "Yahoo Finance chart v8" }),
+        sha("a")
+      ).source
+    ).toBe("Yahoo Finance chart v8");
+    expect(manifestDataFile(JSON.stringify(base), sha("a")).source).toBe(
+      "Yahoo Finance via yfinance 0.2.66"
+    );
+  });
+
+  it("words data and method per symbol only when a manifest records IBKR rows", () => {
+    const yahooOnly = buildCore7Results(sample, texts(), {
+      files: files(),
+      generated: "g",
+    });
+    expect(yahooOnly.data.source).toBe(
+      "Yahoo Finance via yfinance 0.2.66 (research/backtests/core7/fetch_data.py)"
+    );
+    expect(yahooOnly.method[0]).toContain("full Yahoo daily history");
+    const merged = files();
+    merged.set("ES=F", {
+      ...file(),
+      source: "ibkr 2024-11-11..2026-11-06, yahoo 2000-09-18..2024-11-08",
+    });
+    const results = buildCore7Results(sample, texts(), {
+      files: merged,
+      generated: "g",
+    });
+    expect(results.data.source).toContain(
+      "sources per symbol, see data.symbols.<SYMBOL>.source"
+    );
+    expect(results.method.join(" ")).not.toContain("full Yahoo daily history");
+    expect(results.method[4]).toContain("scaled to IBKR at the seam");
   });
 });

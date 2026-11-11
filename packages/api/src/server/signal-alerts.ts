@@ -8,6 +8,7 @@ import type { NotificationFetch } from "@darkfactory/notifications/server";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
+import type { MarketBar, MarketBarSize } from "../contracts/market-data.ts";
 import {
   SIGNAL_ALERT_EVENTS_MAX,
   SIGNAL_ALERT_MAX_SERIES_PER_RUN,
@@ -25,16 +26,30 @@ import {
   describeSignalCondition,
   evaluateSignalAlert,
   isRegularSession,
+  newYorkClock,
   parseWatchRequest,
   planSignalAlertRun,
   SIGNAL_ALERT_NOTIFICATION,
+  SIGNAL_ALERT_TIMEFRAME_MS,
   type SignalAlertSeriesPlan,
   type SignalBar,
   type SignalBarsResult,
   signalAlertChartUrl,
 } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
-import type { DeployStatusFetch } from "./deploy-status.ts";
+import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
+import type { HistoryBars } from "./ibkr-history.ts";
+import {
+  FallbackFailure,
+  historyDate,
+  historyFetchedAt,
+  historyInstrument,
+  LIVE_HISTORY_TIMEOUT_MS,
+  loadMergedBars,
+  newYorkTime,
+  settle,
+  windowFillBefore,
+} from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   type PriceAlertsNtfyConfig,
@@ -43,10 +58,14 @@ import {
 import { fetchBoundedJson } from "./research-lenses.ts";
 
 // Signal alert and watch procedures (priceAlerts.signals.*), LuxAlgo P4. Operator-only. A run
-// fetches each symbol/timeframe series once from Yahoo (public GET, bounded), evaluates the active
+// fetches each symbol/timeframe series once (IBKR history first within merged-bars.ts's per-isolate
+// budget; public Yahoo for the rest, for older bars and for 1h series), evaluates the active
 // rules arithmetically (no model call in the tick loop), inserts one event per fired bar and sends
 // one fixed-text ntfy push per owner with a fire (the price alert destination). The browser shows
 // events from priceAlerts.signals.events as in-app and OS notifications. No order path.
+
+// A forming IBKR bar counts only from a service copy at most this old (as price alerts' quote limit).
+const FORMING_BAR_MAX_AGE_MS = 60_000;
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -79,7 +98,8 @@ type SeriesError = Readonly<{
   reason: string;
 }>;
 
-const fetchSeries = async (
+/** Yahoo's bars of one series (the longest window Yahoo serves for the timeframe). */
+const fetchYahooSeries = async (
   symbol: string,
   timeframe: SignalAlertTimeframe
 ): Promise<SignalBarsResult> => {
@@ -102,6 +122,125 @@ const fetchSeries = async (
   } catch (error) {
     return { ok: false, reason: (error as Error).message };
   }
+};
+
+/**
+ * IBKR request per timeframe and the calendar days the series covers (Yahoo's range). 1h has none:
+ * IBKR cannot serve the 1h window (a year of warm-up) in one request, 12 paced pages are about 4
+ * minutes of the service's pacing for one series, and IBKR's hourly grid (09:30, 10:00, 11:00 ...)
+ * differs from Yahoo's (09:30, 10:30 ...), so the two cannot share one series: Yahoo serves 1h.
+ * Continuous futures take one page (CONTFUT has no end date), so Yahoo serves their older bars.
+ */
+const IBKR_SERIES: Readonly<
+  Partial<
+    Record<
+      SignalAlertTimeframe,
+      Readonly<{
+        barSize: MarketBarSize;
+        duration: string;
+        pages: number;
+        days: number;
+      }>
+    >
+  >
+> = Object.freeze({
+  "1d": { barSize: "1 day", days: 730, duration: "2 Y", pages: 1 },
+  "5m": { barSize: "5 mins", days: 30, duration: "30 D", pages: 1 },
+  "15m": { barSize: "15 mins", days: 60, duration: "31 D", pages: 2 },
+});
+
+// Daily bars start at the regular session open (09:30 New York), or at midnight New York for
+// futures, as Yahoo stamps them; IBKR stamps a daily bar 00:00 UTC of its trading date. A daily
+// stock bar ends at 16:00 New York, a futures day at 17:00 New York (CME Globex).
+const DAILY_MINUTES = {
+  CONTFUT: { end: 17 * 60, start: 0 },
+  STK: { end: 16 * 60, start: 9 * 60 + 30 },
+} as const;
+
+/** One IBKR bar as a signal bar; null without positive prices or when the cached copy holds it partial. */
+const signalBarOf = (
+  bar: MarketBar,
+  history: HistoryBars,
+  timeframe: SignalAlertTimeframe,
+  now: Date
+): SignalBar | null => {
+  if (Math.min(bar.o, bar.h, bar.l, bar.c) <= 0) return null;
+  const minutes =
+    DAILY_MINUTES[history.request.secType === "CONTFUT" ? "CONTFUT" : "STK"];
+  const daily = timeframe === "1d";
+  const start = daily
+    ? newYorkTime(historyDate(bar.t), minutes.start)
+    : new Date(bar.t * 1000);
+  const end = daily
+    ? newYorkTime(historyDate(bar.t), minutes.end).getTime()
+    : start.getTime() + SIGNAL_ALERT_TIMEFRAME_MS[timeframe];
+  // The service answers from its cache: a bar that has closed by now but was still forming when the
+  // copy was fetched holds a partial close, so it is dropped. A bar still forming now is kept only from a
+  // copy at most FORMING_BAR_MAX_AGE_MS old (once and per-bar rules may fire on it); an older copy's
+  // forming bar is dropped, so no rule fires on a partial close up to one cache lifetime old.
+  const fetchedAt = historyFetchedAt(history).getTime();
+  if (end > fetchedAt && end <= now.getTime()) return null;
+  if (end > now.getTime() && now.getTime() - fetchedAt > FORMING_BAR_MAX_AGE_MS)
+    return null;
+  return { close: bar.c, high: bar.h, low: bar.l, open: bar.o, start };
+};
+
+/**
+ * One series: IBKR first (a stale service copy is not used), Yahoo for the whole series when IBKR
+ * fails, has no request slot or no request for the timeframe, and Yahoo for the bars older than
+ * IBKR's first bar when IBKR starts later than the timeframe's window.
+ */
+const fetchSeries = (
+  symbol: string,
+  timeframe: SignalAlertTimeframe,
+  config: DeployStatusConfig | null
+): Promise<SignalBarsResult> => {
+  const now = currentTime();
+  const instrument = historyInstrument(symbol);
+  const spec = IBKR_SERIES[timeframe];
+  const daily = timeframe === "1d";
+  const keyOf = (bar: SignalBar): string =>
+    daily ? newYorkClock(bar.start).day : bar.start.toISOString();
+  const fillBefore = windowFillBefore(now, spec?.days ?? 0);
+  return settle(async (): Promise<SignalBarsResult> => {
+    const merged = await loadMergedBars<SignalBar>({
+      site: "signal-alerts",
+      config,
+      request:
+        instrument === null || spec === undefined
+          ? null
+          : {
+              ...instrument,
+              barSize: spec.barSize,
+              duration: spec.duration,
+              useRTH: instrument.secType === "STK",
+            },
+      pages: instrument?.secType === "STK" ? (spec?.pages ?? 1) : 1,
+      options: {
+        ...(signalAlertsOptions.fetch === undefined
+          ? {}
+          : { fetch: signalAlertsOptions.fetch }),
+        now: () => now,
+        timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
+      },
+      rejectStale: true,
+      fillBefore: daily
+        ? newYorkClock(fillBefore).day
+        : fillBefore.toISOString(),
+      fromIbkr: (bar, history) => signalBarOf(bar, history, timeframe, now),
+      noRequestReason:
+        spec === undefined
+          ? "1h served by Yahoo"
+          : "No IBKR contract for this symbol",
+      yahoo: async () => {
+        const result = await fetchYahooSeries(symbol, timeframe);
+        if (!result.ok) throw new FallbackFailure(result.reason, result);
+        return result.bars;
+      },
+      keyOf,
+    });
+    return { bars: merged.bars, ok: true };
+  });
 };
 
 /** A stored condition that no longer parses is skipped (never evaluated with a guessed meaning). */
@@ -170,6 +309,7 @@ type RunResult = Readonly<{
 const runSignalAlerts = async (
   repository: SignalAlertRepository,
   config: PriceAlertsNtfyConfig | null,
+  history: DeployStatusConfig | null,
   candidates: readonly SignalAlertRuleRecord[]
 ): Promise<RunResult> => {
   const now = currentTime();
@@ -186,7 +326,11 @@ const runSignalAlerts = async (
   for (let start = 0; start < groups.length; start += SERIES_CONCURRENCY) {
     await Promise.all(
       groups.slice(start, start + SERIES_CONCURRENCY).map(async (group) => {
-        const result = await fetchSeries(group.symbol, group.timeframe);
+        const result = await fetchSeries(
+          group.symbol,
+          group.timeframe,
+          history
+        );
         if (result.ok) bars.set(group, result.bars);
         else
           seriesErrors.push({
@@ -282,9 +426,10 @@ const backfillFor = async (
     symbol: string;
     timeframe: SignalAlertTimeframe;
     condition: SignalAlertCondition;
-  }>
+  }>,
+  history: DeployStatusConfig | null
 ) => {
-  const result = await fetchSeries(input.symbol, input.timeframe);
+  const result = await fetchSeries(input.symbol, input.timeframe, history);
   if (!result.ok) return { ok: false as const, reason: result.reason };
   return {
     backfill: backfillSignalAlert(
@@ -375,9 +520,9 @@ const create = api.priceAlerts.signals.create
 
 const backfill = api.priceAlerts.signals.backfill
   .use(requireOperator)
-  .handler(async ({ input, errors }) => {
+  .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
-    const result = await backfillFor(input);
+    const result = await backfillFor(input, context.marketHistory ?? null);
     if (!result.ok) throw failures.UPSTREAM_ERROR({ message: result.reason });
     return {
       backfill: result.backfill,
@@ -425,7 +570,7 @@ const propose = api.priceAlerts.signals.propose
       userId: context.principal.userId,
     });
     // The backfill is context for the card; a market-data failure never blocks the proposal.
-    const history = await backfillFor(fields);
+    const history = await backfillFor(fields, context.marketHistory ?? null);
     return {
       backfill: history.ok ? history.backfill : null,
       ok: true as const,
@@ -497,6 +642,7 @@ const check = api.priceAlerts.signals.check
     const result = await runSignalAlerts(
       repository,
       context.priceAlertsNtfy ?? null,
+      context.marketHistory ?? null,
       await repository.listActiveByUser(userId)
     );
     return {
@@ -520,6 +666,7 @@ const tick = api.priceAlerts.signals.tick
     const result = await runSignalAlerts(
       repository,
       context.priceAlertsNtfy ?? null,
+      context.marketHistory ?? null,
       await repository.listActive(
         SIGNAL_ALERT_TICK_MAX_RULES,
         context.operatorEmails

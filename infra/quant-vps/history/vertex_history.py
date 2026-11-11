@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Vertex read-only IBKR market data service (QuantVPS): historical bars, historical ticks, depth.
+"""Vertex read-only IBKR market data service (QuantVPS): historical bars, historical ticks, depth, news.
 
 Read-only. One IB API session with client id 77, used for contract lookup, historical bars,
 historical ticks (time & sales) and one-shot market depth snapshots, and nothing else. Listens on
@@ -19,6 +19,13 @@ Bars take an optional endDateTime=YYYYMMDD-HH:MM:SS (UTC, IBKR's form; absent = 
 request echo. A copy fetched at least 24 h after its endDateTime is cached for up to 24 h. whatToShow=BID_ASK
 (stocks only): open = time-average bid, high = max ask, low = min bid, close = time-average ask, volume null.
 
+1.3.0 (card vertex-yahoo-terms-decision, owner 2026-11-10 "Extend it"): daily bars take up to 30 Y in one request
+(longer than 365 days only in Y units); whatToShow=ADJUSTED_LAST (stocks, daily, no endDateTime: IBKR refuses an
+end date for it) gives split- and dividend-adjusted bars; secType=IND (indices such as VIX on CBOE, TRADES bars,
+exchange required) serves bars only, not ticks or depth.
+/news (1.3.0): newest headlines for one stock from every API news provider on the account (read-only:
+reqNewsProviders, reqHistoricalNews).
+
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
 import hashlib
@@ -34,7 +41,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 SCHEMA = "vertex-history-bars-v1"
 TICKS_SCHEMA = "vertex-history-ticks-v1"
 DEPTH_SCHEMA = "vertex-history-depth-v1"
@@ -44,9 +51,13 @@ LISTEN_HOST = "127.0.0.1"
 LISTEN_PORT = 8791
 PREFIX = "/vertex-history/v1"
 
-SEC_TYPES = ("STK", "FUT", "CONTFUT", "CASH")
+SEC_TYPES = ("STK", "FUT", "CONTFUT", "CASH", "IND")
 DEFAULT_EXCHANGE = {"STK": "SMART", "CASH": "IDEALPRO"}
-WHAT_TO_SHOW = ("TRADES", "MIDPOINT", "BID_ASK")
+BARS_ONLY_SEC_TYPES = {"CASH": "CASH (forex)", "IND": "IND (indices)"}
+WHAT_TO_SHOW = ("TRADES", "MIDPOINT", "BID_ASK", "ADJUSTED_LAST")
+# ADJUSTED_LAST (IBKR): daily bars adjusted for splits and dividends; IBKR requires an empty end date.
+ADJUSTED_SEC_TYPES = ("STK",)
+DAILY_MAX_DAYS = 30 * 365  # 30 Y; above 365 days IBKR takes the duration in years only
 # BID_ASK bars (IBKR semantics): open = time-average bid, high = max ask, low = min bid, close = time-average ask,
 # volume n/a (null). Offered for stocks only here; forex stays MIDPOINT and futures TRADES/MIDPOINT.
 BID_ASK_SEC_TYPES = ("STK",)
@@ -87,12 +98,25 @@ DEPTH_MIN_INTERVAL = 3.0
 DEPTH_MAX_WAIT = 10.0
 DEPTH_COLLECT_SECONDS = 2.0
 DEPTH_DEADLINE = 25.0  # one budget per /depth request: lock, spacing, contract lookup, subscription
+# News (1.3.0): headlines from every news provider the account has for API use (reqNewsProviders, cached 24 h),
+# newest first via reqHistoricalNews. One news request at a time, at least NEWS_MIN_INTERVAL apart, cached
+# NEWS_TTL; a stale copy up to NEWS_STALE_MAX is served when IBKR is unavailable.
+NEWS_SCHEMA = "vertex-history-news-v1"
+NEWS_MIN, NEWS_MAX, NEWS_DEFAULT = 1, 50, 20
+NEWS_TTL = 300
+NEWS_STALE_MAX = 3600
+NEWS_MIN_INTERVAL = 3.0
+NEWS_DEADLINE = 25.0  # one budget per /news request: lock, spacing, contract lookup, providers, headlines
+PROVIDERS_TTL = 86400
+PROVIDERS_EMPTY_TTL = 300
+HEADLINE_META_RE = re.compile(r"^\{[^{}]{0,300}\}")  # IBKR prefixes some headlines with {A:...:L:en:K:...}
 
 PARAMS = ("symbol", "secType", "exchange", "currency", "barSize", "duration", "whatToShow", "useRTH", "contractMonth",
           "endDateTime")
 TICKS_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "count", "useRTH", "quotes")
 DEPTH_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "rows")
-SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,11}$")
+NEWS_PARAMS = ("symbol", "secType", "exchange", "currency", "count")
+SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,11}( [A-Z])?$")  # IBKR class shares: "BRK B"
 EXCHANGE_RE = re.compile(r"^[A-Z][A-Z0-9.]{1,15}$")
 CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 MONTH_RE = re.compile(r"^\d{6}(\d{2})?$")
@@ -136,7 +160,7 @@ def scrub(text):
 
 def max_duration_days(bar_size):
     if bar_size == "1 day":
-        return 365
+        return DAILY_MAX_DAYS
     if bar_size == "1 min":
         return 2
     return 31
@@ -163,7 +187,7 @@ def _instrument(values):
         raise BadRequest("invalid symbol")
     exchange = values.get("exchange", DEFAULT_EXCHANGE.get(sec_type, "")).upper()
     if not EXCHANGE_RE.match(exchange):
-        raise BadRequest("invalid exchange (required for futures)")
+        raise BadRequest("invalid exchange (required for futures and indices)")
     currency = values.get("currency", "USD").upper()
     if not CURRENCY_RE.match(currency):
         raise BadRequest("invalid currency")
@@ -235,11 +259,22 @@ def validate(raw, now=None):
         raise BadRequest("1 min bars allow durations in days only")
     if days > max_duration_days(bar_size):
         raise BadRequest("duration too long for " + bar_size)
+    if days > 365 and m.group(2) != "Y":
+        raise BadRequest("durations longer than 365 days take Y units (IBKR)")
     what = values.get("whatToShow", "TRADES").upper()
     if what not in WHAT_TO_SHOW:
         raise BadRequest("whatToShow must be one of " + ", ".join(WHAT_TO_SHOW))
     if what == "BID_ASK" and inst["secType"] not in BID_ASK_SEC_TYPES:
         raise BadRequest("whatToShow=BID_ASK is offered for " + ", ".join(BID_ASK_SEC_TYPES) + " only")
+    if what == "ADJUSTED_LAST":
+        if inst["secType"] not in ADJUSTED_SEC_TYPES:
+            raise BadRequest("whatToShow=ADJUSTED_LAST is offered for " + ", ".join(ADJUSTED_SEC_TYPES) + " only")
+        if bar_size != "1 day":
+            raise BadRequest("whatToShow=ADJUSTED_LAST is offered for 1 day bars only")
+        if "endDateTime" in values:
+            raise BadRequest("whatToShow=ADJUSTED_LAST takes no endDateTime (IBKR); ask for a longer duration")
+    if inst["secType"] == "IND" and what != "TRADES":
+        raise BadRequest("IND (indices) offers whatToShow=TRADES only")
     if inst["secType"] == "CASH":
         what = "MIDPOINT"  # IBKR has no TRADES data for forex
     rth = _flag(values, "useRTH", "1")
@@ -257,7 +292,7 @@ def validate_ticks(raw):
     """Historical ticks: the most recent `count` trade prints (and bid/ask quotes over the same window)."""
     values = _single_values(raw, TICKS_PARAMS)
     inst = _instrument(values)
-    _reject_cash(inst, "ticks")
+    _reject_bars_only(inst, "ticks")
     count = _bounded_int(values, "count", TICKS_DEFAULT, TICKS_MIN, TICKS_MAX)
     rth = _flag(values, "useRTH", "0")
     quotes = _flag(values, "quotes", "1")
@@ -269,7 +304,7 @@ def validate_depth(raw):
     """Depth snapshot. Stocks always use IBKR SMART depth; futures use the given exchange's own book."""
     values = _single_values(raw, DEPTH_PARAMS)
     inst = _instrument(values)
-    _reject_cash(inst, "depth")
+    _reject_bars_only(inst, "depth")
     rows = _bounded_int(values, "rows", DEPTH_ROWS_DEFAULT, 1, DEPTH_ROWS_MAX)
     month = _month(values, inst["secType"])
     smart = inst["secType"] == "STK"
@@ -278,9 +313,40 @@ def validate_depth(raw):
     return dict(inst, contractMonth=month, rows=rows, smartDepth=smart)
 
 
-def _reject_cash(inst, kind):
-    if inst["secType"] == "CASH":
-        raise BadRequest(kind + " are not supported for CASH (forex)")
+def _reject_bars_only(inst, kind):
+    label = BARS_ONLY_SEC_TYPES.get(inst["secType"])
+    if label:
+        raise BadRequest(kind + " are not supported for " + label)
+
+
+def validate_news(raw):
+    """News headlines for one stock: the newest `count` from all API news providers on the account."""
+    values = _single_values(raw, NEWS_PARAMS)
+    inst = _instrument(values)
+    if inst["secType"] != "STK":
+        raise BadRequest("news are offered for STK only")
+    count = _bounded_int(values, "count", NEWS_DEFAULT, NEWS_MIN, NEWS_MAX)
+    return dict(inst, count=count)
+
+
+def parse_news_time(text):
+    """IBKR's `YYYY-MM-DD HH:MM:SS[.f]` -> epoch seconds, read as UTC (IBKR: "UTC assumed"; to be confirmed
+    against a live headline, see docs/vertex-rebuild/quantvps-status-endpoint.md); ValueError when malformed."""
+    return int(datetime.strptime(str(text).split(".")[0], "%Y-%m-%d %H:%M:%S")
+               .replace(tzinfo=timezone.utc).timestamp())
+
+
+def to_news_item(time_text, provider, article_id, headline):
+    """None for a row without a readable time or headline."""
+    try:
+        t = parse_news_time(time_text)
+    except ValueError:
+        return None
+    text = _text(HEADLINE_META_RE.sub("", str(headline or "")), 500)
+    if text is None:
+        return None
+    return {"t": t, "time": now_iso(t), "provider": _text(provider, 16), "articleId": _text(article_id, 64),
+            "headline": text}
 
 
 def cache_key(req):
@@ -483,6 +549,8 @@ class HistoryService:
         self.log = log or (lambda event, **kw: None)
         self.lock = threading.Lock()  # historical requests (bars, ticks): one at a time
         self.depth_lock = threading.Lock()  # at most one market depth subscription at a time
+        self.news_lock = threading.Lock()  # one news request at a time
+        self.news_last = None
 
     def _ok(self, payload, age, ttl, hit, stale=False, camel=False):
         body = dict(payload)
@@ -675,6 +743,55 @@ class HistoryService:
         return 200, {"schema": "vertex-history-health-v1", "version": VERSION, "client_id": CLIENT_ID,
                      "connected": self.gateway.connected(), "pacing": self.pacer.snapshot()}
 
+    def news(self, raw):
+        """Newest IBKR news headlines for one stock (camelCase fields, like ticks and depth)."""
+        try:
+            req = validate_news(raw)
+        except BadRequest as e:
+            return 400, {"error": "bad_request", "message": str(e)}
+        key, ttl = cache_key(dict(req, endpoint="news")), NEWS_TTL
+
+        def fallback(status, body):
+            return self._stale_or(key, ttl, status, body, NEWS_STALE_MAX, camel=True)
+
+        hit = self.cache.get(key, ttl)
+        if hit:
+            return self._ok(hit[0], hit[1], ttl, True, camel=True)
+        budget_end = self.clock() + NEWS_DEADLINE
+
+        def remaining():
+            return budget_end - self.clock()
+
+        if not self.news_lock.acquire(timeout=max(0.0, min(MAX_WAIT, remaining()))):
+            return fallback(429, {"error": "busy", "retry_after_seconds": int(NEWS_MIN_INTERVAL)})
+        try:
+            hit = self.cache.get(key, ttl)
+            if hit:
+                return self._ok(hit[0], hit[1], ttl, True, camel=True)
+            if self.news_last is not None:
+                wait = self.news_last + NEWS_MIN_INTERVAL - self.clock()
+                if wait > 0:
+                    self.sleep(wait)
+            self.news_last = self.clock()
+            try:
+                contract, providers, items = self.gateway.fetch_news(req, remaining)
+            except IbError as e:
+                return self._ib_error(e, fallback)
+            except PacingViolation:  # news has no historical back-off; just ask the caller to retry
+                self.log("news_pacing_violation")
+                return fallback(429, {"error": "pacing_violation", "retry_after_seconds": int(NEWS_MIN_INTERVAL)})
+            except Exception as e:  # never drop the connection without a JSON answer
+                self.log("news_failed", kind=type(e).__name__)
+                return fallback(500, {"error": "internal", "message": "news request failed"})
+            payload = {"schema": NEWS_SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "request": req,
+                       "contract": contract, "providers": providers, "items": items, "count": len(items),
+                       "fetchedAt": now_iso(self.clock())}
+            self.cache.put(key, payload)
+            self.log("news", symbol=req["symbol"], providers=len(providers), items=len(items))
+            return self._ok(payload, 0, ttl, False, camel=True)
+        finally:
+            self.news_lock.release()
+
 
 class _Holder:
     def __init__(self):
@@ -770,11 +887,20 @@ def _wrapper_class():
             self.owner.ready.clear()
             self.owner.fail_all(IbError("unavailable", "gateway connection closed"))
 
+        def newsProviders(self, newsProviders):
+            self.owner.add_providers(newsProviders)
+
+        def historicalNews(self, requestId, time, providerCode, articleId, headline):
+            self.owner.add_row(requestId, (time, providerCode, articleId, headline))
+
+        def historicalNewsEnd(self, requestId, hasMore):
+            self.owner.finish(requestId)
+
     return Wrapper
 
 
 INFO_CODES = {2103, 2104, 2105, 2106, 2107, 2108, 2119, 2157, 2158, 2174, 2176}
-ENTITLEMENT_CODES = {354, 10089, 10090, 10092, 10167, 10168, 10186, 10197}
+ENTITLEMENT_CODES = {354, 10089, 10090, 10092, 10167, 10168, 10186, 10197, 10276}  # 10276: news feed not allowed
 DEPTH_NOTICE_CODE = 2152  # venues with depth, top of book only, and missing permissions
 DEPTH_RESET_CODE = 317  # "market depth data has been RESET": empty the book before new entries
 
@@ -783,7 +909,8 @@ class IbGateway:
     """The only code that talks to IB. Calls on self._client are limited to IB_CALLS (enforced by tests)."""
 
     IB_CALLS = ("connect", "disconnect", "isConnected", "run", "reqContractDetails", "reqHistoricalData",
-                "cancelHistoricalData", "reqHistoricalTicks", "reqMktDepth", "cancelMktDepth")
+                "cancelHistoricalData", "reqHistoricalTicks", "reqMktDepth", "cancelMktDepth", "reqNewsProviders",
+                "reqHistoricalNews")
 
     def __init__(self, gateway_file, clock=time.time, log=None):
         self.gateway_file, self.clock = gateway_file, clock
@@ -798,6 +925,8 @@ class IbGateway:
         self.connect_lock = threading.Lock()
         self.active_depth = None
         self.depth_collect = DEPTH_COLLECT_SECONDS
+        self.providers = None  # (fetched at, [{code, name}])
+        self.providers_rid = None
 
     def connected(self):
         return bool(self._client is not None and self._client.isConnected() and self.ready.is_set())
@@ -1096,6 +1225,43 @@ class IbGateway:
         except Exception as e:
             self.log("ib_cancel_depth_failed", req_id=req_id, kind=type(e).__name__)
 
+    def add_providers(self, providers):
+        """newsProviders has no request id: it answers the one pending provider request."""
+        rid = self.providers_rid
+        for p in providers or []:
+            self.add_row(rid, {"code": _text(getattr(p, "code", ""), 16), "name": _text(getattr(p, "name", ""), 80)})
+        self.finish(rid)
+
+    def news_providers(self, remaining=None):
+        """[{code, name}] of the account's API news providers, cached for PROVIDERS_TTL."""
+        if self.providers is not None and self.clock() - self.providers[0] < PROVIDERS_TTL:
+            return self.providers[1]
+
+        def start(rid):
+            self.providers_rid = rid
+            self._client.reqNewsProviders()
+
+        rows, _ = self._call(start, remaining)
+        providers = [p for p in rows if p["code"]]
+        # an empty answer (no providers yet, or a reconnect) is cached only briefly
+        ttl_offset = 0 if providers else PROVIDERS_TTL - PROVIDERS_EMPTY_TTL
+        self.providers = (self.clock() - ttl_offset, providers)
+        return providers
+
+    def fetch_news(self, req, remaining=None):
+        """(contract info, providers, headlines newest first) for one stock; no providers -> no request."""
+        self._connect()
+        info = self._details(req, remaining)
+        providers = self.news_providers(remaining)
+        if not providers:
+            return info, [], []
+        codes = "+".join(p["code"] for p in providers)
+        rows, _ = self._call(lambda rid: self._client.reqHistoricalNews(rid, info["conId"], codes, "", "",
+                                                                        req["count"], []), remaining)
+        items = [i for i in (to_news_item(*row) for row in rows) if i is not None]
+        items.sort(key=lambda i: i["t"], reverse=True)
+        return info, providers, items[:req["count"]]
+
     def close(self):
         if self._client is not None:
             self._client.disconnect()
@@ -1103,7 +1269,8 @@ class IbGateway:
 
 def make_handler(service, token):
     expected = ("Bearer " + token).encode()
-    routes = {PREFIX + "/bars": service.bars, PREFIX + "/ticks": service.ticks, PREFIX + "/depth": service.depth}
+    routes = {PREFIX + "/bars": service.bars, PREFIX + "/ticks": service.ticks, PREFIX + "/depth": service.depth,
+              PREFIX + "/news": service.news}
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "vertex-history/" + VERSION

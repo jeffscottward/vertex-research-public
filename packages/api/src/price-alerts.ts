@@ -53,6 +53,8 @@ export type PriceAlertQuote = Readonly<{
   symbol: string;
   last: number;
   lastAt: Date | null;
+  /** The bars are complete up to this time (an IBKR copy's fetch time); absent: the check time. */
+  asOf?: Date;
   bars: readonly PriceAlertBar[];
 }>;
 

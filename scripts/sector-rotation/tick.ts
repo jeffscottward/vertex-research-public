@@ -1,9 +1,10 @@
 // Sector rotation tick client for the scheduler (user systemd timer, not enabled by default).
 // Usage: VERTEX_ORIGIN=https://vertex.example VERTEX_AGENT_API_KEY=... bun run vertex:sector-rotation:tick [--dry-run]
-// It calls sectorRotation.collect with an operator agent WRITE key. The procedure reads public Yahoo
-// daily bars for SPY and the 11 sector ETFs, stores daily and weekly points and sends one ntfy line
-// per new entry into leading or lagging. --dry-run computes and reports only: nothing is stored,
-// recorded or sent. Research only: no orders. The key is never printed.
+// It calls sectorRotation.collect with an operator agent WRITE key. The procedure reads daily bars for
+// SPY and the 11 sector ETFs (IBKR first, Yahoo when IBKR cannot serve all symbols in time), stores
+// daily and weekly points and sends one ntfy line per new entry into leading or lagging. --dry-run
+// computes and reports only: nothing is stored, recorded or sent. Research only: no orders. The key is
+// never printed.
 // Optional second route: with VERTEX_ALERT_POST_URL (a loopback chat bot endpoint that takes
 // {channel, text}) and VERTEX_ALERT_CHANNEL set, each new alert that the server could not deliver
 // (not-configured or failed) is posted there once. The server records an alert once, so a repeat
@@ -79,11 +80,16 @@ const apiOf = (io: SectorRotationTickIo): Api => ({
   origin: new URL(required(io.env, "VERTEX_ORIGIN")).origin,
 });
 
+// Chat posts and their write-backs run after a collect that may take minutes (IBKR pacing): each gets
+// its own bound so a hanging endpoint cannot hold the run until systemd stops it (TimeoutStartSec).
+const SIDE_REQUEST_TIMEOUT_MS = 10_000;
+
 const callApi = (
   io: SectorRotationTickIo,
   api: Api,
   procedure: string,
-  input: unknown
+  input: unknown,
+  signal?: AbortSignal
 ): Promise<Response> =>
   io.post(`${api.origin}/api/orpc/sectorRotation/${procedure}`, {
     body: JSON.stringify({ json: input }),
@@ -93,6 +99,7 @@ const callApi = (
       "x-api-key": api.apiKey,
     },
     method: "POST",
+    ...(signal === undefined ? {} : { signal }),
   });
 
 const tick = async (
@@ -142,12 +149,18 @@ const writeBack = async (
   let response: Response | undefined;
   let reason = "";
   try {
-    response = await callApi(io, apiOf(io), "recordChatDelivery", {
-      delivery,
-      enteredOn: alert.date,
-      quadrant: alert.to,
-      symbol: alert.symbol,
-    });
+    response = await callApi(
+      io,
+      apiOf(io),
+      "recordChatDelivery",
+      {
+        delivery,
+        enteredOn: alert.date,
+        quadrant: alert.to,
+        symbol: alert.symbol,
+      },
+      AbortSignal.timeout(SIDE_REQUEST_TIMEOUT_MS)
+    );
   } catch (error) {
     reason = `: ${messageOf(error)}`;
   }
@@ -171,6 +184,7 @@ const postChat = async (
       body: JSON.stringify({ channel, text: alert.line }),
       headers: { "content-type": "application/json" },
       method: "POST",
+      signal: AbortSignal.timeout(SIDE_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     return messageOf(error);
