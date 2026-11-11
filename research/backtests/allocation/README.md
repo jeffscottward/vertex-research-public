@@ -15,6 +15,9 @@ directory `vertex-allocation`).
 | `services/research/strategies/qc_ports/allocation.py` | Owner exit rule, the gate (`GATE`, `gate_checks`), account caps (`combine`), out-of-sample Sharpe, Monte Carlo, correlation, three weighting methods |
 | `services/research/tests/test_qc_ports_allocation.py` | Synthetic tests of that module (base Python lane) |
 | `research/backtests/allocation/run.py` | The study: runs every candidate and the combined portfolios on NautilusTrader and writes one JSON document to `--out` |
+| `research/backtests/allocation/sensitivity.py` | The candidates again under changed option-model assumptions (diagnostics) |
+| `research/backtests/allocation/fetch_chain_snapshot.py` | One-day option-chain snapshot: measured half-spread and skew per ETF |
+| `research/backtests/allocation/funded_pie.py` | The lower-bar pie the owner picked: three sleeves in one account under both option models (proposal) |
 
 `run.py` writes its output to a report work directory. The app does not read it (AGENTS.md rule 13).
 
@@ -160,3 +163,83 @@ lost more than the 20% drawdown limit although its open risk never passed 10%: t
 everything open at one time, not a run of losing months.
 
 Not checked here: live option quotes (prices are modeled), intraday exits, interest on cash.
+
+## Sensitivity: why does nothing pass? (2026-11-11)
+
+The owner asked whether one gate blocks everything. `sensitivity.py` runs the candidates again on NautilusTrader
+under changed model assumptions, and `fetch_chain_snapshot.py` measures the two assumptions that matter (the
+bid/ask half-spread and the volatility skew) in a one-day option-chain snapshot from Yahoo. The scenarios are
+diagnostics. A pass in a scenario does not make a strategy eligible.
+
+Findings:
+
+- No single gate blocks everything: in the study model every one of the 15 distinct runs fails the Sharpe floor,
+  the out-of-sample Sharpe floor and the deflated Sharpe, and dropping any one check unlocks none.
+- The option model was too harsh for SPY and QQQ and too kind for DIA and USO (table below). With the measured
+  values the median Sharpe goes from -0.03 to +0.24; the best run then fails only the deflated Sharpe and the
+  baseline check.
+- The gate is stricter than the index: SPY buy-and-hold has a Sharpe of 0.64, a deflated Sharpe of 0.68 and a
+  max drawdown of -55%; it fails G5 and G7.
+- The engine's order policy (`options_only_defined_risk_v2`) refuses combos and opening short legs, so no
+  vertical tested here can be placed today. A single-long-option form is not tested (the runner prices verticals).
+
+| Scenario | Sharpe > 0 | >= 0.3 | >= 0.5 | Median Sharpe | Best Sharpe | Pass the gate | Pass without G5 (baseline check left out) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Study model | 7 | 1 | 0 | -0.03 | +0.42 | 0 | 0 |
+| No costs | 13 | 4 | 1 | +0.22 | +0.60 | 0 | 0 |
+| Tight spreads (assumed) | 10 | 1 | 1 | +0.09 | +0.52 | 0 | 0 |
+| Flatter call skew (assumed) | 10 | 1 | 1 | +0.14 | +0.70 | 0 | 0 |
+| Tight spreads + flatter call skew (assumed) | 13 | 4 | 1 | +0.23 | +0.82 | 0 | 1 |
+| Same, 0.70-delta legs, 2 sigma wide | 13 | 3 | 1 | +0.23 | +0.66 | 0 | 0 |
+| Measured chain snapshot | 12 | 3 | 1 | +0.24 | +0.80 | 0 | 1 |
+
+Of 15 distinct runs: the 16 daily library strategies make 13 different trade lists, plus the 2 put-credit hosts.
+The gate here leaves out the baseline check; with it, no run passes without G5 either (the best run loses to its
+always-on baseline). Trial count and trial variance of the deflated Sharpe stay at the values of `run.py` in every
+scenario. The measured half-spread is the unweighted mean of four legs (two calls, two puts), used for every leg. Chain snapshot: 2026-11-11T20:26:14+00:00 (Yahoo Finance via yfinance 0.2.66), monthly
+expiries 37 and 65 days out, quoted spreads.
+
+| ETF | Half-spread per leg, model | Measured | Skew slope, model | Measured, calls | Measured, puts |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| SPY | 1.00% | 0.40% | -0.30 | -0.13 | -0.23 |
+| QQQ | 1.50% | 0.38% | -0.25 | -0.10 | -0.17 |
+| DIA | 3.00% | 3.77% | -0.30 | -0.05 | -0.16 |
+| IWM | 2.00% | 0.90% | -0.22 | -0.06 | -0.18 |
+| GLD | 2.50% | 1.47% | +0.05 | +0.04 | -0.04 |
+| SLV | 4.00% | 1.72% | +0.05 | +0.07 | -0.09 |
+| USO | 4.00% | 6.18% | -0.10 | +0.08 | +0.00 |
+
+One day of quotes is not a history: spreads widen in stress, and a limit order inside the spread costs less. The
+option model in `options.py` is unchanged; replacing its constants needs more than one snapshot.
+
+## Lower-bar pie (owner pick, 2026-11-11)
+
+After the sensitivity result the owner picked "lower bar, fund it small". `funded_pie.py` builds that pie as a
+proposal: it arms nothing, sends no order and changes no engine setting. The lower bar is an owner decision, not a
+repository gate: Sharpe at least 0.3, positive out of sample, Monte Carlo profit at least 80%, max drawdown at most
+25%, at least 30 trades.
+
+| Sleeve | Definition | Budget | Since | Sharpe alone, study / measured model | Max drawdown alone | Passes the lower bar alone |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| long index | `oil-predicts-equity/B` with a plain always-true entry | 2% | 2001 | -0.00 / +0.38 | -56% / -47% | no / no |
+| rotation | `momentum-rotation/A` with `top` 1 | 1% | 1994 | +0.14 / +0.44 | -24% / -20% | no / yes |
+| vol premium | `regime-put-vrp/A` | 1% | 2006 | +0.32 / +0.34 | -3% / -4% | yes / yes |
+
+"Alone" = the sleeve at the 2% per position of its definition over its own history. The always-on entry and `top` 1
+are new trials, chosen after the study: the study run of the always-on leg waits for an oil forecast it does not use
+(so it starts in 2011, without 2008), and the 1% budget holds one rotation position.
+
+Limits: 1% of equity at risk per position, at most 4% open, at most 2% in one underlying; cash 96%.
+
+One account on NautilusTrader, 2006-07-17 to 2026-11-10 (2008 included):
+
+| Option model | CAGR | Sharpe | Out-of-sample | Deflated Sharpe | Max drawdown | 2007-10 to 2009-03 | 2022 | Reverse order: CAGR / Sharpe | Lower bar |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Measured chain snapshot | +5.12% | +0.79 | +0.83 | 0.83 | -15.0% | -14.1% | -9.4% | +5.12% / +0.79 | yes |
+| Study model | +2.34% | +0.41 | +0.46 | 0.22 | -15.9% | -14.8% | -10.3% | +2.35% / +0.41 | yes |
+
+The pie as a whole passes the lower bar in both models; alone, only the put-credit sleeve does. The long-index
+sleeve is long-only beta and loses month after month in a bear market. Neither a sleeve nor the pie passes the
+repository gate. The two rows are two option models on one history, not a forecast range. Before real money the
+owner must re-arm the engine and decide how it may place spreads: the order policy refuses them today (card
+`vertex-order-policy-spreads`).
