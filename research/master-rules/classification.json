@@ -3,9 +3,9 @@
   "clusters": 864,
   "debates": 12,
   "counts": {
-    "C": 66,
+    "C": 67,
     "A": 109,
-    "D": 352,
+    "D": 351,
     "B": 349
   },
   "method": "A = 3+ knowledge bases or a won debate, and fits our style. B = fits and needs no missing data. C = needs a missing feature or data feed. D = style conflict. Keyword and scope heuristics; research input only.",
@@ -12860,10 +12860,12 @@
       "methodologies": ["macro"],
       "timeframes": ["position"],
       "debate": null,
-      "cls": "B",
-      "reason": "Jobs-report trend reading uses macro data we already pull (OpenBB macro), not a breadth series.",
+      "cls": "C",
+      "reason": "Needs: BLS employment-situation series (payrolls, diffusion, hours, revisions, AHE).",
+      "feature": "BLS jobs-report series via FRED",
+      "effort": "S",
       "override": true,
-      "target": "research-report-technicals"
+      "target": null
     },
     {
       "id": "C830",
@@ -13257,10 +13259,10 @@
       "methodologies": ["macro"],
       "timeframes": ["any"],
       "debate": null,
-      "cls": "D",
-      "reason": "Physical bullion holding; options-only book.",
+      "cls": "B",
+      "reason": "Underlying selection: bullion-backed ETF options, not miners.",
       "override": true,
-      "target": null
+      "target": "committee-checklist"
     },
     {
       "id": "C858",

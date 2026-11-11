@@ -194,13 +194,19 @@ const OVERRIDES = {
   C758: { cls: "D", reason: "Prop-account stacking rule." },
   C759: { cls: "D", reason: "Prop-firm evaluation budget rule." },
   // Hand review 2026-11-11 (Jay Medrow merge, knowledge-bases master rules; owner ranks the source top tier with Crown).
-  // Physical-metal holdings are outside the options-only book.
+  // Holding physical metal is outside the options-only book.
   C811: { cls: "D", reason: "Physical-metal holding; options-only book." },
-  C857: { cls: "D", reason: "Physical bullion holding; options-only book." },
-  C829: {
+  // Underlying choice: options on bullion-backed ETFs (GLD/SLV), not miners. GLD and SLV are in the OpenBB symbol set.
+  C857: {
     cls: "B",
+    reason: "Underlying selection: bullion-backed ETF options, not miners.",
+  },
+  C829: {
+    cls: "C",
     reason:
-      "Jobs-report trend reading uses macro data we already pull (OpenBB macro), not a breadth series.",
+      "Needs: BLS employment-situation series (payrolls, diffusion, hours, revisions, AHE).",
+    feature: "BLS jobs-report series via FRED",
+    effort: "S",
   },
 };
 
