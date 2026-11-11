@@ -10,6 +10,14 @@ import {
   type InstantBacktestSeries,
 } from "@darkfactory/api";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -27,7 +35,6 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
 import {
   isOperatorAccessDenied,
@@ -57,6 +64,7 @@ import {
   loadLinkedDefinition,
   metricRows,
   type OptionsBook,
+  optionsDefaultFrom,
   optionsLinkSymbol,
   optionsMetricRows,
   optionsRunSymbols,
@@ -66,6 +74,7 @@ import {
   type RunForm,
   readDefinitionLink,
   replayGeometry,
+  ruleSwitchDates,
   runsOptionsDefinition,
   todayUtc,
   toSubmitInput,
@@ -81,14 +90,6 @@ import {
 import { DEFAULT_INSTANT_PARAMS } from "./instant-backtest-workspace.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@darkfactory/ui";
 
 // Backtest runs: queue a run over a date range, follow it until it finishes, then read the report
 // (metrics, equity and drawdown charts, trade list and trade-by-trade replay; the options book of an
@@ -487,8 +488,8 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
             </h3>
             <div className="max-h-96 overflow-auto rounded-md border">
               <Table
-                containerClassName="overflow-visible"
                 className="w-full text-sm tabular-nums"
+                containerClassName="overflow-visible"
               >
                 <TableHeader className="sticky top-0 bg-background text-left">
                   <TableRow>
@@ -562,10 +563,12 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
 const RuleFields = ({
   form,
   linkedDefinition,
+  series,
   setForm,
 }: Readonly<{
   form: RunForm;
   linkedDefinition: LinkedDefinition | null;
+  series: InstantBacktestSeries | undefined;
   setForm: Dispatch<SetStateAction<RunForm>>;
 }>) => {
   const ruleId = useId();
@@ -587,19 +590,28 @@ const RuleFields = ({
           id={ruleId}
           onChange={(event) => {
             const value = event.target.value;
-            setForm((current) => ({
-              ...current,
-              definition: value === "definition" ? linkedDefinition : null,
-              params: {
-                ...current.params,
-                ruleKind:
-                  value === "breakout"
-                    ? "breakout"
-                    : value === "smaCross"
-                      ? "smaCross"
-                      : current.params.ruleKind,
-              },
-            }));
+            setForm((current) => {
+              const nextDefinition =
+                value === "definition" ? linkedDefinition : null;
+              return {
+                ...current,
+                ...ruleSwitchDates(
+                  current,
+                  { definition: nextDefinition },
+                  series
+                ),
+                definition: nextDefinition,
+                params: {
+                  ...current.params,
+                  ruleKind:
+                    value === "breakout"
+                      ? "breakout"
+                      : value === "smaCross"
+                        ? "smaCross"
+                        : current.params.ruleKind,
+                },
+              };
+            });
           }}
           value={definition === null ? params.ruleKind : "definition"}
         >
@@ -756,6 +768,7 @@ const StoreSymbolField = ({
   value: string;
 }>) => {
   const id = useId();
+  const helpId = useId();
   // Shown only while an options definition is selected.
   const definition = (form.definition as LinkedDefinition).definition;
   return (
@@ -764,6 +777,7 @@ const StoreSymbolField = ({
         Symbol (daily series store, 1d)
       </label>
       <select
+        aria-describedby={helpId}
         className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
         id={id}
         onChange={(event) => onChange(event.target.value)}
@@ -775,7 +789,7 @@ const StoreSymbolField = ({
           </option>
         ))}
       </select>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-muted-foreground text-sm" id={helpId}>
         Options runs use the daily series store, not the stored bar series: the
         run reads the store from From to To (a To after the last stored day is
         fine).
@@ -907,17 +921,29 @@ export const BacktestRunsWorkspace = ({
             )
               setUniverse("all");
             applySeries(picked);
-            setForm((current) => ({
-              ...current,
-              definition: loaded,
-              from: link.from ?? current.from,
-              initialCapital: link.initialCapital ?? current.initialCapital,
-              params: {
-                ...current.params,
-                costBps: link.costBps ?? current.params.costBps,
-              },
-              to: link.to ?? (options ? todayUtc() : current.to),
-            }));
+            // An options run without a linked start takes a year before its end. A linked start
+            // after today with no linked end ends on that start, not before it.
+            setForm((current) => {
+              const fallbackTo = options ? todayUtc() : current.to;
+              const to =
+                link.to ??
+                (options && link.from !== null && link.from > fallbackTo
+                  ? link.from
+                  : fallbackTo);
+              return {
+                ...current,
+                definition: loaded,
+                from:
+                  link.from ??
+                  (options ? optionsDefaultFrom(to) : current.from),
+                initialCapital: link.initialCapital ?? current.initialCapital,
+                params: {
+                  ...current.params,
+                  costBps: link.costBps ?? current.params.costBps,
+                },
+                to,
+              };
+            });
           },
           (error: unknown) => {
             if (active)
@@ -1068,7 +1094,7 @@ export const BacktestRunsWorkspace = ({
 
   return (
     <div className="grid gap-8">
-      {load.series.length === 0 ? (
+      {load.series.length === 0 && !storeRun ? (
         <p className="text-sm">
           No stored bar series. Import bars with
           scripts/vertex-market-bars-import.ts first.
@@ -1160,6 +1186,7 @@ export const BacktestRunsWorkspace = ({
         <RuleFields
           form={form}
           linkedDefinition={linkedDefinition}
+          series={series}
           setForm={setForm}
         />
         <CostFields form={form} setForm={setForm} />

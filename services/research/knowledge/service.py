@@ -20,6 +20,9 @@ _ADAPTER_UNAVAILABLE = {
     ("define-your-risk", "raw-transcript-unavailable"): "not-found",
     ("define-your-risk", "non-video-source"): "unsupported-format",
     ("define-your-risk", "transcript-section-unavailable"): "unsupported-format",
+    ("jay-medrow", "raw-transcript-unavailable"): "not-found",
+    ("jay-medrow", "non-video-source"): "unsupported-format",
+    ("jay-medrow", "transcript-section-unavailable"): "unsupported-format",
 }
 _CLASSES = {"raw-transcript", "editorial-summary", "derived-embedding", "paper", "article"}
 _QUALITY = {"human-verified", "machine-generated", "partial", "unavailable", "not-applicable", "unknown"}
