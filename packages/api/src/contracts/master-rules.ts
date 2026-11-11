@@ -37,7 +37,7 @@ export const MasterRuleSourceSchema = z
   })
   .strict();
 
-export const MasterRuleSourceTierSchema = z.string().nullable();
+const MasterRuleSourceTierSchema = z.string().nullable();
 
 /** One searchable rule of the bundled index (build-master-rule-pack.mjs writes it). */
 export const MasterRuleIndexRowSchema = z
@@ -118,9 +118,6 @@ export type MasterRulesIndexBase = Omit<MasterRulesIndex, "rows"> & {
 /** The generated cited sources by rule id (master-rules-sources.generated.ts). */
 export type MasterRuleSourcesById = Readonly<
   Record<string, readonly MasterRuleSource[]>
->;
-export type MasterRulesSearchInput = z.input<
-  typeof MasterRulesSearchInputSchema
 >;
 export type MasterRulesSearchOutput = z.infer<
   typeof MasterRulesSearchOutputSchema

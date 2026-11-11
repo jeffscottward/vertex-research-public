@@ -149,7 +149,7 @@ export function frontMatterUrls(kbRoot, sourceFile) {
 }
 
 /** The public URL of one rules.jsonl record: front matter first, then the file name; null when none is known. */
-export function sourceUrl(record, kbRoot) {
+function sourceUrl(record, kbRoot) {
   for (const candidate of [
     ...frontMatterUrls(kbRoot, record.source_file),
     urlFromSourceFile(record.source_file),
