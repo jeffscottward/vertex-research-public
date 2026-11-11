@@ -11,6 +11,7 @@ import time
 import threading
 import types
 import unittest
+from unittest import mock
 import urllib.error
 import urllib.request
 
@@ -32,7 +33,7 @@ FORBIDDEN = [
 ]
 ALLOWED_IB_CALLS = {"connect", "disconnect", "isConnected", "run", "reqContractDetails", "reqHistoricalData",
                     "cancelHistoricalData", "reqHeadTimeStamp", "reqHistoricalTicks", "reqMktDepth",
-                    "cancelMktDepth"}
+                    "cancelMktDepth", "reqNewsProviders", "reqHistoricalNews"}
 TOKEN = "T" * 40
 
 
@@ -99,10 +100,11 @@ class ValidateTest(unittest.TestCase):
                              "contractMonth": None})
 
     def test_duration_bounds(self):
-        ok = [("1 day", "1 Y"), ("1 day", "12 M"), ("1 day", "365 D"), ("5 mins", "1 M"), ("1 hour", "4 W"),
-              ("1 min", "2 D"), ("15 mins", "31 D")]
-        bad = [("1 day", "2 Y"), ("1 day", "13 M"), ("5 mins", "2 M"), ("1 hour", "5 W"), ("1 min", "3 D"),
-               ("1 min", "1 W"), ("30 mins", "1 Y"), ("1 day", "0 D"), ("1 day", "1Y"), ("1 day", "1 S")]
+        ok = [("1 day", "1 Y"), ("1 day", "12 M"), ("1 day", "365 D"), ("1 day", "2 Y"), ("1 day", "30 Y"),
+              ("5 mins", "1 M"), ("1 hour", "4 W"), ("1 min", "2 D"), ("15 mins", "31 D")]
+        bad = [("1 day", "31 Y"), ("1 day", "13 M"), ("1 day", "400 D"), ("1 day", "60 W"), ("5 mins", "2 M"),
+               ("1 hour", "5 W"), ("1 min", "3 D"), ("1 min", "1 W"), ("30 mins", "1 Y"), ("1 day", "0 D"),
+               ("1 day", "1Y"), ("1 day", "1 S")]
         for bar, dur in ok:
             self.assertEqual(vh.validate(q(symbol="SPY", barSize=bar, duration=dur))["duration"], dur)
         for bar, dur in bad:
@@ -223,6 +225,13 @@ class FakeGateway:
         quotes = [{"t": 1790899200, "bp": 1.49, "bs": 3.0, "ap": 1.51, "as": 4.0}] if req["quotes"] else []
         return {"conId": 756733, "localSymbol": req["symbol"]}, trades, quotes, 0.01
 
+    def fetch_news(self, req, remaining=None):
+        self.calls.append(req)
+        self._outcome()
+        return ({"conId": 756733, "localSymbol": req["symbol"]}, [{"code": "BRFG", "name": "Briefing.com"}],
+                [{"t": 1790899300, "time": "2026-10-02T00:01:40Z", "provider": "BRFG", "articleId": "BRFG$1",
+                  "headline": "SPY gains"}])
+
     def fetch_depth(self, req, on_send, remaining=None):
         outcome = self.outcomes[0] if self.outcomes else None
         if isinstance(outcome, vh.IbError) and outcome.kind == "unavailable":
@@ -305,7 +314,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_bad_request(self):
         svc, gw, c = make_service()
-        self.assertEqual(svc.bars(q(symbol="SPY", duration="5 Y"))[0], 400)
+        self.assertEqual(svc.bars(q(symbol="SPY", duration="35 Y"))[0], 400)
         self.assertEqual(gw.calls, [])
 
 
@@ -454,12 +463,14 @@ class FakeIbClient:
     """Stands in for EClient: answers contract details and replays scripted market data callbacks."""
 
     def __init__(self, gw, md_mult=100, depth_script=None, ticks=None, depth_raises=None, min_tick=0.01,
-                 slow=None, bars=None):
+                 slow=None, bars=None, providers=None, news=None):
         self.gw, self.md_mult, self.min_tick = gw, md_mult, min_tick
         self.slow = slow or {}  # call name -> (fake seconds it takes, answers at all)
         self.depth_script = depth_script or []
         self.ticks = ticks or {}
         self.bars = bars or []  # BarData-like rows answered to reqHistoricalData
+        self.providers = providers if providers is not None else []  # NewsProvider-like objects
+        self.news = news or []  # (time, providerCode, articleId, headline) rows, or (code, message) error
         self.depth_raises = depth_raises
         self.calls = []
 
@@ -512,6 +523,18 @@ class FakeIbClient:
 
     def cancelMktDepth(self, rid, smart):
         self.calls.append(("cancelMktDepth", rid, smart))
+
+    def reqNewsProviders(self):
+        self.calls.append(("reqNewsProviders",))
+        self.gw.add_providers(self.providers)
+
+    def reqHistoricalNews(self, rid, con_id, codes, start, end, total, options):
+        self.calls.append(("reqHistoricalNews", rid, con_id, codes, start, end, total, options))
+        if isinstance(self.news, tuple):
+            return self.gw.on_error(rid, *self.news)
+        for row in self.news:
+            self.gw.add_row(rid, row)
+        self.gw.finish(rid)
 
     def reqHistoricalData(self, rid, spec, end, duration, bar_size, what, rth, date_format, keep_up, options):
         self.calls.append(("reqHistoricalData", rid, end, duration, bar_size, what, rth, date_format, keep_up,
@@ -775,7 +798,11 @@ class IbapiSignatureTest(unittest.TestCase):
         for name in vh.IbGateway.IB_CALLS:
             self.assertTrue(hasattr(EClient, name), name)
         wrapper = vh._wrapper_class()
-        for name in ("historicalTicksLast", "historicalTicksBidAsk", "updateMktDepth", "updateMktDepthL2"):
+        self.assertEqual(params(EClient.reqHistoricalNews), ["reqId", "conId", "providerCodes", "startDateTime",
+                                                            "endDateTime", "totalResults", "historicalNewsOptions"])
+        self.assertEqual(params(EClient.reqNewsProviders), [])
+        for name in ("historicalTicksLast", "historicalTicksBidAsk", "updateMktDepth", "updateMktDepthL2",
+                     "newsProviders", "historicalNews", "historicalNewsEnd"):
             self.assertEqual(params(getattr(wrapper, name)), params(getattr(EWrapper, name)), name)
         gw = fake_gateway()
         w = wrapper(gw)
@@ -898,7 +925,7 @@ class HttpTest(unittest.TestCase):
         self.assertEqual((status, body["client_id"], body["connected"]), (200, 77, False))
         self.assertEqual(self.call("/vertex-history/v1/other")[0], 404)
         self.assertEqual(self.call("/vertex-history/v1/bars?symbol=SPY", method="POST")[0], 405)
-        self.assertEqual(self.call("/vertex-history/v1/bars?symbol=SPY&duration=9%20Y")[0], 400)
+        self.assertEqual(self.call("/vertex-history/v1/bars?symbol=SPY&duration=31%20Y")[0], 400)
         status, body = self.call("/vertex-history/v1/bars?symbol=SPY&barSize=1%20day&duration=1%20Y")
         self.assertEqual((status, body["count"]), (200, 2))
         self.assertNotIn(TOKEN, json.dumps(body))
@@ -1079,6 +1106,186 @@ class EndDateTimeServiceTest(unittest.TestCase):
             status, body = svc.bars(raw)
             self.assertEqual((status, body["error"]), (400, "bad_request"), raw)
         self.assertEqual(gw.calls, [])
+
+
+class Extend130Test(unittest.TestCase):
+    """1.3.0: ADJUSTED_LAST, IND bars, daily windows up to 30 Y (card vertex-yahoo-terms-decision)."""
+
+    def test_adjusted_last_rules(self):
+        r = vh.validate(q(symbol="SPY", whatToShow="adjusted_last", duration="30 Y"), now=NOW)
+        self.assertEqual((r["whatToShow"], r["duration"]), ("ADJUSTED_LAST", "30 Y"))
+        self.assertNotIn("endDateTime", r)
+        self.assertNotEqual(vh.cache_key(r), vh.cache_key(dict(r, whatToShow="TRADES")))
+        for raw, msg in ((q(symbol="SPY", whatToShow="ADJUSTED_LAST", endDateTime="20261001-20:00:00"), "endDateTime"),
+                         (q(symbol="SPY", whatToShow="ADJUSTED_LAST", barSize="1 hour", duration="2 D"), "1 day"),
+                         (q(symbol="ES", secType="CONTFUT", exchange="CME", whatToShow="ADJUSTED_LAST"), "STK"),
+                         (q(symbol="EUR", secType="CASH", whatToShow="ADJUSTED_LAST"), "STK"),
+                         (q(symbol="VIX", secType="IND", exchange="CBOE", whatToShow="ADJUSTED_LAST"), "STK")):
+            with self.assertRaisesRegex(vh.BadRequest, msg, msg=raw):
+                vh.validate(raw, now=NOW)
+
+    def test_indices_are_trades_bars_with_an_exchange(self):
+        r = vh.validate(q(symbol="vix", secType="IND", exchange="cboe", duration="30 Y"), now=NOW)
+        self.assertEqual((r["symbol"], r["secType"], r["exchange"], r["whatToShow"]), ("VIX", "IND", "CBOE", "TRADES"))
+        r = vh.validate(q(symbol="VIX", secType="IND", exchange="CBOE", endDateTime="20101001-20:00:00"), now=NOW)
+        self.assertEqual(r["endDateTime"], "20101001-20:00:00")
+        with self.assertRaisesRegex(vh.BadRequest, "exchange"):
+            vh.validate(q(symbol="VIX", secType="IND"), now=NOW)
+        for what in ("MIDPOINT", "BID_ASK"):
+            with self.assertRaises(vh.BadRequest, msg=what):
+                vh.validate(q(symbol="VIX", secType="IND", exchange="CBOE", whatToShow=what), now=NOW)
+        for fn, kind in ((vh.validate_ticks, "ticks"), (vh.validate_depth, "depth")):
+            with self.assertRaisesRegex(vh.BadRequest, kind + " are not supported for IND"):
+                fn(q(symbol="VIX", secType="IND", exchange="CBOE"))
+            with self.assertRaisesRegex(vh.BadRequest, kind + " are not supported for CASH"):
+                fn(q(symbol="EUR", secType="CASH"))
+
+    def test_adjusted_last_and_index_reach_reqHistoricalData(self):
+        gw = fake_gateway(bars=[bar_row("20261002", 1, 2, 0.5, 1.5, 10)])
+        _info, bars = gw.fetch(vh.validate(q(symbol="SPY", whatToShow="ADJUSTED_LAST", duration="20 Y"), now=NOW),
+                               lambda: None)
+        self.assertEqual(bars, [{"t": 1790899200, "o": 1.0, "h": 2.0, "l": 0.5, "c": 1.5, "v": 10.0}])
+        call = next(c for c in gw._client.calls if c[0] == "reqHistoricalData")
+        self.assertEqual((call[2], call[3], call[4], call[5]), ("", "20 Y", "1 day", "ADJUSTED_LAST"))
+        gw = fake_gateway(bars=[bar_row("20261002", 20, 21, 19, 20.5, -1)])
+        _info, bars = gw.fetch(vh.validate(q(symbol="VIX", secType="IND", exchange="CBOE", duration="5 Y"), now=NOW),
+                               lambda: None)
+        self.assertIsNone(bars[0]["v"])
+        call = next(c for c in gw._client.calls if c[0] == "reqHistoricalData")
+        self.assertEqual((call[3], call[5], call[-2]), ("5 Y", "TRADES", "IND"))
+
+    def test_class_share_symbols(self):
+        self.assertEqual(vh.validate(q(symbol="brk b"), now=NOW)["symbol"], "BRK B")
+        for bad in ("BRK  B", "BRK BB", "BRK-B C", "BRK B1"):
+            with self.assertRaises(vh.BadRequest, msg=bad):
+                vh.validate({"symbol": [bad]}, now=NOW)
+
+    def test_health_reports_1_3_0(self):
+        svc, _gw, _c = make_service()
+        self.assertEqual(svc.health()[1]["version"], "1.3.0")
+
+
+class IbapiPinTest(unittest.TestCase):
+    def test_ibapi_9_81_is_pinned(self):
+        """US stock bar volume arrives in lots of 100 with ibapi 9.81; packages/api/src/server/ibkr-history.ts
+        (STK_VOLUME_LOT) scales it to shares. Upgrading ibapi (10.x reports shares) must change both."""
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "install-history.sh")) as f:
+            self.assertIn("ibapi-9.81.1.post1.tar.gz", f.read())
+
+
+class NewsTest(unittest.TestCase):
+    """1.3.0 /news: IBKR headlines for one stock from the account's API news providers."""
+
+    def test_validate(self):
+        self.assertEqual(vh.validate_news(q(symbol="aapl")),
+                         {"symbol": "AAPL", "secType": "STK", "exchange": "SMART", "currency": "USD", "count": 20})
+        self.assertEqual(vh.validate_news(q(symbol="AAPL", count="50"))["count"], 50)
+        for raw in (q(symbol="AAPL", count="51"), q(symbol="AAPL", count="0"), q(symbol="ES", secType="FUT",
+                    exchange="CME"), q(symbol="VIX", secType="IND", exchange="CBOE"), q(symbol="AAPL", barSize="1 day")):
+            with self.assertRaises(vh.BadRequest, msg=raw):
+                vh.validate_news(raw)
+
+    def test_items_strip_metadata_and_skip_unreadable_rows(self):
+        item = vh.to_news_item("2026-10-02 00:01:40.0", "BRFG", "BRFG$1", "{A:800015:L:en:K:n/a:C:0.9}  SPY gains ")
+        self.assertEqual(item, {"t": 1790899300, "time": "2026-10-02T00:01:40Z", "provider": "BRFG",
+                                "articleId": "BRFG$1", "headline": "SPY gains"})
+        self.assertIsNone(vh.to_news_item("yesterday", "BRFG", "x", "text"))
+        self.assertIsNone(vh.to_news_item("2026-10-02 00:01:40", "BRFG", "x", "{A:1}"))
+        self.assertEqual(vh.to_news_item("2026-10-02 00:01:40", "DJ", "x", "Acct U1234567 note")["headline"],
+                         "Acct [account] note")
+
+    def test_gateway_asks_all_providers_newest_first_and_caches_providers(self):
+        providers = [types.SimpleNamespace(code="BRFG", name="Briefing.com"),
+                     types.SimpleNamespace(code="DJNL", name="Dow Jones Newsletters"),
+                     types.SimpleNamespace(code="", name="broken")]
+        rows = [("2026-10-01 12:00:00.0", "BRFG", "a1", "older"), ("2026-10-02 12:00:00.0", "DJNL", "a2", "newer"),
+                ("bad", "DJNL", "a3", "dropped")]
+        gw = fake_gateway(providers=providers, news=rows)
+        info, got_providers, items = gw.fetch_news(vh.validate_news(q(symbol="AAPL", count="5")))
+        self.assertEqual(info["conId"], 4242)
+        self.assertEqual([p["code"] for p in got_providers], ["BRFG", "DJNL"])
+        self.assertEqual([i["headline"] for i in items], ["newer", "older"])
+        call = next(c for c in gw._client.calls if c[0] == "reqHistoricalNews")
+        self.assertEqual(call[2:], (4242, "BRFG+DJNL", "", "", 5, []))
+        gw.fetch_news(vh.validate_news(q(symbol="MSFT")))
+        self.assertEqual(sum(1 for c in gw._client.calls if c[0] == "reqNewsProviders"), 1)
+
+    def test_gateway_without_providers_makes_no_news_request(self):
+        gw = fake_gateway(providers=[])
+        _info, providers, items = gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
+        self.assertEqual((providers, items), ([], []))
+        self.assertFalse(any(c[0] == "reqHistoricalNews" for c in gw._client.calls))
+
+    def test_gateway_entitlement_error(self):
+        gw = fake_gateway(providers=[types.SimpleNamespace(code="BRFG", name="B")], news=(10276, "News feed is not allowed"))
+        with self.assertRaises(vh.IbError) as ctx:
+            gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
+        self.assertEqual((ctx.exception.kind, ctx.exception.code), ("entitlement", 10276))
+
+    def test_empty_provider_list_is_cached_briefly(self):
+        gw = fake_gateway(providers=[])
+        gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
+        gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
+        self.assertEqual(sum(1 for c in gw._client.calls if c[0] == "reqNewsProviders"), 1)
+        gw.clock.sleep(vh.PROVIDERS_EMPTY_TTL + 1)
+        gw._client.providers = [types.SimpleNamespace(code="BRFG", name="B")]
+        _info, providers, _items = gw.fetch_news(vh.validate_news(q(symbol="AAPL")))
+        self.assertEqual([p["code"] for p in providers], ["BRFG"])
+        self.assertEqual(sum(1 for c in gw._client.calls if c[0] == "reqNewsProviders"), 2)
+
+    def test_service_answers_pacing_violation_and_unexpected_errors_with_json(self):
+        svc, gw, c = make_service()
+        gw.outcomes = [vh.PacingViolation()]
+        status, body = svc.news(q(symbol="SPY"))
+        self.assertEqual((status, body["error"]), (429, "pacing_violation"))
+        self.assertEqual(svc.pacer.snapshot()["backoff_seconds"], 0)  # the historical pacer is untouched
+        c.sleep(10)
+        gw.outcomes = [RuntimeError("boom")]
+        status, body = svc.news(q(symbol="SPY"))
+        self.assertEqual((status, body), (500, {"error": "internal", "message": "news request failed"}))
+
+    def test_service_caches_spaces_and_serves_stale(self):
+        svc, gw, c = make_service()
+        status, body = svc.news(q(symbol="SPY"))
+        self.assertEqual((status, body["schema"], body["count"], body["client_id"]), (200, "vertex-history-news-v1", 1, 77))
+        self.assertEqual(body["cache"], {"hit": False, "ageSeconds": 0, "ttlSeconds": 300, "stale": False})
+        self.assertEqual(svc.news(q(symbol="SPY"))[1]["cache"]["hit"], True)
+        start = c.t
+        svc.news(q(symbol="QQQ"))  # second symbol right away: waits for NEWS_MIN_INTERVAL
+        self.assertEqual(c.t - start, vh.NEWS_MIN_INTERVAL)
+        c.sleep(400)
+        gw.outcomes = [vh.IbError("unavailable", "down")]
+        status, body = svc.news(q(symbol="SPY"))
+        self.assertEqual((status, body["cache"]["stale"]), (200, True))
+        gw.outcomes = [vh.IbError("entitlement", "no news permission", 10276)]
+        c.sleep(400)
+        status, body = svc.news(q(symbol="SPY"))
+        self.assertEqual((status, body["error"], body["ibkr_code"]), (502, "entitlement", 10276))
+        self.assertEqual(svc.news(q(symbol="SPY", count="99"))[0], 400)
+
+    def test_busy_lock_answers_429(self):
+        svc, _gw, _c = make_service()
+        svc.news_lock.acquire()
+        try:
+            with mock.patch.object(vh, "MAX_WAIT", 0.01):
+                status, body = svc.news(q(symbol="SPY"))
+        finally:
+            svc.news_lock.release()
+        self.assertEqual((status, body["error"]), (429, "busy"))
+
+    def test_http_route(self):
+        svc, _gw, _c = make_service()
+        server = vh.ThreadingHTTPServer(("127.0.0.1", 0), vh.make_handler(svc, TOKEN))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            req = urllib.request.Request("http://127.0.0.1:%d/vertex-history/v1/news?symbol=SPY" % server.server_address[1])
+            req.add_header("Authorization", "Bearer " + TOKEN)
+            with urllib.request.urlopen(req, timeout=5) as r:
+                body = json.loads(r.read())
+            self.assertEqual((r.status, body["items"][0]["headline"]), (200, "SPY gains"))
+        finally:
+            server.shutdown()
+            server.server_close()
 
 
 if __name__ == "__main__":

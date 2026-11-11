@@ -207,7 +207,7 @@ describe("calendar workspace", () => {
     const container = await render({ ...props, now: () => NOW });
 
     expect(container.querySelector("h1")?.textContent).toBe("Calendar");
-    expect(props.newsGateway.watchlist).toHaveBeenCalledWith(720);
+    expect(props.newsGateway.watchlist).toHaveBeenCalledWith(720, "filings");
     // SPY's SEC source failed, so the earnings side is partial.
     expect(chip(container)).toBe("Partial");
     expect(agenda(container)).toEqual([
@@ -507,7 +507,7 @@ describe("calendar workspace", () => {
     browser.news.watchlist.mockResolvedValue(news([aapl]));
     const container = await render({});
     expect(browser.feeds.context).toHaveBeenCalledTimes(1);
-    expect(browser.news.watchlist).toHaveBeenCalledWith(720);
+    expect(browser.news.watchlist).toHaveBeenCalledWith(720, "filings");
     expect(container.querySelectorAll("[data-calendar-entry]")).toHaveLength(4);
   });
 });
