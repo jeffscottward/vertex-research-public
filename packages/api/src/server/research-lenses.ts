@@ -29,8 +29,8 @@ import { requireOperator } from "./operator-access.ts";
 import { readCappedText } from "./portfolio-monitor.ts";
 import { researchUserAgent } from "./research-contact.ts";
 
-// Read-only research lenses. The rig data jobs (vertex-research collect-rotation-matrix.mjs and
-// collect-deep-value.mjs) write JSON documents; they are served on the QuantVPS tailnet under
+// Read-only research lenses. The rig data jobs (scripts/research-lenses collect-rotation-matrix.ts and
+// collect-deep-value.ts) write JSON documents; they are served on the QuantVPS tailnet under
 // VERTEX_RESEARCH_LENSES_URL (bearer VERTEX_DEPLOY_STATUS_TOKEN). GET only, bounded time and size,
 // redirects never followed, schema parse, 60 s in-process cache. The on-demand TRUE SLAP score reads
 // Yahoo Finance daily bars and SEC EDGAR XBRL facts directly. Messages never include the token or URL.

@@ -4,8 +4,8 @@
 Description=Watch the Vertex research-lens documents on the rig
 
 [Path]
-PathChanged=%h/Github/trading/vertex-research/data/rotation-matrix/latest.json
-PathChanged=%h/Github/trading/vertex-research-wt-deep-value/data/deep-value/latest.json
+PathChanged=%h/.local/share/vertex-research-lenses/data/rotation-matrix/latest.json
+PathChanged=%h/.local/share/vertex-research-lenses/data/deep-value/latest.json
 Unit=vertex-research-lenses-push.service
 
 [Install]

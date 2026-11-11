@@ -1,7 +1,0 @@
-    # Add inside `handle @rig_authorized { ... }` of /opt/vertex-status/Caddyfile.tailnet (before the
-    # final `handle { respond "not found" 404 }`). Same bearer token and source-IP rule as the other paths.
-    handle /vertex-research-lenses/v1/* {
-      uri strip_prefix /vertex-research-lenses/v1
-      root * /srv/research-lenses
-      file_server
-    }
