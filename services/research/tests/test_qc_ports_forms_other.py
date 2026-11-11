@@ -2,13 +2,17 @@
 the leader pullback (synthetic)."""
 import math
 import random
+import re
 from datetime import date
 from statistics import covariance, fmean, stdev, variance
 
 import pytest
 
-from gamma.engines.bridgingcycles_short_strangle import (DailyObservation, black_scholes_marks,
-                                                         simulate_bridgingcycles_short_strangle)
+from gamma.engines.bridgingcycles_short_strangle import (
+    DailyObservation,
+    black_scholes_marks,
+    simulate_bridgingcycles_short_strangle,
+)
 from strategies import alert_templates as at
 from strategies.published_rules import pair_spread_backtest
 from strategies.qc_ports import book
@@ -53,6 +57,16 @@ def _stance(key: str, inputs: fm.Inputs) -> dict[str, list[int]]:
     return fm.stance_of(BY_KEY[key], inputs)
 
 
+def _month_end_bars(days) -> list[int]:
+    return [index for index, last in enumerate(fm.period_ends(days, "month")) if last]
+
+
+def _uneven(values) -> list[float]:
+    """`values` with a small move on every third bar: the daily returns vary, so the volatility is above 0.
+    Windows of 63, 126 and 252 bars hold the same number of moved bars, so the signals do not change."""
+    return [value * (1.002 if index % 3 == 0 else 1.0) for index, value in enumerate(values)]
+
+
 # --------------------------------------------------------------------------- registry
 
 def test_forms_are_the_ten_named_forms_on_their_universes():
@@ -94,13 +108,30 @@ def test_every_underlying_has_an_iv_index_or_a_proxy_model():
         assert set(form.symbols) <= set(fm.CORE7) | set(fm.PROXY_MODELS), form.key
 
 
-def test_keeps_states_the_adaptations():
+def test_keeps_states_the_adaptations_and_what_is_not_applied():
     divergence, condor = BY_KEY["lib/pairs-divergence"].keeps, BY_KEY["lib/short-strangle"].keeps
     assert "Adaptation" in divergence and "2006-2007" in divergence and "last 252 bars" in divergence
-    assert "Adaptation" in condor and "undefined risk" in condor and "iron condor" in condor
-    assert "held to the owner exit rule" in condor and "50% profit take" in condor and "21 DTE exit" in condor
+    assert "Adaptation" in condor and "iron condor" in condor and "undefined-risk strangle" in condor
+    assert "0.16-delta short strikes" in condor and "expected-move strike rule" in condor
+    assert "owner exit rule" in condor and "50% profit take" in condor and "21 DTE exit" in condor
     for key in ("qj/O19", "qj/W23", "qj/W24"):
-        assert "NZDUSD is dropped" in BY_KEY[key].keeps
+        assert "NZDUSD (no ETF with options)" in BY_KEY[key].keeps and BY_KEY[key].keeps.endswith("dropped.")
+    for key in ("leaders/reclaim", "leaders/dip"):
+        keeps = BY_KEY[key].keeps
+        assert "risks 0.5% of equity" in keeps and "the owner exit rule closes it" in keeps
+        assert "liquidity filter" in keeps and "fundamental screen of the alert (market cap, earnings)" in keeps
+        assert keeps.endswith("are not applied.")
+
+
+def test_keeps_has_at_most_two_sentences_and_names_the_decision_days():
+    for key, form in BY_KEY.items():
+        sentences = re.split(r"(?<=[.])\s+(?=[A-Z])", form.keeps)
+        assert len(sentences) <= 2 and form.keeps.endswith(".") and "  " not in form.keeps, key
+        assert all(len(sentence.split()) <= 34 for sentence in sentences), key
+    for key in ("qj/W23", "qj/W24", "qj/W25", "lib/zakamulin-sma"):
+        assert "month-end" in BY_KEY[key].keeps
+    for key in ("qj/O19", "qj/O20"):
+        assert "daily" in BY_KEY[key].keeps
 
 
 def test_the_condor_is_two_credit_spreads_that_risk_two_percent_together():
@@ -122,9 +153,7 @@ def test_leader_forms_are_two_long_only_entry_only_forms_on_the_given_symbols():
         assert form.symbols == ("AAA", "BBB") and form.slug == "leader-pullback-and-reclaim"
         assert form.sleeve == "mean reversion" and form.baseline == "base/leaders"
         assert form.structures == {1: (fo.LEADER_CALL,)} and form.entry_only
-        assert "risks 0.5% of equity" in form.keeps and "liquidity filter is not applied" in form.keeps
-        assert "held to the owner exit rule" in form.keeps
-        assert form.keeps.endswith(".")
+        assert "risks 0.5% of equity" in form.keeps
     assert fo.leader_forms(["ZZZ"])[1].symbols == ("ZZZ",)
 
 
@@ -254,37 +283,69 @@ def test_o19_is_long_over_the_close_126_bars_before_and_short_otherwise():
     assert stance["FXA"] == [0] * 126 + [-1] * 4
 
 
-def test_w23_is_the_sign_of_the_126_bar_return():
-    closes = [100.0] * 127 + [100.0, 101.0, 99.0]
-    stance = _stance("qj/W23", _inputs(_bars("FXE", closes)))
-    assert stance == {"FXE": [0] * 126 + [0, 0, 1, -1]}
+def test_w23_decides_the_sign_of_the_126_bar_return_at_month_ends_and_holds_it():
+    days = trading_days(START, 240)
+    ends = _month_end_bars(days)
+    # Up 0.1% a bar to bar 150, then down 0.5% a bar: the 126-bar return is under 0 from bar 171.
+    closes = _uneven([100.0 * 1.001 ** min(index, 150) * 0.995 ** max(0, index - 150) for index in range(240)])
+    bars = _bars("FXE", closes)
+    assert fo.momentum_sign(bars) == [0] * 126 + [1] * 45 + [-1] * 69  # the signal per bar
+    first, turn = next(end for end in ends if end >= 126), next(end for end in ends if end >= 171)
+    assert (first, turn) == (145, 187) and 167 in ends  # the month-end of bar 167 still decides long
+    assert _stance("qj/W23", _inputs(bars)) == {"FXE": [0] * 145 + [1] * 42 + [-1] * 53}
 
 
-def test_w24_is_long_the_strongest_and_short_the_weakest_of_the_twins():
-    up = [100.0 * 1.001 ** index for index in range(100)]
-    down = [100.0 * 0.999 ** index for index in range(100)]
-    stance = _stance("qj/W24", _inputs(_bars("FXE", [100.0] * 100), _bars("FXB", up), _bars("FXA", down)))
-    assert stance["FXB"] == [0] * 63 + [1] * 37
-    assert stance["FXA"] == [0] * 63 + [-1] * 37
-    assert stance["FXE"] == [0] * 100
+def test_w23_reads_total_return_prices():
+    days = trading_days(START, 200)
+    first = next(end for end in _month_end_bars(days) if end >= 126)
+    falling = _uneven([200.0 * 0.999 ** index for index in range(200)])
+    rising = _uneven([100.0 * 1.001 ** index for index in range(200)])
+    stance = _stance("qj/W23", _inputs(_bars("FXB", falling, adj=rising), _bars("FXA", rising, adj=falling)))
+    # The traded close of FXB falls and its total-return close rises; FXA is the opposite.
+    assert stance["FXB"] == [0] * first + [1] * (200 - first)
+    assert stance["FXA"] == [0] * first + [-1] * (200 - first)
+
+
+def test_w23_has_no_side_where_the_63_bar_volatility_is_zero():
+    days = trading_days(START, 240)
+    ends = _month_end_bars(days)
+    # Up to bar 150, then no change: from bar 214 the last 63 daily returns are all 0.
+    bars = _bars("FXE", _uneven([100.0 * 1.001 ** index for index in range(151)]) + [130.0] * 89)
+    stance = _stance("qj/W23", _inputs(bars))["FXE"]
+    late = [end for end in ends if end >= 214]
+    assert late and all(fo.momentum_sign(bars)[end] == 1 and stance[end] == 0 for end in late)
+    assert stance[late[0] - 1] == 1 and stance[late[0]:] == [0] * (240 - late[0])
+
+
+def test_w24_ranks_at_month_ends_and_holds_the_strongest_long_and_the_weakest_short():
+    days = trading_days(START, 140)
+    assert _month_end_bars(days)[3:6] == [82, 104, 123]  # the first month-ends with a 63-bar return
+    # FXB rises to bar 100 and then loses 2% a bar: its 63-bar return is under 0 from bar 103 and the
+    # lowest from bar 106. FXA loses 0.1% a bar. FXE does not move.
+    crash = [100.0 * 1.001 ** min(index, 100) * 0.98 ** max(0, index - 100) for index in range(140)]
+    down = [100.0 * 0.999 ** index for index in range(140)]
+    stance = _stance("qj/W24", _inputs(_bars("FXE", [100.0] * 140), _bars("FXB", crash), _bars("FXA", down)))
+    assert stance["FXB"] == [0] * 82 + [1] * 22 + [0] * 19 + [-1] * 17
+    assert stance["FXE"] == [0] * 104 + [1] * 36
+    assert stance["FXA"] == [0] * 82 + [-1] * 41 + [0] * 17
 
 
 def test_w24_ranks_the_twins_that_have_a_return_and_needs_two_of_them():
-    days = trading_days(START, 100)
-    up = [100.0 * 1.001 ** index for index in range(100)]
-    late = _bars("FXA", [100.0 * 1.002 ** index for index in range(90)], dates=days[10:])
-    stance = _stance("qj/W24", _inputs(_bars("FXE", [100.0] * 100), _bars("FXB", up), late))
-    # Bars 63 to 72: FXA has no 63-bar return yet, so FXB is long and FXE short. Then FXA leads.
-    assert stance["FXB"] == [0] * 63 + [1] * 10 + [0] * 27
-    assert stance["FXE"] == [0] * 63 + [-1] * 37
-    assert stance["FXA"] == [0] * 63 + [1] * 27
-    assert _stance("qj/W24", _inputs(_bars("FXB", up))) == {"FXB": [0] * 100}
+    days = trading_days(START, 110)
+    up = [100.0 * 1.001 ** index for index in range(110)]
+    late = _bars("FXA", [100.0 * 1.002 ** index for index in range(80)], dates=days[30:])
+    stance = _stance("qj/W24", _inputs(_bars("FXE", [100.0] * 110), _bars("FXB", up), late))
+    # Month-end 82: FXA has no 63-bar return yet, so FXB is long and FXE short. Month-end 104: FXA leads.
+    assert stance["FXB"] == [0] * 82 + [1] * 22 + [0] * 6
+    assert stance["FXE"] == [0] * 82 + [-1] * 28
+    assert stance["FXA"] == [0] * 74 + [1] * 6
+    assert _stance("qj/W24", _inputs(_bars("FXB", up))) == {"FXB": [0] * 110}
 
 
 def test_w24_gives_a_tie_to_the_first_twin_and_the_short_side_when_all_are_equal():
-    same = [100.0 * 1.001 ** index for index in range(70)]
+    same = [100.0 * 1.001 ** index for index in range(90)]
     stance = _stance("qj/W24", _inputs(_bars("FXE", same), _bars("FXB", same), _bars("FXA", same)))
-    assert stance["FXE"][63:] == [-1] * 7 and stance["FXB"][63:] == [0] * 7 and stance["FXA"][63:] == [0] * 7
+    assert stance == {"FXE": [0] * 82 + [-1] * 8, "FXB": [0] * 90, "FXA": [0] * 90}
 
 
 # --------------------------------------------------------------------------- futures twins
@@ -312,13 +373,42 @@ def test_o20_reads_total_return_highs_and_lows():
     assert scaled["QQQ"] == [0] * 56 + [1] * 4
 
 
-def test_w25_is_the_sign_of_the_63_bar_mean_over_the_252_bar_mean():
-    rising = [100.0 + 0.1 * index for index in range(300)]
-    falling = [200.0 - 0.1 * index for index in range(300)]
-    stance = _stance("qj/W25", _inputs(_bars("SPY", rising), _bars("CORN", falling), _bars("IEF", [50.0] * 300)))
-    assert stance["SPY"] == [0] * 251 + [1] * 49
-    assert stance["CORN"] == [0] * 251 + [-1] * 49
-    assert stance["IEF"] == [0] * 300
+# A 10-bar pulse of 10 points on a flat price. SMA(252) is 100 / 252 = 0.397 over the base while it holds
+# the pulse. SMA(63) is over that while it holds 3 pulse bars or more (30 / 63 = 0.476): to bar 321.
+PULSE = [100.0] * 252 + [110.0] * 10 + [100.0] * 138
+
+
+def test_w25_signal_is_the_sign_of_the_63_bar_mean_over_the_252_bar_mean():
+    assert fo.trend_sides(_bars("SPY", PULSE)) == [0] * 252 + [1] * 70 + [-1] * 78
+    # Another fast or slow window changes the bar of the turn.
+    assert fo.trend_sides(_bars("SPY", PULSE), fast=62).index(-1) == 321
+    assert fo.trend_sides(_bars("SPY", PULSE), fast=64).index(-1) == 323
+    assert fo.trend_sides(_bars("SPY", PULSE), slow=200).index(1) == 252
+    assert fo.trend_sides(_bars("SPY", PULSE), slow=200).index(-1) == 321
+
+
+def test_w25_decides_at_month_ends_and_holds_the_side():
+    start = "2024-01-03"  # bar 251, the first bar with SMA(252), is not a month-end
+    ends = _month_end_bars(trading_days(start, 400))
+    first, turn = next(end for end in ends if end >= 252), next(end for end in ends if end >= 322)
+    assert 251 not in ends and first > 252 and turn > 322 and any(first < end < 322 for end in ends)
+    stance = _stance("qj/W25", _inputs(_bars("SPY", _uneven(PULSE), start=start),
+                                       _bars("IEF", [50.0] * 400, start=start)))
+    assert stance["SPY"] == [0] * first + [1] * (turn - first) + [-1] * (400 - turn)
+    assert stance["IEF"] == [0] * 400
+
+
+def test_w25_reads_total_return_prices():
+    days = trading_days(START, 300)
+    first = next(end for end in _month_end_bars(days) if end >= 251)
+    rising = _uneven([100.0 + 0.1 * index for index in range(300)])
+    falling = _uneven([200.0 - 0.1 * index for index in range(300)])
+    stance = _stance("qj/W25", _inputs(_bars("CORN", falling, adj=rising), _bars("USO", rising, adj=falling),
+                                       _bars("GLD", rising)))
+    # The traded close of CORN falls and its total-return close rises; USO is the opposite.
+    assert stance["CORN"] == [0] * first + [1] * (300 - first)
+    assert stance["USO"] == [0] * first + [-1] * (300 - first)
+    assert stance["GLD"] == stance["CORN"]
 
 
 # --------------------------------------------------------------------------- 10-month SMA timing
@@ -340,6 +430,20 @@ def test_sma_timing_decides_at_each_month_end_and_holds_until_the_next():
     assert stance[ends[10]:ends[11]] == [1] * (ends[11] - ends[10])
     assert stance[ends[11]:ends[12]] == [0] * (ends[12] - ends[11])
     assert stance[ends[12]:] == [1] * (300 - ends[12])
+
+
+def test_sma_timing_uses_the_last_10_month_ends():
+    days = trading_days(START, 300)
+    months = sorted({day[:7] for day in days})
+    level = dict(zip(months, [300.0] + [100.0] * 8 + [115.0] + [105.0] * 5, strict=True))
+    bars = _bars("SPY", [50.0] * 300, adj=[level[day[:7]] for day in days])
+    ends = _month_end_bars(days)
+    stance = _stance("lib/zakamulin-sma", _inputs(bars))["SPY"]
+    # 10th month-end: 115 is under the mean of 10 months (121.5) and over the mean of 9 months (101.7).
+    # 11th month-end: 105 is over the mean of 10 months (102) and under the mean of 11 months (120).
+    assert stance[:ends[10]] == [0] * ends[10]
+    assert stance[ends[10]:] == [1] * (300 - ends[10])
+    assert fo.sma_timing_sides(bars, months=9)[ends[9]] == 1 and fo.sma_timing_sides(bars, months=11)[ends[10]] == 0
 
 
 def test_sma_timing_decides_on_the_month_end_bar_without_a_later_bar():

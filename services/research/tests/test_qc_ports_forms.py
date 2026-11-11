@@ -8,10 +8,13 @@ from pathlib import Path
 
 import pytest
 
+from strategies.qc_ports import allocation as al
 from strategies.qc_ports import data as qd
 from strategies.qc_ports import forms as fm
 from strategies.qc_ports import forms_library as fl
+from strategies.qc_ports import ideas as qi
 from strategies.qc_ports import options as om
+from strategies.qc_ports import portfolio as pf
 from strategies.qc_ports.data import Bars
 from tests.qc_ports_synthetic import VIX_FOR_20, market, trading_days
 
@@ -50,6 +53,28 @@ def test_a_lasting_long_stance_holds_one_call_spread_after_the_other():
     assert [later.entry_index - earlier.exit_index for earlier, later in zip(trades, trades[1:])] == [1] * (len(trades) - 1)
 
 
+def test_an_always_on_form_trades_like_the_always_on_definition_of_the_allocation_study():
+    # No loser on a rising path, so both keep the slot to the expiry and the trades must be the same.
+    closes = [100 + 0.2 * day for day in range(500)]
+    dates = list(trading_days(START, len(closes)))
+    rows = {"SPY": {"dates": dates, **{key: list(closes) for key in ("open", "high", "low", "close", "adjClose")}},
+            "VIX": {"dates": dates, "close": [VIX_FOR_20] * len(closes)},
+            "IRX": {"dates": dates, "close": [0.0] * len(closes)}}
+    data = pf.dataset_from_rows(rows)
+    definition = qi.definition("t", qi.MONTHLY_CALL, book=qi.portfolio(["SPY"], "flat", cadence="daily"))
+    made = pf.market_of(data, "SPY")
+    inputs = fm.Inputs({"SPY": data.bars["SPY"]}, {"SPY": made.iv_index})
+    assert fm.form_trades(_form(fm.always_on), inputs, {"SPY": made}, start=START) == al.owner_rule_trades(
+        definition, data, start=START)
+
+
+def test_the_window_the_book_reads_covers_the_longest_expiry_it_allows():
+    assert fm.WINDOW_BARS * 7 / 5 > 400
+    far = {1: ({**qi.MONTHLY_CALL, "dte": {"target": 400, "min": 380}},)}
+    trades = _run([1] * 700, [100 + 0.05 * day for day in range(700)], structures=far)
+    assert trades[0].exit_reason == "expiry" and trades[0].exit_index - trades[0].entry_index > 250
+
+
 def test_the_spread_closes_at_the_close_after_the_stance_ends():
     sides = [0] * 5 + [1] * 10 + [0] * 45
     trades = _run(sides, [100.0] * 60)
@@ -82,6 +107,50 @@ def test_a_losing_spread_is_cut_three_days_before_expiry():
     trades = _run([1] * 120, closes)
     assert trades[0].exit_reason == "ownerLoserCut"
     assert trades[0].exit_date < trades[0].expiry
+
+
+def test_after_a_loser_cut_the_next_spread_opens_on_the_next_bar():
+    closes = [100.0] * 5 + [100 - 0.3 * day for day in range(115)]
+    trades = _run([1] * 120, closes)
+    assert trades[0].exit_reason == "ownerLoserCut"
+    assert trades[1].entry_index == trades[0].exit_index + 1
+
+
+def test_the_form_book_counts_the_signal_bars_it_refused():
+    closes = [3.0] * 30 + [100.0] * 60
+    bars = _bars("SPY", closes)
+    made = market(closes)
+    form = _form(lambda inputs: {"SPY": [1] * 20 + [0] * 20 + [1] * 50})
+    book = fm.form_book(form, fm.Inputs({"SPY": bars}, {"SPY": made.iv_index}), {"SPY": made}, start=START)
+    # 20 signal bars at 3.00 are one strike step wide; the stance comes back at 100.
+    assert book.refused == {"degenerate": 20}
+    assert book.trades[0].entry_index == 41
+    assert fm.form_trades(form, fm.Inputs({"SPY": bars}, {"SPY": made.iv_index}), {"SPY": made}, start=START) == book.trades
+
+
+def test_the_delayed_baseline_starts_after_the_first_iv_value_plus_the_delay():
+    bars = _bars("SPY", [100.0] * 12)
+    inputs = fm.Inputs({"SPY": bars}, {"SPY": (None, None, None) + (20.0,) * 9})
+    assert fm.always_on_after(4)(inputs) == {"SPY": [0] * 7 + [1] * 5}
+    assert fm.always_on_after(0)(inputs) == {"SPY": [0] * 3 + [1] * 9}
+
+
+def test_a_distribution_is_found_and_taken_out_of_the_prices():
+    dates = trading_days(START, 5)
+    # A spin-off on day 3: the close falls from 100 to 30, the adjusted close stays.
+    closes, adj = (100.0, 100.0, 100.0, 30.0, 33.0), (10.0, 10.0, 10.0, 10.0, 11.0)
+    bars = Bars("MO", dates, closes, closes, closes, closes, adj)
+    events = fm.distributions(bars)
+    assert events == {dates[3]: pytest.approx(100 / 30)}
+    smooth = fm.continuous(bars, events)
+    assert smooth.close == pytest.approx((30.0, 30.0, 30.0, 30.0, 33.0)) and smooth.low == smooth.close
+    assert smooth.adj_close == adj
+    # The raw factor gives back the price the stock traded at before the distribution.
+    factors = fm.raw_factors(dates, events)
+    assert [close * factor for close, factor in zip(smooth.close, factors)] == pytest.approx(list(closes))
+    # A normal dividend is no event.
+    assert fm.distributions(Bars("KO", dates, closes[:3] + (99.0, 99.0), *((closes[:3] + (99.0, 99.0),) * 3),
+                                 (10.0, 10.0, 10.0, 10.0, 10.0))) == {}
 
 
 def test_a_side_can_hold_two_structures_at_once():

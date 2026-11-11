@@ -9,7 +9,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from .forms import CORE7, FUTURES_TWINS, FX_TWINS, LONG_SHORT, MULTI8, SECTOR9, SECTOR11, Form, NotRun, always_on
+from .forms import (
+    CORE7,
+    FUTURES_TWINS,
+    FX_TWINS,
+    LONG_SHORT,
+    MULTI8,
+    SECTOR9,
+    SECTOR11,
+    Form,
+    NotRun,
+    always_on,
+)
 from .forms_orders import FORMS as ORDER_FORMS
 from .forms_other import FORMS as OTHER_FORMS
 from .forms_other import LEADER_CALL, LEADERS_BASELINE, leader_forms

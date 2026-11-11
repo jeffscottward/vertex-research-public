@@ -3,13 +3,15 @@ and the leader pullback (research only).
 
 `FORMS` holds the 10 forms on fixed universes. `leader_forms(symbols)` makes the 2 forms of the
 library alert `leader-pullback-and-reclaim` on the stocks the study has bars for. Every rule gives
-the stance of forms.py (+1, -1 or 0 per symbol and bar, known at the close of that bar). The condor and the leader forms
-are entry only (`Form.entry_only`): their stance is +1 on the bars that may open a spread.
+the stance of forms.py (+1, -1 or 0 per symbol and bar, known at the close of that bar). The condor
+and the leader forms are entry only (`Form.entry_only`): their stance is +1 on the bars that may
+open a spread.
 
 Sources and what the rules read:
 - QuantJourney examples (quantjourney-bt, `strategies/example_weights_13`, `_14`, `_23`, `_24`,
-  `_25`, `example_orders_19`, `_20`). They read total-return prices (forms.adjusted). A pandas
-  rolling `std`, `var` and `cov` is the sample statistic (n - 1).
+  `_25`, `example_orders_19`, `_20`). They read total-return prices (forms.adjusted), as Vertex's
+  adapter research/backtests/quantjourney/qj_adapter.py gives them to the examples. A pandas rolling
+  `std`, `var` and `cov` is the sample statistic (n - 1).
 - Pairs Trading Divergence: docs/specs/strategies/pairs-trading-divergence.md and
   published_rules.pair_spread_backtest (Chan 2008, example 3.6). The book fits the hedge ratio and
   the spread statistics once; the form fits them on the last 252 joint bars at every bar.
@@ -19,6 +21,14 @@ Sources and what the rules read:
   does not import gamma); tests/test_qc_ports_forms_other.py compares it with the engine.
 - Leader pullback: alert_templates.py, with the bars built as alert_templates_run.load builds them
   (unadjusted open, high, low and close).
+
+Decision days of the QuantJourney rules, from the source files:
+- Weights 13 and 14 (`RebalancePolicy(frequency="D")`) and orders 19 and 20 (`_compute_orders`
+  runs once per bar): every bar.
+- Weights 23, 24 and 25 (`RebalancePolicy(frequency="BME")`): the last NYSE session of each month
+  (`forms.period_ends`). The side of that bar is held until the next month-end decision.
+As in forms_weights.py, a decision uses the signal of its own bar and the option book adds the one-bar
+delay (the engine trades on bar t the weights of the signal of bar t-1).
 
 A pair is traded on the days both symbols have a bar. On a day one of them has no bar, the other
 keeps its side.
@@ -34,15 +44,50 @@ from ..published_rules import mean, sample_std
 from . import data as qd
 from . import options as om
 from .data import Bars
-from .forms import (CORE7, FUTURES_TWINS, FX_TWINS, Form, Inputs, Rule, adjusted, from_panel, highest, lowest,
-                    panel, pct_change, period_ends, sma)
+from .forms import (
+    CORE7,
+    FUTURES_TWINS,
+    FX_TWINS,
+    Form,
+    Inputs,
+    Rule,
+    adjusted,
+    from_panel,
+    highest,
+    lowest,
+    panel,
+    pct_change,
+    period_ends,
+    sma,
+)
 from .ideas import MONTHLY_CALL
 
 __all__ = [
-    "ALERT_VOLUME", "CONDOR_CALL", "CONDOR_PUT", "DIVERGENCE_WINDOW", "FORMS", "FUTURES4",
-    "LEADER_CALL", "LEADER_SLUG", "LEADERS_BASELINE", "band_sides", "daily_bars", "dip_sides", "divergence_sides",
-    "divergence_z", "donchian_sides", "hedge_ratio_z", "leader_forms", "momentum_direction",
-    "momentum_sign", "ratio_z", "reclaim_sides", "sma_timing_sides", "trend_sides", "vrp_entries",
+    "ALERT_VOLUME",
+    "CONDOR_CALL",
+    "CONDOR_PUT",
+    "DIVERGENCE_WINDOW",
+    "FORMS",
+    "FUTURES4",
+    "LEADERS_BASELINE",
+    "LEADER_CALL",
+    "LEADER_SLUG",
+    "band_sides",
+    "daily_bars",
+    "dip_sides",
+    "divergence_sides",
+    "divergence_z",
+    "donchian_sides",
+    "hedge_ratio_z",
+    "leader_forms",
+    "momentum_direction",
+    "momentum_sign",
+    "month_end_held",
+    "ratio_z",
+    "reclaim_sides",
+    "sma_timing_sides",
+    "trend_sides",
+    "vrp_entries",
 ]
 
 # --------------------------------------------------------------------------- pairs
@@ -169,6 +214,7 @@ FX_RANK = 63
 DONCHIAN = 55
 TREND_FAST = 63
 TREND_SLOW = 252
+VOLATILITY_WINDOW = 63
 # ETF twins of MES, MNQ, CL and GC (QuantJourney orders 20).
 FUTURES4 = ("SPY", "QQQ", "USO", "GLD")
 
@@ -187,23 +233,59 @@ def _each(symbols: Sequence[str], sides_of: Callable[[Bars], list[int]], *, tota
     return rule
 
 
+def month_end_held(dates: Sequence[str], sides: Sequence[int]) -> list[int]:
+    """The side of the last month-end bar (the last NYSE session of a month); 0 before the first one."""
+    out, side = [], 0
+    for last, value in zip(period_ends(dates, "month"), sides, strict=True):
+        if last:
+            side = value
+        out.append(side)
+    return out
+
+
+def _has_volatility(close: Sequence[float], window: int = VOLATILITY_WINDOW) -> list[bool]:
+    """True where the last `window` daily returns exist and are not all the same (their pandas rolling
+    standard deviation is then above 0)."""
+    out, same, last = [False] * len(close), 0, None
+    for index in range(1, len(close)):
+        change = close[index] / close[index - 1] - 1
+        same = same + 1 if change == last else 1
+        last = change
+        out[index] = index >= window and same < window
+    return out
+
+
+def _monthly(signal_of: Callable[[Bars], list[int]]) -> Callable[[Bars], list[int]]:
+    """A month-end rule with inverse-volatility weights (QuantJourney weights 23 and 25): the side is
+    the signal of the month-end bar. The size of a weight is not kept, but a weight is 0 where the
+    volatility of the last VOLATILITY_WINDOW daily returns is missing or 0."""
+
+    def sides_of(bars: Bars) -> list[int]:
+        weighted = [side if moves else 0
+                    for side, moves in zip(signal_of(bars), _has_volatility(bars.close), strict=True)]
+        return month_end_held(bars.dates, weighted)
+
+    return sides_of
+
+
 def momentum_direction(bars: Bars, lookback: int = FX_MOMENTUM) -> list[int]:
-    """QuantJourney orders 19: from bar `lookback` on, +1 when the close is over the close `lookback`
-    bars before, else -1 (the rule is never flat again)."""
+    """QuantJourney orders 19, decided on every bar: from bar `lookback` on, +1 when the close is over
+    the close `lookback` bars before, else -1 (the rule is never flat again)."""
     close = bars.close
     return [0 if index < lookback else 1 if close[index] > close[index - lookback] else -1
             for index in range(len(close))]
 
 
 def momentum_sign(bars: Bars, lookback: int = FX_MOMENTUM) -> list[int]:
-    """QuantJourney weights 23: the sign of the `lookback`-bar return (0 for no change)."""
+    """QuantJourney weights 23, the signal per bar: the sign of the `lookback`-bar return (0 for no change)."""
     return [_sign(change) for change in pct_change(bars.close, lookback)]
 
 
 def _rank_rule(symbols: Sequence[str], lookback: int = FX_RANK) -> Rule:
-    """QuantJourney weights 24: per day, +1 for the highest and -1 for the lowest `lookback`-bar
-    return among the symbols that have one (at least 2). Ties go to the first symbol in `symbols`;
-    when all returns are equal that symbol is short, as the source assigns the short side last."""
+    """QuantJourney weights 24: at each month-end, +1 for the highest and -1 for the lowest
+    `lookback`-bar return among the symbols that have one (at least 2), held until the next month-end.
+    Ties go to the first symbol in `symbols`; when all returns are equal that symbol is short, as the
+    source assigns the short side last."""
 
     def rule(inputs: Inputs) -> dict[str, list[int]]:
         names = [symbol for symbol in symbols if symbol in inputs.bars]
@@ -217,14 +299,15 @@ def _rank_rule(symbols: Sequence[str], lookback: int = FX_RANK) -> Rule:
             best, worst = max(value for value, _ in valid), min(value for value, _ in valid)  # type: ignore[type-var]
             sides[next(symbol for value, symbol in valid if value == best)][index] = 1
             sides[next(symbol for value, symbol in valid if value == worst)][index] = -1
-        return from_panel(inputs, made.dates, sides)
+        return from_panel(inputs, made.dates, {symbol: month_end_held(made.dates, values)
+                                               for symbol, values in sides.items()})
 
     return rule
 
 
 def donchian_sides(bars: Bars, window: int = DONCHIAN) -> list[int]:
-    """QuantJourney orders 20: +1 from a close over the highest high of the `window` bars before,
-    -1 from a close under their lowest low, otherwise the side of the bar before."""
+    """QuantJourney orders 20, decided on every bar: +1 from a close over the highest high of the
+    `window` bars before, -1 from a close under their lowest low, otherwise the side of the bar before."""
     top, bottom = highest(bars.high, window), lowest(bars.low, window)
     out, side = [], 0
     for index, close in enumerate(bars.close):
@@ -238,7 +321,8 @@ def donchian_sides(bars: Bars, window: int = DONCHIAN) -> list[int]:
 
 
 def trend_sides(bars: Bars, fast: int = TREND_FAST, slow: int = TREND_SLOW) -> list[int]:
-    """QuantJourney weights 25: the sign of SMA(fast) - SMA(slow) of the close; 0 until both exist."""
+    """QuantJourney weights 25, the signal per bar: the sign of SMA(fast) - SMA(slow) of the close; 0
+    until both exist."""
     return [0 if quick is None or base is None else _sign(quick - base)
             for quick, base in zip(sma(bars.close, fast), sma(bars.close, slow))]
 
@@ -363,86 +447,82 @@ def dip_sides(bars: Bars) -> list[int]:
     return out
 
 
-LEADER_FORM = ("The call spread risks 0.5% of equity (many names can be open at once) and is held to the owner exit "
-               "rule; the next one opens on a signal after it has closed. Reads unadjusted prices, as the alert "
-               "study. The liquidity filter is not applied: the bars have no volume.")
-SCREEN = "close over SMA(200), 8% to 20% under the 252-day high, under SMA(50), RSI(14) between 35 and 45"
+NOT_APPLIED = ("The liquidity filter (the bars have no volume) and the fundamental screen of the alert (market cap, "
+               "earnings) are not applied.")
 
 
 def leader_forms(symbols: Sequence[str]) -> tuple[Form, ...]:
-    """The two forms of the alert `leader-pullback-and-reclaim` on `symbols` (long only, entry only)."""
+    """The two forms of the alert `leader-pullback-and-reclaim` on `symbols` (long only, entry only).
+
+    The price screen of the alert: close over SMA(200), 8% to 20% under the 252-day high, under
+    SMA(50), RSI(14) between 35 and 45. The alert reads it on the first session of a week and fires
+    when the stock trades back over SMA(50) by the first session of the next week.
+    """
     names = tuple(symbols)
     structures = {1: (LEADER_CALL,)}
     return (
         Form("leaders/reclaim", LEADER_SLUG, "Leader pullback and reclaim (buy the reclaim)", "mean reversion", names,
              _each(names, reclaim_sides, total_return=False), LEADERS_BASELINE,
-             f"Keeps the alert: the stock passes the pullback screen on the first session of a week ({SCREEN}) "
-             f"and trades back over SMA(50) by the first session of the next week. {LEADER_FORM}", structures, True),
+             "Opens a call spread that risks 0.5% of equity when the alert fires (weekly pullback screen, then the "
+             f"reclaim of SMA(50)); the owner exit rule closes it. {NOT_APPLIED}", structures, True),
         Form("leaders/dip", LEADER_SLUG, "Leader pullback (buy the dip state)", "mean reversion", names,
              _each(names, dip_sides, total_return=False), LEADERS_BASELINE,
-             f"Keeps the pullback screen of the alert, read on every bar ({SCREEN}), and drops the wait for the "
-             f"reclaim of SMA(50). {LEADER_FORM}", structures, True),
+             "Opens a call spread that risks 0.5% of equity on each bar in the pullback state of the alert, without "
+             f"the reclaim; the owner exit rule closes it. {NOT_APPLIED}", structures, True),
     )
 
 
 # --------------------------------------------------------------------------- forms
+# `keeps`: at most 2 short sentences. The first says what the form keeps, the second what it drops or adapts.
 
-PAIR_SIZE = ("Each leg risks 2% of equity in its own spread; the dollar-neutral weights, the short borrow and the "
-             "netting of the two legs are dropped.")
-FX_TWIN = ("Reads the bars of FXE, FXB and FXA for EURUSD, GBPUSD and AUDUSD; NZDUSD is dropped (no ETF with "
-           "options).")
+PAIR_DROPS = "Each leg has its own spread; the dollar-neutral weights and the short borrow are dropped."
+NO_NZD = "NZDUSD (no ETF with options)"
 
 FORMS: tuple[Form, ...] = (
     Form("qj/W13", "quantjourney-w13-pairs-ratio-zscore", "Pairs Trading (Ratio Z-Score)", "relative value",
          ("KO", "PEP"), _pair_rule("KO", "PEP", ratio_z, band_sides), None,
-         "Keeps the z-score of log(KO) - log(PEP) over 60 bars: short KO and long PEP from z > 2, the opposite from "
-         f"z < -2, flat when |z| < 0.5. {PAIR_SIZE}"),
+         "Keeps the 60-bar z-score of log(KO) - log(PEP): above 2 short KO and long PEP, under -2 the opposite, "
+         f"flat inside 0.5. {PAIR_DROPS}"),
     Form("qj/W14", "quantjourney-w14-pairs-hedge-ratio", "Pairs Trading (Hedge Ratio)", "relative value",
          ("EWA", "EWC"), _pair_rule("EWA", "EWC", hedge_ratio_z, band_sides), None,
-         "Keeps the z-score over 60 bars of log(EWA) - beta x log(EWC), beta the 60-bar regression slope: short EWA "
-         f"and long EWC from z > 2, the opposite from z < -2, flat when |z| < 0.5. {PAIR_SIZE}"),
+         "Keeps the 60-bar z-score of log(EWA) - beta x log(EWC) with a 60-bar regression beta: above 2 short EWA "
+         f"and long EWC, under -2 the opposite, flat inside 0.5. {PAIR_DROPS}"),
     Form("lib/pairs-divergence", "pairs-trading-divergence", "Pairs Trading Divergence", "relative value",
          ("GLD", "GDX"), _pair_rule("GLD", "GDX", divergence_z, divergence_sides), None,
-         "Keeps the z-score rule of the spread GLD - h x GDX: long GLD and short GDX from z <= -2, the opposite from "
-         "z >= 2, flat at |z| <= 1, otherwise the side before. Adaptation: the book fits the hedge ratio h and the "
-         "spread mean and deviation once on 2006-2007, and that fit does not hold on 20 years, so the form fits them "
-         "at every bar on the last 252 bars (least squares of GLD on GDX without intercept, as the book). "
-         f"{PAIR_SIZE}"),
+         "Keeps the z-score rule of the spread GLD - h x GDX: long GLD and short GDX at z <= -2, the opposite at "
+         "z >= 2, flat at |z| <= 1. Adaptation: h and the z-score are fitted on the last 252 bars at every bar, "
+         "because the book fit on 2006-2007 does not hold on 20 years."),
     Form("qj/O19", "quantjourney-o19-fx-momentum-lots", "FX Momentum with Standard Lots", "rotation", FX_TWINS,
          _each(FX_TWINS, momentum_direction, total_return=True), "base/fx3",
-         "Keeps the direction of the 126-bar change: long when the close is over the close 126 bars before, else "
-         f"short, never flat after the first 126 bars. {FX_TWIN} The lot count by ATR risk and notional cap, "
-         "slippage and commission are dropped."),
+         "Keeps the daily direction on FXE, FXB and FXA: long when the close is over the close 126 bars before, "
+         f"else short. {NO_NZD}, the lot count by ATR risk and notional cap, slippage and commission are dropped."),
     Form("qj/W23", "quantjourney-w23-fx-time-series-momentum", "FX Time-Series Momentum", "rotation", FX_TWINS,
-         _each(FX_TWINS, momentum_sign, total_return=True), "base/fx3",
-         f"Keeps the sign of the 126-bar return per currency. {FX_TWIN} The inverse-volatility weights are dropped."),
+         _each(FX_TWINS, _monthly(momentum_sign), total_return=True), "base/fx3",
+         "Keeps the sign of the 126-bar return of FXE, FXB and FXA, decided at each month-end and held one month. "
+         f"{NO_NZD} and the inverse-volatility weights are dropped."),
     Form("qj/W24", "quantjourney-w24-fx-cross-sectional-momentum", "FX Cross-Sectional Momentum", "rotation",
          FX_TWINS, _rank_rule(FX_TWINS), "base/fx3",
-         "Keeps the rank of the 63-bar returns: long the strongest and short the weakest of the 3 currency ETFs, "
-         f"nothing on the third (the source ranks 4 pairs). {FX_TWIN} The dollar-neutral weights are dropped."),
+         "Keeps the month-end rank of the 63-bar returns of FXE, FXB and FXA: long the strongest and short the "
+         f"weakest for one month. {NO_NZD} and the dollar-neutral weights are dropped."),
     Form("qj/O20", "quantjourney-o20-futures-donchian-contracts", "Futures Donchian Contracts", "trend", FUTURES4,
          _each(FUTURES4, donchian_sides, total_return=True), "base/futures4",
-         "Keeps the 55-bar Donchian breakout: long from a close over the highest high of the 55 bars before, short "
-         "from a close under their lowest low, held until the opposite breakout. Reads the bars of SPY, QQQ, USO and "
-         "GLD for MES, MNQ, CL and GC. The contract count by ATR risk, notional and margin caps, slippage and "
-         "commission are dropped."),
+         "Keeps the daily 55-bar Donchian breakout on SPY, QQQ, USO and GLD for MES, MNQ, CL and GC, held until the "
+         "opposite breakout. The contract count by ATR risk, notional and margin caps, slippage and commission "
+         "are dropped."),
     Form("qj/W25", "quantjourney-w25-continuous-futures-trend", "Continuous Futures Trend Proxy", "trend",
-         FUTURES_TWINS, _each(FUTURES_TWINS, trend_sides, total_return=True), "base/futures6",
-         "Keeps the sign of SMA(63) - SMA(252) of the close. Reads the bars of SPY, QQQ, IEF, USO, GLD and CORN for "
-         "MES, MNQ, ZN, CL, GC and ZC. The inverse-volatility weights are dropped."),
+         FUTURES_TWINS, _each(FUTURES_TWINS, _monthly(trend_sides), total_return=True), "base/futures6",
+         "Keeps the month-end sign of SMA(63) - SMA(252) on SPY, QQQ, IEF, USO, GLD and CORN for MES, MNQ, ZN, CL, "
+         "GC and ZC, held one month. The inverse-volatility weights are dropped."),
     Form("lib/zakamulin-sma", "quantlab-zakamulin-2013-sma-timing", "SSRN 2242795 10-month SMA timing, SPY vs T-bills",
          "trend", ("SPY",), _each(("SPY",), sma_timing_sides, total_return=False), "base/spy",
-         "Keeps the month-end decision: long from a month-end close above the mean of the last 10 month-end "
-         "adjusted closes until the next month-end, flat otherwise. The T-bill return of the flat months, the fill "
-         "at the next open, the costs and the walk-forward choice of the window (the form fixes 10 months) are "
-         "dropped."),
+         "Keeps the month-end decision: long while the month-end adjusted close is above the mean of the last 10 "
+         "month-end closes, else flat. The T-bill return of flat months, the fill at the next open, the costs and "
+         "the walk-forward choice of the window are dropped."),
     Form("lib/short-strangle", "bridgingcycles-short-strangle", "BridgingCycles short strangle", "vol premium", CORE7,
          _condor_rule, None,
-         "Keeps the entry rule: ATM IV (the Cboe index times 0.9 or 0.95) minus the 21-day realized volatility is "
-         "above 0 and at or above the 90th percentile of its last 252 values. Adaptation: the strangle has undefined "
-         "risk, so the form holds an iron condor (a put and a call credit spread, short legs at 0.16 delta, 45 days, "
-         "1% of equity per side, at most 2% together). The condor opens when the entry rule holds and is held to the "
-         "owner exit rule; the 50% profit take, the stop at twice the credit and the 21 DTE exit of the spec are "
-         "dropped.",
+         "Keeps the entry rule: ATM IV minus 21-day realized volatility is above 0 and at or above its 90th "
+         "percentile of 252 bars. Adaptation: an iron condor with 0.16-delta short strikes replaces the "
+         "undefined-risk strangle and its expected-move strike rule; the owner exit rule replaces the 50% profit "
+         "take, 2x credit stop and 21 DTE exit.",
          {1: (CONDOR_PUT, CONDOR_CALL)}, True),
 )

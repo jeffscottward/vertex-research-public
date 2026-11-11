@@ -1,9 +1,13 @@
 """Options forms of the nine QuantJourney ORDER strategies that trade daily bars with resting orders.
 
 Upstream (`quantjourney-bt/strategies/example_orders_NN_*.py`) each strategy submits orders to a
-fill engine after the close of a bar. Here one machine (`run`) replays that per symbol on the
-adjusted daily bars (`forms.adjusted`), driven by one parameter row per strategy (`SPECS`). The
-form keeps the stance only: +1 while the rule holds shares, 0 while it is flat.
+fill engine after the close of a bar. Here one machine (`run`) replays that per symbol, driven by
+one parameter row per strategy (`SPECS`). The form keeps the stance only: +1 while the rule holds
+shares, 0 while it is flat.
+
+Prices are the adjusted daily bars (`forms.adjusted`). Vertex's adapter
+`research/backtests/quantjourney/qj_adapter.py` gives the engine the same bars: it scales open,
+high, low and close by adj_close / close before the engine sees them.
 
 What the machine takes from the upstream engine (`backtester/execution/fill_engine.py`,
 `simulator.py`, read on 2026-11-11):
@@ -301,42 +305,42 @@ def _rule(key: str):
     return rule
 
 
-LONG_ONLY = "Long only: the call spread while the rule holds shares. Order size, slippage and commission are dropped."
+# Second sentence of every `keeps`: what the form drops.
+DROPS = "Drops the order size, the trading costs and the upstream universe (SPY, QQQ, IWM)."
 
 
 def _form(key: str, slug: str, name: str, sleeve: str, keeps: str) -> Form:
-    return Form(key, f"quantjourney-{slug}", name, sleeve, CORE7, _rule(key), "base/core7", f"{keeps} {LONG_ONLY}")
+    return Form(key, f"quantjourney-{slug}", name, sleeve, CORE7, _rule(key), "base/core7", f"{keeps} {DROPS}")
 
 
 ROWS: Sequence[tuple[str, str, str, str, str]] = (
     ("qj/O03", "o03-limit-rsi-dip", "Limit RSI Dip Buyer", "mean reversion",
-     ("Keeps the entry by a 3-bar buy limit 1.5% under the close when RSI(14) < 40 and the exit by 3-bar sell "
-     "limits 3% over the entry price.")),
+     ("Keeps the 3-bar buy limit 1.5% under the close when RSI(14) < 40 and the sell limit 3% over the "
+      "entry price.")),
     ("qj/O04", "o04-limit-trend-pullback", "Limit Trend Pullback", "trend",
-     ("Keeps the entry by a 2-bar buy limit 1% under the close while the close is above SMA(50), the 4% limit "
-     "take-profit and the market exit when the close falls under SMA(50).")),
+     ("Keeps the 2-bar buy limit 1% under a close above SMA(50), the 4% take-profit limit and the market "
+      "exit on a close under SMA(50).")),
     ("qj/O05", "o05-stop-breakout-entry", "Stop Breakout Entry", "trend",
-     ("Keeps the entry by a 5-bar buy stop 0.2% over the highest of the last 20 closes and the market exit "
-     "after 10 bars.")),
+     ("Keeps the 5-bar buy stop 0.2% over the highest of the 20 closes before the signal bar and the market "
+      "exit after 10 bars.")),
     ("qj/O07", "o07-stop-limit-breakout", "Stop-Limit Breakout", "trend",
-     ("Keeps the entry by a 5-bar buy stop-limit (stop 0.2% over the highest of the last 20 closes, limit 0.4% "
-     "over the stop), with the fills it misses, and the market exit after 12 bars.")),
+     ("Keeps the 5-bar buy stop-limit (stop 0.2% over the highest of the 20 closes before the signal bar, "
+      "limit 0.4% higher) and the 12-bar exit.")),
     ("qj/O08", "o08-stop-limit-protection", "Stop-Limit Protection", "trend",
-     ("Keeps the market entry when SMA(20) crosses over SMA(50), the stop-limit sell 4% under the entry price "
-     "(limit 4.5% under), with the gaps it does not fill on, and the market exit on the cross back.")),
+     ("Keeps the SMA(20)/SMA(50) cross entry and exit and the stop-limit sell (stop 4%, limit 4.5% under the "
+      "entry price).")),
     ("qj/O09", "o09-trailing-stop-trend", "Trailing Stop Trend", "trend",
-     ("Keeps the market entry when SMA(20) crosses over SMA(50), the 4% trailing stop under the highest high "
-     "and the market exit on the cross back.")),
+     ("Keeps the SMA(20)/SMA(50) cross entry and exit and the 4% trailing stop under the highest high since "
+      "the stop was placed.")),
     ("qj/O10", "o10-trailing-stop-rsi", "RSI + Trailing Stop", "mean reversion",
      ("Keeps the market entry when RSI(14) < 38, the 5% trailing stop under the highest high and the market "
-     "exit when RSI(14) > 65.")),
+      "exit when RSI(14) > 65.")),
     ("qj/O11", "o11-trailing-stop-limit", "Trailing Stop-Limit", "trend",
-     ("Keeps the market entry when SMA(20) crosses over SMA(50), the trailing stop-limit (4% of the close "
-     "under the highest high, limit 0.5% lower), with the gaps it does not fill on, and the market exit on "
-     "the cross back.")),
+     ("Keeps the SMA(20)/SMA(50) cross entry and exit and the trailing stop-limit (4% of the close under the "
+      "highest high, limit 0.5% lower).")),
     ("qj/O14", "o14-oco-dip-or-breakout", "OCO Dip or Breakout", "trend",
-     ("Keeps the 5-bar OCO entry every fifth bar (buy limit 2% under the close or buy stop 2% over it, the "
-     "first to fill) and the market exit after 10 bars.")),
+     ("Keeps the 5-bar OCO entry on every fifth bar (buy limit 2% under the close or buy stop 2% over it) "
+      "and the 10-bar exit.")),
 )
 
 FORMS: tuple[Form, ...] = tuple(_form(*row) for row in ROWS)
