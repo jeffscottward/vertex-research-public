@@ -245,7 +245,7 @@ describe("bundled master-rules index", () => {
       expect(entry.statement).not.toMatch(/\/home\/|\/Users\/|\.md\b/u);
       if (entry.url !== null)
         expect(entry.url).toMatch(
-          /^https:\/\/(?:www\.(?:instagram|youtube|tiktok)\.com|x\.com|letter\.nicholascrown\.com)\//u
+          /^https:\/\/(?:www\.(?:instagram|youtube|tiktok)\.com|x\.com)\//u
         );
     }
     for (const entry of MASTER_RULES_INDEX.rows)
