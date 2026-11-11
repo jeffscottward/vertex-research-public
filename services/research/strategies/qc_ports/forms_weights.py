@@ -29,9 +29,10 @@ Differences from the upstream run, fixed on 2026-11-11 before the first run of a
 - Sizes. The risk models of W05 (inverse volatility), W17 and W18 (volatility target), W19 and W20
   (equal risk contribution, 25% cap) change the size of a weight and not its sign. They are not run.
 - W19 and W20. Upstream sets the signal of every column from calendar row 63 (W20: 126) and its
-  covariance uses the returns that a symbol has. Here a symbol is held only when it has 63 (126)
-  daily returns of its own. No difference when all symbols start with the calendar (the upstream
-  run starts in 2007).
+  covariance uses the returns that a symbol has. On partial histories that covariance is not defined:
+  upstream W19 cannot run on the study data from 1993 (it raises `Weights must contain only finite
+  numeric values`). Here a symbol is held only when it has 63 (126) daily returns of its own. No
+  difference when all symbols start with the calendar (the upstream run starts in 2007).
 - W10. The example passes `max_drawdown_trigger=0.15` and the engine tests `drawdown < trigger`,
   which is true on every bar: upstream as written is flat on 11 of every 12 bars. The rule here is
   the stated one: flatten when the drawdown is below -15%.
@@ -523,8 +524,8 @@ FORMS: tuple[Form, ...] = (
         "Keeps the members: long the 3 ETFs with the highest 126-bar return, chosen on the first bar of each "
         "month. Drops the share sizes and the order costs."),
     _qj("W02", "w02-monthly-drift-etf", "Monthly ETF Trend + Drift", "trend", monthly_trend_drift,
-        "Keeps the trend members (SMA(50) above SMA(200)), changed at month ends and by the 5-point drift band "
-        "of the simulated shares portfolio. Drops the sizes."),
+        "Keeps the signal of each bar: long while SMA(50) is above SMA(200), because the 5-point drift band of "
+        "the simulated shares portfolio trades every change. Drops the sizes."),
     _qj("W04", "w04-quarterly-dual-momentum", "Quarterly Dual Momentum", "rotation", dual_momentum,
         "Keeps the quarter-end members: long the 2 ETFs with the highest 252-bar return, only where that "
         "return is above 0. Drops the sizes."),
@@ -536,19 +537,20 @@ FORMS: tuple[Form, ...] = (
         "and GLD otherwise. Drops the sizes."),
     _qj("W10", "w10-monthly-circuit-breaker", "Monthly + Circuit Breaker", "trend", circuit_breaker_trend,
         "Keeps the month-end trend members and the stated breaker: flat for 11 bars after a 15% drawdown of "
-        "the simulated shares portfolio. Upstream as written (`dd < 0.15`) is flat on 11 of every 12 bars."),
+        "the simulated shares portfolio. Upstream as written compares the drawdown with plus 15%, so it is flat on "
+        "11 of every 12 bars."),
     _qj("W11", "w11-quarterly-te-cost-gate", "Quarterly TE + Cost Gate", "rotation", te_cost_gate_momentum,
         "Keeps the quarter-end members (the 3 ETFs with the highest 126-bar return) and the 4x turnover budget "
         "of the simulated shares portfolio. The tracking-error trigger is inactive, as in the upstream run."),
     _qj("W17", "w17-vol-target-trend", "Vol-Targeted Trend", "trend", vol_target_trend,
-        "Keeps the month-end members: long each ETF with SMA(50) above SMA(200). Drops the 10% volatility "
-        "target, which changes only the sizes."),
+        "Keeps the month-end members: long each ETF with SMA(50) above SMA(200). Drops the volatility target, "
+        "which changes only the sizes."),
     _qj("W18", "w18-vol-target-momentum", "Vol-Targeted Momentum", "rotation", vol_target_momentum,
         "Keeps the month-end members: long the 3 ETFs with the highest 126-bar return, only where that return "
-        "is above 0. Drops the 15% volatility target, which changes only the sizes."),
+        "is above 0. Drops the volatility target, which changes only the sizes."),
     _qj("W19", "w19-risk-parity-multiasset", "Risk Parity (Multi-Asset ERC)", "trend", risk_parity,
         "Keeps the month-end dates and the members: long every ETF with 63 daily returns. Drops the "
-        "equal-risk sizes, so the stance equals W05."),
+        "equal-risk sizes, which are all that the rule decides."),
     _qj("W12", "w12-daily-partial-drift", "Daily Partial Drift", "rotation", partial_drift,
         "Keeps the members of the simulated shares portfolio: a position trades only when its weight is over "
         "10 points from its daily momentum target. Drops the sizes.", SECTOR9),
@@ -562,7 +564,7 @@ FORMS: tuple[Form, ...] = (
         "Drops the dollar-neutral sizes.", SECTOR9),
     _qj("W20", "w20-risk-parity-capped", "Risk Parity + Position Cap", "trend", risk_parity_capped,
         "Keeps the month-end dates and the members: long every sector with 126 daily returns. Drops the "
-        "equal-risk sizes and the 25% cap.", SECTOR9),
+        "equal-risk sizes and the position cap.", SECTOR9),
     _qj("W21", "w21-bollinger-reversion", "Bollinger Band Reversion", "mean reversion", bollinger_reversion,
         "Keeps the daily entries and exits: long from a close below the lower 20-bar band until a close above "
         "the 20-bar mean. Drops the sizes.", SECTOR9),

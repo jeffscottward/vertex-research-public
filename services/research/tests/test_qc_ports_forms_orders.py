@@ -419,6 +419,53 @@ def test_order_prices_are_rounded_to_cents():
     assert fo.run(make_bars(rows), fo.SPECS["qj/O04"]) == held(52, (50, 51))
 
 
+# --------------------------------------------------------------------------- parameter boundaries
+
+def test_o03_enters_under_rsi_40_only():
+    """RSI is 39.99999999999999 after a close of 96.75 and 40.00000000000003 after the next float. (This RSI is
+    never 40.0 itself: 100 / (1 + rs) has no float result of 60.0 here.) Limit: round(96.75 * 0.985, 2) = 95.3."""
+    def stance(close):
+        rows = walk([*RSI_50, close, close])
+        assert forms.rsi([row[3] for row in rows])[15] == pytest.approx(40, abs=1e-12)
+        rows[16] = (close, close, 90, close)
+        return fo.run(make_bars(rows), fo.SPECS["qj/O03"])
+
+    assert forms.rsi([*RSI_50, 96.75])[15] < 40 < forms.rsi([*RSI_50, 96.75000000000001])[15]
+    assert stance(96.75) == held(17, (16, 16))
+    assert stance(96.75000000000001) == [0] * 17
+
+
+def test_o10_exits_over_rsi_65_only():
+    """The path of O10 up to bar 22 (long, stop placed, RSI 63.4), then one close: RSI exactly 65.0, or 65.6."""
+    rows = PATHS["qj/O10"][0][:23]
+    for close, rsi_23, expected in ((111.6407605424064, 65.0, held(24, (16, 18), (20, 23))),
+                                    (112.3, pytest.approx(65.59, abs=0.01), held(24, (16, 18), (20, 22)))):
+        path = [*rows, (110, close, 110, close)]
+        assert forms.rsi([row[3] for row in path])[23] == rsi_23
+        assert fo.run(make_bars(path), fo.SPECS["qj/O10"]) == expected
+
+
+def test_o05_stop_is_one_fifth_of_a_percent_over_the_prior_high():
+    """Closes of 100: the stop is 100.2. A high of exactly 100.2 fills it, a high one cent under it does not."""
+    rows = flat(34)
+    rows[22] = (100, 100.2, 100, 100)
+    assert fo.run(make_bars(rows), fo.SPECS["qj/O05"]) == held(34, (22, 31))
+    rows[22] = (100, 100.19, 100, 100)
+    assert fo.run(make_bars(rows), fo.SPECS["qj/O05"]) == [0] * 34
+
+
+def test_sma_50_starts_on_bar_49():
+    """A 49-bar average starts on bar 48. O04: the order of bar 48 would fill on bar 49. O08, O09, O11: the cross
+    of bar 48 would be a market buy one bar earlier."""
+    rows = walk([*[100] * 40, *[101] * 14])
+    rows[49] = (101, 101, 99.9, 101)  # under the limit 99.99 of an order of bar 48
+    rows[51] = (101, 101, 99.9, 101)  # the order of bar 49 fills on its second and last bar
+    assert fo.run(make_bars(rows), fo.SPECS["qj/O04"]) == held(54, (51, 53))
+    cross = make_bars(walk([*[100] * 48, *[110] * 4]))  # the first SMA(50) of bar 49 is under SMA(20)
+    for key in ("qj/O08", "qj/O09", "qj/O11"):
+        assert fo.run(cross, fo.SPECS[key]) == held(52, (49, 51)), key
+
+
 # --------------------------------------------------------------------------- forms
 
 def test_forms_are_the_nine_order_strategies_on_core7():
@@ -475,3 +522,22 @@ def test_keeps_is_at_most_two_short_sentences():
     for key in ("qj/O05", "qj/O07"):
         keeps = next(form.keeps for form in fo.FORMS if form.key == key)
         assert "the 20 closes before the signal bar" in keeps
+
+
+KEEPS_NUMBERS = {  # the numbers of the first sentence of `keeps`, in the order of the text
+    "qj/O03": "3 1.5 14 40 3", "qj/O04": "2 1 50 4 50", "qj/O05": "5 0.2 20 10", "qj/O07": "5 0.2 20 0.4 12",
+    "qj/O08": "20 50 4 4.5", "qj/O09": "20 50 4", "qj/O10": "14 38 5 14 65", "qj/O11": "20 50 4 0.5",
+    "qj/O14": "5 5 2 2 10",
+}
+
+
+def test_numbers_in_keeps_are_the_parameters_of_the_rule(monkeypatch):
+    for form in fo.FORMS:
+        first = form.keeps.removesuffix(fo.DROPS)
+        assert " ".join(re.findall(r"\d+(?:\.\d+)?", first)) == KEEPS_NUMBERS[form.key], form.key
+    assert fo.FORMS[0].keeps == ("Keeps the 3-bar buy limit 1.5% under the close when RSI(14) < 40 and the sell limit "
+                                 "3% over the entry price. " + fo.DROPS)
+    # the text follows the parameters
+    changed = dataclasses.replace(fo.SPECS["qj/O05"], stop_pct=1.003, valid=4, hold=9)
+    monkeypatch.setitem(fo.SPECS, "qj/O05", changed)
+    assert re.findall(r"\d+(?:\.\d+)?", fo._keeps("qj/O05")) == ["4", "0.3", "20", "9"]

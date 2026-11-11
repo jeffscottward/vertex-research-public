@@ -1,6 +1,7 @@
 """Tests of the QuantJourney rebalance-policy forms and the 151 4.1 form (synthetic bars, no files)."""
 from __future__ import annotations
 
+import inspect
 import math
 import random
 import re
@@ -118,9 +119,45 @@ def test_keeps_is_at_most_two_short_sentences(key):
 def test_keeps_names_the_shares_portfolio_and_the_upstream_differences():
     for key in ("qj/W02", "qj/W10", "qj/W11", "qj/W12"):
         assert "simulated shares portfolio" in BY_KEY[key].keeps
-    assert "Upstream as written (`dd < 0.15`) is flat on 11 of every 12 bars." in BY_KEY["qj/W10"].keeps
-    assert "flat for 11 bars after a 15% drawdown" in BY_KEY["qj/W10"].keeps
+    assert "Upstream as written compares the drawdown with plus 15%" in BY_KEY["qj/W10"].keeps
     assert "The tracking-error trigger is inactive, as in the upstream run." in BY_KEY["qj/W11"].keeps
+    assert all("`" not in form.keeps for form in fw.FORMS)
+
+
+def default(rule, name: str):
+    return inspect.signature(rule).parameters[name].default
+
+
+def test_every_number_in_keeps_is_a_parameter_of_the_rule():
+    """The numbers of each `keeps` text, in reading order, from the parameters of the rule."""
+    trend, breaker, drift = fw.monthly_trend_drift, fw.circuit_breaker_trend, fw.partial_drift
+    cost, dual = fw.te_cost_gate_momentum.targets.keywords, fw.dual_momentum.targets.keywords
+    momentum = fw.vol_target_momentum.targets.keywords
+    winners, losers = fw.sector_momentum_long_short.targets.keywords, fw.sector_reversal_long_short.targets.keywords
+    flat = breaker.gates.cooldown + 1  # the bar of the breaker and the cooldown bars
+    expected = {
+        "qj/O17": [default(fw.monthly_rotation, "count"), default(fw.monthly_rotation, "lookback")],
+        "qj/W02": [trend.targets.keywords["fast"], trend.targets.keywords["slow"], trend.gates.drift * 100],
+        "qj/W04": [dual["count"], dual["lookback"], 0],
+        "qj/W05": [fw.inverse_volatility.targets.keywords["lookback"]],
+        "qj/W06": [fw.defensive_rotation.targets.keywords["average"]],
+        "qj/W10": [flat, breaker.gates.drawdown * 100, breaker.gates.drawdown * 100, flat, flat + 1],
+        "qj/W11": [cost["count"], cost["lookback"], fw.te_cost_gate_momentum.gates.max_turnover],
+        "qj/W17": [fw.vol_target_trend.targets.keywords["fast"], fw.vol_target_trend.targets.keywords["slow"]],
+        "qj/W18": [momentum["count"], momentum["lookback"], 0],
+        "qj/W19": [fw.risk_parity.targets.keywords["lookback"]],
+        "qj/W12": [drift.gates.drift * 100],
+        "qj/W15": [winners["count"], winners["lookback"], winners["count"]],
+        "qj/W16": [losers["count"], losers["lookback"], losers["count"]],
+        "qj/W20": [fw.risk_parity_capped.targets.keywords["lookback"]],
+        "qj/W21": [default(fw.bollinger_reversion, "window")] * 2,
+        "qj/W22": [default(fw.macd_trend, "fast"), default(fw.macd_trend, "slow"), default(fw.macd_trend, "signal")],
+        "lib/151-4-1": [4.1, sector_rotation.TOP_N, sector_rotation.FORMATION, 100 / sector_rotation.TOP_N,
+                        sector_rotation.COST_PER_SIDE * 10_000],  # 4.1 is the section of the book
+    }
+    for form in fw.FORMS:
+        numbers = [float(text) for text in re.findall(r"\d+(?:\.\d+)?", form.keeps)]
+        assert numbers == pytest.approx(expected[form.key]), form.key
 
 
 @pytest.fixture(scope="module")
@@ -236,6 +273,35 @@ def test_breaker_flattens_the_bar_after_a_15_percent_drawdown_and_returns_after_
     # The peak restarts at the equity of bar 24: 0.05 + 0.95 x 0.98^k is below 0.85 after 9 more bars.
     assert all(row[0] > 0 for row in rows[25:35]) and rows[35] == [0.0]
     assert all(row[0] > 0 for row in fw.shares_book(book, flags, targets))
+
+
+def test_breaker_reads_a_drawdown_of_more_than_15_percent():
+    gates = fw.circuit_breaker_trend.gates
+    for low, flattened in ((84.9, True), (85.1, False)):  # 15.1% and 14.9% below the peak
+        rows = fw.shares_book(book_of(A=[100.0, 100.0, low, low, low]), [True] + [False] * 4, [{"A": 1.0}] * 5, gates)
+        assert rows[2] == [pytest.approx(1.0)]
+        assert (rows[3] == [0.0]) is flattened
+
+
+def test_first_bar_takes_its_target_whatever_the_turnover_budget():
+    rows = fw.shares_book(book_of(A=[100.0] * 2), [True] * 2, [{"A": 1.0}, {}], fw.Gates(max_turnover=0.5))
+    assert rows == [[1.0], [1.0]]  # no veto on the first bar; the sale on the second bar is refused
+
+
+def test_refused_rebalance_after_the_cooldown_waits_for_the_turnover_of_252_bars():
+    book = book_of(A=[100.0] * 2 + [80.0] * 258)
+    flags, targets = [True] + [False] * 259, [{"A": 1.0}] * 260
+    rows = fw.shares_book(book, flags, targets, fw.Gates(drawdown=0.15, cooldown=1, max_turnover=2.5))
+    # Bar 0 buys (turnover 1), bar 3 flattens (turnover 1), bar 4 is the cooldown. From bar 5 the rebalance
+    # after the cooldown is tried on every bar: 2 + 1 is above the budget until bar 0 leaves the last 252 bars.
+    assert rows[2] == [pytest.approx(1.0)] and rows[3:253] == [[0.0]] * 250
+    assert rows[253:] == [[1.0]] * 7
+    assert fw.shares_book(book, flags, targets, fw.Gates(drawdown=0.15, cooldown=1, max_turnover=3.5))[5] == [1.0]
+
+
+def test_a_small_weight_is_a_position():
+    small = fw.EngineRule(("SPY",), lambda book: [{"SPY": 0.001}] * len(book.dates), lambda dates: [True] * len(dates))
+    assert small(inputs({"SPY": [100.0] * 3})) == {"SPY": [1, 1, 1]}
 
 
 def test_turnover_budget_refuses_a_rebalance():

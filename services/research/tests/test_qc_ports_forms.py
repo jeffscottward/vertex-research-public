@@ -15,6 +15,7 @@ from strategies.qc_ports import forms_library as fl
 from strategies.qc_ports import ideas as qi
 from strategies.qc_ports import options as om
 from strategies.qc_ports import portfolio as pf
+from strategies.qc_ports.book import SignalEvent, build_book
 from strategies.qc_ports.data import Bars
 from tests.qc_ports_synthetic import VIX_FOR_20, market, trading_days
 
@@ -148,19 +149,86 @@ def test_a_distribution_is_found_and_taken_out_of_the_prices():
     # The raw factor gives back the price the stock traded at before the distribution.
     factors = fm.raw_factors(dates, events)
     assert [close * factor for close, factor in zip(smooth.close, factors)] == pytest.approx(list(closes))
-    # A normal dividend is no event.
-    assert fm.distributions(Bars("KO", dates, closes[:3] + (99.0, 99.0), *((closes[:3] + (99.0, 99.0),) * 3),
-                                 (10.0, 10.0, 10.0, 10.0, 10.0))) == {}
+    # A normal dividend is no event, and neither is an adjusted close that jumps while the close does not fall.
+    steady = closes[:3] + (99.0, 99.0)
+    assert fm.distributions(Bars("KO", dates, steady, steady, steady, steady, (10.0,) * 5)) == {}
+    assert fm.distributions(Bars("DHR", dates, (68.0, 68.0, 68.0, 71.0, 71.0), *(((68.0, 68.0, 68.0, 71.0, 71.0),) * 3),
+                                 (42.0, 42.0, 42.0, 67.0, 67.0))) == {}
+
+
+def test_a_split_and_a_distribution_on_one_date_multiply():
+    dates = trading_days(START, 5)
+    # Day 3: a 1-for-2 reverse split (already in the close) and a distribution of a sixth of the price.
+    closes, adj = (24.0, 24.0, 24.0, 20.0, 20.0), (10.0, 10.0, 10.0, 10.0, 10.0)
+    bars = Bars("TMUS", dates, closes, closes, closes, closes, adj)
+    smooth, factors, events = fm.raw_priced(bars, {dates[3]: 0.5})
+    assert events == {dates[3]: pytest.approx(1.2)}
+    assert smooth.close == pytest.approx((20.0,) * 5)
+    # Before the day the stock traded at 12.00: the split-adjusted 24.00 times 0.5.
+    assert [close * factor for close, factor in zip(smooth.close, factors)] == pytest.approx([12.0, 12.0, 12.0, 20.0, 20.0])
+    plain, plain_factors, none = fm.raw_priced(_bars("SPY", [100.0] * 5), {})
+    assert plain.close == (100.0,) * 5 and plain_factors == [1.0] * 5 and none == {}
+
+
+def test_a_form_that_is_long_from_its_first_long_bar_on_is_the_always_on_basket():
+    assert fm.is_always_on({"SPY": [0, 0, 1, 1], "QQQ": [1, 1, 1, 1]})
+    assert not fm.is_always_on({"SPY": [0, 1, 0, 1]})
+    assert not fm.is_always_on({"SPY": [0, 0, 0, 0]})
+    assert not fm.is_always_on({"SPY": [1, 1], "QQQ": [1, -1]})
+
+
+def test_pricing_on_the_window_is_pricing_on_the_whole_market():
+    rng = random.Random(3)
+    closes, sides = [100.0], []
+    for _ in range(699):
+        closes.append(closes[-1] * (1 + rng.gauss(0.0003, 0.012)))
+    while len(sides) < 700:
+        sides.extend([rng.choice((1, 1, 0, -1))] * rng.randint(3, 90))
+    sides = sides[:700]
+    made = market(closes)
+    form = _form(lambda inputs: {"SPY": list(sides)})
+    trades = fm.form_trades(form, fm.Inputs({"SPY": _bars("SPY", closes)}, {"SPY": made.iv_index}), {"SPY": made},
+                            start=START)
+    assert {trade.exit_reason for trade in trades} >= {"signal", "expiry", "ownerLoserCut"}
+    for trade in trades:
+        side = 1 if trade.structure == "callDebitVertical" else -1
+        leaves = dict(fm._spans(sides, side))[trade.entry_index - 1]
+        options = al.hold_options(qi.MONTHLY_CALL if side == 1 else qi.MONTHLY_PUT)
+        whole = build_book([SignalEvent("SPY", trade.entry_index - 1, leaves)], options, {"SPY": made}).trades[0]
+        assert dataclasses.replace(al.owner_exit(whole, options, made), trade_id=trade.trade_id) == trade
+
+
+CONDOR = {1: ({"structure": "putCreditVertical", "dte": {"target": 45, "min": 30}, "shortDelta": 0.16,
+               "widthSigma": 0.5, "maxLossPct": 1},
+              {"structure": "callCreditVertical", "dte": {"target": 45, "min": 30}, "shortDelta": 0.16,
+               "widthSigma": 0.5, "maxLossPct": 1})}
 
 
 def test_a_side_can_hold_two_structures_at_once():
-    condor = {1: ({"structure": "putCreditVertical", "dte": {"target": 45, "min": 30}, "shortDelta": 0.16,
-                   "widthSigma": 0.5, "maxLossPct": 1},
-                  {"structure": "callCreditVertical", "dte": {"target": 45, "min": 30}, "shortDelta": 0.16,
-                   "widthSigma": 0.5, "maxLossPct": 1})}
-    trades = _run([1] * 20 + [0] * 60, [100.0] * 80, structures=condor)
+    trades = _run([1] * 20 + [0] * 60, [100.0] * 80, structures=CONDOR)
     assert [trade.structure for trade in trades] == ["putCreditVertical", "callCreditVertical"]
     assert trades[0].entry_date == trades[1].entry_date
+
+
+def test_the_structures_of_a_side_open_together_or_not_at_all(monkeypatch):
+    # The call spread is refused; the put spread alone must not open.
+    whole = fm.degenerate
+    monkeypatch.setattr(fm, "degenerate", lambda trade, spot: trade.structure == "callCreditVertical" or whole(trade, spot))
+    closes = [100.0] * 80
+    bars, made = _bars("SPY", closes), market(closes)
+    form = _form(lambda inputs: {"SPY": [1] * 20 + [0] * 60}, structures=CONDOR)
+    book = fm.form_book(form, fm.Inputs({"SPY": bars}, {"SPY": made.iv_index}), {"SPY": made}, start=START)
+    assert book.trades == () and book.refused == {"degenerate": 20}
+
+
+def test_the_next_package_waits_for_every_spread_of_the_last_one(monkeypatch):
+    # The put spread is cut early as a loser; the call spread runs to expiry; the next condor opens after both.
+    closes = [100.0] * 5 + [100 - 0.6 * day for day in range(115)]
+    trades = _run([1] * 120, closes, structures=CONDOR)
+    first = [trade for trade in trades if trade.entry_index == trades[0].entry_index]
+    assert len(first) == 2 and first[0].exit_index != first[1].exit_index
+    later = min(trade.entry_index for trade in trades if trade.entry_index > first[0].entry_index)
+    assert later == max(trade.exit_index for trade in first) + 1
 
 
 def test_raw_factors_are_the_product_of_the_later_split_ratios():

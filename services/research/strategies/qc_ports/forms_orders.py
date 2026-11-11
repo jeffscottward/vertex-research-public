@@ -309,38 +309,62 @@ def _rule(key: str):
 DROPS = "Drops the order size, the trading costs and the upstream universe (SPY, QQQ, IWM)."
 
 
-def _form(key: str, slug: str, name: str, sleeve: str, keeps: str) -> Form:
-    return Form(key, f"quantjourney-{slug}", name, sleeve, CORE7, _rule(key), "base/core7", f"{keeps} {DROPS}")
+def _pct(share: float) -> str:
+    """A share as percent text: 0.015 -> '1.5%'."""
+    return f"{round(share * 100, 4):g}%"
 
 
-ROWS: Sequence[tuple[str, str, str, str, str]] = (
-    ("qj/O03", "o03-limit-rsi-dip", "Limit RSI Dip Buyer", "mean reversion",
-     ("Keeps the 3-bar buy limit 1.5% under the close when RSI(14) < 40 and the sell limit 3% over the "
-      "entry price.")),
-    ("qj/O04", "o04-limit-trend-pullback", "Limit Trend Pullback", "trend",
-     ("Keeps the 2-bar buy limit 1% under a close above SMA(50), the 4% take-profit limit and the market "
-      "exit on a close under SMA(50).")),
-    ("qj/O05", "o05-stop-breakout-entry", "Stop Breakout Entry", "trend",
-     ("Keeps the 5-bar buy stop 0.2% over the highest of the 20 closes before the signal bar and the market "
-      "exit after 10 bars.")),
-    ("qj/O07", "o07-stop-limit-breakout", "Stop-Limit Breakout", "trend",
-     ("Keeps the 5-bar buy stop-limit (stop 0.2% over the highest of the 20 closes before the signal bar, "
-      "limit 0.4% higher) and the 12-bar exit.")),
-    ("qj/O08", "o08-stop-limit-protection", "Stop-Limit Protection", "trend",
-     ("Keeps the SMA(20)/SMA(50) cross entry and exit and the stop-limit sell (stop 4%, limit 4.5% under the "
-      "entry price).")),
-    ("qj/O09", "o09-trailing-stop-trend", "Trailing Stop Trend", "trend",
-     ("Keeps the SMA(20)/SMA(50) cross entry and exit and the 4% trailing stop under the highest high since "
-      "the stop was placed.")),
-    ("qj/O10", "o10-trailing-stop-rsi", "RSI + Trailing Stop", "mean reversion",
-     ("Keeps the market entry when RSI(14) < 38, the 5% trailing stop under the highest high and the market "
-      "exit when RSI(14) > 65.")),
-    ("qj/O11", "o11-trailing-stop-limit", "Trailing Stop-Limit", "trend",
-     ("Keeps the SMA(20)/SMA(50) cross entry and exit and the trailing stop-limit (4% of the close under the "
-      "highest high, limit 0.5% lower).")),
-    ("qj/O14", "o14-oco-dip-or-breakout", "OCO Dip or Breakout", "trend",
-     ("Keeps the 5-bar OCO entry on every fifth bar (buy limit 2% under the close or buy stop 2% over it) "
-      "and the 10-bar exit.")),
+def _off(factor: float) -> str:
+    """The distance of a price factor from 1 as percent text: 0.985 -> '1.5%'."""
+    return _pct(abs(factor - 1))
+
+
+def _keeps(key: str) -> str:
+    """First sentence of `keeps`: what the form keeps. Every number comes from `SPECS` or a module constant."""
+    spec = SPECS[key]
+    cross = f"Keeps the SMA({FAST})/SMA({SLOW}) cross entry and exit and the"
+    prior = f"the highest of the {BREAKOUT} closes before the signal bar"
+    texts = {
+        "qj/O03": lambda: (f"Keeps the {spec.valid}-bar buy limit {_off(spec.limit_pct)} under the close when "
+                           f"RSI({RSI_LENGTH}) < {spec.level} and the sell limit {_off(spec.target[0])} over the "
+                           "entry price."),
+        "qj/O04": lambda: (f"Keeps the {spec.valid}-bar buy limit {_off(spec.limit_pct)} under a close above "
+                           f"SMA({SLOW}), the {_off(spec.target[0])} take-profit limit and the market exit on a "
+                           f"close under SMA({SLOW})."),
+        "qj/O05": lambda: (f"Keeps the {spec.valid}-bar buy stop {_off(spec.stop_pct)} over {prior} and the market "
+                           f"exit after {spec.hold} bars."),
+        "qj/O07": lambda: (f"Keeps the {spec.valid}-bar buy stop-limit (stop {_off(spec.stop_pct)} over {prior}, "
+                           f"limit {_off(spec.cap_pct)} higher) and the {spec.hold}-bar exit."),
+        "qj/O08": lambda: (f"{cross} stop-limit sell (stop {_off(spec.protect[1])}, limit {_off(spec.protect[2])} "
+                           "under the entry price)."),
+        "qj/O09": lambda: (f"{cross} {_pct(spec.protect[1])} trailing stop under the highest high since the stop "
+                           "was placed."),
+        "qj/O10": lambda: (f"Keeps the market entry when RSI({RSI_LENGTH}) < {spec.level}, the "
+                           f"{_pct(spec.protect[1])} trailing stop under the highest high and the market exit when "
+                           f"RSI({RSI_LENGTH}) > {spec.exit_level}."),
+        "qj/O11": lambda: (f"{cross} trailing stop-limit ({_pct(spec.protect[1])} of the close under the highest "
+                           f"high, limit {_pct(spec.protect[2])} lower)."),
+        "qj/O14": lambda: (f"Keeps the {spec.valid}-bar OCO entry every {spec.every} bars (buy limit "
+                           f"{_off(spec.limit_pct)} under the close or buy stop {_off(spec.stop_pct)} over it) and "
+                           f"the {spec.hold}-bar exit."),
+    }
+    return texts[key]()
+
+
+def _form(key: str, slug: str, name: str, sleeve: str) -> Form:
+    return Form(key, f"quantjourney-{slug}", name, sleeve, CORE7, _rule(key), "base/core7", f"{_keeps(key)} {DROPS}")
+
+
+ROWS: Sequence[tuple[str, str, str, str]] = (
+    ("qj/O03", "o03-limit-rsi-dip", "Limit RSI Dip Buyer", "mean reversion"),
+    ("qj/O04", "o04-limit-trend-pullback", "Limit Trend Pullback", "trend"),
+    ("qj/O05", "o05-stop-breakout-entry", "Stop Breakout Entry", "trend"),
+    ("qj/O07", "o07-stop-limit-breakout", "Stop-Limit Breakout", "trend"),
+    ("qj/O08", "o08-stop-limit-protection", "Stop-Limit Protection", "trend"),
+    ("qj/O09", "o09-trailing-stop-trend", "Trailing Stop Trend", "trend"),
+    ("qj/O10", "o10-trailing-stop-rsi", "RSI + Trailing Stop", "mean reversion"),
+    ("qj/O11", "o11-trailing-stop-limit", "Trailing Stop-Limit", "trend"),
+    ("qj/O14", "o14-oco-dip-or-breakout", "OCO Dip or Breakout", "trend"),
 )
 
 FORMS: tuple[Form, ...] = tuple(_form(*row) for row in ROWS)

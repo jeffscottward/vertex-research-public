@@ -6,7 +6,8 @@ turns the stance into defined-risk option spreads with the option book of this p
 
 - +1 holds the call debit vertical of the qc study (ideas.MONTHLY_CALL), -1 the put debit
   vertical (ideas.MONTHLY_PUT). A form can name other structures per side (`Form.structures`).
-- One open spread per symbol, side and structure. A stance at bar i opens the spread at the close
+- One open spread per symbol and side (a side with two structures opens both or neither, as one
+  package). A stance at bar i opens the spread at the close
   of bar i+1 (the book rule). The spread closes at the close of the bar after the stance ends, or
   under the owner exit rule (allocation.owner_exit). While the stance lasts, the next spread opens
   the bar after the last one closed.
@@ -51,8 +52,9 @@ __all__ = [
     "CORE7", "FUTURES_TWINS", "FX_TWINS", "LONG_SHORT", "MULTI8", "PROXY_ATM_FACTOR", "PROXY_MODELS", "SECTOR9",
     "SECTOR11", "Form", "FormBook", "Inputs", "NotRun", "ProxyModel", "adjusted", "always_on", "always_on_after",
     "continuous", "degenerate", "distributions", "dividend_yield", "ema", "form_book", "form_trades", "from_panel",
-    "highest", "lowest", "next_session", "panel", "pct_change", "period_ends", "proxy_index_id", "proxy_iv_index",
-    "proxy_market", "proxy_symbols", "raw_factors", "rolling_stdev", "rsi", "sma", "stance_of",
+    "highest", "is_always_on", "lowest", "next_session", "panel", "pct_change", "period_ends", "proxy_index_id",
+    "proxy_iv_index", "proxy_market", "proxy_symbols", "raw_factors", "raw_priced", "rolling_stdev", "rsi", "sma",
+    "stance_of",
 ]
 
 # --------------------------------------------------------------------------- universes
@@ -130,6 +132,12 @@ def always_on_after(delay: int) -> Rule:
     return rule
 
 
+def is_always_on(stance: Mapping[str, Sequence[int]]) -> bool:
+    """True when every symbol is long on every bar from its first long bar (the stance of a baseline that
+    starts late): such a form holds the always-on basket of its universe."""
+    return all(1 in sides and all(side == 1 for side in sides[list(sides).index(1):]) for sides in stance.values())
+
+
 def stance_of(form: Form, inputs: Inputs) -> dict[str, list[int]]:
     """The rule's stance, checked: only symbols of the form, one side per bar, sides the form has a structure for."""
     stance = {symbol: list(sides) for symbol, sides in form.rule(inputs).items()}
@@ -196,30 +204,40 @@ def degenerate(trade: PricedTrade, spot: float) -> bool:
             or trade.premium * om.MULTIPLIER < LEGS * om.COMMISSION)
 
 
-def _side_trades(symbol: str, sides: Sequence[int], side: int, options: Mapping, market: Market, start: str,
-                 entry_only: bool, factors: Sequence[float] | None, refused: dict[str, int]) -> list[PricedTrade]:
-    """One open spread at a time under the owner exit rule: a signal bar is taken only when the last spread
-    has closed by then. `refused` counts the signal bars without a spread, by reason."""
+def _side_trades(symbol: str, sides: Sequence[int], side: int, blocks: Sequence[Mapping], market: Market, start: str,
+                 entry_only: bool, factors: Sequence[float] | None,
+                 refused: dict[str, int]) -> list[tuple[int, PricedTrade]]:
+    """(structure number, trade) of one symbol and side under the owner exit rule.
+
+    The structures of a side are one package: they open together on a signal bar or not at all, and
+    the next package opens only when every spread of the last one has closed. `refused` counts the
+    signal bars without a package, by the reason of the first structure that had none.
+    """
     join = next((index for index, value in enumerate(market.iv_index) if value is not None), len(market.dates))
-    trades: list[PricedTrade] = []
+    trades: list[tuple[int, PricedTrade]] = []
     busy = -1
     for entry, exit_ in _spans(sides, side):
         if entry < max(busy, join) or entry >= len(market.dates) - 1 or market.dates[entry] < start:
             continue
         priced = _window(market, entry, 1.0 if factors is None else factors[entry + 1])
         leaves = None if entry_only or exit_ is None or exit_ - entry >= len(priced.dates) else exit_ - entry
-        book = build_book([SignalEvent(symbol, 0, leaves)], options, {symbol: priced})
-        if not book.trades:
-            reason = book.skipped[0].reason
-        elif degenerate(book.trades[0], priced.close[1]):
-            reason = "degenerate"
-        else:
+        package, reason = [], None
+        for options in blocks:
+            book = build_book([SignalEvent(symbol, 0, leaves)], options, {symbol: priced})
+            if not book.trades:
+                reason = book.skipped[0].reason
+            elif degenerate(book.trades[0], priced.close[1]):
+                reason = "degenerate"
+            if reason is not None:
+                break
             final = al.owner_exit(book.trades[0], options, priced)
-            trades.append(dataclasses.replace(final, entry_index=final.entry_index + entry,
-                                              exit_index=final.exit_index + entry))
-            busy = trades[-1].exit_index
+            package.append(dataclasses.replace(final, entry_index=final.entry_index + entry,
+                                               exit_index=final.exit_index + entry))
+        if reason is not None:
+            refused[reason] = refused.get(reason, 0) + 1
             continue
-        refused[reason] = refused.get(reason, 0) + 1
+        trades.extend(enumerate(package))
+        busy = max(trade.exit_index for trade in package)
     return trades
 
 
@@ -253,11 +271,10 @@ def form_book(form: Form, inputs: Inputs, markets: Mapping[str, Market], *, star
         if scale is not None and len(scale) != len(market.dates):
             raise ValueError(f"{form.key}: {symbol} has {len(scale)} raw factors for {len(market.dates)} bars")
         for side in sorted(form.structures, reverse=True):
-            for number, block in enumerate(form.structures[side]):
-                options = al.hold_options(block)
-                for trade in _side_trades(symbol, stance[symbol], side, options, market, start, form.entry_only,
-                                          scale, refused):
-                    collected.append((trade.entry_date, order, -side, number, trade))
+            blocks = [al.hold_options(block) for block in form.structures[side]]
+            for number, trade in _side_trades(symbol, stance[symbol], side, blocks, market, start, form.entry_only,
+                                              scale, refused):
+                collected.append((trade.entry_date, order, -side, number, trade))
     collected.sort(key=lambda item: item[:4])
     trades = tuple(dataclasses.replace(item[4], trade_id=number) for number, item in enumerate(collected, start=1))
     return FormBook(trades, dict(sorted(refused.items())))
@@ -272,19 +289,24 @@ def form_trades(form: Form, inputs: Inputs, markets: Mapping[str, Market], *, st
 # --------------------------------------------------------------------------- distributions the bars do not adjust
 
 DISTRIBUTION_RATIO = 1.2
+FALL_TOLERANCE = 1.1
 
 
 def distributions(bars: Bars, threshold: float = DISTRIBUTION_RATIO) -> dict[str, float]:
     """date -> ratio of every one-day distribution the split-adjusted close does not adjust for.
 
-    A spin-off or a special dividend makes the close fall while the adjusted close does not. Where
-    the adjusted close moved at least `threshold` times as much as the close in one day, the day is
-    treated like a split with that ratio (a listed option is adjusted for it in the same way).
+    A spin-off or a special dividend makes the close fall while the adjusted close does not. A day
+    is treated like a split with ratio r when the adjusted close moved r >= `threshold` times as
+    much as the close, and the close itself fell by about that ratio (at least r / FALL_TOLERANCE;
+    an adjusted close that jumps while the close does not is a data error, not a distribution).
+    A listed option is adjusted for such a distribution in the same way. A smaller special
+    dividend stays in the prices as a fall.
     """
     out = {}
     for index in range(1, len(bars)):
-        ratio = (bars.adj_close[index] / bars.adj_close[index - 1]) / (bars.close[index] / bars.close[index - 1])
-        if ratio >= threshold:
+        fall = bars.close[index - 1] / bars.close[index]
+        ratio = fall * bars.adj_close[index] / bars.adj_close[index - 1]
+        if ratio >= threshold and fall >= ratio / FALL_TOLERANCE:
             out[bars.dates[index]] = ratio
     return out
 
@@ -295,6 +317,17 @@ def continuous(bars: Bars, events: Mapping[str, float]) -> Bars:
     scale = [1.0 / factor for factor in raw_factors(bars.dates, events)]
     return Bars(bars.symbol, bars.dates, *(tuple(value * factor for value, factor in zip(column, scale))
                                            for column in (bars.open, bars.high, bars.low, bars.close)), bars.adj_close)
+
+
+def raw_priced(bars: Bars, splits: Mapping[str, float]) -> tuple[Bars, list[float], dict[str, float]]:
+    """What the study reads for an underlying outside the Core 7: (bars without a jump at a distribution,
+    their raw factors, the distributions found). A split and a distribution on one date multiply."""
+    events = distributions(bars)
+    ratios = dict(splits)
+    for day, ratio in events.items():
+        ratios[day] = ratios.get(day, 1.0) * ratio
+    smooth = continuous(bars, events)
+    return smooth, raw_factors(smooth.dates, ratios), events
 
 
 # --------------------------------------------------------------------------- proxy IV and cost model

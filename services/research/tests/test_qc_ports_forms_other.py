@@ -111,27 +111,61 @@ def test_every_underlying_has_an_iv_index_or_a_proxy_model():
 def test_keeps_states_the_adaptations_and_what_is_not_applied():
     divergence, condor = BY_KEY["lib/pairs-divergence"].keeps, BY_KEY["lib/short-strangle"].keeps
     assert "Adaptation" in divergence and "2006-2007" in divergence and "last 252 bars" in divergence
-    assert "Adaptation" in condor and "iron condor" in condor and "undefined-risk strangle" in condor
-    assert "0.16-delta short strikes" in condor and "expected-move strike rule" in condor
-    assert "owner exit rule" in condor and "50% profit take" in condor and "21 DTE exit" in condor
+    assert "Adaptation: a put and a call credit spread, opened together (an iron condor)" in condor
+    assert "0.16-delta short strikes replace the undefined-risk strangle and its expected-move strikes" in condor
+    assert "the owner exit rule replaces spec exits" in condor
     for key in ("qj/O19", "qj/W23", "qj/W24"):
         assert "NZDUSD (no ETF with options)" in BY_KEY[key].keeps and BY_KEY[key].keeps.endswith("dropped.")
     for key in ("leaders/reclaim", "leaders/dip"):
         keeps = BY_KEY[key].keeps
         assert "risks 0.5% of equity" in keeps and "the owner exit rule closes it" in keeps
-        assert "liquidity filter" in keeps and "fundamental screen of the alert (market cap, earnings)" in keeps
+        assert "liquidity filter" in keeps and "fundamental screen" in keeps and "(market cap, earnings)" in keeps
         assert keeps.endswith("are not applied.")
+    assert "The weekly read and the reclaim are dropped" in BY_KEY["leaders/dip"].keeps
 
 
-def test_keeps_has_at_most_two_sentences_and_names_the_decision_days():
+KEEPS_WORDS = 25
+# The numbers a `keeps` text may hold: the parameters of its rule. 2006 and 2007 are the fit years of the book.
+KEEPS_NUMBERS = {
+    "qj/W13": (fo.PAIR_WINDOW, fo.PAIR_ENTRY, fo.PAIR_EXIT),
+    "qj/W14": (fo.PAIR_WINDOW, fo.PAIR_ENTRY, fo.PAIR_EXIT),
+    "lib/pairs-divergence": (fo.DIVERGENCE_WINDOW, fo.DIVERGENCE_ENTRY, fo.DIVERGENCE_EXIT, 2006, 2007),
+    "qj/O19": (fo.FX_MOMENTUM,),
+    "qj/W23": (fo.FX_MOMENTUM,),
+    "qj/W24": (fo.FX_RANK,),
+    "qj/O20": (fo.DONCHIAN,),
+    "qj/W25": (fo.TREND_FAST, fo.TREND_SLOW),
+    "lib/zakamulin-sma": (fo.SMA_MONTHS,),
+    "lib/short-strangle": (fo.RV_WINDOW, 0, fo.VRP_PERCENTILE, fo.VRP_LOOKBACK, fo.CONDOR_PUT["shortDelta"]),
+    "leaders/reclaim": (fo.LEADER_CALL["maxLossPct"],),
+    "leaders/dip": (fo.LEADER_CALL["maxLossPct"],),
+}
+
+
+def test_keeps_has_at_most_two_sentences_of_25_words_and_names_the_decision_days():
     for key, form in BY_KEY.items():
         sentences = re.split(r"(?<=[.])\s+(?=[A-Z])", form.keeps)
         assert len(sentences) <= 2 and form.keeps.endswith(".") and "  " not in form.keeps, key
-        assert all(len(sentence.split()) <= 34 for sentence in sentences), key
+        assert all(len(sentence.split()) <= KEEPS_WORDS for sentence in sentences), key
     for key in ("qj/W23", "qj/W24", "qj/W25", "lib/zakamulin-sma"):
         assert "month-end" in BY_KEY[key].keeps
     for key in ("qj/O19", "qj/O20"):
         assert "daily" in BY_KEY[key].keeps
+
+
+def test_every_number_in_keeps_is_a_parameter_of_the_rule():
+    assert set(KEEPS_NUMBERS) == set(BY_KEY)
+    for key, form in BY_KEY.items():
+        found = {float(number) for number in re.findall(r"\d+(?:\.\d+)?", form.keeps)}
+        assert found == {float(number) for number in KEEPS_NUMBERS[key]}, key
+    # The parameters as the rules use them (a default of a rule function is bound when the module loads).
+    assert (fo.PAIR_WINDOW, fo.PAIR_ENTRY, fo.PAIR_EXIT) == (*fo.ratio_z.__defaults__, *fo.band_sides.__defaults__)
+    assert fo.hedge_ratio_z.__defaults__ == (fo.PAIR_WINDOW,) and fo.divergence_z.__defaults__ == (252,)
+    assert fo.divergence_sides.__defaults__ == (fo.DIVERGENCE_ENTRY, fo.DIVERGENCE_EXIT) == (2.0, 1.0)
+    assert fo.momentum_direction.__defaults__ == fo.momentum_sign.__defaults__ == (fo.FX_MOMENTUM,) == (126,)
+    assert fo.donchian_sides.__defaults__ == (fo.DONCHIAN,) and fo.sma_timing_sides.__defaults__ == (fo.SMA_MONTHS,)
+    assert fo.trend_sides.__defaults__ == (fo.TREND_FAST, fo.TREND_SLOW)
+    assert fo.LEADER_CALL["maxLossPct"] == 0.5 and fo.CONDOR_PUT["shortDelta"] == fo.CONDOR_CALL["shortDelta"]
 
 
 def test_the_condor_is_two_credit_spreads_that_risk_two_percent_together():
@@ -247,6 +281,20 @@ def test_a_pair_rule_gives_the_first_leg_its_side_and_the_second_leg_the_opposit
     assert {1, -1, 0} == set(expected)
 
 
+def test_both_legs_of_a_pair_are_flat_before_the_later_first_iv_value():
+    adj_a, adj_b = _walk(11, 700, vol=0.012), _walk(12, 700, vol=0.012)
+    ko, pep = _bars("KO", adj_a), _bars("PEP", adj_b)
+    expected = fo.band_sides(fo.ratio_z(adj_a, adj_b))
+    assert any(expected[:300]) and any(expected[300:])
+    late = {"KO": (None,) * 100 + (20.0,) * 600, "PEP": (None,) * 300 + (20.0,) * 400}
+    stance = _stance("qj/W13", _inputs(ko, pep, iv=late))
+    # KO has an IV value from bar 100, PEP from bar 300: no leg has a side before bar 300.
+    assert stance["KO"] == [0] * 300 + expected[300:]
+    assert stance["PEP"] == [0] * 300 + [-side for side in expected[300:]]
+    never = _stance("qj/W13", _inputs(ko, pep, iv={"PEP": (None,) * 700}))
+    assert never == {"KO": [0] * 700, "PEP": [0] * 700}
+
+
 def test_w13_shorts_the_rich_leg_and_buys_the_cheap_leg():
     ko = [100.0 + 0.1 * (index % 2) for index in range(80)] + [103.0] * 58
     stance = _stance("qj/W13", _inputs(_bars("KO", ko), _bars("PEP", [100.0] * 138)))
@@ -317,6 +365,17 @@ def test_w23_has_no_side_where_the_63_bar_volatility_is_zero():
     assert stance[late[0] - 1] == 1 and stance[late[0]:] == [0] * (240 - late[0])
 
 
+@pytest.mark.parametrize(("flat_from", "side"), [(230 - 63, 0), (230 - 62, 1)])
+def test_w23_volatility_is_zero_when_exactly_the_last_63_returns_are_the_same(flat_from, side):
+    assert 210 in _month_end_bars(trading_days(START, 240)) and 230 in _month_end_bars(trading_days(START, 240))
+    # No change after bar `flat_from`: at month-end 230 the last 63 (side 0) or 62 (side +1) returns are 0.
+    rising = _uneven([100.0 * 1.001 ** index for index in range(flat_from + 1)])
+    bars = _bars("FXE", rising + [rising[-1]] * (239 - flat_from))
+    assert rising[-1] != rising[-2] and fo.momentum_sign(bars)[230] == 1
+    stance = _stance("qj/W23", _inputs(bars))["FXE"]
+    assert stance[229] == 1 and stance[230:] == [side] * 10
+
+
 def test_w24_ranks_at_month_ends_and_holds_the_strongest_long_and_the_weakest_short():
     days = trading_days(START, 140)
     assert _month_end_bars(days)[3:6] == [82, 104, 123]  # the first month-ends with a 63-bar return
@@ -328,6 +387,15 @@ def test_w24_ranks_at_month_ends_and_holds_the_strongest_long_and_the_weakest_sh
     assert stance["FXB"] == [0] * 82 + [1] * 22 + [0] * 19 + [-1] * 17
     assert stance["FXE"] == [0] * 104 + [1] * 36
     assert stance["FXA"] == [0] * 82 + [-1] * 41 + [0] * 17
+
+
+def test_w24_reads_the_close_exactly_63_bars_before_the_month_end():
+    assert _month_end_bars(trading_days(START, 90))[2:4] == [60, 82]
+    # Month-end 82 reads bar 19. FXB is low on that bar and high on the bars beside it; FXA is the opposite.
+    low_then = [90.0 if index == 19 else 110.0 if index in (18, 20) else 100.0 for index in range(90)]
+    high_then = [110.0 if index == 19 else 90.0 if index in (18, 20) else 100.0 for index in range(90)]
+    stance = _stance("qj/W24", _inputs(_bars("FXE", [100.0] * 90), _bars("FXB", low_then), _bars("FXA", high_then)))
+    assert stance == {"FXE": [0] * 90, "FXB": [0] * 82 + [1] * 8, "FXA": [0] * 82 + [-1] * 8}
 
 
 def test_w24_ranks_the_twins_that_have_a_return_and_needs_two_of_them():
@@ -360,6 +428,19 @@ def test_o20_follows_a_close_past_the_extremes_of_the_55_bars_before():
     stance = _stance("qj/O20", _inputs(_bars("SPY", closes, highs=highs, lows=lows)))
     assert stance == {"SPY": [0] * 60 + [1] * 20 + [-1] * 10}
     assert BY_KEY["qj/O20"].symbols == ("SPY", "QQQ", "USO", "GLD")
+
+
+def test_o20_reads_the_highs_and_lows_of_exactly_the_55_bars_before():
+    closes, highs, lows = [100.0] * 130, [101.0] * 130, [99.0] * 130
+    highs[44] = 110.0  # among the 55 bars before bar 99, not among those before bar 100
+    closes[99], highs[99] = 105.0, 105.5
+    closes[100], highs[100] = 106.0, 106.5
+    assert _stance("qj/O20", _inputs(_bars("USO", closes, highs=highs, lows=lows))) == {"USO": [0] * 100 + [1] * 30}
+    lows[44], highs[44] = 90.0, 101.0  # the same on the low side
+    closes[99], highs[99], lows[99] = 95.0, 101.0, 94.5
+    closes[100], highs[100], lows[100] = 94.0, 101.0, 93.5
+    closes[101:] = [96.0] * 29
+    assert _stance("qj/O20", _inputs(_bars("USO", closes, highs=highs, lows=lows))) == {"USO": [0] * 100 + [-1] * 30}
 
 
 def test_o20_reads_total_return_highs_and_lows():

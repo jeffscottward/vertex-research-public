@@ -44,9 +44,10 @@ from strategies.qc_ports.ledger import run_ledger  # noqa: E402
 
 START = "1993-01-29"
 FORMS_SUMS = "FORMS_SHA256SUMS"
-# Start delays in bars of the always-on baseline. Its spreads follow each other, so the first entry day sets
-# every later one; the baseline Sharpe of check G7 is the mean over these phases (the later ones in the ledger only).
-BASELINE_DELAYS = (0, 14, 28)
+# Start delays in bars of the always-on baseline. Its spreads follow each other on the monthly expiries, so
+# the first entry day sets every later one and there are two chains, about a month apart. The baseline Sharpe
+# of check G7 is the mean over the two (the later one in the ledger only).
+BASELINE_DELAYS = (0, 21)
 # research/backtests/allocation/run.py as the allocation scripts import it: its statistics and its parity run.
 base = sensitivity.base
 
@@ -163,18 +164,6 @@ def markdown(rows: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def prepared(root: Path, bars):
-    """(bars without a jump at a distribution, raw factors) of an underlying outside the Core 7."""
-    events = fm.distributions(bars)
-    smooth = fm.continuous(bars, events)
-    return smooth, fm.raw_factors(smooth.dates, {**load_splits(root, bars.symbol), **events}), events
-
-
-def is_always_on(stance: dict[str, list[int]]) -> bool:
-    """True when every symbol is long on every bar from its first long bar."""
-    return all(1 in sides and all(side == 1 for side in sides[sides.index(1):]) for sides in stance.values())
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", required=True, type=Path)
@@ -215,7 +204,7 @@ def main() -> None:
     # The Core 7 stay on split-adjusted closes, as in the qc study; every other underlying is priced at raw prices.
     extra, factors, events = {}, {}, {}
     for symbol, bars in loaded.items():
-        extra[symbol], factors[symbol], events[symbol] = prepared(args.data, bars)
+        extra[symbol], factors[symbol], events[symbol] = fm.raw_priced(bars, load_splits(args.data, symbol))
     models = {**dict.fromkeys(stocks, fm.LIQUID_EQUITY), **fm.PROXY_MODELS}
     models = {symbol: dataclasses.replace(models[symbol], half_spread_pct=models[symbol].half_spread_pct * args.cost_scale)
               for symbol in extra}
@@ -237,7 +226,7 @@ def main() -> None:
             first = min(first_iv_day(markets[symbol]) for symbol in form.symbols)
             dates = [day for day in dataset.calendar if day >= max(first, START)]
             run = {"priced": book.trades, "refused": book.refused, "result": None, "gap": None, "dates": dates,
-                   "alwaysOn": is_always_on(fm.stance_of(form, inputs)), "phases": None}
+                   "alwaysOn": fm.is_always_on(fm.stance_of(form, inputs)), "phases": None}
             done[form.key] = run
             if not book.trades:
                 log(f"form {form.key}: no trade")
