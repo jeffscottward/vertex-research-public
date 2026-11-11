@@ -40,6 +40,8 @@ export type RunForm = Readonly<{
   costProfile: CostProfilePresetId | "";
   /** Set to run a stored definition (rule kind dsl) instead of the SMA cross or breakout rule. */
   definition?: LinkedDefinition | null;
+  /** The options run dates, kept while another rule runs on stored bars. */
+  storeDates?: Readonly<{ from: string; to: string }> | undefined;
 }>;
 
 /** Cost profile choices for the form. Runs use stock bars, so option presets are not offered. */
@@ -59,6 +61,12 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 
 export const isoDate = (epochMs: number): string =>
   new Date(epochMs).toISOString().slice(0, 10);
+
+/** True for a real calendar day written as YYYY-MM-DD (2026-02-30 is not one). */
+export const isCalendarDate = (value: string): boolean =>
+  DATE_PATTERN.test(value) &&
+  !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) &&
+  isoDate(Date.parse(`${value}T00:00:00Z`)) === value;
 
 /** The rule part of a run request, before dates, capital and strategy are added. */
 export type RunRuleInput = Pick<
@@ -414,17 +422,21 @@ export const readDefinitionLink = (search: string): DefinitionLink | null => {
   const sha256 = text("sha");
   const date = (name: string): string | null => {
     const value = text(name);
-    return value !== null && DATE_PATTERN.test(value) ? value : null;
+    return value !== null && isCalendarDate(value) ? value : null;
   };
+  // A start after the end cannot run: such a link keeps neither date.
+  const from = date("from");
+  const to = date("to");
+  const ordered = from === null || to === null || from <= to;
   return {
     costBps: number("costBps"),
-    from: date("from"),
+    from: ordered ? from : null,
     id,
     initialCapital: number("initialCapital"),
     sha256: sha256 !== null && SHA256_PATTERN.test(sha256) ? sha256 : null,
     symbol: text("symbol"),
     timeframe: text("timeframe") ?? "1d",
-    to: date("to"),
+    to: ordered ? to : null,
   };
 };
 
@@ -513,6 +525,44 @@ export const optionsLinkSymbol = (
 
 /** Today's date in UTC as YYYY-MM-DD: the default end of an options run (the store slices to it). */
 export const todayUtc = (): string => isoDate(Date.now());
+
+/** The default start of an options run without a linked start: one year before its end. */
+export const optionsDefaultFrom = (to: string): string => {
+  const end = new Date(`${to}T00:00:00Z`);
+  end.setUTCFullYear(end.getUTCFullYear() - 1);
+  return isoDate(end.getTime());
+};
+
+/**
+ * The dates after a rule switch. Moving off an options definition takes the stored range of the
+ * selected series (the store dates may lie outside its bars) and remembers the options dates;
+ * moving back onto it restores them, else a year to today (UTC). A switch that keeps the data
+ * source keeps the dates.
+ */
+export const ruleSwitchDates = (
+  current: Pick<RunForm, "definition" | "from" | "to" | "storeDates">,
+  next: Pick<RunForm, "definition">,
+  series: InstantBacktestSeries | undefined
+): Pick<RunForm, "from" | "to" | "storeDates"> => {
+  const wasOptions = runsOptionsDefinition(current);
+  const options = runsOptionsDefinition(next);
+  const kept = {
+    from: current.from,
+    storeDates: current.storeDates,
+    to: current.to,
+  };
+  if (wasOptions === options) return kept;
+  if (options) {
+    if (current.storeDates !== undefined)
+      return { ...current.storeDates, storeDates: undefined };
+    const to = todayUtc();
+    return { from: optionsDefaultFrom(to), storeDates: undefined, to };
+  }
+  const storeDates = { from: current.from, to: current.to };
+  return series === undefined
+    ? { ...kept, storeDates }
+    : { from: isoDate(series.firstT), storeDates, to: isoDate(series.lastT) };
+};
 
 /** "Strategy definition: <id> revision 1 (sha 0123456789ab…), <name>." */
 export const describeLinkedDefinition = (linked: LinkedDefinition): string =>

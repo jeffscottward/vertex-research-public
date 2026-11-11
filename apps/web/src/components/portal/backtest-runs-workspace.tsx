@@ -67,6 +67,8 @@ import {
   readDefinitionLink,
   replayGeometry,
   runsOptionsDefinition,
+  optionsDefaultFrom,
+  ruleSwitchDates,
   todayUtc,
   toSubmitInput,
   toUniverseSubmitInputs,
@@ -562,10 +564,12 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
 const RuleFields = ({
   form,
   linkedDefinition,
+  series,
   setForm,
 }: Readonly<{
   form: RunForm;
   linkedDefinition: LinkedDefinition | null;
+  series: InstantBacktestSeries | undefined;
   setForm: Dispatch<SetStateAction<RunForm>>;
 }>) => {
   const ruleId = useId();
@@ -587,19 +591,28 @@ const RuleFields = ({
           id={ruleId}
           onChange={(event) => {
             const value = event.target.value;
-            setForm((current) => ({
-              ...current,
-              definition: value === "definition" ? linkedDefinition : null,
-              params: {
-                ...current.params,
-                ruleKind:
-                  value === "breakout"
-                    ? "breakout"
-                    : value === "smaCross"
-                      ? "smaCross"
-                      : current.params.ruleKind,
-              },
-            }));
+            setForm((current) => {
+              const nextDefinition =
+                value === "definition" ? linkedDefinition : null;
+              return {
+                ...current,
+                ...ruleSwitchDates(
+                  current,
+                  { definition: nextDefinition },
+                  series
+                ),
+                definition: nextDefinition,
+                params: {
+                  ...current.params,
+                  ruleKind:
+                    value === "breakout"
+                      ? "breakout"
+                      : value === "smaCross"
+                        ? "smaCross"
+                        : current.params.ruleKind,
+                },
+              };
+            });
           }}
           value={definition === null ? params.ruleKind : "definition"}
         >
@@ -756,6 +769,7 @@ const StoreSymbolField = ({
   value: string;
 }>) => {
   const id = useId();
+  const helpId = useId();
   // Shown only while an options definition is selected.
   const definition = (form.definition as LinkedDefinition).definition;
   return (
@@ -764,6 +778,7 @@ const StoreSymbolField = ({
         Symbol (daily series store, 1d)
       </label>
       <select
+        aria-describedby={helpId}
         className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
         id={id}
         onChange={(event) => onChange(event.target.value)}
@@ -775,7 +790,7 @@ const StoreSymbolField = ({
           </option>
         ))}
       </select>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-muted-foreground text-sm" id={helpId}>
         Options runs use the daily series store, not the stored bar series: the
         run reads the store from From to To (a To after the last stored day is
         fine).
@@ -907,17 +922,23 @@ export const BacktestRunsWorkspace = ({
             )
               setUniverse("all");
             applySeries(picked);
-            setForm((current) => ({
-              ...current,
-              definition: loaded,
-              from: link.from ?? current.from,
-              initialCapital: link.initialCapital ?? current.initialCapital,
-              params: {
-                ...current.params,
-                costBps: link.costBps ?? current.params.costBps,
-              },
-              to: link.to ?? (options ? todayUtc() : current.to),
-            }));
+            // An options run without a linked start takes a year before its end.
+            setForm((current) => {
+              const to = link.to ?? (options ? todayUtc() : current.to);
+              return {
+                ...current,
+                definition: loaded,
+                from:
+                  link.from ??
+                  (options ? optionsDefaultFrom(to) : current.from),
+                initialCapital: link.initialCapital ?? current.initialCapital,
+                params: {
+                  ...current.params,
+                  costBps: link.costBps ?? current.params.costBps,
+                },
+                to,
+              };
+            });
           },
           (error: unknown) => {
             if (active)
@@ -1068,7 +1089,7 @@ export const BacktestRunsWorkspace = ({
 
   return (
     <div className="grid gap-8">
-      {load.series.length === 0 ? (
+      {load.series.length === 0 && !storeRun ? (
         <p className="text-sm">
           No stored bar series. Import bars with
           scripts/vertex-market-bars-import.ts first.
@@ -1160,6 +1181,7 @@ export const BacktestRunsWorkspace = ({
         <RuleFields
           form={form}
           linkedDefinition={linkedDefinition}
+          series={series}
           setForm={setForm}
         />
         <CostFields form={form} setForm={setForm} />

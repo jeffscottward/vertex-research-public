@@ -33,6 +33,7 @@ import {
   EXIT_REASON_LABELS,
   exitReasonLabel,
   isCostProfilePresetId,
+  isCalendarDate,
   isFinished,
   isNotFound,
   isoDate,
@@ -42,6 +43,7 @@ import {
   metricRows,
   type OptionsBook,
   optionsLinkSymbol,
+  optionsDefaultFrom,
   optionsMetricRows,
   optionsRunSymbols,
   optionsSignalRows,
@@ -49,6 +51,7 @@ import {
   pickInitialRunId,
   readDefinitionLink,
   replayGeometry,
+  ruleSwitchDates,
   runsOptionsDefinition,
   todayUtc,
   toSubmitInput,
@@ -88,6 +91,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
   window.history.replaceState(null, "", "/");
+  vi.useRealTimers();
 });
 
 const flush = async () => {
@@ -1478,6 +1482,23 @@ describe("backtest runs model: options book and definition links", () => {
       timeframe: "1d",
       to: null,
     });
+    // Dates must be real calendar days, and a start after the end drops both.
+    expect(isCalendarDate("2024-02-29")).toBe(true);
+    expect(isCalendarDate("2023-02-29")).toBe(false);
+    expect(isCalendarDate("2026-13-01")).toBe(false);
+    expect(isCalendarDate("2026-1-01")).toBe(false);
+    expect(
+      readDefinitionLink("?definition=d&from=2026-02-30&to=2026-04-31")
+    ).toMatchObject({ from: null, to: null });
+    expect(
+      readDefinitionLink("?definition=d&from=2026-02-01&to=2026-04-31")
+    ).toMatchObject({ from: "2026-02-01", to: null });
+    expect(
+      readDefinitionLink("?definition=d&from=2026-05-01&to=2026-04-30")
+    ).toMatchObject({ from: null, to: null });
+    expect(
+      readDefinitionLink("?definition=d&from=2026-04-30&to=2026-04-30")
+    ).toMatchObject({ from: "2026-04-30", to: "2026-04-30" });
     expect(
       definitionRunHref({
         costBps: null,
@@ -1536,7 +1557,38 @@ describe("backtest runs model: options book and definition links", () => {
     const { portfolio: _portfolio, ...single } = QC_DEFINITION;
     expect(optionsRunSymbols(single)).toEqual(STRATEGY_OPTION_SYMBOLS);
     expect(optionsLinkSymbol({ symbol: "GLD" }, single)).toBe("GLD");
-    expect(todayUtc()).toBe(new Date().toISOString().slice(0, 10));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T23:59:00Z"));
+    expect(todayUtc()).toBe("2026-11-10");
+    vi.setSystemTime(new Date("2026-11-11T00:00:00Z"));
+    expect(todayUtc()).toBe("2026-11-11");
+    expect(optionsDefaultFrom("2026-11-10")).toBe("2025-11-10");
+    expect(optionsDefaultFrom("2024-02-29")).toBe("2023-03-01");
+    // A rule switch moves the dates only when the data source changes.
+    const plain = { definition: null, from: "2020-01-01", to: "2020-12-31" };
+    const options = { definition: LINKED };
+    expect(ruleSwitchDates(plain, { definition: null }, SPY)).toEqual({
+      from: plain.from,
+      storeDates: undefined,
+      to: plain.to,
+    });
+    const onto = ruleSwitchDates(plain, options, SPY);
+    expect(onto).toEqual({
+      from: "2025-11-11",
+      storeDates: undefined,
+      to: "2026-11-11",
+    });
+    const off = ruleSwitchDates({ ...options, ...onto }, plain, SPY);
+    expect(off).toEqual({
+      from: isoDate(SPY.firstT),
+      storeDates: { from: "2025-11-11", to: "2026-11-11" },
+      to: isoDate(SPY.lastT),
+    });
+    expect(ruleSwitchDates({ ...plain, ...off }, options, SPY)).toEqual(onto);
+    expect(ruleSwitchDates({ ...options, ...onto }, plain, undefined)).toEqual({
+      ...onto,
+      storeDates: { from: onto.from, to: onto.to },
+    });
     expect(describeLinkedDefinition(LINKED)).toBe(
       "Strategy definition: qc-asset-class-trend revision 1 (sha aaaaaaaaaaaa…), 10-month SMA trend."
     );
@@ -1706,7 +1758,30 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
     expect(book.querySelector("[data-option-trades]")).toBeNull();
   });
 
+  it("opens an options link without dates and stored bars on a year to today", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T12:00:00Z"));
+    window.history.replaceState(null, "", "/backtest-runs?definition=qc");
+    await mount(
+      <BacktestRunsWorkspace
+        gateway={gatewayOf({
+          definition: definitionGetter(),
+          series: vi.fn(async () => []),
+        })}
+      />
+    );
+    expect(field("From").value).toBe("2025-11-10");
+    expect(field("To").value).toBe("2026-11-10");
+    // An options run needs no stored bars, so the import hint stays hidden.
+    expect(document.body.textContent).not.toContain("No stored bar series");
+    expect(button("Run backtest").disabled).toBe(false);
+    await setNative(field("Rule"), "smaCross");
+    expect(document.body.textContent).toContain("No stored bar series");
+  });
+
   it("opens a stored definition from a strategy library link and runs it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T23:30:00Z"));
     window.history.replaceState(
       null,
       "",
@@ -1732,11 +1807,14 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
       "SPY",
       "QQQ",
     ]);
-    expect(
-      document.querySelector("[data-store-symbol]")?.textContent
-    ).toContain("Options runs use the daily series store");
+    const help = document.getElementById(
+      symbol.getAttribute("aria-describedby") ?? ""
+    );
+    expect(help?.textContent).toContain(
+      "Options runs use the daily series store"
+    );
     expect(field("From").value).toBe("1970-01-05");
-    expect(field("To").value).toBe(todayUtc());
+    expect(field("To").value).toBe("2026-11-10");
     expect(field("Initial capital").value).toBe("100000");
     // The options book charges its own costs: flat cost and profile are locked off.
     expect(field("Cost per side (bps)").value).toBe("0");
@@ -1774,13 +1852,19 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
     );
 
     await setNative(field("Rule"), "breakout");
-    // Back on stored bars: the universe and series selects return.
+    // Back on stored bars: the universe and series selects return, with the series dates (the
+    // store dates may lie outside its bars).
     expect(field("Symbol and timeframe").value).toBe("ES=F:1d");
+    expect(field("From").value).toBe(isoDate(ES.firstT));
+    expect(field("To").value).toBe(isoDate(ES.lastT));
     expect(document.querySelector("[data-linked-definition]")).toBeNull();
     expect(field("Entry lookback (bars)")).not.toBeNull();
     expect(field("Stop-loss (%)")).not.toBeNull();
     await setNative(field("Rule"), "definition");
     expect(field("Rule").value).toBe("definition");
+    // The options dates return with the definition.
+    expect(field("From").value).toBe("1970-01-05");
+    expect(field("To").value).toBe("2026-11-10");
     await setNative(field("Rule"), "smaCross");
     expect(field("Fast average (bars)")).not.toBeNull();
     await setNative(field("Rule"), "definition");
