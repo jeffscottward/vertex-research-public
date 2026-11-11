@@ -193,6 +193,21 @@ const OVERRIDES = {
   C751: { cls: "D", reason: "Prop-account payout buffer rule." },
   C758: { cls: "D", reason: "Prop-account stacking rule." },
   C759: { cls: "D", reason: "Prop-firm evaluation budget rule." },
+  // Hand review 2026-11-11 (Jay Medrow merge, knowledge-bases master rules; owner ranks the source top tier with Crown).
+  // Holding physical metal is outside the options-only book.
+  C811: { cls: "D", reason: "Physical-metal holding; options-only book." },
+  // Underlying choice: options on bullion-backed ETFs (GLD/SLV), not miners. GLD and SLV are in the OpenBB symbol set.
+  C857: {
+    cls: "B",
+    reason: "Underlying selection: bullion-backed ETF options, not miners.",
+  },
+  C829: {
+    cls: "C",
+    reason:
+      "Needs: BLS employment-situation series (payrolls, diffusion, hours, revisions, AHE).",
+    feature: "BLS jobs-report series via FRED",
+    effort: "S",
+  },
 };
 
 export function classifyCluster(c, debated = new Map()) {
