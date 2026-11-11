@@ -77,3 +77,21 @@ def test_nq_front_by_prior_volume_back_adjusted(tmp_path) -> None:
     [seg], [k] = segments, scales
     assert [s.bars[-1].close for s in seg] == pytest.approx([102.0, 102.0, 102.0])
     assert k == pytest.approx([100.0 / 102.0, 100.0 / 102.0, 1.0])
+
+
+def test_nq_roll_across_a_data_gap_splits_segments(tmp_path) -> None:
+    def write(name: str, price: float, days: list[date]) -> str:
+        path = tmp_path / f"{name}.csv"
+        lines = ["date,open,high,low,close,volume"]
+        for day in days:
+            for j in range(78):
+                t = utc(day, 13, 30) + timedelta(minutes=5 * j)
+                lines.append(f"{t:%Y%m%d}  {t:%H:%M:%S},{price},{price},{price},{price},1")
+        path.write_text("\n".join(lines))
+        return str(path)
+
+    early = [date(2025, 6, 2) + timedelta(days=i) for i in range(3)]
+    late = [date(2025, 7, 21) + timedelta(days=i) for i in range(3)]
+    segments, scales, info = run.load_nq([write("NQ_202506", 100.0, early), write("NQ_202509", 110.0, late)])
+    assert [len(s) for s in segments] == [2, 2] and info["rolls"] == 1
+    assert scales == [[1.0, 1.0], [1.0, 1.0]]

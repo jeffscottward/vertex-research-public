@@ -139,8 +139,9 @@ def load_nq(paths: Sequence[str]) -> tuple[list[list[Session]], list[list[float]
         s = contracts[name][day]
         adjusted.append((Session(day, tuple(Bar(b.minute, b.open * factor, b.high * factor, b.low * factor,
                                                    b.close * factor, b.volume) for b in s.bars)), 1.0 / factor))
-        if idx > 0 and chosen[idx - 1][1] != name:
-            prev_day = chosen[idx - 1][0]
+        prev_day = chosen[idx - 1][0] if idx > 0 else None
+        # A roll across a data gap needs no factor: the gap splits the segments below.
+        if prev_day is not None and chosen[idx - 1][1] != name and prev_day in contracts[name]:
             old = contracts[chosen[idx - 1][1]][prev_day].bars[-1].close
             new = contracts[name][prev_day].bars[-1].close
             factor *= new / old

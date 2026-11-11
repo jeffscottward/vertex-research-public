@@ -139,4 +139,52 @@ naked short, closed before expiry.
 
 ## Results
 
-Not run yet.
+Ran 2026-11-11 on the rig with the rules above unchanged since commit `583f2081` (the spec commit that came before any
+run): `python -m strategies.noise_band_futures_run` (`services/research`), output
+`~/Documents/reports/vertex-session-open-momentum/results.json` (SHA-256 prefix `b3e8dd7b6c5ee4f8`). Data: 5,513 QQQ
+sessions 2004-12-01 to 2026-11-06 (6 skipped for missing bars), 89 dividend ex-dates, k from 40.2 to 41.2.
+
+### Verdict
+
+**Does not hold up.** The rule replicates the paper on the paper's own period almost to the cent, and loses money in the
+fifteen years before it.
+
+| Window | Grade | $ per session | 95% interval | Daily Sharpe | Sessions traded | Trades | Max drawdown |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Paper, 2020-01 to 2026-07 | (reported) | +10.26 | [+3.27, +17.25] | 1.14 | about 60% | 1.35 per session | $2,458 |
+| Replication, 2020-01-02 to 2026-07-03 | **REPLICATES** | +10.18 | [+3.34, +17.32] | 1.12 | 59.7% | 2,218 (1.36 per session) | $2,501 |
+| Before the paper, 2005-01-03 to 2019-12-31 | **DOES NOT HOLD** | −2.99 | [−3.99, −1.95] | −1.46 | 61.6% | 5,323 | $13,326 |
+| After the paper, 2026-07-06 to 2026-11-06 | (reported only) | +12.02 | [−35.32, +65.33] | 0.78 | 50.6% | 114 | $2,098 |
+
+Paper hand-off: none. The pre-set rule needs REPLICATES and HOLDS; the before-the-paper window fails.
+
+### Per year (primary rules, $ for the year on 1 MNQ)
+
+| 2005 | 2006 | 2007 | 2008 | 2009 | 2010 | 2011 | 2012 | 2013 | 2014 | 2015 | 2016 | 2017 | 2018 | 2019 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| −1,609 | −1,468 | −1,149 | −912 | −1,702 | −1,678 | −1,061 | −630 | −944 | −541 | −432 | −601 | −549 | +2,697 | −688 |
+
+| 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 to Jul 3 | 2026 Jul 6 to Nov 6 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| −162 (paper +49) | +2,012 | +4,050 | +3,518 | +3,896 | +724 (paper +835) | +2,579 | +1,069 |
+
+### Sensitivities (reported, not graded)
+
+| Variant | Replication $/session | Before $/session | After $/session |
+| --- | --- | --- | --- |
+| One extra point of slippage on every stop fill | +7.87 (−23%; the paper reports −22%) | −5.41 | +9.82 |
+| Entries on every 5-minute bar instead of HH:00 / HH:30 | +1.29 | −8.91 | −3.48 |
+| DSL form (close-based stop checked every 5 minutes, next-open fill) | +12.22 | −1.79 | +18.81 |
+| Diagnostic, added after the run: no commission and no slippage | +14.72 | +1.75 | — |
+
+- Before 2020 the gross edge is about +$1.75 per session against about $4.7 of costs per session, so costs, not the
+  signal's sign, sink the early years. The index level was 1,500 to 8,000 points then, so one MNQ moved fewer dollars
+  for the same percentage move while the $2 commission and the tick slippage stayed fixed.
+- Exits: 85% of trades end on the trailing stop; 25% of trades win; 54% of trades are long.
+
+### NQ cross-check (real NQ futures, reported only)
+
+NQ 5-minute bars, three rolls, two segments (2024-08-29 to 2025-06-20, 2025-07-21 to 2025-09-19). Over the 218
+sessions both runs share after the warm-up, daily P&L of NQ and of the QQQ proxy correlates at 0.989. The means are
++$5.31 (NQ) and +$3.13 (QQQ) per session, with 282 and 290 trades. The QQQ proxy tracks the futures closely and, on this
+slice, slightly understates them.
