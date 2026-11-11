@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Any, Callable
 from urllib.parse import urlsplit, parse_qs
 
@@ -14,6 +15,24 @@ from .models import Segment, SourceInput
 TranscriptLoader = Callable[[str], bytes | None]
 _TIME_LINE = re.compile(r"^\s*(?:\*\*)?\[(\d{1,3}:\d{2}(?::\d{2})?(?:\.\d{1,9})?)\](?:\*\*)?\s*(.+)$", re.MULTILINE)
 _VIDEO = re.compile(r"[A-Za-z0-9_-]{11}")
+_CAPTION_OCR = "caption/ocr captured"
+
+
+@dataclass(frozen=True)
+class InstagramProfile:
+    """Documented Instagram profile identity for the shared run-manifest adapter."""
+    collection_id: str
+    profile_handle: str
+    profile_url: str
+    attribution: str
+    # Image/carousel posts whose text is caption + local slide OCR ("## Caption and OCR").
+    caption_ocr: bool = False
+
+
+_DEFINE_YOUR_RISK = InstagramProfile("define-your-risk", "defineyourrisk", "https://www.instagram.com/defineyourrisk/",
+                                     "DefineYourRisk (profile attribution; speaker unverified)")
+_JAY_MEDROW = InstagramProfile("jay-medrow", "jay_medrow", "https://www.instagram.com/jay_medrow/",
+                               "Jay Medrow (profile attribution; speaker unverified)", caption_ocr=True)
 
 
 def youtube_uri(video_id: str, original: str) -> str:
@@ -258,50 +277,63 @@ class CollectionAdapters:
             return Unavailable("crown-input-unavailable", "nicholas-crown", "Crown source mappings or clocks could not be bound; no global knowledge replacement occurred.")
 
     def define_your_risk(self, manifest_bytes: bytes, load_transcript: TranscriptLoader, *, captured_at: str, rights_policy_id: str) -> tuple[SourceInput, ...] | Unavailable:
+        return self._instagram_profile(_DEFINE_YOUR_RISK, manifest_bytes, load_transcript, captured_at=captured_at, rights_policy_id=rights_policy_id)
+
+    def jay_medrow(self, manifest_bytes: bytes, load_transcript: TranscriptLoader, *, captured_at: str, rights_policy_id: str) -> tuple[SourceInput, ...] | Unavailable:
+        return self._instagram_profile(_JAY_MEDROW, manifest_bytes, load_transcript, captured_at=captured_at, rights_policy_id=rights_policy_id)
+
+    def _instagram_profile(self, spec: InstagramProfile, manifest_bytes: bytes, load_transcript: TranscriptLoader, *, captured_at: str,
+                           rights_policy_id: str) -> tuple[SourceInput, ...] | Unavailable:
+        prefix = spec.collection_id
         try:
-            self._authorize_collection("define-your-risk", rights_policy_id)
+            self._authorize_collection(spec.collection_id, rights_policy_id)
             manifest = parse_json(manifest_bytes, maximum_bytes=self.maximum_ledger_bytes)
             if (type(manifest.get("schema_version")) is not int or manifest["schema_version"] != 1
-                    or manifest.get("profile_handle") != "defineyourrisk"
-                    or manifest.get("profile_url") != "https://www.instagram.com/defineyourrisk/"):
-                raise BoundaryError("define-your-risk-manifest-identity-mismatch")
+                    or manifest.get("profile_handle") != spec.profile_handle
+                    or manifest.get("profile_url") != spec.profile_url):
+                raise BoundaryError(prefix + "-manifest-identity-mismatch")
             hash_contract = manifest.get("hash_contract", {})
             if (hash_contract.get("algorithm") != "SHA-256" or hash_contract.get("encoding") != "UTF-8"
                     or hash_contract.get("transcript_sha256") != "SHA-256 of the complete on-disk file bytes at transcript_path, including its final LF."):
-                raise BoundaryError("define-your-risk-hash-contract-unavailable")
+                raise BoundaryError(prefix + "-hash-contract-unavailable")
             items = manifest.get("items")
             if not isinstance(items, list) or not 1 <= len(items) <= 1000:
-                raise BoundaryError("invalid-define-your-risk-ledger")
+                raise BoundaryError("invalid-" + prefix + "-ledger")
             by_id = {identifier(row["source_id"]): row for row in items}
             if len(by_id) != len(items):
                 raise BoundaryError("duplicate-source-mapping")
             statuses = {"transcript captured": "transcript_captured", "duplicate": "duplicate", "non-video": "non_video"}
             expected_counts = {"discovered": len(items), "transcript_count": 0, "transcript_captured": 0,
                                "duplicate": 0, "non_video": 0, "unresolved": 0, "pending": 0}
+            if spec.caption_ocr:
+                statuses[_CAPTION_OCR] = "caption_ocr_captured"
+                expected_counts["caption_ocr_captured"] = 0
             for row in items:
                 status = row.get("terminal_status")
                 if status not in statuses:
-                    raise BoundaryError("define-your-risk-source-format-unavailable")
+                    raise BoundaryError(prefix + "-source-format-unavailable")
                 expected_counts[statuses[status]] += 1
-                if status != "non-video":
+                if status not in ("non-video", _CAPTION_OCR):
                     expected_counts["transcript_count"] += 1
             counts = manifest.get("counts", {})
             if any(type(counts.get(key)) is not int or counts[key] != value for key, value in expected_counts.items()):
-                raise BoundaryError("define-your-risk-count-mismatch")
+                raise BoundaryError(prefix + "-count-mismatch")
             result = []
             for source_id, row in by_id.items():
                 shortcode = row["shortcode"]
                 if not isinstance(shortcode, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", shortcode) is None or source_id != "ig-" + shortcode:
-                    raise BoundaryError("define-your-risk-source-identity-mismatch")
+                    raise BoundaryError(prefix + "-source-identity-mismatch")
                 uri = row["canonical_url"]
                 url = urlsplit(uri)
                 if (url.scheme != "https" or url.netloc not in ("instagram.com", "www.instagram.com")
                         or url.query or url.fragment or url.path not in ("/p/" + shortcode + "/", "/reel/" + shortcode + "/")):
-                    raise BoundaryError("define-your-risk-source-url-mismatch")
+                    raise BoundaryError(prefix + "-source-url-mismatch")
                 status = row["terminal_status"]
                 available = status != "non-video"
-                if row.get("source_type") != ("video" if available else "non-video"):
-                    raise BoundaryError("define-your-risk-source-type-mismatch")
+                ocr = status == _CAPTION_OCR
+                if (row.get("source_type") not in ("image", "carousel") if ocr
+                        else row.get("source_type") != ("video" if available else "non-video")):
+                    raise BoundaryError(prefix + "-source-type-mismatch")
                 digest = row.get("transcript_sha256")
                 if available:
                     if (row.get("transcript_path") != "transcripts/" + shortcode + ".md"
@@ -311,19 +343,19 @@ class CollectionAdapters:
                             or not isinstance(row.get("normalized_path"), str) or not row["normalized_path"]
                             or not isinstance(row.get("deduplicated_path"), str) or not row["deduplicated_path"]
                             or not isinstance(row.get("extraction_method"), str) or not row["extraction_method"]):
-                        raise BoundaryError("define-your-risk-transcript-binding-mismatch")
+                        raise BoundaryError(prefix + "-transcript-binding-mismatch")
                 elif any(row.get(key) is not None for key in ("transcript_path", "transcript_sha256", "normalized_path",
                          "normalized_text_sha256", "deduplicated_path", "duplicate_of")):
-                    raise BoundaryError("define-your-risk-nonvideo-transcript-mismatch")
+                    raise BoundaryError(prefix + "-nonvideo-transcript-mismatch")
                 if status == "duplicate":
                     canonical = by_id.get(row.get("duplicate_of"))
                     if (canonical is None or canonical is row or canonical.get("terminal_status") != "transcript captured"
                             or canonical.get("deduplicated_path") != row["deduplicated_path"]
                             or canonical.get("normalized_text_sha256") != row["normalized_text_sha256"]):
-                        raise BoundaryError("define-your-risk-duplicate-binding-mismatch")
+                        raise BoundaryError(prefix + "-duplicate-binding-mismatch")
                 elif row.get("duplicate_of") is not None:
-                    raise BoundaryError("define-your-risk-duplicate-binding-mismatch")
-                allowed = self._allowed("define-your-risk", rights_policy_id, source_id)
+                    raise BoundaryError(prefix + "-duplicate-binding-mismatch")
+                allowed = self._allowed(spec.collection_id, rights_policy_id, source_id)
                 # Identity-keyed, acquired/pinned bytes only. Paths above are provenance,
                 # never arguments to filesystem access or substitutes for the raw file.
                 content = load_transcript(source_id) if available and allowed else None
@@ -331,9 +363,9 @@ class CollectionAdapters:
                 segments = ()
                 if content is not None:
                     if not isinstance(content, bytes) or len(content) > 2_000_000 or raw_sha256(content) != digest:
-                        raise BoundaryError("define-your-risk-raw-digest-mismatch")
+                        raise BoundaryError(prefix + "-raw-digest-mismatch")
                     text = content.decode("utf-8", errors="strict")
-                    marker = "## Transcript\n\n"
+                    marker = "## Caption and OCR\n\n" if ocr else "## Transcript\n\n"
                     # Hash the entire original wrapper, but cite only the speech section.
                     # Never promote caption/metadata or a normalized/dedup file to speech.
                     if text.count(marker) != 1 or not text.endswith("\n"):
@@ -343,8 +375,9 @@ class CollectionAdapters:
                         if not body.strip() or "\n## " in body:
                             content, reason = None, "transcript-section-unavailable"
                         else:
-                            segments = tuple(Segment("markdown-section:Transcript:" + segment.locator, segment.text, segment.method)
-                                             for segment in _segments(body.encode("utf-8"), row["extraction_method"] + "; ASR unreviewed"))
+                            section, review = ("Caption and OCR", "; caption + local OCR unreviewed") if ocr else ("Transcript", "; ASR unreviewed")
+                            segments = tuple(Segment("markdown-section:" + section + ":" + segment.locator, segment.text, segment.method)
+                                             for segment in _segments(body.encode("utf-8"), row["extraction_method"] + review))
                             reason = None
                 original_source = {key: row.get(key) for key in ("source_id", "shortcode", "canonical_url", "source_type",
                     "published_at_utc", "surfaces", "terminal_status", "extraction_method", "transcript_path", "transcript_sha256",
@@ -355,18 +388,20 @@ class CollectionAdapters:
                             "profileHandle": manifest["profile_handle"], "profileUrl": manifest["profile_url"], "runId": manifest.get("run_id"),
                             "sourceScope": manifest.get("scope"), "sourceStartedAt": manifest.get("started_at_utc"),
                             "sourceCompletedAt": manifest.get("completed_at_utc"), "hashContract": original_hash_contract,
-                            "citationBodyLocator": "Markdown section ## Transcript; locators relative to section body",
+                            "citationBodyLocator": ("Markdown section ## Caption and OCR" if ocr else "Markdown section ## Transcript") + "; locators relative to section body",
                             "normalizedAndDeduplicatedContentLoaded": False}
-                result.append(SourceInput(source_id, uri, "DefineYourRisk (profile attribution; speaker unverified)", captured_at,
+                result.append(SourceInput(source_id, uri, spec.attribution, captured_at,
                     _published(row.get("published_at_utc")), content, segments, rights_policy_id, "raw-transcript",
                     "machine-generated" if content is not None else "unavailable", "transcript", reason,
                     ("Run membership is a captured profile snapshot, not all-time completeness or a rights grant.",
                      "Raw file hash includes Markdown metadata and final LF; citations exclude caption/metadata.",
                      "Normalized-body and deduplication hashes are distinct source assertions, not verified raw-file hashes.",
                      "Duplicate identities retain their own raw files and URLs; at most 64 bounded citation segments.",
-                     "ASR completion is not transcript accuracy, speaker validation or human acceptance."), self.boundary.encode(metadata),
+                     "ASR completion is not transcript accuracy, speaker validation or human acceptance.")
+                    + (("Caption and local slide OCR text is machine-extracted, unreviewed and not speech.",) if ocr else ()),
+                    self.boundary.encode(metadata),
                     digest if content is not None else None))
             return tuple(result)
         except Exception:
-            return Unavailable("define-your-risk-input-unavailable", "define-your-risk",
+            return Unavailable(prefix + "-input-unavailable", spec.collection_id,
                                "Unsupported run-manifest/hash/identity mapping, denied rights, or invalid supplied raw bytes; no paths were opened implicitly.")

@@ -11,7 +11,10 @@ import {
   buildVertexRuntimeRecipe,
   type VertexRuntimeRecipeInputs,
 } from "./vertex-runtime-recipe-build.ts";
-import { HostBacktestRecipeSchema } from "./vertex-runtime-recipe-profiles.ts";
+import {
+  HostBacktestRecipeSchema,
+  KnowledgeRecipeSchema,
+} from "./vertex-runtime-recipe-profiles.ts";
 
 const now = "2026-09-22T12:00:00.000000001Z";
 const expires = "2026-09-22T13:00:00Z";
@@ -503,6 +506,35 @@ describe("runtime native recipes (source-only regressions)", () => {
     return await expect(
       buildVertexRuntimeRecipe({ ...input, collectionId: "ssrn" })
     ).rejects.toMatchObject({ code: "denied" });
+  });
+  it("accepts jay-medrow Instagram transcript imports like define-your-risk", () => {
+    const configuration = {
+      profile: "vertex-knowledge-import-v1",
+      collection_id: "jay-medrow",
+      snapshot_id: "selected-snapshot",
+      expected_snapshot_id: null,
+      rights_policy_id: "policy-licensing-rights",
+      captured_at: now,
+      input: {
+        manifest: { artifactId: "jay-medrow-manifest", sha256: digest },
+        transcripts: {
+          "ig-ABC123": { artifactId: "jay-medrow-ig-ABC123", sha256: digest },
+        },
+      },
+    };
+    expect(KnowledgeRecipeSchema.safeParse(configuration).success).toBe(true);
+    expect(
+      KnowledgeRecipeSchema.safeParse({
+        ...configuration,
+        input: { bundle: { artifactId: "selected-bundle", sha256: digest } },
+      }).success
+    ).toBe(false);
+    return expect(
+      KnowledgeRecipeSchema.safeParse({
+        ...configuration,
+        collection_id: "jay_medrow",
+      }).success
+    ).toBe(false);
   });
   it("builds explicit supported provider SourceContext without defaulting any fields", async () => {
     const configuration = {

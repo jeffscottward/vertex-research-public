@@ -54593,6 +54593,11 @@
             "note": "Captured 2026-09-02; separate @defineyourrisk identity, not implicitly Crown/DeltaTrend."
           },
           {
+            "id": "jay-medrow",
+            "path": "knowledge-bases/trading/jay-medrow",
+            "note": "Instagram @jay_medrow profile capture (reels via ASR transcripts; image/carousel posts via caption + local slide OCR); separate identity, not implicitly Crown/DefineYourRisk. Counts come from its run-manifest.json."
+          },
+          {
             "id": "cole-medin",
             "path": "knowledge-bases/ai/cole-medin",
             "note": "Engineering knowledge/template lineage, not trading evidence."
