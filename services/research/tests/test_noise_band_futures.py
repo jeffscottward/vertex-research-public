@@ -163,3 +163,63 @@ def test_entries_every_bar_when_check_every_is_the_bar() -> None:
 def test_one_scale_per_session() -> None:
     with pytest.raises(ValueError):
         run_futures_backtest([warm(date(2020, 1, 1))], [])
+
+
+# --- The DSL form (strategies/imom/definition.py CHUK_NQ) against the kernel's bands and grid ----------
+
+def _bars(sessions: list[Session]):
+    """Sessions as DSL bars: 5-minute bars from 09:30 New York (14:30 UTC in January)."""
+    from datetime import datetime, timezone
+
+    from nautilus_backtest.bars import Bars
+
+    t: list[float] = []
+    cols: dict[str, list[float]] = {"o": [], "h": [], "l": [], "c": [], "v": []}
+    for s in sessions:
+        base = datetime(s.day.year, s.day.month, s.day.day, 14, 30, tzinfo=timezone.utc).timestamp() * 1000
+        for b in s.bars:
+            t.append(base + b.minute * 60_000)
+            for key, value in zip("ohlcv", (b.open, b.high, b.low, b.close, b.volume)):
+                cols[key].append(value)
+    return Bars.from_columns({"t": t, **cols})
+
+
+def test_chuk_definition_is_a_valid_dsl_pair() -> None:
+    from nautilus_backtest import signals as sig
+    from strategies.imom import definition as d
+
+    long, short = (d.definition(d.CHUK_NQ, side) for side in ("long", "short"))
+    for leg in (long, short):
+        normalized = sig.normalize_definition(leg)
+        assert normalized["intraday"]["decisionEvery"] == 30
+        assert normalized["intraday"]["exitEvery"] == 5
+        assert normalized["sizing"] == {"mode": "allIn"}
+    assert short["side"] == "short" and "side" not in long
+    assert [c["op"] for c in long["entry"]["all"]] == [">", ">"]
+    assert [c["right"].get("band") for c in short["exit"]["any"]] == ["lower", None]
+    assert d.params_from_json(d.params_to_json(d.CHUK_NQ)) == d.CHUK_NQ
+
+
+def test_chuk_dsl_signals_match_the_kernel_bands_vwap_and_grid() -> None:
+    from nautilus_backtest import signals as sig
+    from strategies.imom import definition as d
+
+    session = make_day({5: 100.5, 6: 100.6, 7: 100.6, 8: 100.0, 11: 101.0, 20: 99.5, 23: 99.4, 40: 100.3})
+    start = date(2020, 1, 1)
+    sessions = [warm(start + timedelta(days=i)) for i in range(14)] + [Session(date(2020, 1, 15), session.bars)]
+    compiled = sig.compile_strategy(_bars(sessions), d.definition(d.CHUK_NQ, "long"))
+    first = 14 * N
+    sigma = noise_sigmas(sessions, 14)[14]
+    vwaps = session_vwap(session.bars)
+    want_entry, want_exit = [], []
+    for j, b in enumerate(session.bars[:-1]):
+        ub, _ = _levels(sigma[b.minute], 1.0, 100.0, 100.0)
+        end = b.minute + 5
+        if 30 <= end <= 360 and end % 30 == 0 and b.close > ub and b.close > vwaps[j]:
+            want_entry.append(j)
+        elif b.close < max(ub, vwaps[j]):
+            want_exit.append(j)
+    got = list(compiled.signals[first:first + N - 1])
+    assert [j for j, v in enumerate(got) if v == 1] == want_entry
+    assert [j for j, v in enumerate(got) if v == -1] == want_exit
+    assert want_entry and want_exit
