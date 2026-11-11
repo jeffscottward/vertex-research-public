@@ -54,12 +54,14 @@ cost-stress check. No result depends on these: every candidate fails G4 and G5.
 
 ## Candidates
 
-Only a strategy with a daily definition can run here. There are 19 library candidates and one host:
+Only a strategy with a daily definition can run here. There are 19 library candidates and two hosts
+(`allocation.qc_candidates`):
 
 - The run A of the 11 QuantConnect idea ports (`strategies/qc_ports/ideas.py`), with the option structure
   their specs fixed on 2026-11-08. Three of them are gate ideas (`qc-iv-rank-gate`, `qc-vix-term-gate`,
-  `qc-regime-put-vrp`): a gate on a put-credit host. They count as overlays. The ungated host
-  (`put-credit/B`, SPY put credit verticals) is the vol-premium candidate.
+  `qc-regime-put-vrp`): a gate on a put-credit host. They count as overlays. The two ungated hosts are the
+  vol-premium candidates: `put-credit/B` (SPY put credit verticals, the host of the regime and VIX-term
+  gates) and `iv-rank-gate/B` (the same on the Core 7, the host of the IV-rank gate).
 - The 8 QuantJourney strategies with a daily DSL definition (O01, O02, O06, O12, O13, O18, W01, W03). Their
   options form was fixed before the first run: the monthly call debit vertical of the qc study
   (`MONTHLY_CALL`) on the Core 7 ETF twins, one open spread per symbol. A stop or a bracket on the
@@ -74,6 +76,8 @@ after the closing cost.
 
 The baseline of check G7 is the run B of the idea (the always-on version) under the same owner exit rule;
 for the QuantJourney forms it is `asset-class-trend/B` (the same call spread on the Core 7 every month).
+That one is a weak comparison: it rolls at month-ends from 1993-10, while the forms hold one spread per
+symbol from 1993-01. A host has no baseline check.
 
 Trials for the deflated Sharpe: the 32 counted runs of the 2026-11-08 study plus every run made here with
 the owner exit (candidates and baselines). The count includes the three duplicate trade lists. The intraday
@@ -120,6 +124,7 @@ Library: 97 entries = 61 tradable strategies, 19 tools and alerts, 9 overlays an
 | `oil-predicts-equity/A` (bench) | macro | +0.42 | +0.42 | +0.17 | 0.29 | 98% | -18.8% | +3.3% | 341 | 4 of 8 |
 | `regime-put-vrp/A` (overlay) | vol premium | +0.32 | +0.09 | +0.16 | 0.14 | 94% | -3.4% | +0.4% | 91 | 3 of 8 |
 | `put-credit/B` (host) (bench) | vol premium | +0.15 | -0.04 | +0.02 | 0.03 | 77% | -6.5% | +0.2% | 122 | 4 of 7 |
+| `iv-rank-gate/B` (host) (bench) | vol premium | +0.15 | -0.56 | +0.30 | 0.01 | 90% | -20.8% | +0.6% | 854 | 3 of 7 |
 | `qj/W01` (bench) | trend | +0.12 | new | +0.24 | 0.01 | 70% | -36.3% | +0.7% | 644 | 6 of 8 |
 | `vix-term-gate/A` (overlay) | vol premium | +0.11 | -0.05 | +0.20 | 0.02 | 69% | -6.5% | +0.1% | 115 | 5 of 8 |
 | `momentum-rotation/A` (bench) | rotation | +0.06 | +0.06 | +0.22 | 0.00 | 59% | -31.4% | +0.2% | 609 | 6 of 8 |
@@ -144,14 +149,14 @@ Bench portfolios, one account, 2011-05-31 to 2026-11-10 (cash earns 0%):
 
 | Method | Sleeve budgets (% of account) | Cash | CAGR | Sharpe | Deflated Sharpe | Max drawdown | Worst month | 2020-02-19 to 2020-03-31 | 2022 | Last 3 months | Reverse order: CAGR / Sharpe / max drawdown |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Equal risk | rotation 2.00, macro 2.00, vol premium 2.00, trend 2.00, mean reversion 2.00 | 90% | +2.85% | +0.32 | 0.16 | -23.9% | -7.0% (2012-05) | -6.3% | -17.0% | -9.7% | +2.60% / +0.31 / -21.9% |
-| Inverse volatility | vol premium 6.32, rotation 1.10, macro 1.00, mean reversion 0.83, trend 0.75 | 90% | +0.97% | +0.20 | 0.07 | -15.0% | -4.0% (2012-05) | -3.5% | -12.0% | -5.3% | +1.29% / +0.25 / -13.6% |
-| Shrunk Sharpe | macro 5.05, vol premium 2.04, trend 1.18, rotation 0.92, mean reversion 0.81 | 90% | +1.67% | +0.26 | 0.11 | -17.9% | -4.5% (2018-10) | -5.2% | -14.8% | -6.5% | +1.68% / +0.26 / -16.7% |
+| Equal risk | rotation 2.00, macro 2.00, vol premium 2.00, trend 2.00, mean reversion 2.00 | 90% | +2.21% | +0.26 | 0.11 | -25.5% | -6.5% (2012-05) | -8.7% | -17.6% | -9.1% | +2.20% / +0.29 / -21.2% |
+| Inverse volatility | vol premium 3.68, rotation 1.89, macro 1.72, mean reversion 1.42, trend 1.28 | 90% | +1.06% | +0.18 | 0.07 | -16.9% | -5.3% (2018-10) | -6.5% | -14.0% | -5.9% | +1.38% / +0.24 / -15.1% |
+| Shrunk Sharpe | macro 4.99, vol premium 2.15, trend 1.16, rotation 0.90, mean reversion 0.80 | 90% | +1.91% | +0.28 | 0.13 | -18.7% | -4.4% (2018-10) | -6.2% | -16.3% | -6.0% | +1.63% / +0.27 / -13.7% |
 
 Reading: the best result is long call spreads on SPY and QQQ since 2011, and its always-on baseline has a
-higher Sharpe than the timing rule. The put-credit host earns almost nothing after costs; the volatility
-regime gate improves it, but stays far below the gate of this study. The equal-risk bench pie lost more
-than the 20% drawdown limit although its open risk never passed 10%: the cap limits the loss of everything
-open at one time, not a run of losing months.
+higher Sharpe than the timing rule. The put-credit hosts earn almost nothing after costs; the volatility
+regime gate improves the SPY host, but stays far below the gate of this study. The equal-risk bench pie
+lost more than the 20% drawdown limit although its open risk never passed 10%: the cap limits the loss of
+everything open at one time, not a run of losing months.
 
 Not checked here: live option quotes (prices are modeled), intraday exits, interest on cash.

@@ -38,23 +38,13 @@ POSITION_RISK_CAP_PCT = 2.0
 # Risk of one bench position: the smallest size that still buys one 60-day one-sigma SPY or QQQ
 # call spread at the account value of the study.
 POSITION_RISK_PCT = 1.0
-# Gate ideas: overlays of a put-credit host, not strategies with their own budget. The vol premium
-# sleeve is the ungated SPY host (the baseline B of the regime and VIX-term ideas).
-OVERLAYS = frozenset({"qc-iv-rank-gate", "qc-vix-term-gate", "qc-regime-put-vrp"})
-HOST_KEY = "put-credit/B"
-HOST_SLUG = "put-credit-host"
 # Always-on baseline of the QuantJourney options forms: the same monthly call spread on the Core 7.
+# A weak comparison (it rolls at month-ends from 1993-10; the forms hold one spread per symbol).
 QJ_BASELINE = "asset-class-trend/B"
 # Options form of the QuantJourney daily definitions (fixed before the first run): the monthly
 # call debit vertical of the qc study on the Core 7 ETF twins, one open spread per symbol.
 QJ_DAILY = ("O01", "O02", "O06", "O12", "O13", "O18", "W01", "W03")
 QJ_START = "1993-01-29"
-SLEEVES = {
-    "qc-asset-class-trend": "trend", "qc-futures-trend-carry": "trend", "qc-momentum-rotation": "rotation",
-    "qc-turn-of-the-month": "seasonality", "qc-opex-week": "seasonality", "qc-same-month-seasonality": "seasonality",
-    "qc-oil-predicts-equity": "macro", "qc-gold-fed-model": "macro", "qc-regime-put-vrp": "vol premium",
-    "qc-iv-rank-gate": "vol premium", "qc-vix-term-gate": "vol premium",
-}
 STRESS = {"2020-03": ("2020-02-19", "2020-03-31"), "2022": ("2022-01-03", "2022-12-30")}
 
 
@@ -68,23 +58,7 @@ def qj_candidates(library_path: Path) -> list[dict]:
         made["portfolio"] = qi.portfolio(qi.CORE7, "flat", cadence="daily")
         sleeve = "mean reversion" if "meanrev" in item["styles"] else "trend"
         out.append({"key": f"qj/{code}", "slug": item["slug"], "name": item["name"], "sleeve": sleeve,
-                    "definition": made, "start": QJ_START, "baseline": QJ_BASELINE, "study": None})
-    return out
-
-
-def qc_candidates(runs: dict) -> list[dict]:
-    """Run A of every idea with its baseline B (study.document reads the same two labels), and the host."""
-    out = []
-    for idea in qi.IDEAS:
-        if [label for label, _ in idea.runs[:2]] != ["A", "B"]:
-            raise ValueError(f"{idea.id}: runs[0] must be A and runs[1] the baseline B")
-        primary, baseline = runs[idea.key("A")], runs[idea.key("B")]
-        out.append({"key": primary.key, "slug": idea.id, "name": f"{idea.title}: {primary.name}",
-                    "sleeve": SLEEVES[idea.id], "definition": primary.definition, "start": primary.start,
-                    "baseline": baseline.key, "study": primary.key})
-    host = runs[HOST_KEY]
-    out.append({"key": host.key, "slug": HOST_SLUG, "name": f"Put-credit host: {host.name}", "sleeve": "vol premium",
-                "definition": host.definition, "start": host.start, "baseline": None, "study": host.key})
+                    "role": "strategy", "definition": made, "start": QJ_START, "baseline": QJ_BASELINE, "study": None})
     return out
 
 
@@ -172,7 +146,7 @@ def main() -> None:
 
     # 2. Every candidate and every baseline under the owner exit rule, on Nautilus, at the account capital.
     runs = qi.family(data.facts)
-    candidates = qc_candidates(runs) + qj_candidates(args.library)
+    candidates = al.qc_candidates(runs) + qj_candidates(args.library)
     todo = {item["key"]: (item["definition"], item["start"]) for item in candidates}
     for item in candidates:
         if item["baseline"] and item["baseline"] not in todo:
@@ -197,8 +171,7 @@ def main() -> None:
         checks = al.gate_checks(stats, baseline)
         metrics = family_metrics.get(item["study"]) if item["study"] else None
         as_studied = metrics and {key: metrics[key] for key in ("sharpe", "deflatedSharpe", "cagr", "maxDrawdown", "trades", "start")}
-        role = "overlay" if item["slug"] in OVERLAYS else "host" if item["slug"] == HOST_SLUG else "strategy"
-        rows.append({"key": item["key"], "slug": item["slug"], "name": item["name"], "sleeve": item["sleeve"], "role": role,
+        rows.append({"key": item["key"], "slug": item["slug"], "name": item["name"], "sleeve": item["sleeve"], "role": item["role"],
                      "start": item["start"], "ownerRule": stats, "asStudied": as_studied, "baselineKey": item["baseline"],
                      "baselineSharpe": baseline, "checks": checks, "passesGate": all(check["pass"] for check in checks),
                      "nautilusGap": run["gap"], "openToday": open_today(run["priced"], last_day),

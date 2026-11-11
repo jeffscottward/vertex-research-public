@@ -43,15 +43,16 @@ from statistics import mean, stdev
 from nautilus_backtest import signals as sig
 
 from . import portfolio as pf
+from . import ideas as qi
 from . import options as om
 from .book import MAX_LOSS_PCT_CAP, STRUCTURES, PricedTrade, SignalEvent, build_book, worst_exit_cost
 from .ledger import LedgerResult
 
 __all__ = [
-    "GATE", "IN_SAMPLE_FRACTION", "MONTE_CARLO_PATHS", "OWNER_LOSER_EXIT_DTE", "TRADING_DAYS", "Caps", "Combined",
-    "combine", "correlation", "daily_returns", "equal_risk", "expiry_close_fee", "gate_checks", "hold_options",
-    "inverse_volatility", "monte_carlo", "out_of_sample_sharpe", "owner_rule_trades", "sharpe", "shrunk_sharpe",
-    "trade_pnl", "window_metrics",
+    "GATE", "HOSTS", "IN_SAMPLE_FRACTION", "MONTE_CARLO_PATHS", "OVERLAY_IDEAS", "OWNER_LOSER_EXIT_DTE", "SLEEVES",
+    "TRADING_DAYS", "Caps", "Combined", "combine", "correlation", "daily_returns", "equal_risk", "expiry_close_fee",
+    "gate_checks", "hold_options", "inverse_volatility", "monte_carlo", "out_of_sample_sharpe", "owner_rule_trades",
+    "qc_candidates", "sharpe", "shrunk_sharpe", "trade_pnl", "window_metrics",
 ]
 
 OWNER_LOSER_EXIT_DTE = 3
@@ -127,6 +128,47 @@ def owner_rule_trades(definition: Mapping, data: pf.Dataset, *, start: str) -> t
             collected.append((final.entry_date, leg.order, final.entry_index, final))
     collected.sort(key=lambda item: item[:3])
     return tuple(dataclasses.replace(item[3], trade_id=number) for number, item in enumerate(collected, start=1))
+
+
+# --------------------------------------------------------------------------- candidates
+
+# Sleeve of each QuantConnect idea port.
+SLEEVES = {
+    "qc-asset-class-trend": "trend", "qc-futures-trend-carry": "trend", "qc-momentum-rotation": "rotation",
+    "qc-turn-of-the-month": "seasonality", "qc-opex-week": "seasonality", "qc-same-month-seasonality": "seasonality",
+    "qc-oil-predicts-equity": "macro", "qc-gold-fed-model": "macro", "qc-regime-put-vrp": "vol premium",
+    "qc-iv-rank-gate": "vol premium", "qc-vix-term-gate": "vol premium",
+}
+# Gate ideas: run A is a gate on a put-credit host (its run B). A gate is an overlay; it holds no budget.
+OVERLAY_IDEAS = frozenset({"qc-iv-rank-gate", "qc-vix-term-gate", "qc-regime-put-vrp"})
+# The ungated hosts of the gate ideas (run key -> slug): the vol-premium candidates.
+HOSTS = {"put-credit/B": "put-credit-host-spy", "iv-rank-gate/B": "put-credit-host-core7"}
+
+
+def qc_candidates(runs: Mapping[str, qi.RunSpec]) -> list[dict]:
+    """Run A of every idea with its always-on baseline B, then the put-credit hosts.
+
+    Each item: key, slug, name, sleeve, role (strategy, overlay or host), definition, start,
+    baseline (run key, None for a host) and study (the key of the same run in the 2026-11-08 study).
+    """
+    out = []
+    for idea in qi.IDEAS:
+        if [label for label, _ in idea.runs[:2]] != ["A", "B"]:
+            raise ValueError(f"{idea.id}: runs[0] must be A and runs[1] the baseline B")
+        primary, baseline = runs[idea.key("A")], runs[idea.key("B")]
+        out.append({"key": primary.key, "slug": idea.id, "name": f"{idea.title}: {primary.name}",
+                    "sleeve": SLEEVES[idea.id], "role": "overlay" if idea.id in OVERLAY_IDEAS else "strategy",
+                    "definition": primary.definition, "start": primary.start, "baseline": baseline.key,
+                    "study": primary.key})
+    hosted = {runs[idea.key("B")].key for idea in qi.IDEAS if idea.id in OVERLAY_IDEAS}
+    if hosted != set(HOSTS):
+        raise ValueError(f"HOSTS must be the baselines of the gate ideas: {sorted(hosted)}")
+    for key, slug in HOSTS.items():
+        host = runs[key]
+        out.append({"key": host.key, "slug": slug, "name": f"Put-credit host: {host.name}", "sleeve": "vol premium",
+                    "role": "host", "definition": host.definition, "start": host.start, "baseline": None,
+                    "study": host.key})
+    return out
 
 
 # --------------------------------------------------------------------------- portfolio

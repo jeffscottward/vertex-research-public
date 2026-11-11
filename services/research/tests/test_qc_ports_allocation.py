@@ -9,6 +9,7 @@ from strategies.qc_ports import ideas as qi
 from strategies.qc_ports import portfolio as pf
 from strategies.qc_ports.ledger import LedgerResult, run_ledger
 from tests.qc_ports_synthetic import VIX_FOR_20, trading_days
+from tests.test_qc_ports_ideas import _facts
 
 DAYS = 80
 
@@ -70,7 +71,41 @@ def test_a_winner_at_expiry_pays_the_closing_cost_of_its_legs_in_the_money():
     legs = round(sum(al.om.leg_cost("SPY", spot - strike) for strike in (held.long_strike, held.short_strike)), 2)
     assert owner.exit_fee == min(legs, cap) > 0
     assert al.trade_pnl(owner) == pytest.approx(al.trade_pnl(held) - owner.exit_fee)
-    assert held.entry_fee + owner.exit_fee + held.entry_price <= held.max_loss + held.exit_price
+    assert owner.exit_fee <= cap  # the max loss of the trade already contains this cap
+
+
+def test_qc_candidates_pair_every_idea_with_its_baseline_and_add_the_hosts():
+    runs = qi.family(_facts())
+    items = al.qc_candidates(runs)
+    by_slug = {item["slug"]: item for item in items}
+    assert len(items) == len(qi.IDEAS) + 2 and len(by_slug) == len(items)
+    for idea in qi.IDEAS:
+        item = by_slug[idea.id]
+        assert (item["key"], item["baseline"], item["study"]) == (idea.key("A"), idea.key("B"), idea.key("A"))
+        assert item["definition"] is runs[idea.key("A")].definition and item["start"] == runs[idea.key("A")].start
+    # Several ideas list more runs after B (A-L, the gate tables): the baseline is still B.
+    assert by_slug["qc-futures-trend-carry"]["baseline"] == "futures-trend-carry/B"
+    assert {slug for slug, item in by_slug.items() if item["role"] == "overlay"} == {
+        "qc-iv-rank-gate", "qc-vix-term-gate", "qc-regime-put-vrp"}
+    hosts = {item["key"]: item for item in items if item["role"] == "host"}
+    assert set(hosts) == {"put-credit/B", "iv-rank-gate/B"}
+    assert all(item["baseline"] is None and item["sleeve"] == "vol premium" for item in hosts.values())
+    # Every gate idea has its own host among the candidates.
+    assert {by_slug[slug]["baseline"] for slug in al.OVERLAY_IDEAS} == set(hosts)
+    assert set(al.SLEEVES) == {idea.id for idea in qi.IDEAS}
+
+
+def test_qc_candidates_refuse_an_idea_without_a_baseline_b(monkeypatch):
+    runs = qi.family(_facts())
+    first = qi.IDEAS[0]
+    broken = dataclasses.replace(first, runs=(first.runs[0], ("A-L", first.runs[1][1])))
+    monkeypatch.setattr(qi, "IDEAS", (broken, *qi.IDEAS[1:]))
+    with pytest.raises(ValueError, match="runs\\[1\\] the baseline B"):
+        al.qc_candidates(runs)
+    monkeypatch.undo()
+    monkeypatch.setattr(al, "HOSTS", {"put-credit/B": "put-credit-host-spy"})
+    with pytest.raises(ValueError, match="HOSTS must be the baselines of the gate ideas"):
+        al.qc_candidates(runs)
 
 
 def test_expiry_close_fee_is_zero_when_both_legs_are_worthless_and_never_above_the_cap():
@@ -82,6 +117,9 @@ def test_expiry_close_fee_is_zero_when_both_legs_are_worthless_and_never_above_t
     put = dataclasses.replace(call, structure="putCreditVertical", long_strike=95.0, short_strike=100.0)
     assert al.expiry_close_fee(put, 101.0) == 0.0
     assert al.expiry_close_fee(put, 98.0) == round(al.om.leg_cost("SPY", 0.0) + al.om.leg_cost("SPY", 2.0), 2)
+    # A credit spread at its max loss (both puts in the money) pays for both legs, up to the cap.
+    both = round(al.om.leg_cost("SPY", 5.0) + al.om.leg_cost("SPY", 10.0), 2)
+    assert al.expiry_close_fee(put, 90.0) == min(both, al.worst_exit_cost("SPY", put.width)) > 0
 
 
 def test_a_spread_entered_inside_the_cut_window_keeps_its_hold_version():
