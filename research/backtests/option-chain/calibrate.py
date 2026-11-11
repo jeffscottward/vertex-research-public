@@ -11,8 +11,8 @@ report says "not ready" and the model constants stay as they are.
   python3 research/backtests/option-chain/calibrate.py --store ~/.local/share/vertex/option-chain \
       [--out <report work dir>/option-chain-calibration.json]
 
-The JSON has `proposed.halfSpread`, `proposed.callSlope` and `proposed.putSlope` per symbol, the keys
-that research/backtests/allocation/sensitivity.py uses for its measured model.
+The JSON has `proposed.halfSpread` (fraction of the mid), `proposed.callSlope` and `proposed.putSlope`
+per symbol.
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 
 SCHEMA = 1
+SNAPSHOT_SCHEMA = 2  # the summary.json schema of snapshot.py that this report reads
 MIN_DAYS = 20
 ROOT = Path(__file__).resolve().parents[3]
 MODEL = ROOT / "services/research/strategies/qc_ports/options.py"
@@ -40,16 +41,26 @@ def day_value(items: list[dict]) -> dict | None:
             "putSlope": statistics.fmean(puts)}
 
 
-def load_days(store: Path) -> dict[str, dict[str, dict]]:
-    """symbol -> day -> day value, from the latest run of each day that has quotes for the symbol."""
+def load_days(store: Path) -> tuple[dict[str, dict[str, dict]], list[str]]:
+    """(symbol -> day -> day value, the run files left out). A day value comes from the latest run of the
+    day that has quotes for the symbol. A file is left out when it is damaged or has another schema
+    (another method of measurement): `snapshot.py --remeasure` writes it again from the stored CSV files."""
     out: dict[str, dict[str, dict]] = {}
+    skipped = []
     for path in sorted(store.glob("*/*/summary.json")):  # day, then run time: later runs replace earlier ones
-        summary = json.loads(path.read_text())
-        for symbol, items in summary["symbols"].items():
-            value = day_value(items)
+        try:
+            summary = json.loads(path.read_text())
+            if summary["schema"] != SNAPSHOT_SCHEMA:
+                raise ValueError(f"schema {summary['schema']}, not {SNAPSHOT_SCHEMA}")
+            day = summary["day"]
+            values = {symbol: day_value(items) for symbol, items in summary["symbols"].items()}
+        except (ValueError, KeyError, TypeError, AttributeError) as error:  # JSONDecodeError is a ValueError
+            skipped.append(f"{path}: {type(error).__name__}: {error}")
+            continue
+        for symbol, value in values.items():
             if value is not None:
-                out.setdefault(symbol, {})[summary["day"]] = value
-    return out
+                out.setdefault(symbol, {})[day] = value
+    return out, skipped
 
 
 def spread_of(values: list[float]) -> dict:
@@ -62,7 +73,7 @@ def spread_of(values: list[float]) -> dict:
 
 def calibrate(store: Path, model: dict, min_days: int = MIN_DAYS) -> dict:
     """The report: per symbol the day count and the statistics, the proposal and whether it is ready."""
-    days = load_days(store)
+    days, skipped = load_days(store)
     symbols = {}
     for symbol in model["halfSpread"]:
         values = days.get(symbol, {})
@@ -75,7 +86,7 @@ def calibrate(store: Path, model: dict, min_days: int = MIN_DAYS) -> dict:
     proposed = {key: {symbol: round(entry[key]["median"], digits) for symbol, entry in symbols.items() if entry[key]}
                 for key, digits in (("halfSpread", 4), ("callSlope", 3), ("putSlope", 3))}
     return {"schema": SCHEMA, "store": str(store), "minDays": min_days, "ready": ready,
-            "daysMin": min(counted, default=0), "daysMax": max(counted, default=0), "symbols": symbols, "proposed": proposed}
+            "daysMin": min(counted, default=0), "daysMax": max(counted, default=0), "skipped": skipped, "symbols": symbols, "proposed": proposed}
 
 
 def table(report: dict) -> str:
@@ -91,6 +102,7 @@ def table(report: dict) -> str:
                      f"| {entry['model']['slope']:+.2f} | {cell(entry['callSlope'], 1, 3)} | {cell(entry['putSlope'], 1, 3)} |")
     state = "ready" if report["ready"] else "not ready"
     lines.append(f"\n{state}: {report['daysMin']} of {report['minDays']} days (the symbol with the fewest days)")
+    lines.extend(f"left out: {entry}" for entry in report["skipped"])
     return "\n".join(lines)
 
 

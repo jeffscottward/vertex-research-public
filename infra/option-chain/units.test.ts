@@ -46,7 +46,7 @@ const runWrapper = (env: Record<string, string>, runner = "runner"): string => {
   mkdirSync(join(root, runner), { recursive: true });
   writeFileSync(
     join(shims, "uv"),
-    '#!/usr/bin/env bash\necho "args:${*//"$HOME"/HOME} cwd:${PWD#"$HOME"/}"\n'
+    '#!/usr/bin/env bash\necho "args:${*//"$HOME"/HOME} cwd:${PWD#"$HOME"/}"\nexit "${FAKE_UV_EXIT:-0}"\n'
   );
   chmodSync(join(shims, "uv"), 0o755);
   const result = spawnSync("bash", [WRAPPER], {
@@ -59,6 +59,8 @@ const runWrapper = (env: Record<string, string>, runner = "runner"): string => {
       ...env,
     },
   });
+  // The unit state is the exit code of the snapshot: 1 marks a failed or incomplete run.
+  expect(result.status).toBe(Number(env.FAKE_UV_EXIT ?? "0"));
   return result.stdout.trim();
 };
 
@@ -98,6 +100,12 @@ describe("vertex-option-chain units", () => {
   it("the wrapper writes to OPTION_CHAIN_STORE when it is set", () => {
     expect(runWrapper({ OPTION_CHAIN_STORE: "/data/chains" })).toBe(
       `args:${SNAPSHOT_ARGS} /data/chains cwd:runner`
+    );
+  });
+
+  it("the wrapper passes the exit code of the snapshot through", () => {
+    expect(runWrapper({ FAKE_UV_EXIT: "1" })).toBe(
+      `args:${SNAPSHOT_ARGS} HOME/.local/share/vertex/option-chain cwd:runner`
     );
   });
 

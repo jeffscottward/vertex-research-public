@@ -2,11 +2,12 @@
 
 Research only. The option model of the qc-ports runner (`services/research/strategies/qc_ports/options.py`)
 assumes two things that the public price data cannot show: the bid/ask half-spread per leg
-(`HALF_SPREAD_PCT`) and the volatility skew (`SKEW`). A one-day chain snapshot on 2026-11-11 (allocation
-study, card `vertex-allocation-plan`) showed that both assumptions are off: SPY and QQQ trade at a
-half-spread of about 0.4% of the mid (model 1% and 1.5%), the call wing is flatter than the model, and DIA
-and USO are wider than the model. One day is not a history, so this directory collects the chain every
-trading day and turns the days into proposed constants (card `vertex-option-model-calibration`).
+(`HALF_SPREAD_PCT`) and the volatility skew (`SKEW`). The first stored day (2026-11-11) does not agree
+with the assumptions: SPY and QQQ quote a half-spread of about 0.4% of the mid (model 1% and 1.5%), DIA
+and USO are wider than the model (3.7% and 4.5%, model 3% and 4%), and the SPY call wing is flatter than
+the model (slope -0.18, model -0.30) while the put wing is close to it (-0.29). One day is not a history,
+so this directory collects the chain every trading day and turns the days into proposed constants (card
+`vertex-option-model-calibration`).
 
 It creates no order and reads no account. The data is free public Yahoo data, 15 minutes delayed.
 
@@ -21,19 +22,32 @@ It creates no order and reads no account. The data is free public Yahoo data, 15
 
 ## What one run measures
 
-For each ETF and expiry, from the quotes with a bid above zero, an ask above the bid and an implied
-volatility:
+For each ETF and expiry, from the quotes with a bid above zero and an ask above the bid:
 
 - **Half-spread** in percent of the mid for four reference legs: the at-the-money call, the call one
   standard deviation out of the money, the put at about 25 delta and the put half a standard deviation
   further out.
+- **Implied volatility** of each quote, computed from its mid: Black-76 on the forward that put-call
+  parity gives near the money (median over the strikes within 3% of spot), with a fixed 4% rate for the
+  discount factor. The implied-volatility column of Yahoo is not used. Its calls and puts disagree at the
+  same strike (SPY at the money on day 1: 15.5% and 13.1%), and that shifts the wing slopes (SPY on day 1:
+  the call slope by +0.04, the put slope by +0.05).
 - **Skew slope** of each wing: the least-squares slope of IV / ATM IV against the standardized moneyness
   `x = ln(K/S) / (ATM IV * sqrt(T))`, through the point (0, 1), for calls with x from 0 to 1.5 and for puts
   with x from -1.5 to 0. This is the quantity `smile_iv` uses.
 
-A run measures only while the option market trades: SPY must have an option trade in the last 45 minutes.
-On a weekend, on a holiday or after the close the bid and ask are stale; the run then writes nothing and
-exits 0. When one ETF fails, the run writes the others with `"complete": false` and exits 1.
+An expiry is not measured when fewer than three strikes near the money have a call and a put quote, or
+when the nearest quoted strike is more than 2% from spot.
+
+A run measures only while the option market trades: a weekday between 09:45 and 16:00 New York time, and
+SPY with an option trade in the last 45 minutes (this covers holidays and half days). Otherwise the bid
+and ask are stale; the run then writes nothing and exits 0.
+
+Failures exit 1, so the systemd unit shows them:
+
+- Yahoo sends no data for SPY (three attempts): nothing is written.
+- One ETF fails, or one of its expiries has no usable quotes: the run writes the rest, with
+  `"complete": false` and the reason in `errors`.
 
 ## Store
 
@@ -41,14 +55,15 @@ exits 0. When one ETF fails, the run writes the others with `"complete": false` 
 ETF, expiry and side (about 0.5 MB per run). The store is local data and is not committed. A day counts
 once per ETF in the calibration: the latest run of the day that has quotes for the ETF.
 
-`summary.json` has the shape that `research/backtests/allocation/sensitivity.py --chain` reads.
+The CSV files are the record. When the method of measurement changes, `snapshot.py --remeasure <run
+directory>` writes `summary.json` again from them, and `calibrate.py` leaves out a summary of another
+schema until then.
 
 ## Run
 
 ```bash
-# One snapshot (while the US market is open):
-uv run --no-project --python 3.12 --with yfinance==0.2.66 \
-    python research/backtests/option-chain/snapshot.py --store ~/.local/share/vertex/option-chain
+# One snapshot (while the US market is open), with the same pinned packages as the timer:
+OPTION_CHAIN_RUNNER_DIR="$PWD" infra/option-chain/vertex-option-chain-run
 
 # The report:
 python3 research/backtests/option-chain/calibrate.py --store ~/.local/share/vertex/option-chain
@@ -65,5 +80,5 @@ results of every options backtest:
 
 - `HALF_SPREAD_PCT`: the proposed half-spread per ETF (median over the days of the mean over the four legs).
   The report also gives the 75th percentile; quoted spreads widen in stress.
-- `SKEW`: the model has one slope per ETF for both wings. The chains show two (SPY on day 1: calls -0.14,
-  puts -0.24), so the replacement needs a call slope and a put slope per ETF in `smile_iv`.
+- `SKEW`: the model has one slope per ETF for both wings. The chains show two (SPY on day 1: calls -0.18,
+  puts -0.29), so the replacement needs a call slope and a put slope per ETF in `smile_iv`.
