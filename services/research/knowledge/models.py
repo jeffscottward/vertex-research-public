@@ -29,7 +29,7 @@ COLLECTIONS = {
         (("discovered", 1700), ("transcripts", 1663), ("uniqueTrimmedBodies", 1602), ("duplicateMappings", 61), ("transcriptFailures", 29), ("downloadFailures", 8)),
         ("Uploader attribution is not speaker identification; retain collaboration and authorship conflicts.", "Later reels are separately dated additions; not a complete paid newsletter archive.")),
     "jay-medrow": Collection("jay-medrow", "instagram", "Jay Medrow (captured profile; personal attribution unverified)", ("U25", "U26"), "documented",
-        (),
+        (("discovered", 671), ("transcripts", 189), ("transcriptCaptured", 188), ("duplicateMappings", 1), ("captionOcrCaptured", 482), ("nonVideo", 0)),
         ("Captured profile instagram.com/jay_medrow; documented acquisition is not all-time completeness or personal identity verification.",
          "Image/carousel text is caption plus local slide OCR, not speech; it is machine-extracted and unreviewed.",
          "Private catalog registration and local acquisition establish no license, model-use, redistribution or execution rights.")),

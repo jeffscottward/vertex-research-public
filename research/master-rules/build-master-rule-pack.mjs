@@ -193,6 +193,15 @@ const OVERRIDES = {
   C751: { cls: "D", reason: "Prop-account payout buffer rule." },
   C758: { cls: "D", reason: "Prop-account stacking rule." },
   C759: { cls: "D", reason: "Prop-firm evaluation budget rule." },
+  // Hand review 2026-11-11 (Jay Medrow merge, knowledge-bases master rules; owner ranks the source top tier with Crown).
+  // Physical-metal holdings are outside the options-only book.
+  C811: { cls: "D", reason: "Physical-metal holding; options-only book." },
+  C857: { cls: "D", reason: "Physical bullion holding; options-only book." },
+  C829: {
+    cls: "B",
+    reason:
+      "Jobs-report trend reading uses macro data we already pull (OpenBB macro), not a breadth series.",
+  },
 };
 
 export function classifyCluster(c, debated = new Map()) {
