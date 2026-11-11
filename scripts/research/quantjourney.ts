@@ -39,6 +39,7 @@ import {
   typescriptEngine,
   typescriptRunner,
 } from "./dsl-engine.ts";
+import { manifestSourceCounts } from "./fetch-sources.ts";
 import { renderDoc } from "./quantjourney-render.ts";
 
 export const RESEARCH_DIR = "research/backtests/quantjourney";
@@ -665,6 +666,19 @@ export const fileInputs = async (
   };
 };
 
+const QUANTJOURNEY_FETCH = "research/backtests/quantjourney/fetch_data.py";
+
+/**
+ * The data source label of a re-run: the daily files per source recorded in manifest.json
+ * (`files.<file>.sources`, hourly files Yahoo), or the Yahoo label of a fetch made before that record existed.
+ */
+export const quantjourneySource = (manifestText: string): string => {
+  const counts = manifestSourceCounts(manifestText);
+  return counts === undefined
+    ? `Yahoo Finance via yfinance 0.2.66 (${QUANTJOURNEY_FETCH})`
+    : `daily files by source: ${counts}; hourly: Yahoo via yfinance (${QUANTJOURNEY_FETCH})`;
+};
+
 /**
  * Builds results.json. `prepare` picks the engine and gets every DSL job first, so Nautilus runs
  * one batch per price table; the price tables are cached so both passes use the same tables.
@@ -777,8 +791,7 @@ export const runQuantJourneyCli = async (
           {
             generated: io.now().toISOString().slice(0, 10),
             manifestSha256: io.sha256(manifest),
-            source:
-              "Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py)",
+            source: quantjourneySource(manifest),
           },
           prepareEngine(options.engine, {
             ...io.nautilus,

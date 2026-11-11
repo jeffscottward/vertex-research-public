@@ -118348,6 +118348,20 @@
               "default": 72,
               "type": "number"
             }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "filings"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -118458,6 +118472,15 @@
                                     }
                                   ]
                                 },
+                                "source": {
+                                  "enum": [
+                                    "ibkr",
+                                    "reuters",
+                                    "seekingalpha",
+                                    "yahoo"
+                                  ],
+                                  "type": "string"
+                                },
                                 "tags": {
                                   "items": {
                                     "enum": [
@@ -118479,13 +118502,21 @@
                                   "type": "string"
                                 },
                                 "url": {
-                                  "maxLength": 2048,
-                                  "type": "string"
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 2048,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 }
                               },
                               "required": [
                                 "publishedAt",
                                 "publisher",
+                                "source",
                                 "tags",
                                 "title",
                                 "url"
