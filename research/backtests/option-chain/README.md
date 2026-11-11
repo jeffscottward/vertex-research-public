@@ -59,6 +59,11 @@ The CSV files are the record. When the method of measurement changes, `snapshot.
 directory>` writes `summary.json` again from them, and `calibrate.py` leaves out a summary of another
 schema until then.
 
+`summary.json` keeps the keys that `research/backtests/allocation/sensitivity.py --chain` reads (`fetchedAt`,
+`source` and, per expiry, `halfSpreadPct`, `callSlope` and `putSlope`). A stored run can therefore take the
+place of the one-day snapshot of `research/backtests/allocation/fetch_chain_snapshot.py`, which uses the
+implied-volatility column of Yahoo.
+
 ## Run
 
 ```bash
