@@ -145,7 +145,7 @@ Ran 2026-11-11 on the rig: `python -m strategies.noise_band_futures_run` (`servi
 - The trading rules are those of commit `e49308bd`, the spec commit made before any run.
 - After the first run, review round 1 reworded rules 2 and 9 to describe what the code already did. Behaviour is
   unchanged.
-- Review round 1 also corrected the data handling of six sessions. Each of them follows a QQQ session that misses bars,
+- Review rounds 1 and 2 also corrected the data handling of six sessions. Each of them follows a QQQ session that misses bars,
   and each now serves only as a reference (previous close and σ history) and is not traded. The before-the-paper mean
   moved from −2.99 to −3.00.
 - Data: 5,513 QQQ sessions 2004-12-01 to 2026-11-06 (6 skipped for missing bars, 6 reference-only), 89 dividend
