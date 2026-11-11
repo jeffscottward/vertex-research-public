@@ -8,8 +8,9 @@ Postgres.
 
 Result on 2026-11-11 (data to 2026-11-10): **36 of the 42 strategies now have an options form with an own
 NautilusTrader run. In the study model none of them passes the gate and none passes the owner's lower bar.**
-With the option model the allocation study measured for the Core 7, three forms pass the lower bar; none of
-them does better than its always-on baseline. The other 6 strategies are not run (reasons below). The report with
+With the option model the allocation study measured for the Core 7, three forms pass the lower bar: one is
+below its always-on baseline, one equals it within 0.01, and the iron condor has no baseline. The other 6
+strategies are not run (reasons below). The report with
 the tables is outside the repository (rig reports directory `vertex-options-forms`).
 
 ## Files
@@ -155,8 +156,8 @@ G1 and G2 (own NautilusTrader run, defined-risk options form) hold for every for
 The baseline of check G7 is the always-on form of the same universe (a call spread on every symbol, the next
 one the day after the last one closed, same exit rule). Pairs and the iron condor have no long-only baseline.
 The spreads of a symbol follow each other on the monthly expiries, so the day of the first entry sets every later
-entry day: there are two chains, about a month apart, and the Sharpe of the basket differs between them (by 0.05
-to 0.2 in the table below). The baseline Sharpe is therefore the mean of two runs that start 0 and 21 days after
+entry day: there are two chains, about a month apart, and the Sharpe of the basket differs between them (by 0.00
+to 0.18 in the table below). The baseline Sharpe is therefore the mean of two runs that start 0 and 21 days after
 the first IV value; the first runs on NautilusTrader, the second in the reference ledger only. A form has the
 same dependence on its entry days; read a Sharpe difference of that size as noise.
 
@@ -253,7 +254,7 @@ diagnostic runs: the measured Core 7 model and commissions only.
 
 ### Always-on baselines
 
-| Form | Underlyings, IV | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Sharpe of the 3 start phases | Lower bar | Sharpe, measured Core 7 | Lower bar, measured Core 7 | Sharpe, commissions only | Lower bar, commissions only |
+| Form | Underlyings, IV | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Sharpe of the 2 start phases | Lower bar | Sharpe, measured Core 7 | Lower bar, measured Core 7 | Sharpe, commissions only | Lower bar, commissions only |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: | --- | ---: | --- |
 | `base/futures4` | 4, index | +0.14 | +0.36 | 0.00 | 78% | -37.3% | +1.0% | 585 | +0.14 / +0.21 | fail | +0.37 | fail | +0.29 | fail |
 | `base/spy` | 1, index | +0.12 | +0.39 | 0.00 | 74% | -28.3% | +0.5% | 203 | +0.12 / +0.12 | fail | +0.32 | pass | +0.18 | fail |
@@ -283,10 +284,11 @@ Reading:
 - Study model: the best form is the volatility-targeted momentum `qj/W18` (Sharpe +0.18, max drawdown -23%). It
   passes the lower bar only without a bid/ask spread. It needs measured quotes of EFA, EEM, TLT, IEF, DBC and VNQ
   before it can be judged.
-- Measured Core 7 model: the always-on Core 7 basket goes from +0.08 to +0.33. The trailing-stop trend `qj/O09`
-  (+0.31, baseline +0.34) and the 10-month SMA timing on SPY (+0.33, always-on SPY +0.32) pass the lower bar
-  because the index call spread does. Their timing rule adds nothing. This repeats the finding of the allocation
-  study.
+- Measured Core 7 model: the always-on Core 7 basket goes from +0.08 to +0.33. The 10-month SMA timing on SPY
+  (+0.33) passes the lower bar as the always-on SPY spread does (+0.32). The trailing-stop trend `qj/O09` (+0.31)
+  has a lower Sharpe than its baseline (+0.34); it passes with a max drawdown of -24.99% against the limit of
+  -25%, and the always-on Core 7 basket fails on its drawdown (-40%). Neither timing rule adds Sharpe to the
+  index call spread. This repeats the finding of the allocation study.
 - The short strangle as an iron condor passes the lower bar in the measured model: Sharpe +0.34, 84% winners, max
   drawdown -6%, +0.5% a year at 1% risk per side. It is the only passer that is not a long index call spread. Its
   Sharpe is -0.01 in the study model and +0.19 with commissions only, so the pass depends on the skew of one

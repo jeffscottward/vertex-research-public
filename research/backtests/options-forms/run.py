@@ -226,7 +226,7 @@ def main() -> None:
             first = min(first_iv_day(markets[symbol]) for symbol in form.symbols)
             dates = [day for day in dataset.calendar if day >= max(first, START)]
             run = {"priced": book.trades, "refused": book.refused, "result": None, "gap": None, "dates": dates,
-                   "alwaysOn": fm.is_always_on(fm.stance_of(form, inputs)), "phases": None}
+                   "alwaysOn": fm.is_always_on(fm.stance_of(form, inputs), form.symbols), "phases": None}
             done[form.key] = run
             if not book.trades:
                 log(f"form {form.key}: no trade")

@@ -132,10 +132,14 @@ def always_on_after(delay: int) -> Rule:
     return rule
 
 
-def is_always_on(stance: Mapping[str, Sequence[int]]) -> bool:
-    """True when every symbol is long on every bar from its first long bar (the stance of a baseline that
-    starts late): such a form holds the always-on basket of its universe."""
-    return all(1 in sides and all(side == 1 for side in sides[list(sides).index(1):]) for sides in stance.values())
+def is_always_on(stance: Mapping[str, Sequence[int]], symbols: Sequence[str]) -> bool:
+    """True when every one of `symbols` is flat until its first long bar and long on every bar after it
+    (the stance of a baseline that starts late): such a form holds the always-on basket of its universe."""
+    def late_baseline(sides: Sequence[int]) -> bool:
+        first = next((index for index, side in enumerate(sides) if side != 0), len(sides))
+        return first < len(sides) and all(side == 1 for side in sides[first:])
+
+    return bool(symbols) and all(symbol in stance and late_baseline(stance[symbol]) for symbol in symbols)
 
 
 def stance_of(form: Form, inputs: Inputs) -> dict[str, list[int]]:

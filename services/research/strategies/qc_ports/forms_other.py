@@ -191,7 +191,7 @@ def divergence_sides(z_values: Sequence[float | None], entry: float = DIVERGENCE
 def _pair_rule(first: str, second: str, z_of: Callable[[Sequence[float], Sequence[float]], list[float | None]],
                sides_of: Callable[[Sequence[float | None]], list[int]]) -> Rule:
     """`first` gets the side of the z-score rule and `second` the opposite side. Both are flat before the
-    later first IV value of the two: a pair is one position, so no leg trades alone."""
+    later first IV value of the two."""
 
     def rule(inputs: Inputs) -> dict[str, list[int]]:
         made = panel(inputs, (first, second))

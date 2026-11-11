@@ -171,10 +171,14 @@ def test_a_split_and_a_distribution_on_one_date_multiply():
 
 
 def test_a_form_that_is_long_from_its_first_long_bar_on_is_the_always_on_basket():
-    assert fm.is_always_on({"SPY": [0, 0, 1, 1], "QQQ": [1, 1, 1, 1]})
-    assert not fm.is_always_on({"SPY": [0, 1, 0, 1]})
-    assert not fm.is_always_on({"SPY": [0, 0, 0, 0]})
-    assert not fm.is_always_on({"SPY": [1, 1], "QQQ": [1, -1]})
+    assert fm.is_always_on({"SPY": [0, 0, 1, 1], "QQQ": [1, 1, 1, 1]}, ("SPY", "QQQ"))
+    assert not fm.is_always_on({"SPY": [0, 1, 0, 1]}, ("SPY",))
+    assert not fm.is_always_on({"SPY": [0, 0, 0, 0]}, ("SPY",))
+    assert not fm.is_always_on({"SPY": [1, 1], "QQQ": [1, -1]}, ("SPY", "QQQ"))
+    # Short and then long is no baseline; neither is a form that leaves out a symbol of its universe.
+    assert not fm.is_always_on({"SPY": [-1, -1, 1, 1]}, ("SPY",))
+    assert not fm.is_always_on({"SPY": [1, 1]}, ("SPY", "QQQ"))
+    assert not fm.is_always_on({}, ())
 
 
 def test_pricing_on_the_window_is_pricing_on_the_whole_market():
