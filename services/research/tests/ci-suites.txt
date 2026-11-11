@@ -111,4 +111,5 @@ tests/test_volspike_study.py
 tests/test_noise_band.py
 tests/test_noise_band_0dte.py
 tests/test_noise_band_futures.py
+tests/test_noise_band_futures_run.py
 tests/test_noise_band_retest.py
