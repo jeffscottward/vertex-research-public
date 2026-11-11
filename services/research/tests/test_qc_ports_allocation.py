@@ -57,6 +57,85 @@ def test_a_winner_runs_to_expiry_without_profit_take_or_exit_dte():
     assert [trade.trade_id for trade in owner] == list(range(1, len(owner) + 1))
 
 
+def test_a_winner_at_expiry_pays_the_closing_cost_of_its_legs_in_the_money():
+    data = _data([100 + 0.4 * day for day in range(DAYS)])
+    options = al.hold_options(qi.MONTHLY_CALL) | {"dte": {"target": 30, "min": 21}}
+    made = qi.definition("t", options, book=qi.portfolio(["SPY"], "flat", cadence="daily"))
+    held = pf.run_definition(made, data, start="2024-01-02").priced[0]
+    owner = al.owner_rule_trades(made, data, start="2024-01-02")[0]
+    assert (held.exit_reason, held.exit_fee) == ("expiry", 0.0)
+    spot = pf.market_of(data, "SPY").close[held.exit_index]
+    assert spot > held.short_strike > held.long_strike  # both call legs in the money
+    cap = al.worst_exit_cost("SPY", held.width)
+    legs = round(sum(al.om.leg_cost("SPY", spot - strike) for strike in (held.long_strike, held.short_strike)), 2)
+    assert owner.exit_fee == min(legs, cap) > 0
+    assert al.trade_pnl(owner) == pytest.approx(al.trade_pnl(held) - owner.exit_fee)
+    assert held.entry_fee + owner.exit_fee + held.entry_price <= held.max_loss + held.exit_price
+
+
+def test_expiry_close_fee_is_zero_when_both_legs_are_worthless_and_never_above_the_cap():
+    call = _trade(1, "SPY", "2024-01-02", "2024-01-03")
+    assert al.expiry_close_fee(call, 99.0) == 0.0
+    one_leg = al.expiry_close_fee(call, 103.0)
+    assert one_leg == round(al.om.leg_cost("SPY", 3.0) + al.om.leg_cost("SPY", 0.0), 2)
+    assert al.expiry_close_fee(call, 500.0) == al.worst_exit_cost("SPY", call.width)
+    put = dataclasses.replace(call, structure="putCreditVertical", long_strike=95.0, short_strike=100.0)
+    assert al.expiry_close_fee(put, 101.0) == 0.0
+    assert al.expiry_close_fee(put, 98.0) == round(al.om.leg_cost("SPY", 0.0) + al.om.leg_cost("SPY", 2.0), 2)
+
+
+def test_a_spread_entered_inside_the_cut_window_keeps_its_hold_version():
+    data = _data([100 - 0.4 * day for day in range(DAYS)])
+    market = pf.market_of(data, "SPY")
+    options = {"structure": "putCreditVertical", "dte": {"target": 7, "min": 1}, "shortDelta": 0.25, "widthSigma": 0.5,
+               "maxLossPct": 2}
+    signal = market.dates.index("2024-01-16")  # enters on Wednesday 01-17, two days before the 01-19 expiry
+    held = al.build_book([al.SignalEvent("SPY", signal)], options, {"SPY": market}).trades[0]
+    assert (held.entry_date, held.expiry, held.exit_reason) == ("2024-01-17", "2024-01-19", "expiry")
+    # The book refuses the second version (exitDte at entry), so the hold version stays, with its closing cost.
+    final = al._owner_exit(held, options, market)
+    assert (final.exit_date, final.exit_reason) == (held.exit_date, "expiry")
+    assert final.exit_fee == al.expiry_close_fee(held, market.close[held.exit_index])
+
+
+def test_owner_rule_on_a_monthly_roll_of_two_symbols():
+    days = 130
+    rows = {}
+    dates = list(trading_days("2024-01-02", days))
+    for symbol, index, drift in (("SPY", "VIX", 0.3), ("QQQ", "VXN", -0.3)):
+        values = [100 + drift * day for day in range(days)]
+        rows[symbol] = {"dates": dates, **{key: list(values) for key in ("open", "high", "low", "close", "adjClose")}}
+        rows[index] = {"dates": dates, "close": [VIX_FOR_20] * days}
+    rows["IRX"] = {"dates": dates, "close": [0.0] * days}
+    data = pf.dataset_from_rows(rows)
+    made = qi.definition("t", qi.MONTHLY_CALL, book=qi.portfolio(["SPY", "QQQ"], "roll"))
+    studied = pf.run_definition(made, data, start="2024-01-02").priced
+    owner = al.owner_rule_trades(made, data, start="2024-01-02")
+    assert [(t.symbol, t.entry_date, t.exit_date, t.exit_reason) for t in owner] == [
+        (t.symbol, t.entry_date, t.exit_date, t.exit_reason) for t in studied]  # 60-day spreads roll before the cut
+    assert {t.symbol for t in owner} == {"SPY", "QQQ"} and {t.exit_reason for t in owner} <= {"signal", "end"}
+    assert [t.trade_id for t in owner] == list(range(1, len(owner) + 1))
+
+
+def test_gate_checks_pass_fail_and_missing_values():
+    good = {"trades": 30, "sharpe": 0.5, "oosSharpe": 0.5, "deflatedSharpe": 0.95, "maxDrawdown": -0.25,
+            "monteCarlo": {"probabilityOfProfit": 0.8, "drawdownP5": -0.35}}
+    checks = al.gate_checks(good, 0.4)
+    assert len(checks) == 8 and all(check["pass"] for check in checks)
+    assert [check["check"] for check in al.gate_checks(good, None)] == [check["check"] for check in checks[:7]]
+    assert not al.gate_checks(good, 0.5)[-1]["pass"]  # equal to the baseline is not above it
+    for key, bad in (("trades", 29), ("sharpe", 0.49), ("oosSharpe", 0.49), ("deflatedSharpe", 0.949),
+                     ("maxDrawdown", -0.26)):
+        failed = [check for check in al.gate_checks({**good, key: bad}, 0.4) if not check["pass"]]
+        assert len(failed) == 1 and failed[0]["value"] == bad
+    for carlo in ({"probabilityOfProfit": 0.79, "drawdownP5": -0.35}, {"probabilityOfProfit": 0.8, "drawdownP5": -0.36}):
+        assert sum(not check["pass"] for check in al.gate_checks({**good, "monteCarlo": carlo}, 0.4)) == 1
+    empty = al.gate_checks({"trades": 0, "sharpe": None, "oosSharpe": None, "deflatedSharpe": None, "maxDrawdown": None,
+                            "monteCarlo": None}, 0.1)
+    assert not any(check["pass"] for check in empty)
+    assert al.gate_checks({**good, "deflatedSharpe": math.nan}, None)[3]["pass"] is False
+
+
 def test_a_loser_closes_three_days_before_expiry():
     data = _data([100 - 0.4 * day for day in range(DAYS)])
     held = pf.run_definition(_definition(al.hold_options(qi.PUT_CREDIT)), data, start="2024-01-02").priced

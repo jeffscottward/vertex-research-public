@@ -30,16 +30,6 @@ from strategies.qc_ports.ledger import run_ledger  # noqa: E402
 from strategies.qc_ports.metrics import summarize  # noqa: E402
 from strategies.qc_ports.nautilus_runner import run_nautilus  # noqa: E402
 
-# The eligibility gate. Every threshold is an existing repository constant.
-GATE = {
-    "minTrades": 30,            # AUTOPILOT_GATE (packages/api/src/autopilot-gate.ts)
-    "minSharpe": 0.5,           # study.PASS_SHARPE
-    "minOosSharpe": 0.5,        # AUTOPILOT_GATE out-of-sample Sharpe, last 40% of the bars
-    "minDeflatedSharpe": 0.95,  # AUTOPILOT_GATE, quantjourney.ts DSR_MIN_PROBABILITY
-    "minMonteCarloProfit": 0.8,     # AUTOPILOT_GATE monteCarloProfitMin
-    "minMonteCarloDrawdownP5": -0.35,  # AUTOPILOT_GATE monteCarloDrawdownP5Min
-    "maxDrawdown": -0.25,       # study.PASS_DRAWDOWN
-}
 # Portfolio limits (owner rules and the Monte Carlo sizing budget of backtest-analytics.ts).
 DRAWDOWN_LIMIT_PCT = 20.0
 OPEN_RISK_CAP_PCT = 10.0
@@ -48,8 +38,13 @@ POSITION_RISK_CAP_PCT = 2.0
 # Risk of one bench position: the smallest size that still buys one 60-day one-sigma SPY or QQQ
 # call spread at the account value of the study.
 POSITION_RISK_PCT = 1.0
-# Gate ideas: overlays of the put-credit host, not strategies with their own budget.
-OVERLAYS = frozenset({"qc-iv-rank-gate", "qc-vix-term-gate"})
+# Gate ideas: overlays of a put-credit host, not strategies with their own budget. The vol premium
+# sleeve is the ungated SPY host (the baseline B of the regime and VIX-term ideas).
+OVERLAYS = frozenset({"qc-iv-rank-gate", "qc-vix-term-gate", "qc-regime-put-vrp"})
+HOST_KEY = "put-credit/B"
+HOST_SLUG = "put-credit-host"
+# Always-on baseline of the QuantJourney options forms: the same monthly call spread on the Core 7.
+QJ_BASELINE = "asset-class-trend/B"
 # Options form of the QuantJourney daily definitions (fixed before the first run): the monthly
 # call debit vertical of the qc study on the Core 7 ETF twins, one open spread per symbol.
 QJ_DAILY = ("O01", "O02", "O06", "O12", "O13", "O18", "W01", "W03")
@@ -73,20 +68,24 @@ def qj_candidates(library_path: Path) -> list[dict]:
         made["portfolio"] = qi.portfolio(qi.CORE7, "flat", cadence="daily")
         sleeve = "mean reversion" if "meanrev" in item["styles"] else "trend"
         out.append({"key": f"qj/{code}", "slug": item["slug"], "name": item["name"], "sleeve": sleeve,
-                    "definition": made, "start": QJ_START, "baseline": None, "study": None})
+                    "definition": made, "start": QJ_START, "baseline": QJ_BASELINE, "study": None})
     return out
 
 
-def qc_candidates(data: study.StudyData) -> tuple[list[dict], dict]:
-    runs = qi.family(data.facts)
+def qc_candidates(runs: dict) -> list[dict]:
+    """Run A of every idea with its baseline B (study.document reads the same two labels), and the host."""
     out = []
     for idea in qi.IDEAS:
-        primary = runs[idea.runs[0][1]]
-        baseline = runs[idea.runs[-1][1]] if len(idea.runs) > 1 else None
+        if [label for label, _ in idea.runs[:2]] != ["A", "B"]:
+            raise ValueError(f"{idea.id}: runs[0] must be A and runs[1] the baseline B")
+        primary, baseline = runs[idea.key("A")], runs[idea.key("B")]
         out.append({"key": primary.key, "slug": idea.id, "name": f"{idea.title}: {primary.name}",
                     "sleeve": SLEEVES[idea.id], "definition": primary.definition, "start": primary.start,
-                    "baseline": None if baseline is None or baseline.key == primary.key else baseline.key, "study": primary.key})
-    return out, runs
+                    "baseline": baseline.key, "study": primary.key})
+    host = runs[HOST_KEY]
+    out.append({"key": host.key, "slug": HOST_SLUG, "name": f"Put-credit host: {host.name}", "sleeve": "vol premium",
+                "definition": host.definition, "start": host.start, "baseline": None, "study": host.key})
+    return out
 
 
 def nautilus_run(trades, capital: float, dates):
@@ -117,24 +116,6 @@ def run_stats(result, priced, capital: float, n_trials: int, trial_variance: flo
         "timeInCash": 1 - exposure_days / len(result.open_positions),
         "maxOpenRisk": pf.max_open_risk(result, priced), "sizeSkips": len(result.skipped), "exitReasons": reasons,
     }
-
-
-def gate_checks(stats: dict, baseline_sharpe: float | None) -> list[dict]:
-    carlo = stats["monteCarlo"] or {"probabilityOfProfit": 0.0, "drawdownP5": -1.0}
-    deflated = stats["deflatedSharpe"]
-    checks = [
-        ("G3 trades >= 30", stats["trades"] >= GATE["minTrades"], stats["trades"]),
-        ("G4 Sharpe >= 0.5", stats["sharpe"] >= GATE["minSharpe"], stats["sharpe"]),
-        ("G4 out-of-sample Sharpe >= 0.5", stats["oosSharpe"] >= GATE["minOosSharpe"], stats["oosSharpe"]),
-        ("G5 deflated Sharpe >= 0.95", deflated is not None and deflated >= GATE["minDeflatedSharpe"], deflated),
-        ("G6 Monte Carlo P(profit) >= 0.80", carlo["probabilityOfProfit"] >= GATE["minMonteCarloProfit"],
-         carlo["probabilityOfProfit"]),
-        ("G6 Monte Carlo drawdown p5 >= -35%", carlo["drawdownP5"] >= GATE["minMonteCarloDrawdownP5"], carlo["drawdownP5"]),
-        ("G7 max drawdown <= 25%", stats["maxDrawdown"] >= GATE["maxDrawdown"], stats["maxDrawdown"]),
-    ]
-    if baseline_sharpe is not None:
-        checks.append(("G7 Sharpe above its always-on baseline", stats["sharpe"] > baseline_sharpe, baseline_sharpe))
-    return [{"check": name, "pass": bool(ok), "value": value} for name, ok, value in checks]
 
 
 def returns_by_day(result) -> dict[str, float]:
@@ -189,50 +170,53 @@ def main() -> None:
     outcomes, family_metrics, family_variance = study.run_family(data, nautilus=True, progress=lambda key: log(f"family {key}"))
     family_daily = {key: study.daily_sharpe(outcome.result) for key, outcome in outcomes.items() if outcome.run.counted}
 
-    # 2. Every candidate under the owner exit rule, on Nautilus, at the account capital.
-    qc, _runs = qc_candidates(data)
-    candidates = qc + qj_candidates(args.library)
-    owner: dict[str, dict] = {}
+    # 2. Every candidate and every baseline under the owner exit rule, on Nautilus, at the account capital.
+    runs = qi.family(data.facts)
+    candidates = qc_candidates(runs) + qj_candidates(args.library)
+    todo = {item["key"]: (item["definition"], item["start"]) for item in candidates}
     for item in candidates:
-        priced = al.owner_rule_trades(item["definition"], dataset, start=item["start"])
-        dates = [day for day in dataset.calendar if day >= item["start"]]
+        if item["baseline"] and item["baseline"] not in todo:
+            todo[item["baseline"]] = (runs[item["baseline"]].definition, runs[item["baseline"]].start)
+    owner: dict[str, dict] = {}
+    for key, (made, first) in todo.items():
+        priced = al.owner_rule_trades(made, dataset, start=first)
+        dates = [day for day in dataset.calendar if day >= first]
         result, gap, engine = nautilus_run(priced, args.capital, dates)
-        owner[item["key"]] = {"priced": priced, "result": result, "gap": gap, "engine": engine}
-        log(f"owner-rule {item['key']} trades {len(result.trades)} gap {gap:.2g}")
+        owner[key] = {"priced": priced, "result": result, "gap": gap, "engine": engine}
+        log(f"owner-rule {key} trades {len(result.trades)} gap {gap:.2g}")
     owner_daily = {key: study.daily_sharpe(value["result"]) for key, value in owner.items()}
     n_trials = len(family_daily) + len(owner_daily)
     trial_variance = variance([*family_daily.values(), *owner_daily.values()])
+    owner_sharpe = {key: al.sharpe(al.daily_returns(value["result"].equity)) for key, value in owner.items()}
 
     rows = []
     for item in candidates:
         run = owner[item["key"]]
         stats = run_stats(run["result"], run["priced"], args.capital, n_trials, trial_variance)
-        baseline = family_metrics[item["baseline"]]["sharpe"] if item["baseline"] else None
-        checks = gate_checks(stats, baseline)
-        as_studied = None
-        if item["study"]:
-            metrics = family_metrics[item["study"]]
-            as_studied = {key: metrics[key] for key in ("sharpe", "deflatedSharpe", "cagr", "maxDrawdown", "trades", "start")}
-        rows.append({"key": item["key"], "slug": item["slug"], "name": item["name"], "sleeve": item["sleeve"],
+        baseline = owner_sharpe[item["baseline"]] if item["baseline"] else None
+        checks = al.gate_checks(stats, baseline)
+        metrics = family_metrics.get(item["study"]) if item["study"] else None
+        as_studied = metrics and {key: metrics[key] for key in ("sharpe", "deflatedSharpe", "cagr", "maxDrawdown", "trades", "start")}
+        role = "overlay" if item["slug"] in OVERLAYS else "host" if item["slug"] == HOST_SLUG else "strategy"
+        rows.append({"key": item["key"], "slug": item["slug"], "name": item["name"], "sleeve": item["sleeve"], "role": role,
                      "start": item["start"], "ownerRule": stats, "asStudied": as_studied, "baselineKey": item["baseline"],
-                     "baselineSharpe": baseline, "checks": checks, "eligible": all(check["pass"] for check in checks),
+                     "baselineSharpe": baseline, "checks": checks, "passesGate": all(check["pass"] for check in checks),
                      "nautilusGap": run["gap"], "openToday": open_today(run["priced"], last_day),
                      "symbols": sorted({t.symbol for t in run["priced"]})})
 
     # 3. Bench: not eligible, but the least bad (positive Sharpe after costs under the owner rule).
-    # A gate idea is an overlay of the put-credit host, and a run with the same daily equity as an
+    # A gate idea is an overlay of a put-credit host, and a run with the same daily equity as an
     # earlier one is the same trades (its stop or bracket has no options form): neither holds a budget.
     by_key = {row["key"]: row for row in rows}
     seen: dict[tuple, str] = {}
     for row in rows:
-        row["role"] = "overlay" if row["slug"] in OVERLAYS else "strategy"
-        row["duplicateOf"] = seen.setdefault(owner[row["key"]]["result"].equity, row["key"])
-        if row["duplicateOf"] == row["key"]:
-            row["duplicateOf"] = None
-    holders = [row for row in rows if row["role"] == "strategy" and row["duplicateOf"] is None]
-    eligible = [row["key"] for row in rows if row["eligible"]]
-    bench = [row["key"] for row in holders if not row["eligible"] and row["ownerRule"]["sharpe"] > 0]
-    pool = [row["key"] for row in holders if row["eligible"]] or bench
+        first = seen.setdefault(owner[row["key"]]["result"].equity, row["key"])
+        row["duplicateOf"] = None if first == row["key"] else first
+        row["eligible"] = row["passesGate"] and row["role"] != "overlay" and row["duplicateOf"] is None
+    holders = [row for row in rows if row["role"] != "overlay" and row["duplicateOf"] is None]
+    eligible = [row["key"] for row in holders if row["eligible"]]
+    bench = [row["key"] for row in holders if not row["eligible"] and (row["ownerRule"]["sharpe"] or 0.0) > 0]
+    pool = eligible or bench
     start = max(by_key[key]["start"] for key in pool) if pool else last_day
     dates = [day for day in dataset.calendar if day >= start]
     daily = {key: {day: value for day, value in returns_by_day(owner[key]["result"]).items() if day >= start} for key in pool}
@@ -246,12 +230,17 @@ def main() -> None:
                            "volatility": stdev(series.values()) * math.sqrt(al.TRADING_DAYS)}
                     for name, series in sleeve_daily.items()}
     sleeve_matrix = {a: {b: al.correlation(sleeve_daily[a], sleeve_daily[b]) for b in members} for a in members}
-    years = dict.fromkeys(members, len(dates) / al.TRADING_DAYS)
+    # Shrinkage reads each member's own full record (a longer record keeps more of its Sharpe).
+    for name, keys in members.items():
+        sleeve_stats[name]["recordSharpe"] = sum(by_key[key]["ownerRule"]["sharpe"] for key in keys) / len(keys)
+        sleeve_stats[name]["recordYears"] = sum(by_key[key]["ownerRule"]["days"] for key in keys) / len(keys) / al.TRADING_DAYS
     methods = {
         "equalRisk": al.equal_risk(list(members)),
         "inverseVolatility": al.inverse_volatility({name: sleeve_stats[name]["volatility"] for name in members}),
-        "shrunkSharpe": al.shrunk_sharpe({name: sleeve_stats[name]["sharpe"] for name in members}, years),
+        "shrunkSharpe": al.shrunk_sharpe({name: sleeve_stats[name]["recordSharpe"] for name in members},
+                                         {name: sleeve_stats[name]["recordYears"] for name in members}),
     }
+    portfolio_trials = n_trials + 2 * len(methods)  # each method runs twice (strategy order and its reverse)
 
     # 4. One account. A sleeve's budget is its share of the open-risk cap (the worst-case loss of
     # everything open at once); its strategies share that budget; a position risks POSITION_RISK_PCT
@@ -266,7 +255,11 @@ def main() -> None:
         books = {key: [t for t in owner[key]["priced"] if t.entry_date >= start] for key in pool}
         combined = al.combine(books, risk, caps)
         result, gap, engine = nautilus_run(combined.trades, args.capital, dates)
-        stats = run_stats(result, combined.trades, args.capital, n_trials, trial_variance)
+        stats = run_stats(result, combined.trades, args.capital, portfolio_trials, trial_variance)
+        # combine is first come, first served: the same books in reverse order show how much that decides.
+        turned = al.combine(dict(reversed(list(books.items()))), risk, caps)
+        turned_result, _gap, _engine = nautilus_run(turned.trades, args.capital, dates)
+        turned_stats = run_stats(turned_result, turned.trades, args.capital, portfolio_trials, trial_variance)
         cost_of = {t.trade_id: t.max_loss for t in combined.trades}
         per_strategy: dict[str, dict] = {key: {"trades": 0, "pnl": 0.0} for key in pool}
         for trade in result.trades:
@@ -277,6 +270,7 @@ def main() -> None:
             "sleeveShare": shares, "sleeveBudgetPct": budget, "riskPerPositionPct": risk,
             "cashPct": 100 - sum(budget.values()),
             "stats": stats, "nautilusGap": gap, "engine": engine, "refused": combined.refused, "perStrategy": per_strategy,
+            "reverseOrder": {key: turned_stats[key] for key in ("cagr", "sharpe", "maxDrawdown", "trades")},
             "premium": _open_premium(result, combined.trades),
             "openToday": [{"strategy": combined.owner[t["id"]], "symbol": t["symbol"], "structure": t["structure"],
                            "expiry": t["expiry"], "longStrike": t["longStrike"], "shortStrike": t["shortStrike"],
@@ -292,10 +286,12 @@ def main() -> None:
     document = {
         "generatedFor": last_day, "capital": args.capital, "engine": next(iter(owner.values()))["engine"],
         "nautilusTrader": study.provenance("", data, True, "")["engine"], "dataSha256": data.manifest,
-        "gate": GATE, "limits": {"drawdownLimitPct": DRAWDOWN_LIMIT_PCT, "openRiskCapPct": OPEN_RISK_CAP_PCT,
+        "gate": al.GATE, "limits": {"drawdownLimitPct": DRAWDOWN_LIMIT_PCT, "openRiskCapPct": OPEN_RISK_CAP_PCT,
                                  "nameRiskCapPct": NAME_RISK_CAP_PCT, "positionRiskPct": POSITION_RISK_PCT,
                                  "positionRiskCapPct": POSITION_RISK_CAP_PCT},
-        "trials": {"count": n_trials, "family": len(family_daily), "ownerRule": len(owner_daily), "dailySharpeVariance": trial_variance},
+        "trials": {"count": n_trials, "family": len(family_daily), "ownerRule": len(owner_daily),
+                   "portfolio": portfolio_trials, "dailySharpeVariance": trial_variance},
+        "baselinesOwnerRule": {key: owner_sharpe[key] for key in owner if key not in by_key},
         "familyAsStudied": {key: {name: metrics[name] for name in ("sharpe", "deflatedSharpe", "cagr", "maxDrawdown", "trades")}
                             for key, metrics in family_metrics.items()},
         "candidates": rows, "eligible": eligible, "bench": bench, "portfolioStart": start,

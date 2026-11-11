@@ -10,15 +10,21 @@ expiry; an open winner closes on expiry day. `owner_rule_trades` applies it to o
   ends at its signal exit, at expiry (intrinsic value at that close) or at the end of the data;
 - each trade is priced a second time with `exitDte` = OWNER_LOSER_EXIT_DTE (calendar days: a
   Friday expiry closes on Tuesday, 3 trading days before, when no holiday falls in between);
-- the second version replaces the first when it closed on `exitDte` at a loss
-  (exit reason `ownerLoserCut`). The slot of a `flat` or `window` leg still frees on the first
-  version's exit date, so the later trades of the leg do not move.
+- the second version replaces the first when it closed on `exitDte` at a loss after its closing
+  cost (exit reason `ownerLoserCut`). The slot of a `flat` or `window` leg still frees on the first
+  version's exit date, so the later trades of the leg do not move;
+- a spread that reaches expiry with a leg in the money pays the modeled closing cost (the owner
+  closes it before the bell; book.py settles it without costs). A spread with both legs out of
+  the money expires without a trade and without a cost.
 
 Portfolio: `combine` puts the trades of several strategies into one account. Each strategy has
 a risk per position (percent of equity, the trade's `max_loss_pct`) and belongs to a sleeve; a new
 trade is refused when the open risk of the account, of its sleeve, of its underlying or the number
 of open positions would pass the caps. The combined trades run in ledger.run_ledger and
-nautilus_runner.run_nautilus like any run.
+nautilus_runner.run_nautilus like any run. Limits of `combine`: it is first come, first served, so
+the order of the strategies decides who gets a contested slot; a refused entry is not tried again
+later; a position counts with its budget even when the ledger then sizes it to 0 contracts; and
+the caps are shares of the equity at each entry, not of the equity on a later day.
 
 Statistics: out-of-sample Sharpe (last 40% of the days, the Autopilot gate split), a bootstrap
 Monte Carlo of the trade P&L (the method of packages/api/src/backtest-analytics.ts), Pearson
@@ -37,13 +43,15 @@ from statistics import mean, stdev
 from nautilus_backtest import signals as sig
 
 from . import portfolio as pf
-from .book import MAX_LOSS_PCT_CAP, PricedTrade, SignalEvent, build_book
+from . import options as om
+from .book import MAX_LOSS_PCT_CAP, STRUCTURES, PricedTrade, SignalEvent, build_book, worst_exit_cost
 from .ledger import LedgerResult
 
 __all__ = [
-    "IN_SAMPLE_FRACTION", "MONTE_CARLO_PATHS", "OWNER_LOSER_EXIT_DTE", "TRADING_DAYS", "Caps", "Combined",
-    "combine", "correlation", "daily_returns", "equal_risk", "hold_options", "inverse_volatility", "monte_carlo",
-    "out_of_sample_sharpe", "owner_rule_trades", "sharpe", "shrunk_sharpe", "trade_pnl", "window_metrics",
+    "GATE", "IN_SAMPLE_FRACTION", "MONTE_CARLO_PATHS", "OWNER_LOSER_EXIT_DTE", "TRADING_DAYS", "Caps", "Combined",
+    "combine", "correlation", "daily_returns", "equal_risk", "expiry_close_fee", "gate_checks", "hold_options",
+    "inverse_volatility", "monte_carlo", "out_of_sample_sharpe", "owner_rule_trades", "sharpe", "shrunk_sharpe",
+    "trade_pnl", "window_metrics",
 ]
 
 OWNER_LOSER_EXIT_DTE = 3
@@ -71,16 +79,34 @@ def _same_entry(a: PricedTrade, b: PricedTrade) -> bool:
         b.symbol, b.entry_index, b.expiry, b.long_strike, b.short_strike, b.entry_price, b.entry_fee)
 
 
+def expiry_close_fee(trade: PricedTrade, spot: float) -> float:
+    """Cost per contract of closing `trade` at `spot` on its expiry day; 0 when both legs are out of the money.
+
+    The same cost model as book.py: commission and half-spread per leg on the leg's intrinsic value,
+    at most book.worst_exit_cost (the package-close cap the max loss already contains).
+    """
+    right = STRUCTURES[trade.structure][0]
+    values = [max(0.0, spot - strike) if right == "call" else max(0.0, strike - spot)
+              for strike in (trade.long_strike, trade.short_strike)]
+    if not any(values):
+        return 0.0
+    cost = round(sum(om.leg_cost(trade.symbol, value) for value in values), 2)
+    return min(cost, worst_exit_cost(trade.symbol, trade.width))
+
+
 def _owner_exit(trade: PricedTrade, options: Mapping, market) -> PricedTrade:
-    """`trade` (priced without time exits), or its loser cut 3 days before expiry."""
+    """`trade` (priced without time exits) with its expiry closing cost, or its loser cut 3 days before expiry."""
     exit_signal = trade.exit_index - 1 if trade.exit_reason == "signal" else None
     event = SignalEvent(trade.symbol, trade.entry_index - 1, exit_signal)
     again = build_book([event], options, {trade.symbol: market}).trades
     if len(again) != 1 or not _same_entry(again[0], trade) or again[0].exit_index != trade.exit_index:
         raise RuntimeError(f"Could not price {trade.symbol} {trade.entry_date} again from its signal bars")
-    cut = build_book([event], {**options, "exitDte": OWNER_LOSER_EXIT_DTE}, {trade.symbol: market}).trades[0]
-    if cut.exit_reason == "exitDte" and trade_pnl(cut) < 0:
-        return dataclasses.replace(cut, trade_id=trade.trade_id, exit_reason=OWNER_CUT_REASON)
+    # No second version when the spread is entered inside the cut window (the book skips it).
+    cuts = build_book([event], {**options, "exitDte": OWNER_LOSER_EXIT_DTE}, {trade.symbol: market}).trades
+    if cuts and cuts[0].exit_reason == "exitDte" and trade_pnl(cuts[0]) < 0:
+        return dataclasses.replace(cuts[0], trade_id=trade.trade_id, exit_reason=OWNER_CUT_REASON)
+    if trade.exit_reason == "expiry":
+        return dataclasses.replace(trade, exit_fee=expiry_close_fee(trade, market.close[trade.exit_index]))
     return trade
 
 
@@ -176,6 +202,51 @@ def combine(books: Mapping[str, Sequence[PricedTrade]], risk_pct: Mapping[str, f
         owner[number] = key
         open_trades.append((trade.exit_date, trade.symbol, risk, sleeve))
     return Combined(tuple(accepted), owner, refused)
+
+
+# --------------------------------------------------------------------------- gate
+
+# The eligibility gate of the allocation study. Every threshold is an existing repository constant.
+GATE = {
+    "minTrades": 30,                   # AUTOPILOT_GATE (packages/api/src/autopilot-gate.ts)
+    "minSharpe": 0.5,                  # study.PASS_SHARPE
+    "minOosSharpe": 0.5,               # AUTOPILOT_GATE out-of-sample Sharpe, last 40% of the bars
+    "minDeflatedSharpe": 0.95,         # AUTOPILOT_GATE, quantjourney.ts DSR_MIN_PROBABILITY
+    "minMonteCarloProfit": 0.8,        # AUTOPILOT_GATE monteCarloProfitMin
+    "minMonteCarloDrawdownP5": -0.35,  # AUTOPILOT_GATE monteCarloDrawdownP5Min
+    "maxDrawdown": -0.25,              # study.PASS_DRAWDOWN
+}
+
+
+def _at_least(value: float | None, floor: float) -> bool:
+    return value is not None and math.isfinite(value) and value >= floor
+
+
+def gate_checks(stats: Mapping, baseline_sharpe: float | None) -> list[dict]:
+    """The checks G3 to G7 of one run: [{check, pass, value}]. A missing value fails its check.
+
+    `stats`: trades, sharpe, oosSharpe, deflatedSharpe, maxDrawdown and monteCarlo (monte_carlo's
+    result or None). `baseline_sharpe`: the Sharpe of the always-on baseline under the same exit
+    rule, or None for a run that is itself a baseline (the check is then left out).
+    """
+    carlo = stats.get("monteCarlo") or {}
+    checks = [
+        ("G3 trades >= 30", _at_least(stats.get("trades"), GATE["minTrades"]), stats.get("trades")),
+        ("G4 Sharpe >= 0.5", _at_least(stats.get("sharpe"), GATE["minSharpe"]), stats.get("sharpe")),
+        ("G4 out-of-sample Sharpe >= 0.5", _at_least(stats.get("oosSharpe"), GATE["minOosSharpe"]), stats.get("oosSharpe")),
+        ("G5 deflated Sharpe >= 0.95", _at_least(stats.get("deflatedSharpe"), GATE["minDeflatedSharpe"]),
+         stats.get("deflatedSharpe")),
+        ("G6 Monte Carlo P(profit) >= 0.80", _at_least(carlo.get("probabilityOfProfit"), GATE["minMonteCarloProfit"]),
+         carlo.get("probabilityOfProfit")),
+        ("G6 Monte Carlo drawdown p5 >= -35%", _at_least(carlo.get("drawdownP5"), GATE["minMonteCarloDrawdownP5"]),
+         carlo.get("drawdownP5")),
+        ("G7 max drawdown <= 25%", _at_least(stats.get("maxDrawdown"), GATE["maxDrawdown"]), stats.get("maxDrawdown")),
+    ]
+    if baseline_sharpe is not None:
+        sharpe_value = stats.get("sharpe")
+        checks.append(("G7 Sharpe above its always-on baseline",
+                       sharpe_value is not None and sharpe_value > baseline_sharpe, baseline_sharpe))
+    return [{"check": name, "pass": bool(ok), "value": value} for name, ok, value in checks]
 
 
 # --------------------------------------------------------------------------- statistics
