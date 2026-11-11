@@ -277,6 +277,11 @@ describe("agent API key scope", () => {
       "flow.snapshot",
       "breadth90.collect",
       "breadth90.get",
+      "marketNotes.add",
+      "marketNotes.get",
+      "marketNotes.list",
+      "marketNotes.recordChecks",
+      "marketNotes.review",
     ]);
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(

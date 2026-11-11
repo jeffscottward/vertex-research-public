@@ -38,7 +38,9 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // openbb.* is a root: the OpenBB tick (scripts/openbb/tick.ts) writes ingest and recordRun with a
 // write key, and research agents read the other openbb.* procedures with a read key.
 // The breadth-90 rig tick pushes sessions with a write key (breadth90.collect) and research agents
-// read the signal with a read key (breadth90.get).
+// read the signal with a read key (breadth90.get). The market-notes rig intake stores a note,
+// records claim checks and reviews a note with a write key (marketNotes.add, recordChecks, review),
+// and research agents read notes with a read key (marketNotes.list, marketNotes.get).
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -53,6 +55,11 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "flow.snapshot",
   "breadth90.collect",
   "breadth90.get",
+  "marketNotes.add",
+  "marketNotes.get",
+  "marketNotes.list",
+  "marketNotes.recordChecks",
+  "marketNotes.review",
 ]);
 
 export const isAgentApiKeyProcedurePath = (
@@ -83,7 +90,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, breadth90.collect and breadth90.get",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, breadth90.collect, breadth90.get, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks and marketNotes.review",
       })
     );
   }

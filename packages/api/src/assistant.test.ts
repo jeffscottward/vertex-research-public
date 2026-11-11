@@ -8,13 +8,20 @@ import type {
   AssistantActionRecord,
   AssistantActionsRepository,
   AssistantRepository,
+  MarketNoteRecord,
+  MarketNotesRepository,
   Repositories,
 } from "@darkfactory/db/server";
+import type {
+  SemanticEvent,
+  SemanticEventPort,
+} from "@darkfactory/observability/port";
 import { ORPCError } from "@orpc/client";
 import { call } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
+import { MARKET_NOTE_CONTEXT_HEADER } from "./market-notes.ts";
 import {
   AssistantPageContextSchema,
   type AssistantSendEvent,
@@ -1007,7 +1014,8 @@ const denied = () =>
 
 const repositoriesFor = (
   assistant: AssistantRepository,
-  assistantActions: AssistantActionsRepository | undefined
+  assistantActions: AssistantActionsRepository | undefined,
+  marketNotes?: MarketNotesRepository
 ): Repositories => ({
   addresses: {} as Repositories["addresses"],
   adminUsers: {} as Repositories["adminUsers"],
@@ -1017,6 +1025,7 @@ const repositoriesFor = (
   profiles: {} as Repositories["profiles"],
   userPreferences: {} as Repositories["userPreferences"],
   ...(assistantActions === undefined ? {} : { assistantActions }),
+  ...(marketNotes === undefined ? {} : { marketNotes }),
 });
 
 const writeKeys = () => {
@@ -1051,6 +1060,10 @@ type Harness = Readonly<{
   /** Receives the tracked turn (the request scope's scheduleDatabaseTask). */
   schedule?: (task: Promise<unknown>) => void;
   chatUrl?: string;
+  /** The owner market notes store; absent means the deployment has none. */
+  marketNotes?: MarketNotesRepository;
+  /** Receives the structured events of the request. */
+  semanticEvents?: SemanticEventPort;
 }>;
 
 const contextFor = (request: Request, harness: Harness) => {
@@ -1059,9 +1072,13 @@ const contextFor = (request: Request, harness: Harness) => {
       harness.repository,
       harness.actions === null
         ? undefined
-        : (harness.actions ?? memoryAssistant().actionsRepository)
+        : (harness.actions ?? memoryAssistant().actionsRepository),
+      harness.marketNotes
     ),
     requestId: "request-1",
+    ...(harness.semanticEvents === undefined
+      ? {}
+      : { semanticEvents: harness.semanticEvents }),
     ...(harness.schedule === undefined
       ? {}
       : { scheduleDatabaseTask: harness.schedule }),
@@ -3724,5 +3741,249 @@ describe("assistant chart tools", () => {
       [undefined, ARTIFACT_NOT_STORED],
     ]);
     return expect(done.result.trace).toEqual(done.result.reply.toolCalls);
+  });
+});
+
+describe("assistant market notes context", () => {
+  const systemOf = (call: { body: Record<string, unknown> } | undefined) =>
+    String(
+      (call?.body["messages"] as Record<string, unknown>[] | undefined)?.[0]?.[
+        "content"
+      ]
+    );
+
+  // `at` is 2026-01-02: a review date of that day is still active.
+  const noteRecord = (
+    overrides: Partial<MarketNoteRecord> = {}
+  ): MarketNoteRecord => ({
+    affected: { sectors: [], strategies: [], tickers: ["NVDA"] },
+    asOf: "2025-12-30",
+    claims: [
+      {
+        checkedAt: "2025-12-31T15:30:00.000Z",
+        evidence: "SOXX +2.1% vs SPY +0.3%",
+        id: "c1",
+        status: "supported",
+        text: "Semis lead the tape",
+      },
+      {
+        checkedAt: null,
+        evidence: null,
+        id: "c2",
+        status: "unverified",
+        text: "Breadth is narrowing",
+      },
+    ],
+    createdAt: at,
+    id: "note-1",
+    ownerMessageUrl: null,
+    receivedAt: at,
+    reviewBy: "2026-01-02",
+    sourceAuthor: "Example Analyst",
+    sourceKey: "https://example.com/a",
+    sourceKind: "article",
+    sourceUrl: "https://example.com/a",
+    stance: "risk-off",
+    stanceConfidence: "medium",
+    status: "active",
+    theme: "Narrow breadth under a rising index",
+    updatedAt: at,
+    ...overrides,
+  });
+
+  const page = (notes: MarketNoteRecord[]) => ({ notes, truncated: false });
+
+  const sendWith = async (
+    listActive?: MarketNotesRepository["listActive"],
+    semanticEvents?: SemanticEventPort
+  ) => {
+    const memory = memoryAssistant();
+    const model = scriptedModel([() => completion({ content: "ok" })]);
+    const client = clientFor({
+      model,
+      repository: memory.repository,
+      ...(listActive === undefined
+        ? {}
+        : {
+            marketNotes: { listActive } as unknown as MarketNotesRepository,
+          }),
+      ...(semanticEvents === undefined ? {} : { semanticEvents }),
+    });
+    const thread = await client.assistant.threads.create({ title: "Notes" });
+    const result = await finish(
+      client.assistant.send({
+        message: "What does the owner think of semis?",
+        mode: "plan",
+        threadId: thread.id,
+      })
+    );
+    return { result, system: systemOf(model.calls[0]) };
+  };
+
+  it("adds the given note lines to the system prompt and changes nothing else", async () => {
+    const model = scriptedModel([
+      () => completion({ content: "ok" }),
+      () => completion({ content: "ok" }),
+      () => completion({ content: "ok" }),
+    ]);
+    const turn = (marketNotes?: readonly string[]) =>
+      runAssistantTurn({
+        budget: allowAll(),
+        callProcedure: okProcedure(),
+        client: clientWith(model.fetch),
+        history: [],
+        log: () => undefined,
+        message: "hi",
+        mode: "plan",
+        now: () => at,
+        ...(marketNotes === undefined ? {} : { marketNotes }),
+      });
+    const lines = [MARKET_NOTE_CONTEXT_HEADER, "Note as of 2025-12-30 | x"];
+    await turn();
+    await turn([]);
+    await turn(lines);
+    const [absent, empty, withNotes] = model.calls.map(systemOf);
+    // No notes: the prompt is exactly the prompt of a turn without the option.
+    expect(empty).toBe(absent);
+    expect(absent).not.toContain("Owner market notes");
+    expect(withNotes).toContain(
+      `${lines.join("\n")}\nToday is 2026-01-02 (UTC).`
+    );
+    expect(withNotes?.replace(`${lines.join("\n")}\n`, "")).toBe(absent);
+  });
+
+  it("assistant.send gives the model the active notes with their date and claim statuses", async () => {
+    const list = vi.fn(async (_today: string) =>
+      page([
+        noteRecord(),
+        noteRecord({
+          id: "note-2",
+          reviewBy: "2026-01-01",
+          theme: "An expired theme",
+        }),
+        noteRecord({
+          id: "note-3",
+          reviewBy: "2026-02-01",
+          status: "retired",
+          theme: "A retired theme",
+        }),
+      ])
+    );
+    const { result, system } = await sendWith(list);
+    expect(result.reply.content).toBe("ok");
+    // The store filters by status and review date for today (UTC) before its row limit.
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledWith("2026-01-02");
+    expect(system).toContain(
+      [
+        MARKET_NOTE_CONTEXT_HEADER,
+        "Note as of 2025-12-30 | source: article, by Example Analyst | theme: Narrow breadth under a rising index | stance: risk-off (confidence medium) | claims: 1 supported, 0 contradicted, 0 cannot-check, 1 unverified | affected: tickers NVDA | review by 2026-01-02",
+        "[supported] c1: Semis lead the tape | evidence: SOXX +2.1% vs SPY +0.3%",
+        "[unverified] c2: Breadth is narrowing",
+        "Today is 2026-01-02 (UTC).",
+      ].join("\n")
+    );
+    expect(system).not.toContain("An expired theme");
+    expect(system).not.toContain("A retired theme");
+  });
+
+  it("leaves the prompt unchanged with no store, no note or only expired and retired notes", async () => {
+    const { system: plain } = await sendWith();
+    expect(plain).not.toContain("Owner market notes");
+    expect(plain).toContain("Today is 2026-01-02 (UTC).");
+    await expect(sendWith(async () => page([]))).resolves.toMatchObject({
+      system: plain,
+    });
+    await expect(
+      sendWith(async () =>
+        page([
+          noteRecord({ reviewBy: "2026-01-01" }),
+          noteRecord({ id: "note-3", status: "retired" }),
+        ])
+      )
+    ).resolves.toMatchObject({ system: plain });
+  });
+
+  const noteEvents = () => {
+    const events: SemanticEvent[] = [];
+    const port: SemanticEventPort = {
+      emit: async (event) => {
+        if (event.name.startsWith("vertex.marketNotes.")) events.push(event);
+        return {
+          analytics: "skipped",
+          span: "skipped",
+          structuredEvent: "emitted",
+        };
+      },
+    };
+    return { events, port };
+  };
+
+  it("runs the turn without the block when the notes store fails, and reports the failure", async () => {
+    const { system: plain } = await sendWith();
+    const sink = noteEvents();
+    const failed = await sendWith(async () => {
+      throw new Error("connection refused");
+    }, sink.port);
+    expect(failed.result.reply.content).toBe("ok");
+    expect(failed.system).toBe(plain);
+    expect(sink.events).toHaveLength(1);
+    expect(sink.events[0]).toMatchObject({
+      action: "assistantContext",
+      correlation: {
+        procedure: "marketNotes.assistantContext",
+        requestId: "request-1",
+      },
+      errorCategory: "storage-error",
+      name: "vertex.marketNotes.assistantContext",
+      outcome: "failure",
+    });
+    // The error text stays out of the event.
+    expect(JSON.stringify(sink.events[0])).not.toContain("connection refused");
+    // Without an event sink the turn still runs.
+    const silent = await sendWith(async () => {
+      throw new Error("connection refused");
+    });
+    expect(silent.system).toBe(plain);
+  });
+
+  it("drops a stored row that does not match the contract, keeps the other notes and reports the row", async () => {
+    const sink = noteEvents();
+    const { result, system } = await sendWith(
+      async () =>
+        page([
+          noteRecord(),
+          noteRecord({
+            claims: "not an array" as never,
+            id: "note-2",
+            theme: "A broken row",
+          }),
+        ]),
+      sink.port
+    );
+    expect(result.reply.content).toBe("ok");
+    expect(system).toContain(
+      "theme: Narrow breadth under a rising index | stance: risk-off"
+    );
+    expect(system).not.toContain("A broken row");
+    expect(sink.events).toHaveLength(1);
+    expect(sink.events[0]).toMatchObject({
+      attributes: { count: 1, noteIds: "note-2" },
+      errorCategory: "invalid-stored-row",
+      name: "vertex.marketNotes.assistantContext",
+    });
+  });
+
+  it("keeps market_notes_list out of the assistant's tools in both modes", () => {
+    expect(ASSISTANT_DEFERRED_TOOL_PATTERN.test("market_notes_list")).toBe(
+      true
+    );
+    expect(ASSISTANT_DEFERRED_TOOL_PATTERN.test("openbb_macro")).toBe(true);
+    expect(ASSISTANT_DEFERRED_TOOL_PATTERN.test("terms_list")).toBe(false);
+    expect(MCP_TOOLS.map((tool) => tool.name)).toContain("market_notes_list");
+    for (const mode of ["plan", "act"] as const)
+      expect(
+        assistantToolsFor(mode).map((tool) => tool.function.name)
+      ).not.toContain("market_notes_list");
   });
 });

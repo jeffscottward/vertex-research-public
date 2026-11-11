@@ -143,6 +143,7 @@ import { priceAlertsRouter } from "./price-alerts.ts";
 import { openbbRouter } from "./openbb.ts";
 import { sectorRotationRouter } from "./sector-rotation.ts";
 import { breadth90Router } from "./breadth-90.ts";
+import { marketNotesRouter } from "./market-notes.ts";
 import { marketNewsRouter } from "./market-news.ts";
 import { basketsRouter } from "./baskets.ts";
 import { pickListsRouter } from "./pick-lists.ts";
@@ -1722,6 +1723,7 @@ export const appRouter = api.router({
   openbb: openbbRouter,
   sectorRotation: sectorRotationRouter,
   breadth90: breadth90Router,
+  marketNotes: marketNotesRouter,
   marketNews: marketNewsRouter,
   baskets: basketsRouter,
   pickLists: pickListsRouter,

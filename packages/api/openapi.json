@@ -118801,6 +118801,3572 @@
         ]
       }
     },
+    "/market-notes": {
+      "get": {
+        "operationId": "marketNotes.list",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "default": "all",
+              "enum": [
+                "active",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "sourceUrl",
+            "schema": {
+              "maxLength": 2000,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "asOf": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "notes": {
+                      "items": {
+                        "properties": {
+                          "affected": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "sectors": {
+                                "items": {
+                                  "maxLength": 60,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "maxItems": 12,
+                                "type": "array"
+                              },
+                              "strategies": {
+                                "items": {
+                                  "maxLength": 80,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "maxItems": 12,
+                                "type": "array"
+                              },
+                              "tickers": {
+                                "items": {
+                                  "pattern": "^[A-Z][A-Z0-9.-]{0,9}$",
+                                  "type": "string"
+                                },
+                                "maxItems": 30,
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "sectors",
+                              "strategies",
+                              "tickers"
+                            ],
+                            "type": "object"
+                          },
+                          "asOf": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "claims": {
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "checkedAt": {
+                                      "type": "null"
+                                    },
+                                    "evidence": {
+                                      "type": "null"
+                                    },
+                                    "id": {
+                                      "pattern": "^c(?:[1-9]|1[0-2])$",
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "const": "unverified"
+                                    },
+                                    "text": {
+                                      "maxLength": 500,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "checkedAt",
+                                    "evidence",
+                                    "id",
+                                    "status",
+                                    "text"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "checkedAt": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "evidence": {
+                                      "maxLength": 2000,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "id": {
+                                      "pattern": "^c(?:[1-9]|1[0-2])$",
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "supported",
+                                        "contradicted",
+                                        "cannot-check"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "text": {
+                                      "maxLength": 500,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "checkedAt",
+                                    "evidence",
+                                    "id",
+                                    "status",
+                                    "text"
+                                  ],
+                                  "type": "object"
+                                }
+                              ]
+                            },
+                            "maxItems": 12,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "id": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9_-]+$",
+                            "type": "string"
+                          },
+                          "ownerMessageUrl": {
+                            "anyOf": [
+                              {
+                                "maxLength": 2000,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "receivedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "reviewBy": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "source": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "author": {
+                                    "anyOf": [
+                                      {
+                                        "maxLength": 120,
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "reel",
+                                      "article"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "author",
+                                  "kind",
+                                  "url"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "author": {
+                                    "anyOf": [
+                                      {
+                                        "maxLength": 120,
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "kind": {
+                                    "const": "owner-text"
+                                  },
+                                  "url": {
+                                    "type": "null"
+                                  }
+                                },
+                                "required": [
+                                  "author",
+                                  "kind",
+                                  "url"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "stance": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "confidence": {
+                                "enum": [
+                                  "low",
+                                  "medium",
+                                  "high"
+                                ],
+                                "type": "string"
+                              },
+                              "direction": {
+                                "enum": [
+                                  "risk-on",
+                                  "risk-off",
+                                  "neutral"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "confidence",
+                              "direction"
+                            ],
+                            "type": "object"
+                          },
+                          "status": {
+                            "enum": [
+                              "active",
+                              "expired",
+                              "retired"
+                            ],
+                            "type": "string"
+                          },
+                          "theme": {
+                            "maxLength": 300,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "verification": {
+                            "properties": {
+                              "cannotCheck": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "checked": {
+                                "type": "boolean"
+                              },
+                              "contradicted": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "supported": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "unverified": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "cannotCheck",
+                              "checked",
+                              "contradicted",
+                              "supported",
+                              "unverified"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "affected",
+                          "asOf",
+                          "claims",
+                          "id",
+                          "ownerMessageUrl",
+                          "receivedAt",
+                          "reviewBy",
+                          "source",
+                          "stance",
+                          "status",
+                          "theme",
+                          "updatedAt",
+                          "verification"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 100,
+                      "type": "array"
+                    },
+                    "today": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "asOf",
+                    "notes",
+                    "today",
+                    "truncated"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market note not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market notes storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Owner market notes, newest first, each with its claim statuses and review date",
+        "tags": [
+          "Market notes"
+        ]
+      },
+      "post": {
+        "operationId": "marketNotes.add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "affected": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sectors": {
+                        "items": {
+                          "maxLength": 60,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 12,
+                        "type": "array"
+                      },
+                      "strategies": {
+                        "items": {
+                          "maxLength": 80,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 12,
+                        "type": "array"
+                      },
+                      "tickers": {
+                        "items": {
+                          "pattern": "^[A-Z][A-Z0-9.-]{0,9}$",
+                          "type": "string"
+                        },
+                        "maxItems": 30,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "sectors",
+                      "strategies",
+                      "tickers"
+                    ],
+                    "type": "object"
+                  },
+                  "asOf": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "claims": {
+                    "items": {
+                      "maxLength": 500,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "ownerMessageUrl": {
+                    "anyOf": [
+                      {
+                        "maxLength": 2000,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "rawText": {
+                    "maxLength": 200000,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "receivedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "reviewBy": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "source": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "author": {
+                            "anyOf": [
+                              {
+                                "maxLength": 120,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "enum": [
+                              "reel",
+                              "article"
+                            ],
+                            "type": "string"
+                          },
+                          "url": {
+                            "maxLength": 2000,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "author",
+                          "kind",
+                          "url"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "author": {
+                            "anyOf": [
+                              {
+                                "maxLength": 120,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "const": "owner-text"
+                          },
+                          "url": {
+                            "type": "null"
+                          }
+                        },
+                        "required": [
+                          "author",
+                          "kind",
+                          "url"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "stance": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "confidence": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ],
+                        "type": "string"
+                      },
+                      "direction": {
+                        "enum": [
+                          "risk-on",
+                          "risk-off",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "confidence",
+                      "direction"
+                    ],
+                    "type": "object"
+                  },
+                  "theme": {
+                    "maxLength": 300,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "affected",
+                  "asOf",
+                  "claims",
+                  "ownerMessageUrl",
+                  "rawText",
+                  "reviewBy",
+                  "source",
+                  "stance",
+                  "theme"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "created": {
+                      "type": "boolean"
+                    },
+                    "note": {
+                      "properties": {
+                        "affected": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "sectors": {
+                              "items": {
+                                "maxLength": 60,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 12,
+                              "type": "array"
+                            },
+                            "strategies": {
+                              "items": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 12,
+                              "type": "array"
+                            },
+                            "tickers": {
+                              "items": {
+                                "pattern": "^[A-Z][A-Z0-9.-]{0,9}$",
+                                "type": "string"
+                              },
+                              "maxItems": 30,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "sectors",
+                            "strategies",
+                            "tickers"
+                          ],
+                          "type": "object"
+                        },
+                        "asOf": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "claims": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "checkedAt": {
+                                    "type": "null"
+                                  },
+                                  "evidence": {
+                                    "type": "null"
+                                  },
+                                  "id": {
+                                    "pattern": "^c(?:[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "unverified"
+                                  },
+                                  "text": {
+                                    "maxLength": 500,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "checkedAt",
+                                  "evidence",
+                                  "id",
+                                  "status",
+                                  "text"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "checkedAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "evidence": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "pattern": "^c(?:[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "supported",
+                                      "contradicted",
+                                      "cannot-check"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "maxLength": 500,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "checkedAt",
+                                  "evidence",
+                                  "id",
+                                  "status",
+                                  "text"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "maxItems": 12,
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "id": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9_-]+$",
+                          "type": "string"
+                        },
+                        "ownerMessageUrl": {
+                          "anyOf": [
+                            {
+                              "maxLength": 2000,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "receivedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "reviewBy": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "source": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "reel",
+                                    "article"
+                                  ],
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "maxLength": 2000,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "author",
+                                "kind",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "kind": {
+                                  "const": "owner-text"
+                                },
+                                "url": {
+                                  "type": "null"
+                                }
+                              },
+                              "required": [
+                                "author",
+                                "kind",
+                                "url"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "stance": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "confidence": {
+                              "enum": [
+                                "low",
+                                "medium",
+                                "high"
+                              ],
+                              "type": "string"
+                            },
+                            "direction": {
+                              "enum": [
+                                "risk-on",
+                                "risk-off",
+                                "neutral"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "confidence",
+                            "direction"
+                          ],
+                          "type": "object"
+                        },
+                        "status": {
+                          "enum": [
+                            "active",
+                            "expired",
+                            "retired"
+                          ],
+                          "type": "string"
+                        },
+                        "theme": {
+                          "maxLength": 300,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "verification": {
+                          "properties": {
+                            "cannotCheck": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "checked": {
+                              "type": "boolean"
+                            },
+                            "contradicted": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "supported": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "unverified": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cannotCheck",
+                            "checked",
+                            "contradicted",
+                            "supported",
+                            "unverified"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "affected",
+                        "asOf",
+                        "claims",
+                        "id",
+                        "ownerMessageUrl",
+                        "receivedAt",
+                        "reviewBy",
+                        "source",
+                        "stance",
+                        "status",
+                        "theme",
+                        "updatedAt",
+                        "verification"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "created",
+                    "note"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market note not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market notes storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Rig intake: store one owner market note; a second add of the same source returns the stored note",
+        "tags": [
+          "Market notes"
+        ]
+      }
+    },
+    "/market-notes/{id}": {
+      "get": {
+        "operationId": "marketNotes.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "note": {
+                      "properties": {
+                        "affected": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "sectors": {
+                              "items": {
+                                "maxLength": 60,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 12,
+                              "type": "array"
+                            },
+                            "strategies": {
+                              "items": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 12,
+                              "type": "array"
+                            },
+                            "tickers": {
+                              "items": {
+                                "pattern": "^[A-Z][A-Z0-9.-]{0,9}$",
+                                "type": "string"
+                              },
+                              "maxItems": 30,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "sectors",
+                            "strategies",
+                            "tickers"
+                          ],
+                          "type": "object"
+                        },
+                        "asOf": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "claims": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "checkedAt": {
+                                    "type": "null"
+                                  },
+                                  "evidence": {
+                                    "type": "null"
+                                  },
+                                  "id": {
+                                    "pattern": "^c(?:[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "unverified"
+                                  },
+                                  "text": {
+                                    "maxLength": 500,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "checkedAt",
+                                  "evidence",
+                                  "id",
+                                  "status",
+                                  "text"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "checkedAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "evidence": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "pattern": "^c(?:[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "supported",
+                                      "contradicted",
+                                      "cannot-check"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "maxLength": 500,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "checkedAt",
+                                  "evidence",
+                                  "id",
+                                  "status",
+                                  "text"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "maxItems": 12,
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "id": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9_-]+$",
+                          "type": "string"
+                        },
+                        "ownerMessageUrl": {
+                          "anyOf": [
+                            {
+                              "maxLength": 2000,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "rawText": {
+                          "maxLength": 200000,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "receivedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "reviewBy": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "source": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "reel",
+                                    "article"
+                                  ],
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "maxLength": 2000,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "author",
+                                "kind",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "kind": {
+                                  "const": "owner-text"
+                                },
+                                "url": {
+                                  "type": "null"
+                                }
+                              },
+                              "required": [
+                                "author",
+                                "kind",
+                                "url"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "stance": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "confidence": {
+                              "enum": [
+                                "low",
+                                "medium",
+                                "high"
+                              ],
+                              "type": "string"
+                            },
+                            "direction": {
+                              "enum": [
+                                "risk-on",
+                                "risk-off",
+                                "neutral"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "confidence",
+                            "direction"
+                          ],
+                          "type": "object"
+                        },
+                        "status": {
+                          "enum": [
+                            "active",
+                            "expired",
+                            "retired"
+                          ],
+                          "type": "string"
+                        },
+                        "theme": {
+                          "maxLength": 300,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "verification": {
+                          "properties": {
+                            "cannotCheck": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "checked": {
+                              "type": "boolean"
+                            },
+                            "contradicted": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "supported": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "unverified": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cannotCheck",
+                            "checked",
+                            "contradicted",
+                            "supported",
+                            "unverified"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "affected",
+                        "asOf",
+                        "claims",
+                        "id",
+                        "ownerMessageUrl",
+                        "receivedAt",
+                        "reviewBy",
+                        "source",
+                        "stance",
+                        "status",
+                        "theme",
+                        "updatedAt",
+                        "verification",
+                        "rawText"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "note"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market note not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market notes storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "One owner market note with its raw text",
+        "tags": [
+          "Market notes"
+        ]
+      }
+    },
+    "/market-notes/{id}/checks": {
+      "post": {
+        "operationId": "marketNotes.recordChecks",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "checks": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "claimId": {
+                          "pattern": "^c(?:[1-9]|1[0-2])$",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "maxLength": 2000,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "status": {
+                          "enum": [
+                            "supported",
+                            "contradicted",
+                            "cannot-check"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "claimId",
+                        "evidence",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 12,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "checks"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "note": {
+                      "properties": {
+                        "affected": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "sectors": {
+                              "items": {
+                                "maxLength": 60,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 12,
+                              "type": "array"
+                            },
+                            "strategies": {
+                              "items": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 12,
+                              "type": "array"
+                            },
+                            "tickers": {
+                              "items": {
+                                "pattern": "^[A-Z][A-Z0-9.-]{0,9}$",
+                                "type": "string"
+                              },
+                              "maxItems": 30,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "sectors",
+                            "strategies",
+                            "tickers"
+                          ],
+                          "type": "object"
+                        },
+                        "asOf": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "claims": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "checkedAt": {
+                                    "type": "null"
+                                  },
+                                  "evidence": {
+                                    "type": "null"
+                                  },
+                                  "id": {
+                                    "pattern": "^c(?:[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "unverified"
+                                  },
+                                  "text": {
+                                    "maxLength": 500,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "checkedAt",
+                                  "evidence",
+                                  "id",
+                                  "status",
+                                  "text"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "checkedAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "evidence": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "pattern": "^c(?:[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "supported",
+                                      "contradicted",
+                                      "cannot-check"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "maxLength": 500,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "checkedAt",
+                                  "evidence",
+                                  "id",
+                                  "status",
+                                  "text"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "maxItems": 12,
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "id": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9_-]+$",
+                          "type": "string"
+                        },
+                        "ownerMessageUrl": {
+                          "anyOf": [
+                            {
+                              "maxLength": 2000,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "receivedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "reviewBy": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "source": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "reel",
+                                    "article"
+                                  ],
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "maxLength": 2000,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "author",
+                                "kind",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "kind": {
+                                  "const": "owner-text"
+                                },
+                                "url": {
+                                  "type": "null"
+                                }
+                              },
+                              "required": [
+                                "author",
+                                "kind",
+                                "url"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "stance": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "confidence": {
+                              "enum": [
+                                "low",
+                                "medium",
+                                "high"
+                              ],
+                              "type": "string"
+                            },
+                            "direction": {
+                              "enum": [
+                                "risk-on",
+                                "risk-off",
+                                "neutral"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "confidence",
+                            "direction"
+                          ],
+                          "type": "object"
+                        },
+                        "status": {
+                          "enum": [
+                            "active",
+                            "expired",
+                            "retired"
+                          ],
+                          "type": "string"
+                        },
+                        "theme": {
+                          "maxLength": 300,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "verification": {
+                          "properties": {
+                            "cannotCheck": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "checked": {
+                              "type": "boolean"
+                            },
+                            "contradicted": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "supported": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "unverified": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cannotCheck",
+                            "checked",
+                            "contradicted",
+                            "supported",
+                            "unverified"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "affected",
+                        "asOf",
+                        "claims",
+                        "id",
+                        "ownerMessageUrl",
+                        "receivedAt",
+                        "reviewBy",
+                        "source",
+                        "stance",
+                        "status",
+                        "theme",
+                        "updatedAt",
+                        "verification"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "note"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market note not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market notes storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Rig verification: record a status and its evidence for claims of one note",
+        "tags": [
+          "Market notes"
+        ]
+      }
+    },
+    "/market-notes/{id}/review": {
+      "post": {
+        "operationId": "marketNotes.review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "const": "renew"
+                          },
+                          "reviewBy": {
+                            "format": "date",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "reviewBy"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "const": "retire"
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "note": {
+                      "properties": {
+                        "affected": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "sectors": {
+                              "items": {
+                                "maxLength": 60,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 12,
+                              "type": "array"
+                            },
+                            "strategies": {
+                              "items": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 12,
+                              "type": "array"
+                            },
+                            "tickers": {
+                              "items": {
+                                "pattern": "^[A-Z][A-Z0-9.-]{0,9}$",
+                                "type": "string"
+                              },
+                              "maxItems": 30,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "sectors",
+                            "strategies",
+                            "tickers"
+                          ],
+                          "type": "object"
+                        },
+                        "asOf": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "claims": {
+                          "items": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "checkedAt": {
+                                    "type": "null"
+                                  },
+                                  "evidence": {
+                                    "type": "null"
+                                  },
+                                  "id": {
+                                    "pattern": "^c(?:[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "const": "unverified"
+                                  },
+                                  "text": {
+                                    "maxLength": 500,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "checkedAt",
+                                  "evidence",
+                                  "id",
+                                  "status",
+                                  "text"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "checkedAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "evidence": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "pattern": "^c(?:[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "supported",
+                                      "contradicted",
+                                      "cannot-check"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "maxLength": 500,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "checkedAt",
+                                  "evidence",
+                                  "id",
+                                  "status",
+                                  "text"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "maxItems": 12,
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "id": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9_-]+$",
+                          "type": "string"
+                        },
+                        "ownerMessageUrl": {
+                          "anyOf": [
+                            {
+                              "maxLength": 2000,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "receivedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "reviewBy": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "source": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "reel",
+                                    "article"
+                                  ],
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "maxLength": 2000,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "author",
+                                "kind",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "kind": {
+                                  "const": "owner-text"
+                                },
+                                "url": {
+                                  "type": "null"
+                                }
+                              },
+                              "required": [
+                                "author",
+                                "kind",
+                                "url"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "stance": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "confidence": {
+                              "enum": [
+                                "low",
+                                "medium",
+                                "high"
+                              ],
+                              "type": "string"
+                            },
+                            "direction": {
+                              "enum": [
+                                "risk-on",
+                                "risk-off",
+                                "neutral"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "confidence",
+                            "direction"
+                          ],
+                          "type": "object"
+                        },
+                        "status": {
+                          "enum": [
+                            "active",
+                            "expired",
+                            "retired"
+                          ],
+                          "type": "string"
+                        },
+                        "theme": {
+                          "maxLength": 300,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "verification": {
+                          "properties": {
+                            "cannotCheck": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "checked": {
+                              "type": "boolean"
+                            },
+                            "contradicted": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "supported": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "unverified": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cannotCheck",
+                            "checked",
+                            "contradicted",
+                            "supported",
+                            "unverified"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "affected",
+                        "asOf",
+                        "claims",
+                        "id",
+                        "ownerMessageUrl",
+                        "receivedAt",
+                        "reviewBy",
+                        "source",
+                        "stance",
+                        "status",
+                        "theme",
+                        "updatedAt",
+                        "verification"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "note"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market note not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market notes storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Renew the review date of one note, or retire the note",
+        "tags": [
+          "Market notes"
+        ]
+      }
+    },
     "/nautilus-arm/arm": {
       "post": {
         "operationId": "nautilusArm.arm",

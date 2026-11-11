@@ -85,6 +85,7 @@ export * from "./contracts/agent-ops.ts";
 export * from "./contracts/portfolio-monitor.ts";
 export * from "./contracts/engines.ts";
 export * from "./contracts/market-context.ts";
+export * from "./contracts/market-notes.ts";
 export * from "./contracts/ibkr-monitor.ts";
 export * from "./contracts/ibkr-recovery.ts";
 export * from "./contracts/nautilus-arm.ts";
@@ -127,6 +128,14 @@ export * from "./contracts/breadth-90.ts";
 export * from "./contracts/congress-trades.ts";
 export * from "./contracts/risk-allocator.ts";
 export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
+export {
+  MARKET_NOTE_CONTEXT_HEADER,
+  MARKET_NOTE_CONTEXT_MAX_NOTES,
+  marketNoteContextLines,
+  marketNoteSourceKey,
+  marketNoteStatus,
+  marketNoteVerification,
+} from "./market-notes.ts";
 export * from "./contracts/optimizations.ts";
 export * from "./contracts/quant-lab.ts";
 export * from "./contracts/research-reports.ts";
