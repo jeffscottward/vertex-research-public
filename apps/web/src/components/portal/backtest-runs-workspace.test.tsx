@@ -32,8 +32,8 @@ import {
   describeUniversePlan,
   EXIT_REASON_LABELS,
   exitReasonLabel,
-  isCostProfilePresetId,
   isCalendarDate,
+  isCostProfilePresetId,
   isFinished,
   isNotFound,
   isoDate,
@@ -42,8 +42,8 @@ import {
   loadLinkedDefinition,
   metricRows,
   type OptionsBook,
-  optionsLinkSymbol,
   optionsDefaultFrom,
+  optionsLinkSymbol,
   optionsMetricRows,
   optionsRunSymbols,
   optionsSignalRows,
@@ -1563,7 +1563,8 @@ describe("backtest runs model: options book and definition links", () => {
     vi.setSystemTime(new Date("2026-11-11T00:00:00Z"));
     expect(todayUtc()).toBe("2026-11-11");
     expect(optionsDefaultFrom("2026-11-10")).toBe("2025-11-10");
-    expect(optionsDefaultFrom("2024-02-29")).toBe("2023-03-01");
+    expect(optionsDefaultFrom("2024-02-29")).toBe("2023-02-28");
+    expect(optionsDefaultFrom("2025-03-01")).toBe("2024-03-01");
     // A rule switch moves the dates only when the data source changes.
     const plain = { definition: null, from: "2020-01-01", to: "2020-12-31" };
     const options = { definition: LINKED };
@@ -1777,6 +1778,27 @@ describe("BacktestRunsWorkspace: options book and stored definitions", () => {
     expect(button("Run backtest").disabled).toBe(false);
     await setNative(field("Rule"), "smaCross");
     expect(document.body.textContent).toContain("No stored bar series");
+  });
+
+  it("ends an options link with a future start and no end on that start", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T12:00:00Z"));
+    window.history.replaceState(
+      null,
+      "",
+      "/backtest-runs?definition=qc&from=2027-01-04"
+    );
+    await mount(
+      <BacktestRunsWorkspace
+        gateway={gatewayOf({
+          definition: definitionGetter(),
+          series: vi.fn(async () => [SPY]),
+        })}
+      />
+    );
+    expect(field("From").value).toBe("2027-01-04");
+    expect(field("To").value).toBe("2027-01-04");
+    expect(button("Run backtest").disabled).toBe(false);
   });
 
   it("opens a stored definition from a strategy library link and runs it", async () => {

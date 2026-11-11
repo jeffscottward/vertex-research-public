@@ -526,11 +526,14 @@ export const optionsLinkSymbol = (
 /** Today's date in UTC as YYYY-MM-DD: the default end of an options run (the store slices to it). */
 export const todayUtc = (): string => isoDate(Date.now());
 
-/** The default start of an options run without a linked start: one year before its end. */
+/**
+ * The default start of an options run without a linked start: one year before its end; a leap
+ * day ends on 28 February of the year before.
+ */
 export const optionsDefaultFrom = (to: string): string => {
-  const end = new Date(`${to}T00:00:00Z`);
-  end.setUTCFullYear(end.getUTCFullYear() - 1);
-  return isoDate(end.getTime());
+  const year = Number(to.slice(0, 4)) - 1;
+  const monthDay = to.slice(5) === "02-29" ? "02-28" : to.slice(5);
+  return `${String(year).padStart(4, "0")}-${monthDay}`;
 };
 
 /**

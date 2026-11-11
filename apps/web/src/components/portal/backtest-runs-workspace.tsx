@@ -10,6 +10,14 @@ import {
   type InstantBacktestSeries,
 } from "@darkfactory/api";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -27,7 +35,6 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
 import {
   isOperatorAccessDenied,
@@ -57,6 +64,7 @@ import {
   loadLinkedDefinition,
   metricRows,
   type OptionsBook,
+  optionsDefaultFrom,
   optionsLinkSymbol,
   optionsMetricRows,
   optionsRunSymbols,
@@ -66,9 +74,8 @@ import {
   type RunForm,
   readDefinitionLink,
   replayGeometry,
-  runsOptionsDefinition,
-  optionsDefaultFrom,
   ruleSwitchDates,
+  runsOptionsDefinition,
   todayUtc,
   toSubmitInput,
   toUniverseSubmitInputs,
@@ -83,14 +90,6 @@ import {
 import { DEFAULT_INSTANT_PARAMS } from "./instant-backtest-workspace.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@darkfactory/ui";
 
 // Backtest runs: queue a run over a date range, follow it until it finishes, then read the report
 // (metrics, equity and drawdown charts, trade list and trade-by-trade replay; the options book of an
@@ -489,8 +488,8 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
             </h3>
             <div className="max-h-96 overflow-auto rounded-md border">
               <Table
-                containerClassName="overflow-visible"
                 className="w-full text-sm tabular-nums"
+                containerClassName="overflow-visible"
               >
                 <TableHeader className="sticky top-0 bg-background text-left">
                   <TableRow>
@@ -922,9 +921,15 @@ export const BacktestRunsWorkspace = ({
             )
               setUniverse("all");
             applySeries(picked);
-            // An options run without a linked start takes a year before its end.
+            // An options run without a linked start takes a year before its end. A linked start
+            // after today with no linked end ends on that start, not before it.
             setForm((current) => {
-              const to = link.to ?? (options ? todayUtc() : current.to);
+              const fallbackTo = options ? todayUtc() : current.to;
+              const to =
+                link.to ??
+                (options && link.from !== null && link.from > fallbackTo
+                  ? link.from
+                  : fallbackTo);
               return {
                 ...current,
                 definition: loaded,
