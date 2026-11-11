@@ -33,6 +33,32 @@ uv run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 \
 The run takes about 8 minutes. It fails when the reference ledger and NautilusTrader differ on a trade or
 on daily equity by more than `1e-6` (the parity rule of the qc-ports runner).
 
+## Owner market notes (optional context)
+
+`run.py` and `funded_pie.py` take `--market-notes` (off by default). With the flag, the script reads the active
+owner market notes from the Vertex API before it starts and adds one top-level key to the document:
+
+```json
+"ownerMarketNotes": {
+  "role": "research context only; not used in any weight, gate, cap or size",
+  "asOf": "<time of the read>",
+  "notes": [{"asOf": "...", "theme": "...", "stance": {"direction": "...", "confidence": "..."}, "reviewBy": "...",
+             "verification": {"supported": 0, "contradicted": 0, "cannotCheck": 0, "unverified": 0, "checked": false},
+             "claims": [{"id": "c1", "status": "unverified", "text": "..."}]}]
+}
+```
+
+- A note is a third-party view that the owner sent. A claim is checked only when its status says so. Show the
+  status of each claim in a report that quotes a note.
+- The notes are context for the reader. No weight, gate, cap or size reads them, and every other value of the
+  document is the same with and without the flag (`services/research/tests/test_market_notes_allocation.py`).
+- Expired and retired notes are left out.
+- The read needs `VERTEX_API_URL` (or `VERTEX_ORIGIN`) and `VERTEX_AGENT_API_KEY` in the environment. When the
+  read fails, the script stops with a non-zero exit before the study starts: an input that was asked for does not
+  vanish silently.
+- The same notes as text: `python -m market_notes.cli list` (from `services/research`), or `vertex-market-note list`
+  on the rig (`infra/market-notes/vertex-market-note`).
+
 ## Gate
 
 A strategy is eligible only when every check holds on our own runs. Every threshold is an existing

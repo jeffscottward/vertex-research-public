@@ -114,3 +114,12 @@ tests/test_noise_band.py
 tests/test_noise_band_0dte.py
 tests/test_noise_band_retest.py
 tests/test_ibkr_history.py
+tests/test_market_notes_client.py
+tests/test_market_notes_sources.py
+tests/test_market_notes_transcribe.py
+tests/test_market_notes_process.py
+tests/test_market_notes_extract.py
+tests/test_market_notes_evidence.py
+tests/test_market_notes_cli.py
+tests/test_market_notes_allocation.py
+tests/test_market_notes_boundary.py
