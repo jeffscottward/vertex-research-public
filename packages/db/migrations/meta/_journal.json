@@ -470,6 +470,13 @@
       "when": 1794276233898,
       "tag": "0066_breadth_90",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1794437718943,
+      "tag": "0067_market_notes",
+      "breakpoints": true
     }
   ]
 }

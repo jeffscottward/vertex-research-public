@@ -1126,6 +1126,7 @@ describe("feature item mutation repository", () => {
       "clickLog",
       "semanticLayer",
       "breadth90",
+      "marketNotes",
     ]);
     return expect(repositories.generated).toEqual({});
   });
