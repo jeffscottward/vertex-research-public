@@ -53,10 +53,17 @@ export type MarketDataErrorCode =
 
 export class MarketDataError extends Error {
   code: MarketDataErrorCode;
-  constructor(code: MarketDataErrorCode, message: string) {
+  // PACED only: the service's wait, when it sent one.
+  retryAfterSeconds: number | null;
+  constructor(
+    code: MarketDataErrorCode,
+    message: string,
+    retryAfterSeconds: number | null = null
+  ) {
     super(message);
     this.name = "MarketDataError";
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -293,7 +300,8 @@ const upstreamFailure = async (
       "PACED",
       retry === null
         ? "IBKR history pacing: retry later"
-        : `IBKR history pacing: retry in ${retry} s`
+        : `IBKR history pacing: retry in ${retry} s`,
+      retry
     );
   }
   if (body !== null) {
@@ -360,7 +368,8 @@ const toMarketBarsOutput = (
   };
 };
 
-const fetchHistoryDocument = async (
+// GET one history document (bearer, timeout, size cap, no redirects); also used by ibkr-history.ts.
+export const fetchHistoryDocument = async (
   config: DeployStatusConfig | null,
   buildUrl: (base: string) => string,
   defaultTimeoutMs: number,

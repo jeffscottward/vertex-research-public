@@ -14,8 +14,10 @@ import {
 import {
   barsFromYahooChart,
   CompanyFactsSchema,
+  type DailyBar,
   factsFromBars,
   factsFromCompanyFacts,
+  type YahooChart,
   YahooChartSchema,
 } from "../deep-value-facts.ts";
 import {
@@ -25,15 +27,24 @@ import {
 } from "../deep-value-score.ts";
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
+import {
+  DAILY_HISTORY_DURATION,
+  historyDate,
+  historyInstrument,
+  LIVE_HISTORY_TIMEOUT_MS,
+  loadMergedBars,
+  windowFillBefore,
+} from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import { readCappedText } from "./portfolio-monitor.ts";
 import { researchUserAgent } from "./research-contact.ts";
 
-// Read-only research lenses. The rig data jobs (vertex-research collect-rotation-matrix.mjs and
-// collect-deep-value.mjs) write JSON documents; they are served on the QuantVPS tailnet under
+// Read-only research lenses. The rig data jobs (scripts/research-lenses collect-rotation-matrix.ts and
+// collect-deep-value.ts) write JSON documents; they are served on the QuantVPS tailnet under
 // VERTEX_RESEARCH_LENSES_URL (bearer VERTEX_DEPLOY_STATUS_TOKEN). GET only, bounded time and size,
 // redirects never followed, schema parse, 60 s in-process cache. The on-demand TRUE SLAP score reads
-// Yahoo Finance daily bars and SEC EDGAR XBRL facts directly. Messages never include the token or URL.
+// one year of daily bars (IBKR ADJUSTED_LAST history first, Yahoo Finance when IBKR cannot serve them
+// and for days before IBKR's first bar) and SEC EDGAR XBRL facts. Messages never include the token or URL.
 
 const LENS_TIMEOUT_MS = 20_000;
 const LENS_DOCUMENT_MAX_BYTES = 16 * 1024 * 1024;
@@ -64,10 +75,13 @@ export class ResearchLensError extends Error {
 }
 
 export type ResearchLensOptions = Readonly<{
+  /** Lens documents, SEC, Yahoo chart and IBKR history fetch. */
   fetch?: DeployStatusFetch;
   timeoutMs?: number;
   maxBytes?: number;
   now?: () => Date;
+  /** IBKR history service (context.marketHistory) of the deep value score; absent = Yahoo only. */
+  marketHistory?: DeployStatusConfig | null;
 }>;
 
 type JsonRequest = Readonly<{
@@ -155,6 +169,7 @@ let tickerCache: Readonly<{ at: number; map: Map<string, SecTicker> }> | null =
   null;
 
 export const clearResearchLensCacheForTesting = (): void => {
+  yahooNames.clear();
   documentCache.clear();
   tickerCache = null;
 };
@@ -292,7 +307,118 @@ export const secTickers = async (
 const reason = (error: unknown): string =>
   error instanceof Error ? error.message : "request failed";
 
-/** Gather Yahoo price facts and SEC fundamentals for one ticker. Errors per source are recorded. */
+type DatedBar = DailyBar & Readonly<{ date: string }>;
+// The last Yahoo display name per symbol (bounded by the operator's own requests).
+const yahooNames = new Map<string, string | null>();
+type ChartRow = NonNullable<YahooChart["chart"]["result"]>[number];
+type ChartQuote = NonNullable<ChartRow["indicators"]["quote"]>[number];
+
+type YahooYear = Readonly<{
+  asOf: string | null;
+  name: string | null;
+  bars: DatedBar[];
+}>;
+
+/** One year of Yahoo daily bars with their dates, the chart name and the last bar date. */
+const fetchYahooYear = async (
+  symbol: string,
+  options: ResearchLensOptions
+): Promise<YahooYear> => {
+  const yahooSymbol = symbol.replace(/[./]/gu, "-");
+  const raw = await fetchBoundedJson(
+    {
+      headers: { "user-agent": YAHOO_USER_AGENT },
+      label: "Yahoo chart",
+      maxBytes: YAHOO_MAX_BYTES,
+      url: `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=1y&interval=1d`,
+    },
+    options
+  );
+  const document = parseWith(YahooChartSchema, raw, "Yahoo chart");
+  const chart = barsFromYahooChart(document);
+  if (chart.bars.length === 0)
+    throw new ResearchLensError("NOT_FOUND", "Yahoo chart has no daily bars");
+  // Bars exist, so the first result has timestamps and closes. barsFromYahooChart keeps the rows
+  // with a (finite) close in order; the same filter dates them.
+  const [result] = document.chart.result as ChartRow[];
+  const [quote] = (result as ChartRow).indicators.quote as ChartQuote[];
+  const closes = (quote as ChartQuote).close as (number | null)[];
+  const dates = ((result as ChartRow).timestamp as number[]).flatMap(
+    (time, index) =>
+      typeof closes[index] === "number" ? [historyDate(time)] : []
+  );
+  return {
+    ...chart,
+    bars: chart.bars.map((bar, index) => ({
+      ...bar,
+      date: dates[index] as string,
+    })),
+  };
+};
+
+/**
+ * One year of daily price facts: IBKR ADJUSTED_LAST first (its newest close is the unadjusted last
+ * price, and range and average use adjusted closes, as with Yahoo's adjclose), Yahoo for the whole
+ * year when IBKR cannot serve it and for the days before IBKR's first bar.
+ */
+const priceFacts = async (
+  symbol: string,
+  options: ResearchLensOptions
+): Promise<Partial<DeepValueFacts>> => {
+  const instrument = historyInstrument(symbol);
+  const config = options.marketHistory ?? null;
+  // The clock is read only when IBKR may be asked (Yahoo-only reads never needed it).
+  const now = config === null ? null : (options.now ?? (() => new Date()))();
+  let yahoo: YahooYear | null = null;
+  const merged = await loadMergedBars<DatedBar>({
+    site: "research-lenses",
+    config,
+    request:
+      instrument?.secType === "STK"
+        ? {
+            ...instrument,
+            barSize: "1 day",
+            duration: DAILY_HISTORY_DURATION["1y"],
+            whatToShow: "ADJUSTED_LAST",
+          }
+        : null,
+    ...(now === null
+      ? {}
+      : {
+          fillBefore: historyDate(windowFillBefore(now, 365).getTime() / 1000),
+          options: {
+            ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+            now: () => now,
+            timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
+          },
+        }),
+    fromIbkr: (bar) => ({
+      adj: bar.c,
+      close: bar.c,
+      date: historyDate(bar.t),
+      volume: bar.v,
+    }),
+    yahoo: async () => {
+      yahoo = await fetchYahooYear(symbol, options);
+      return yahoo.bars;
+    },
+    keyOf: (bar) => bar.date,
+  });
+  const read = yahoo as YahooYear | null;
+  // One name rule: the last Yahoo name for the symbol (never IBKR's contract name), else the SEC title.
+  if (read !== null) yahooNames.set(symbol, read.name);
+  const name = read?.name ?? yahooNames.get(symbol) ?? null;
+  return {
+    ...factsFromBars(merged.bars),
+    asOf:
+      merged.history === null
+        ? (read as YahooYear).asOf
+        : (merged.bars.at(-1) as DatedBar).date,
+    ...(name === null ? {} : { name }),
+  };
+};
+
+/** Gather price facts and SEC fundamentals for one ticker. Errors per source are recorded. */
 export const gatherDeepValueFacts = async (
   symbol: string,
   industry: string | undefined,
@@ -305,27 +431,7 @@ export const gatherDeepValueFacts = async (
     ...(industry === undefined ? {} : { industry }),
   };
   try {
-    const yahooSymbol = symbol.replace(/[./]/gu, "-");
-    const raw = await fetchBoundedJson(
-      {
-        headers: { "user-agent": YAHOO_USER_AGENT },
-        label: "Yahoo chart",
-        maxBytes: YAHOO_MAX_BYTES,
-        url: `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=1y&interval=1d`,
-      },
-      options
-    );
-    const chart = barsFromYahooChart(
-      parseWith(YahooChartSchema, raw, "Yahoo chart")
-    );
-    if (chart.bars.length === 0)
-      throw new ResearchLensError("NOT_FOUND", "Yahoo chart has no daily bars");
-    facts = {
-      ...facts,
-      ...factsFromBars(chart.bars),
-      asOf: chart.asOf,
-      ...(chart.name === null ? {} : { name: chart.name }),
-    };
+    facts = { ...facts, ...(await priceFacts(symbol, options)) };
   } catch (error) {
     errors.push(`prices: ${reason(error)}`);
   }
@@ -451,7 +557,7 @@ const deepValueScore = api.researchLenses.deepValueScore
       return await scoreDeepValueSymbol(
         context.researchLenses ?? null,
         input.symbol,
-        researchLensOptions
+        { ...researchLensOptions, marketHistory: context.marketHistory ?? null }
       );
     } catch (error) {
       throw mapFailure(errors, error, "Scoring failed");

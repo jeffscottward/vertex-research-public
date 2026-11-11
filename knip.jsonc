@@ -21,7 +21,9 @@
         // Public surface of the Quant VPS host-release library (run on the VPS, not imported here).
         "infra/quant-vps/index.ts",
         // QuantVPS vertex-web production runner, started by infra/quantvps/vertex-web.service.
-        "infra/quantvps/run-preview.mjs"
+        "infra/quantvps/run-preview.mjs",
+        // Daily engine comparison driver, run by infra/engine-comparison-driver/vertex-engine-comparison-driver-run.
+        "scripts/vertex-engine-comparison-driver.ts"
       ],
       "playwright": false
     },

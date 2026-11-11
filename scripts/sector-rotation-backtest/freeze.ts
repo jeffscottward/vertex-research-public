@@ -1,6 +1,18 @@
-// One-time helper: fetches Yahoo daily adjusted closes and writes the frozen backtest data.
-// Read-only public GET requests. Run with: bun scripts/sector-rotation-backtest-freeze.ts
+// One-time helper: fetches daily adjusted closes and writes the frozen backtest data. With
+// VERTEX_HISTORY_URL and VERTEX_DEPLOY_STATUS_TOKEN set (.env.example) it asks IBKR first
+// (vertex-history ADJUSTED_LAST, 10 Y, waiting out the service pacing) and fills the dates IBKR did
+// not serve from Yahoo; without them it reads Yahoo only, as before. Read-only GET requests.
+// Run with: bun scripts/sector-rotation-backtest-freeze.ts
 import { z } from "zod";
+
+import type { DeployStatusConfig } from "../../packages/api/src/server/deploy-status.ts";
+import type { PagedHistoryOptions } from "../../packages/api/src/server/ibkr-history.ts";
+import { resolveMarketHistoryConfig } from "../../packages/api/src/server/market-data.ts";
+import {
+  DAILY_HISTORY_DURATION,
+  historyDate,
+  loadMergedBars,
+} from "../../packages/api/src/server/merged-bars.ts";
 
 const FREEZE_SYMBOLS = [
   "SPY",
@@ -20,6 +32,8 @@ export const FREEZE_FROM = "2018-06-19";
 export const FREEZE_TO = "2026-10-30";
 const FREEZE_SOURCE =
   "Yahoo Finance v8 chart API, range=10y, interval=1d, adjusted close";
+const FREEZE_SOURCE_IBKR =
+  "IBKR daily ADJUSTED_LAST via vertex-history, duration 10 Y; Yahoo Finance v8 chart API adjusted close (range=10y, interval=1d) for dates IBKR did not serve";
 
 const adjSchema = z.object({ adjclose: z.array(z.number().nullable()) });
 const resultSchema = z.object({
@@ -42,28 +56,73 @@ export const parseChart = (body: unknown): FrozenRow[] => {
     if (close === null || close === undefined) return;
     const date = new Date(seconds * 1000).toISOString().slice(0, 10);
     if (date < FREEZE_FROM || date > FREEZE_TO) return;
-    rows.push([date, Math.round(close * 10_000) / 10_000]);
+    rows.push([date, round(close)]);
   });
   return rows;
 };
 
 export type FetchJson = (url: string) => Promise<unknown>;
 
-/** Fetches every symbol and returns the frozen file content. */
+/** The IBKR history service of a freeze run (null: Yahoo only). */
+export type FreezeHistory = Readonly<{
+  config: DeployStatusConfig;
+  options?: PagedHistoryOptions;
+}>;
+
+type Close = Readonly<{ date: string; close: number }>;
+
+const round = (close: number): number => Math.round(close * 10_000) / 10_000;
+
+/** Fetches every symbol (IBKR first when `history` is set) and returns the frozen file content. */
 export const freeze = async (
   fetchJson: FetchJson,
-  now: Date
+  now: Date,
+  history: FreezeHistory | null = null,
+  log: (line: string) => void = () => undefined
 ): Promise<string> => {
   const symbols: Record<string, FrozenRow[]> = {};
-  for (const symbol of FREEZE_SYMBOLS)
-    symbols[symbol] = parseChart(
-      await fetchJson(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=10y&interval=1d`
-      )
+  for (const symbol of FREEZE_SYMBOLS) {
+    const merged = await loadMergedBars<Close>({
+      site: "sector-rotation-freeze",
+      config: history?.config ?? null,
+      request: {
+        barSize: "1 day",
+        duration: DAILY_HISTORY_DURATION["10y"],
+        symbol,
+        whatToShow: "ADJUSTED_LAST",
+      },
+      offline: true,
+      // With IBKR configured every symbol must come from IBKR (Yahoo only for older dates).
+      ibkrOnly: history !== null,
+      ...(history?.options === undefined ? {} : { options: history.options }),
+      fillBefore: FREEZE_FROM,
+      fromIbkr: (bar) => {
+        const date = historyDate(bar.t);
+        return date < FREEZE_FROM || date > FREEZE_TO
+          ? null
+          : { close: round(bar.c), date };
+      },
+      yahoo: async () =>
+        parseChart(
+          await fetchJson(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=10y&interval=1d`
+          )
+        ).map(([date, close]) => ({ close, date })),
+      keyOf: (row) => row.date,
+    });
+    if (history !== null && merged.history === null)
+      throw new Error(
+        `${symbol}: IBKR history failed (${merged.ibkrError}); unset VERTEX_HISTORY_URL to freeze from Yahoo only`
+      );
+    const ibkr = merged.bars.filter((row) => row.source === "ibkr").length;
+    log(
+      `${symbol}: ${ibkr} IBKR closes, ${merged.bars.length - ibkr} Yahoo closes`
     );
+    symbols[symbol] = merged.bars.map((row) => [row.date, row.close]);
+  }
   return `${JSON.stringify({
     fetchedAt: now.toISOString(),
-    source: FREEZE_SOURCE,
+    source: history === null ? FREEZE_SOURCE : FREEZE_SOURCE_IBKR,
     symbols,
   })}\n`;
 };
@@ -73,6 +132,10 @@ export const FREEZE_USER_AGENT =
 
 export type FreezeIo = Readonly<{
   fetch: (url: string, init: RequestInit) => Promise<Response>;
+  /** VERTEX_HISTORY_URL and VERTEX_DEPLOY_STATUS_TOKEN select IBKR first; absent = Yahoo only. */
+  env?: Readonly<Record<string, string | undefined>>;
+  /** Progress lines: the source chosen and the closes per source of each symbol. */
+  log?: (line: string) => void;
   now: Date;
   out: string;
   write: (path: string, content: string) => void;
@@ -80,13 +143,28 @@ export type FreezeIo = Readonly<{
 
 /** Fetches with the descriptive User-Agent, writes the frozen file to `out` and returns exit code 0. */
 export const runFreeze = async (io: FreezeIo): Promise<number> => {
-  const content = await freeze(async (url) => {
-    const response = await io.fetch(url, {
-      headers: { "User-Agent": FREEZE_USER_AGENT },
-    });
-    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-    return response.json();
-  }, io.now);
+  const config = resolveMarketHistoryConfig(
+    io.env?.["VERTEX_HISTORY_URL"],
+    io.env?.["VERTEX_DEPLOY_STATUS_TOKEN"]
+  );
+  const log = io.log ?? (() => undefined);
+  log(
+    config === null
+      ? "Source: Yahoo only (VERTEX_HISTORY_URL or VERTEX_DEPLOY_STATUS_TOKEN not set)"
+      : "Source: IBKR history (VERTEX_HISTORY_URL set), Yahoo for older dates only"
+  );
+  const content = await freeze(
+    async (url) => {
+      const response = await io.fetch(url, {
+        headers: { "User-Agent": FREEZE_USER_AGENT },
+      });
+      if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+      return response.json();
+    },
+    io.now,
+    config === null ? null : { config, options: { fetch: io.fetch } },
+    log
+  );
   io.write(io.out, content);
   return 0;
 };

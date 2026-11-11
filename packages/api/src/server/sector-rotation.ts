@@ -33,17 +33,33 @@ import {
   SECTOR_ROTATION_PARAMS,
 } from "../sector-rotation.ts";
 import type { ApiContext } from "./context.ts";
-import type { DeployStatusFetch } from "./deploy-status.ts";
+import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
+import {
+  DAILY_HISTORY_DURATION,
+  FallbackFailure,
+  historyDate,
+  historyFetchedAt,
+  historyInstrument,
+  LIVE_HISTORY_TIMEOUT_MS,
+  loadMergedBars,
+  sessionRunning,
+  settle,
+  windowFillBefore,
+} from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import { sendPriceAlertsNtfy } from "./price-alerts.ts";
 import { fetchBoundedJson, type ResearchLensError } from "./research-lenses.ts";
 
 // Sector rotation procedures (sectorRotation.*). Operator-only. collect (scheduler, operator agent
-// write key) reads five years of Yahoo daily bars for SPY and the 11 sector ETFs, stores daily and
-// weekly points for every computed date, and records one insert-once alert per daily entry into
+// write key) reads five years of daily adjusted closes for SPY and the 11 sector ETFs, stores daily
+// and weekly points for every computed date, and records one insert-once alert per daily entry into
 // leading or lagging; only a newly recorded alert is sent to the price alert ntfy destination. map
 // reads the stored sector points, or computes a custom list on request (two years of bars, 10-minute
 // in-process cache). snapshot is the versioned research input. Research only: no order path.
+// Closes: IBKR ADJUSTED_LAST history first, Yahoo adjusted closes for days before IBKR's first bar.
+// collect takes one source per run: IBKR for all 12 symbols (waiting for the service pacing) or Yahoo
+// for all when any symbol fails. map is a view: IBKR within merged-bars.ts's per-isolate budget, Yahoo
+// for the symbols IBKR could not serve at once.
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -54,8 +70,9 @@ const YAHOO_TIMEOUT_MS = 10_000;
 const FETCH_CONCURRENCY = 4;
 /** US regular session length; a quote after it is the closing price. */
 const REGULAR_SESSION_SECONDS = 6.5 * 60 * 60;
-const COLLECT_RANGE = "5y";
-const MAP_RANGE = "2y";
+const COLLECT_RANGE = "5y" as const;
+const MAP_RANGE = "2y" as const;
+const RANGE_DAYS = { "2y": 730, "5y": 1826 } as const;
 const MAP_CACHE_TTL_MS = 10 * 60_000;
 const MAP_CACHE_MAX_ENTRIES = 50;
 /** Extra days read before the 12-month window, so a short collection gap still has a map. */
@@ -70,7 +87,7 @@ const ALL_DATES = "0000-01-01";
 const ALERT_LOOKBACK_DAYS = 7;
 
 export type SectorRotationOptions = Readonly<{
-  /** Yahoo chart fetch. */
+  /** Yahoo chart and IBKR history fetch. */
   fetch?: DeployStatusFetch;
   /** ntfy publish fetch. */
   notify?: NotificationFetch;
@@ -89,6 +106,7 @@ export const setSectorRotationOptionsForTesting = (
 ): void => {
   options = next;
   mapCache.clear();
+  yahooNames.clear();
 };
 
 const sectorNames: ReadonlyMap<string, string> = new Map(
@@ -180,32 +198,170 @@ const fetchDailyBars = async (
       reason: "Yahoo has no daily bars for this symbol",
       unknown: true,
     };
-  const name = (result?.meta?.shortName ?? result?.meta?.longName)?.trim();
   return {
     bars: {
       closes: [...byDate]
         .map(([date, close]) => ({ close, date }))
         .sort((a, b) => a.date.localeCompare(b.date)),
-      name: name === undefined || name === "" ? null : name.slice(0, 80),
+      name: displayName(result?.meta?.shortName ?? result?.meta?.longName),
     },
     ok: true,
   };
 };
 
+/** A trimmed name of at most 80 characters; null when absent or blank. */
+const displayName = (raw: string | null | undefined): string | null => {
+  const name = raw?.trim();
+  return name === undefined || name === "" ? null : name.slice(0, 80);
+};
+
+type CloseRange = typeof COLLECT_RANGE | typeof MAP_RANGE;
+
+// The last Yahoo display name per symbol: an IBKR read keeps it (never IBKR's contract name). One
+// short entry per symbol the operator has mapped; cleared with the test seam.
+const yahooNames = new Map<string, string | null>();
+
+/** Yahoo's name when Yahoo was read (remembered), else the last Yahoo name, else the symbol. */
+const stableName = (
+  symbol: string,
+  yahoo: BarsResult | null
+): string | null => {
+  if (yahoo?.ok !== true) return yahooNames.get(symbol) ?? symbol;
+  yahooNames.set(symbol, yahoo.bars.name);
+  return yahoo.bars.name;
+};
+
+type CloseRead = Readonly<{ result: BarsResult; ibkr: boolean }>;
+
+/**
+ * Daily adjusted closes of one symbol: IBKR ADJUSTED_LAST first, Yahoo for the whole range when IBKR
+ * fails or has no request slot, and Yahoo for the days before IBKR's first bar when IBKR starts late.
+ * Both are adjusted back from the newest close, so the seam has no adjustment step. An IBKR daily bar
+ * whose session was still running when the service fetched it is dropped (as Yahoo's live bar is). A
+ * Yahoo failure is the symbol's result. The display name is stableName's, never IBKR's contract
+ * name. `scheduled`: a collect run that may
+ * wait for the service pacing and never reads Yahoo for the whole series (collectCloses decides).
+ */
+const fetchCloses = async (
+  symbol: string,
+  range: CloseRange,
+  config: DeployStatusConfig | null,
+  scheduled = false
+): Promise<CloseRead> => {
+  const now = clock();
+  const instrument = historyInstrument(symbol);
+  let read: BarsResult | null = null;
+  let ibkr = false;
+  const result = await settle(async (): Promise<BarsResult> => {
+    const merged = await loadMergedBars<ClosePoint>({
+      site: "sector-rotation",
+      config,
+      request:
+        instrument?.secType === "STK"
+          ? {
+              ...instrument,
+              barSize: "1 day",
+              duration: DAILY_HISTORY_DURATION[range],
+              whatToShow: "ADJUSTED_LAST",
+            }
+          : null,
+      offline: scheduled,
+      ibkrOnly: scheduled,
+      options: {
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+        now: clock,
+        ...(scheduled
+          ? {
+              maxPacedWaitMs: COLLECT_MAX_PACED_WAIT_MS,
+              pacedRetries: 1,
+              timeoutMs: COLLECT_REQUEST_TIMEOUT_MS,
+              unavailableRetries: 0,
+            }
+          : { timeoutMs: LIVE_HISTORY_TIMEOUT_MS }),
+      },
+      fillBefore: historyDate(
+        windowFillBefore(now, RANGE_DAYS[range]).getTime() / 1000
+      ),
+      fromIbkr: (bar, history) => {
+        const date = historyDate(bar.t);
+        return sessionRunning(date, historyFetchedAt(history)) || bar.c <= 0
+          ? null
+          : { close: bar.c, date };
+      },
+      yahoo: async () => {
+        const fetched = await fetchDailyBars(symbol, range);
+        read = fetched;
+        if (!fetched.ok) throw new FallbackFailure(fetched.reason, fetched);
+        return fetched.bars.closes;
+      },
+      keyOf: (point) => point.date,
+    });
+    ibkr = merged.history !== null;
+    const yahoo = read as BarsResult | null;
+    return {
+      bars: {
+        closes: merged.bars,
+        name: stableName(symbol, yahoo),
+      },
+      ok: true,
+    };
+  });
+  return { ibkr, result };
+};
+
 /** Bars for each symbol, a few requests at a time. */
 const fetchAllBars = async (
   symbols: readonly string[],
-  range: string
+  range: CloseRange,
+  // context.marketHistory: absent means not configured.
+  config: DeployStatusConfig | null | undefined
 ): Promise<Map<string, BarsResult>> => {
   const out = new Map<string, BarsResult>();
   for (let start = 0; start < symbols.length; start += FETCH_CONCURRENCY) {
     const batch = symbols.slice(start, start + FETCH_CONCURRENCY);
     const results = await Promise.all(
-      batch.map((symbol) => fetchDailyBars(symbol, range))
+      batch.map((symbol) => fetchCloses(symbol, range, config ?? null))
     );
     batch.forEach((symbol, index) => {
-      out.set(symbol, results[index] as BarsResult);
+      out.set(symbol, (results[index] as CloseRead).result);
     });
+  }
+  return out;
+};
+
+// collect and IBKR pacing (the service allows 6 requests per 120 s, >= 10 s apart): 12 cold symbols take
+// about 175-190 s, because the 7th waits for the first request's 120 s window (a 429 with retry_after of
+// about 66 s). Each symbol: one request (20 s timeout), at most one paced wait (70 s), one retry (20 s).
+// A symbol starts only when its worst case still ends inside the IBKR budget; the scheduler unit allows
+// 600 s (TimeoutStartSec), which leaves room for the Yahoo fallback, storage and notifications.
+const COLLECT_REQUEST_TIMEOUT_MS = 20_000;
+const COLLECT_MAX_PACED_WAIT_MS = 70_000;
+const COLLECT_SYMBOL_WORST_MS =
+  2 * COLLECT_REQUEST_TIMEOUT_MS + COLLECT_MAX_PACED_WAIT_MS;
+const COLLECT_IBKR_BUDGET_MS = 400_000;
+
+/**
+ * The closes of one collect run from one source: IBKR for every symbol (one at a time, waiting for the
+ * service pacing, see COLLECT_SYMBOL_WORST_MS), or Yahoo for every symbol when IBKR is not configured,
+ * any symbol fails or the next symbol's worst case would end past COLLECT_IBKR_BUDGET_MS,
+ * so stored points never mix sources within a run.
+ */
+const collectCloses = async (
+  symbols: readonly string[],
+  config: DeployStatusConfig | null | undefined
+): Promise<Map<string, BarsResult>> => {
+  if (config === null || config === undefined)
+    return fetchAllBars(symbols, COLLECT_RANGE, null);
+  const started = clock().getTime();
+  const out = new Map<string, BarsResult>();
+  for (const symbol of symbols) {
+    const read =
+      clock().getTime() - started + COLLECT_SYMBOL_WORST_MS >
+      COLLECT_IBKR_BUDGET_MS
+        ? null
+        : await fetchCloses(symbol, COLLECT_RANGE, config, true);
+    if (read?.ibkr !== true) return fetchAllBars(symbols, COLLECT_RANGE, null);
+    out.set(symbol, read.result);
   }
   return out;
 };
@@ -378,9 +534,9 @@ const collect = api.sectorRotation.collect
       });
     const repository = repositoryFor(context, failures);
     const now = clock();
-    const fetched = await fetchAllBars(
+    const fetched = await collectCloses(
       [SECTOR_ROTATION_BENCHMARK, ...SECTOR_SYMBOLS],
-      COLLECT_RANGE
+      context.marketHistory
     );
     const benchmark = fetched.get(SECTOR_ROTATION_BENCHMARK) as BarsResult;
     if (!benchmark.ok)
@@ -470,13 +626,14 @@ const seriesOf = (
   return { latest: latestOf(kept), name, points: kept, symbol };
 };
 
-/** A custom list (or another benchmark) computed from Yahoo bars on request. */
+/** A custom list (or another benchmark) computed from daily closes (IBKR, then Yahoo) on request. */
 const computeMap = async (
   timeframe: SectorRotationTimeframe,
   benchmarkSymbol: string,
   symbols: readonly string[],
   universe: "sectors" | "custom",
-  failures: Failures
+  failures: Failures,
+  config: DeployStatusConfig | null | undefined
 ): Promise<SectorRotationMapOutput> => {
   const now = clock();
   const key = `${timeframe}|${benchmarkSymbol}|${universe}|${[...symbols].sort().join(",")}`;
@@ -485,7 +642,8 @@ const computeMap = async (
     return cached.value;
   const fetched = await fetchAllBars(
     [...new Set([benchmarkSymbol, ...symbols])],
-    MAP_RANGE
+    MAP_RANGE,
+    config
   );
   const benchmark = fetched.get(benchmarkSymbol) as BarsResult;
   if (!benchmark.ok)
@@ -550,7 +708,8 @@ const map = api.sectorRotation.map
         input.benchmark,
         input.universe.symbols,
         "custom",
-        failures
+        failures,
+        context.marketHistory
       );
     if (input.benchmark !== SECTOR_ROTATION_BENCHMARK)
       return computeMap(
@@ -558,7 +717,8 @@ const map = api.sectorRotation.map
         input.benchmark,
         SECTOR_SYMBOLS,
         "sectors",
-        failures
+        failures,
+        context.marketHistory
       );
     const window = await loadStoredWindow(
       repositoryFor(context, failures),

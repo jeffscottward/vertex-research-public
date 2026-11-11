@@ -11,11 +11,22 @@ import {
   type SignalAlertRuleRecord,
 } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
 import { createApiContext } from "./server/context.ts";
+import type {
+  DeployStatusConfig,
+  DeployStatusFetch,
+} from "./server/deploy-status.ts";
 import { handleApiRequest } from "./server/handler.ts";
+import { ibkrFallbacks, resetIbkrPacing } from "./server/merged-bars.ts";
+import {
+  HISTORY_CONFIG,
+  historyBar,
+  historyResponse,
+  withHistory,
+} from "./server/merged-bars.test-support.ts";
 import type { PriceAlertsNtfyConfig } from "./server/price-alerts.ts";
 import { setSignalAlertsOptionsForTesting } from "./server/signal-alerts.ts";
 
@@ -247,6 +258,7 @@ const clientFor = (
     apiKey?: string;
     keyAccess?: "read" | "write";
     session?: SafeAuthSession | null;
+    marketHistory?: DeployStatusConfig;
   }>
 ) => {
   const repositories: Repositories = {
@@ -285,6 +297,9 @@ const clientFor = (
           emailDelivery: false,
           telemetryExport: false,
         },
+        ...(options.marketHistory === undefined
+          ? {}
+          : { marketHistory: options.marketHistory }),
         operatorEmails: ["owner@domain.test"],
         priceAlertsNtfy: options.ntfy ?? null,
         repositories,
@@ -784,5 +799,250 @@ describe("priceAlerts.signals", () => {
       "STORAGE_ERROR",
       503
     );
+  });
+});
+
+describe("signal alert series from IBKR history", () => {
+  const DAY_MS = 86_400_000;
+  // 15-minute IBKR bars from START + `offset` bars (low = close - 1, high = close + 1).
+  const quarterHours = (closes: readonly number[], offset = 0) =>
+    closes.map((close, index) =>
+      historyBar((START + (offset + index) * 15 * MINUTE) / 1000, close)
+    );
+  const use = (fetch: DeployStatusFetch) =>
+    setSignalAlertsOptionsForTesting({
+      fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+    });
+  const backfill = (symbol: string, timeframe: "1d" | "15m" | "5m" | "1h") =>
+    clientFor({
+      marketHistory: HISTORY_CONFIG,
+      rules: memoryRules().repository,
+    }).priceAlerts.signals.backfill({ condition, symbol, timeframe });
+  const down = () => Response.json({ error: "down" }, { status: 503 });
+
+  beforeEach(() => {
+    resetIbkrPacing();
+  });
+
+  it("backfills from two IBKR pages of 15-minute bars without a Yahoo request", async () => {
+    const history = withHistory(
+      (url) =>
+        url.includes("endDateTime")
+          ? // The older page reaches back past the 60-day window; a zero-price bar is dropped.
+            historyResponse(url, [
+              historyBar((START - 58 * DAY_MS) / 1000, 9),
+              historyBar((START - 57 * DAY_MS) / 1000, 0),
+            ])
+          : historyResponse(url, quarterHours(CLOSES)),
+      yahoo
+    );
+    use(history.fetch);
+    const result = await backfill("SPY", "15m");
+    expect(yahoo).not.toHaveBeenCalled();
+    expect(history.urls).toHaveLength(2);
+    expect(history.urls[0]).toContain("barSize=15+mins");
+    expect(history.urls[0]).toContain("duration=31+D");
+    expect(history.urls[0]).toContain("useRTH=1");
+    // The 58-day-old bar adds one closed bar and widens the span; the two crossings are the same.
+    expect(result.backfill).toMatchObject({ bars: 6, count: 2, days: 58 });
+  });
+
+  it("reads Yahoo when IBKR fails, answers stale, or has no form for the symbol", async () => {
+    const failing = withHistory(down, yahoo);
+    use(failing.fetch);
+    expect((await backfill("SPY", "15m")).backfill).toMatchObject({
+      bars: 5,
+      count: 2,
+    });
+    // A live page walk does not retry the unavailable first page.
+    expect(failing.urls).toHaveLength(1);
+    expect(yahoo).toHaveBeenCalledTimes(1);
+    resetIbkrPacing();
+    const stale = withHistory(
+      (url) => historyResponse(url, quarterHours([20, 20]), { stale: true }),
+      yahoo
+    );
+    use(stale.fetch);
+    yahoo.mockClear();
+    // Yahoo's six bars read as 5-minute bars are all closed: three crossings.
+    expect((await backfill("SPY", "5m")).backfill).toMatchObject({ count: 3 });
+    expect(yahoo).toHaveBeenCalledTimes(1);
+    expect(stale.urls[0]).toContain("barSize=5+mins");
+    expect(stale.urls[0]).toContain("duration=30+D");
+    // Crypto pairs (BTC-USD) have no IBKR form here: Yahoo only.
+    use(failing.fetch);
+    await backfill("BTC-USD", "1h");
+    expect(failing.urls).toHaveLength(1);
+  });
+
+  it("fills the bars before IBKR's late first bar from Yahoo", async () => {
+    // IBKR has the newest three bars (15:15-15:45, raised by 0.5); Yahoo fills 14:30-15:00.
+    const late = withHistory(
+      (url) =>
+        url.includes("endDateTime")
+          ? historyResponse(url, [])
+          : historyResponse(url, quarterHours([11.5, 9.5, 11.5], 3)),
+      yahoo
+    );
+    use(late.fetch);
+    const result = await backfill("SPY", "15m");
+    expect(late.urls).toHaveLength(2);
+    expect(yahoo).toHaveBeenCalledTimes(1);
+    // Closed closes 9 11 9 (Yahoo) | 11.5 9.5 (IBKR): 9 -> 11 and, across the seam, 9 -> 11.5.
+    expect(result.backfill).toMatchObject({ bars: 5, count: 2 });
+  });
+
+  it("reads continuous futures and daily bars at IBKR's latest window", async () => {
+    const daily = (url: string) =>
+      historyResponse(
+        url,
+        ["2026-10-29", "2026-10-30", "2026-11-02"].map((date, index) =>
+          historyBar(
+            Date.parse(`${date}T00:00:00Z`) / 1000,
+            index === 1 ? 11 : 9
+          )
+        )
+      );
+    const history = withHistory(daily, yahoo);
+    use(history.fetch);
+    const future = await backfill("NQ=F", "1d");
+    expect(history.urls[0]).toContain("secType=CONTFUT");
+    expect(history.urls[0]).toContain("exchange=CME");
+    expect(history.urls[0]).toContain("symbol=NQ");
+    expect(history.urls[0]).toContain("useRTH=0");
+    expect(history.urls[0]).toContain("duration=2+Y");
+    expect(history.urls[0]).not.toContain("endDateTime");
+    // 9 then 11 crosses above 10; the 2026-11-02 bar is still open.
+    expect(future.backfill).toMatchObject({ count: 1 });
+    resetIbkrPacing();
+    const stock = await backfill("SPY", "1d");
+    expect(history.urls[1]).toContain("secType=STK");
+    expect(stock.backfill).toMatchObject({ count: 1 });
+    // Hourly: Yahoo only, even when IBKR would answer (its hourly grid differs from Yahoo's).
+    resetIbkrPacing();
+    yahoo.mockClear();
+    const hourly = await backfill("SPY", "1h");
+    expect(history.urls).toHaveLength(2);
+    expect(yahoo).toHaveBeenCalledTimes(1);
+    expect(hourly.backfill).toMatchObject({ bars: 1, count: 0 });
+  });
+
+  it("drops IBKR bars that had not ended when the service fetched them", async () => {
+    // Fetched at 15:40: the 15:30 bar (ends 15:45) and the 15:45 bar are dropped.
+    const cached = withHistory(
+      (url) =>
+        url.includes("endDateTime")
+          ? historyResponse(url, [])
+          : historyResponse(url, quarterHours(CLOSES), {
+              fetchedAt: "2026-11-02T15:40:00Z",
+            }),
+      yahoo
+    );
+    use(cached.fetch);
+    const result = await backfill("SPY", "15m");
+    expect(result.backfill).toMatchObject({ bars: 4, count: 2 });
+    // A daily stock bar ends at 16:00 New York: fetched at 15:40 it is dropped.
+    resetIbkrPacing();
+    const daily = withHistory(
+      (url) =>
+        historyResponse(
+          url,
+          ["2026-10-30", "2026-11-02"].map((date, index) =>
+            historyBar(
+              Date.parse(`${date}T00:00:00Z`) / 1000,
+              index === 0 ? 9 : 11
+            )
+          ),
+          { fetchedAt: "2026-11-02T20:40:00Z" }
+        ),
+      yahoo
+    );
+    use(daily.fetch);
+    expect((await backfill("SPY", "1d")).backfill).toMatchObject({
+      bars: 1,
+      count: 0,
+    });
+  });
+
+  it("drops a futures day fetched before its 17:00 close but keeps the stock day", async () => {
+    // Fetched 16:30 New York, evaluated 18:00 New York on 2026-11-02.
+    const later = new Date("2026-11-02T23:00:00Z");
+    const daily = withHistory(
+      (url) =>
+        historyResponse(
+          url,
+          ["2026-10-30", "2026-11-02"].map((date, index) =>
+            historyBar(
+              Date.parse(`${date}T00:00:00Z`) / 1000,
+              index === 0 ? 9 : 11
+            )
+          ),
+          { fetchedAt: "2026-11-02T21:30:00Z" }
+        ),
+      yahoo
+    );
+    setSignalAlertsOptionsForTesting({ fetch: daily.fetch, now: () => later });
+    expect((await backfill("NQ=F", "1d")).backfill).toMatchObject({
+      bars: 1,
+      count: 0,
+    });
+    resetIbkrPacing();
+    expect((await backfill("SPY", "1d")).backfill).toMatchObject({
+      bars: 2,
+      count: 1,
+    });
+    // 1h is Yahoo's, and the fallback counts say why.
+    await backfill("SPY", "1h");
+    expect(ibkrFallbacks()["signal-alerts"]?.lastReason).toBe(
+      "1h served by Yahoo"
+    );
+  });
+
+  it("fires a per-bar rule on a forming IBKR bar", async () => {
+    // Fetched 15:49: bars through 15:45 are closed or forming; the 15:45 bar (9 -> 11) is forming.
+    const history = withHistory(
+      (url) =>
+        url.includes("endDateTime")
+          ? historyResponse(url, [])
+          : historyResponse(url, quarterHours(CLOSES), {
+              fetchedAt: "2026-11-02T15:49:00Z",
+            }),
+      yahoo
+    );
+    use(history.fetch);
+    const { repository } = memoryRules([record({ frequency: "per-bar" })]);
+    const result = await clientFor({
+      marketHistory: HISTORY_CONFIG,
+      ntfy: NTFY,
+      rules: repository,
+    }).priceAlerts.signals.check({});
+    expect(
+      result.events.map((event) => new Date(event.barAt).getTime())
+    ).toContain(START + 75 * MINUTE);
+  });
+
+  it("does not fire on a forming IBKR bar from a copy older than a minute", async () => {
+    // Fetched 15:47, checked 15:50: the 15:45 bar's close is three minutes old, so it is dropped.
+    const history = withHistory(
+      (url) =>
+        url.includes("endDateTime")
+          ? historyResponse(url, [])
+          : historyResponse(url, quarterHours(CLOSES), {
+              fetchedAt: "2026-11-02T15:47:00Z",
+            }),
+      yahoo
+    );
+    use(history.fetch);
+    const { repository } = memoryRules([record({ frequency: "per-bar" })]);
+    const result = await clientFor({
+      marketHistory: HISTORY_CONFIG,
+      ntfy: NTFY,
+      rules: repository,
+    }).priceAlerts.signals.check({});
+    expect(
+      result.events.map((event) => new Date(event.barAt).getTime())
+    ).not.toContain(START + 75 * MINUTE);
   });
 });

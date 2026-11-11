@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# ExecStartPre of vertex-rotation-matrix.service and vertex-deep-value.service on the rig.
+# Exports scripts/research-lenses from vertex-research-public into the runner directory, so the
+# data jobs never run from a working checkout. LENSES_BRANCH (research-lenses.env) overrides the branch.
+# Research only: Nasdaq/Yahoo/SEC public data, no IBKR, places nothing.
+set -euo pipefail
+REPO="${LENSES_REPO:-$HOME/Github/trading/vertex-research-public}"
+BRANCH="${LENSES_BRANCH:-vertex/rebuild-darkfactory-20260921}"
+APP="$HOME/.local/share/vertex-research-lenses/app"
+# Both data jobs replace the runner directory; one at a time.
+mkdir -p "$(dirname "$APP")"
+exec 9>"$(dirname "$APP")/fetch.lock"
+flock -w 300 9
+# Never prompt under systemd: a fetch that needs credentials fails and the last fetched copy is used.
+export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -o BatchMode=yes"
+git -C "$REPO" fetch -q origin "$BRANCH" || echo "fetch of $BRANCH failed; using the last fetched copy" >&2
+git -C "$REPO" cat-file -e "origin/$BRANCH:scripts/research-lenses/collect-rotation-matrix.ts"
+rm -rf "$APP.new" && mkdir -p "$APP.new"
+git -C "$REPO" archive "origin/$BRANCH" scripts/research-lenses | tar -x -C "$APP.new"
+rm -rf "$APP" && mv "$APP.new" "$APP"
+echo "research lenses from origin/$BRANCH $(git -C "$REPO" log -1 --format='%h %cI' "origin/$BRANCH")" >&2
