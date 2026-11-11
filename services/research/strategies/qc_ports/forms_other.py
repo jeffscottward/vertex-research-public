@@ -15,7 +15,7 @@ Sources and what the rules read:
 - Pairs Trading Divergence: docs/specs/strategies/pairs-trading-divergence.md and
   published_rules.pair_spread_backtest (Chan 2008, example 3.6). The book fits the hedge ratio and
   the spread statistics once; the form fits them on the last 252 joint bars at every bar.
-- 10-month SMA timing: quantlab/drafts/zakamulin-2013-sma-timing.json.
+- 10-month SMA timing: the Quant Lab draft `zakamulin-2013-sma-timing` (services/research/quantlab/drafts).
 - Short strangle: docs/specs/strategies/bridgingcycles-short-strangle.md and `entry_decision` of
   gamma/engines/bridgingcycles_short_strangle.py. The entry rule is written again here (this package
   does not import gamma); tests/test_qc_ports_forms_other.py compares it with the engine.
