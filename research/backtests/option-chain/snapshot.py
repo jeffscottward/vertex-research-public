@@ -43,7 +43,8 @@ SESSION = (time(9, 45), time(16, 0))  # New York; Yahoo delays quotes by up to 1
 MAX_TRADE_AGE_MIN = 45
 NEW_YORK = ZoneInfo("America/New_York")
 ATTEMPTS = 3
-PARITY_WINDOW = 0.03  # strikes within 3% of spot give the forward
+PARITY_STRIKES = 5  # the forward comes from the nearest strikes that have a call and a put quote
+PARITY_WINDOW = 0.06  # and that are within 6% of spot (three $1 strikes at a $33 spot)
 RATE = 0.04  # for the discount factor only: one point of rate moves a 75-day price by 0.2%
 ATM_TOLERANCE = 0.02  # the nearest quoted strike must be within 2% of spot
 VOL_BOUNDS = (0.005, 5.0)
@@ -107,13 +108,15 @@ def implied_vol(price: float, forward: float, strike: float, t: float, call: boo
 
 
 def parity_forward(calls, puts, spot: float, discount: float) -> float | None:
-    """Forward of one expiry from put-call parity, F = K + (C - P) / DF: the median over the strikes within
-    PARITY_WINDOW of spot that have a call and a put quote. None without three such strikes. Near the
-    money the early-exercise value of these American options is small; a fit of DF over a wider strike
-    range is not used because that value bends it (it gave discount factors above 1)."""
+    """Forward of one expiry from put-call parity, F = K + (C - P) / DF: the median over the PARITY_STRIKES
+    strikes nearest to spot that have a call and a put quote and are within PARITY_WINDOW of spot. None
+    without three such strikes. Near the money the early-exercise value of these American options is
+    small; a fit of DF over a wide strike range is not used because that value bends it (it gave discount
+    factors above 1)."""
     put_mid = {row.strike: mid_of(row) for row in puts}
-    forwards = [row.strike + (mid_of(row) - put_mid[row.strike]) / discount for row in calls
-                if row.strike in put_mid and abs(row.strike / spot - 1) <= PARITY_WINDOW]
+    pairs = sorted((abs(row.strike / spot - 1), row.strike + (mid_of(row) - put_mid[row.strike]) / discount)
+                   for row in calls if row.strike in put_mid)
+    forwards = [forward for distance, forward in pairs[:PARITY_STRIKES] if distance <= PARITY_WINDOW]
     return statistics.median(forwards) if len(forwards) >= 3 else None
 
 
@@ -229,7 +232,7 @@ def collect(ticker_for, now: datetime, store: Path, source: str, log=print) -> i
     out = store / today.isoformat() / now.strftime("%H%M%SZ")
     out.mkdir(parents=True, exist_ok=False)
     summary = {"schema": SCHEMA, "day": today.isoformat(), "fetchedAt": now.isoformat(timespec="seconds"),
-               "source": source, "probeLastTrade": latest.isoformat(timespec="seconds"), "complete": True,
+               "source": source, "probeLastTrade": latest.isoformat(timespec="seconds"), "complete": False,
                "spots": {}, "errors": {}, "symbols": {}}
     for symbol in SYMBOLS:
         items, chains = [], []
@@ -248,6 +251,7 @@ def collect(ticker_for, now: datetime, store: Path, source: str, log=print) -> i
         except Exception as error:  # noqa: BLE001 - one failed symbol must not lose the other six
             summary["errors"][symbol] = f"{type(error).__name__}: {error}"
         summary["symbols"][symbol] = items
+        write_summary(out, summary)  # a killed run keeps the symbols it has, marked incomplete
         log(symbol, summary["errors"].get(symbol, "ok"), [
             (item["expiry"], {name: None if value is None else round(value, 2) for name, value in item["halfSpreadPct"].items()},
              None if item["callSlope"] is None else round(item["callSlope"], 3),
@@ -268,7 +272,11 @@ def csv_rows(path: Path) -> list:
 
 
 def remeasure(run: Path, log=print) -> int:
-    """Computes summary.json of a stored run again from its CSV files and the stored spot prices."""
+    """Computes summary.json of a stored run again from its CSV files and the stored spot prices. A symbol
+    without CSV files or without a stored spot (its fetch failed) keeps its error."""
+    if not (run / "summary.json").is_file():
+        log(f"{run} has no summary.json, so no spot prices: the run cannot be measured again")
+        return 1
     old = json.loads((run / "summary.json").read_text())
     today = date.fromisoformat(old.get("day") or run.parent.name)
     spots = {symbol: items[0]["spot"] for symbol, items in old["symbols"].items() if items} | old.get("spots", {})
@@ -276,12 +284,14 @@ def remeasure(run: Path, log=print) -> int:
     for symbol in SYMBOLS:
         expiries = sorted(path.name.removeprefix(f"{symbol}-").removesuffix("-calls.csv") for path in run.glob(f"{symbol}-*-calls.csv"))
         items = []
-        if symbol in spots:
+        if symbol not in spots or not expiries:
+            summary["errors"][symbol] = old.get("errors", {}).get(symbol) or ("no spot price stored" if expiries else "no chain stored")
+        else:
             measured = [measure(csv_rows(run / f"{symbol}-{expiry}-calls.csv"), csv_rows(run / f"{symbol}-{expiry}-puts.csv"),
                                 spots[symbol], expiry, today) for expiry in expiries]
             items = [item for item in measured if item is not None]
-        if not expiries or len(items) < len(expiries):
-            summary["errors"][symbol] = f"{len(expiries) - len(items)} of {len(expiries)} expiries without usable quotes or spot"
+            if len(items) < len(expiries):
+                summary["errors"][symbol] = f"{len(expiries) - len(items)} of {len(expiries)} expiries without usable quotes"
         summary["symbols"][symbol] = items
     summary["complete"] = not summary["errors"]
     write_summary(run, summary)

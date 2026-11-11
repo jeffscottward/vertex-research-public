@@ -21,6 +21,7 @@ import importlib.util
 import json
 import statistics
 import sys
+from datetime import date
 from pathlib import Path
 
 SCHEMA = 1
@@ -52,9 +53,9 @@ def load_days(store: Path) -> tuple[dict[str, dict[str, dict]], list[str]]:
             summary = json.loads(path.read_text())
             if summary["schema"] != SNAPSHOT_SCHEMA:
                 raise ValueError(f"schema {summary['schema']}, not {SNAPSHOT_SCHEMA}")
-            day = summary["day"]
+            day = date.fromisoformat(summary["day"]).isoformat()
             values = {symbol: day_value(items) for symbol, items in summary["symbols"].items()}
-        except (ValueError, KeyError, TypeError, AttributeError) as error:  # JSONDecodeError is a ValueError
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:  # JSONDecodeError is a ValueError
             skipped.append(f"{path}: {type(error).__name__}: {error}")
             continue
         for symbol, value in values.items():

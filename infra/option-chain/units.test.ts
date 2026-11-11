@@ -38,7 +38,11 @@ afterEach(() => {
   }
 });
 
-const runWrapper = (env: Record<string, string>, runner = "runner"): string => {
+const runWrapper = (
+  env: Record<string, string>,
+  runner = "runner",
+  exitCode = 0
+): string => {
   const root = mkdtempSync(join(tmpdir(), "option-chain-units-"));
   roots.push(root);
   const shims = join(root, ".local/share/mise/shims");
@@ -52,6 +56,7 @@ const runWrapper = (env: Record<string, string>, runner = "runner"): string => {
   const result = spawnSync("bash", [WRAPPER], {
     encoding: "utf8",
     env: {
+      FAKE_UV_EXIT: String(exitCode),
       HOME: root,
       ...(runner === DEFAULT_RUNNER
         ? {}
@@ -60,7 +65,7 @@ const runWrapper = (env: Record<string, string>, runner = "runner"): string => {
     },
   });
   // The unit state is the exit code of the snapshot: 1 marks a failed or incomplete run.
-  expect(result.status).toBe(Number(env.FAKE_UV_EXIT ?? "0"));
+  expect(result.status).toBe(exitCode);
   return result.stdout.trim();
 };
 
@@ -104,7 +109,7 @@ describe("vertex-option-chain units", () => {
   });
 
   it("the wrapper passes the exit code of the snapshot through", () => {
-    expect(runWrapper({ FAKE_UV_EXIT: "1" })).toBe(
+    expect(runWrapper({}, "runner", 1)).toBe(
       `args:${SNAPSHOT_ARGS} HOME/.local/share/vertex/option-chain cwd:runner`
     );
   });

@@ -28,10 +28,10 @@ For each ETF and expiry, from the quotes with a bid above zero and an ask above 
   standard deviation out of the money, the put at about 25 delta and the put half a standard deviation
   further out.
 - **Implied volatility** of each quote, computed from its mid: Black-76 on the forward that put-call
-  parity gives near the money (median over the strikes within 3% of spot), with a fixed 4% rate for the
-  discount factor. The implied-volatility column of Yahoo is not used. Its calls and puts disagree at the
+  parity gives near the money (median over the five nearest strikes with both quotes, within 6% of spot),
+  with a fixed 4% rate for the discount factor. The implied-volatility column of Yahoo is not used. Its calls and puts disagree at the
   same strike (SPY at the money on day 1: 15.5% and 13.1%), and that shifts the wing slopes (SPY on day 1:
-  the call slope by +0.04, the put slope by +0.05).
+  the call slope by +0.05, the put slope by +0.06).
 - **Skew slope** of each wing: the least-squares slope of IV / ATM IV against the standardized moneyness
   `x = ln(K/S) / (ATM IV * sqrt(T))`, through the point (0, 1), for calls with x from 0 to 1.5 and for puts
   with x from -1.5 to 0. This is the quantity `smile_iv` uses.

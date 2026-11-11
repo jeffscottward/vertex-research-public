@@ -160,6 +160,26 @@ def test_the_forward_comes_from_the_strikes_near_the_money_only() -> None:
             row.bid, row.ask = row.bid + 0.5, row.ask + 0.5
     assert snapshot.parity_forward(rows(True), puts, SPOT, DISCOUNT) == pytest.approx(FORWARD)
     assert snapshot.parity_forward(rows(True, strikes=(99, 101)), puts, SPOT, DISCOUNT) is None
+    assert snapshot.parity_forward(rows(True, strikes=(99, 100, 101)), puts, SPOT, DISCOUNT) == pytest.approx(FORWARD)
+    # Two bad quotes among the three nearest strikes do not move the median of the five nearest.
+    puts = rows(False)
+    for row in puts:
+        if row.strike in (100.0, 101.0):
+            row.bid, row.ask = row.bid + 0.5, row.ask + 0.5
+    assert snapshot.parity_forward(rows(True), puts, SPOT, DISCOUNT) == pytest.approx(FORWARD)
+
+
+def flat_quotes(call: bool, strikes, forward: float) -> list:
+    return [SimpleNamespace(strike=float(strike), bid=0.99 * price, ask=1.01 * price)
+            for strike in strikes for price in [DISCOUNT * snapshot.black(forward, float(strike), T, 0.4, call)]]
+
+
+@pytest.mark.parametrize("spot, forward", [(46.5, 46.7), (46.0, 46.2), (20.0, 20.1), (20.5, None)])
+def test_the_forward_of_a_low_priced_etf_with_one_dollar_strikes(spot: float, forward: float | None) -> None:
+    """Five nearest strikes within 6% of spot: at 46.5 that is 44 to 49 (a 3% window had two), at 20 it is 19 to 21,
+    and at 20.5 only 20 and 21 are left, which is not enough."""
+    calls, puts = (flat_quotes(side, range(10, 60), forward or 20.6) for side in (True, False))
+    assert snapshot.parity_forward(calls, puts, spot, DISCOUNT) == (None if forward is None else pytest.approx(forward))
 
 
 def test_slope_is_the_least_squares_line_through_the_money() -> None:
@@ -169,21 +189,33 @@ def test_slope_is_the_least_squares_line_through_the_money() -> None:
     assert snapshot.slope({100 * math.exp(0.05): 0.18, 100 * math.exp(0.1): 0.19}, 100.0, 0.2, 0.25, 0.0, 1.5) is None
 
 
+def test_black_is_the_black_76_price() -> None:
+    assert snapshot.black(100.0, 100.0, 1.0, 0.2, True) == pytest.approx(7.9656, abs=1e-4)
+    assert snapshot.black(100.0, 100.0, 1.0, 0.2, False) == pytest.approx(7.9656, abs=1e-4)
+    assert snapshot.black(100.0, 110.0, 0.25, 0.3, True) == pytest.approx(2.5002, abs=1e-4)
+    assert snapshot.black(100.0, 90.0, 0.5, 0.3, True) - snapshot.black(100.0, 90.0, 0.5, 0.3, False) == pytest.approx(10.0)
+
+
 def test_implied_vol_inverts_the_black_price() -> None:
     for call, strike, vol in ((True, 106.0, 0.17), (False, 93.0, 0.31), (True, 95.0, 0.2), (False, 100.0, 0.9)):
         price = snapshot.black(FORWARD, strike, T, vol, call)
         assert snapshot.implied_vol(price, FORWARD, strike, T, call) == pytest.approx(vol)
     assert snapshot.implied_vol(4.0, 100.0, 95.0, T, True) is None  # below the value of exercise (5)
     assert snapshot.implied_vol(0.0, 100.0, 120.0, T, True) is None
+    for vol, inside in ((0.004, False), (0.006, True), (4.9, True), (5.1, False)):  # 0.5% to 500%
+        found = snapshot.implied_vol(snapshot.black(FORWARD, 100.0, T, vol, True), FORWARD, 100.0, T, True)
+        assert (found == pytest.approx(vol)) if inside else (found is None)
 
 
 def test_monthly_expiries_keeps_third_fridays_30_to_75_days_out() -> None:
-    listed = ("2026-11-20", "2026-12-11", "2026-12-17", "2026-12-18", "2026-12-24", "2027-01-15", "2027-02-19")
+    listed = ("2026-11-20", "2026-12-11", "2026-12-17", "2026-12-18", "2026-12-24", "2027-01-15", "2027-01-22", "2027-02-19")
     assert snapshot.monthly_expiries(listed, TODAY) == ["2026-12-18", "2027-01-15"]
     assert snapshot.monthly_expiries(listed, date(2026, 11, 18)) == ["2026-12-18", "2027-01-15"]  # 30 days
     assert snapshot.monthly_expiries(listed, date(2026, 11, 19)) == ["2027-01-15"]  # 29 days
     assert snapshot.monthly_expiries(listed, date(2026, 11, 1)) == ["2026-12-18", "2027-01-15"]  # 75 days
     assert snapshot.monthly_expiries(listed, date(2026, 10, 31)) == ["2026-12-18"]  # 76 days
+    # The third Friday is the 15th to the 21st: January 2027 has Fridays on 15 and 22, August 2026 on 14 and 21.
+    assert snapshot.monthly_expiries(("2026-08-14", "2026-08-21", "2026-08-28"), date(2026, 7, 10)) == ["2026-08-21"]
 
 
 def test_monthly_expiries_takes_the_thursday_when_the_third_friday_is_a_holiday() -> None:
@@ -251,11 +283,14 @@ def test_collect_does_not_ask_yahoo_outside_the_session(tmp_path: Path) -> None:
 
 
 EMPTY = SimpleNamespace(calls=Frame([]), puts=Frame([]))
+NO_PUTS = SimpleNamespace(calls=Frame(rows(True)), puts=Frame([]))
+NO_CALLS = SimpleNamespace(calls=Frame([]), puts=Frame(rows(False)))
 MISSING = SimpleNamespace(calls=None, puts=None)
 
 
 @pytest.mark.parametrize("probe, message", [
     ({"listed": ()}, "no monthly expiry"), ({"chain": EMPTY}, "empty chain"), ({"chain": MISSING}, "empty chain"),
+    ({"chain": NO_PUTS}, "empty chain"), ({"chain": NO_CALLS}, "empty chain"),
     ({"stamp": None}, "no trade time"), ({"failures": 3}, "throttled"),
 ])
 def test_a_failed_reply_for_the_probe_is_an_error_not_a_closed_market(tmp_path: Path, probe: dict, message: str) -> None:
@@ -267,6 +302,39 @@ def test_a_failed_reply_for_the_probe_is_an_error_not_a_closed_market(tmp_path: 
 def test_collect_tries_a_failed_reply_again(tmp_path: Path) -> None:
     code, _ = run(tmp_path, {"SPY": {"failures": 2}, "GLD": {"failures": 2}})
     assert code == 0 and summary_of(tmp_path)["complete"] is True
+
+
+def test_collect_tries_a_failed_spot_price_again(tmp_path: Path) -> None:
+    class Flaky(dict):
+        calls = 0
+
+        def __getitem__(self, key: str):
+            Flaky.calls += 1
+            if Flaky.calls < 3:
+                raise ConnectionError("reset")
+            return super().__getitem__(key)
+
+    def ticker_for(symbol: str) -> Ticker:
+        ticker = Ticker(symbol)
+        if symbol == "QQQ":
+            ticker.fast_info = Flaky(ticker.fast_info)
+        return ticker
+
+    assert snapshot.collect(ticker_for, NOW, tmp_path, "fake", log=lambda *parts: None) == 0
+    assert Flaky.calls == 3 and summary_of(tmp_path)["spots"]["QQQ"] == spot_of("QQQ")
+
+
+def test_a_killed_run_keeps_the_symbols_it_has_and_is_incomplete(tmp_path: Path) -> None:
+    def ticker_for(symbol: str) -> Ticker:
+        if symbol == "GLD":
+            raise KeyboardInterrupt
+        return Ticker(symbol)
+
+    with pytest.raises(KeyboardInterrupt):
+        snapshot.collect(ticker_for, NOW, tmp_path, "fake", log=lambda *parts: None)
+    summary = summary_of(tmp_path)
+    assert summary["complete"] is False and list(summary["symbols"]) == ["SPY", "QQQ", "DIA", "IWM"]
+    assert list(summary["spots"]) == ["SPY", "QQQ", "DIA", "IWM"] and summary["errors"] == {}
 
 
 @pytest.mark.parametrize("broken, error, csv_files", [
@@ -311,9 +379,31 @@ def test_remeasure_computes_the_summary_again_from_the_csv_files(tmp_path: Path)
     assert snapshot.remeasure(directory, log=lambda *parts: None) == 1
     again = summary_of(tmp_path)
     assert again["remeasured"] is True and again["schema"] == 2 and again["fetchedAt"] == first["fetchedAt"]
-    assert again["errors"] == {"GLD": "1 of 1 expiries without usable quotes or spot"}
+    assert again["errors"] == {"GLD": "no spot price stored"}
     assert again["symbols"] == first["symbols"]
     assert not (directory / "summary.json.part").exists()
+
+
+def test_remeasure_keeps_the_reason_of_a_symbol_it_cannot_measure(tmp_path: Path) -> None:
+    run(tmp_path, {"GLD": {"live": False}, "SLV": {"failures": 3}, "USO": {"spot": None}})
+    directory = tmp_path / "2026-11-12" / "203000Z"
+    first = summary_of(tmp_path)
+    assert snapshot.remeasure(directory, log=lambda *parts: None) == 1
+    again = summary_of(tmp_path)
+    # GLD has quotes without a bid and a spot in the spots table; SLV has no chain; USO has a chain but no spot.
+    assert again["errors"] == {"GLD": "1 of 1 expiries without usable quotes", "SLV": "RuntimeError: throttled",
+                               "USO": first["errors"]["USO"]}
+    assert again["symbols"] == first["symbols"] and again["spots"] == first["spots"]
+    for path in directory.glob("IWM-*.csv"):
+        path.unlink()
+    snapshot.remeasure(directory, log=lambda *parts: None)
+    assert summary_of(tmp_path)["errors"]["IWM"] == "no chain stored" and summary_of(tmp_path)["symbols"]["IWM"] == []
+
+
+def test_remeasure_needs_the_summary_of_the_run(tmp_path: Path) -> None:
+    lines: list[str] = []
+    assert snapshot.remeasure(tmp_path, log=lines.append) == 1
+    assert lines == [f"{tmp_path} has no summary.json, so no spot prices: the run cannot be measured again"]
 
 
 MODEL = {"halfSpread": {"SPY": 0.01, "USO": 0.04}, "slope": {"SPY": -0.30, "USO": -0.10}}
@@ -384,13 +474,19 @@ def test_calibrate_leaves_out_damaged_runs_and_runs_of_another_schema(tmp_path: 
     (store / "2026-11-13/203000Z/summary.json").write_text(json.dumps({"schema": 1, "day": "2026-11-13", "symbols": good}))
     (store / "2026-11-16/203000Z/summary.json").write_text(json.dumps({"schema": 2, "day": "2026-11-16"}))
     (store / "2026-11-17/203000Z/summary.json").write_text("[]")
-    (store / "2026-11-18/203000Z").mkdir(parents=True)  # a killed run: no summary yet
+    (store / "2026-11-18/203000Z").mkdir(parents=True)  # a run killed before its first symbol: no summary
+    (store / "2026-11-19/203000Z/summary.json").mkdir(parents=True)  # not readable as a file
+    _store(store, {"2026-11-20/203000Z": good})
+    (store / "2026-11-20/203000Z/summary.json").write_text(json.dumps({"schema": 2, "day": 20261120, "symbols": good}))
+    _store(store, {"2026-11-23/203000Z": good})
+    (store / "2026-11-23/203000Z/summary.json").write_text(json.dumps({"schema": 2, "day": "yesterday", "symbols": good}))
     report = calibrate.calibrate(store, MODEL, min_days=1)
     assert report["symbols"]["SPY"]["days"] == 1 and report["ready"] is True
     reasons = [entry.split("/203000Z/summary.json: ")[1] for entry in report["skipped"]]
-    assert [reason.split(":")[0] for reason in reasons] == ["JSONDecodeError", "ValueError", "KeyError", "TypeError"]
+    assert [reason.split(":")[0] for reason in reasons] == ["JSONDecodeError", "ValueError", "KeyError", "TypeError",
+                                                            "IsADirectoryError", "TypeError", "ValueError"]
     assert reasons[1] == "ValueError: schema 1, not 2" and report["skipped"][0].startswith(str(store / "2026-11-12"))
-    assert calibrate.table(report).count("\nleft out: ") == 4
+    assert calibrate.table(report).count("\nleft out: ") == 7
 
 
 def test_current_model_reads_the_constants_of_the_option_model() -> None:
