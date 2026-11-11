@@ -4,9 +4,17 @@ Places no orders, creates no deployment request and changes no engine setting. I
 sleeves in one account on NautilusTrader (ledger parity) and writes one JSON document to --out
 (a report work directory):
 
-- long index: always-on monthly SPY and QQQ call debit verticals (`oil-predicts-equity/B`);
-- rotation: top 2 of the Core 7 by 12-1 momentum, call debit verticals (`momentum-rotation/A`);
+- long index: always-on monthly SPY and QQQ call debit verticals: the definition of
+  `oil-predicts-equity/B` with a plain always-true entry, from the first day both have an IV index
+  (the study run waits for an oil forecast that it does not use, so it starts in 2011);
+- rotation: the Core 7 ETF with the best 12-1 momentum above 0, call debit verticals: the
+  definition of `momentum-rotation/A` with `top` 1 instead of 2 (the budget holds one position);
 - vol premium: SPY put credit verticals with the volatility-regime gate (`regime-put-vrp/A`).
+
+Both changed definitions are new trials, chosen after the study. The pie starts on the first day
+all three sleeves can run (2006, so the window has 2008). `combine` is first come, first served,
+so the pie also runs with the sleeve order reversed. The "alone" figures of a sleeve are at the
+2% per position of its definition over its own history.
 
 Limits (owner pick): 1% of equity at risk per position, at most 4% open at one time, at most 2%
 in one underlying. Sleeve budgets: long index 2%, rotation 1%, vol premium 1%; the rest is cash.
@@ -24,6 +32,7 @@ Run (rig, venv with the Nautilus lock):
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import multiprocessing
 import sys
@@ -40,9 +49,24 @@ from strategies.qc_ports import allocation as al  # noqa: E402
 from strategies.qc_ports import ideas as qi  # noqa: E402
 from strategies.qc_ports import study  # noqa: E402
 
-# run key -> (sleeve, budget in percent of equity)
+# run key of the study definition each sleeve starts from -> (sleeve, budget in percent of equity)
 POOL = {"oil-predicts-equity/B": ("long index", 2.0), "momentum-rotation/A": ("rotation", 1.0),
         "regime-put-vrp/A": ("vol premium", 1.0)}
+STRESS = {**base.STRESS, "2008": ("2007-10-09", "2009-03-09")}
+
+
+def sleeve_definitions(runs: dict, facts: qi.Facts) -> dict[str, tuple[dict, str]]:
+    """Run key -> (definition, start) of the three sleeves of the pie."""
+    always = copy.deepcopy(dict(runs["oil-predicts-equity/B"].definition))
+    always["name"] = "Always-on SPY and QQQ"
+    always["entry"] = {"all": [dict(qi.ALWAYS)]}
+    rotation = copy.deepcopy(dict(runs["momentum-rotation/A"].definition))
+    rotation["name"] = "Momentum top 1"
+    rotation["portfolio"]["select"]["top"] = 1
+    gated = runs["regime-put-vrp/A"]
+    return {"oil-predicts-equity/B": (always, max(facts.iv_start[symbol] for symbol in always["portfolio"]["symbols"])),
+            "momentum-rotation/A": (rotation, runs["momentum-rotation/A"].start),
+            "regime-put-vrp/A": (dict(gated.definition), gated.start)}
 POSITION_RISK_PCT = 1.0
 OPEN_RISK_CAP_PCT = 4.0
 NAME_RISK_CAP_PCT = 2.0
@@ -65,15 +89,16 @@ def model_run(name: str, data_dir: str, chain_path: str, capital: float, trials:
     dataset = data.dataset
     runs = qi.family(data.facts)
     last_day = dataset.calendar[-1]
-    priced = {key: al.owner_rule_trades(runs[key].definition, dataset, start=runs[key].start) for key in POOL}
+    made = sleeve_definitions(runs, data.facts)
+    priced = {key: al.owner_rule_trades(made[key][0], dataset, start=made[key][1]) for key in POOL}
     sleeves = {}
     for key, trades in priced.items():
-        dates = [day for day in dataset.calendar if day >= runs[key].start]
+        dates = [day for day in dataset.calendar if day >= made[key][1]]
         result, gap, _engine = base.nautilus_run(trades, capital, dates)
         stats = base.run_stats(result, trades, capital, trials, trial_variance)
-        sleeves[key] = {"sleeve": POOL[key][0], "budgetPct": POOL[key][1], "nautilusGap": gap,
+        sleeves[key] = {"sleeve": POOL[key][0], "budgetPct": POOL[key][1], "nautilusGap": gap, "definitionName": made[key][0]["name"],
                         **{field: stats[field] for field in STAT_KEYS}, "lowerBar": lower_bar(stats)}
-    start = max(runs[key].start for key in POOL)
+    start = max(made[key][1] for key in POOL)
     dates = [day for day in dataset.calendar if day >= start]
     caps = al.Caps(open_risk_pct=OPEN_RISK_CAP_PCT, name_risk_pct=NAME_RISK_CAP_PCT,
                    sleeve_of={key: POOL[key][0] for key in POOL}, sleeve_risk_pct={sleeve: budget for sleeve, budget in POOL.values()})
@@ -81,6 +106,9 @@ def model_run(name: str, data_dir: str, chain_path: str, capital: float, trials:
     combined = al.combine(books, dict.fromkeys(POOL, POSITION_RISK_PCT), caps)
     result, gap, engine = base.nautilus_run(combined.trades, capital, dates)
     stats = base.run_stats(result, combined.trades, capital, trials, trial_variance)
+    turned = al.combine(dict(reversed(list(books.items()))), dict.fromkeys(POOL, POSITION_RISK_PCT), caps)
+    turned_result, _gap, _engine = base.nautilus_run(turned.trades, capital, dates)
+    turned_stats = base.run_stats(turned_result, turned.trades, capital, trials, trial_variance)
     cost_of = {trade.trade_id: trade.max_loss for trade in combined.trades}
     per_sleeve = {key: {"trades": 0, "pnl": 0.0} for key in POOL}
     for trade in result.trades:
@@ -91,8 +119,11 @@ def model_run(name: str, data_dir: str, chain_path: str, capital: float, trials:
     return {
         "sleeves": sleeves, "portfolioStart": start, "engine": engine, "nautilusGap": gap,
         "stats": {field: stats[field] for field in STAT_KEYS}, "lowerBar": lower_bar(stats),
+        "reverseOrder": {**{field: turned_stats[field] for field in ("cagr", "sharpe", "maxDrawdown", "trades")},
+                         "lowerBar": lower_bar(turned_stats)},
+        "finalEquity": result.equity[-1],
         "premium": base._open_premium(result, combined.trades), "refused": combined.refused, "perSleeve": per_sleeve,
-        "stress": {**{label: al.window_metrics(result, *window) for label, window in base.STRESS.items()},
+        "stress": {**{label: al.window_metrics(result, *window) for label, window in STRESS.items()},
                    "last3Months": al.window_metrics(result, *recent)},
         "openToday": [{"strategy": combined.owner[t["id"]], "symbol": t["symbol"], "structure": t["structure"], "expiry": t["expiry"],
                        "longStrike": t["longStrike"], "shortStrike": t["shortStrike"], "entryDate": t["entryDate"],

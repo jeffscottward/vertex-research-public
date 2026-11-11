@@ -219,22 +219,27 @@ proposal: it arms nothing, sends no order and changes no engine setting. The low
 repository gate: Sharpe at least 0.3, positive out of sample, Monte Carlo profit at least 80%, max drawdown at most
 25%, at least 30 trades.
 
-| Sleeve | Run | Budget | Sharpe alone, study / measured model | Passes the lower bar |
-| --- | --- | ---: | ---: | --- |
-| long index | `oil-predicts-equity/B` | 2% | +0.44 / +0.85 | yes / yes |
-| rotation | `momentum-rotation/A` | 1% | +0.06 / +0.39 | no / yes |
-| vol premium | `regime-put-vrp/A` | 1% | +0.32 / +0.34 | yes / yes |
+| Sleeve | Definition | Budget | Since | Sharpe alone, study / measured model | Max drawdown alone | Passes the lower bar alone |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| long index | `oil-predicts-equity/B` with a plain always-true entry | 2% | 2001 | -0.00 / +0.38 | -56% / -47% | no / no |
+| rotation | `momentum-rotation/A` with `top` 1 | 1% | 1994 | +0.14 / +0.44 | -24% / -20% | no / yes |
+| vol premium | `regime-put-vrp/A` | 1% | 2006 | +0.32 / +0.34 | -3% / -4% | yes / yes |
+
+"Alone" = the sleeve at the 2% per position of its definition over its own history. The always-on entry and `top` 1
+are new trials, chosen after the study: the study run of the always-on leg waits for an oil forecast it does not use
+(so it starts in 2011, without 2008), and the 1% budget holds one rotation position.
 
 Limits: 1% of equity at risk per position, at most 4% open, at most 2% in one underlying; cash 96%.
 
-One account on NautilusTrader, 2011-05-31 to 2026-11-10:
+One account on NautilusTrader, 2006-07-17 to 2026-11-10 (2008 included):
 
-| Option model | CAGR | Sharpe | Out-of-sample | Max drawdown | 2022 | Last 3 months | Lower bar |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Measured chain snapshot | +5.06% | +0.76 | +0.47 | -13.6% | -11.2% | -4.7% | yes |
-| Study model | +2.07% | +0.35 | +0.08 | -15.1% | -11.8% | -4.7% | yes |
+| Option model | CAGR | Sharpe | Out-of-sample | Deflated Sharpe | Max drawdown | 2007-10 to 2009-03 | 2022 | Reverse order: CAGR / Sharpe | Lower bar |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Measured chain snapshot | +5.12% | +0.79 | +0.83 | 0.83 | -15.0% | -14.1% | -9.4% | +5.12% / +0.79 | yes |
+| Study model | +2.34% | +0.41 | +0.46 | 0.22 | -15.9% | -14.8% | -10.3% | +2.35% / +0.41 | yes |
 
-The long-index sleeve is the always-on baseline of `qc-oil-predicts-equity`, not one of the 97 library strategies.
-The window starts in 2011 and has no 2008. No sleeve passes the repository gate. Before real money the owner must
-re-arm the engine and decide how it may place spreads: the order policy refuses them today (card
+The pie as a whole passes the lower bar in both models; alone, only the put-credit sleeve does. The long-index
+sleeve is long-only beta and loses month after month in a bear market. Neither a sleeve nor the pie passes the
+repository gate. The two rows are two option models on one history, not a forecast range. Before real money the
+owner must re-arm the engine and decide how it may place spreads: the order policy refuses them today (card
 `vertex-order-policy-spreads`).
