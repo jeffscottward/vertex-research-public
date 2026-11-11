@@ -119,7 +119,7 @@ short) with `entry: close beyond the band and beyond VWAP`, `exit: close back th
 `intraday.decisionEvery: 30` for entries and `intraday.exitEvery: 5` so exits are checked on every 5-minute bar, and
 `allIn` sizing. `exitEvery` is the gate this study adds to the strategy DSL. The DSL has no futures contract model
 and no stop at an indicator level that fills inside the bar, so the DSL form is the close-based approximation of
-rule 7 and is run as the "DSL form" row above.
+rule 7. Its signals are run through the kernel as the "close-based exit" row of the sensitivities in Results.
 
 ## Options expression (for any live use; not armed)
 
@@ -139,11 +139,17 @@ naked short, closed before expiry.
 
 ## Results
 
-Ran 2026-11-11 on the rig with the rules above unchanged since commit `e49308bd` (the spec commit that came before any
-run): `python -m strategies.noise_band_futures_run` (`services/research`), output
-`~/Documents/reports/vertex-session-open-momentum/results.json` (SHA-256 prefix `71b6a14a73c1c789`). Data: 5,507 QQQ
-sessions 2004-12-01 to 2026-11-06. Six sessions miss bars and are skipped, and so is the session after each of them,
-because its previous close would be two days old. 89 dividend ex-dates; k between 39.6 and 41.6.
+Ran 2026-11-11 on the rig: `python -m strategies.noise_band_futures_run` (`services/research`), output
+`~/Documents/reports/vertex-session-open-momentum/results.json` (SHA-256 prefix `05d21d39fb295307`).
+
+- The trading rules are those of commit `e49308bd`, the spec commit made before any run.
+- After the first run, review round 1 reworded rules 2 and 9 to describe what the code already did. Behaviour is
+  unchanged.
+- Review round 1 also corrected the data handling of six sessions. Each of them follows a QQQ session that misses bars,
+  and each now serves only as a reference (previous close and σ history) and is not traded. The before-the-paper mean
+  moved from −2.99 to −3.00.
+- Data: 5,513 QQQ sessions 2004-12-01 to 2026-11-06 (6 skipped for missing bars, 6 reference-only), 89 dividend
+  ex-dates, k between 39.6 and 41.6.
 
 ### Verdict
 
@@ -154,8 +160,8 @@ $0.10 per session and its Sharpe within 0.02. In the fifteen years before that p
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Paper, 2020-01 to 2026-07 | (reported) | +10.26 | [+3.27, +17.25] | 1.14 | about 60% | 1.35 | $2,458 |
 | Replication, 2020-01-02 to 2026-07-02 | **REPLICATES** | +10.18 | [+3.34, +17.32] | 1.12 | 59.7% | 1.36 (2,218 trades) | $2,501 |
-| Before the paper, 2005-01-03 to 2019-12-31 | **DOES NOT HOLD** | −3.07 | [−4.10, −2.01] | −1.50 | 61.7% | 1.42 (5,333 trades) | $13,370 |
-| After the paper, 2026-07-06 to 2026-11-06 | (reported only) | +12.02 | [−35.32, +65.33] | 0.78 | 50.6% | 1.28 (114 trades) | $2,098 |
+| Before the paper, 2005-01-03 to 2019-12-31 | **DOES NOT HOLD** | −3.00 | [−4.03, −1.93] | −1.46 | 61.6% | 1.41 (5,318 trades) | $13,349 |
+| After the paper, 2026-07-06 to 2026-11-06 (89 sessions) | (reported only) | +12.02 | [−35.32, +65.33] | 0.78 | 50.6% | 1.28 (114 trades) | $2,098 |
 
 Paper hand-off: none. The pre-set rule needs REPLICATES and HOLDS; the before-the-paper window fails.
 
@@ -173,7 +179,7 @@ Before the paper ($ for the year):
 
 | 2005 | 2006 | 2007 | 2008 | 2009 | 2010 | 2011 | 2012 | 2013 | 2014 | 2015 | 2016 | 2017 | 2018 | 2019 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| −1,629 | −1,468 | −1,149 | −912 | −1,684 | −1,678 | −1,060 | −630 | −943 | −541 | −431 | −601 | −589 | +2,594 | −840 |
+| −1,606 | −1,468 | −1,149 | −912 | −1,695 | −1,678 | −1,060 | −630 | −943 | −541 | −431 | −601 | −581 | +2,697 | −687 |
 
 After the paper (2026-07-06 to 11-06): +$1,070.
 
@@ -181,17 +187,17 @@ After the paper (2026-07-06 to 11-06): +$1,070.
 
 | Variant | 2020-01 to 2026-07 | 2005-2019 | 2026-07 to 11 |
 | --- | --- | --- | --- |
-| One extra point of slippage on every stop fill | +7.87 (−23%; the paper reports −22%) | −5.50 | +9.82 |
-| Entries on every 5-minute bar instead of HH:00 / HH:30 | +1.29 | −8.96 | −3.48 |
-| Kernel with a close-based exit every 5 minutes, filled at the next open (the signals of the DSL form) | +12.22 | −1.80 | +18.81 |
-| Diagnostic, added after the graded run: no commission and no slippage | +14.72 | +1.69 | +16.32 |
+| One extra point of slippage on every stop fill | +7.87 (−23%; the paper reports −22%) | −5.42 | +9.82 |
+| Entries on every 5-minute bar instead of HH:00 / HH:30 | +1.29 | −8.91 | −3.48 |
+| Kernel with a close-based exit every 5 minutes, filled at the next open (the signals of the DSL form) | +12.22 | −1.79 | +18.81 |
+| Diagnostic, added after the graded run: no commission and no slippage | +14.72 | +1.75 | +16.32 |
 
 - The close-based row is the kernel's `stop_fill="next_open"` mode: 1 MNQ, futures costs, two ticks on the exit. The
   `CHUK_NQ` DSL definition produces the same entry and exit signals
   (`test_chuk_dsl_signals_match_the_kernel_bands_vwap_and_grid`), but its engine run uses `allIn` sizing and stock
   costs, so this row is not a DSL engine result.
-- Before 2020 the gross edge is about +$1.69 per session, against about $4.8 per session of costs. Costs sink the early
-  years; the sign of the signal does not. The index stood between about 1,500 and 8,700 points then, so one MNQ earned
+- Before 2020 the gross edge is about +$1.75 per session, against about $4.75 per session of costs. Costs sink the early
+  years; the sign of the signal does not. The index stood between about 1,000 and 8,800 points then, so one MNQ earned
   fewer dollars for the same percentage move, while the $2 commission and the tick slippage stayed the same.
 - Exits: 85% of trades end on the trailing stop; 25% of trades win; 54% of trades are long (paper period).
 

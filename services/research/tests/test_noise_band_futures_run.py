@@ -20,12 +20,15 @@ def rows(day: date, n: int = 78, start=(14, 30), price: float = 100.0, skip: int
 
 
 def test_sessions_keep_full_and_half_days_and_skip_gaps() -> None:
-    d1, d2, d3, d4 = date(2020, 1, 2), date(2020, 1, 3), date(2020, 1, 6), date(2020, 11, 27)
+    d1, d2, d3, d4, d5 = (date(2020, 1, 2), date(2020, 1, 3), date(2020, 1, 6), date(2020, 1, 7),
+                          date(2020, 11, 27))
     pre = [(utc(d1, 14, 0), 1.0, 1.0, 1.0, 1.0, 1.0)]  # 09:00 New York: dropped
-    sessions, info = run._sessions([*pre, *rows(d1), *rows(d2, skip=10), *rows(d3), *rows(d4, n=42)])
-    # d2 misses a bar; d3 follows it, so its previous close would be two days old.
-    assert [s.day for s in sessions] == [d1, d4]
-    assert [len(s.bars) for s in sessions] == [78, 42]
+    sessions, info = run._sessions([*pre, *rows(d1), *rows(d2, skip=10), *rows(d3), *rows(d4), *rows(d5, n=42)])
+    # d2 misses a bar and is dropped; d3 follows it, so d3 is a reference only (its previous close would be
+    # two days old) and d4 takes its previous close from d3.
+    assert [s.day for s in sessions] == [d1, d3, d4, d5]
+    assert [s.tradable for s in sessions] == [True, False, True, True]
+    assert [len(s.bars) for s in sessions] == [78, 78, 78, 42]
     assert sessions[0].bars[0].minute == 0 and sessions[0].bars[-1].minute == 385
     assert info["skipped_days"] == [d2.isoformat()]
     assert info["skipped_after"] == [d3.isoformat()]

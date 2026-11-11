@@ -260,3 +260,23 @@ def test_chuk_dsl_signals_match_the_kernel_bands_vwap_and_grid() -> None:
     assert [j for j, v in enumerate(got) if v == 1] == want_entry
     assert [j for j, v in enumerate(got) if v == -1] == want_exit
     assert want_entry and want_exit
+
+
+def test_a_reference_session_is_not_traded_but_sets_the_next_previous_close() -> None:
+    # The reference session would trade (10:00 close above UB) but is skipped. It closes at 102, so the next
+    # session (open 102) has LB = 102 x 0.999 = 101.898 and shorts its 10:00 close of 101.8. With the older
+    # close of 100 as reference instead, LB would be 99.9 and there would be no trade.
+    start = date(2020, 1, 1)
+    warmup = [warm(start + timedelta(days=i)) for i in range(14)]
+    ref = make_day({5: 100.5, 77: 102.0})
+    nxt_bars = []
+    for b in ref.bars:
+        c = 101.8 if b.minute >= 25 else 102.0
+        nxt_bars.append(Bar(b.minute, 102.0 if b.minute <= 25 else 101.8, 102.0, min(c, 102.0), c, 1.0))
+    nxt = Session(date(2020, 2, 2), tuple(nxt_bars))
+    sessions = [*warmup, Session(ref.day, ref.bars, tradable=False), nxt]
+    res = run_futures_backtest(sessions, [K] * len(sessions))
+    assert [d.day for d in res.days] == [nxt.day]
+    assert [(t.side, t.entry_minute) for t in res.trades][:1] == [(-1, 30)]
+    stale = run_futures_backtest([*warmup, nxt], [K] * 15)
+    assert stale.trades == []

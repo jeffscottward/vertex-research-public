@@ -42,6 +42,7 @@ class Session:
     day: date
     bars: tuple[Bar, ...]
     dividend: float = 0.0  # cash dividend with ex-date on this session
+    tradable: bool = True  # False: a reference session (previous close, sigma history) that is never traded
 
 
 @dataclass(frozen=True)
@@ -377,7 +378,7 @@ def run_futures_backtest(sessions: Sequence[Session], scales: Sequence[float],
     result = FuturesResult(params=p)
     sigmas = noise_sigmas(sessions, p.lookback)
     for i, s in enumerate(sessions):
-        if i < p.lookback:
+        if i < p.lookback or not s.tradable:
             continue
         bars = s.bars
         k = scales[i]

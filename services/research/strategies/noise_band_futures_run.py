@@ -34,7 +34,7 @@ ET = ZoneInfo("America/New_York")
 FULL_LAST = 385  # 15:55 bar start, minutes after 09:30
 HALF_LASTS = (205, 220)  # 12:55 (13:00 close, ETF half-days) and 13:10 (13:15 close, CME equity index)
 WINDOWS = {
-    "replication": (date(2020, 1, 2), date(2026, 7, 3)),
+    "replication": (date(2020, 1, 2), date(2026, 7, 2)),  # the paper's sample ends 07-03, a holiday
     "before": (date(2005, 1, 3), date(2019, 12, 31)),
     "after": (date(2026, 7, 6), date(2026, 11, 6)),
 }
@@ -58,7 +58,8 @@ SEED = 7
 def _sessions(rows: Iterable[tuple[datetime, float, float, float, float, float]]) -> tuple[list[Session], dict]:
     """Regular-hours 5-minute sessions from (UTC bar start, o, h, l, c, v) rows. A session is kept only
     with a 09:30 bar, a last bar at 15:55 (or a half-day close) and no missing bar between. The session
-    after a skipped one is skipped too: its band reference (the previous close) would be two days old."""
+    after a skipped one is kept as a reference that is never traded: its own previous close would be two
+    days old, but it supplies the previous close and the sigma history of the session after it."""
     by_day: dict[date, dict[int, Bar]] = defaultdict(dict)
     for t, o, h, lo, c, v in rows:
         local = t.astimezone(ET)
@@ -76,11 +77,10 @@ def _sessions(rows: Iterable[tuple[datetime, float, float, float, float, float]]
             skipped.append(day.isoformat())
             gap = True
             continue
+        sessions.append(Session(day, tuple(bars[m] for m in sorted(bars)), tradable=not gap))
         if gap:
             after_skip.append(day.isoformat())
             gap = False
-            continue
-        sessions.append(Session(day, tuple(bars[m] for m in sorted(bars))))
     return sessions, {"sessions": len(sessions), "skipped": len(skipped), "skipped_days": skipped[:50],
                       "skipped_after": after_skip[:50]}
 
@@ -149,7 +149,8 @@ def load_nq(paths: Sequence[str]) -> tuple[list[list[Session]], list[list[float]
         day, name = chosen[idx]
         s = contracts[name][day]
         adjusted.append((Session(day, tuple(Bar(b.minute, b.open * factor, b.high * factor, b.low * factor,
-                                                   b.close * factor, b.volume) for b in s.bars)), 1.0 / factor))
+                                                   b.close * factor, b.volume) for b in s.bars),
+                                 tradable=s.tradable), 1.0 / factor))
         prev_day = chosen[idx - 1][0] if idx > 0 else None
         # If the new contract has no bars on the old one's last day (a data gap), keep the factor: the gap
         # splits the segments below, and k = 1 / factor keeps P&L in real points either way.
