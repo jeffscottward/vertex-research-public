@@ -115,6 +115,7 @@ describe("agent viewer read-only gate", () => {
           method === "GET" ||
             path === "agentModelRuns.list" ||
             path === "agentModelRuns.search" ||
+            path === "masterRules.search" ||
             path === "semanticTerms.query"
         ).toBe(true);
       } else {
@@ -278,6 +279,7 @@ const REVIEWED_READS: readonly string[] = [
   "marketData.depth",
   "marketData.ticks",
   "marketNews.watchlist",
+  "masterRules.search",
   "nautilusArm.status",
   "openbb.cot",
   "openbb.events",

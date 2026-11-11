@@ -127,7 +127,7 @@ The research building blocks are first-party Vertex code in `services/research`.
 
 ### Research and strategy specs
 
-- `research/master-rules/`: rule pack built from trader knowledge bases.
+- `research/master-rules/`: rule pack built from trader knowledge bases. `build-master-rule-pack.mjs` also writes the cited sources (KB, record id, statement, public post URL) and each KB's source tier, and the two modules behind the read-only `master_rules_search` tool (MCP and the in-app assistant in Plan and Act modes): `packages/api/src/server/master-rules-index.generated.ts` and `master-rules-sources.generated.ts`. The web build bundles them; nothing reads a file at run time. Results are advisory research input and never authorize a trade.
 - `research/macro/`: macro desk checklists (research filters, not order signals).
 - `research/backtests/`: backtest harnesses (freestockalerts, carousel, 151 strategies).
 - `docs/specs/strategies/`: strategy specs. The index is [docs/vertex-rebuild/strategy-inventory.md](docs/vertex-rebuild/strategy-inventory.md).

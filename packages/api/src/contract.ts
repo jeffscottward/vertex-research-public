@@ -31,6 +31,7 @@ import { researchReportsContract } from "./contracts/research-reports.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { flowContract } from "./contracts/flow.ts";
 import { semanticTermsContract } from "./contracts/semantic-terms.ts";
+import { masterRulesContract } from "./contracts/master-rules.ts";
 import { clickLogContract } from "./contracts/click-log.ts";
 import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
 import { strategyLibraryContract } from "./contracts/strategy-library.ts";
@@ -308,6 +309,7 @@ export const appContract = {
   researchStudies: researchStudiesContract,
   flow: flowContract,
   semanticTerms: semanticTermsContract,
+  masterRules: masterRulesContract,
   clickLog: clickLogContract,
   papers: papersContract,
   agentModelRuns: agentModelRunsContract,

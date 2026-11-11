@@ -66,6 +66,7 @@ describe("MCP tool registry", () => {
       "options_gex_context",
       "terms_list",
       "terms_query",
+      "master_rules_search",
       "flow_snapshot",
       "openbb_status",
       "openbb_vol_context",
@@ -161,6 +162,22 @@ describe("callMcpTool", () => {
       schemaVersion: "flow-snapshot.v1",
       symbol: "ES",
     });
+  });
+
+  it("forwards master_rules_search to masterRules/search and checks its limit", async () => {
+    const value = { matches: [], note: "Advisory research input." };
+    const call = okCall(value);
+    const args = { kb: "jay-medrow", query: "2s10s yield curve" };
+    const result = await callMcpTool("master_rules_search", args, call);
+    expect(call).toHaveBeenCalledWith("masterRules/search", args);
+    expect(result["structuredContent"]).toEqual(value);
+    const tooMany = await callMcpTool(
+      "master_rules_search",
+      { limit: 26, query: "stops" },
+      call
+    );
+    expect(tooMany["isError"]).toBe(true);
+    return expect(call).toHaveBeenCalledTimes(1);
   });
 
   it("forwards the read-only openbb tools to their openbb procedures", async () => {

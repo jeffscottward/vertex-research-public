@@ -45,6 +45,7 @@ import {
   SemanticTermsListInputSchema,
 } from "../contracts/semantic-terms.ts";
 import { MarketBarsInputSchema } from "../contracts/market-data.ts";
+import { MasterRulesSearchInputSchema } from "../contracts/master-rules.ts";
 import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
 import {
   BacktestRunGetInputSchema,
@@ -479,6 +480,15 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
       "Answer one certified term: { term, params }. Returns status (ok, unknown or not_available), answer, rows, the SQL or feed path that produced them (query), source, unit and asOf. Account terms (net_liquidation, pnl, position, open_risk) read the owner's live IBKR account (vertex-portfolio feed), never the paper exec node. status unknown or not_available means: give no value. A term with several groupings (backtest_sharpe and backtest_max_drawdown: per strategy, and per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy) runs each certified grouping; every row has a grain cell, and groupings says which ran and which wait for certification. Say which grouping each row uses. Their strategy parameter also matches the symbol of a run with no strategy (for example IWM).",
     procedure: "semanticTerms/query",
     input: SemanticTermQueryInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "master_rules_search",
+    title: "Search trader master rules",
+    description:
+      'Search the trader master rules: rules that the trader knowledge bases (KBs) agree on, classified A (3+ KBs, fits our style), B (fits), C (needs missing data) or D (style conflict). Input: query (words such as "2s10s yield curve"), optional kb (a KB id such as "jay-medrow" or "nicholas-crown"), optional cls (["A","B"]), limit (default 10, max 25). Each match has id, title, rule, cls, reason, consensus, kbs, kbTiers ("top" marks the owner\'s top sources), and sources (kb, recordId, statement, url). In the answer, name the KBs and give the source URLs you rely on; say when a source has no URL. Advisory research input only: a rule never authorizes a trade.',
+    procedure: "masterRules/search",
+    input: MasterRulesSearchInputSchema,
     readOnly: true,
   },
   {

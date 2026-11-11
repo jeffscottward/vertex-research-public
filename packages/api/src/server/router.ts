@@ -85,6 +85,7 @@ import { researchReportsRouter } from "./research-reports.ts";
 import { researchStudiesRouter } from "./research-studies.ts";
 import { flowRouter } from "./flow.ts";
 import { semanticTermsRouter } from "./semantic-terms.ts";
+import { masterRulesRouter } from "./master-rules.ts";
 import { clickLogRouter } from "./click-log.ts";
 import {
   createFeatureItemService,
@@ -1732,6 +1733,7 @@ export const appRouter = api.router({
   researchStudies: researchStudiesRouter,
   flow: flowRouter,
   semanticTerms: semanticTermsRouter,
+  masterRules: masterRulesRouter,
   clickLog: clickLogRouter,
   papers: papersRouter,
   agentModelRuns: agentModelRunsRouter,
