@@ -1981,6 +1981,41 @@ class RiskCapsTest(V3TestCase):
         self.assertNotIn("reservations", stored)
         self.assertNotIn(OPEN_RISK_KEY, stored)
         self.assert_refused(*sale, "reservations_invalid")
+        # 3. A reservations value that is no list beside a valid list of working opening orders.
+        self.reservations.write_text(self.ledger_document(good, reservations="bad"))
+        code, _ = self.run_tool("release-open-risk", "--key", "21:900", "--by", "owner", "--reason", "checked TWS first")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(self.reservations.read_text())["reservations"], "bad")
+        self.assert_refused(*sale, "reservations_invalid")
+        # 4. open_risk as an object beside valid reservations: a close write keeps it.
+        self.reservations.write_text(self.ledger_document(good, **{OPEN_RISK_KEY: {"21:900": good}}))
+        self.place(*closing, order_id=2)
+        self.assertEqual(json.loads(self.reservations.read_text())[OPEN_RISK_KEY], {"21:900": good})
+        self.assertEqual(len(self.client.placed), 2)
+
+    def test_a_read_fault_at_the_write_refuses_the_order_and_keeps_the_other_list(self) -> None:
+        # Review round 3: a write reads the file once more to keep the other list. A fault of that read
+        # may not pass for "no file": the close would be written without the working opening orders.
+        book, closing, sale = self.closes_beside_a_broken_ledger()
+        self.write_snapshot(book)
+        self.place(*self.debit_call(5, symbol="MSFT"), order_id=1)
+        before = self.reservations.read_text()
+        for fault in (OSError(24, "Too many open files"), PermissionError("read-only")):
+            with self.subTest(fault=type(fault).__name__):
+                with mock.patch.object(arm_gate, "_stored_document", side_effect=fault):
+                    self.assert_place_refused(*sale, "reservations_write_failed", order_id=2)
+                    self.assert_place_refused(*self.debit_call(5, symbol="IBM"), "reservations_write_failed", order_id=3)
+                self.assertEqual(self.reservations.read_text(), before)
+        # The helper itself: only a missing file is an empty document.
+        self.assertEqual(arm_gate._stored_document(self.tmp / "none.json"), {})
+        for text in ("{bad", "[]", ""):
+            self.reservations.write_text(text)
+            with self.assertRaises(OSError):
+                arm_gate._stored_document(self.reservations)
+        self.reservations.unlink()
+        self.reservations.mkdir()
+        with self.assertRaises(OSError):
+            arm_gate._stored_document(self.reservations)
         self.assertEqual(len(self.client.placed), 1)
 
     def test_a_write_that_would_pass_the_size_limit_is_refused(self) -> None:
@@ -2460,6 +2495,45 @@ class ClosingVerticalTest(V3TestCase):
         # Switch off: the v2 behaviour.
         with self.flag(None):
             self.assert_accepted(v2.stock(), v2.order("SELL", 200), None, None, allowance="position_close")
+        self.assertEqual(self.client.placed, [])
+
+    def test_the_sale_is_measured_from_the_size_left_after_fills_the_snapshot_does_not_show(self) -> None:
+        # Review round 3 (test gap). +2 x 100 call, -1 x 110 call: one long may go. Its sale fills, the
+        # snapshot still shows 2: a second sale would leave the short 110 call alone.
+        self.write_snapshot([self.held(2, 100, cost=900.0), self.held(-1, 110, cost=300.0)])
+        self.place(self.leg(100), v2.order("SELL", 1), order_id=1)
+        self.client.orderStatus(1, "Filled", Decimal(1), Decimal(0))
+        self.assert_place_refused(self.leg(100), v2.order("SELL", 1), None, "close_would_uncover_short", order_id=2)
+        self.assertEqual(len(self.client.placed), 1)
+
+    def test_what_does_not_cover_a_short_call(self) -> None:
+        # Review round 3 (test gaps). Long shares are no long call of the expiry.
+        self.write_snapshot([v2.held_stock(100), self.held(1, 230, cost=120.0), self.held(-1, 250, cost=60.0)])
+        self.assert_refused(self.leg(230), v2.order("SELL", 1), None, "close_would_uncover_short")
+        # An SPXW call does not cover an SPX call of the same date.
+        index = {"symbol": "SPX", "cost": 100.0}
+        self.write_snapshot(
+            [
+                self.held(1, 5000, trading_class="SPX", **index),
+                self.held(-1, 5100, trading_class="SPX", **index),
+                self.held(1, 5050, trading_class="SPXW", **index),
+            ]
+        )
+        sale = (self.leg(5000, symbol="SPX", tradingClass="SPX"), v2.order("SELL", 1), None)
+        self.assert_refused(*sale, "close_would_uncover_short")
+        self.assert_accepted(
+            self.leg(5050, symbol="SPX", tradingClass="SPXW"), v2.order("SELL", 1), None, None, allowance="position_close"
+        )
+        # A held option of the expiry without a trading class may or may not cover the short call.
+        self.write_snapshot(
+            [self.held(1, 100, cost=900.0), self.held(1, 105, cost=600.0, trading_class=""), self.held(-1, 110, cost=300.0, trading_class="")]
+        )
+        self.assert_refused(self.leg(100), v2.order("SELL", 1), None, "close_risk_unavailable")
+        self.write_snapshot([self.held(1, 100, cost=900.0), self.held(1, 105, cost=600.0), self.held(-1, 110, cost=300.0)])
+        self.assert_accepted(self.leg(100), v2.order("SELL", 1), None, None, allowance="position_close")
+        # Short shares with no call at all: a long put changes nothing for them and may be sold.
+        self.write_snapshot([{**v2.held_stock(-200), "average_cost": 200.0}, self.held(1, 150, "P", cost=90.0)])
+        self.assert_accepted(self.leg(150, "P"), v2.order("SELL", 1), None, None, allowance="position_close")
         self.assertEqual(self.client.placed, [])
 
     def test_a_long_is_not_sold_alone_while_an_opening_spread_of_its_expiry_works(self) -> None:

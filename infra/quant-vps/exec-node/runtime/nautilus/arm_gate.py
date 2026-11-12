@@ -1188,15 +1188,25 @@ def _write_reservations(path: Path, reservations: dict[str, dict[str, Any]]) -> 
 
 
 def _stored_document(path: Path) -> dict[str, Any]:
-    """The JSON object stored in the reservation file; {} when missing, unreadable or not an object."""
+    """The JSON object stored in the reservation file; {} when there is no file.
+
+    Any other fault raises ``OSError``: the write that asked would drop the
+    other list of the file, so the order is refused instead (``place_order``
+    reports ``reservations_write_failed``).
+    """
 
     try:
         with open(path, "rb") as handle:
             raw = handle.read(RESERVATIONS_MAX_BYTES + 1)
-        data = json.loads(raw) if len(raw) <= RESERVATIONS_MAX_BYTES else None
-    except (OSError, ValueError):
+    except FileNotFoundError:
         return {}
-    return data if isinstance(data, dict) else {}
+    try:
+        data = json.loads(raw) if len(raw) <= RESERVATIONS_MAX_BYTES else None
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        raise OSError(f"{path.name} is not a readable reservation file")
+    return data
 
 
 def _write_document(path: Path, document: dict[str, Any]) -> None:
@@ -2094,12 +2104,14 @@ def _check_close_risk(
             continue
         if (
             held["sec_type"] != "OPT"
-            or (held["symbol"], held["expiry"], held["trading_class"]) != group
+            or (held["symbol"], held["expiry"]) != group[:2]
+            or held["trading_class"] not in ("", group[2])
             or quantity == 0
         ):
             continue
         short_held = short_held or quantity < 0
-        if not _identity_complete(held) or held["multiplier"] is None:
+        if not _identity_complete(held) or held["multiplier"] is None or not held["trading_class"]:
+            # Without its trading class the option may or may not belong to this group.
             readable = False
             continue
         contract = (held["right"], held["strike"], held["multiplier"])
@@ -2112,8 +2124,8 @@ def _check_close_risk(
     if not readable:
         raise OrderPolicyError(
             "close_risk_unavailable",
-            "a held option of this underlying and expiry lacks strike, right or multiplier in the "
-            f"snapshot, so the risk left after this sale cannot be measured: {refusal}",
+            "a held option of this underlying and expiry lacks strike, right, multiplier or trading "
+            f"class in the snapshot, so the risk left after this sale cannot be measured: {refusal}",
         )
     for name, item in live.items():
         other = item["identity"]
@@ -2157,7 +2169,12 @@ def _check_close_risk(
 
     for side in sorted({identity["right"] for identity, _, _ in closes}):
         worst_before, worst_after = worst(before, side), worst(after, side)
+        net_before, net_after = (
+            sum((size for (right, _, _), size in book.items() if right == side), Decimal(0))
+            for book in (before, after)
+        )
         if worst_after is None:
+            # Also when the book had no bound before: from such a book only a buy-back is allowed.
             raise OrderPolicyError(
                 "close_would_uncover_short",
                 "this sale would leave a held short call, or short shares, without a long call of "
@@ -2170,10 +2187,6 @@ def _check_close_risk(
                 f"{_usd(worst_after)} USD more than their value now, instead of "
                 f"{_usd(worst_before)} USD: {refusal}",
             )
-        net_before, net_after = (
-            sum((size for (right, _, _), size in book.items() if right == side), Decimal(0))
-            for book in (before, after)
-        )
         if net_after < 0 and net_after < net_before:
             # Puts: one long put of a higher strike can be worth as much as two short puts, so
             # the worst value alone would let a long go (the 1:2 shape is refused as an opening order).
