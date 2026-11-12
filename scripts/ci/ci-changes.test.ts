@@ -179,4 +179,61 @@ describe("ci-changes.sh", () => {
     expect(draft).toContain("heavy=false");
     expect(draft).toContain("draft=true");
   });
+
+  // Owner decision 2026-11-11 (card vertex-code-stewardship): the template init
+  // acceptance shard is the longest CI job, so it runs nightly and for changes to the
+  // init command instead of on every pull request.
+  describe("acceptance shard", () => {
+    const SKIPPED = 'skip_shards=[{"shard":"acceptance"}]';
+
+    it("skips the shard when no changed path belongs to the init command", () => {
+      const { out } = planPullRequest(
+        "false",
+        "false",
+        [
+          "apps/web/src/page.tsx",
+          "scripts/initial.ts",
+          "scripts/init.test.ts",
+          "docs/scripts/init/notes.py",
+        ].join("\n")
+      );
+      expect(out).toContain("heavy=true");
+      expect(out).toContain("acceptance=false");
+      expect(out).toContain(SKIPPED);
+    });
+
+    it.each([
+      ["scripts/init/plan.ts"],
+      ["scripts/init.ts"],
+      ["README.md\nscripts/init/init.acceptance.test.ts"],
+    ])("plans the shard for a pull request that changes %s", (files) => {
+      const { out } = planPullRequest("false", "false", files);
+      expect(out).toContain("heavy=true");
+      expect(out).toContain("acceptance=true");
+      expect(out).toContain("skip_shards=[]");
+    });
+
+    it.each([
+      ["a manual run", { EVENT: "workflow_dispatch" }],
+      ["the nightly run", { EVENT: "schedule" }],
+      [
+        "a push whose changed files cannot be listed",
+        { EVENT: "push", BEFORE: "0".repeat(40) },
+      ],
+    ])("plans the shard on %s without asking GitHub", (_label, env) => {
+      const { calls, out } = runPlan(env);
+      expect(calls).toEqual([]);
+      expect(out).toContain("kind=code");
+      expect(out).toContain("heavy=true");
+      expect(out).toContain("acceptance=true");
+      expect(out).toContain("skip_shards=[]");
+    });
+
+    it("plans no shard outside the full lane, even when the init command changed", () => {
+      const { out } = planPullRequest("true", "true", "scripts/init/plan.ts");
+      expect(out).toContain("heavy=false");
+      expect(out).toContain("acceptance=false");
+      expect(out).toContain(SKIPPED);
+    });
+  });
 });

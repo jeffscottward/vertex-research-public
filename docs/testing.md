@@ -7,7 +7,7 @@
 | Unit | `**/*.test.ts(x)` next to the code, `tests/generator/` | Vitest project `unit` | nothing |
 | Contract | `**/*contract.test.ts` | Vitest project `contract` | nothing |
 | Operations | `scripts/**/*.test.ts` | Vitest project `operations` | nothing |
-| Acceptance | `scripts/**/*.acceptance.test.ts` (clone, init, install) | Vitest project `acceptance`, CI coverage lane only | a pnpm store or network |
+| Acceptance | `scripts/**/*.acceptance.test.ts` (clone, init, install) | Vitest project `acceptance`; CI coverage lane, nightly and for changes to `scripts/init` | a pnpm store or network |
 | E2E helpers | `tests/e2e/helpers/*.test.ts` | Vitest project `e2e-helpers` | nothing |
 | Integration | `tests/integration/**/*.test.ts` | Vitest project `integration` | Postgres |
 | E2E | `tests/e2e/*.spec.ts` | Playwright project `e2e` | Postgres, build |
@@ -22,7 +22,7 @@ Pick the lowest layer that proves the behavior. A rule in a service is a unit te
 bun run test                 # every layer
 bun run test:unit
 bun run test:contract
-bun run test:acceptance      # clone + init + install; CI runs it in the coverage lane
+bun run test:acceptance      # clone + init + install; CI runs it nightly and for changes to scripts/init
 bun run test:integration     # needs the local test Postgres (below)
 bun run test:e2e             # playwright test --project e2e
 bun run test:a11y            # playwright test --project a11y
@@ -83,7 +83,7 @@ The browser lane (`bun run verify:browser`) needs the same two variables.
 | integration | `verify:integration` | repositories, migrations, auth and API against real Postgres |
 | browser | `verify:browser` | production build, Playwright `e2e` and `a11y` |
 
-In CI the coverage lane does not run the tests itself. A 2-vCPU runner cannot finish them within the 30-minute job limit, so thirteen `Coverage shard` jobs run them first: twelve Vitest shards of the unit, contract, operations and E2E-helper projects, and one job for the acceptance project. The acceptance job has a 50-minute limit, because its fresh-clone test reruns the whole unit suite. Each shard uploads a Vitest blob report as a run artifact (`coverage-blob-<n>`) and checks no threshold. Only the coverage lane (its own job, `verification-coverage`) waits for the shards; the core, integration and browser lanes start at once and run beside them. The coverage lane then merges the reports (`COVERAGE_MERGE_DIR`) and enforces the 100% thresholds on the combined coverage. `scripts/coverage-lane.ts` selects the mode from `COVERAGE_SHARD` or `COVERAGE_MERGE_DIR`; with neither set it runs the whole lane in one process. Blob reports hold absolute paths, and the rig runners check out into different directories. So each shard replaces its checkout root with `<coverage-lane-root>` in its report, and the merge replaces that token with its own checkout root.
+In CI the coverage lane does not run the tests itself. A 2-vCPU runner cannot finish them within the 30-minute job limit, so `Coverage shard` jobs run them first: twelve Vitest shards of the unit, contract, operations and E2E-helper projects, and one job for the acceptance project. The acceptance job is the longest CI job (its fresh-clone test reruns the whole unit suite; 50-minute limit), so it is not part of every run (owner decision 2026-11-11): it runs on the nightly run of the live line (07:23 UTC), on a manual run, and on a pull request or push that changes `scripts/init.ts` or a file under `scripts/init/` (`scripts/ci/ci-changes.sh`). When it runs, the coverage lane requires its report, so it is a required check for those pull requests. Each shard uploads a Vitest blob report as a run artifact (`coverage-blob-<n>`) and checks no threshold. Only the coverage lane (its own job, `verification-coverage`) waits for the shards; the core, integration and browser lanes start at once and run beside them. The coverage lane then merges the reports (`COVERAGE_MERGE_DIR`) and enforces the 100% thresholds on the combined coverage. `scripts/coverage-lane.ts` selects the mode from `COVERAGE_SHARD` or `COVERAGE_MERGE_DIR`; with neither set it runs the whole lane in one process. Blob reports hold absolute paths, and the rig runners check out into different directories. So each shard replaces its checkout root with `<coverage-lane-root>` in its report, and the merge replaces that token with its own checkout root.
 
 Coverage ratchet: every measured file must reach 100% lines, branches, functions and statements, except the files listed in `scripts/ci/coverage-baseline.json`. Those files were below 100% when Vertex moved to TypeScript (2026-10-11). Each has its own recorded minimums, which may only rise. Raise a file's numbers when its tests improve, and remove the file when it reaches 100%. `scripts/ci/test-invariants.test.ts` fails if the list grows, if a listed file is already at 100%, or if the Vitest thresholds stop matching the list.
 

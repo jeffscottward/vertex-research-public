@@ -177,6 +177,44 @@ describe("GitHub workflow invariants", () => {
     );
   });
 
+  // Owner 2026-11-11 (card vertex-code-stewardship): the template init acceptance shard
+  // is the longest job. It runs on the nightly run and when the changes job plans it
+  // (scripts/ci/ci-changes.sh); the coverage lane then requires its report.
+  it("runs the acceptance shard nightly and only when the changes job plans it", () => {
+    const ci = workflows.find(({ file }) => file === "ci.yml")!;
+    const on = ci.workflow.on as Record<string, unknown>;
+    expect(on["schedule"]).toEqual([{ cron: expect.any(String) }]);
+    const { concurrency } = ci.workflow as unknown as {
+      concurrency: { group: string };
+    };
+    // Its own group: the nightly run never replaces a queued live-line run.
+    expect(concurrency.group).toContain(
+      "github.event_name == 'schedule' && format('nightly-{0}', github.run_id)"
+    );
+    const ciJobs = ci.workflow.jobs as Record<
+      string,
+      Job & {
+        outputs?: Record<string, string>;
+        steps?: (Step & { env?: Record<string, string> })[];
+      }
+    >;
+    expect(ciJobs["changes"]!.outputs).toMatchObject({
+      acceptance: "${{ steps.plan.outputs.acceptance }}",
+      skip_shards: "${{ steps.plan.outputs.skip_shards }}",
+    });
+    const matrix = ciJobs["coverage-shards"]!.strategy?.matrix;
+    expect(matrix?.["shard"]).toContain("acceptance");
+    expect(matrix?.["exclude"]).toBe(
+      "${{ fromJSON(needs.changes.outputs.skip_shards) }}"
+    );
+    // The merge counts the reports against the plan: 13 with the acceptance shard, else 12.
+    return expect(
+      ciJobs["verification-coverage"]!.steps?.map((step) => step.env)
+    ).toContainEqual({
+      EXPECTED: "${{ needs.changes.outputs.acceptance == 'true' && 13 || 12 }}",
+    });
+  });
+
   // Card vertex-ci-queue-pathfilter (2026-11-02): one required check, a light lane
   // that never waits for the coverage shards, and no workflow-level path filters.
   it("gates every CI job behind ci-gate and keeps the light lane independent", () => {
