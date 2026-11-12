@@ -9,6 +9,7 @@ Code rules. Workflow is in [AGENTS.md](AGENTS.md), boundaries in [ARCHITECTURE.m
 - Import other packages only through their `exports` map (`@darkfactory/email/server`), never `src/` paths.
 - Put server-only code behind `./server` or a `./server/<name>` subpath. Its `browser` condition points to an `unsupported` stub that throws.
 - Route handlers, CLI entry files and adapters hold no business rules: they parse input, call a service and map the result.
+- No runtime import cycles: Biome fails on them (`suspicious/noImportCycles`). When two modules need the same code, move it into a leaf module that imports neither. Type-only imports do not count.
 
 ## TypeScript
 
