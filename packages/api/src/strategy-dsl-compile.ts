@@ -655,9 +655,10 @@ export const intradaySessions = (
 type IntradayGates = Readonly<{ entry: Uint8Array; exit: Uint8Array }>;
 
 /**
- * Gates of the intraday block: exits on regular bars of the decision grid (every regular bar
- * without decisionEvery); entries there too when the close time is in [entryFrom, entryTo] and the
- * bar is not the last regular bar of its session day.
+ * Gates of the intraday block: exits on regular bars of the exit grid (exitEvery, else the
+ * decision grid, else every regular bar); entries on regular bars of the decision grid (every
+ * regular bar without decisionEvery) when the close time is in [entryFrom, entryTo] and the bar is
+ * not the last regular bar of its session day.
  */
 const intradayGates = (
   sessions: IntradaySessions,
@@ -666,18 +667,22 @@ const intradayGates = (
   const size = sessions.session.length;
   const from = minutesOf(intraday.entryFrom) * MINUTE_MS;
   const to = minutesOf(intraday.entryTo) * MINUTE_MS;
-  const grid =
-    intraday.decisionEvery === undefined
-      ? undefined
-      : intraday.decisionEvery * MINUTE_MS;
+  const onGrid = (close: number, every: number | undefined): boolean =>
+    every === undefined ||
+    (close - sessions.openMs) % (every * MINUTE_MS) === 0;
+  const exitEvery = intraday.exitEvery ?? intraday.decisionEvery;
   const entry = new Uint8Array(size);
   const exit = new Uint8Array(size);
   for (let index = 0; index < size; index += 1) {
     if ((sessions.session[index] as number) < 0) continue;
     const close = sessions.closeMs[index] as number;
-    if (grid !== undefined && (close - sessions.openMs) % grid !== 0) continue;
-    exit[index] = 1;
-    if (close >= from && close <= to && sessions.last[index] === 0)
+    if (onGrid(close, exitEvery)) exit[index] = 1;
+    if (
+      onGrid(close, intraday.decisionEvery) &&
+      close >= from &&
+      close <= to &&
+      sessions.last[index] === 0
+    )
       entry[index] = 1;
   }
   return { entry, exit };
@@ -807,7 +812,7 @@ const sessionLayouts = new WeakMap<SeriesCache, IntradaySessions>();
 /**
  * Lays out the sessions of an intraday block for the session indicators read through `cache`.
  * Refuses bars without two bars on one New York date (STRATEGY_INTRADAY_DAILY_UNSUPPORTED), and
- * open, close, entryFrom, entryTo or decisionEvery that are not whole multiples of the bar
+ * open, close, entryFrom, entryTo, decisionEvery or exitEvery that are not whole multiples of the bar
  * duration (STRATEGY_INTRADAY_GRID_MISALIGNED; times in minutes since midnight New York).
  */
 const attachSessions = (
@@ -820,13 +825,10 @@ const attachSessions = (
     throw new StrategyUnsupportedError(STRATEGY_INTRADAY_DAILY_REFUSAL);
   for (const field of ["open", "close", "entryFrom", "entryTo"] as const)
     alignToGrid(field, intraday[field], minutesOf(intraday[field]), sessions);
-  if (intraday.decisionEvery !== undefined)
-    alignToGrid(
-      "decisionEvery",
-      intraday.decisionEvery,
-      intraday.decisionEvery,
-      sessions
-    );
+  for (const field of ["decisionEvery", "exitEvery"] as const) {
+    const every = intraday[field];
+    if (every !== undefined) alignToGrid(field, every, every, sessions);
+  }
   sessionLayouts.set(cache, sessions);
   return sessions;
 };

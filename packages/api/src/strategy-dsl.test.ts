@@ -1931,13 +1931,17 @@ describe("intraday block, session indicators, side and volTarget sizing", () => 
   it("accepts the intraday block, the session indicators, side short and volTarget, adding no defaults", () => {
     const definition = {
       ...withIndicators,
-      intraday: { ...intraday, decisionEvery: 30 },
+      intraday: { ...intraday, decisionEvery: 30, exitEvery: 5 },
       side: "short",
       sizing: volTarget,
     };
     expect(issuesOf(definition)).toEqual([]);
     const parsed = StrategyDefinitionSchema.parse(definition);
-    expect(parsed.intraday).toEqual({ ...intraday, decisionEvery: 30 });
+    expect(parsed.intraday).toEqual({
+      ...intraday,
+      decisionEvery: 30,
+      exitEvery: 5,
+    });
     expect(parsed.side).toBe("short");
     expect(parsed.sizing).toEqual(volTarget);
     expect(parsed.entry.all[0]?.right).toEqual(vwap);
@@ -1953,6 +1957,7 @@ describe("intraday block, session indicators, side and volTarget sizing", () => 
     });
     expect(plain.side).toBeUndefined();
     expect(plain.intraday?.decisionEvery).toBeUndefined();
+    expect(plain.intraday?.exitEvery).toBeUndefined();
     expect(plain.entry.any?.[0]?.right).toEqual(upper);
     expect(issuesOf({ ...minimal, side: "long" })).toEqual([]);
     expect(
@@ -2174,6 +2179,15 @@ describe("intraday block, session indicators, side and volTarget sizing", () => 
     [
       "decisionEvery not whole",
       { ...minimal, intraday: { ...intraday, decisionEvery: 1.5 } },
+    ],
+    ["exitEvery 0", { ...minimal, intraday: { ...intraday, exitEvery: 0 } }],
+    [
+      "exitEvery above 390",
+      { ...minimal, intraday: { ...intraday, exitEvery: 391 } },
+    ],
+    [
+      "exitEvery not whole",
+      { ...minimal, intraday: { ...intraday, exitEvery: 2.5 } },
     ],
     [
       "an unknown intraday key",
