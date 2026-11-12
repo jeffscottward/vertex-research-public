@@ -12,8 +12,10 @@ Exit codes (scripts/golive/collect.ts reads them; do not renumber):
      nothing. stderr is empty.
   1  refused: the reason on stderr (every line starts with "golive: "), nothing on stdout. Data
      that is not usable (the bars, or a series a sleeve reads, have no value of the trading day
-     before the trading day), a chain store that cannot be read, a candidate that breaks an output
-     rule, an unknown definition variant or run key, a plan that does not state its tested
+     before the trading day or of an older day a spread in the document rests on; a look-back
+     longer than the history), a chain store that cannot be read, a candidate without listed
+     strikes (no usable chain snapshot of its symbol, expiry and side), a candidate that breaks an
+     output rule, an unknown definition variant or run key, a plan that does not state its tested
      definition, a plan that is not JSON, a data directory that cannot be read. An error nobody
      foresaw also ends with 1 (the Python traceback on stderr, nothing on stdout).
   2  usage (argparse), nothing on stdout.
