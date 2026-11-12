@@ -216,7 +216,7 @@ describe("scripts/merge-pr", () => {
       view: [view(H1), view(H1, "BEHIND")],
     });
     expect(status).toBe(1);
-    expect(stderr).toContain("base moved 5 times");
+    expect(stderr).toContain("keeps reporting BEHIND");
     expect(merges(calls)).toEqual([]);
   });
 
@@ -279,10 +279,18 @@ describe("scripts/merge-pr", () => {
     expect(merges(calls)).toHaveLength(1);
   });
 
-  it("stops on any fm claim error other than a refusal", () => {
+  it("stops after repeated fm claim errors and releases anything it took", () => {
     const { calls, status } = run({ claim: ["!1 coord.json unreadable"] });
     expect(status).toBe(1);
+    expect(calls.filter((call) => call === claimCall)).toHaveLength(3);
+    expect(calls.at(-1)).toBe(releaseCall);
     expect(merges(calls)).toEqual([]);
+  });
+
+  it("retries a transient fm claim error on the first claim", () => {
+    const { calls, status } = run({ claim: ["!1 coord.json busy", "claimed"] });
+    expect(status).toBe(0);
+    expect(merges(calls)).toHaveLength(1);
   });
 
   it("keeps a claim the card held before it started", () => {
@@ -514,6 +522,25 @@ describe("scripts/merge-pr", () => {
     });
     expect(status).toBe(0);
     expect(stdout.trim()).toBe("merge1");
+  });
+
+  it("exits 5 when gh pr merge errors and the outcome cannot be confirmed", () => {
+    const unreadable = run({
+      merge: ["!1 timeout"],
+      view: [view(H1), view(H1), view(H1), "!1 HTTP 502"],
+    });
+    expect(unreadable.status).toBe(5);
+    const closed = run({
+      merge: ["!1 timeout"],
+      view: [
+        view(H1),
+        view(H1),
+        view(H1),
+        `CLOSED\\tfalse\\t${BASE}\\t${H1}\\tUNKNOWN`,
+      ],
+    });
+    expect(closed.status).toBe(5);
+    expect(closed.stderr).toContain("check it by hand");
   });
 
   it("exits 5 when the merge commit tree differs from the PR head tree", () => {

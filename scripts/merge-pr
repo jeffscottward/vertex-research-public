@@ -102,11 +102,12 @@ gh_read() {
 repo=$(gh_read repo view --json nameWithOwner --jq .nameWithOwner) || exit 1
 repo_name=${repo#*/}
 
-# Sets state, draft, pr_base, head and merge_state from the live PR.
+# Sets state, draft, pr_base, head and merge_state from the live PR; a failed read
+# exits with $1 (default 1).
 read_pr() {
   local row
   row=$(gh_read pr view "$pr" --json state,isDraft,baseRefName,headRefOid,mergeStateStatus \
-    --jq '[.state, .isDraft, .baseRefName, .headRefOid, .mergeStateStatus] | @tsv') || exit 1
+    --jq '[.state, .isDraft, .baseRefName, .headRefOid, .mergeStateStatus] | @tsv') || exit "${1:-1}"
   IFS=$'\t' read -r state draft pr_base head merge_state <<<"$row"
 }
 
@@ -160,16 +161,23 @@ claim() {
   claim_rc=$?
   set -e
 }
+claim_errors=0
 while true; do
-  # Set first, so a signal during fm claim still releases whatever it took.
+  # Set first, so a signal or an fm crash during the claim still releases whatever
+  # it took; releasing a claim the card does not hold does nothing.
   claimed=true
   claim
   ((claim_rc != 0)) || break
-  claimed=false
   if ((claim_rc != 4)); then
-    echo "$claim_out" >&2
-    die "fm claim failed (exit $claim_rc)"
+    claim_errors=$((claim_errors + 1))
+    if ((claim_errors >= 3)); then
+      echo "$claim_out" >&2
+      die "fm claim failed (exit $claim_rc)"
+    fi
+    pause "$retry_seconds"
+    continue
   fi
+  claimed=false
   if (($(date +%s) >= deadline)); then
     echo "$claim_out" >&2
     die "another card holds $resource; retry later or pass --wait <minutes>" 4
@@ -198,11 +206,12 @@ beat() {
 }
 beat "holds $base, checking PR ${head:0:8}" force
 
-# Required checks as "context<TAB>app id" lines (empty app id: any source).
+# Required checks as "context<TAB>app id" lines (empty app id: any source; classic
+# protection reports "any source" as app_id -1).
 required=$(
   gh_read api "repos/$repo/branches/$base_path/protection/required_status_checks" \
-    --jq '.checks[] | [.context, (.app_id // "" | tostring)] | @tsv' &&
-  gh_read api "repos/$repo/rules/branches/$base_path" \
+    --jq '.checks[] | [.context, (.app_id // -1 | if . == -1 then "" else tostring end)] | @tsv' &&
+  gh_read api "repos/$repo/rules/branches/$base_path" --paginate \
     --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[] | [.context, (.integration_id // "" | tostring)] | @tsv'
 ) || die "cannot read the base's required checks"
 required=$(sort -u <<<"$required" | grep -v '^$' || true)
@@ -257,6 +266,7 @@ count_update() {
 }
 
 updates=0
+behind_reports=0
 while true; do
   previous=$head
   refresh "$previous"
@@ -291,7 +301,10 @@ while true; do
   case "$merge_state" in
     CLEAN | UNSTABLE | HAS_HOOKS) break ;;
     BEHIND)
-      count_update
+      # The next round's compare counts a real base move; this only bounds a
+      # BEHIND state that the compare does not confirm.
+      behind_reports=$((behind_reports + 1))
+      ((behind_reports <= max_updates)) || die "GitHub keeps reporting BEHIND while the compare shows $head up to date"
       log "GitHub reports the PR behind $base; checking again"
       pause "$poll_seconds"
       ;;
@@ -303,9 +316,12 @@ beat "merging ${head:0:8} into $base" force
 log "required checks green on $head; merging"
 if ! gh pr merge "$pr" --merge --match-head-commit "$head" >&2; then
   # The merge may have landed even though the client saw an error.
-  read_pr
-  [[ "$state" == MERGED ]] || die "gh pr merge failed (error above)"
-  log "gh pr merge reported an error, but the PR is merged"
+  read_pr 5
+  case "$state" in
+    MERGED) log "gh pr merge reported an error, but the PR is merged" ;;
+    OPEN) die "gh pr merge failed (error above)" ;;
+    *) die "PR is $state after a failed gh pr merge; check it by hand" 5 ;;
+  esac
 fi
 
 row=$(gh_read pr view "$pr" --json state,mergeCommit --jq '[.state, (.mergeCommit.oid // "")] | @tsv') || exit 5
