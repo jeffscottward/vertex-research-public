@@ -5,14 +5,24 @@
 
 Run in services/research. stdin: the plan document (GoLivePlanSchema of
 packages/api/src/contracts/golive-drafts.ts). stdout: one JSON object in the shape of
-GoLiveCollectInputSchema, and nothing else. Exit codes: 0 the document is printed (zero candidates
-is a valid result); 1 refused, with the reason on stderr and nothing on stdout (stale data, an
-unknown definition variant or run key, a plan that does not state its tested definition); 2 usage;
-3 the day is not an NYSE trading day (nothing to collect).
+GoLiveCollectInputSchema, and nothing else.
+
+Exit codes (scripts/golive/collect.ts reads them; do not renumber):
+  0  the document is printed: every check passed. Zero candidates then means the model wants
+     nothing. stderr is empty.
+  1  refused: the reason on stderr (every line starts with "golive: "), nothing on stdout. Data
+     that is not usable (the bars, or a series a sleeve reads, have no value of the trading day
+     before the trading day), a chain store that cannot be read, a candidate that breaks an output
+     rule, an unknown definition variant or run key, a plan that does not state its tested
+     definition, a plan that is not JSON, a data directory that cannot be read. An error nobody
+     foresaw also ends with 1 (the Python traceback on stderr, nothing on stdout).
+  2  usage (argparse), nothing on stdout.
+  3  the day is not an NYSE trading day: nothing to collect, nothing on stdout.
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from datetime import UTC, datetime
@@ -41,23 +51,30 @@ def main(argv=None, stdin=None, stdout=None, stderr=None) -> int:
     if now.tzinfo is None:
         now = now.replace(tzinfo=UTC)
     try:
-        plan = json.loads(stdin.read())
-        data = study.load_study_data(args.data.expanduser())
-        document = generate(plan, data.dataset, data.facts, args.chain_store.expanduser(), args.trading_day, now)
+        # stdout carries the document and nothing else: a print of the code below goes to stderr.
+        with contextlib.redirect_stdout(stderr):
+            plan = json.loads(stdin.read())
+            try:
+                data = study.load_study_data(args.data.expanduser())
+            except OSError as error:
+                raise GoLiveError(f"cannot read the data directory {args.data}: {error}") from None
+            document = generate(plan, data.dataset, data.facts, args.chain_store.expanduser(), args.trading_day, now)
+            text = json.dumps(document, allow_nan=False)
     except NotTradingDayError as error:
-        print(f"golive: {error}", file=stderr)
-        return EXIT_NOT_TRADING_DAY
+        return _refuse(stderr, str(error), EXIT_NOT_TRADING_DAY)
     except GoLiveError as error:
-        print(f"golive: {error}", file=stderr)
-        return EXIT_REFUSED
+        return _refuse(stderr, str(error), EXIT_REFUSED)
     except json.JSONDecodeError as error:
-        print(f"golive: the plan on stdin is not JSON ({error})", file=stderr)
-        return EXIT_REFUSED
-    except OSError as error:
-        print(f"golive: cannot read the data directory {args.data}: {error}", file=stderr)
-        return EXIT_REFUSED
-    stdout.write(json.dumps(document, allow_nan=False) + "\n")
+        return _refuse(stderr, f"the plan on stdin is not JSON ({error})", EXIT_REFUSED)
+    stdout.write(text + "\n")
     return 0
+
+
+def _refuse(stderr, message: str, code: int) -> int:
+    """Writes the reason to stderr, every line with the "golive: " prefix, and returns the exit code."""
+    for line in message.splitlines() or [""]:
+        print(f"golive: {line}", file=stderr)
+    return code
 
 
 if __name__ == "__main__":
