@@ -57,55 +57,76 @@ describe("free-text secret detection", () => {
   });
 });
 
-// CodeQL js/polynomial-redos (alert 23). Each input makes one detector of the old patterns scan
-// the same long run again from every position: from 2.5 seconds to minutes at these sizes. A
-// linear scan needs a few milliseconds, so the limit is far from both.
+// CodeQL js/polynomial-redos (alert 23). Each `hostile` input makes one detector of the old
+// patterns scan the same long run again from every position: more than 2 seconds at these sizes
+// (the sizes keep a regression at seconds per row, not hours). A linear scan needs a few
+// milliseconds, so the limit is far from both.
 describe("free-text scrubbing in linear time", () => {
-  const SIZE = 400_000;
-  const LIMIT_MS = 2000;
-  // The old URL patterns were the slowest (77 s at 60,000 characters), so those inputs are
-  // shorter: a regression fails in seconds instead of blocking the run for hours.
-  const URL_SIZE = 20_000;
-  const repeated = (unit: string, size = SIZE): string =>
+  const LIMIT_MS = 1000;
+  const repeated = (unit: string, size: number): string =>
     unit.repeat(Math.ceil(size / unit.length));
-  const hostile: ReadonlyArray<readonly [string, string]> = [
-    ["quoted Basic value, tabs", `authorization:"Basic${repeated("\t")}`],
-    ["quoted Bearer value, tabs", `authorization='Bearer${repeated("\t")}`],
-    [
-      "URL starts before a path marker",
-      repeated("http://a/reset-password?", URL_SIZE),
-    ],
-    [
-      "URL starts before a query marker",
-      repeated("http://a/verify-email?x", URL_SIZE),
-    ],
-    ["query markers with no token", repeated("/api/auth/verify-email?")],
-    ["query markers and tokens", repeated("/verify-email?token%3D")],
-    ["path markers", repeated("/reset-password/x")],
-    ["scheme characters with no ://", repeated("a.")],
-    [
-      "private key headers with no END",
-      repeated("-----BEGIN PRIVATE KEY-----"),
-    ],
-    ["JWT starts", repeated("eyJ-")],
-    ["email local part with no @", repeated("a%")],
-    ["email domain with no top-level name", `a@${repeated("b.b9")}`],
-    ["one long field label", repeated("token")],
-    ["field label, spaces", `password${repeated(" ")}`],
-  ];
-
-  it.each(hostile)("scrubs %s within the time limit", (_name, text) => {
+  const timed = (text: string): number => {
     const started = performance.now();
     scrubSecretText(text);
     containsSecretText(text);
     containsCredential(text);
-    expect(performance.now() - started).toBeLessThan(LIMIT_MS);
+    return performance.now() - started;
+  };
+  const hostile: ReadonlyArray<readonly [string, string]> = [
+    [
+      "quoted Basic value, tabs",
+      `authorization:"Basic${repeated("\t", 200_000)}`,
+    ],
+    [
+      "quoted Bearer value, tabs",
+      `authorization='Bearer${repeated("\t", 200_000)}`,
+    ],
+    [
+      "URL starts before a path marker",
+      repeated("http://a/reset-password?", 20_000),
+    ],
+    [
+      "URL starts before a query marker",
+      repeated("http://a/verify-email?x", 20_000),
+    ],
+    [
+      "query markers with no token",
+      repeated("/api/auth/verify-email?", 400_000),
+    ],
+    ["scheme characters with no ://", repeated("a.", 100_000)],
+    [
+      "private key headers with no END",
+      repeated("-----BEGIN PRIVATE KEY-----", 400_000),
+    ],
+    ["JWT starts", repeated("eyJ-", 100_000)],
+    ["email local part with no @", repeated("a%", 100_000)],
+    ["email domain with no top-level name", `a@${repeated("b.b9", 100_000)}`],
+  ];
+
+  it.each(hostile)("scrubs %s within the time limit", (_name, text) => {
+    expect(timed(text)).toBeLessThan(LIMIT_MS);
   });
 
-  it("keeps the bounded log path fast for a hostile string value", () => {
+  // These were not slow before. They guard the single-pass helpers and the unchanged patterns
+  // against a later change that makes them scan again per marker, token or address.
+  it.each([
+    ["query markers and tokens", repeated("/verify-email?token%3D", 400_000)],
+    ["path markers", repeated("/reset-password/x", 400_000)],
+    ["a chain of email addresses", repeated("a@b.co%", 400_000)],
+    ["one long field label", repeated("token", 400_000)],
+    ["field label, spaces", `password${repeated(" ", 400_000)}`],
+  ])("stays fast on %s", (_name, text) => {
+    expect(timed(text)).toBeLessThan(LIMIT_MS);
+  });
+
+  it("keeps the bounded log path fast for hostile string values", () => {
+    // 60 values of 2,040 characters per event: 0.24 s per event with the old patterns.
+    const value = repeated("http://a/reset-password?", 2040);
+    const event = Object.fromEntries(
+      Array.from({ length: 60 }, (_unused, index) => [`k${index}`, value])
+    );
     const started = performance.now();
-    for (let index = 0; index < 200; index += 1)
-      redact({ note: `authorization:"Basic${"\t".repeat(2000)}` });
+    for (let index = 0; index < 20; index += 1) redact(event);
     expect(performance.now() - started).toBeLessThan(LIMIT_MS);
   });
 });
@@ -122,8 +143,16 @@ describe("free-text scrubbing rules", () => {
     ["+http://u:p@h", `+http://${R}@h`],
     ["_x.http://u:p@h", `_x.http://${R}@h`],
     ["see postgres://user:pw@db.test/x", `see postgres://${R}@db.test/x`],
-    // Email: leading punctuation of the run stays.
+    // Email: leading punctuation of the run stays; an address directly after another one is
+    // replaced too, with the separator that started its local part.
     ["..a@b.co x..a@b.co", `..${R} ${R}`],
+    [
+      "GET /invite?to=alice@example.com%2Cbob@example.com%2Ccarol@example.com 200",
+      `GET /invite?to=${R}${R}${R} 200`,
+    ],
+    ["to=alice@example.com+bob@example.com", `to=${R}${R}`],
+    ["range alice@example.com-bob@example.com", `range ${R}${R}`],
+    ["x@a.io.y@b.io then a@b.co-@b.co", `${R}${R} then ${R}${R}`],
     // JWT: starts at "eyJ" at the run start or after "-".
     ["abc-eyJx.y.z abc.eyJx.y.z eyJa.b.c-", `abc-${R} abc.${R} ${R}-`],
     // PEM private keys: closed blocks one by one; an open block to the end of the text.
@@ -233,6 +262,11 @@ describe("free-text scrubbing rules", () => {
     expect(containsCredential("_x.http://u:p@h")).toBe(true);
     expect(containsCredential("1http://u:p@h and _http://u:p@h")).toBe(false);
     expect(containsCredential("9://a:b@c then ftp://u:p@h")).toBe(true);
+    // Unicode case folding: U+017F counts as "s" and U+212A as "k", so both are scheme letters
+    // (and word characters) for this gate.
+    expect(containsCredential("http\u017f://user:pass@host")).toBe(true);
+    expect(containsCredential("a\u212a://user:pass@host")).toBe(true);
+    expect(containsCredential("_\u212ax://user:pass@host")).toBe(false);
   });
 });
 

@@ -306,13 +306,12 @@ describe("strategy fields", () => {
     expect(slugifyStrategyName("--- a --- b ---")).toBe("a-b");
     // The cut at the length limit can leave one "-" at the end; it is removed.
     expect(slugifyStrategyName(`${"a".repeat(79)} b`)).toBe("a".repeat(79));
-    // CodeQL js/polynomial-redos (alert 22): a long run of "-" is trimmed in linear time.
-    const started = performance.now();
-    expect(slugifyStrategyName(`${"-".repeat(1_000_000)}a`)).toBe("a");
-    expect(() => slugifyStrategyName("-".repeat(1_000_000))).toThrow(
+    // CodeQL js/polynomial-redos (alert 22): the trim patterns match one "-". A long run of "-"
+    // was never slow (the step before folds it into one "-"); this pins the result.
+    expect(slugifyStrategyName(`${"-".repeat(100_000)}a`)).toBe("a");
+    expect(() => slugifyStrategyName("-".repeat(100_000))).toThrow(
       /derive a slug/
     );
-    expect(performance.now() - started).toBeLessThan(2000);
     return expect(() => slugifyStrategyName("—")).toThrow(/derive a slug/);
   });
 

@@ -159,19 +159,29 @@ const batch = (
 ): ClickLogRecordInput => ({ buildSha: "abc1234", events, tabId: TAB });
 
 // CodeQL js/polynomial-redos (alert 21): a long run with no "@" or no digit made the old EMAIL and
-// TOKEN patterns scan it again from every position.
+// TOKEN patterns scan it again from every position (more than 2 seconds at this size).
 describe("click-log redaction in linear time", () => {
-  it.each([
-    ["no @", "!".repeat(400_000)],
-    ["no digit", "a".repeat(400_000)],
-    ["many @", "a@".repeat(200_000)],
-    ["digits and separators", "1,".repeat(200_000)],
-    ["email with a long domain", `a@${"b.".repeat(200_000)}`],
-  ])("redacts a hostile label (%s) within the time limit", (_name, text) => {
+  const timed = (text: string): number => {
     const started = performance.now();
     redactClickText(text);
     redactClickRoute(text);
-    expect(performance.now() - started).toBeLessThan(2000);
+    return performance.now() - started;
+  };
+
+  it.each([
+    ["no @", "!".repeat(100_000)],
+    ["no digit", "a".repeat(100_000)],
+    ["digits and separators", "1,".repeat(50_000)],
+  ])("redacts a hostile label (%s) within the time limit", (_name, text) => {
+    expect(timed(text)).toBeLessThan(1000);
+  });
+
+  // Not slow before; these guard the anchored patterns against a later change.
+  it.each([
+    ["many @", "a@".repeat(200_000)],
+    ["email with a long domain", `a@${"b.".repeat(200_000)}`],
+  ])("stays fast on a long label (%s)", (_name, text) => {
+    expect(timed(text)).toBeLessThan(1000);
   });
 
   it("matches emails and tokens from the start of their run, as before", () => {

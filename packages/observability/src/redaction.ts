@@ -241,7 +241,9 @@ const cutSecrets = (
     secret.lastIndex = cut.from;
     secret.exec(run);
     out += `${run.slice(copied, cut.from)}${REDACTED}`;
-    copied = secret.lastIndex;
+    // A secret has at least one character (the marker and token patterns look ahead for it). If
+    // `secret` ever missed, one character is still cut: the scan moves on and nothing is kept.
+    copied = Math.max(secret.lastIndex, cut.from + 1);
     if (cut === last) break;
   }
   return copied === 0 ? run : out + run.slice(copied);
@@ -310,21 +312,51 @@ const scrubAuthUrls = (input: string): string =>
 
 // "scheme://user:password@". The first group is the whole run of scheme characters before "://";
 // the lookbehind lets a run be tried once. isUrlScheme then decides whether a scheme (a letter at
-// a word boundary, then scheme characters) ends that run.
-const URL_USERINFO = /(?<![a-z0-9+.-])([a-z0-9+.-]+):\/\/[^\s/@:]+:[^\s/@]+@/gi;
-const SCHEME_AFTER_PUNCTUATION = /[+.-][a-z]/i;
+// a word boundary, then scheme characters) ends that run. Two sets of the same patterns: the text
+// scrubber matches ASCII letters, the credential gate also the two letters that Unicode case
+// folding maps to "s" and "k" (flag "u"), as each did before.
+type UrlUserinfoPatterns = Readonly<{
+  afterPunctuation: RegExp;
+  firstLetter: RegExp;
+  userinfo: RegExp;
+}>;
+const SCRUB_URL_USERINFO: UrlUserinfoPatterns = {
+  afterPunctuation: /[+.-][a-z]/i,
+  firstLetter: /^[a-z]/i,
+  userinfo: /(?<![a-z0-9+.-])([a-z0-9+.-]+):\/\/[^\s/@:]+:[^\s/@]+@/gi,
+};
+const GATE_URL_USERINFO: UrlUserinfoPatterns = {
+  afterPunctuation: /[+.-][a-z]/iu,
+  firstLetter: /^[a-z]/iu,
+  userinfo: /(?<![a-z0-9+.-])([a-z0-9+.-]+):\/\/[^\s/@:]+:[^\s/@]+@/giu,
+};
 
-const isUrlScheme = (run: string, before: string): boolean =>
-  (before !== "_" && /^[a-z]/i.test(run)) || SCHEME_AFTER_PUNCTUATION.test(run);
+const isUrlScheme = (
+  patterns: UrlUserinfoPatterns,
+  run: string,
+  before: string
+): boolean =>
+  (before !== "_" && patterns.firstLetter.test(run)) ||
+  patterns.afterPunctuation.test(run);
 
 const scrubUrlUserinfo = (input: string): string =>
-  input.replace(URL_USERINFO, (match: string, run: string, at: number) =>
-    isUrlScheme(run, input.charAt(at - 1)) ? `${run}://${REDACTED}@` : match
+  input.replace(
+    SCRUB_URL_USERINFO.userinfo,
+    (match: string, run: string, at: number) =>
+      isUrlScheme(SCRUB_URL_USERINFO, run, input.charAt(at - 1))
+        ? `${run}://${REDACTED}@`
+        : match
   );
 
 const hasUrlUserinfo = (input: string): boolean => {
-  for (const match of input.matchAll(URL_USERINFO)) {
-    if (isUrlScheme(String(match[1]), input.charAt(match.index - 1)))
+  for (const match of input.matchAll(GATE_URL_USERINFO.userinfo)) {
+    if (
+      isUrlScheme(
+        GATE_URL_USERINFO,
+        String(match[1]),
+        input.charAt(match.index - 1)
+      )
+    )
       return true;
   }
   return false;
@@ -353,10 +385,19 @@ const scrubPrivateKeys = (input: string): string => {
   return copied === 0 ? input : out + input.slice(copied);
 };
 
-// An email address. The local part starts at the first letter, digit or "_" of its run; leading
-// punctuation stays in the text (first group).
-const EMAIL_ADDRESS =
-  /(?<![A-Z0-9._%+-])([.%+-]*)[A-Z0-9_][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+// Email addresses. The local part starts at the first letter, digit or "_" of its run; leading
+// punctuation stays in the text (first group). An address can follow another one directly
+// ("a@x.io%2Cb@y.io": the next local part starts at the ".", "%", "+" or "-" where the last one
+// ended), so one match takes the whole chain and each address becomes one [REDACTED].
+const EMAIL_CHAIN =
+  /(?<![A-Z0-9._%+-])([.%+-]*)[A-Z0-9_][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}\b(?:[.%+-][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}\b)*/gi;
+
+const scrubEmails = (input: string): string =>
+  input.replace(
+    EMAIL_CHAIN,
+    (chain: string, lead: string) =>
+      `${lead}${REDACTED.repeat(chain.split("@").length - 1)}`
+  );
 
 // A JWT ("eyJ" + three dot-separated segments). It starts at the first "eyJ" of its run that is at
 // the run start or after a "-"; the lookahead finds that place once and keeps the text before it
@@ -397,9 +438,10 @@ const scrubString = (input: string): string => {
         return `${label}${separator}${quote}${REDACTED}${quote}`;
       }
     );
-  return scrubPrivateKeys(scrubUrlUserinfo(fields))
-    .replace(EMAIL_ADDRESS, `$1${REDACTED}`)
-    .replace(JWT, `$1${REDACTED}`);
+  return scrubEmails(scrubPrivateKeys(scrubUrlUserinfo(fields))).replace(
+    JWT,
+    `$1${REDACTED}`
+  );
 };
 
 // Free text (for example model output stored by a feature) with every detected secret or personal
