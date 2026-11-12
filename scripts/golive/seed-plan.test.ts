@@ -52,9 +52,14 @@ const cli = (
 const storeDouble = (
   writePlan: GoLivePlanStore["writePlan"] = async (seed) =>
     ({ id: seed.id, status: seed.status, version: 7 }) as GoLivePlanRecord,
-  close: GoLivePlanStore["close"] = async () => undefined
+  close: GoLivePlanStore["close"] = async () => undefined,
+  planInForce: GoLivePlanStore["planInForce"] = async () => null
 ) => {
-  const store = { close: vi.fn(close), writePlan: vi.fn(writePlan) };
+  const store = {
+    close: vi.fn(close),
+    planInForce: vi.fn(planInForce),
+    writePlan: vi.fn(writePlan),
+  };
   const open = vi.fn<OpenGoLivePlanStore>(() => store);
   return { open, store };
 };
@@ -153,6 +158,34 @@ describe("funded-lower-bar-pie plan document", () => {
   });
 });
 
+/** The row the store holds after `argv` was written as version `version`. */
+const recordOf = (
+  argv: readonly string[],
+  version = 3,
+  changes: Partial<GoLivePlanRecord> = {}
+): GoLivePlanRecord => {
+  const seed = buildSeedPlan(parseSeedPlanArguments(argv).values);
+  const at = new Date("2026-11-12T15:00:00Z");
+  return {
+    ...seed,
+    approvedAt: seed.status === "approved" ? at : null,
+    approvedBy: seed.status === "approved" ? seed.approvedBy : null,
+    createdAt: at,
+    exitRule: "owner_standing_rule_v1",
+    retiredAt: null,
+    // The store returns the sleeves in another key order than the document.
+    sleeves: seed.sleeves.map(
+      (sleeve) =>
+        Object.fromEntries(
+          Object.entries(sleeve).reverse()
+        ) as unknown as (typeof seed.sleeves)[number]
+    ),
+    updatedAt: at,
+    version,
+    ...changes,
+  };
+};
+
 describe("parseSeedPlanArguments", () => {
   it("reads every flag and --write in any position", () => {
     expect(
@@ -163,6 +196,7 @@ describe("parseSeedPlanArguments", () => {
         EVIDENCE_LINK,
       ])
     ).toEqual({
+      replaceApproved: false,
       values: {
         "--approved-by": "Owner",
         "--basis": "owner_decision",
@@ -173,7 +207,18 @@ describe("parseSeedPlanArguments", () => {
       },
       write: true,
     });
-    expect(parseSeedPlanArguments([])).toEqual({ values: {}, write: false });
+    expect(parseSeedPlanArguments([])).toEqual({
+      replaceApproved: false,
+      values: {},
+      write: false,
+    });
+    expect(
+      parseSeedPlanArguments([...PLAN, "--replace-approved", "--write"])
+    ).toEqual({
+      replaceApproved: true,
+      values: { "--plan": "funded-lower-bar-pie" },
+      write: true,
+    });
   });
 
   it.each([
@@ -203,6 +248,23 @@ describe("buildSeedPlan", () => {
       ownerMessageUrl: OWNER_LINK,
       status: "approved",
     });
+  });
+
+  it("accepts an owner decision without an evidence link and with one", () => {
+    const values = parseSeedPlanArguments(APPROVED).values;
+    expect(buildSeedPlan(values).evidenceUrl).toBeNull();
+    expect(
+      buildSeedPlan({ ...values, "--evidence-link": EVIDENCE_LINK }).evidenceUrl
+    ).toBe(EVIDENCE_LINK);
+  });
+
+  it("stores --approved-by without the spaces around it", () => {
+    expect(
+      buildSeedPlan({
+        ...parseSeedPlanArguments(APPROVED).values,
+        "--approved-by": "  Owner ",
+      }).approvedBy
+    ).toBe("Owner");
   });
 
   it("merges a delegation with its evidence link", () => {
@@ -248,6 +310,54 @@ describe("buildSeedPlan", () => {
         "--status": "approved",
       },
       "A plan approved by delegation needs the evidence link",
+    ],
+    // An owner decision without the owner message link: the evidence link does not replace it.
+    [
+      {
+        "--approved-by": "Owner",
+        "--basis": "owner_decision",
+        "--evidence-link": EVIDENCE_LINK,
+        "--plan": "funded-lower-bar-pie",
+        "--status": "approved",
+      },
+      "An approved plan needs the owner message link and approvedBy",
+    ],
+    // A delegation with its evidence link and without the owner message link.
+    [
+      {
+        "--approved-by": "Owner",
+        "--basis": "owner_delegation",
+        "--evidence-link": EVIDENCE_LINK,
+        "--plan": "funded-lower-bar-pie",
+        "--status": "approved",
+      },
+      "An approved plan needs the owner message link and approvedBy",
+    ],
+    // An approved plan without --approved-by.
+    [
+      {
+        "--basis": "owner_decision",
+        "--owner-link": OWNER_LINK,
+        "--plan": "funded-lower-bar-pie",
+        "--status": "approved",
+      },
+      "An approved plan needs the owner message link and approvedBy",
+    ],
+    ...[" ", "   ", "\t", "\n "].map(
+      (blank): [Record<string, string>, string] => [
+        {
+          "--approved-by": blank,
+          "--basis": "owner_decision",
+          "--owner-link": OWNER_LINK,
+          "--plan": "funded-lower-bar-pie",
+          "--status": "approved",
+        },
+        "--approved-by must name who approved; it is blank",
+      ]
+    ),
+    [
+      { "--approved-by": " ", "--plan": "funded-lower-bar-pie" },
+      "--approved-by must name who approved; it is blank",
     ],
     [
       { "--basis": "owner_decision", "--plan": "funded-lower-bar-pie" },
@@ -335,9 +445,12 @@ describe("runGoLiveSeedPlan", () => {
       }),
       { actor: GOLIVE_SEED_PLAN_ACTOR }
     );
+    expect(store.planInForce).toHaveBeenCalledOnce();
     expect(store.close).toHaveBeenCalledOnce();
     expect(run.out).toEqual([
-      '{"id":"funded-lower-bar-pie","status":"approved","version":7}\n',
+      "retires: nothing (no plan is in force)\n",
+      "writes: funded-lower-bar-pie as approved, a new version\n",
+      '{"id":"funded-lower-bar-pie","retired":null,"status":"approved","version":7,"written":true}\n',
     ]);
     expect(run.err).toEqual([]);
   });
@@ -397,7 +510,10 @@ describe("runGoLiveSeedPlan", () => {
       runGoLiveSeedPlan([...PLAN, "--write"], run.io, open)
     ).resolves.toBe(1);
     expect(store.close).toHaveBeenCalledOnce();
-    expect(run.out).toEqual([]);
+    expect(run.out).toEqual([
+      "retires: nothing (no plan is in force)\n",
+      "writes: funded-lower-bar-pie as proposed, a new version\n",
+    ]);
     expect(run.err).toEqual(["plan seed failed: connection refused\n"]);
   });
 
@@ -425,18 +541,254 @@ describe("runGoLiveSeedPlan", () => {
       await expect(
         runGoLiveSeedPlan([...PLAN, "--write"], run.io, open)
       ).resolves.toBe(0);
-      expect(run.out).toEqual([
-        '{"id":"funded-lower-bar-pie","status":"proposed","version":7}\n',
-      ]);
+      expect(run.out.at(-1)).toBe(
+        '{"id":"funded-lower-bar-pie","retired":null,"status":"proposed","version":7,"written":true}\n'
+      );
       expect(run.err).toEqual([
         `warning: closing the database connection failed: ${text}\n`,
       ]);
     }
   );
 
+  it("exits 1 when the read of the plan in force fails: nothing is written", async () => {
+    const run = cli();
+    const { open, store } = storeDouble(undefined, undefined, async () => {
+      throw new Error("relation golive_plans does not exist");
+    });
+    await expect(
+      runGoLiveSeedPlan([...PLAN, "--write"], run.io, open)
+    ).resolves.toBe(1);
+    expect(store.writePlan).not.toHaveBeenCalled();
+    expect(store.close).toHaveBeenCalledOnce();
+    expect(run.out).toEqual([]);
+    expect(run.err).toEqual([
+      "plan seed failed: relation golive_plans does not exist\n",
+    ]);
+  });
+
+  it("a second run with the same arguments writes nothing and exits 0", async () => {
+    // A store that keeps what was written, as the table does.
+    let inForce: GoLivePlanRecord | null = null;
+    let version = 0;
+    const { open, store } = storeDouble(
+      async (seed) => {
+        version += 1;
+        inForce = {
+          ...recordOf(PLAN, version),
+          ...(seed as Partial<GoLivePlanRecord>),
+        };
+        return inForce;
+      },
+      undefined,
+      async () => inForce
+    );
+    const argv = [...APPROVED, "--write"];
+    const first = cli();
+    await expect(runGoLiveSeedPlan(argv, first.io, open)).resolves.toBe(0);
+    expect(store.writePlan).toHaveBeenCalledOnce();
+    const second = cli();
+    await expect(runGoLiveSeedPlan(argv, second.io, open)).resolves.toBe(0);
+    const third = cli();
+    await expect(runGoLiveSeedPlan(argv, third.io, open)).resolves.toBe(0);
+    expect(store.writePlan).toHaveBeenCalledOnce();
+    expect(version).toBe(1);
+    expect(store.close).toHaveBeenCalledTimes(3);
+    expect(second.err).toEqual([]);
+    expect(second.out).toEqual([
+      "in force: funded-lower-bar-pie v1 (approved) equals this plan in every stored field; nothing is written\n",
+      '{"id":"funded-lower-bar-pie","status":"approved","version":1,"written":false}\n',
+    ]);
+    expect(third.out).toEqual(second.out);
+  });
+
+  it("writes nothing for an equal proposed plan, whatever the key order of the stored row", async () => {
+    const run = cli();
+    const { open, store } = storeDouble(undefined, undefined, async () =>
+      recordOf(PLAN, 5)
+    );
+    await expect(
+      runGoLiveSeedPlan([...PLAN, "--write"], run.io, open)
+    ).resolves.toBe(0);
+    expect(store.writePlan).not.toHaveBeenCalled();
+    expect(run.out.at(-1)).toBe(
+      '{"id":"funded-lower-bar-pie","status":"proposed","version":5,"written":false}\n'
+    );
+  });
+
+  const DELEGATED = [
+    ...PLAN,
+    "--status",
+    "approved",
+    "--basis",
+    "owner_delegation",
+    "--owner-link",
+    OWNER_LINK,
+    "--evidence-link",
+    EVIDENCE_LINK,
+    "--approved-by",
+    "Owner",
+  ];
+  it.each<[string, Partial<GoLivePlanRecord>, readonly string[]]>([
+    ["another id", { id: "other-plan" }, APPROVED],
+    ["another name", { name: "Older name" }, APPROVED],
+    ["another basis", {}, DELEGATED],
+    [
+      "another owner link",
+      { ownerMessageUrl: "https://discord.com/channels/111/222/444" },
+      APPROVED,
+    ],
+    [
+      "an evidence link the new one lacks",
+      { evidenceUrl: EVIDENCE_LINK },
+      APPROVED,
+    ],
+    ["another approver", { approvedBy: "Delegate" }, APPROVED],
+    [
+      "other limits",
+      {
+        limits: {
+          maxPositions: 3,
+          nameRiskCapPct: 1,
+          openRiskCapPct: 4,
+          positionRiskPct: 1,
+        },
+      },
+      APPROVED,
+    ],
+    ["other sleeves", { sleeves: [] }, APPROVED],
+  ])(
+    "writes a new version when the plan in force has %s",
+    async (_name, changes, argv) => {
+      const run = cli();
+      const { open, store } = storeDouble(undefined, undefined, async () =>
+        recordOf(APPROVED, 3, changes)
+      );
+      await expect(
+        runGoLiveSeedPlan([...argv, "--write"], run.io, open)
+      ).resolves.toBe(0);
+      expect(store.writePlan).toHaveBeenCalledOnce();
+      const id = changes.id ?? "funded-lower-bar-pie";
+      expect(run.out).toEqual([
+        `retires: ${id} v3 (approved)\n`,
+        "writes: funded-lower-bar-pie as approved, a new version\n",
+        `{"id":"funded-lower-bar-pie","retired":{"id":"${id}","status":"approved","version":3},"status":"approved","version":7,"written":true}\n`,
+      ]);
+    }
+  );
+
+  it("refuses to replace an approved plan in force by a proposed one without --replace-approved", async () => {
+    const run = cli();
+    const { open, store } = storeDouble(undefined, undefined, async () =>
+      recordOf(APPROVED, 3)
+    );
+    await expect(
+      runGoLiveSeedPlan([...PLAN, "--write"], run.io, open)
+    ).resolves.toBe(2);
+    expect(store.writePlan).not.toHaveBeenCalled();
+    expect(store.close).toHaveBeenCalledOnce();
+    expect(run.out).toEqual([]);
+    expect(run.err).toEqual([
+      "Refused: funded-lower-bar-pie v3 (approved) is in force and this write would retire it for a PROPOSED plan, under which no draft can be approved. Nothing was written. Give --replace-approved to do it.\n",
+    ]);
+  });
+
+  it("replaces an approved plan in force by a proposed one with --replace-approved", async () => {
+    const run = cli();
+    const { open, store } = storeDouble(undefined, undefined, async () =>
+      recordOf(APPROVED, 3)
+    );
+    await expect(
+      runGoLiveSeedPlan(
+        [...PLAN, "--write", "--replace-approved"],
+        run.io,
+        open
+      )
+    ).resolves.toBe(0);
+    expect(store.writePlan).toHaveBeenCalledOnce();
+    expect(run.out).toEqual([
+      "retires: funded-lower-bar-pie v3 (approved)\n",
+      "writes: funded-lower-bar-pie as proposed, a new version\n",
+      '{"id":"funded-lower-bar-pie","retired":{"id":"funded-lower-bar-pie","status":"approved","version":3},"status":"proposed","version":7,"written":true}\n',
+    ]);
+  });
+
+  it("replaces a proposed plan in force by an approved one without any extra flag", async () => {
+    const run = cli();
+    const { open, store } = storeDouble(undefined, undefined, async () =>
+      recordOf(PLAN, 2)
+    );
+    await expect(
+      runGoLiveSeedPlan([...APPROVED, "--write"], run.io, open)
+    ).resolves.toBe(0);
+    expect(store.writePlan).toHaveBeenCalledOnce();
+    expect(run.out[0]).toBe("retires: funded-lower-bar-pie v2 (proposed)\n");
+  });
+
+  it("prints no DATABASE_URL and no password in any outcome", async () => {
+    const url = "postgres://seed:s3cr%40t-pw@db.internal:5432/vertex";
+    const leak = `connect failed for ${url} (password s3cr@t-pw, raw s3cr%40t-pw)`;
+    const outcomes: [readonly string[], ReturnType<typeof storeDouble>][] = [
+      [[...APPROVED, "--write"], storeDouble()],
+      [[...PLAN], storeDouble()],
+      [["--help"], storeDouble()],
+      [["--nope"], storeDouble()],
+      [
+        [...APPROVED, "--write"],
+        storeDouble(undefined, undefined, async () => recordOf(APPROVED)),
+      ],
+      [
+        [...PLAN, "--write"],
+        storeDouble(undefined, undefined, async () => recordOf(APPROVED)),
+      ],
+      [
+        [...PLAN, "--write"],
+        storeDouble(async () => {
+          throw new Error(leak);
+        }),
+      ],
+      [
+        [...PLAN, "--write"],
+        storeDouble(undefined, async () => {
+          throw new Error(leak);
+        }),
+      ],
+    ];
+    const codes: number[] = [];
+    let all = "";
+    for (const [argv, { open }] of outcomes) {
+      const run = cli({ DATABASE_URL: url });
+      codes.push(await runGoLiveSeedPlan(argv, run.io, open));
+      all += run.out.join("") + run.err.join("");
+    }
+    expect(codes).toEqual([0, 0, 0, 2, 0, 2, 1, 0]);
+    expect(all).toContain(
+      "plan seed failed: connect failed for [DATABASE_URL hidden] (password [password hidden], raw [password hidden])"
+    );
+    for (const secret of [url, "s3cr%40t-pw", "s3cr@t-pw", "db.internal"]) {
+      expect(all).not.toContain(secret);
+    }
+  });
+
+  it.each([
+    ["not a URL", "not a url with spaces", "x"],
+    ["a URL without a password", "postgres://db.test/vertex", "x"],
+    ["a password that cannot be decoded", "postgres://u:%zz@db.test/v", "%zz"],
+  ])("hides a DATABASE_URL that is %s", async (_name, url, secret) => {
+    const run = cli({ DATABASE_URL: url });
+    const { open } = storeDouble(async () => {
+      throw new Error(`cannot use ${url} or ${secret}`);
+    });
+    await expect(
+      runGoLiveSeedPlan([...PLAN, "--write"], run.io, open)
+    ).resolves.toBe(1);
+    expect(run.err.join("")).not.toContain(url);
+    expect(run.err.join("")).toContain("[DATABASE_URL hidden]");
+  });
+
   it("opens the real store lazily: no connection is made before a query", async () => {
     const store = openGoLivePlanStore("postgres://u:p@127.0.0.1:1/x");
     expect(typeof store.writePlan).toBe("function");
+    expect(typeof store.planInForce).toBe("function");
     await expect(store.close()).resolves.toBeUndefined();
   });
 });
