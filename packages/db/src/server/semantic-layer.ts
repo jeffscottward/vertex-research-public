@@ -18,9 +18,11 @@ import {
 // the operator read the row is never certified unseen. The assistant only runs certified definitions.
 //
 // Certified SQL runs read-only at the database, not behind a keyword filter (createSemanticReader):
-// - its own connection, opened per run, that logs in as the LOGIN role "vertex_semantic_reader"
-//   (migration 0056). The role has SELECT on a fixed table list, no write privilege and no membership
-//   in the app role, so it cannot SET ROLE back to the app role; session changes die with the connection;
+// - its own connection, opened per batch (runAll: the texts of one term query), that logs in as the
+//   LOGIN role "vertex_semantic_reader" (migration 0056). The role has SELECT on a fixed table list, no
+//   write privilege and no membership in the app role, so it cannot SET ROLE back to the app role. The
+//   role is checked before every text; between texts DISCARD ALL resets the session, and the
+//   connection closes after the batch;
 // - a READ ONLY transaction, so INSERT, UPDATE, DELETE, DDL and data-modifying CTEs fail;
 // - the stored text is wrapped as one subquery with bound parameters, so pg uses the extended protocol,
 //   which runs exactly one statement (no "; COMMIT; ..." escape);
