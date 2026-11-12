@@ -24,6 +24,8 @@ turns the stance into defined-risk option spreads with the option book of this p
 
 A rule is a pure function of `Inputs` (daily bars and IV index levels). It must not read a bar
 after the day it sets the stance for; `tests/test_qc_ports_forms.py` checks this for every rule.
+The five intraday rules (forms_intraday.py) run on intraday bars: "day" above is then one bar of
+the rule (1 minute to 1 hour), with its closing time as the bar key (calendar.py).
 
 Underlyings without a Cboe IV index get a proxy index (`proxy_iv_index`) and a cost model by class
 (`PROXY_MODELS`). `proxy_symbols` adds them to the symbol tables of data.py and options.py for the
@@ -190,13 +192,14 @@ def raw_factors(dates: Sequence[str], splits: Mapping[str, float]) -> list[float
 
 # Bars of a symbol the book reads to price one spread: enough for the longest expiry it allows
 # (book.py: 400 days), so the result is the same as on the whole history, and the book does not
-# build a calendar of every bar for every signal.
+# build a calendar of every bar for every signal. A caller with intraday bars passes its own
+# `window_bars` (this number of days in bars of its length).
 WINDOW_BARS = 320
 
 
-def _window(market: Market, first: int, factor: float) -> Market:
-    """The bars of `market` from `first` on (at most WINDOW_BARS), closes times `factor`."""
-    last = min(len(market.dates), first + WINDOW_BARS)
+def _window(market: Market, first: int, factor: float, bars: int = WINDOW_BARS) -> Market:
+    """The bars of `market` from `first` on (at most `bars`), closes times `factor`."""
+    last = min(len(market.dates), first + bars)
     return Market(market.symbol, market.dates[first:last], tuple(close * factor for close in market.close[first:last]),
                   market.iv_index[first:last], market.rate[first:last])
 
@@ -210,12 +213,19 @@ def degenerate(trade: PricedTrade, spot: float) -> bool:
 
 def _side_trades(symbol: str, sides: Sequence[int], side: int, blocks: Sequence[Mapping], market: Market, start: str,
                  entry_only: bool, factors: Sequence[float] | None,
-                 refused: dict[str, int]) -> list[tuple[int, PricedTrade]]:
+                 refused: dict[str, int], window_bars: int = WINDOW_BARS,
+                 trim: bool = False) -> list[tuple[int, PricedTrade]]:
     """(structure number, trade) of one symbol and side under the owner exit rule.
 
     The structures of a side are one package: they open together on a signal bar or not at all, and
     the next package opens only when every spread of the last one has closed. `refused` counts the
     signal bars without a package, by the reason of the first structure that had none.
+
+    `trim`: the book reads the bars of a spread only up to the bar that closes it on the signal (for
+    intraday bars, where the window of a whole expiry is thousands of bars and a stance lasts a few).
+    The trades are the same, with one limit: the book takes the trading days after its last bar from
+    the NYSE holiday rules (calendar.TradingCalendar), so an expiry Friday the bars do not have is
+    still the expiry day.
     """
     join = next((index for index, value in enumerate(market.iv_index) if value is not None), len(market.dates))
     trades: list[tuple[int, PricedTrade]] = []
@@ -223,7 +233,10 @@ def _side_trades(symbol: str, sides: Sequence[int], side: int, blocks: Sequence[
     for entry, exit_ in _spans(sides, side):
         if entry < max(busy, join) or entry >= len(market.dates) - 1 or market.dates[entry] < start:
             continue
-        priced = _window(market, entry, 1.0 if factors is None else factors[entry + 1])
+        size = window_bars
+        if trim and not entry_only and exit_ is not None:
+            size = min(size, exit_ - entry + 2)  # the spread closes one bar after the stance ends, at the latest
+        priced = _window(market, entry, 1.0 if factors is None else factors[entry + 1], size)
         leaves = None if entry_only or exit_ is None or exit_ - entry >= len(priced.dates) else exit_ - entry
         package, reason = [], None
         for options in blocks:
@@ -256,11 +269,14 @@ class FormBook:
 
 
 def form_book(form: Form, inputs: Inputs, markets: Mapping[str, Market], *, start: str,
-              factors: Mapping[str, Sequence[float]] | None = None) -> FormBook:
+              factors: Mapping[str, Sequence[float]] | None = None, window_bars: int = WINDOW_BARS,
+              trim: bool = False) -> FormBook:
     """Prices a form under the owner exit rule.
 
     `factors`: symbol -> `raw_factors` of its bars, for the underlyings whose bars are split-adjusted
     and whose spreads are priced at the raw price of the entry day.
+    `window_bars`, `trim`: for intraday bars (intraday.py): the bars the book may read for one spread,
+    and reading them only up to the signal exit (`_side_trades`).
     """
     stance = stance_of(form, inputs)
     collected = []
@@ -277,7 +293,7 @@ def form_book(form: Form, inputs: Inputs, markets: Mapping[str, Market], *, star
         for side in sorted(form.structures, reverse=True):
             blocks = [al.hold_options(block) for block in form.structures[side]]
             for number, trade in _side_trades(symbol, stance[symbol], side, blocks, market, start, form.entry_only,
-                                              scale, refused):
+                                              scale, refused, window_bars, trim):
                 collected.append((trade.entry_date, order, -side, number, trade))
     collected.sort(key=lambda item: item[:4])
     trades = tuple(dataclasses.replace(item[4], trade_id=number) for number, item in enumerate(collected, start=1))
@@ -285,9 +301,10 @@ def form_book(form: Form, inputs: Inputs, markets: Mapping[str, Market], *, star
 
 
 def form_trades(form: Form, inputs: Inputs, markets: Mapping[str, Market], *, start: str,
-                factors: Mapping[str, Sequence[float]] | None = None) -> tuple[PricedTrade, ...]:
+                factors: Mapping[str, Sequence[float]] | None = None, window_bars: int = WINDOW_BARS,
+                trim: bool = False) -> tuple[PricedTrade, ...]:
     """The priced trades of `form_book`."""
-    return form_book(form, inputs, markets, start=start, factors=factors).trades
+    return form_book(form, inputs, markets, start=start, factors=factors, window_bars=window_bars, trim=trim).trades
 
 
 # --------------------------------------------------------------------------- distributions the bars do not adjust
