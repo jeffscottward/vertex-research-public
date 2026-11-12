@@ -91,6 +91,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   flow_samples: "symbol,source,at",
   forward_drift_alerts: "id",
   forward_drift_monitors: "id",
+  leveraged_etf_universe: "symbol",
   market_bar_series: "id",
   market_bars: "series_id,t",
   market_daily_points: "series_id,date",
