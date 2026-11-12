@@ -910,11 +910,15 @@ describe("runCoverageSplitProof", () => {
       ],
       [
         "const where = () => import.meta.url;",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename): const where = ( ) => import . meta . url ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module): const where = ( ) => import . meta . url ;",
       ],
       [
         "function file() {\n  return __filename;\n}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename): function file ( ) { return __filename ; }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module): function file ( ) { return __filename ; }",
+      ],
+      [
+        "function isMain() {\n  return require.main === module;\n}",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module): function isMain ( ) { return require . main === module ; }",
       ],
       [
         "declare function native(): number;",
@@ -1158,6 +1162,13 @@ describe("runCoverageSplitProof", () => {
       [
         "src/part.ts:1: imports native from src/a.ts, which has no value at run time, without `type`",
       ],
+    ],
+    [
+      "an upper-case @TS-NOCHECK in a new file",
+      "function f() {}\n",
+      "",
+      "// @TS-NOCHECK\nfunction f() {}\n",
+      ["src/part.ts turns type checking off with @ts-nocheck"],
     ],
     [
       "a new @ts-nocheck",

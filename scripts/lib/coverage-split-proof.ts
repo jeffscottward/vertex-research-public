@@ -28,7 +28,7 @@ import { required } from "./required.ts";
 //    literals, functions, or arrays and objects of those (`as const` and
 //    `satisfies` allowed). Classes, `var`, enums, ambient (`declare`)
 //    declarations and all other statements stay. Moved code does not name its
-//    own file (`import.meta` other than `import.meta.dirname`, `__filename`);
+//    own file (`import.meta` other than `import.meta.dirname`, `__filename`, `module`);
 //    what depends only on the folder (`__dirname`, relative `require` and
 //    `import()`) keeps its meaning in the same folder. All declarations of one
 //    name stay together. The directives (such as "use client") stay the first
@@ -146,6 +146,9 @@ type Split = Readonly<{
 }>;
 
 const NO_PARTS: ReadonlySet<string> = new Set();
+
+// Names that differ per file in CommonJS (`require.main === module`).
+const OWN_FILE_NAMES = new Set(["__filename", "module"]);
 
 // Names that the test runners, TypeScript or the app router act on: tests,
 // declaration files and Next.js / vinext route and metadata files.
@@ -345,7 +348,7 @@ const parseModule = (
   // same-length rename keeps every position.
   const file = ts.createSourceFile(
     `/${path}`,
-    text.replace(/@ts-(?=ignore|expect-error|nocheck)/gu, "@ts_"),
+    text.replace(/@ts-(?=ignore|expect-error|nocheck)/giu, "@ts_"),
     ts.ScriptTarget.Latest,
     true,
     path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
@@ -538,7 +541,7 @@ const sideEffectFree = (expression: ts.Expression): boolean => {
   return SIDE_EFFECT_FREE.has(expression.kind);
 };
 
-/** `import.meta` (but `import.meta.dirname`) or `__filename`. */
+/** `import.meta` (but `import.meta.dirname`), `__filename` or `module`. */
 const namesOwnFile = (node: ts.Node): boolean => {
   if (
     ts.isMetaProperty(node) &&
@@ -549,7 +552,7 @@ const namesOwnFile = (node: ts.Node): boolean => {
       ts.isPropertyAccessExpression(parent) && parent.name.text === "dirname"
     );
   }
-  if (ts.isIdentifier(node) && node.text === "__filename") return true;
+  if (ts.isIdentifier(node) && OWN_FILE_NAMES.has(node.text)) return true;
   return (
     ts.forEachChild(node, (child) => namesOwnFile(child) || undefined) === true
   );
@@ -558,7 +561,7 @@ const namesOwnFile = (node: ts.Node): boolean => {
 /** Why a statement may not move into a new file, if it may not. */
 const moveProblem = (statement: ts.Statement): string | undefined => {
   if (namesOwnFile(statement)) {
-    return "code that names its own file (import.meta, __filename)";
+    return "code that names its own file (import.meta, __filename, module)";
   }
   if (hasModifier(statement, ts.SyntaxKind.DeclareKeyword)) {
     return "an ambient declaration (declare), which has no value at run time";
@@ -799,7 +802,7 @@ const directiveProblems = (split: Split): string[] => {
     );
   }
   const fileWide = [before, ...split.after].find(({ text }) =>
-    /@jsx\w*\s|\/\/\/\s*<reference/u.test(text)
+    /@jsx\w*\s|\/\/\/\s*<reference/iu.test(text)
   );
   if (fileWide !== undefined) {
     problems.push(
@@ -808,8 +811,8 @@ const directiveProblems = (split: Split): string[] => {
   }
   const nocheck = [
     ...newFiles,
-    ...(before.text.includes("@ts-nocheck") ? [] : [original]),
-  ].filter(({ text }) => text.includes("@ts-nocheck"));
+    ...(/@ts-nocheck/iu.test(before.text) ? [] : [original]),
+  ].filter(({ text }) => /@ts-nocheck/iu.test(text));
   for (const module of nocheck) {
     problems.push(`${module.path} turns type checking off with @ts-nocheck`);
   }
