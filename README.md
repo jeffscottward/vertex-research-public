@@ -92,7 +92,7 @@ Most feature jobs (the `vertex:` scripts) are documented with their feature unde
 
 [`ci.yml`](.github/workflows/ci.yml) runs on GitHub-hosted runners for pull requests, for pushes to the live branch and on manual dispatch. It runs the coverage shards and four lanes: `Verification (core)`, `Verification (coverage)`, `Verification (integration)` and `Verification (browser)`. A docs-only change or a draft pull request gets the light lane (core only). Marking a pull request with code changes ready starts the full lane, and a manual run always takes it. The browser lane is created only while the repository variable `BROWSER_TESTS` is `on`, or when a manual run asks for it. CodeQL, Dependency Review and OpenSSF Scorecard have their own workflows. Lanes and gates: [ARCHITECTURE.md](ARCHITECTURE.md#ci-lanes) and [docs/testing.md](docs/testing.md#ci-lanes).
 
-`bun run test:readme` fails when a link in this README does not resolve or a script named here is missing from `package.json` (`scripts/ci/readme-invariants.test.ts`). The pre-push hook and the full lane run it with the other operations tests. The light lane does not, so a docs-only change is checked by the pre-push hook and by the next full run.
+`bun run test:readme` fails when a link in this README does not resolve or a script named here is missing from `package.json` (`scripts/ci/readme-invariants.test.ts`). The pre-push hook and the full lane run it with the other operations tests. A change to this README counts as a code change, so it takes the full lane. A docs-only change to a file this README links to takes the light lane, which does not run the test; the pre-push hook and the next full run check it.
 
 ### Deploy
 

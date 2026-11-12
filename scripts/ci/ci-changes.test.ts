@@ -79,14 +79,19 @@ const planPullRequest = (
 
 describe("ci-changes.sh", () => {
   it("treats Markdown and non-code files under docs, research and plans as docs", () => {
-    expect(classify(["README.md", "apps/web/notes.md"])).toBe("docs");
+    expect(classify(["CHANGELOG.md", "apps/web/notes.md"])).toBe("docs");
     expect(
       classify(["docs/a.png", "research/x/report.pdf", "plans/p.txt"])
     ).toBe("docs");
   });
 
+  it("treats the root README as code, because a test checks it", () => {
+    expect(classify(["README.md"])).toBe("code");
+    expect(classify(["infra/quantvps/README.md"])).toBe("docs");
+  });
+
   it("treats code, tested data and anything else as code", () => {
-    expect(classify(["README.md", "apps/web/src/page.civet"])).toBe("code");
+    expect(classify(["CHANGELOG.md", "apps/web/src/page.civet"])).toBe("code");
     expect(classify(["research/master-rules/check-master-rules.mjs"])).toBe(
       "code"
     );
@@ -165,11 +170,11 @@ describe("ci-changes.sh", () => {
   });
 
   it("keeps the light lane for a docs-only pull request and still reports the draft state", () => {
-    const ready = planPullRequest("true", "false", "README.md").out;
+    const ready = planPullRequest("true", "false", "CHANGELOG.md").out;
     expect(ready).toContain("kind=docs");
     expect(ready).toContain("heavy=false");
     expect(ready).toContain("draft=false");
-    const draft = planPullRequest("true", "true", "README.md").out;
+    const draft = planPullRequest("true", "true", "CHANGELOG.md").out;
     expect(draft).toContain("kind=docs");
     expect(draft).toContain("heavy=false");
     expect(draft).toContain("draft=true");

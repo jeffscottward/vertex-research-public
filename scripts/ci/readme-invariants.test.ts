@@ -5,8 +5,9 @@ import { describe, expect, it } from "vitest";
 // file (and to a heading when it has an anchor), and every script it names is
 // a script in the root package.json. `bun run test:readme` runs this file
 // alone. The pre-push hook and the CI coverage lane run it with the other
-// operations tests; the light lane (docs-only changes) does not, because
-// every test file runs exactly once in `verify` (test-invariants.test.ts).
+// operations tests. scripts/ci/ci-changes.sh treats the root README as code,
+// so a README-only change takes the full lane. The light lane does not run
+// this file: every test file runs exactly once in `verify`.
 const rootUrl = new URL("../../", import.meta.url);
 const read = (path: string): Promise<string> =>
   readFile(new URL(path, rootUrl), "utf8");
