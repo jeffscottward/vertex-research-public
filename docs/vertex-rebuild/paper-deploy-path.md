@@ -47,7 +47,17 @@ contracts = floor(`budgetPctOfAccount` % of the account / max loss of one contra
 
 Refusal codes: `mode_not_paper` (checked first), `request_not_approved`, `no_option_structure`,
 `symbol_mismatch`, `sleeve_mismatch`, `structure_mismatch`, `expiry_outside_request`,
-`max_loss_exceeded`, `sized_to_zero`.
+`max_loss_exceeded`, `sized_to_zero`, `multiplier_unsupported` (the contract multiplier must be 100).
+
+The runner (`PaperPath.open`) adds four refusals of its own:
+
+- `mode_not_paper`: a second check before the strategy runs.
+- `signal_date_stale`: the signal date is after today (New York) or more than 5 calendar days old. The
+  expiry window is measured from the signal date.
+- `request_risk_exceeded`: the open max loss of all positions of one request plus the new order is above
+  `maxLossPctOfAccount` (at most 2%) of the account.
+- `max_position_exceeded`: the open contracts of one request plus the new order are above
+  `limits.maxPosition`.
 
 ## F3: paper fill path, and the choice
 
@@ -132,7 +142,14 @@ Without it, or with policy v2, every combo stops at the policy with `combo_refus
 ## Limits
 
 - The exit rule runs when a caller evaluates it. No scheduler exists yet.
-- `limits.maxPosition`, `limits.maxOrdersPerMinute`, `limits.dailyLossLimit` and the `group` are not
-  enforced by the runner.
+- `limits.maxOrdersPerMinute`, `limits.dailyLossLimit` and the `group` are not enforced by the runner.
+- The 4% open-risk cap over all requests is not enforced by the runner. The research allocation applies it
+  before an intent exists.
+- Fees are outside the max loss. One contract at exactly 2% costs slightly more than 2% with fees.
+- A spread with both legs out of the money at the exit time leaves the book then, 15 minutes before the
+  close. A move into the money in those minutes is not handled.
+- A loser check with no fresh mark is skipped with a note, not an alert.
+- The database check of migration 0067 is tested as text, not run on PostgreSQL in the unit tests. The
+  API reads a stored options block without a second shape check.
 - The position book is in memory.
 - Contract ids are made up (`synthetic_con_id`). A real path needs qualified IBKR contracts.

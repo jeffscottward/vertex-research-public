@@ -1,4 +1,5 @@
 """Simulated paper venue and the paper path end to end. Offline: no broker, no network, no clock."""
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 import importlib.util
@@ -319,9 +320,60 @@ class PaperPathTests(unittest.TestCase):
         self.assertEqual((report["reached"], report["refusal"], report["fill"]["netCash"]), ("fill", None, "-1119.90"))
         self.assertEqual(report["position"]["entryCost"], "1119.90")
 
+    def test_book_refuses_a_non_paper_request_when_the_strategy_does_not(self):
+        class Careless(PaperSpreadStrategy):
+            def build(self, request, the_intent, nlv, **kwargs):
+                return super().build(replace(request, mode="paper"), the_intent, nlv, **kwargs)
+
+        path = PaperPath(self.policy, self.venue, strategy=Careless())
+        live = path.open(record(mode="live"), intent(), NLV, quote(OPENED), OPENED)
+        self.assertEqual((live.outcome, live.refusal_stage, live.refusal_code), ("refused", "request", "mode_not_paper"))
+        self.assertEqual(self.policy.seen, [])
+        self.assert_nothing_filled(path)
+
+    def test_open_risk_of_one_request_stays_under_its_max_loss(self):
+        # 3 contracts at 400 = 1.2% of the account. A second 1.2% would make 2.4% on one request.
+        self.open()
+        second = self.path.open(record(), intent(intent_id="intent-2"), NLV, quote(OPENED), OPENED)
+        self.assertEqual((second.outcome, second.refusal_stage, second.refusal_code), ("refused", "strategy", "request_risk_exceeded"))
+        self.assertEqual(len(self.policy.seen), 1)
+        self.assertEqual(len(self.path.positions), 1)
+        self.assertEqual(self.path.positions[0].max_loss_total, D("1200"))
+        # Another request has its own line.
+        other = self.path.open(record(id="request-2"), intent(intent_id="intent-3", request_id="request-2"), NLV, quote(OPENED), OPENED)
+        self.assertEqual(other.outcome, "opened")
+
+    def test_open_contracts_of_one_request_stay_under_max_position(self):
+        small = record()
+        small["limits"]["maxPosition"] = 2
+        small["options"]["budgetPctOfAccount"] = 0.5  # 1 contract of 400 per intent
+        for number in (1, 2):
+            opened = self.path.open(small, intent(intent_id=f"intent-{number}"), NLV, quote(OPENED), OPENED)
+            self.assertEqual((opened.outcome, opened.order.quantity), ("opened", 1))
+        third = self.path.open(small, intent(intent_id="intent-3"), NLV, quote(OPENED), OPENED)
+        self.assertEqual((third.outcome, third.refusal_stage, third.refusal_code), ("refused", "strategy", "max_position_exceeded"))
+        self.assertEqual(len(self.path.positions), 2)
+
+    def test_signal_date_must_be_today_or_a_few_days_old(self):
+        # The expiry window is measured from the signal date, so an old signal date could hide a near expiry.
+        for signal, code in (
+            (date(2026, 10, 12), "signal_date_stale"),
+            (date(2026, 11, 6), "signal_date_stale"),
+            (date(2026, 11, 13), "signal_date_stale"),
+        ):
+            with self.subTest(signal=signal):
+                result = self.path.open(record(), intent(signal_date=signal), NLV, quote(OPENED), OPENED)
+                self.assertEqual((result.outcome, result.refusal_stage, result.refusal_code), ("refused", "request", code))
+        self.assert_nothing_filled()
+        for number, signal in enumerate((date(2026, 11, 7), date(2026, 11, 12))):
+            with self.subTest(signal=signal):
+                path = PaperPath(SwitchPolicy(), SimulatedPaperVenue(model()))
+                result = path.open(record(), intent(intent_id=f"ok-{number}", signal_date=signal), NLV, quote(OPENED), OPENED)
+                self.assertEqual(result.outcome, "opened", result.refusal_detail)
+
     def test_non_paper_request_is_refused(self):
         live = self.path.open(record(mode="live"), intent(), NLV, quote(OPENED), OPENED)
-        self.assertEqual((live.outcome, live.reached, live.refusal_stage, live.refusal_code), ("refused", "strategy", "strategy", "mode_not_paper"))
+        self.assertEqual((live.outcome, live.reached, live.refusal_stage, live.refusal_code), ("refused", "request", "request", "mode_not_paper"))
         self.assertIsNone(live.order)
         unknown = self.path.open(record(mode="sandbox"), intent(), NLV, quote(OPENED), OPENED)
         self.assertEqual((unknown.reached, unknown.refusal_stage, unknown.refusal_code), ("request", "request", "unknown_mode"))

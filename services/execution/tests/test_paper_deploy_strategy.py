@@ -500,6 +500,14 @@ class PaperSpreadStrategyTests(unittest.TestCase):
         self.assert_refused("quantity_invalid", held_quantity=1)  # an open intent with a held quantity
         self.assert_refused("close_reason_invalid", the_intent=intent(close_reason=REASON_ROLL))
 
+    def test_multiplier_other_than_100_is_refused(self):
+        # The max loss scales with the multiplier: an intent with 1 would get 100 times the contracts.
+        for multiplier in ("1", "0.01", "10", "1000"):
+            with self.subTest(multiplier=multiplier):
+                self.assert_refused("multiplier_unsupported", the_intent=intent(multiplier=D(multiplier)))
+        closing = intent(kind="close", close_reason=REASON_ROLL, multiplier=D("1"))
+        self.assert_refused("multiplier_unsupported", the_intent=closing, held_quantity=1)
+
     def test_malformed_intent_and_order_cannot_be_built(self):
         for change in ({"net_limit": D("0")}, {"net_limit": 4.0}, {"long_strike": D("-1")}, {"expiry": "2026-12-18"}, {"intent_id": ""}):
             with self.subTest(change=change), self.assertRaises(ValueError):

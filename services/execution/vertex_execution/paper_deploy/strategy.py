@@ -283,6 +283,11 @@ class PaperSpreadStrategy:
                 "structure_mismatch",
                 f"{options.structure} does not have long strike {intent.long_strike} and short strike {intent.short_strike}",
             )
+        if intent.multiplier != _HUNDRED:
+            # The max loss and the size scale with the multiplier, so the intent cannot choose it.
+            raise StrategyRefusal(
+                "multiplier_unsupported", f"contract multiplier {intent.multiplier} is not 100 (US equity options)"
+            )
         if closing:
             return self._close(intent, options.right, options.kind, held_quantity)
         if held_quantity is not None:

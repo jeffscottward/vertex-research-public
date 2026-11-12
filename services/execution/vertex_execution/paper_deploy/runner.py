@@ -33,8 +33,14 @@ to the worst sane price: a credit of one cent when it sells a debit spread, a
 debit of the strike width when it buys back a credit spread. The venue fills at
 the quote, not at the limit.
 
-Not enforced here: ``limits.maxPosition``, ``limits.maxOrdersPerMinute`` and
-``limits.dailyLossLimit`` of the request, and the ``group`` of its options.
+Per request the book also holds the line: the open max loss of all positions of
+one request stays at or below its ``maxLossPctOfAccount`` (at most 2%) of the
+account value given to ``open``, and the open contracts stay at or below
+``limits.maxPosition``. An intent whose signal date is after today (New York) or
+more than ``MAX_SIGNAL_AGE_DAYS`` calendar days old is refused.
+
+Not enforced here: ``limits.maxOrdersPerMinute`` and ``limits.dailyLossLimit`` of
+the request, and the ``group`` of its options.
 
 The position book is a dict in memory and is lost with the object.
 """
@@ -44,18 +50,21 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
+from fractions import Fraction
 from typing import Literal
 
 from .calendar import NEW_YORK, NYSE, NyseCalendar
 from .exit_rule import ERROR_PAST_EXPIRY, ExitDecision, HeldSpread, SpreadMark, decide_exit
 from .policy import PolicyDecision, PolicyPort
-from .request import STRUCTURES, PaperRequest, RequestError
+from .request import MAX_LOSS_PCT_CEILING, STRUCTURES, PaperRequest, RequestError
 from .strategy import ComboOrder, PaperSpreadStrategy, SpreadIntent, StrategyRefusal
 from .venue import PaperFill, SimulatedPaperVenue, SpreadQuote, VenueRefusal, epoch_ns
 
 Stage = Literal["request", "strategy", "policy", "fill", "exit"]
 Outcome = Literal["opened", "held", "closed", "expired", "refused", "alert"]
 MINIMUM_CLOSE_CREDIT = Decimal("0.01")
+# A signal of Friday enters on Tuesday after a Monday holiday: 4 calendar days.
+MAX_SIGNAL_AGE_DAYS = 5
 
 
 @dataclass(frozen=True)
@@ -72,6 +81,7 @@ class PaperPosition:
     open_fill: PaperFill
     loser_checked_on: date | None = None
     close_attempts: int = 0
+    max_loss_total: Decimal = Decimal(0)
 
     def to_json(self) -> dict[str, object]:
         held = self.held
@@ -205,8 +215,20 @@ class PaperPath:
                 request = PaperRequest.from_record(request)
             except RequestError as error:
                 return refused("request", error.code, error.detail)
+        if request.mode != "paper":
+            # Second check: the strategy refuses this first, and the book never trusts one check.
+            return refused("request", "mode_not_paper", f"request mode is {request.mode!r}; this path is paper only")
         if intent.intent_id in self._opened:
             return refused("request", "duplicate_intent", f"intent {intent.intent_id} already opened a position")
+        today = now.astimezone(NEW_YORK).date()
+        age = (today - intent.signal_date).days
+        if age < 0 or age > MAX_SIGNAL_AGE_DAYS:
+            return refused(
+                "request",
+                "signal_date_stale",
+                f"signal date {intent.signal_date.isoformat()} is {age} days before {today.isoformat()}; "
+                f"allowed 0 to {MAX_SIGNAL_AGE_DAYS}",
+            )
 
         if intent.kind != "open":
             return refused("strategy", "intent_not_open", f"open() was given a {intent.kind!r} intent")
@@ -214,6 +236,27 @@ class PaperPath:
             order = self._strategy.build(request, intent, nlv)
         except StrategyRefusal as error:
             return refused("strategy", error.code, error.detail)
+
+        mine = [p for p in self._positions.values() if p.request.request_id == request.request_id]
+        open_loss = sum((p.max_loss_total for p in mine), Decimal(0))
+        allowed_pct = min(request.options.max_loss_pct_of_account, MAX_LOSS_PCT_CEILING)
+        if Fraction(open_loss + order.max_loss_total) > Fraction(allowed_pct) * Fraction(nlv) / 100:
+            return refused(
+                "strategy",
+                "request_risk_exceeded",
+                f"open max loss {open_loss} plus {order.max_loss_total} is above {allowed_pct}% of the account "
+                f"for request {request.request_id}",
+                order=order,
+            )
+        open_contracts = sum(p.held.quantity for p in mine)
+        if open_contracts + order.quantity > request.limits.max_position:
+            return refused(
+                "strategy",
+                "max_position_exceeded",
+                f"{open_contracts} open contracts plus {order.quantity} is above maxPosition "
+                f"{request.limits.max_position} of request {request.request_id}",
+                order=order,
+            )
 
         decision = self._check_policy(order)
         if not decision.allowed:
@@ -243,6 +286,7 @@ class PaperPath:
             multiplier=order.long_leg.multiplier,
             opened_at=now,
             open_fill=fill,
+            max_loss_total=order.max_loss_total * fill.quantity / order.quantity,
         )
         self._positions[position.position_id] = position
         self._opened.add(intent.intent_id)
