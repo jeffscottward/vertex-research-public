@@ -39,13 +39,21 @@ Data gaps: a sleeve reads more than its bars. Its gates and signal inputs read s
 symbol (strike width) and the rate (portfolio.market_of). The signal code carries a missing value
 forward for some days or drops the entry, without a word: a gap would look like "no signal today".
 So `check_series` refuses the run unless every such series has a value dated the last data day
-itself (`required_series` lists them per sleeve).
+itself (`required_series` lists them per sleeve). An older day matters as much: the model account
+is one path from its start, and a hole on any day of it can move a strike or remove a spread. So
+`check_history` refuses the run when a series a sleeve reads, the bars of an ETF it trades or the
+calendar's bars lack a value on an older day that the data the plan was tested on has a value for
+(the holes of that data are pinned in golive/tested_gaps.py; `python -m golive.pin` prints it).
 
-Chain snapshots: each strike moves to the nearest listed strike of the newest snapshot that holds
-the chains of the symbol and is not older than the freshness rule (MAX_AGE_TRADING_DAYS). The
-strikes are part of the draft id on the server, so a store fault must not change them: a store or
-a chain file that cannot be read refuses the run (ChainStoreError). A snapshot that is too old, or
-whose fetch of the symbol failed, gives no quote and the candidate says so in its facts.
+Chain snapshots: a candidate names listed strikes. Each model strike moves to the nearest listed
+strike of the OLDEST snapshot that holds the chain of the symbol, expiry and side and is not older
+than the freshness rule (MAX_AGE_TRADING_DAYS); the quote comes from the NEWEST such snapshot. A
+stored snapshot does not change, so every run of a trading day names the same strikes: they are
+part of the draft id on the server. A candidate without such a chain, or with a model strike outside
+its listed strikes, refuses the run (NoChainError), as does a store or a chain file that cannot be
+read (ChainStoreError). The one exception is a rule on dates: an expiry that no snapshot the run may
+read can hold (snapshot.py DTE_RANGE) keeps the model strikes, has no quote, and its facts say so
+(`price_candidate`).
 
 Output rules: `check_document` refuses a document with a candidate whose strikes are not the right
 way round for its structure, whose expiry is not after the trading day, that holds a number that is
@@ -72,20 +80,22 @@ from zoneinfo import ZoneInfo
 from nautilus_backtest import signals as sig
 from strategies.qc_ports import allocation as al
 from strategies.qc_ports import ideas as qi
-from strategies.qc_ports import options as om
 from strategies.qc_ports import portfolio as pf
 from strategies.qc_ports.book import STRUCTURES, PricedTrade, parse_options
 from strategies.qc_ports.calendar import TradingCalendar
 from strategies.qc_ports.data import IV_INDEX, Bars
 
+from .tested_gaps import TESTED_GAPS
+
 __all__ = [
-    "BUILDERS", "FACT_MAX_CHARS", "FACTS_MAX", "LONG_STRIKE_IS_LOWER", "MAX_AGE_TRADING_DAYS", "MODEL_HOLDS",
-    "PIE_SCRIPT", "QUOTE_SOURCE", "RATE_SERIES", "SIGNAL_TODAY",
-    "ChainStoreError", "GoLiveError", "NotTradingDayError", "Snapshot", "StaleDataError", "UnsafeOutputError",
-    "build_definition", "chain_quotes", "check_candidate", "check_document", "check_series", "check_sleeve",
-    "checked_plan", "filter_facts", "funded_pie", "generate", "has_chains", "last_data_day", "model_trades",
-    "pending_days", "price_candidate", "required_series", "signal_facts", "snapshots", "strike_input_facts",
-    "with_pending_days",
+    "BUILDERS", "FACT_MAX_CHARS", "FACTS_MAX", "HOLES_SHOWN", "LONG_STRIKE_IS_LOWER", "MAX_AGE_TRADING_DAYS",
+    "MODEL_HOLDS", "PIE_SCRIPT", "QUOTE_SOURCE", "RATE_SERIES", "SIGNAL_TODAY", "SNAPSHOT_SCRIPT", "TESTED_GAPS",
+    "ChainStoreError", "Gaps", "GoLiveError", "NoChainError", "NotTradingDayError", "Snapshot", "StaleDataError",
+    "UnsafeOutputError",
+    "bars_name", "build_definition", "chain_quotes", "check_candidate", "check_document", "check_history",
+    "check_series", "check_sleeve", "checked_plan", "data_gaps", "filter_facts", "funded_pie", "generate",
+    "has_chains", "history_readers", "last_data_day", "model_trades", "pending_days", "price_candidate",
+    "required_series", "signal_facts", "snapshots", "stored_dte_range", "strike_input_facts", "with_pending_days",
 ]
 
 SIGNAL_TODAY = "signal_today"
@@ -110,6 +120,8 @@ LONG_STRIKE_IS_LOWER: Mapping[str, bool] = {"callDebitVertical": True, "putCredi
 FACTS_MAX = 20
 FACT_MAX_CHARS = 200
 PIE_SCRIPT = Path(__file__).resolve().parents[3] / "research" / "backtests" / "allocation" / "funded_pie.py"
+# The option-chain snapshot script: its DTE_RANGE says which expiries the chain store keeps (stored_dte_range).
+SNAPSHOT_SCRIPT = PIE_SCRIPT.parents[1] / "option-chain" / "snapshot.py"
 LIMIT_FIELDS = ("maxPositions", "nameRiskCapPct", "openRiskCapPct", "positionRiskPct")
 SLEEVE_FIELDS = ("key", "runKey", "definitionVariant", "budgetPct", "structure", "symbols", "dteTarget", "dteMin",
                  "anchorDelta", "widthSigma")
@@ -128,6 +140,10 @@ class StaleDataError(GoLiveError):
 
 class ChainStoreError(GoLiveError):
     """The option-chain snapshot store, or one of its files, cannot be read."""
+
+
+class NoChainError(GoLiveError):
+    """A candidate has no listed strikes to name (price_candidate)."""
 
 
 class UnsafeOutputError(GoLiveError):
@@ -194,6 +210,20 @@ def funded_pie():
             if Path(getattr(sys.modules[name], "__file__", None) or "").parent == PIE_SCRIPT.parent:
                 del sys.modules[name]
     return module
+
+
+@functools.cache
+def stored_dte_range() -> tuple[int, int]:
+    """(fewest, most) calendar days to expiry of the chains a snapshot run stores: DTE_RANGE of
+    research/backtests/option-chain/snapshot.py, read from that script itself (it imports the standard
+    library only, and nothing is fetched on import)."""
+    spec = importlib.util.spec_from_file_location("golive_chain_snapshot", SNAPSHOT_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    low, high = module.DTE_RANGE
+    if not (isinstance(low, int) and isinstance(high, int) and 0 <= low <= high):
+        raise GoLiveError(f"DTE_RANGE of {SNAPSHOT_SCRIPT} is not a range of days: {module.DTE_RANGE!r}")
+    return low, high
 
 
 def _as_studied(run_key: str, runs: Mapping[str, qi.RunSpec], facts: qi.Facts) -> tuple[dict, str]:
@@ -335,6 +365,126 @@ def check_series(sleeves: Sequence[Mapping], made: Mapping[str, tuple[Mapping, s
         last = f"its last value before that day is of {max(earlier)}" if earlier else "it has no value before that day"
         lines.append(f"The {series_id} series has no value of {last_day}: {last}. Trading day {trading_day} needs "
                      f"its value of {last_day}; a value carried forward does not count. Read by: {'; '.join(read_by)}.")
+    if lines:
+        raise StaleDataError("\n".join(lines))
+
+
+# --------------------------------------------------------------------------- the history the plan was tested on
+
+# name -> (first day, holes): a series by its id, the bars of an ETF by bars_name. A hole is a run of
+# consecutive days of the reference list without a value, as (first day, last day).
+Gaps = Mapping[str, tuple[str, tuple[tuple[str, str], ...]]]
+# How many holes of one name a refusal names.
+HOLES_SHOWN = 5
+
+
+def bars_name(symbol: str) -> str:
+    """The name of the bars of an ETF in a gap list (a series has its own id)."""
+    return f"{symbol} bars"
+
+
+def _holes(have: set[str], reference: Sequence[str], first: str) -> tuple[tuple[str, str], ...]:
+    """The runs of consecutive days of `reference` after `first` that are not in `have`."""
+    runs: list[list[str]] = []
+    open_run = False
+    for day in reference:
+        if day <= first or day in have:
+            open_run = False
+        elif open_run:
+            runs[-1][1] = day
+        else:
+            runs.append([day, day])
+            open_run = True
+    return tuple((start, end) for start, end in runs)
+
+
+def data_gaps(data: pf.Dataset, names: Sequence[str] | None = None, until: str | None = None) -> dict[str, tuple]:
+    """name -> (first day, holes) of the series and the ETF bars of `data` (Gaps).
+
+    A series counts a day when it has a finite value of that day; its reference days are the
+    trading days of the calendar (the bars of pf.CALENDAR_SYMBOL). The bars of an ETF count the days
+    it has a bar; their reference days are the days any ETF of the data has a bar, so a bar missing
+    from the calendar ETF itself shows too. A name is checked from its first day on. `names`: the
+    names to list (default: every series and every ETF; `<ETF>:TR` series are the bars' own).
+    `until`: holes only on days before it. A name without any value is left out.
+    """
+    bar_days = sorted({day for bars in data.bars.values() for day in bars.dates})
+    calendar = list(data.calendar)
+    if until is not None:
+        bar_days, calendar = [day for day in bar_days if day < until], [day for day in calendar if day < until]
+    if names is None:
+        names = [*(bars_name(symbol) for symbol in sorted(data.bars)),
+                 *sorted(name for name in data.series if not name.endswith(":TR"))]
+    out: dict[str, tuple] = {}
+    for name in names:
+        symbol = name.removesuffix(" bars")
+        if symbol != name:
+            have, reference = set(data.bars[symbol].dates) if symbol in data.bars else set(), bar_days
+        else:
+            values = data.series.get(name) or {}
+            have, reference = {day for day, value in values.items() if _is_number(value)}, calendar
+        if have:
+            first = min(have)
+            out[name] = (first, _holes(have, reference, first))
+    return out
+
+
+def history_readers(sleeves: Sequence[Mapping], made: Mapping[str, tuple[Mapping, str]]) -> dict[str, list[str]]:
+    """Name (Gaps) -> the readers of every history a sleeve reads: its series (required_series; an
+    `<ETF>:TR` series is that ETF's bars), the bars of its ETFs, and the bars of the calendar."""
+    out: dict[str, list[str]] = {bars_name(pf.CALENDAR_SYMBOL): ["the trading calendar"]}
+    for sleeve in sleeves:
+        definition = made[sleeve["key"]][0]
+        for symbol in definition["portfolio"]["symbols"]:
+            out.setdefault(bars_name(symbol), []).append(f"{sleeve['key']} (traded)")
+        for series_id, uses in required_series(definition).items():
+            name = bars_name(series_id.removesuffix(":TR")) if series_id.endswith(":TR") else series_id
+            out.setdefault(name, []).append(f"{sleeve['key']} ({', '.join(uses)})")
+    return out
+
+
+def _covered(hole: tuple[str, str], pinned: Sequence[tuple[str, str]]) -> bool:
+    return any(start <= hole[0] and hole[1] <= end for start, end in pinned)
+
+
+def check_history(sleeves: Sequence[Mapping], made: Mapping[str, tuple[Mapping, str]], data: pf.Dataset,
+                  last_day: str, trading_day: str, pins: Gaps) -> None:
+    """Refuses the run when a history a sleeve reads lacks a value on an older day that the tested data has.
+
+    The model account is one path from its start: each trade rests on the ones before it (a sleeve
+    that holds one spread at a time enters only after the last one closed; the caps are shared). A
+    hole on any older day changes that path without a word: the signal code and the options book
+    carry a missing value forward or drop an entry, so a strike moves or a spread disappears. So
+    every series a sleeve reads, the bars of every ETF it trades and the calendar's bars must have
+    a value on every day from their first day to the day before `last_day`, except the holes the
+    data had when the plan was tested (`pins`: golive/tested_gaps.py). A history that starts later
+    than the pinned one has lost days too, and a history that is not pinned cannot be told apart
+    from a gap. The last data day itself is the check of check_series (and of `generate` for bars).
+    """
+    readers = history_readers(sleeves, made)
+    found = data_gaps(data, list(readers), until=last_day)
+    lines = []
+    for name, read_by in readers.items():
+        tail = f"Trading day {trading_day} is refused. Read by: {'; '.join(read_by)}."
+        pinned = pins.get(name)
+        if pinned is None:
+            lines.append(f"The {name} history is not pinned (golive/tested_gaps.py): a new gap cannot be told from "
+                         f"one the plan was tested with. {tail}")
+            continue
+        pinned_first, pinned_holes = pinned
+        first, holes = found.get(name, (None, ()))
+        if first is None or first > pinned_first:
+            starts = "has no value" if first is None else f"starts on {first}"
+            lines.append(f"The {name} history {starts}; the tested data starts on {pinned_first}. {tail}")
+            continue
+        # A hole that ends before the tested history starts is in days the test never read.
+        new = [hole for hole in holes if hole[1] >= pinned_first and not _covered(hole, pinned_holes)]
+        if new:
+            shown = ", ".join(start if start == end else f"{start} to {end}" for start, end in new[:HOLES_SHOWN])
+            more = f" and {len(new) - HOLES_SHOWN} more" if len(new) > HOLES_SHOWN else ""
+            lines.append(f"The {name} history has no value on {shown}{more}: older days the tested data has values "
+                         "for. A gap on an older day changes the model's trades or strikes without a word; it must "
+                         f"be filled by a refresh, or checked and pinned (python -m golive.pin). {tail}")
     if lines:
         raise StaleDataError("\n".join(lines))
 
@@ -621,61 +771,94 @@ def _reported(snapshot: Snapshot, symbol: str) -> str:
     return f" ({text[:80]})" if text else ""
 
 
-def price_candidate(trade: PricedTrade, runs: Sequence[Snapshot],
-                    oldest_day: str) -> tuple[float, float, dict | None, list[str]]:
-    """(long strike, short strike, quote or None, facts) of a model trade against the chain snapshots.
+def _lacks(snapshot: Snapshot, symbol: str, expiry: str, right: str) -> str:
+    """What a run that is done with the symbol lacks, when it has no usable chain of the expiry and side."""
+    side = "calls" if right == "call" else "puts"
+    if not has_chains(snapshot, symbol):
+        return f"the {symbol} chain fetch failed in the snapshot of {snapshot.stamp}{_reported(snapshot, symbol)}"
+    empty = chain_quotes(snapshot, symbol, expiry, right) is not None
+    return (f"the snapshot of {snapshot.stamp} has {'a' if empty else 'no'} {expiry} {side} chain of {symbol}"
+            f"{' without a strike' if empty else ''}{_reported(snapshot, symbol)}")
+
+
+def price_candidate(trade: PricedTrade, runs: Sequence[Snapshot], oldest_day: str,
+                    trading_day: str) -> tuple[float, float, dict | None, list[str]]:
+    """(long strike, short strike, quote or None, facts) of a model trade: listed strikes, or no document.
 
     `runs`: newest first. `oldest_day`: the oldest New York day a snapshot may be of (the freshness
-    rule, MAX_AGE_TRADING_DAYS). The snapshot read is the newest one of that day or later that is
-    done with the symbol and stored a chain of it: a newer run whose fetch of the symbol failed does
-    not hide an older good one, and the facts name the failed run. Without such a snapshot the model
-    strikes stay, there is no quote, and the fact says why: no snapshot, only older ones (with the
-    day of the newest), or a failed fetch.
+    rule, MAX_AGE_TRADING_DAYS; `generate` passes the last data day). A usable chain is the chain
+    file of the symbol, expiry and side, with at least one strike, in a snapshot of that day or later
+    that is done with the symbol. A newer run that failed the symbol, or lacks that one file, does not
+    hide an older one that has it.
 
-    Each model strike moves to the nearest listed strike of its expiry and side. When the expiry is
-    not stored, or a leg has no listed strike within one strike step (options.strike_step), or both
-    legs meet on one strike, the model strikes stay and there is no quote. A listed leg without a
-    usable bid and ask keeps its listed strike and gives no quote.
+    Strikes: each model strike moves to the nearest listed strike (the lower one on a tie) of the
+    OLDEST usable chain. A stored chain does not change, so every run of a trading day names the same
+    strikes for a model trade: the strikes are part of the draft id on the server. The listed steps
+    are the exchange's (5 dollars on SPY away from the money), so a listed strike can be several model
+    steps away; the leg facts name both. No usable chain, a model strike outside the listed strikes of
+    that chain, or both legs on one listed strike, refuse the run (NoChainError): a draft names listed
+    contracts only.
+
+    Quote: the bid and ask of those two strikes in the NEWEST usable chain; none when it does not list
+    both, or a leg has no usable bid and ask.
+
+    Not stored by design: a snapshot keeps the monthly expiries `stored_dte_range` calendar days after
+    its own day (snapshot.py DTE_RANGE). A candidate whose expiry no snapshot the run may read can hold
+    (fewer than the least days after `oldest_day`, or more than the most days after `trading_day`)
+    keeps the model strikes and has no quote, and its facts say so: a held spread near its expiry, or
+    an entry further out than the store reaches. The rule reads dates only, so every run of a trading
+    day decides the same way. An expiry that only the trading day's own snapshots hold (the most days
+    after `trading_day`, but more after `oldest_day`) is refused until such a snapshot is stored.
     """
     model = (trade.long_strike, trade.short_strike)
-    symbol, kept = trade.symbol, "model strikes kept, no quote."
+    symbol, expiry, right = trade.symbol, trade.expiry, STRUCTURES[trade.structure][0]
+    low, high = stored_dte_range()
+    days_out = (date.fromisoformat(expiry) - date.fromisoformat(trading_day)).days
+    if (date.fromisoformat(expiry) - date.fromisoformat(oldest_day)).days < low or days_out > high:
+        return (*model, None, [
+            f"Listed strikes not checked: the chain store keeps expiries {low} to {high} days out, and {expiry} is "
+            f"{days_out} days after the trading day; no snapshot holds it. These are the model's strikes.",
+            "No quote: the chain is not stored."])
+
+    def refuse(why: str) -> NoChainError:
+        side = "calls" if right == "call" else "puts"
+        return NoChainError(f"No listed strikes for the {expiry} {side} of {symbol} (model strikes {model[0]:g}/"
+                            f"{model[1]:g}): {why}. A draft names listed strikes only; no document.")
+
     done = [run for run in runs if symbol in run.symbols]
     if not done:
-        return (*model, None, [f"No chain snapshot of {symbol} to read: {kept}"])
+        raise refuse(f"the chain store has no snapshot of {symbol}")
     fresh = [run for run in done if run.day >= oldest_day]
     if not fresh:
-        return (*model, None, [f"The newest chain snapshot of {symbol} is of {done[0].day} ({done[0].stamp}), older "
-                               f"than {oldest_day}, the oldest day a quote may come from: {kept}"])
-    snapshot = next((run for run in fresh if has_chains(run, symbol)), None)
+        raise refuse(f"the newest chain snapshot of {symbol} is of {done[0].day} ({done[0].stamp}), older than "
+                     f"{oldest_day}, the oldest day strikes may come from")
+    chains = [(run, chain) for run in fresh if (chain := chain_quotes(run, symbol, expiry, right))]
+    if not chains:
+        older = "" if len(fresh) == 1 else f", and none of the {len(fresh) - 1} older ones since {oldest_day} has it"
+        raise refuse(f"{_lacks(fresh[0], symbol, expiry, right)}{older}")
+    (newest, quoted), (first, listing) = chains[0], chains[-1]
     facts, listed = [], []
-    if snapshot is not fresh[0]:
-        failed = (f"The {symbol} chain fetch failed in the newest snapshot of {fresh[0].stamp}"
-                  f"{_reported(fresh[0], symbol)}")
-        if snapshot is None:
-            return (*model, None, [f"{failed}: {kept}"])
-        facts.append(f"{failed}; the snapshot of {snapshot.stamp} is read instead.")
-    chain = chain_quotes(snapshot, symbol, trade.expiry, STRUCTURES[trade.structure][0])
-    if not chain:
-        missing = "is not in" if chain is None else "has no strike in"
-        return (*model, None, [*facts, f"Expiry {trade.expiry} of {symbol} {missing} the chain snapshot of "
-                                       f"{snapshot.stamp}{_reported(snapshot, symbol)}: {kept}"])
+    if newest is not fresh[0]:
+        facts.append(f"Newest snapshot not read: {_lacks(fresh[0], symbol, expiry, right)}.")
+    lowest, highest = min(listing), max(listing)
     for name, strike in zip(("Long", "Short"), model):
-        nearest = min(chain, key=lambda item: (abs(item - strike), item))
-        step = om.strike_step(strike)
-        if abs(nearest - strike) > step + 1e-9:
-            facts.append(f"{name} leg: model strike {strike:g} -> not listed within {step:g} (nearest listed {nearest:g}).")
-        else:
-            facts.append(f"{name} leg: model strike {strike:g} -> listed {nearest:g}.")
-            listed.append(nearest)
-    if len(listed) < 2 or listed[0] == listed[1]:
-        return (*model, None, [*facts, f"Model strikes kept, no quote (chain snapshot of {snapshot.stamp})."])
-    (long_bid, long_ask), (short_bid, short_ask) = chain[listed[0]], chain[listed[1]]
+        if not lowest <= strike <= highest:
+            raise refuse(f"the {name.lower()} leg {strike:g} is outside the listed strikes {lowest:g} to {highest:g} "
+                         f"of the snapshot of {first.stamp}")
+        nearest = min(listing, key=lambda item: (abs(item - strike), item))
+        facts.append(f"{name} leg: model strike {strike:g} -> listed {nearest:g}.")
+        listed.append(nearest)
+    if listed[0] == listed[1]:
+        raise refuse(f"both legs meet on the listed strike {listed[0]:g} in the snapshot of {first.stamp}")
+    if not all(strike in quoted for strike in listed):
+        return (*listed, None, [*facts, f"No quote: the chain snapshot of {newest.stamp} does not list both strikes."])
+    (long_bid, long_ask), (short_bid, short_ask) = quoted[listed[0]], quoted[listed[1]]
     if not (_usable(long_bid, long_ask) and _usable(short_bid, short_ask)):
-        return (*listed, None, [*facts, f"No usable bid and ask for both legs in the chain snapshot of {snapshot.stamp}: "
+        return (*listed, None, [*facts, f"No usable bid and ask for both legs in the chain snapshot of {newest.stamp}: "
                                         "no quote."])
-    quote = {"asOf": snapshot.stamp, "longAsk": long_ask, "longBid": long_bid, "shortAsk": short_ask,
+    quote = {"asOf": newest.stamp, "longAsk": long_ask, "longBid": long_bid, "shortAsk": short_ask,
              "shortBid": short_bid, "source": QUOTE_SOURCE}
-    return (*listed, quote, [*facts, f"Quote: Yahoo chain snapshot of {snapshot.stamp}, delayed, not a live quote."])
+    return (*listed, quote, [*facts, f"Quote: Yahoo chain snapshot of {newest.stamp}, delayed, not a live quote."])
 
 
 # --------------------------------------------------------------------------- the document
@@ -750,7 +933,7 @@ def _candidate(basis: str, sleeve_key: str, trade: PricedTrade, definition: Mapp
         facts.append(f"The model closes this position at the close of {trading_day} (exit signal at the {last_day} "
                      "close).")
     # The freshness rule: the last data day is the oldest day anything may be of.
-    long_strike, short_strike, quote, priced = price_candidate(trade, runs, last_day)
+    long_strike, short_strike, quote, priced = price_candidate(trade, runs, last_day, trading_day)
     facts.extend(priced)
     if len(facts) > FACTS_MAX or any(len(fact) > FACT_MAX_CHARS for fact in facts):
         raise GoLiveError(f"Sleeve {sleeve_key} {trade.symbol}: the facts pass the limit of {FACTS_MAX} lines of "
@@ -761,15 +944,17 @@ def _candidate(basis: str, sleeve_key: str, trade: PricedTrade, definition: Mapp
 
 
 def generate(plan: object, data: pf.Dataset, facts: qi.Facts, chain_store: Path, trading_day: str,
-             now: datetime) -> dict:
+             now: datetime, pins: Gaps | None = None) -> dict:
     """The collect document of `trading_day`: planId, planVersion, tradingDay, generatedAt and candidates.
 
     `data` and `facts`: study.load_study_data of the qc-ports data directory (its `dataset` and
     `facts`). `now`: an aware datetime; the quotes come from the newest chain snapshot at or before
-    it. Raises GoLiveError (no document) when the plan or the day is refused, when the bars or a
-    series a sleeve reads have no value of the last data day, when the chain store cannot be read,
-    or when a candidate breaks an output rule. Zero candidates is a valid result: every check
-    passed and the model wants nothing.
+    it. `pins`: the holes of the tested data (default TESTED_GAPS, golive/tested_gaps.py). Raises
+    GoLiveError (no document) when the plan or the day is refused, when the bars or a series a
+    sleeve reads have no value of the last data day or of an older day the tested data has one for,
+    when the chain store cannot be read, when a candidate has no listed strikes, or when a candidate
+    breaks an output rule. Zero candidates is a valid result: every check passed and the model wants
+    nothing.
     """
     plan = checked_plan(plan)
     last_day = last_data_day(data.calendar, trading_day)
@@ -783,6 +968,7 @@ def generate(plan: object, data: pf.Dataset, facts: qi.Facts, chain_store: Path,
                 raise StaleDataError(f"The {symbol} bars end on {data.bars[symbol].dates[-1]}, the data on {last_day}: "
                                      "no signal is drawn from older data.")
     check_series(plan["sleeves"], made, data, last_day, trading_day)
+    check_history(plan["sleeves"], made, data, last_day, trading_day, TESTED_GAPS if pins is None else pins)
     stored = snapshots(Path(chain_store), now)
     pending = with_pending_days(data, pending_days(data.calendar, trading_day))
     combined = model_trades(made, pending, plan)

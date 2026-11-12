@@ -220,10 +220,14 @@ The drafts of a day are computed on the rig and stored through `collect`. Three 
 The generator refuses the run (exit 1, nothing printed) in these cases:
 
 - The bars, or any series a sleeve reads (gates, signal inputs, the volatility index of each symbol, the rate), have no value dated the last data day itself. A carried-forward value does not count. A gap must never look like "the plan wants nothing today".
+- One of those series, the bars of a traded ETF or the calendar's SPY bars lack a value on an older day that the data the plan was tested on has a value for, or their history starts later than it did. The model account is one path from its start: a sleeve that holds one spread at a time enters only after the last one closed, so a gap months back can move today's strikes or remove a spread. The holes of the tested data (data through 2026-11-11) are pinned in `services/research/golive/tested_gaps.py`; those are read as the backtest read them.
 - The option-chain store or a chain file cannot be read.
+- A candidate has no listed strikes (see below).
 - A candidate breaks an output rule: strikes equal or the wrong way round for the structure, an expiry on or before the trading day, a number that is not finite, a quote label other than `yahoo_delayed_snapshot`.
 
-A chain snapshot gives a quote only when its New York fetch day is the last data day or later. Every candidate carries fact lines with the dates of the values that set its strikes and gates.
+A candidate names listed strikes. Each model strike moves to the nearest listed strike (the lower one on a tie) of the oldest chain snapshot that holds the chain of its symbol, expiry and side and was fetched on the last data day or later (New York day). A stored snapshot does not change, so every run of a trading day names the same strikes, and the draft id stays the same all day. The quote comes from the newest such snapshot. The listed steps are the exchange's (5 dollars on SPY away from the money), so a listed strike can be several dollars from the model strike; the fact lines name both. The run is refused when no such chain exists, when a model strike is outside the listed strikes of that chain, or when both legs meet on one listed strike.
+
+One exception, a rule on dates only: a snapshot keeps the monthly expiries 30 to 75 days after its own day (`DTE_RANGE` of `research/backtests/option-chain/snapshot.py`). A candidate whose expiry is fewer than 30 days after the last data day (a held spread near its expiry) or more than 75 days after the trading day (an entry further out than the store reaches) keeps the model's strikes and has no quote, and its fact lines say so. An expiry that only the trading day's own snapshots hold (75 days after the trading day, more after the last data day) is refused until the 12:30 snapshot of the day is stored. Every candidate carries fact lines with the dates of the values that set its strikes and gates.
 
 The collect script posts nothing and ends with a non-zero exit in these cases:
 
@@ -236,10 +240,10 @@ The collect script posts nothing and ends with a non-zero exit in these cases:
 Limits:
 
 - A refused run stores nothing. The page then shows "the generator has not reported" for that day, the same as before the first run. The journal of `vertex-golive-drafts.service` on the rig says which it is.
-- One volatility index that stops being published refuses every run until the plan or the data changes. The backtest skipped such a symbol; the generator is stricter.
-- The generator checks the last data day only. A value missing on an older day (the signal day or the entry day of an open model position) is not noticed: the draft is then dropped or a strike moves, with exit 0.
-- Strikes are the listed strikes of the newest usable chain snapshot, and the model's strikes when no snapshot is usable, or when a leg has no listed strike within one step of the backtest's strike grid. On a chain listed in 5-dollar steps many model strikes are further away than that. The draft id holds the strikes, so two runs of one day can name different strikes; the earlier draft then expires and a new one appears. A draft with model strikes may name a contract that is not listed.
-- The chain store keeps expiries of 30 to 75 days. A held spread nearer to expiry has no chain and no quote.
+- One volatility index that stops being published, or one new hole on any older day of a series a sleeve reads, refuses every run until a refresh fills it, the plan changes, or the hole is checked and pinned. The backtest carried a value forward for up to 5 days and skipped a symbol without an index; the generator is stricter. This holds also for a series of an ETF the plan does not hold today (a hole in VXD refuses the run while the rotation holds USO): any older day can change the path of the model account. In the two years to 2026-11-11 no series the plan reads missed a trading day, except VXSLV before 2025-05-15, which is pinned.
+- Pinning a hole (`cd services/research && python -m golive.pin --data <data directory> > golive/tested_gaps.py`, then a PR) is a decision to trade on a history with that gap. Read the diff of `tested_gaps.py` before it is merged. A value that appears where the tested data had a hole is not refused.
+- A candidate whose chain no snapshot holds by the date rule above names the model's strikes, which may not be listed contracts; its fact lines say the strikes were not checked. Today that is a held spread fewer than 30 days from expiry, or an entry more than 75 days out. A wider range of the chain store would remove this case.
+- A day without a usable snapshot of the last data day or later refuses every run of the day until one is stored (the snapshot units run at 12:30 and 15:30 New York time).
 
 ## Seed script
 
