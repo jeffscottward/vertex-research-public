@@ -44,7 +44,7 @@ td:empty{display:none}
 td::before{content:attr(data-label);display:block;color:#9aa3b2;font-size:12px;font-weight:400}
 td:first-child{font-weight:600}
 td:first-child::before{display:inline;margin-right:6px}
-table.list td:not(:first-child){text-align:right}
+table.list td:not(:first-child):not(:empty){text-align:right;display:flow-root}
 table.list td:not(:first-child)::before{float:left;margin-right:12px}
 table.grid tr{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:0 8px}
 table.grid td:first-child{grid-column:1/-1}
@@ -67,11 +67,13 @@ def _table(head: Sequence[str], rows: Sequence[Sequence], *, text: bool = False)
 
     Every cell carries its column head as `data-label`: on a phone (STYLE, 640 px and narrower) the head row is
     hidden and each row is a block of labelled values, so no table scrolls sideways. The explicit ARIA roles keep
-    the table structure for screen readers when CSS changes the display of the table elements."""
+    the rows and cells for screen readers when CSS changes the display of the table elements. On a phone, screen
+    readers do not get the head row either; they read each value's label from `data-label`."""
     labels = [_e(cell) for cell in head]
     klass = "text" if text else "grid" if len(head) >= GRID_COLUMNS else "list"
-    out = [f"<div class='wrap'><table class='{klass}' role='table'><thead><tr role='row'>",
-           *(f"<th role='columnheader' scope='col'>{label}</th>" for label in labels), "</tr></thead><tbody>"]
+    out = [f"<div class='wrap'><table class='{klass}' role='table'><thead role='rowgroup'><tr role='row'>",
+           *(f"<th role='columnheader' scope='col'>{label}</th>" for label in labels),
+           "</tr></thead><tbody role='rowgroup'>"]
     for row in rows:
         out.append("<tr role='row'>" + "".join(f"<td role='cell' data-label='{label}'>{cell}</td>"
                                                for label, cell in zip(labels, row, strict=True)) + "</tr>")

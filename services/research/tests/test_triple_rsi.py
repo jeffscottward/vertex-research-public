@@ -436,9 +436,13 @@ def test_report_cells_carry_their_column_head_for_the_phone_layout():
     from strategies.triple_rsi import study
 
     assert len(page.tables) == 10 + len(study.COSTS)  # one Core 7 table per cost level
-    # explicit roles keep the table structure for screen readers when CSS stacks the cells
-    assert {attrs["role"] for attrs in page.of("td")} == {"cell"}
-    assert {attrs["role"] for attrs in page.of("tr")} == {"row"}
+    # explicit roles keep the rows and cells for screen readers when CSS stacks the cells
+    expected_roles = {"table": "table", "thead": "rowgroup", "tbody": "rowgroup", "tr": "row", "th": "columnheader",
+                      "td": "cell"}
+    for tag, role in expected_roles.items():
+        assert {attrs.get("role") for attrs in page.of(tag)} == {role}, tag
+    assert {attrs.get("scope") for attrs in page.of("th")} == {"col"}
+    assert report.GRID_COLUMNS == 7
     for table in page.tables:
         assert table["rows"], table["head"]
         for row in table["rows"]:
@@ -465,7 +469,7 @@ def test_report_chart_text_is_html_at_a_fixed_size():
     page = _Page(report._chart([("Strategy <a>", points), ("Buy-and-hold", half)], "value", title="Return & risk"))
     assert page.of("text") == []  # no text inside the scaled SVG: it would shrink with the screen
     (svg,) = page.of("svg")
-    assert svg["preserveaspectratio"] == "none"
+    assert svg["preserveaspectratio"] == "none" and "role" not in svg and "aria-label" not in svg
     (plot,) = [attrs for attrs in page.of("div") if attrs.get("class") == "plot"]
     assert plot["aria-hidden"] == "true"  # screen readers get the figure caption, not the axis labels
     assert len(page.of("path")) == 2 and len(page.of("line")) == 5
