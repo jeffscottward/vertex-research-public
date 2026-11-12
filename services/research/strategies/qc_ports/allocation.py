@@ -51,7 +51,8 @@ from .ledger import LedgerResult
 __all__ = [
     "GATE", "HOSTS", "IN_SAMPLE_FRACTION", "MONTE_CARLO_PATHS", "OVERLAY_IDEAS", "OWNER_LOSER_EXIT_DTE", "SLEEVES",
     "TRADING_DAYS", "Caps", "Combined", "combine", "correlation", "daily_returns", "equal_risk", "expiry_close_fee",
-    "gate_checks", "hold_options", "inverse_volatility", "monte_carlo", "out_of_sample_sharpe", "owner_rule_trades",
+    "gate_checks", "hold_options", "inverse_volatility", "monte_carlo", "out_of_sample_sharpe", "owner_exit",
+    "owner_rule_trades",
     "qc_candidates", "sharpe", "shrunk_sharpe", "trade_pnl", "window_metrics",
 ]
 
@@ -95,7 +96,7 @@ def expiry_close_fee(trade: PricedTrade, spot: float) -> float:
     return min(cost, worst_exit_cost(trade.symbol, trade.width))
 
 
-def _owner_exit(trade: PricedTrade, options: Mapping, market) -> PricedTrade:
+def owner_exit(trade: PricedTrade, options: Mapping, market) -> PricedTrade:
     """`trade` (priced without time exits) with its expiry closing cost, or its loser cut 3 days before expiry."""
     exit_signal = trade.exit_index - 1 if trade.exit_reason == "signal" else None
     event = SignalEvent(trade.symbol, trade.entry_index - 1, exit_signal)
@@ -124,7 +125,7 @@ def owner_rule_trades(definition: Mapping, data: pf.Dataset, *, start: str) -> t
                                                None if selected is None else selected[leg.order])
         market = pf.market_of(data, leg.symbol)
         for trade in trades:
-            final = _owner_exit(trade, options, market)
+            final = owner_exit(trade, options, market)
             collected.append((final.entry_date, leg.order, final.entry_index, final))
     collected.sort(key=lambda item: item[:3])
     return tuple(dataclasses.replace(item[3], trade_id=number) for number, item in enumerate(collected, start=1))
