@@ -67,7 +67,8 @@ export type PitchResult = Readonly<{
   exits: Readonly<{
     /**
      * The rule's SMA at the latest bar, only while the close is above it; distancePct is
-     * (level / close - 1) * 100, so it is negative. A reference level, not a stop order.
+     * (level / close - 1) * 100, so it is negative or, after rounding, 0. A reference level, not a
+     * stop order.
      */
     smaExitReference: Readonly<{
       level: number;
@@ -95,6 +96,9 @@ export type PitchInput = Readonly<{
 
 export const MAX_MONITORING = 5;
 export const MAX_TITLE_LENGTH = 120;
+// Sanity bounds for dataset figures: a value beyond them is a data error, not a scenario.
+const MAX_UPSIDE_PCT = 100_000;
+const MAX_PRESENT_PRICE = 1_000_000_000;
 
 const CASES = ["bear", "base", "bull"] as const;
 const ScenarioRecord = z.looseObject({
@@ -142,12 +146,15 @@ const scenarioViewOn = (
     if (
       record === undefined ||
       !isFiniteNumber(record.upsidePct) ||
-      record.upsidePct < -100
+      record.upsidePct < -100 ||
+      record.upsidePct > MAX_UPSIDE_PCT
     )
       return [];
-    const price = isFiniteNumber(record.presentPrice)
-      ? roundTo(record.presentPrice)
-      : null;
+    const price =
+      isFiniteNumber(record.presentPrice) &&
+      record.presentPrice <= MAX_PRESENT_PRICE
+        ? roundTo(record.presentPrice)
+        : null;
     return [
       {
         case: name,
@@ -330,7 +337,7 @@ const smaExitReferenceOf = (
   )
     return null;
   return {
-    basis: `${technical.rule.smaPeriod}-session SMA at the ${technical.barDate} close; the desk's paper exit rule is a close below it.`,
+    basis: `${technical.rule.smaPeriod}-session SMA at the ${technical.barDate} close; one of the desk's paper exit rules is a close below it.`,
     distancePct: roundTo((sma / close - 1) * 100, 2) as number,
     level: sma,
   };
@@ -382,9 +389,17 @@ const byText = (a: string, b: string): number => {
   return a < b ? -1 : 1;
 };
 
-/** At most MAX_TITLE_LENGTH UTF-16 units, never ending on half of a surrogate pair. */
+/**
+ * One line of at most MAX_TITLE_LENGTH UTF-16 units, never ending on half of a surrogate pair.
+ * Line breaks and other control characters become one space, so dataset text cannot add a
+ * line to the desk summary.
+ */
 const boundedTitle = (title: string): string =>
-  title.slice(0, MAX_TITLE_LENGTH).replace(/[\uD800-\uDBFF]$/u, "");
+  title
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}\s]+/gu, " ")
+    .trim()
+    .slice(0, MAX_TITLE_LENGTH)
+    .replace(/[\uD800-\uDBFF]$/u, "");
 
 /** Pitch agent: posture, scenario tree, exit references and monitoring for one ticker as of `asOf`. */
 export const pitchAgent = ({

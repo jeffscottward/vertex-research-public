@@ -41,7 +41,7 @@ const catalysts = [
 const EXCLUDED = "Fundamentals dataset is dated after the run date or undated";
 const CEILING =
   "Scenario probabilities and bear-case liquidity checks are not collected, so the posture stops at review-ready.";
-const basis = `200-session SMA at the ${lastDate} close; the desk's paper exit rule is a close below it.`;
+const basis = `200-session SMA at the ${lastDate} close; one of the desk's paper exit rules is a close below it.`;
 const baseRule = (upside: number, captured = lastDate) =>
   `Base-case upside turns negative or zero; the fundamentals dataset captured ${captured} gives ${upside}%.`;
 const bearRule = (upside: number, captured = lastDate) =>
@@ -529,6 +529,20 @@ describe("pitchAgent scenario tree", () => {
     ).toEqual([]);
   });
 
+  it("drops a case whose upside is beyond the sanity bound", () => {
+    const result = pitchFor({
+      fundamentals: fullFundamentals([
+        { id: "bear", upsidePct: -10 },
+        { id: "base", upsidePct: 100_000 },
+        { id: "bull", upsidePct: 1e308 },
+      ]),
+    });
+    expect(result.scenarios.map((scenario) => scenario.upsidePct)).toEqual([
+      -10, 100_000,
+    ]);
+    expect(JSON.stringify(result)).not.toContain("Infinity");
+  });
+
   it("drops a case whose upside is NaN, infinite or below -100", () => {
     const result = pitchFor({
       fundamentals: fullFundamentals([
@@ -559,7 +573,16 @@ describe("pitchAgent scenario tree", () => {
   });
 
   it("keeps a present price only when it is finite and above 0", () => {
-    const prices = [0, -5, Number.NaN, Number.POSITIVE_INFINITY, 0.000_01, 80];
+    const prices = [
+      0,
+      -5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      0.000_01,
+      1e308,
+      1_000_000_001,
+      80,
+    ];
     const seen = prices.map(
       (presentPrice) =>
         pitchFor({
@@ -568,7 +591,7 @@ describe("pitchAgent scenario tree", () => {
           ]),
         }).scenarios[0]?.presentPrice
     );
-    expect(seen).toEqual([null, null, null, null, null, 80]);
+    expect(seen).toEqual([null, null, null, null, null, null, null, 80]);
   });
 
   it("gives no skew and says so when the three cases are out of order", () => {
@@ -675,6 +698,13 @@ describe("pitchAgent exits and monitoring", () => {
     expect(
       withCatalysts([...sameDay].reverse()).exits.nextCatalyst?.title
     ).toBe("Alpha");
+  });
+
+  it("keeps a catalyst title on one line", () => {
+    const result = withCatalysts([
+      { date: later(1), title: "  Earnings\r\n  call\u2028\tQ3\u0000 " },
+    ]);
+    expect(result.exits.nextCatalyst?.title).toBe("Earnings call Q3");
   });
 
   it("bounds a catalyst title to MAX_TITLE_LENGTH characters", () => {
