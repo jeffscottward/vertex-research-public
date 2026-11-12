@@ -1,6 +1,6 @@
 # Integrated upstream modules
 
-This page lists every upstream project Vertex uses, where its code or adapter lives and how it is pinned. The [README](../README.md) links here.
+This page lists the upstream projects integrated as modules, where each one's code or adapter lives and how it is pinned. First-party services are in [native-services.md](native-services.md). The [README](../README.md) links here.
 
 No upstream project is a git submodule. Each one is a separate service, an adapter behind a port, or a pinned dependency. The runtime engines (Nautilus Trader and the Agno bridge) are disabled in [`capabilities.yaml`](../capabilities.yaml).
 
@@ -24,17 +24,4 @@ Reference only, no code copied:
 - "151 Trading Strategies" (Kakushadze and Serur): backtest target list in `research/backtests/151-strategies/`.
 - [Open-Alpha-Lab](https://github.com/Guillain-RDCDE/Open-Alpha-Lab): published results used as validation references in `research/backtests/carousel/`.
 
-The license and rights state of each source is tracked in `docs/vertex-rebuild/migration-matrix.json`.
-
-## First-party research building blocks
-
-The research building blocks are first-party Vertex code in `services/research`. The Python distribution `vertex-gamma-research`, the `gamma` import package, the recipe profile IDs `vertex-gamma-research-v1` and `vertex-gamma-recipe-v1`, the `gammaProvenance` contract field and the `GAMMA_RESEARCH_API_URL`/`GAMMA_RESEARCH_API_TOKEN` environment variables keep their historical names, so that imports, stored recipes, the API contract and configured environments stay stable.
-
-| Block | What it does | Where it lives |
-| --- | --- | --- |
-| Features | Momentum, market structure, volatility, liquidity, fundamental/catalyst and option-flow features | `services/research/gamma/features/` |
-| Indicators | TA-Lib-compatible EMA, MACD, RSI, ATR, ADX and similar indicators | `services/research/indicators/` |
-| Setups | Setup identification from the features, research brief and market regime | `services/research/gamma/engines/setup_engine.py` |
-| Options | Options strategy selection and the BridgingCycles short strangle | `services/research/gamma/engines/options_strategy_selector.py`, `services/research/gamma/engines/bridgingcycles_short_strangle.py`, `services/research/gamma/schemas/options.py` |
-| Portfolio | Portfolio committee and portfolio schemas | `services/research/gamma/engines/portfolio_committee.py`, `services/research/gamma/schemas/portfolio.py` |
-| Replay | Replay manifests and offline backtest replay | `services/research/backtesting/replay.py`, `services/research/backtesting/manifest.py` |
+The license and rights state of the original migration sources is tracked in `docs/vertex-rebuild/migration-matrix.json`. The licenses of the other projects are in the notices named in each row.

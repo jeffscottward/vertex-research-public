@@ -21,9 +21,10 @@ classify() {
   while IFS= read -r path || [[ -n "${path}" ]]; do
     [[ -z "${path}" ]] && continue
     any=1
-    # Agent instruction files are checked by unit tests (agent-docs-invariants).
+    # Agent instruction files are checked by unit tests (agent-docs-invariants), and the
+    # root README by the operations test readme-invariants.
     case "${path}" in
-      .agents/* | .claude/* | AGENTS.md | */AGENTS.md | CLAUDE.md | */CLAUDE.md) echo code; return 0 ;;
+      .agents/* | .claude/* | AGENTS.md | */AGENTS.md | CLAUDE.md | */CLAUDE.md | README.md) echo code; return 0 ;;
       *.md) continue ;;
     esac
     case "${path}" in
