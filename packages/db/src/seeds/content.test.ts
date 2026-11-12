@@ -218,7 +218,10 @@ describe("development content seeds", () => {
   it("creates all missing content and authors feature mutation records", async () => {
     const double = createContentSeedDatabase(missingContentOutcomes());
 
-    await convergeDevelopmentContent(double.database);
+    await expect(convergeDevelopmentContent(double.database)).resolves.toEqual({
+      addresses: 3,
+      featureItems: 3,
+    });
 
     const addressInserts = double.operations.filter(
       (operation) =>
@@ -476,10 +479,12 @@ describe("development content seeds", () => {
       insert: [[], []],
     });
 
-    await convergeDevelopmentContent(double.database, {
-      addresses: [expectedAddress],
-      featureItems: [expectedFeature],
-    });
+    await expect(
+      convergeDevelopmentContent(double.database, {
+        addresses: [expectedAddress],
+        featureItems: [expectedFeature],
+      })
+    ).resolves.toEqual({ addresses: 1, featureItems: 1 });
 
     const addressRepair = double.operations.find(
       ({ kind, table }) => kind === "update" && table === "addresses"

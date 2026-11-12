@@ -116,7 +116,7 @@ describe("development profile seeds", () => {
   it("inserts every missing profile with the authored seed values", async () => {
     const double = createProfileSeedDatabase([[], [], []]);
 
-    await convergeDevelopmentProfiles(double.database);
+    await expect(convergeDevelopmentProfiles(double.database)).resolves.toBe(3);
 
     const inserts = double.operations.filter(
       (operation) => operation.kind === "insert"

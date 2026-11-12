@@ -139,13 +139,22 @@ const inspectIdentity = async (
   return { persona, exists: true };
 };
 
+type ApplicationRowCounts = Readonly<{
+  profiles: number;
+  preferences: number;
+  addresses: number;
+  featureItems: number;
+}>;
+
 const convergeApplicationRows = async (
   database: DatabaseExecutor
-): Promise<void> => {
-  await convergeDevelopmentProfiles(database);
-  await convergeDevelopmentPreferences(database);
-  await convergeDevelopmentContent(database);
+): Promise<ApplicationRowCounts> => {
+  const profiles = await convergeDevelopmentProfiles(database);
+  const preferences = await convergeDevelopmentPreferences(database);
+  const { addresses, featureItems } =
+    await convergeDevelopmentContent(database);
   await convergeDevelopmentPlays(database);
+  return { profiles, preferences, addresses, featureItems };
 };
 
 const lockDevelopmentIdentities = async (
@@ -198,15 +207,15 @@ export const seedDevelopment = async (
       if (!state.exists) identitiesCreated += 1;
     }
 
-    await convergeApplicationRows(transaction);
+    const rows = await convergeApplicationRows(transaction);
 
     return Object.freeze({
       identitiesCreated,
       usersConverged: DEVELOPMENT_PERSONAS.length,
-      profilesConverged: DEVELOPMENT_PERSONAS.length,
-      preferencesConverged: DEVELOPMENT_PERSONAS.length,
-      addressesConverged: DEVELOPMENT_PERSONAS.length,
-      featureItemsConverged: DEVELOPMENT_PERSONAS.length,
+      profilesConverged: rows.profiles,
+      preferencesConverged: rows.preferences,
+      addressesConverged: rows.addresses,
+      featureItemsConverged: rows.featureItems,
     });
   });
 };

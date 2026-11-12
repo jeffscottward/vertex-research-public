@@ -133,7 +133,9 @@ describe("development preference seeds", () => {
   it("inserts every missing preference with the complete authored policy", async () => {
     const double = createPreferenceSeedDatabase([[], [], []]);
 
-    await convergeDevelopmentPreferences(double.database);
+    await expect(convergeDevelopmentPreferences(double.database)).resolves.toBe(
+      3
+    );
 
     const inserts = double.operations.filter(
       (operation) => operation.kind === "insert"

@@ -73,9 +73,10 @@ const matchesProfile = (
   );
 };
 
+/** Returns the number of profile rows left in the seeded state. */
 export const convergeDevelopmentProfiles = async (
   database: DatabaseExecutor
-): Promise<void> => {
+): Promise<number> => {
   const repository = createProfileRepository(database);
   for (const profile of DEVELOPMENT_PROFILES) {
     const current = await repository.findByUserId(profile.userId);
@@ -83,4 +84,5 @@ export const convergeDevelopmentProfiles = async (
       await repository.upsert(profile);
     }
   }
+  return DEVELOPMENT_PROFILES.length;
 };
