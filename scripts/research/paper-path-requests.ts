@@ -103,7 +103,7 @@ const rehearseItem = (item: PaperPathItem, prefix: string): Outcome => {
     options?: unknown;
     strategyId?: unknown;
     symbol?: unknown;
-    symbols?: unknown[];
+    symbols: unknown[];
     timeframe?: unknown;
   };
   const lock = DeploymentLockSchema.parse({
@@ -115,7 +115,7 @@ const rehearseItem = (item: PaperPathItem, prefix: string): Outcome => {
     executionAuthorized: false,
   });
   try {
-    const symbols = (group ? (input.symbols ?? []) : [input.symbol]).map(
+    const symbols = (group ? input.symbols : [input.symbol]).map(
       normalizeDeploymentSymbol
     );
     const timeframe = normalizeDeploymentTimeframe(input.timeframe);
@@ -131,8 +131,6 @@ const rehearseItem = (item: PaperPathItem, prefix: string): Outcome => {
           : input.options,
         symbol
       );
-      if (group && options === null)
-        throw new Error("a group needs an options block");
       checkDeploymentTransition(
         "approve",
         checkDeploymentTransition("submit", "draft")

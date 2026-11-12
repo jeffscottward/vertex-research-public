@@ -103,7 +103,10 @@ describe("deployment-request step of the paper path rehearsal", () => {
   it("reports probes apart from the records", () => {
     const report = rehearsePaperPathRequests(
       [{ input: input(), kind: "single" }],
-      [{ input: input({ mode: "live" }), kind: "single", probe: "mode live" }]
+      [
+        { input: input({ mode: "live" }), kind: "single", probe: "mode live" },
+        { input: input(), kind: "single", probe: "accepted" },
+      ]
     );
     expect(report.records).toHaveLength(1);
     expect(report.probes).toEqual([
@@ -112,6 +115,32 @@ describe("deployment-request step of the paper path rehearsal", () => {
         options: false,
         probe: "mode live",
         refusal: expect.any(String),
+      },
+      { approved: 1, options: true, probe: "accepted", refusal: null },
+    ]);
+  });
+
+  it("refuses a group without an options block at the contract, and bad fields after it", () => {
+    const { options: _options, ...bare } = group();
+    const report = rehearsePaperPathRequests(
+      [
+        { input: bare, kind: "group" },
+        { input: input({ timeframe: "7x" }), kind: "single" },
+      ],
+      [{ input: input({ timeframe: "7x" }), kind: "single" }]
+    );
+    expect(report.records).toEqual([]);
+    expect(report.refusals.map((item) => item.refusedAt)).toEqual([
+      "contract",
+      "fields",
+    ]);
+    expect(report.refusals[1]?.refusal).toMatch(/^timeframe must be/u);
+    expect(report.probes).toEqual([
+      {
+        approved: 0,
+        options: false,
+        probe: null,
+        refusal: expect.stringMatching(/^timeframe must be/u),
       },
     ]);
   });
