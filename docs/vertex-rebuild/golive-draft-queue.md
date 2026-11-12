@@ -147,6 +147,44 @@ No code reads option quotes from IBKR. The rig generator sends delayed indicativ
 
 `approve` trusts the label `ibkr_live` on a stored quote. In this version nothing can give that label truthfully, so `collect` refuses a batch in which a quote carries it (`BAD_REQUEST`). Nothing is stored and nothing is expired. The refusal is a default in the server code, not an environment setting. It is to be lifted in the same change that adds a live IBKR option quote source.
 
+## Rig generator and collect script
+
+The drafts of a day are computed on the rig and stored through `collect`. Three units in `infra/golive-drafts/` run the wrapper `vertex-golive-drafts-run` on weekdays at 07:15, 12:40 and 15:40 New York time.
+
+1. Data refresh. The wrapper fetches the daily data with `research/backtests/qc-ports/fetch_data.py` (public market data) into a work directory and moves the files in only after a complete fetch. The fetch runs without the write key, for at most 600 seconds. A failed refresh is reported and the collect still runs; the generator then decides on the data that is there. `GOLIVE_SKIP_REFRESH=1` skips the refresh.
+2. Generator (`python -m golive` in `services/research`). It runs the signal code of the backtest (`strategies.qc_ports` and `funded_pie.sleeve_definitions`) and prints one JSON document. It has no network access and gets no key.
+3. Collect (`scripts/golive/collect.ts`). It reads the plan in force, runs the generator, checks the document and posts it.
+
+The generator refuses the run (exit 1, nothing printed) in these cases:
+
+- The bars, or any series a sleeve reads (gates, signal inputs, the volatility index of each symbol, the rate), have no value dated the last data day itself. A carried-forward value does not count. A gap must never look like "the plan wants nothing today".
+- The option-chain store or a chain file cannot be read.
+- A candidate breaks an output rule: strikes equal or the wrong way round for the structure, an expiry on or before the trading day, a number that is not finite, a quote label other than `yahoo_delayed_snapshot`.
+
+A chain snapshot gives a quote only when its New York fetch day is the last data day or later. Every candidate carries fact lines with the dates of the values that set its strikes and gates.
+
+The collect script posts nothing and ends with a non-zero exit in these cases:
+
+- `VERTEX_ORIGIN` is not `https:` (loopback hosts excepted, for tests), or a request is answered with a redirect. The key is never sent to a second host.
+- The generator exits non-zero, is killed, runs longer than 300 seconds, or writes to stderr together with an empty candidate list.
+- The document fails `GoLiveCollectInputSchema`, or a quote label is not `yahoo_delayed_snapshot`.
+- The answer of the server is not a `collect` answer (for example a 200 page of HTML). The message then says that the stored state is not known.
+
+Limits:
+
+- A refused run stores nothing. The page then shows "the generator has not reported" for that day, the same as before the first run. The journal of `vertex-golive-drafts.service` on the rig says which it is.
+- One volatility index that stops being published refuses every run until the plan or the data changes. The backtest skipped such a symbol; the generator is stricter.
+
+## Seed script
+
+`scripts/golive/seed-plan.ts` is the only writer of a plan record. An approved plan always needs the owner message link and `--approved-by`. A plan approved by delegation also needs the evidence link. The real links are given as arguments at deploy time and are never committed.
+
+- `--write` reads the plan in force first and prints what it retires and what it writes.
+- When the plan in force is equal to the new document, nothing is written.
+- An approved plan in force is replaced by a proposed one only with `--replace-approved`.
+- Every real write makes a new version. Proposed drafts of the retired version cannot be approved until the next collect. Drafts already approved under the retired version stay approved.
+- Run one seed at a time: the read and the write are two database steps.
+
 ## Pre-check
 
 `preCheck.webFinalGate` is the web final order gate run dry on the sized order. It is empty when the quantity is 0.
