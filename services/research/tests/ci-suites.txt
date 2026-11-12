@@ -121,3 +121,5 @@ tests/test_noise_band_futures_run.py
 tests/test_noise_band_retest.py
 tests/test_ibkr_history.py
 tests/test_golive_generator.py
+tests/test_triple_rsi.py
+tests/test_triple_rsi_nautilus.py
