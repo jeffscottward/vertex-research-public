@@ -431,11 +431,12 @@ def test_the_library_list_is_the_quantjourney_strategies_without_a_form_plus_fiv
     assert sorted(fl.LIBRARY_SLUGS) == sorted([*quantjourney, *OTHER_SLUGS])
 
 
-def test_every_library_strategy_has_one_form_or_one_reason():
-    with_form = [form.slug for form in fl.STRATEGY_FORMS]
+def test_every_library_strategy_has_a_daily_form_an_intraday_form_or_a_reason():
+    daily = [form.slug for form in fl.STRATEGY_FORMS]
+    intraday = [item.form.slug for item in fl.INTRADAY_FORMS]
     without = [item.slug for item in fl.NOT_RUN]
-    assert sorted([*with_form, *without]) == sorted(fl.LIBRARY_SLUGS)
-    assert len(with_form) == 36 and len(without) == 6
+    assert sorted([*daily, *intraday, *without]) == sorted(fl.LIBRARY_SLUGS)
+    assert (len(daily), len(intraday), len(without)) == (36, 5, 1)
     assert all(item.reason.endswith(".") for item in fl.NOT_RUN)
 
 

@@ -281,8 +281,12 @@ def main() -> None:
         "gate": al.GATE, "lowerBar": funded_pie.LOWER_BAR, "start": START, "costScale": args.cost_scale,
         "measuredCore7": sensitivity.measured_model(str(args.chain)) if args.chain is not None else None,
         "baselineDelays": list(BASELINE_DELAYS),
+        # `only`: the forms of an --only run (null: the whole study). run_intraday.py takes no such run as --prior.
+        "only": sorted(args.only.split(",")) if args.only else None,
+        # `dailySharpes`: the trial set by key, so a later study (run_intraday.py) can add its runs to it.
         "trials": {"count": n_trials, "prior": sum(1 for key in trials if not key.startswith("form:")),
-                   "forms": sum(1 for key in trials if key.startswith("form:")), "dailySharpeVariance": trial_variance},
+                   "forms": sum(1 for key in trials if key.startswith("form:")), "dailySharpeVariance": trial_variance,
+                   "dailySharpes": dict(sorted(trials.items()))},
         "proxy": {"window": fm.RV_WINDOW, "premium": fm.RV_PREMIUM, "ratioRange": fm.RATIO_RANGE,
                   "atmFactor": fm.PROXY_ATM_FACTOR, "check": proxy_check(dataset),
                   "models": {symbol: {"halfSpreadPct": model.half_spread_pct, "skew": model.skew,
@@ -292,6 +296,7 @@ def main() -> None:
         "leaders": sorted(stocks), "leadersMissing": sorted(set(universe.SP100) - set(stocks)),
         "forms": strategies, "baselines": [row for row in rows if row["key"].startswith("base/")],
         "notRun": [{"slug": item.slug, "reason": item.reason} for item in fl.NOT_RUN],
+        "intradayStudy": [item.form.slug for item in fl.INTRADAY_FORMS],
         "passGate": [row["key"] for row in strategies if row["passesGate"] and not row["duplicateOf"]],
         "passLowerBar": [row["key"] for row in strategies if row["passesLowerBar"] and not row["duplicateOf"]],
     }

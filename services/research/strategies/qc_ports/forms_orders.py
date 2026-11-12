@@ -121,6 +121,9 @@ def fill_price(order: Order, open_: float, high: float, low: float) -> float | N
 
 # --------------------------------------------------------------------------- strategies
 
+RSI_LENGTH, FAST, SLOW, BREAKOUT = 14, 20, 50, 20
+
+
 @dataclass(frozen=True)
 class Spec:
     """One strategy as parameters of the machine.
@@ -128,17 +131,25 @@ class Spec:
     `signal`: what the rule reads. "rsi": RSI(14) of the close, entry below `level`, exit above
     `exit_level`. "sma": close against SMA(50), entry above, exit below. "cross": SMA(20) against
     SMA(50), entry on the bar it turns above, exit on the bar it turns not above. "breakout": the
-    highest of the 20 closes before the bar; always ready to enter from bar 21. "clock": entry on
-    every `every`-th bar.
+    highest of the `lookback` closes (`high`: highs) before the bar; always ready to enter from
+    bar `first_bar` on (default: `lookback` + 1, counted from 0). "clock": entry on every
+    `every`-th bar.
     `entry`: the kind of the entry order. Limit at close * `limit_pct`; stop at base * `stop_pct`
     (base: the prior high for "breakout", else the close); stop-limit with the limit at stop *
     `cap_pct`; "oco": the limit and the stop as one OCO pair. `valid`: bars the entry order lives.
+    `stack`: a flat bar submits its entry order also while earlier entry orders rest (upstream has
+    no check for a pending order).
     `chain`: the branches of the upstream `_compute_orders` in their order; the first branch whose
     condition holds is taken and ends the bar. "enter", "target" (limit sell at entry * pct, valid
-    for n bars: `target`), "protect" (one protective order per position: `protect`), "signal_exit"
-    and "time_exit" (market sell on the `hold`-th bar after the bar that first saw the position).
+    for n bars: `target`), "protect" (one protective order per position: `protect`), "signal_exit",
+    "time_exit" (market sell on the `hold`-th bar after the bar that first saw the position, or with
+    `hold_from` "order" after the bar of the last entry order) and "bracket" (a position without
+    resting orders gets its take-profit limit and its stop as one OCO pair: `bracket`).
     `protect`: (STOP_LIMIT, stop factor, limit factor) of the entry price; (TRAIL, percent, None);
     (TRAIL_LIMIT, trail, offset) as fractions of the close of the bar that submits it.
+    `bracket`: (take-profit factor, stop factor) of the close of the bar that submitted the entry
+    order. Upstream the two orders start with the entry fill and are matched from the next bar on;
+    a bar that reaches both fills the stop (stops are matched before limits).
     """
 
     signal: str
@@ -154,9 +165,14 @@ class Spec:
     protect: tuple[str, float, float | None] | None = None
     hold: int | None = None
     every: int = 1
+    lookback: int = BREAKOUT
+    high: bool = False
+    first_bar: int | None = None
+    stack: bool = False
+    hold_from: str = "position"
+    bracket: tuple[float, float] | None = None
 
 
-RSI_LENGTH, FAST, SLOW, BREAKOUT = 14, 20, 50, 20
 PROTECTED = ("enter", "protect", "signal_exit")  # upstream order: a position without its stop gets the stop first
 
 SPECS: dict[str, Spec] = {
@@ -207,12 +223,14 @@ def run(bars: Bars, spec: Spec) -> list[int]:
     value = rsi(closes, RSI_LENGTH) if spec.signal == "rsi" else None
     slow = sma(closes, SLOW) if spec.signal in ("sma", "cross") else None
     fast = sma(closes, FAST) if spec.signal == "cross" else None
+    peaks = data.high if spec.high else closes
+    first_bar = spec.lookback + 1 if spec.first_bar is None else spec.first_bar
 
     book: list[Order] = []
     long = protected = above = False
-    entry_price = 0.0
+    entry_price = signal_close = 0.0
     count = 0  # bars the strategy has acted on
-    since: int | None = None  # `count` of the bar that first saw the position
+    since: int | None = None  # `count` of the bar the hold is counted from (`Spec.hold_from`)
     out: list[int] = []
     for index, close in enumerate(closes):
         # 1. the resting orders against this bar
@@ -235,7 +253,7 @@ def run(bars: Bars, spec: Spec) -> list[int]:
         if spec.signal == "rsi":
             ready = value[index] is not None
         elif spec.signal == "breakout":
-            ready = index > BREAKOUT
+            ready = index >= first_bar
         else:
             ready = slow is None or slow[index] is not None
         if ready:
@@ -255,16 +273,19 @@ def run(bars: Bars, spec: Spec) -> list[int]:
                 now = fast[index] > slow[index]
                 enter, leave = now and not above, above and not now
             elif spec.signal == "breakout":
-                enter, base = True, max(closes[index - BREAKOUT:index])
+                enter, base = True, max(peaks[index - spec.lookback:index])
             elif spec.signal == "clock":
                 enter = count % spec.every == 0
             else:
                 raise ValueError(f"Unknown signal {spec.signal!r}")
             for branch in spec.chain:
                 if branch == "enter":
-                    if long or book or not enter:
+                    if long or (book and not spec.stack) or not enter:
                         continue
-                    book = _entry_orders(spec, close, base, index)
+                    book = book + _entry_orders(spec, close, base, index)
+                    signal_close = close
+                    if spec.hold_from == "order":
+                        since = count
                 elif branch == "target":
                     if not long or book:
                         continue
@@ -282,6 +303,12 @@ def run(bars: Bars, spec: Spec) -> list[int]:
                     if not long or count - since < spec.hold:
                         continue
                     book, since = [Order(MARKET, False)], None
+                elif branch == "bracket":
+                    if not long or book:
+                        continue
+                    take, stop = spec.bracket
+                    book = [Order(STOP, False, stop=round(signal_close * stop, 2), pair=index),
+                            Order(LIMIT, False, limit=round(signal_close * take, 2), pair=index)]
                 else:
                     raise ValueError(f"Unknown branch {branch!r}")
                 break
