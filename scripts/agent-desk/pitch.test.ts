@@ -663,6 +663,11 @@ describe("pitchAgent exits and monitoring", () => {
       distancePct: -25,
       level: 150,
     });
+    // A close a hair above the SMA: the distance rounds to 0.
+    expect(reference({ close: 100, sma: 99.9999 })?.distancePct).toBeCloseTo(
+      0,
+      10
+    );
     expect(reference({ close: 90, sma: 100 })).toBeNull();
     expect(reference({ close: 100, sma: 100 })).toBeNull();
     expect(reference({ close: 100, sma: 0 })).toBeNull();
