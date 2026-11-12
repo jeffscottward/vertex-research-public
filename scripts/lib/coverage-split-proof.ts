@@ -256,7 +256,13 @@ const moduleOf = (
   statement: ts.ImportDeclaration | ts.ExportDeclaration,
   file: ts.SourceFile
 ): string => {
-  const { text } = statement.moduleSpecifier as ts.StringLiteral;
+  // The specifier as committed: parsed again from the committed text, so
+  // escapes are read and the directive rename does not apply.
+  const literal = tokensOf(statement.moduleSpecifier, file).join("");
+  const { text } = (
+    ts.createSourceFile("specifier.ts", literal, ts.ScriptTarget.Latest)
+      .statements[0] as ts.ExpressionStatement
+  ).expression as ts.StringLiteral;
   const resolved = text.startsWith(".")
     ? posix.join(posix.dirname(path), text)
     : text;

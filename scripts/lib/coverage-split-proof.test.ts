@@ -1292,6 +1292,17 @@ describe("runCoverageSplitProof", () => {
         "src/a.ts has a JSX pragma or a triple-slash reference, which applies only to its own file",
       ],
     ],
+    [
+      'an import changed from "./@ts-ignore.ts" to "./@ts_ignore.ts"',
+      'import "./@ts-ignore.ts";\nfunction f() {}\n',
+      'import "./@ts_ignore.ts";\n',
+      "function f() {}\n",
+      [
+        'src/a.ts:1: statement is not in the original file (new or changed code): import "./@ts_ignore.ts" ;',
+        'src/a.ts:1: statement of the original file is missing after the split: import "./@ts-ignore.ts" ;',
+        "src/a.ts: loads src/@ts-ignore.ts before the split and src/@ts_ignore.ts after it; what loads and its order stay the same",
+      ],
+    ],
   ])("refuses %s", async (_case, original, kept, moved, problems) => {
     const result = await smallSplit(original, kept, moved);
 
