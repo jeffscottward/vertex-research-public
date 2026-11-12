@@ -242,6 +242,10 @@ import {
   createBreadth90Repository,
 } from "./breadth-90.ts";
 import {
+  createGoLiveDraftsRepository,
+  type GoLiveDraftsRepository,
+} from "./golive-drafts.ts";
+import {
   createPickListRepository,
   type PickListRepository,
 } from "./pick-list-repository.ts";
@@ -4362,6 +4366,7 @@ export type Repositories = Readonly<{
   clickLog?: ClickLogRepository;
   semanticLayer?: SemanticLayerRepository;
   breadth90?: Breadth90Repository;
+  goLiveDrafts?: GoLiveDraftsRepository;
 }>;
 
 export const createRepositories = (
@@ -4458,6 +4463,10 @@ export const createRepositories = (
     resolveDependencies(dependencies).now
   ),
   breadth90: createBreadth90Repository(
+    database,
+    resolveDependencies(dependencies)
+  ),
+  goLiveDrafts: createGoLiveDraftsRepository(
     database,
     resolveDependencies(dependencies)
   ),
