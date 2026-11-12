@@ -688,6 +688,20 @@ def test_an_extra_bar_of_one_etf_on_a_closed_day_is_no_gap_of_the_others(tmp_pat
     assert _generate("2026-11-11", "2026-11-12", tmp_path, data=extra)["candidates"] == mid_month["candidates"]
 
 
+def test_bars_lost_by_one_of_two_etfs_or_by_most_etfs_on_one_day_are_holes():
+    data = _dataset("2026-01-30")
+    # Two ETFs only (the years before the others started): the one bar the other lacks still counts.
+    two = pf.Dataset({symbol: data.bars[symbol] for symbol in ("SPY", "DIA")}, data.series)
+    assert gl.data_gaps(_without_bar(two, "DIA", "2025-09-15"))["DIA bars"] == (FIRST_DAY, (("2025-09-15", "2025-09-15"),))
+    # Five of seven ETFs lose one calendar day at once.
+    many = data
+    for symbol in ("QQQ", "DIA", "IWM", "GLD", "USO"):
+        many = _without_bar(many, symbol, "2025-09-15")
+    gaps = gl.data_gaps(many)
+    assert all(gaps[f"{symbol} bars"][1] == (("2025-09-15", "2025-09-15"),) for symbol in ("QQQ", "DIA", "IWM", "GLD", "USO"))
+    assert gaps["SPY bars"] == gaps["SLV bars"] == (FIRST_DAY, ())
+
+
 def test_a_refusal_names_five_holes_of_a_history_and_counts_the_rest(tmp_path):
     days = [day for day in _dataset("2026-11-11").calendar if "2026-03-01" <= day <= "2026-03-31"][::2][:8]
     data = _drop(_dataset("2026-11-11"), "VIX3M", *days)

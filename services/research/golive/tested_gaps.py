@@ -5,7 +5,7 @@ when the data lacks a value on an older day that this data has a value for.
 
 name -> (first day, holes): a series by its id, the bars of an ETF as `<ETF> bars`. A hole is a
 run of consecutive days without a value (first day, last day): for a series, trading days of the
-calendar; for bars, days on which any ETF of the data has a bar.
+calendar; for bars, calendar days and days on which at least half of the started ETFs have a bar.
 """
 
 PINNED_THROUGH = "2026-11-11"

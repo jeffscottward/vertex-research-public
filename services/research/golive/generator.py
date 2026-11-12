@@ -405,17 +405,20 @@ def data_gaps(data: pf.Dataset, names: Sequence[str] | None = None, until: str |
 
     A series counts a day when it has a finite value of that day; its reference days are the
     trading days of the calendar (the bars of pf.CALENDAR_SYMBOL). The bars of an ETF count the days
-    it has a bar; their reference days are the days on which most of the ETFs that have started
-    (first bar on or before that day) have a bar. So a bar missing from the calendar ETF itself
-    shows, and one ETF with an extra bar on a closed day is no hole of the others. A name is checked
+    it has a bar; their reference days are the calendar days and the days on which at least half of
+    the ETFs that have started (first bar on or before that day) have a bar. So a bar missing from
+    the calendar ETF itself shows, a day that several ETFs lose at once shows, and one ETF with an
+    extra bar on a closed day is no hole of the others. A name is checked
     from its first day on. `names`: the names to list (default: every series and every ETF;
     `<ETF>:TR` series are the bars' own). `until`: holes only on days before it. A name without any
     value is left out.
     """
     started = sorted(bars.dates[0] for bars in data.bars.values() if bars.dates)
     having = Counter(day for bars in data.bars.values() for day in bars.dates)
-    bar_days = sorted(day for day, count in having.items() if 2 * count > bisect.bisect_right(started, day))
     calendar = list(data.calendar)
+    on_calendar = set(calendar)
+    bar_days = sorted(day for day, count in having.items()
+                      if day in on_calendar or 2 * count >= bisect.bisect_right(started, day))
     if until is not None:
         bar_days, calendar = [day for day in bar_days if day < until], [day for day in calendar if day < until]
     if names is None:
