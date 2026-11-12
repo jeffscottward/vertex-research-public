@@ -178,6 +178,62 @@ const AI_HEDGE_FUND: AgentFrameworkOutput = {
     "Not pinned: upstream file SHA-256 values are in the event_stats.py docstring",
 };
 
+// The LangAlpha sheet describes scripts/agent-desk/pitch.ts, which adapts the structure of two
+// LangAlpha skills (https://github.com/ginlix-ai/LangAlpha, commit
+// e102a7838225157f7b3beca3fc274b26be852154, Apache License 2.0; see NOTICE). No LangAlpha code
+// is included and LangAlpha does not run in Vertex.
+const LANGALPHA: AgentFrameworkOutput = {
+  benchName: null,
+  code: ["scripts/agent-desk/pitch.ts"],
+  dataSources: [
+    {
+      name: "Accepted report datasets (fundamentals, news, committee, market history)",
+      note: "Read through the paper agent desk. A dataset captured after the run date and a bar or catalyst outside the run date's view are not used (the desk's asOf rule).",
+      pointInTime: "yes",
+    },
+  ],
+  guards: [
+    "No order, size, instrument or execution: the pitch states what the inputs support, and the paper book does not read it.",
+    "No model call and no network: a deterministic function over the results of the other desk agents.",
+    "LangAlpha's sandbox, broker connectors and model routes are not used.",
+    "The datasets carry no scenario probabilities, so the probability-weighted figure is withheld.",
+  ],
+  id: "langalpha",
+  license:
+    "Apache-2.0, Copyright 2025 Ginlix AI (ideas and structure only; no LangAlpha code is included).",
+  links: [
+    {
+      href: "https://github.com/ginlix-ai/LangAlpha/tree/e102a7838225157f7b3beca3fc274b26be852154",
+      label: "LangAlpha at commit e102a783 on GitHub",
+    },
+  ],
+  name: "LangAlpha (trade pitch structure)",
+  stages: [
+    {
+      name: "Posture",
+      summary:
+        "One readiness posture (decision-grade, review-ready, screen-grade, not-ready or blocked) read from an ordered table against the current inputs, with the inputs responsible. It describes the inputs, not conviction.",
+    },
+    {
+      name: "Scenario tree",
+      summary:
+        "The bear, base and bull cases of the accepted fundamentals dataset with their upside and present price, labelled an illustrative skew.",
+    },
+    {
+      name: "Exit levels and monitoring",
+      summary:
+        "A price stop at the rule's SMA with its distance from the close, the claims whose change breaks the view, a time stop at the nearest dated catalyst and at most five upcoming catalysts.",
+    },
+  ],
+  status: "adapted",
+  summary:
+    "The paper agent desk's pitch agent adapts the structure of LangAlpha's trade-pitch and research-conventions skills. LangAlpha is not integrated as a harness: it needs PostgreSQL, Redis and a container sandbox, it has no one-ticker rated run, and its Claude subscription route presents itself as the Claude Code client.",
+  toolsAllowed: [],
+  toolsExcluded: [],
+  version:
+    "Ideas adapted from commit e102a783; LangAlpha itself does not run in Vertex",
+};
+
 const VIBE_TRADING: AgentFrameworkOutput = {
   benchName: "vibe_trading",
   code: [
@@ -264,4 +320,5 @@ export const AGENT_FRAMEWORKS: readonly AgentFrameworkOutput[] = Object.freeze([
   TRADINGAGENTS,
   AI_HEDGE_FUND,
   VIBE_TRADING,
+  LANGALPHA,
 ]);

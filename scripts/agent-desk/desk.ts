@@ -1,14 +1,17 @@
-// Paper agent desk: five agents per ticker and a paper-only journal (ported from vertex-research PR #2).
+// Paper agent desk: six agents per ticker and a paper-only journal (ported from vertex-research PR #2).
 //   1. fundamental      - earnings evidence, base-case valuation, committee status
 //   2. news-sentiment   - dated news, upcoming catalysts, risks, supplied X/social labels
 //   3. technical        - 200-session SMA trend plus the 3-month ROC reset rule
 //   4. backtest         - replay of the same rule on the ticker's own history
 //   5. process          - combines the four results and updates the paper journal
+//   6. pitch            - posture, scenario tree, exit levels and monitoring; the process agent
+//                         and the paper book do not read it
 // This module has no broker, network or order code. Paper positions are journal records only.
 // Owner rule (2026-10-16): options only, no share positions. A paper position records the
 // underlying reference move for process review; it does not select, price or propose any trade.
 import { z } from "zod";
 import { required } from "../lib/required.ts";
+import { type PitchResult, pitchAgent } from "./pitch.ts";
 import {
   type Committee,
   type FundamentalResult,
@@ -376,7 +379,7 @@ const checkRun = ({ reports, asOf }: DeskRunOptions): void => {
 };
 
 /**
- * Runs the five agents for each report and returns the run report plus the next paper book.
+ * Runs the six agents for each report and returns the run report plus the next paper book.
  * The prior book is not mutated. Positions opened on a run after `asOf` are hidden from this
  * run and left unchanged, so a dry run for an earlier date shows only what was known then.
  */
@@ -390,6 +393,7 @@ export type DeskTicker = Readonly<{
     technical: TechnicalResult;
     backtest: BacktestResult;
     process: ProcessResult;
+    pitch: PitchResult;
   }>;
 }>;
 
@@ -480,8 +484,16 @@ export const runDesk = (options: DeskRunOptions): DeskRun => {
           pendingPosition(reportId, agents.technical.barDate as string, asOf)
         );
     }
+    // The pitch is computed last and only reported: no decision above reads it.
+    const pitch = pitchAgent({
+      asOf,
+      fundamental: agents.fundamental,
+      fundamentals: report.fundamentals,
+      newsSentiment: agents.newsSentiment,
+      technical: agents.technical,
+    });
     return {
-      agents: { ...agents, process },
+      agents: { ...agents, pitch, process },
       assetType: report.metadata.assetType,
       name: report.metadata.name,
       reportId,
@@ -533,14 +545,16 @@ export const renderSummary = (report: DeskReport): string => {
     report.vehiclePolicy,
   ];
   for (const ticker of report.tickers) {
-    const { technical, fundamental, newsSentiment, backtest, process } =
+    const { technical, fundamental, newsSentiment, backtest, process, pitch } =
       ticker.agents;
+    const { priceStop, timeStop } = pitch.exits;
     const above = technical.checks?.closeAboveSma;
     lines.push(
       `${ticker.reportId}: ${process.decision} | ROC ${technical.rocPct ?? "n/a"}% | close above SMA${report.rule.smaPeriod}: ${above === true ? "yes" : above === false ? "no" : "unknown"}` +
         ` | backtest ${backtest.closedTrades} trades, mean underlying reference return ${backtest.meanReturnPct ?? "n/a"}%` +
         ` | fundamentals ${fundamental.status}${fundamental.blocking ? " (blocking)" : ""} | sentiment ${newsSentiment.sentiment.status}`,
-      `  ${process.reasons.join(" ")}`
+      `  ${process.reasons.join(" ")}`,
+      `  Pitch (analysis only): ${pitch.posture} | ${pitch.direction} | price stop ${priceStop === null ? "n/a" : `${priceStop.level} (${priceStop.distancePct}% from close)`} | next catalyst ${timeStop === null ? "none dated" : `${timeStop.date} ${timeStop.title}`}`
     );
   }
   const notInRun =

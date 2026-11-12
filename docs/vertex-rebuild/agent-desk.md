@@ -6,7 +6,7 @@ Source: ported from vertex-research PR #2 (`feat/paper-agent-desk`, commit `8d0b
 
 ## What it does
 
-The desk runs five deterministic agents for each ticker. It reads accepted report revisions. It does not collect data and it does not call a model.
+The desk runs six deterministic agents for each ticker. It reads accepted report revisions. It does not collect data and it does not call a model.
 
 | Agent | Input | Output |
 | --- | --- | --- |
@@ -15,8 +15,21 @@ The desk runs five deterministic agents for each ticker. It reads accepted repor
 | `technical` | market history | Close above the 200-session SMA, SMA rising over 20 sessions, ROC63 within ±3 % after a ROC63 of at least 10 % in the previous 63 sessions. |
 | `backtest` | market history | The same rule replayed on the ticker's history, 5 bps per side. |
 | `process` | the four results and the paper book | `paper-open`, `watch`, `no-action`, or the state of an active paper position. |
+| `pitch` | the fundamental, news-sentiment and technical results, and the valuation scenarios of the fundamentals dataset | One readiness posture with its reasons, the bear, base and bull cases, exit levels and upcoming catalysts. Analysis only: the `process` agent and the paper book do not read it. |
 
 Options-only rule (owner, 2026-10-16): a paper position records the underlying reference price for process review. It does not select or price an option, and it does not propose a share position. The text summary states this on its second line.
+
+## Pitch agent
+
+The pitch agent (`scripts/agent-desk/pitch.ts`) adapts the structure of LangAlpha's trade-pitch skills (Apache-2.0, see `NOTICE`). No LangAlpha code is included, and no model is called.
+
+- **Posture.** One of `decision-grade`, `review-ready`, `screen-grade`, `not-ready` and `blocked`, read from one ordered table. `blocked`: fundamentals or bars cannot be obtained (also for an ETF, index or future, where the status is `not-applicable`). `not-ready`: fundamentals or bars are stale, the bars are too few, or the committee status is `insufficient-data`. `screen-grade`: fewer than three scenario cases, or no upcoming dated catalyst. `review-ready`: sentiment is not supplied or stale, or the committee view is missing. `postureReasons` names every input responsible. Posture describes the inputs, not conviction.
+- **Direction.** `long-supported` needs base-case upside, a close above the SMA and a rising SMA. `not-supported` means one of them fails. `unknown` means an input is missing. The desk is long-only, so there is no short direction. Direction is not an instruction.
+- **Scenarios.** The bear, base and bull cases with `upsidePct` and `presentPrice`. A fundamentals dataset captured after the run date gives no scenarios. The datasets carry no probabilities, so `skew` is labelled `illustrative` and `probabilityWeightedUpsidePct` is always null.
+- **Exits.** `priceStop` is the 200-session SMA at the latest bar, with its distance from the close in percent (negative when the SMA is below the close). `reUnderwrite` lists the claims whose change breaks the view. `timeStop` is the nearest dated catalyst after the run date.
+- **Monitoring.** At most 5 upcoming dated catalysts, nearest first.
+
+The text summary shows one `Pitch (analysis only)` line for each ticker. The run report gains `tickers[].agents.pitch`; `version` stays 1, because the version number is also the paper book's format version and no code reads saved run reports.
 
 ## Trade model
 

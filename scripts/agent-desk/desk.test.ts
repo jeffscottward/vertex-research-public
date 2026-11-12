@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertWritable,
+  type DeskInput,
   type DeskRun,
   emptyBook,
   MAX_OPEN_PAPER_POSITIONS,
@@ -395,6 +396,103 @@ describe("runDesk entry gates", () => {
         reports: [deskInput("AAA", history)],
       })
     ).toThrow();
+  });
+});
+
+describe("runDesk pitch agent", () => {
+  const rich = (id: string) => {
+    const plain = deskInput(id, history);
+    return {
+      ...plain,
+      fundamentals: {
+        asOf: signalDate,
+        financialFacts: [{ asOf: signalDate }],
+        valuation: {
+          scenarios: [
+            { id: "bear", upsidePct: -30 },
+            { id: "base", upsidePct: 12 },
+            { id: "bull", upsidePct: 40 },
+          ],
+        },
+      },
+      news: {
+        asOf: signalDate,
+        catalysts: [{ date: dateAt(history.length + 20), title: "Dev day" }],
+        items: [{ category: "earnings", date: signalDate, title: "results" }],
+        risks: [],
+      },
+      sentiment: {
+        asOf: signalDate,
+        posts: [{ date: signalDate, stance: "bull" as const }],
+        source: "test labels",
+      },
+    };
+  };
+
+  it("reports a pitch for each ticker", () => {
+    const result = runDesk({
+      asOf: signalDate,
+      reports: [
+        deskInput("AAA", history),
+        rich("BBB"),
+        deskInput("ETF", history, {
+          metadata: { assetType: "etf", id: "ETF", name: null },
+        }),
+      ],
+    });
+    const pitches = result.report.tickers.map((ticker) => ticker.agents.pitch);
+    expect(pitches[0]).toMatchObject({
+      agent: "pitch",
+      direction: "long-supported",
+      posture: "screen-grade",
+      status: "evaluated",
+    });
+    expect(pitches[1]).toMatchObject({
+      direction: "long-supported",
+      exits: { timeStop: { date: dateAt(history.length + 20) } },
+      posture: "decision-grade",
+      postureReasons: [],
+    });
+    expect(pitches[1]?.scenarios.map((scenario) => scenario.case)).toEqual([
+      "bear",
+      "base",
+      "bull",
+    ]);
+    expect(pitches[2]).toMatchObject({
+      posture: "blocked",
+      status: "not-applicable",
+    });
+    const stop = pitches[1]?.exits.priceStop;
+    const lines = renderSummary(result.report).split("\n");
+    expect(lines).toContain(
+      "  Pitch (analysis only): screen-grade | long-supported | " +
+        `price stop ${stop?.level} (${stop?.distancePct}% from close) | next catalyst none dated`
+    );
+    expect(lines).toContain(
+      "  Pitch (analysis only): decision-grade | long-supported | " +
+        `price stop ${stop?.level} (${stop?.distancePct}% from close) | next catalyst ${dateAt(history.length + 20)} Dev day`
+    );
+    expect(lines).toContain(
+      "  Pitch (analysis only): blocked | unknown | price stop n/a | next catalyst none dated"
+    );
+  });
+
+  it("leaves the process decision and the paper book unchanged", () => {
+    const run = (report: DeskInput) =>
+      runDesk({ asOf: signalDate, book: emptyBook(), reports: [report] });
+    const thin = run(deskInput("AAA", history));
+    const full = run(rich("AAA"));
+    // The two inputs differ only in what the pitch reads: bear and bull cases, a dated
+    // catalyst and sentiment labels. The pitch changes; the decision and the book do not.
+    expect(full.report.tickers[0]?.agents.pitch.posture).toBe("decision-grade");
+    expect(thin.report.tickers[0]?.agents.pitch.posture).toBe("screen-grade");
+    expect(processOf(full)).toEqual(processOf(thin));
+    expect(processOf(full)?.decision).toBe("paper-open");
+    expect(full.book).toEqual(thin.book);
+    expect(Object.keys(full.book).sort()).toEqual(
+      Object.keys(emptyBook()).sort()
+    );
+    expect(full.report.paperBook).toEqual(thin.report.paperBook);
   });
 });
 

@@ -23,5 +23,6 @@ Reference only, no code copied:
 - [FinceptTerminal](https://github.com/Fincept-Corporation/FinceptTerminal): capability checklist. No copy until the license of an exact revision is cleared (ADR-V10).
 - "151 Trading Strategies" (Kakushadze and Serur): backtest target list in `research/backtests/151-strategies/`.
 - [Open-Alpha-Lab](https://github.com/Guillain-RDCDE/Open-Alpha-Lab): published results used as validation references in `research/backtests/carousel/`.
+- [LangAlpha](https://github.com/ginlix-ai/LangAlpha/tree/e102a7838225157f7b3beca3fc274b26be852154) (Apache-2.0, see `NOTICE`): the readiness posture, scenario tree, exit levels and monitoring structure of its trade-pitch skills, adapted in `scripts/agent-desk/pitch.ts`. LangAlpha itself does not run in Vertex.
 
 The license and rights state of the original migration sources is tracked in `docs/vertex-rebuild/migration-matrix.json`. The licenses of the other projects are in the notices named in each row.
