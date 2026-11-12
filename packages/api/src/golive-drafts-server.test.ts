@@ -1714,6 +1714,46 @@ describe("goLiveDrafts.approve", () => {
     );
   });
 
+  it("approves a late entry only with the owner's outside-the-tested-rule tick, and says so in the note", async () => {
+    const late = record("d-spy", {
+      entryBasis: "model_holds_account_does_not",
+    });
+    const memory = createMemoryRepository({ drafts: [late] });
+    const client = clientFor({ repository: memory.repository });
+    await expectCode(client.goLiveDrafts.approve(approval()), "CONFLICT", 409);
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+    await client.goLiveDrafts.approve(
+      approval({ note: "Starter", outsideTestedEntryRule: true })
+    );
+    expect(memory.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvedOrder: ORDER,
+        decision: "approved",
+        id: "d-spy",
+        note: "[Approved outside the tested entry rule (late entry), owner tick box] Starter",
+      })
+    );
+  });
+
+  it("does not lift any other reason with the tick", async () => {
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-spy", {
+          entryBasis: "model_holds_account_does_not",
+          quote: liveQuote({ source: "yahoo_delayed_snapshot" }),
+        }),
+      ],
+    });
+    await expectCode(
+      clientFor({ repository: memory.repository }).goLiveDrafts.approve(
+        approval({ outsideTestedEntryRule: true })
+      ),
+      "CONFLICT",
+      409
+    );
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+  });
+
   it("refuses a draft for each reason it cannot be approved", async () => {
     type Case = Readonly<{
       dependencies?: GoLiveDraftsDependencies;

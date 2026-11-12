@@ -524,6 +524,9 @@ export const GoLiveDraftApproveInputSchema = z
     note: z.string().max(1000).optional(),
     // The owner confirms the exact order shown: the server refuses when its own sized order differs.
     order: VertexComboInputSchema,
+    // Owner 2026-11-12 (GO-LIVE 4 step 6): a late entry (model_holds_account_does_not) may be
+    // approved only with this explicit acknowledgement that it is outside the tested entry rule.
+    outsideTestedEntryRule: z.literal(true).optional(),
     // The revision of the draft as the owner read it: the server refuses when the draft has
     // another one (a later generator run changed its quote, facts or entry basis). At most the
     // largest value the stored whole number (int4) holds.

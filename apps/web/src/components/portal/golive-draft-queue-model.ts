@@ -106,7 +106,7 @@ export const ENGINE_POLICY_LINE =
 export const NO_PLAN_TEXT =
   "No plan record: no proposed or approved plan is stored";
 export const MODEL_HOLDS_GROUP_TITLE =
-  "Model holds, account does not (late entry not tested, cannot be approved)";
+  "Model holds, account does not (late entry, outside the tested entry rule: approve only with the tick box)";
 export const EXIT_GROUP_TITLE =
   "Exit proposals under the owner exit rule (you close the position)";
 export const OTHER_GROUP_TITLE = "Other drafts (cannot be approved)";
@@ -1182,7 +1182,12 @@ export const decisionAftermathText = (
 // The draft is the one the dialog shows: its revision is what the owner saw.
 type GoLiveShownDraft = Pick<GoLiveDraftOutput, "revision">;
 type GoLiveOpenDecision =
-  | Readonly<{ draft: GoLiveShownDraft; order: GoLiveOrder; type: "approve" }>
+  | Readonly<{
+      draft: GoLiveShownDraft;
+      order: GoLiveOrder;
+      outsideTestedEntryRule?: boolean;
+      type: "approve";
+    }>
   | Readonly<{ draft: GoLiveShownDraft; type: "reject" }>;
 
 /** The fields of an order in a fixed sequence, so two orders compare by value. */
@@ -1219,7 +1224,11 @@ export const staleDialogReason = (
   if (fresh.revision !== decision.draft.revision)
     return `the draft was refreshed after the dialog opened (it is now revision ${fresh.revision}; the dialog showed revision ${decision.draft.revision})`;
   if (decision.type === "reject") return null;
-  const blockers = approveBlockers(fresh, context);
+  const blockers =
+    decision.outsideTestedEntryRule === true &&
+    lateEntryOnlyBlocker(fresh, context)
+      ? []
+      : approveBlockers(fresh, context);
   if (blockers.length > 0)
     return `the draft can no longer be approved: ${blockers.map(lowerFirst).join("; ")}`;
   return fresh.order !== null &&
@@ -1273,3 +1282,21 @@ export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
     return `Approved, engine disarmed: nothing was sent. ${disarmed.slice(ENGINE_DISARMED_CODE.length + 2)}`;
   return `Approved, not sent: ${outcome.reasons.join(" ")}`;
 };
+
+export const OUTSIDE_TESTED_RULE_LABEL =
+  "I approve this position outside the tested entry rule (a late entry the backtest never tested).";
+
+/**
+ * Whether the only thing that blocks Approve is that the draft is a late entry: the owner may then
+ * approve it with the explicit outside-the-tested-rule tick (owner 2026-11-12). The server lifts
+ * that one reason only with the tick; every other blocker stays.
+ */
+export const lateEntryOnlyBlocker = (
+  draft: GoLiveApproveFacts,
+  context: GoLiveDraftContext
+): boolean =>
+  draft.order !== null &&
+  draft.notApprovable.includes("LATE_ENTRY_NOT_TESTED") &&
+  approveBlockers(draft, context).every(
+    (reason) => reason === NOT_APPROVABLE_WORDS.LATE_ENTRY_NOT_TESTED
+  );

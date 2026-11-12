@@ -111291,6 +111291,9 @@
                     ],
                     "type": "object"
                   },
+                  "outsideTestedEntryRule": {
+                    "const": true
+                  },
                   "revision": {
                     "exclusiveMinimum": 0,
                     "maximum": 2147483647,

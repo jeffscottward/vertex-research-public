@@ -55,6 +55,7 @@ import {
   generatorText,
   groupDrafts,
   keyedLines,
+  lateEntryOnlyBlocker,
   limitText,
   loadErrorText,
   loadedText,
@@ -67,6 +68,7 @@ import {
   nodeText,
   noteText,
   OTHER_GROUP_TITLE,
+  OUTSIDE_TESTED_RULE_LABEL,
   OWNER_ONLY_DECISION_TEXT,
   orderLegLines,
   orderSummaryRows,
@@ -179,6 +181,8 @@ type Decision =
   | Readonly<{
       draft: GoLiveDraftOutput;
       order: NonNullable<GoLiveDraftOutput["order"]>;
+      // A late entry approved with the owner's outside-the-tested-rule tick.
+      outsideTestedEntryRule: boolean;
       type: "approve";
     }>
   | Readonly<{ draft: GoLiveDraftOutput; type: "reject" }>;
@@ -378,8 +382,9 @@ const DraftActions = ({
   onDecide: (decision: Decision) => void;
 }>) => {
   const reasonsId = useId();
+  const lateOnly = lateEntryOnlyBlocker(draft, context);
   const blockers = approveBlockers(draft, context);
-  const blocked = blockers.length > 0;
+  const blocked = blockers.length > 0 && !lateOnly;
   const { order } = draft;
   return (
     <div className="space-y-2" data-golive-actions="">
@@ -392,10 +397,16 @@ const DraftActions = ({
           onClick={
             order === null || blocked
               ? undefined
-              : () => onDecide({ draft, order, type: "approve" })
+              : () =>
+                  onDecide({
+                    draft,
+                    order,
+                    outsideTestedEntryRule: lateOnly,
+                    type: "approve",
+                  })
           }
         >
-          Approve
+          {lateOnly ? "Approve outside tested rule" : "Approve"}
         </Button>
         <Button
           aria-label={`Reject ${draftName(draft)}`}
@@ -407,6 +418,15 @@ const DraftActions = ({
           Reject
         </Button>
       </div>
+      {lateOnly ? (
+        <p
+          className="text-sm text-warning-foreground"
+          data-golive-late-entry=""
+        >
+          Late entry: not in the backtest. Approve asks you to confirm it is
+          outside the tested entry rule.
+        </p>
+      ) : null}
       {blocked ? (
         <div
           className="text-sm text-warning-foreground"
@@ -614,12 +634,17 @@ const DecisionDialog = ({
   const errorId = useId();
   const [note, setNote] = useState("");
   const [noteMissing, setNoteMissing] = useState(false);
+  const [outsideTicked, setOutsideTicked] = useState(false);
+  const outsideId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const { draft, type } = decision;
   const order = decision.type === "approve" ? decision.order : null;
+  const needsTick =
+    decision.type === "approve" && decision.outsideTestedEntryRule;
   const submit = () => {
+    if (needsTick && !outsideTicked) return;
     if (type === "reject" && note.trim() === "") return setNoteMissing(true);
     return onSubmit(note.trim());
   };
@@ -700,6 +725,18 @@ const DecisionDialog = ({
                 </Field>
               ))}
             </dl>
+            {needsTick ? (
+              <div className="flex items-start gap-2">
+                <input
+                  checked={outsideTicked}
+                  data-golive-outside-rule=""
+                  id={outsideId}
+                  onChange={(event) => setOutsideTicked(event.target.checked)}
+                  type="checkbox"
+                />
+                <label htmlFor={outsideId}>{OUTSIDE_TESTED_RULE_LABEL}</label>
+              </div>
+            ) : null}
           </div>
         )}
         {error === null ? null : (
@@ -724,7 +761,7 @@ const DecisionDialog = ({
           <Button
             aria-describedby={error === null ? undefined : errorId}
             data-golive-dialog-submit=""
-            disabled={busy}
+            disabled={busy || (needsTick && !outsideTicked)}
             onClick={submit}
             variant={type === "approve" ? "default" : "destructive"}
           >
@@ -896,6 +933,9 @@ export const GoLiveDraftQueue = ({
           order: current.order,
           // The revision of the draft the dialog shows: the server refuses another one.
           revision: current.draft.revision,
+          ...(current.outsideTestedEntryRule
+            ? { outsideTestedEntryRule: true }
+            : {}),
         })
       : gateway.reject({ id: current.draft.id, note });
 

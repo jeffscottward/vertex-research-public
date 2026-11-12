@@ -185,6 +185,10 @@ const repositoryFor = (
   return repository;
 };
 
+// Stored with the approval of a late entry, so the record says it was outside the tested rule.
+const OUTSIDE_TESTED_RULE_NOTE =
+  "[Approved outside the tested entry rule (late entry), owner tick box]";
+
 const DRAFT_CHANGED_MESSAGE =
   "The draft changed after the queue was read (a later generator run); reload the queue";
 const PLAN_MISMATCH_MESSAGE =
@@ -670,9 +674,17 @@ const approve = api.goLiveDrafts.approve
       throw failures.NOT_FOUND({
         message: `Draft is not in the queue of trading day ${tradingDay}`,
       });
-    if (draft.notApprovable.length > 0)
+    // A late entry is approvable only with the owner's explicit outside-the-tested-rule tick
+    // (owner 2026-11-12); every other reason still refuses.
+    const lateAcknowledged =
+      input.outsideTestedEntryRule === true &&
+      draft.entryBasis === "model_holds_account_does_not";
+    const blocking = draft.notApprovable.filter(
+      (reason) => !(lateAcknowledged && reason === "LATE_ENTRY_NOT_TESTED")
+    );
+    if (blocking.length > 0)
       throw failures.CONFLICT({
-        message: `Draft cannot be approved: ${draft.notApprovable.join(", ")}`,
+        message: `Draft cannot be approved: ${blocking.join(", ")}`,
       });
     // The owner must have read this draft as it is now: a later run that replaced its quote, its
     // facts or its entry basis gave it another revision, also when the order is the same.
@@ -698,7 +710,12 @@ const approve = api.goLiveDrafts.approve
         expectedRevision: input.revision,
         id: input.id,
         nodeBadge: loaded.node.badge,
-        note: input.note ?? null,
+        note: lateAcknowledged
+          ? `${OUTSIDE_TESTED_RULE_NOTE}${input.note === undefined ? "" : ` ${input.note}`}`.slice(
+              0,
+              1000
+            )
+          : (input.note ?? null),
       })
     );
     return decidedView(loaded, record);

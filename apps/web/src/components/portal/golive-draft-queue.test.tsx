@@ -460,7 +460,7 @@ describe("GoLiveDraftQueue", () => {
     expect(container.textContent).not.toContain("$0");
     expect(texts(container, "[data-golive-group] > h3")).toEqual([
       "Entry signal for 2026-11-11",
-      "Model holds, account does not (late entry not tested, cannot be approved)",
+      "Model holds, account does not (late entry, outside the tested entry rule: approve only with the tick box)",
     ]);
     expect(one(container, "#golive-group-entry-signal + p").textContent).toBe(
       "No plan record is stored, so there is no entry rule to draft from for 2026-11-11."
@@ -725,7 +725,7 @@ describe("GoLiveDraftQueue", () => {
     expect(rejected.querySelector("button")).toBeNull();
     expect(texts(container, "[data-golive-group] > h3")).toEqual([
       "Entry signal for 2026-11-11",
-      "Model holds, account does not (late entry not tested, cannot be approved)",
+      "Model holds, account does not (late entry, outside the tested entry rule: approve only with the tick box)",
       "Exit proposals under the owner exit rule (you close the position)",
     ]);
     const exit = one(
@@ -804,6 +804,35 @@ describe("GoLiveDraftQueue", () => {
     expect(
       one(container, "[data-golive-decision-notice]").textContent
     ).toContain("Approved, engine disarmed: nothing was sent.");
+  });
+
+  it("lets the owner approve a late entry only with the outside-the-tested-rule tick", async () => {
+    const late = draft({
+      entryBasis: "model_holds_account_does_not",
+      notApprovable: ["LATE_ENTRY_NOT_TESTED"],
+    });
+    const gateway = gatewayOf(
+      queue({ drafts: [late] }),
+      queue({ drafts: [late] })
+    );
+    const container = await mount(gateway);
+    const approveButton = button(container, "Approve SPY 2026-12-18");
+    expect(approveButton.textContent).toBe("Approve outside tested rule");
+    expect(approveButton.hasAttribute("disabled")).toBe(false);
+    await click(approveButton);
+    const dialog = one(document, "[role='dialog']");
+    const submit = one(dialog, "[data-golive-dialog-submit]");
+    expect(submit.hasAttribute("disabled")).toBe(true);
+    await click(one(dialog, "[data-golive-outside-rule]"));
+    expect(submit.hasAttribute("disabled")).toBe(false);
+    await click(submit);
+    expect(gateway.approve).toHaveBeenCalledWith({
+      confirm: true,
+      id: "draft-spy",
+      order: ORDER,
+      outsideTestedEntryRule: true,
+      revision: 3,
+    });
   });
 
   it("closes the dialog on Cancel and on Escape without recording anything", async () => {
@@ -1528,7 +1557,7 @@ describe("GoLiveDraftQueue", () => {
     );
     expect(texts(container, "[data-golive-group] > h3")).toEqual([
       "Entry signal for 2026-11-11",
-      "Model holds, account does not (late entry not tested, cannot be approved)",
+      "Model holds, account does not (late entry, outside the tested entry rule: approve only with the tick box)",
       "Other drafts (cannot be approved)",
     ]);
     const row = one(
