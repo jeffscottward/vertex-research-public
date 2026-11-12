@@ -16,9 +16,18 @@
 // one document that passes the schema and names the plan id, plan version and trading day of this
 // run. The generator refuses stale data itself (exit 1). Text on stderr with an empty candidate
 // list is a failure. Text on stderr with candidates is passed on and the candidates are posted.
-// Transport: VERTEX_ORIGIN must be https; http is accepted for a loopback host only (tests, local
-// development). No request follows a redirect, so the key reaches the one configured origin only.
-// The key is never printed: every line this run writes has the key replaced.
+// Transport: VERTEX_ORIGIN must be https; http is accepted only when the host is written exactly
+// 127.0.0.1, [::1] or localhost (tests, local development). It must be a plain origin,
+// scheme://host[:port] with at most a final "/": a user name or password, a path, a query, a
+// fragment, and any text the URL parser would rewrite (http://127.1, an upper-case host, a default
+// port) are refused before any request, because the request would go to another address than the
+// one a reader sees. No request follows a redirect, so the key reaches the one configured origin
+// only.
+// The key is never printed: every line this run writes has the key replaced, as written, in its
+// URL-encoded form and in its JSON-escaped form. A text that is shortened has the key replaced
+// before it is cut, so no piece of the key is left at the cut.
+// The generator may write at most GOLIVE_GENERATOR_OUTPUT_MAX_BYTES (5 MB) to stdout and the same to
+// stderr: above that it is killed, the run fails and none of its output is printed.
 // Usage: VERTEX_ORIGIN=https://vertex.example VERTEX_AGENT_API_KEY=... bun run vertex:golive:collect \
 //   --data <qc-ports data dir> --chain-store <option-chain snapshot store> [--trading-day YYYY-MM-DD]
 //   [--python <interpreter>] [--dry-run]
@@ -57,6 +66,10 @@ export const GOLIVE_RESEARCH_DIR = fileURLToPath(
 export const GOLIVE_EXIT_NOT_TRADING_DAY = 3;
 /** How long the generator may run before it is killed. */
 export const GOLIVE_GENERATOR_TIMEOUT_MS = 300_000;
+/** How many bytes the generator may write to stdout, and to stderr, before it is killed. */
+export const GOLIVE_GENERATOR_OUTPUT_MAX_BYTES = 5 * 1024 * 1024;
+/** How many characters of a server answer or of the generator output an error message repeats. */
+const EXCERPT_CHARS = 300;
 /**
  * The quote sources the rig generator can truthfully produce. generator.py sets one label,
  * QUOTE_SOURCE = "yahoo_delayed_snapshot": it never emits "model", and "ibkr_live" is a claim only
@@ -68,11 +81,17 @@ export const GOLIVE_RIG_QUOTE_SOURCES: readonly string[] = [
 const REQUEST_TIMEOUT_MS = 30_000;
 /** The generator's environment: what an interpreter needs, and never the API key. */
 const PYTHON_ENV_KEYS = ["HOME", "PATH"] as const;
-/** Hosts for which plain http is accepted (URL.hostname keeps the brackets of an IPv6 address). */
+/**
+ * Hosts for which plain http is accepted (URL.hostname keeps the brackets of an IPv6 address).
+ * apiOf compares them only after it has refused every text the URL parser rewrites, so the host
+ * is one of these as written and never a numeric form of them (127.1, 2130706433, 0x7f.1).
+ */
 const LOOPBACK_HOSTS: readonly string[] = ["127.0.0.1", "[::1]", "localhost"];
 
 export type ProcessResult = Readonly<{
   code: number;
+  /** The stream on which the command passed its output limit and was killed, or null. */
+  overflow: "stderr" | "stdout" | null;
   /** The signal that ended the command, or null when it exited by itself. */
   signal: string | null;
   stderr: string;
@@ -86,6 +105,8 @@ export type RunProcess = (
   options: Readonly<{
     cwd: string;
     env: Readonly<Record<string, string>>;
+    /** The most bytes the command may write to stdout, and to stderr. */
+    maxOutputBytes: number;
     stdin: string;
     timeoutMs: number;
   }>
@@ -105,10 +126,44 @@ class UsageError extends Error {}
 /** The run failed and nothing was posted; the run exits with code 1. */
 class CollectError extends Error {}
 
+/** The key as a text can repeat it: as written, URL-encoded and JSON-escaped; longest first. */
+const keyFormsOf = (apiKey: string): string[] => {
+  const forms = new Set([apiKey, JSON.stringify(apiKey).slice(1, -1)]);
+  try {
+    forms.add(encodeURIComponent(apiKey));
+  } catch {
+    // A key with half a surrogate pair has no URL-encoded form.
+  }
+  return [...forms].sort((left, right) => right.length - left.length);
+};
+
+/** The text with every form of the key replaced. */
+const withoutKey = (text: string, apiKey: string | undefined): string =>
+  apiKey
+    ? keyFormsOf(apiKey).reduce(
+        (hidden, form) => hidden.replaceAll(form, "[key hidden]"),
+        text
+      )
+    : text;
+
+/**
+ * The start of a text for an error message. The key is replaced BEFORE the cut: a cut through the
+ * key would leave a piece of it that no later replacement finds.
+ */
+const excerptOf = (text: string, apiKey: string): string =>
+  withoutKey(text, apiKey).slice(0, EXCERPT_CHARS);
+
+type ProcessEnd = Pick<
+  ProcessResult,
+  "code" | "overflow" | "signal" | "timedOut"
+>;
+
 /**
  * Runs a command with stdin. A command that cannot start gives exit code 127 and its error text; a
  * command ended by a signal gives exit code 1 and the signal; a command still running after
- * `timeoutMs` is killed and reported as timed out.
+ * `timeoutMs` is killed and reported as timed out; a command that writes more than
+ * `maxOutputBytes` to stdout or to stderr is killed and reported with that stream as `overflow`
+ * (what it wrote before stays in the result and is never more than the limit).
  */
 export const runProcess: RunProcess = async (command, args, options) => {
   const child = spawn(command, [...args], {
@@ -116,31 +171,36 @@ export const runProcess: RunProcess = async (command, args, options) => {
     env: { ...options.env },
     stdio: ["pipe", "pipe", "pipe"],
   });
-  let stdout = "";
-  let stderr = "";
-  child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
-    stdout += chunk;
-  });
-  child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-    stderr += chunk;
-  });
-  const done =
-    Promise.withResolvers<
-      Pick<ProcessResult, "code" | "signal" | "timedOut">
-    >();
-  const timer = setTimeout(() => {
+  const done = Promise.withResolvers<ProcessEnd>();
+  const kill = (end: ProcessEnd): void => {
     child.kill("SIGKILL");
     // The pipes are closed here and not awaited: a process the command started may hold them open.
     child.stdout.destroy();
     child.stderr.destroy();
-    done.resolve({ code: 1, signal: "SIGKILL", timedOut: true });
-  }, options.timeoutMs);
+    done.resolve(end);
+  };
+  const output = { stderr: "", stdout: "" };
+  const bytes = { stderr: 0, stdout: 0 };
+  for (const stream of ["stdout", "stderr"] as const) {
+    child[stream].setEncoding("utf8").on("data", (chunk: string) => {
+      bytes[stream] += Buffer.byteLength(chunk);
+      if (bytes[stream] > options.maxOutputBytes) {
+        kill({ code: 1, overflow: stream, signal: "SIGKILL", timedOut: false });
+        return;
+      }
+      output[stream] += chunk;
+    });
+  }
+  const timer = setTimeout(
+    () => kill({ code: 1, overflow: null, signal: "SIGKILL", timedOut: true }),
+    options.timeoutMs
+  );
   child.on("error", (error) => {
-    stderr += error.message;
-    done.resolve({ code: 127, signal: null, timedOut: false });
+    output.stderr += error.message;
+    done.resolve({ code: 127, overflow: null, signal: null, timedOut: false });
   });
   child.on("close", (code, signal) =>
-    done.resolve({ code: code ?? 1, signal, timedOut: false })
+    done.resolve({ code: code ?? 1, overflow: null, signal, timedOut: false })
   );
   // A command that exits before it reads stdin breaks the pipe. That is the command's result, not
   // a failure here: without this listener the runtime reports an unhandled error.
@@ -148,7 +208,7 @@ export const runProcess: RunProcess = async (command, args, options) => {
   child.stdin.end(options.stdin);
   const ended = await done.promise;
   clearTimeout(timer);
-  return { ...ended, stderr, stdout };
+  return { ...ended, ...output };
 };
 
 const VALUE_FLAGS = [
@@ -229,13 +289,34 @@ const apiOf = (env: CollectIo["env"]): Api => {
     throw new UsageError("VERTEX_ORIGIN must be a URL");
   }
   const url = new URL(origin);
-  // The key travels in a header: it is sent over TLS, or to this machine only.
-  const loopbackHttp =
-    url.protocol === "http:" && LOOPBACK_HOSTS.includes(url.hostname);
-  if (!(url.protocol === "https:" || loopbackHttp)) {
+  const refusedScheme =
+    "VERTEX_ORIGIN must be an https URL (http is accepted for 127.0.0.1, ::1 and localhost only); no request was made";
+  if (!(url.protocol === "https:" || url.protocol === "http:")) {
+    throw new UsageError(refusedScheme);
+  }
+  // The parser drops each of these without a word: "https://x@evil.example" is sent to
+  // evil.example. The text is not repeated in the message: it can hold a password.
+  if (url.username !== "" || url.password !== "") {
     throw new UsageError(
-      "VERTEX_ORIGIN must be an https URL (http is accepted for 127.0.0.1, ::1 and localhost only); no request was made"
+      "VERTEX_ORIGIN must not carry a user name or a password; no request was made"
     );
+  }
+  if (url.pathname !== "/" || url.search !== "" || url.hash !== "") {
+    throw new UsageError(
+      "VERTEX_ORIGIN must be an origin (scheme://host[:port]) without a path, a query or a fragment; no request was made"
+    );
+  }
+  // Everything else the parser rewrites: a numeric host form (http://127.1 is 127.0.0.1), an
+  // upper-case host, a default port, an encoded or split host name. What is written must be what
+  // is requested.
+  if (!(origin === url.origin || origin === `${url.origin}/`)) {
+    throw new UsageError(
+      `VERTEX_ORIGIN is not written in its plain form: the URL parser reads it as ${url.origin}. Write exactly that if it is the address you mean; no request was made`
+    );
+  }
+  // The key travels in a header: it is sent over TLS, or to this machine only.
+  if (url.protocol === "http:" && !LOOPBACK_HOSTS.includes(url.hostname)) {
+    throw new UsageError(refusedScheme);
   }
   return { apiKey, origin: url.origin };
 };
@@ -283,7 +364,8 @@ const request = async (
   io: CollectIo,
   url: string,
   init: RequestInit,
-  name: string
+  name: string,
+  apiKey: string
 ): Promise<string> => {
   const response = await io
     .fetch(url, {
@@ -299,17 +381,17 @@ const request = async (
   const text = await response.text();
   if (!response.ok) {
     throw new CollectError(
-      `${name} returned HTTP ${response.status}: ${text.slice(0, 300)}`
+      `${name} returned HTTP ${response.status}: ${excerptOf(text, apiKey)}`
     );
   }
   return text;
 };
 
-const jsonOf = (text: string, what: string): unknown => {
+const jsonOf = (text: string, what: string, apiKey: string): unknown => {
   try {
     return JSON.parse(text);
   } catch {
-    throw new CollectError(`${what} is not JSON: ${text.slice(0, 300)}`);
+    throw new CollectError(`${what} is not JSON: ${excerptOf(text, apiKey)}`);
   }
 };
 
@@ -326,10 +408,11 @@ const readQueue = async (
     io,
     `${api.origin}/api/orpc/goLiveDrafts/queue?data=${encodeURIComponent(input)}`,
     { headers: { origin: api.origin, "x-api-key": api.apiKey }, method: "GET" },
-    "goLiveDrafts.queue"
+    "goLiveDrafts.queue",
+    api.apiKey
   );
   const envelope = QueueEnvelopeSchema.safeParse(
-    jsonOf(text, "The goLiveDrafts.queue answer")
+    jsonOf(text, "The goLiveDrafts.queue answer", api.apiKey)
   );
   if (!envelope.success) {
     throw new CollectError(
@@ -346,6 +429,12 @@ const refuseFailedGenerator = (
   dayFrom: string,
   timeoutMs: number
 ): void => {
+  // Checked first, and without the output: it is too large to print and it was cut.
+  if (generated.overflow !== null) {
+    throw new CollectError(
+      `the generator wrote more than ${GOLIVE_GENERATOR_OUTPUT_MAX_BYTES} bytes to ${generated.overflow} and was killed; nothing was posted`
+    );
+  }
   const said = generated.stderr.trim();
   if (generated.timedOut) {
     throw new CollectError(
@@ -397,6 +486,7 @@ const run = async (io: CollectIo): Promise<string> => {
           return value === undefined ? [] : [[key, value]];
         })
       ),
+      maxOutputBytes: GOLIVE_GENERATOR_OUTPUT_MAX_BYTES,
       stdin: JSON.stringify(plan),
       timeoutMs,
     }
@@ -412,7 +502,7 @@ const run = async (io: CollectIo): Promise<string> => {
     io.stderr.write(`${said}\n`);
   }
   const parsed = GoLiveCollectInputSchema.safeParse(
-    jsonOf(generated.stdout, "The generator output")
+    jsonOf(generated.stdout, "The generator output", api.apiKey)
   );
   if (!parsed.success) {
     throw new CollectError(
@@ -460,17 +550,19 @@ const run = async (io: CollectIo): Promise<string> => {
       },
       method: "POST",
     },
-    "goLiveDrafts.collect"
+    "goLiveDrafts.collect",
+    api.apiKey
   );
   const stored = CollectEnvelopeSchema.safeParse(
     jsonOf(
       answer,
-      "The request was sent and whether the candidates were stored is unknown: the goLiveDrafts.collect answer"
+      "The request was sent and whether the candidates were stored is unknown: the goLiveDrafts.collect answer",
+      api.apiKey
     )
   );
   if (!stored.success) {
     throw new CollectError(
-      `goLiveDrafts.collect answered with a body that is not a collect result; the request was sent and whether the candidates were stored is unknown:\n${answer.slice(0, 300)}`
+      `goLiveDrafts.collect answered with a body that is not a collect result; the request was sent and whether the candidates were stored is unknown:\n${excerptOf(answer, api.apiKey)}`
     );
   }
   const today = document.candidates.filter(
@@ -488,8 +580,7 @@ export const runGoLiveCollect = async (io: CollectIo): Promise<number> => {
   }
   // A server answer or an error text may repeat the key: no line leaves this run with it.
   const apiKey = io.env["VERTEX_AGENT_API_KEY"];
-  const hidden = (text: string): string =>
-    apiKey ? text.replaceAll(apiKey, "[key hidden]") : text;
+  const hidden = (text: string): string => withoutKey(text, apiKey);
   const safe: CollectIo = {
     ...io,
     stderr: { write: (text) => io.stderr.write(hidden(text)) },
