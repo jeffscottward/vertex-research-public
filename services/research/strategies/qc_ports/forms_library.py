@@ -4,8 +4,8 @@ On 2026-11-11 the allocation study found 42 tradable library strategies without 
 options form (`LIBRARY_SLUGS`). Each of them is here once: with a form on daily bars
 (`STRATEGY_FORMS`), with a form on intraday bars (`INTRADAY_FORMS`; these run in a study of their
 own, research/backtests/options-forms/run_intraday.py) or with the reason why no runner can run it
-(`NOT_RUN`). `study_forms` is the daily study: it adds the two forms of the library alert
-`leader-pullback-and-reclaim` and the always-on baseline of every universe.
+(`NOT_RUN`). `study_forms` is the daily study: it adds configs B and C of the long calendar spread, the
+two forms of the library alert `leader-pullback-and-reclaim` and the always-on baseline of every universe.
 """
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ from .forms import (
 )
 from .forms_intraday import FORMS as INTRADAY_FORMS
 from .forms_orders import FORMS as ORDER_FORMS
+from .forms_other import CALENDAR_VARIANTS, LEADER_CALL, LEADERS_BASELINE, leader_forms
 from .forms_other import FORMS as OTHER_FORMS
-from .forms_other import LEADER_CALL, LEADERS_BASELINE, leader_forms
 from .forms_weights import FORMS as WEIGHT_FORMS
 
 __all__ = ["BASELINE_UNIVERSES", "INTRADAY_FORMS", "LEADERS_BASELINE", "LIBRARY_SLUGS", "NOT_RUN", "STRATEGY_FORMS",
@@ -34,11 +34,7 @@ __all__ = ["BASELINE_UNIVERSES", "INTRADAY_FORMS", "LEADERS_BASELINE", "LIBRARY_
 
 STRATEGY_FORMS: tuple[Form, ...] = (*ORDER_FORMS, *WEIGHT_FORMS, *OTHER_FORMS)
 
-NOT_RUN: tuple[NotRun, ...] = (
-    NotRun("long-calendar-spread",
-           "The strategy is a defined-risk option structure already, but it holds two expiries. The option book "
-           "prices single-expiry verticals only, and the data set has no IV term structure per symbol."),
-)
+NOT_RUN: tuple[NotRun, ...] = ()
 
 # The 42 tradable library strategies without an options form (allocation study, 2026-11-11).
 LIBRARY_SLUGS: tuple[str, ...] = (
@@ -82,8 +78,9 @@ def baseline_form(key: str, symbols: Sequence[str], structures: Mapping[int, tup
 
 
 def study_forms(leaders: Sequence[str]) -> tuple[Form, ...]:
-    """Every form the study runs: the strategy forms, the leader forms on `leaders`, then the baselines."""
-    made = (*STRATEGY_FORMS, *leader_forms(leaders))
+    """Every form the study runs: the strategy forms, configs B and C of the long calendar spread, the leader
+    forms on `leaders`, then the baselines."""
+    made = (*STRATEGY_FORMS, *CALENDAR_VARIANTS, *leader_forms(leaders))
     universes = {**BASELINE_UNIVERSES, LEADERS_BASELINE: tuple(leaders)}
     # The leader baseline holds the leader spread (0.5% of equity per name), so check G7 compares like with like.
     sized = {LEADERS_BASELINE: {1: (LEADER_CALL,)}}

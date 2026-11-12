@@ -45,7 +45,7 @@ from statistics import pstdev
 from . import allocation as al
 from . import data as qd
 from . import options as om
-from .book import PricedTrade, SignalEvent, build_book
+from .book import CALENDARS, PricedTrade, SignalEvent, build_book, full_term
 from .calendar import is_nyse_holiday
 from .data import MAX_FILL_DAYS, Bars, Market, align
 from .ideas import CORE7, MONTHLY_CALL, MONTHLY_PUT
@@ -53,10 +53,10 @@ from .ideas import CORE7, MONTHLY_CALL, MONTHLY_PUT
 __all__ = [
     "CORE7", "FUTURES_TWINS", "FX_TWINS", "LONG_SHORT", "MULTI8", "PROXY_ATM_FACTOR", "PROXY_MODELS", "SECTOR9",
     "SECTOR11", "Form", "FormBook", "Inputs", "NotRun", "ProxyModel", "adjusted", "always_on", "always_on_after",
-    "continuous", "degenerate", "distributions", "dividend_yield", "ema", "form_book", "form_trades", "from_panel",
-    "highest", "is_always_on", "lowest", "next_session", "panel", "pct_change", "period_ends", "proxy_index_id",
-    "proxy_iv_index", "proxy_market", "proxy_symbols", "raw_factors", "raw_priced", "rolling_stdev", "rsi", "sma",
-    "stance_of",
+    "continuous", "degenerate", "distributions", "dividend_yield", "ema", "first_priced", "form_book", "form_trades",
+    "from_panel", "highest", "is_always_on", "lowest", "next_session", "panel", "pct_change", "period_ends",
+    "proxy_index_id", "proxy_iv_index", "proxy_market", "proxy_symbols", "raw_factors", "raw_priced", "rolling_stdev",
+    "rsi", "sma", "stance_of",
 ]
 
 # --------------------------------------------------------------------------- universes
@@ -201,13 +201,24 @@ def _window(market: Market, first: int, factor: float, bars: int = WINDOW_BARS) 
     """The bars of `market` from `first` on (at most `bars`), closes times `factor`."""
     last = min(len(market.dates), first + bars)
     return Market(market.symbol, market.dates[first:last], tuple(close * factor for close in market.close[first:last]),
-                  market.iv_index[first:last], market.rate[first:last])
+                  market.iv_index[first:last], market.rate[first:last],
+                  tuple((index_id, levels[first:last]) for index_id, levels in market.iv_term))
+
+
+def first_priced(market: Market, blocks: Sequence[Mapping]) -> int:
+    """The first bar with every IV input the book needs for `blocks`: the IV index, and every IV term value when
+    a block is a calendar (len(market) when there is none, or when a calendar lacks a term index: book.full_term)."""
+    term = any(block["structure"] in CALENDARS for block in blocks)
+    if term and not full_term(market):
+        return len(market.dates)
+    return next((index for index, value in enumerate(market.iv_index) if value is not None and (
+        not term or all(levels[index] is not None for _, levels in market.iv_term))), len(market.dates))
 
 
 def degenerate(trade: PricedTrade, spot: float) -> bool:
-    """True when the strike grid or the fee floor decides the trade: less than MIN_WIDTH_STEPS strike steps
-    wide at the entry `spot`, or a premium per contract below the entry commission of its two legs."""
-    return (trade.width < MIN_WIDTH_STEPS * om.strike_step(spot)
+    """True when the strike grid or the fee floor decides the trade: a vertical less than MIN_WIDTH_STEPS strike
+    steps wide at the entry `spot`, or a premium per contract below the entry commission of its two legs."""
+    return ((trade.far_expiry is None and trade.width < MIN_WIDTH_STEPS * om.strike_step(spot))
             or trade.premium * om.MULTIPLIER < LEGS * om.COMMISSION)
 
 
@@ -227,7 +238,7 @@ def _side_trades(symbol: str, sides: Sequence[int], side: int, blocks: Sequence[
     the NYSE holiday rules (calendar.TradingCalendar), so an expiry Friday the bars do not have is
     still the expiry day.
     """
-    join = next((index for index, value in enumerate(market.iv_index) if value is not None), len(market.dates))
+    join = first_priced(market, blocks)
     trades: list[tuple[int, PricedTrade]] = []
     busy = -1
     for entry, exit_ in _spans(sides, side):

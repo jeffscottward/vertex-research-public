@@ -39,7 +39,8 @@ from strategies.qc_ports import ideas as qi  # noqa: E402
 from strategies.qc_ports import options as om  # noqa: E402
 from strategies.qc_ports import portfolio as pf  # noqa: E402
 from strategies.qc_ports import study  # noqa: E402
-from strategies.qc_ports.data import IV_INDEX, load_bars  # noqa: E402
+from strategies.qc_ports.book import CALENDARS  # noqa: E402
+from strategies.qc_ports.data import IV_INDEX, IV_TERM, load_bars, load_series  # noqa: E402
 from strategies.qc_ports.ledger import run_ledger  # noqa: E402
 
 START = "1993-01-29"
@@ -119,9 +120,11 @@ def scale_spread_costs(scale: float) -> None:
         om.MIN_HALF_SPREAD = 0.0
 
 
-def first_iv_day(market) -> str:
-    """The first date with an IV index value (a date after every bar when there is none)."""
-    return next((day for day, value in zip(market.dates, market.iv_index) if value is not None), "9999-12-31")
+def first_iv_day(market, blocks) -> str:
+    """The first date the book can price `blocks` on (forms.first_priced: the IV index, and the IV term for a
+    calendar), a date after every bar when there is none."""
+    first = fm.first_priced(market, blocks)
+    return market.dates[first] if first < len(market.dates) else "9999-12-31"
 
 
 def lower_bar(stats: dict) -> bool:
@@ -198,6 +201,16 @@ def main() -> None:
         forms = tuple(form for form in forms if form.key in wanted)
     # Baselines first: a form with the trades of its baseline is then marked as a copy of the baseline.
     forms = (*(form for form in forms if form.rule is fm.always_on), *(form for form in forms if form.rule is not fm.always_on))
+    # The IV term indices the qc-ports data set does not hold (VIX6M) come from fetch_data.py of this study. Only a
+    # run with a calendar form needs them; a run of verticals alone reads the directory as before.
+    if any(block["structure"] in CALENDARS for form in forms for side in form.structures.values() for block in side):
+        term_ids = sorted({index_id for term in IV_TERM.values() for index_id in term} - set(dataset.series))
+        missing = [index_id for index_id in term_ids if not (args.data / f"{index_id}.csv").is_file()]
+        if missing:
+            raise SystemExit(f"No {', '.join(missing)} in {args.data}: "
+                             "run research/backtests/options-forms/fetch_data.py")
+        dataset = dataclasses.replace(dataset, series={**dataset.series, **{
+            index_id: load_series(index_id, args.data) for index_id in term_ids}})
     traded = {symbol for form in forms for symbol in form.symbols}
     loaded = {**load_extra(args.data, sorted(traded - set(qi.CORE7) - set(stocks)), required=True, log=log),
               **{symbol: bars for symbol, bars in stocks.items() if symbol in traded}}
@@ -223,7 +236,8 @@ def main() -> None:
             inputs = fm.Inputs({symbol: bars_of[symbol] for symbol in form.symbols},
                                {symbol: markets[symbol].iv_index for symbol in form.symbols})
             book = fm.form_book(form, inputs, markets, start=START, factors=factors)
-            first = min(first_iv_day(markets[symbol]) for symbol in form.symbols)
+            blocks = [block for side in form.structures.values() for block in side]
+            first = min(first_iv_day(markets[symbol], blocks) for symbol in form.symbols)
             dates = [day for day in dataset.calendar if day >= max(first, START)]
             run = {"priced": book.trades, "refused": book.refused, "result": None, "gap": None, "dates": dates,
                    "alwaysOn": fm.is_always_on(fm.stance_of(form, inputs), form.symbols), "phases": None}
