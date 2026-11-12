@@ -238,6 +238,24 @@ describe("order intent repository", () => {
         (i) => i.orderRef
       )
     ).toEqual(["vertex-gla"]);
+    // Same millisecond, rows in any order: the resend's intent still wins.
+    const tie = fakeDatabase([
+      {
+        action: "vertex.order.intent",
+        createdAt: at(1),
+        entityId: "vertex-gla",
+        metadata: {},
+      },
+      {
+        action: "vertex.order.result",
+        createdAt: at(1),
+        entityId: "vertex-gla",
+        metadata: { outcome: "refused" },
+      },
+    ]).database;
+    expect(
+      await createOrderIntentRepository(tie, deps).refused("vertex-gla")
+    ).toBe(false);
   });
 
   it("answers whether any row exists for an orderRef", async () => {

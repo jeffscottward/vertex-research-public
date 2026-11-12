@@ -117,8 +117,15 @@ export const createOrderIntentRepository = (
           )
         );
       // The very last row must be the refusal: a later intent row (a new send) is not refused.
+      // On a timestamp tie an intent sorts last (a resend in flight is never read as refused).
+      const intentLast = (action: string) =>
+        action === "vertex.order.intent" ? 1 : 0;
       const last = [...rows]
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .sort(
+          (a, b) =>
+            a.createdAt.getTime() - b.createdAt.getTime() ||
+            intentLast(a.action) - intentLast(b.action)
+        )
         .at(-1);
       return (
         last !== undefined &&
