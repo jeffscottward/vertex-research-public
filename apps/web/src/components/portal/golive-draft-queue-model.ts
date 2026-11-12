@@ -399,7 +399,7 @@ export const noLiveQuoteReason = (quote: GoLiveQuote | null): string => {
 };
 
 /** One blocker in words. The quote blocker names the cause for this draft's quote. */
-export const notApprovableText = (
+const notApprovableText = (
   value: GoLiveNotApprovable,
   quote: GoLiveQuote | null
 ): string =>
