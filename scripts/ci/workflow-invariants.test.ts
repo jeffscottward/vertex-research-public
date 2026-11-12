@@ -7,6 +7,7 @@ import { parse } from "yaml";
 // change without weakening the pipeline.
 
 interface Step {
+  env?: Record<string, unknown>;
   run?: string;
   uses?: string;
   with?: Record<string, unknown>;
