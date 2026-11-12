@@ -287,10 +287,52 @@ test("an Academy lesson opens with its title, section links and transcript at 37
     await expect(
       page.getByRole("heading", { exact: true, level: 2, name: heading })
     ).toBeVisible();
-  // Streamed Suspense content can sit briefly in a hidden template outside the main region.
-  await expect(
-    page.locator("#main-content").locator("[data-concept-note]")
-  ).toBeVisible();
+  // Exactly one concept note, in the main region (card vertex-lesson-double-render). Every poll
+  // sample records where each copy sits and React's streamed-reveal queue ($RB), so the CI log
+  // shows a second copy (a hidden streamed segment or a real duplicate) even when it is brief.
+  const conceptNoteSamples: unknown[] = [];
+  await expect
+    .poll(async () => {
+      const sample = await page.evaluate(() => {
+        const describe = (element: Element): string => {
+          const path: string[] = [];
+          for (
+            let node: Element | null = element;
+            node !== null && node !== document.body;
+            node = node.parentElement
+          ) {
+            const id = node.id === "" ? "" : `#${node.id}`;
+            path.unshift(
+              `${node.tagName.toLowerCase()}${id}${node.hasAttribute("hidden") ? "[hidden]" : ""}`
+            );
+          }
+          return path.join(" > ");
+        };
+        // React's inline streaming runtime keeps queued Suspense reveals in a global $RB array.
+        const queue = "$RB" in window ? window.$RB : undefined;
+        return {
+          copies: [...document.querySelectorAll("[data-concept-note]")].map(
+            describe
+          ),
+          readyState: document.readyState,
+          revealQueue: Array.isArray(queue) ? queue.length : "none",
+        };
+      });
+      conceptNoteSamples.push(sample);
+      return sample;
+    })
+    .toEqual({
+      copies: [expect.stringContaining("#main-content")],
+      readyState: expect.any(String),
+      revealQueue: expect.anything(),
+    });
+  const samplesText = JSON.stringify(conceptNoteSamples);
+  test.info().annotations.push({
+    description: samplesText,
+    type: "concept-note-copies",
+  });
+  console.log(`[concept-note-copies] ${samplesText}`);
+  await expect(page.locator("[data-concept-note]")).toBeVisible();
   await expect(
     page
       .getByRole("region", { exact: true, name: "Key points" })

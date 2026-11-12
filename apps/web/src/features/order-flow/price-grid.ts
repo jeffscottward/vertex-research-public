@@ -8,11 +8,17 @@ const MAX_DECIMALS = 8;
 /** Share of prices whose decimals must fit the tick (sub-penny prints are rare outliers). */
 const DECIMAL_COVERAGE = 0.95;
 
-/** Fewest decimals (0-8) that write `value` exactly, up to float noise. */
+/**
+ * Fewest decimals (0-8) that write `value` exactly, up to float noise. A nonzero value never
+ * reads as a whole zero: 1e-8 is 8 decimals, not 0 (its scaled value sits within the noise
+ * band of 0 at every shorter width, which would round a 1e-8 tick to a 0 step).
+ */
 export const decimalsOf = (value: number): number => {
   for (let digits = 0; digits < MAX_DECIMALS; digits += 1) {
     const scaled = value * 10 ** digits;
-    if (Math.abs(scaled - Math.round(scaled)) < 1e-6) return digits;
+    const whole = Math.round(scaled);
+    if (Math.abs(scaled - whole) < 1e-6 && (whole !== 0 || value === 0))
+      return digits;
   }
   return MAX_DECIMALS;
 };
@@ -66,24 +72,37 @@ export const PRICE_STEP_MULTIPLES = [
   1, 2, 5, 10, 25, 50, 100, 250, 500, 1000,
 ] as const;
 const LARGEST_STEP_MULTIPLE = 1000;
+/** Decades grown past the largest multiple: tick x 1e3 up to tick x 1e18 (the last one unchecked). */
+const EXTRA_STEP_DECADES = 15;
 
 /** Levels between low and high (inclusive) at a step. */
 export const levelCount = (low: number, high: number, step: number): number =>
   Math.round((groupPrice(high, step) - groupPrice(low, step)) / step) + 1;
 
-/** Smallest tick multiple whose grid over [low, high] has at most `maxLevels` rows. */
+/**
+ * Smallest tick multiple whose grid over [low, high] has at most `maxLevels` rows. Past the
+ * largest offered multiple it keeps growing by decades, so a fine tick (unrounded prices give
+ * 1e-8) still yields a readable grid instead of millions of rows. A tick finer than 8 decimals
+ * counts as 1e-8, so no step rounds to 0.
+ */
 export const autoPriceStep = (
   tick: number,
   low: number,
   high: number,
   maxLevels: number
 ): number => {
-  const digits = decimalsOf(tick);
+  const unit = Math.max(tick, 10 ** -MAX_DECIMALS);
+  const digits = decimalsOf(unit);
   for (const multiple of PRICE_STEP_MULTIPLES) {
-    const step = roundPrice(tick * multiple, digits);
+    const step = roundPrice(unit * multiple, digits);
     if (levelCount(low, high, step) <= maxLevels) return step;
   }
-  return roundPrice(tick * LARGEST_STEP_MULTIPLE, digits);
+  let step = roundPrice(unit * LARGEST_STEP_MULTIPLE, digits);
+  for (let decade = 0; decade < EXTRA_STEP_DECADES; decade += 1) {
+    if (levelCount(low, high, step) <= maxLevels) return step;
+    step = roundPrice(step * 10, digits);
+  }
+  return step;
 };
 
 /** Bucket sizes (seconds) a footprint or delta view can use. */

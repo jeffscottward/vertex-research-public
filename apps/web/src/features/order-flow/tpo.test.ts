@@ -98,6 +98,41 @@ describe("buildTpoProfile", () => {
     expect(profile?.sessions[0]?.levels.length).toBeLessThanOrEqual(60);
   });
 
+  it("profiles unrounded float bar prices (1e-8 tick) on a readable step", () => {
+    // Same shape as the charts-order-flow e2e mock: 100 + sin(i / 2) +- 0.4, never rounded.
+    const start = at("2026-10-29T13:30:00Z");
+    const bars = Array.from({ length: 13 }, (_, index): MarketBar => {
+      const mid = 100 + Math.sin(index / 2);
+      return {
+        c: mid + 0.1,
+        h: mid + 0.4,
+        l: mid - 0.4,
+        o: mid - 0.1,
+        t: start + index * 1800,
+        v: 500,
+      };
+    });
+    const profile = buildTpoProfile(bars, "America/New_York");
+    expect(profile?.tickSize).toBe(1e-8);
+    // Range 98.62-101.40: 0.01 is 279 rows, 0.1 is 29.
+    expect(profile?.priceStep).toBe(0.1);
+    const session = profile?.sessions[0];
+    expect(session?.levels.length).toBeLessThanOrEqual(60);
+    expect(session?.totalTpos).toBeGreaterThan(0);
+    expect(session?.levels.some((level) => level.price === session.poc)).toBe(
+      true
+    );
+  });
+
+  it("falls back to the auto step for a non-finite or non-positive step option", () => {
+    // Infinity exercises the finite check; NaN and 0 fail the > 0 check.
+    for (const priceStep of [Number.NaN, Number.POSITIVE_INFINITY, 0]) {
+      expect(
+        buildTpoProfile(DAY_ONE, "America/New_York", { priceStep })?.priceStep
+      ).toBe(1);
+    }
+  });
+
   it("returns null without usable bars", () => {
     expect(buildTpoProfile([], "UTC")).toBeNull();
     expect(
