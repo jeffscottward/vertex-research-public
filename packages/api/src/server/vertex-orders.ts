@@ -245,7 +245,7 @@ const goLiveRefusals = async (
         p.quantity !== 0 &&
         p.symbol === order.symbol &&
         p.expiry === leg.expiry &&
-        p.strike === leg.strike &&
+        Math.abs(p.strike - leg.strike) < 1e-6 &&
         p.right === leg.right
     )
   );

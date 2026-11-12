@@ -209,6 +209,35 @@ describe("order intent repository", () => {
       ])
     ).toBe(true);
     expect(await refused([])).toBe(false);
+    // refused, then a new intent (sent again) with no outcome yet: not refused, and unresolved
+    const again = fakeDatabase([
+      {
+        action: "vertex.order.intent",
+        createdAt: at(0),
+        entityId: "vertex-gla",
+        metadata: {},
+      },
+      {
+        action: "vertex.order.result",
+        createdAt: at(1),
+        entityId: "vertex-gla",
+        metadata: { outcome: "refused" },
+      },
+      {
+        action: "vertex.order.intent",
+        createdAt: at(2),
+        entityId: "vertex-gla",
+        metadata: {},
+      },
+    ]).database;
+    expect(
+      await createOrderIntentRepository(again, deps).refused("vertex-gla")
+    ).toBe(false);
+    expect(
+      (await createOrderIntentRepository(again, deps).unresolved(at(-5))).map(
+        (i) => i.orderRef
+      )
+    ).toEqual(["vertex-gla"]);
   });
 
   it("answers whether any row exists for an orderRef", async () => {

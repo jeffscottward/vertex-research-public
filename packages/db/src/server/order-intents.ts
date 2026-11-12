@@ -112,14 +112,20 @@ export const createOrderIntentRepository = (
         .where(
           and(
             eq(auditRecords.entityType, "vertex_order"),
-            eq(auditRecords.entityId, orderRef)
+            eq(auditRecords.entityId, orderRef),
+            inArray(auditRecords.action, [...ORDER_INTENT_ACTIONS])
           )
         );
-      const outcomes = [...rows]
-        .filter((row) => row.action !== "vertex.order.intent")
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-      const last = outcomes.at(-1)?.metadata as Record<string, unknown> | null;
-      return last?.["outcome"] === "refused";
+      // The very last row must be the refusal: a later intent row (a new send) is not refused.
+      const last = [...rows]
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .at(-1);
+      return (
+        last !== undefined &&
+        last.action !== "vertex.order.intent" &&
+        (last.metadata as Record<string, unknown> | null)?.["outcome"] ===
+          "refused"
+      );
     },
     recordIntent: async ({ actorUserId, requestId, intent }) =>
       await insert(
@@ -167,7 +173,10 @@ export const createOrderIntentRepository = (
       const last = new Map<string, string>();
       for (const row of sorted) {
         const metadata = (row.metadata ?? {}) as Record<string, unknown>;
-        if (row.action === "vertex.order.intent")
+        if (row.action === "vertex.order.intent") {
+          // A new intent for the ref (a go-live draft sent again after a refusal) is unresolved
+          // until its own outcome row.
+          last.delete(row.entityId);
           intents.set(row.entityId, {
             contract: String(metadata["contract"] ?? ""),
             createdAt: row.createdAt,
@@ -178,7 +187,7 @@ export const createOrderIntentRepository = (
             strike: Number(metadata["strike"] ?? 0),
             symbol: String(metadata["symbol"] ?? ""),
           });
-        else last.set(row.entityId, String(metadata["outcome"] ?? ""));
+        } else last.set(row.entityId, String(metadata["outcome"] ?? ""));
       }
       return [...intents.values()].filter((intent) => {
         const outcome = last.get(intent.orderRef);
