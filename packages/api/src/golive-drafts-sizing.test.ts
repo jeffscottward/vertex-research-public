@@ -4,10 +4,14 @@ import {
   GOLIVE_NOT_APPROVABLE_VALUES,
   type GoLiveSizing,
 } from "./contracts/golive-drafts.ts";
+import { VertexComboInputSchema } from "./contracts/vertex-orders.ts";
 import { evaluateFinalOrderGate } from "./server/final-order-gate.ts";
 import {
+  approvedOrderFitsDraft,
   buildCombo,
+  GOLIVE_ORDER_MAX_QUANTITY,
   GOLIVE_QUOTE_MAX_AGE_MS,
+  GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS,
   type GoLiveNotApprovableInput,
   type GoLiveSizingDraft,
   type GoLiveSizingPlan,
@@ -194,6 +198,30 @@ describe("limitFromQuote", () => {
       expect(limitFromQuote("callDebitVertical", bad, 5)).toBeNull();
   });
 
+  it("refuses a bid of 0 on either leg: nobody bids, so the mid is no price", () => {
+    // Long 0/5.00 and short 0/0.05 gave a limit of 2.47 before.
+    expect(
+      limitFromQuote("callDebitVertical", quote(0, 5, 0, 0.05), 5)
+    ).toBeNull();
+    for (const structure of [
+      "callDebitVertical",
+      "putDebitVertical",
+      "putCreditVertical",
+      "callCreditVertical",
+    ] as const)
+      for (const bad of [
+        quote(0, 2.4, 1.05, 1.15),
+        quote(2.3, 2.4, 0, 1.15),
+        quote(0, 1.15, 2.3, 2.4),
+        quote(1.05, 1.15, 0, 2.4),
+      ])
+        expect(limitFromQuote(structure, bad, 5)).toBeNull();
+    // The smallest bid is a price.
+    expect(
+      limitFromQuote("callDebitVertical", quote(2.3, 2.4, 0.01, 0.03), 5)
+    ).toBe(2.33);
+  });
+
   it("refuses a net outside (0, width), before and after rounding", () => {
     // Debit below 0: the long leg is cheaper than the short leg.
     expect(
@@ -208,12 +236,19 @@ describe("limitFromQuote", () => {
     expect(limitFromQuote("callDebitVertical", DEBIT_QUOTE, 1)).toBeNull();
     // Net debit 0.005 rounds down to 0.
     expect(
-      limitFromQuote("callDebitVertical", quote(0, 0.03, 0, 0.02), 5)
+      limitFromQuote("callDebitVertical", quote(0.015, 0.025, 0.01, 0.02), 5)
     ).toBeNull();
     // Net credit 0.995 on a 1 wide spread rounds up to the width.
     expect(
-      limitFromQuote("putCreditVertical", quote(0, 0.02, 1, 1.01), 1)
+      limitFromQuote("putCreditVertical", quote(0.005, 0.015, 1, 1.01), 1)
     ).toBeNull();
+    // One cent inside the width on each side is a limit.
+    expect(
+      limitFromQuote("callDebitVertical", quote(1, 1.02, 0.01, 0.03), 1)
+    ).toBe(0.99);
+    expect(
+      limitFromQuote("putCreditVertical", quote(0.01, 0.03, 0.02, 0.04), 1)
+    ).toBe(-0.01);
   });
 });
 
@@ -313,6 +348,9 @@ const draft = (
   id: string,
   overrides: Partial<GoLiveSizingDraft> = {}
 ): GoLiveSizingDraft => ({
+  approvedOrder: null,
+  entryBasis: "signal_today",
+  expiry: EXPIRY,
   id,
   longStrike: 100,
   quote: DEBIT_QUOTE,
@@ -323,6 +361,17 @@ const draft = (
   symbol: "SPY",
   ...overrides,
 });
+
+/** An approved draft with the order that was stored at its approval. */
+const approvedDraft = (
+  id: string,
+  quantity: number,
+  limitPrice: number,
+  overrides: Partial<GoLiveSizingDraft> = {}
+): GoLiveSizingDraft => {
+  const base = draft(id, { ...overrides, state: "approved" });
+  return { ...base, approvedOrder: buildCombo(base, quantity, limitPrice) };
+};
 
 // 16 spreads at 125: the whole 2,000 position budget.
 const SIZED: GoLiveSizing = {
@@ -402,7 +451,7 @@ describe("sizeDrafts", () => {
   });
 
   it("shows no money value, and never 0, when the account value is unavailable", () => {
-    for (const nlv of [null, 0, -5]) {
+    for (const nlv of [null, 0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
       const sized = sizeDrafts(
         PLAN,
         [draft("d1"), draft("d2", { quote: null })],
@@ -516,13 +565,452 @@ describe("sizeDrafts", () => {
     ).toEqual(["d1:max_positions_reached:0", "d2:sized:16"]);
   });
 
-  it("sizes approved drafts first so they keep their room", () => {
+  it("gives an approved draft the room of its stored order, before every other draft", () => {
     expect(
       reasons(PLAN, [
         draft("d1", { symbol: "IWM" }),
-        draft("d2", { state: "approved", symbol: "QQQ" }),
+        approvedDraft("d2", 16, 1.25, { symbol: "QQQ" }),
       ])
     ).toEqual(["d1:sleeve_budget_used:0", "d2:sized:16"]);
+  });
+
+  describe("an approved draft after the account value fell", () => {
+    // Approved at NLV 50,000 (budget 1,000) on long 2.40/2.50, short 0.95/1.00: limit 1.47,
+    // 147 per spread, 6 spreads, max loss 882.
+    const APPROVED_QUOTE = quote(2.4, 2.5, 0.95, 1);
+    const approved = approvedDraft("a1", 6, 1.47, { quote: APPROVED_QUOTE });
+    // Every cap is 10% of the account value: 1,000 at NLV 10,000.
+    const plan: GoLiveSizingPlan = {
+      limits: {
+        maxPositions: 3,
+        nameRiskCapPct: 10,
+        openRiskCapPct: 10,
+        positionRiskPct: 2,
+      },
+      sleeves: [
+        { budgetPct: 10, key: "a" },
+        { budgetPct: 10, key: "b" },
+      ],
+    };
+    // One spread of 125 at NLV 10,000 (budget 200): 882 + 125 = 1,007 is above 1,000.
+    const other = (overrides: Partial<GoLiveSizingDraft>) =>
+      draft("p1", overrides);
+
+    it("was sized to 6 spreads and 882 when it was approved", () => {
+      const [then] = sizeDrafts(
+        plan,
+        [draft("a1", { quote: APPROVED_QUOTE })],
+        50_000
+      );
+      expect(then?.sizing).toEqual({
+        budget: 1000,
+        limitPrice: 1.47,
+        maxLoss: 882,
+        maxLossPctNlv: 1.76,
+        maxLossPerSpread: 147,
+        quantity: 6,
+        reason: "sized",
+      });
+    });
+
+    it("still counts its approved 882 in the sleeve, the name and the open risk at NLV 10,000", () => {
+      expect(
+        reasons(plan, [approved, other({ symbol: "QQQ" })], 10_000)
+      ).toEqual(["a1:sized:1", "p1:sleeve_budget_used:0"]);
+      expect(
+        reasons(plan, [approved, other({ sleeveKey: "b" })], 10_000)
+      ).toEqual(["a1:sized:1", "p1:name_cap_reached:0"]);
+      expect(
+        reasons(
+          plan,
+          [approved, other({ sleeveKey: "b", symbol: "QQQ" })],
+          10_000
+        )
+      ).toEqual(["a1:sized:1", "p1:open_risk_cap_reached:0"]);
+      // 882 + 125 fits under 1,007.00 and not under 1,006.99: the room is 882 to the cent.
+      expect(
+        reasons(plan, [approved, other({ symbol: "QQQ" })], 10_070)
+      ).toEqual(["a1:sized:1", "p1:sized:1"]);
+      expect(
+        reasons(plan, [approved, other({ symbol: "QQQ" })], 10_069.9)
+      ).toEqual(["a1:sized:1", "p1:sleeve_budget_used:0"]);
+    });
+
+    it("shows today's size of the approved draft without changing its room", () => {
+      const [now] = sizeDrafts(plan, [approved], 10_000);
+      // What the position budget of 200 buys today. The room is still the approved 882.
+      expect(now?.sizing).toEqual({
+        budget: 200,
+        limitPrice: 1.47,
+        maxLoss: 147,
+        maxLossPctNlv: 1.47,
+        maxLossPerSpread: 147,
+        quantity: 1,
+        reason: "sized",
+      });
+    });
+
+    it("still holds its position slot at NLV 7,000, where one spread is above the budget", () => {
+      // No money cap can refuse here: only the position count is left.
+      const onePosition: GoLiveSizingPlan = {
+        limits: {
+          maxPositions: 1,
+          nameRiskCapPct: 100,
+          openRiskCapPct: 100,
+          positionRiskPct: 2,
+        },
+        sleeves: [
+          { budgetPct: 100, key: "a" },
+          { budgetPct: 100, key: "b" },
+        ],
+      };
+      // Budget 140: the approved draft's own size today is 0, and the other draft costs 125.
+      expect(
+        reasons(
+          onePosition,
+          [approved, other({ sleeveKey: "b", symbol: "QQQ" })],
+          7000
+        )
+      ).toEqual(["a1:budget_below_one_spread:0", "p1:max_positions_reached:0"]);
+      // Without the approved draft the other one is sized.
+      expect(
+        reasons(onePosition, [other({ sleeveKey: "b", symbol: "QQQ" })], 7000)
+      ).toEqual(["p1:sized:1"]);
+    });
+
+    it("holds its room without a quote today, and from a credit order", () => {
+      expect(
+        reasons(
+          plan,
+          [{ ...approved, quote: null }, other({ symbol: "QQQ" })],
+          10_000
+        )
+      ).toEqual(["a1:no_quote:0", "p1:sleeve_budget_used:0"]);
+      // A 5 wide put credit spread approved as 3 x (5 - 2.06) x 100 = 882.
+      const credit = approvedDraft("a2", 3, -2.06, {
+        longStrike: 95,
+        quote: null,
+        shortStrike: 100,
+        structure: "putCreditVertical",
+      });
+      expect(reasons(plan, [credit, other({ symbol: "QQQ" })], 10_070)).toEqual(
+        ["a2:no_quote:0", "p1:sized:1"]
+      );
+      expect(
+        reasons(plan, [credit, other({ symbol: "QQQ" })], 10_069.9)
+      ).toEqual(["a2:no_quote:0", "p1:sleeve_budget_used:0"]);
+    });
+
+    it("refuses to size a day with an approved draft whose stored order is not its order", () => {
+      const order = buildCombo(approved, 6, 1.47);
+      const [buy, sell] = order.legs;
+      if (buy === undefined || sell === undefined)
+        throw new Error("Expected two legs");
+      const wrong: readonly GoLiveSizingDraft["approvedOrder"][] = [
+        null,
+        { ...order, symbol: "QQQ" },
+        { ...order, legs: [sell, buy] },
+        { ...order, legs: [buy, { ...sell, strike: 106 }] },
+        { ...order, legs: [buy, { ...sell, expiry: "20270115" }] },
+        // A debit order with a credit limit, a limit of the whole width, a limit that is not
+        // whole cents, and a quantity no order can hold.
+        { ...order, limitPrice: -1.47 },
+        { ...order, limitPrice: 5 },
+        { ...order, limitPrice: 1.475 },
+        { ...order, quantity: 0 },
+        { ...order, quantity: 1.5 },
+        { ...order, quantity: GOLIVE_ORDER_MAX_QUANTITY + 1 },
+      ];
+      for (const approvedOrder of wrong) {
+        const bad = { ...approved, approvedOrder };
+        expect(approvedOrderFitsDraft(bad, approvedOrder)).toBe(false);
+        // With and without an account value: no draft of the call gets a size.
+        for (const nlv of [10_000, null])
+          expect(() => sizeDrafts(plan, [draft("d1"), bad], nlv)).toThrow(
+            "The stored approved order of draft a1 is not the order of that draft"
+          );
+      }
+      expect(approvedOrderFitsDraft(approved, order)).toBe(true);
+      // A draft with wrong strikes has no order to compare with: false, without an error.
+      expect(
+        approvedOrderFitsDraft(
+          { ...approved, longStrike: 105, shortStrike: 100 },
+          order
+        )
+      ).toBe(false);
+      // Only an approved draft holds an order to check.
+      expect(() => sizeDrafts(plan, [draft("d1")], 10_000)).not.toThrow();
+    });
+  });
+
+  it("gives quantity 0 when the budget buys more spreads than one order may hold", () => {
+    // The number is the combo order's own limit, not a copy of it.
+    const order = buildCombo(spread(), GOLIVE_ORDER_MAX_QUANTITY, 1.25);
+    expect(VertexComboInputSchema.safeParse(order).success).toBe(true);
+    expect(
+      VertexComboInputSchema.safeParse({
+        ...order,
+        quantity: GOLIVE_ORDER_MAX_QUANTITY + 1,
+      }).success
+    ).toBe(false);
+    // A penny spread: long mid 0.025, short mid 0.0075, limit 0.01, 1 per spread. At NLV 600,000
+    // the budget of 12,000 buys 12,000 spreads.
+    const penny = draft("d1", { quote: quote(0.02, 0.03, 0.005, 0.01) });
+    const both = [penny, draft("d2", { symbol: "QQQ" })];
+    const sizing = sizeDrafts(PLAN, both, 600_000)[0]?.sizing;
+    expect(sizing).toEqual({
+      budget: 12_000,
+      limitPrice: 0.01,
+      maxLoss: null,
+      maxLossPctNlv: null,
+      maxLossPerSpread: 1,
+      quantity: 0,
+      reason: "quantity_above_order_limit",
+    });
+    expect(
+      sizing === undefined ? "none" : orderFor(spread(), sizing)
+    ).toBeNull();
+    // It uses no room: the next draft of the sleeve is sized.
+    expect(reasons(PLAN, both, 600_000)).toEqual([
+      "d1:quantity_above_order_limit:0",
+      "d2:sized:96",
+    ]);
+    // Exactly the limit is an order: budget 10,000 at NLV 500,000.
+    expect(reasons(PLAN, [penny], 500_000)).toEqual([
+      `d1:sized:${GOLIVE_ORDER_MAX_QUANTITY}`,
+    ]);
+    expect(reasons(PLAN, [penny], 500_050)).toEqual([
+      "d1:quantity_above_order_limit:0",
+    ]);
+  });
+
+  it("gives no cap room to a late entry, which can never be approved", () => {
+    const onePosition = {
+      ...PLAN,
+      limits: { ...PLAN.limits, maxPositions: 1 },
+    };
+    const late = draft("d1", {
+      entryBasis: "model_holds_account_does_not",
+      symbol: "AAA",
+    });
+    // AAA sorts before SPY. The account does not hold it, so it takes no slot from SPY.
+    expect(reasons(onePosition, [late, draft("d2")])).toEqual([
+      "d1:sized:16",
+      "d2:sized:16",
+    ]);
+    // Nor sleeve, name or open-risk room: every signal_today draft is sized as without it.
+    const lateOnes = ["SPY", "QQQ", "IWM"].map((symbol, index) =>
+      draft(`late-${index}`, {
+        entryBasis: "model_holds_account_does_not",
+        symbol,
+      })
+    );
+    const wanted = [
+      draft("d2"),
+      draft("d3", { sleeveKey: "b", symbol: "QQQ" }),
+    ];
+    expect(reasons(PLAN, wanted)).toEqual(["d2:sized:16", "d3:sized:16"]);
+    expect(reasons(PLAN, [...lateOnes, ...wanted])).toEqual([
+      "late-0:sized:16",
+      "late-1:sized:16",
+      "late-2:sized:16",
+      "d2:sized:16",
+      "d3:sized:16",
+    ]);
+  });
+
+  describe("cents", () => {
+    const cents = (value: number | null): number => {
+      if (value === null) throw new Error("Expected a money value");
+      return Math.round(value * 100);
+    };
+
+    it("rounds the budget down to the cent", () => {
+      const one = { ...PLAN, limits: { ...PLAN.limits, positionRiskPct: 1 } };
+      // 1% of 99,999.60 is 999.996: the budget is 999.99, and 8 spreads of 125 do not fit.
+      const [sized] = sizeDrafts(one, [draft("d1")], 99_999.6);
+      expect(sized?.sizing).toMatchObject({
+        budget: 999.99,
+        maxLoss: 875,
+        quantity: 7,
+        reason: "sized",
+      });
+      expect(sizeDrafts(one, [draft("d1")], 100_000)[0]?.sizing).toMatchObject({
+        budget: 1000,
+        maxLoss: 1000,
+        quantity: 8,
+      });
+    });
+
+    it("never lets the max loss pass the budget by a cent", () => {
+      // 20,000 per spread (debit 200 on a 500 wide spread) against a budget of 39,999.99.
+      const wide = draft("d1", {
+        quote: quote(299.9, 300.1, 99.9, 100.1),
+        shortStrike: 600,
+      });
+      const plan: GoLiveSizingPlan = {
+        limits: {
+          maxPositions: 3,
+          nameRiskCapPct: 100,
+          openRiskCapPct: 100,
+          positionRiskPct: 2,
+        },
+        sleeves: [{ budgetPct: 100, key: "a" }],
+      };
+      const [below] = sizeDrafts(plan, [wide], 1_999_999.5);
+      expect(below?.sizing).toMatchObject({
+        budget: 39_999.99,
+        maxLoss: 20_000,
+        maxLossPerSpread: 20_000,
+        quantity: 1,
+        reason: "sized",
+      });
+      const [exact] = sizeDrafts(plan, [wide], 2_000_000);
+      expect(exact?.sizing).toMatchObject({
+        budget: 40_000,
+        maxLoss: 40_000,
+        quantity: 2,
+      });
+    });
+
+    it("names the cap that is passed by one cent", () => {
+      // Two drafts of 2,000 each. Sleeve budget and open risk cap of 4% hold exactly both.
+      const plan: GoLiveSizingPlan = {
+        limits: {
+          maxPositions: 3,
+          nameRiskCapPct: 2,
+          openRiskCapPct: 4,
+          positionRiskPct: 2,
+        },
+        sleeves: [{ budgetPct: 4, key: "a" }],
+      };
+      // SPY is sized before XLE (by symbol).
+      const two = [draft("d1"), draft("d2", { symbol: "XLE" })];
+      expect(reasons(plan, two, 100_000)).toEqual([
+        "d1:sized:16",
+        "d2:sized:16",
+      ]);
+      // 3.99999% of 100,000 is 3,999.99.
+      const open = {
+        ...plan,
+        limits: { ...plan.limits, openRiskCapPct: 3.999_99 },
+      };
+      expect(reasons(open, two, 100_000)).toEqual([
+        "d1:sized:16",
+        "d2:open_risk_cap_reached:0",
+      ]);
+      const sleeve = { ...plan, sleeves: [{ budgetPct: 3.999_99, key: "a" }] };
+      expect(reasons(sleeve, two, 100_000)).toEqual([
+        "d1:sized:16",
+        "d2:sleeve_budget_used:0",
+      ]);
+    });
+
+    it("keeps every max loss within the budget and every cap, over a grid", () => {
+      // Percentages in tenths of a percent and account values in cents, so the test checks
+      // with whole numbers: loss in cents x 1000 <= NLV in cents x tenths of a percent.
+      const within = (lossCents: number, nlvCents: number, tenths: number) =>
+        lossCents * 1000 <= nlvCents * tenths;
+      const quotes = [
+        DEBIT_QUOTE,
+        quote(2.4, 2.5, 0.95, 1),
+        quote(0.02, 0.03, 0.005, 0.01),
+        quote(4.31, 4.37, 0.11, 0.13),
+        quote(299.9, 300.1, 99.9, 100.1),
+        quote(0.07, 0.09, 0.01, 0.03),
+      ];
+      const creditQuotes = [
+        quote(0.45, 0.55, 1.2, 1.31),
+        quote(0.01, 0.03, 4.9, 4.96),
+        quote(1.1, 1.2, 2.25, 2.35),
+      ];
+      const symbols = ["SPY", "QQQ", "IWM"] as const;
+      const nlvCentsList = [
+        700_000, 1_000_000, 1_006_990, 5_000_000, 9_999_960, 10_000_000,
+        12_345_678, 60_000_000, 199_999_950, 333_333_333,
+      ];
+      let sizedCount = 0;
+      for (const nlvCents of nlvCentsList)
+        for (const position of [5, 10, 13, 20])
+          for (const cap of [position, 2 * position, 37]) {
+            const plan: GoLiveSizingPlan = {
+              limits: {
+                maxPositions: 4,
+                nameRiskCapPct: cap / 10,
+                openRiskCapPct: (2 * cap) / 10,
+                positionRiskPct: position / 10,
+              },
+              sleeves: [
+                { budgetPct: (cap + 3) / 10, key: "a" },
+                { budgetPct: cap / 10, key: "b" },
+              ],
+            };
+            const drafts: GoLiveSizingDraft[] = [
+              approvedDraft("a0", 6, 1.47, { quote: quote(2.4, 2.5, 0.95, 1) }),
+              ...quotes.map((entry, index) =>
+                draft(`d${index}`, {
+                  quote: entry,
+                  shortStrike: index === 4 ? 600 : 105,
+                  sleeveKey: index % 2 === 0 ? "a" : "b",
+                  symbol: symbols[index % 3] ?? "SPY",
+                })
+              ),
+              ...creditQuotes.map((entry, index) =>
+                draft(`c${index}`, {
+                  longStrike: 95,
+                  quote: entry,
+                  shortStrike: 100,
+                  sleeveKey: index % 2 === 0 ? "b" : "a",
+                  structure: "putCreditVertical",
+                  symbol: symbols[(index + 1) % 3] ?? "SPY",
+                })
+              ),
+            ];
+            // The approved draft (sleeve a, SPY) holds 882 whatever is sized for it today.
+            let open = 88_200;
+            let positions = 1;
+            const bySleeve = new Map([["a", 88_200]]);
+            const byName = new Map([["SPY", 88_200]]);
+            for (const { draft: one, sizing } of sizeDrafts(
+              plan,
+              drafts,
+              nlvCents / 100
+            )) {
+              const budgetCents = cents(sizing.budget);
+              // The budget is the share rounded down to the cent: not above, and not a cent less.
+              expect(within(budgetCents, nlvCents, position)).toBe(true);
+              expect(within(budgetCents + 1, nlvCents, position)).toBe(false);
+              if (sizing.maxLoss === null) {
+                expect(sizing.quantity).toBe(0);
+                continue;
+              }
+              sizedCount += 1;
+              const perSpread = cents(sizing.maxLossPerSpread);
+              const loss = cents(sizing.maxLoss);
+              expect(loss).toBe(sizing.quantity * perSpread);
+              expect(loss).toBeLessThanOrEqual(budgetCents);
+              // One more spread would not fit the budget.
+              expect(loss + perSpread).toBeGreaterThan(budgetCents);
+              expect(sizing.quantity).toBeLessThanOrEqual(
+                GOLIVE_ORDER_MAX_QUANTITY
+              );
+              if (one.state !== "proposed") continue;
+              open += loss;
+              positions += 1;
+              const inSleeve = (bySleeve.get(one.sleeveKey) ?? 0) + loss;
+              const inName = (byName.get(one.symbol) ?? 0) + loss;
+              bySleeve.set(one.sleeveKey, inSleeve);
+              byName.set(one.symbol, inName);
+              const sleeveTenths = one.sleeveKey === "a" ? cap + 3 : cap;
+              expect(within(inSleeve, nlvCents, sleeveTenths)).toBe(true);
+              expect(within(inName, nlvCents, cap)).toBe(true);
+              expect(within(open, nlvCents, 2 * cap)).toBe(true);
+              expect(positions).toBeLessThanOrEqual(4);
+            }
+          }
+      // The grid does size drafts: the checks above ran.
+      expect(sizedCount).toBeGreaterThan(200);
+    });
   });
 
   it("sizes rejected and expired drafts alone, without using cap room", () => {
@@ -636,7 +1124,9 @@ describe("notApprovableReasons", () => {
       )
     ).toEqual([]);
     expect(
-      notApprovableReasons(approvable({}, { quote: at(-60_000) }))
+      notApprovableReasons(
+        approvable({}, { quote: at(-GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS) })
+      )
     ).toEqual([]);
   });
 

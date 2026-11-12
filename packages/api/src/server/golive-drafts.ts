@@ -7,6 +7,7 @@ import { call, implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import {
+  GOLIVE_DRAFT_LIST_MAX,
   type GoLiveDraftOutput,
   GoLiveDraftSchema,
   GoLivePlanSchema,
@@ -18,6 +19,8 @@ import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
 import type { ApiContext } from "./context.ts";
 import { evaluateFinalOrderGate } from "./final-order-gate.ts";
 import {
+  approvedOrderFitsDraft,
+  GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS,
   notApprovableReasons,
   orderFor,
   orderSessionDay,
@@ -38,7 +41,9 @@ import {
 // queue: operator session, agent viewer or a read key. A key caller never gets the account
 // value: the account is not read for it, so its drafts come back unsized (nlv_unavailable).
 // collect: the rig generator's write key. A quote labelled ibkr_live is refused while no live
-// IBKR option quote source exists (dependencies.liveQuoteSource, false by default).
+// IBKR option quote source exists (dependencies.liveQuoteSource, false by default), and so is a
+// quote dated more than 60 s after the server clock. A later run of the day refreshes the stored
+// drafts that have no decision; a trading day holds at most GOLIVE_DRAFT_LIST_MAX drafts.
 // approve and reject: the owner (operator and admin role) in a browser session; API keys refused.
 // queue.canDecide tells the caller whether it is that owner, by the same check (decisionRefusal).
 // Quantity, limit, max loss and the pre-check are computed at read time and never stored. The
@@ -177,11 +182,29 @@ const PLAN_MISMATCH_MESSAGE =
 // Store errors by class name (the classes live in @darkfactory/db).
 const STORE_ERRORS: ReadonlyMap<
   string,
-  Readonly<{ code: "CONFLICT" | "NOT_FOUND"; message: string }>
+  Readonly<{
+    code: "CONFLICT" | "NOT_FOUND" | "VALIDATION_ERROR";
+    message: string;
+  }>
 > = new Map([
+  [
+    "GoLiveDraftChangedError",
+    {
+      code: "CONFLICT",
+      message:
+        "The draft changed after the queue was read (a later generator run); reload the queue",
+    },
+  ],
   [
     "GoLiveDraftConflictError",
     { code: "CONFLICT", message: "The draft is no longer proposed" },
+  ],
+  [
+    "GoLiveDraftLimitError",
+    {
+      code: "VALIDATION_ERROR",
+      message: `The batch would take the trading day above ${GOLIVE_DRAFT_LIST_MAX} drafts; nothing was stored`,
+    },
   ],
   [
     "GoLiveDraftNotFoundError",
@@ -277,18 +300,26 @@ const planProblem = (plan: GoLivePlanRecord | null): string | null => {
 
 const StoredOrderSchema = GoLiveDraftSchema.shape.approvedOrder.unwrap();
 
-/** The first approved draft whose stored order is missing or is not an order, or null. */
+/**
+ * The first approved draft whose stored order is missing, is not an order, or is not the order of
+ * that draft (approvedOrderFitsDraft), or null. The room an approved draft holds is computed
+ * from its stored order, so the sizing refuses such a draft; it is named here first. Call it
+ * after strikesProblem: the order of a draft with wrong strikes cannot be compared.
+ */
 const approvedOrderProblem = (
   records: readonly GoLiveDraftRecord[]
 ): string | null => {
   const broken = records.find(
     (record) =>
       record.state === "approved" &&
-      !StoredOrderSchema.safeParse(record.approvedOrder).success
+      !(
+        StoredOrderSchema.safeParse(record.approvedOrder).success &&
+        approvedOrderFitsDraft(record, record.approvedOrder)
+      )
   );
   return broken === undefined
     ? null
-    : `Draft ${broken.id} is approved and its stored approved order is missing or is not a valid order`;
+    : `Draft ${broken.id} is approved and its stored approved order is missing or is not the order of that draft`;
 };
 
 /**
@@ -312,12 +343,20 @@ const strikesProblem = (
     : `Draft ${broken.id} has strikes that are the wrong way round for ${broken.structure} and cannot be sized`;
 };
 
+// The stored drafts that the sizing would refuse, by name: wrong strikes first.
+const draftsProblem = (records: readonly GoLiveDraftRecord[]): string | null =>
+  strikesProblem(records) ?? approvedOrderProblem(records);
+
 // What the store holds is checked before it is sized and returned: a problem is named, so it
 // never fails the answer as an unexplained 500 and never reaches the page.
 const storedProblem = (loaded: Loaded): string | null =>
   planProblem(loaded.plan) ??
-  approvedOrderProblem(loaded.records) ??
-  strikesProblem(loaded.records);
+  draftsProblem(loaded.records) ??
+  // collect keeps a day at or below the limit, so more can only follow a manual change. The
+  // answer never lists a part of a day.
+  (loaded.records.length > GOLIVE_DRAFT_LIST_MAX
+    ? `The trading day holds ${loaded.records.length} stored drafts, more than the ${GOLIVE_DRAFT_LIST_MAX} the queue lists`
+    : null);
 
 /**
  * Each record with its size, exact order, dry pre-check and the reasons it cannot be approved.
@@ -503,10 +542,22 @@ const collect = api.goLiveDrafts.collect
     const repository = repositoryFor(context, failures);
     // Only the session in which an order would be placed. A late run for a past day would
     // bring that day's expired drafts back in the store.
-    const accepted = orderSessionDay(clock());
+    const now = clock();
+    const accepted = orderSessionDay(now);
     if (input.tradingDay !== accepted)
       throw failures.VALIDATION_ERROR({
         message: `collect accepts only trading day ${accepted}, the session in which an order would be placed`,
+      });
+    // A quote dated ahead of the server clock would count as live later, without being read
+    // again. The same 60 s that the approval rule allows.
+    const latest = now.getTime() + GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS;
+    const ahead = input.candidates.find(
+      (candidate) =>
+        candidate.quote !== null && candidate.quote.asOf.getTime() > latest
+    );
+    if (ahead !== undefined)
+      throw failures.VALIDATION_ERROR({
+        message: `The quote of ${ahead.symbol} is dated more than ${GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS / 1000} s after the server clock`,
       });
     const plan = await repository.planInForce();
     if (
@@ -533,16 +584,19 @@ const collect = api.goLiveDrafts.collect
           message: `Sleeve ${sleeve.key} trades ${sleeve.structure}, not ${candidate.structure}`,
         });
     }
-    const { created, expired, unchanged } = await storeCall(failures, () =>
-      repository.collect({
-        candidates: input.candidates,
-        generatedAt: input.generatedAt,
-        planId: input.planId,
-        planVersion: input.planVersion,
-        tradingDay: input.tradingDay,
-      })
+    const { created, expired, unchanged, updated } = await storeCall(
+      failures,
+      () =>
+        repository.collect({
+          candidates: input.candidates,
+          generatedAt: input.generatedAt,
+          maxDrafts: GOLIVE_DRAFT_LIST_MAX,
+          planId: input.planId,
+          planVersion: input.planVersion,
+          tradingDay: input.tradingDay,
+        })
     );
-    return { created, expired, unchanged };
+    return { created, expired, unchanged, updated };
   });
 
 // Records the decision and nothing else. The store has no lookup by id, so the draft must be in
@@ -584,6 +638,8 @@ const approve = api.goLiveDrafts.approve
         approvedOrder: sized,
         decidedBy: context.principal.userId,
         decision: "approved",
+        // The draft as this request read it: a collect that changed it since refuses the write.
+        expectedUpdatedAt: draft.updatedAt,
         id: input.id,
         nodeBadge: loaded.node.badge,
         note: input.note ?? null,
@@ -610,8 +666,8 @@ const reject = api.goLiveDrafts.reject
     );
     const loaded = await load(context, repository, record.tradingDay, clock());
     // The rejection is stored. Its answer sizes the whole day, which a draft with wrong strikes
-    // would fail without a name.
-    const problem = strikesProblem(loaded.records);
+    // or an approved draft without its order would fail without a name.
+    const problem = draftsProblem(loaded.records);
     if (problem !== null)
       throw failures.STORAGE_ERROR({
         message: `The rejection of draft ${record.id} was stored. ${problem}`,

@@ -109135,6 +109135,7 @@
                           "enum": [
                             "sized",
                             "budget_below_one_spread",
+                            "quantity_above_order_limit",
                             "nlv_unavailable",
                             "no_quote",
                             "sleeve_budget_used",
@@ -110330,6 +110331,7 @@
                           "enum": [
                             "sized",
                             "budget_below_one_spread",
+                            "quantity_above_order_limit",
                             "nlv_unavailable",
                             "no_quote",
                             "sleeve_budget_used",
@@ -110971,8 +110973,7 @@
                               "properties": {
                                 "asOf": {
                                   "format": "date-time",
-                                  "type": "string",
-                                  "x-native-type": "date"
+                                  "type": "string"
                                 },
                                 "longAsk": {
                                   "minimum": 0,
@@ -111064,8 +111065,7 @@
                   },
                   "generatedAt": {
                     "format": "date-time",
-                    "type": "string",
-                    "x-native-type": "date"
+                    "type": "string"
                   },
                   "planId": {
                     "maxLength": 128,
@@ -111117,12 +111117,18 @@
                       "maximum": 9007199254740991,
                       "minimum": 0,
                       "type": "integer"
+                    },
+                    "updated": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
                     }
                   },
                   "required": [
                     "created",
                     "expired",
-                    "unchanged"
+                    "unchanged",
+                    "updated"
                   ],
                   "type": "object"
                 }
@@ -112263,6 +112269,7 @@
                                 "enum": [
                                   "sized",
                                   "budget_below_one_spread",
+                                  "quantity_above_order_limit",
                                   "nlv_unavailable",
                                   "no_quote",
                                   "sleeve_budget_used",
@@ -112352,6 +112359,7 @@
                         ],
                         "type": "object"
                       },
+                      "maxItems": 200,
                       "type": "array"
                     },
                     "generatedAt": {

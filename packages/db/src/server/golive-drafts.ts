@@ -39,11 +39,13 @@ import { type DatabaseExecutor, withTransaction } from "./client.ts";
 
 // Go-live draft queue store (goLiveDrafts.*). One plan is in force at a time (proposed or
 // approved); writePlan retires it and inserts the next version. collect stores the generator's
-// entry candidates of one trading day under deterministic ids, so a rerun changes nothing, and
-// expires proposed drafts that are no longer wanted. decide records the owner's approval or
-// rejection of a proposed draft, once; an approval stores the approved order in the same
-// statement. Inputs are validated by the oRPC contract and the seed script; the table checks
-// enforce the same rules. RECORDS ONLY: no order path.
+// entry candidates of one trading day under deterministic ids. A rerun adds no second draft: it
+// gives a stored draft without a decision the quote, the facts and the entry basis of the later
+// run, and expires proposed drafts that are no longer wanted. decide records the owner's
+// approval or rejection of a proposed draft, once; an approval stores the approved order in the
+// same statement, and only while the draft is as the approval read it. Inputs are validated by
+// the oRPC contract and the seed script; the table checks enforce the same rules.
+// RECORDS ONLY: no order path.
 
 export type {
   GoLiveApprovedOrderLegValue,
@@ -157,10 +159,14 @@ export type GoLiveCollectRecord = Readonly<{
   tradingDay: string;
   generatedAt: Date;
   candidates: readonly GoLiveDraftCandidateInput[];
+  /** The most drafts the trading day may hold after this run (GOLIVE_DRAFT_LIST_MAX). */
+  maxDrafts: number;
 }>;
 
+/** Every candidate of the run is counted once in created, updated or unchanged. */
 export type GoLiveCollectResult = Readonly<{
   created: number;
+  updated: number;
   unchanged: number;
   expired: number;
 }>;
@@ -186,16 +192,24 @@ interface GoLiveDecisionFields {
   nodeBadge: GoLiveNodeBadgeValue | null;
 }
 
-/** An approval always carries the approved order; a rejection never carries one. */
+/**
+ * An approval always carries the approved order and the updated time of the draft as the
+ * approving request read it; a rejection carries neither.
+ */
 export type GoLiveDecideInput =
   | Readonly<
       GoLiveDecisionFields & {
         decision: "approved";
         approvedOrder: GoLiveApprovedOrderInput;
+        expectedUpdatedAt: Date;
       }
     >
   | Readonly<
-      GoLiveDecisionFields & { decision: "rejected"; approvedOrder?: never }
+      GoLiveDecisionFields & {
+        decision: "rejected";
+        approvedOrder?: never;
+        expectedUpdatedAt?: never;
+      }
     >;
 
 export class GoLiveDraftNotFoundError extends Error {
@@ -214,6 +228,35 @@ export class GoLiveDraftConflictError extends Error {
     super(`Go-live draft ${draftId} is no longer proposed`);
     this.name = "GoLiveDraftConflictError";
     this.draftId = draftId;
+  }
+}
+
+/** The draft is still proposed and is not as the approval read it: a collect changed it. */
+export class GoLiveDraftChangedError extends Error {
+  readonly draftId: string;
+  constructor(draftId: string) {
+    super(`Go-live draft ${draftId} changed after it was read`);
+    this.name = "GoLiveDraftChangedError";
+    this.draftId = draftId;
+  }
+}
+
+/** The run would take the drafts of its trading day above the limit. Nothing was written. */
+export class GoLiveDraftLimitError extends Error {
+  readonly tradingDay: string;
+  readonly limit: number;
+  constructor(
+    tradingDay: string,
+    limit: number,
+    stored: number,
+    added: number
+  ) {
+    super(
+      `Trading day ${tradingDay} holds ${stored} go-live drafts and the run adds ${added}: more than the limit of ${limit}`
+    );
+    this.name = "GoLiveDraftLimitError";
+    this.tradingDay = tradingDay;
+    this.limit = limit;
   }
 }
 
@@ -252,17 +295,24 @@ export type GoLiveDraftsRepository = Readonly<{
   lastRun: (tradingDay: string) => Promise<GoLiveDraftRunRecord | null>;
   /**
    * One transaction. Throws GoLivePlanMismatchError unless planId and planVersion are the plan in
-   * force. Inserts the candidates whose id is new as proposed entry drafts and leaves stored ids
-   * as they are, except that an undecided expired draft of this trading day that is wanted again
-   * goes back to proposed (counted as unchanged). Expires proposed drafts of earlier trading days and proposed entry drafts of
-   * this trading day that are not in this run. Approved and rejected drafts never change.
+   * force, and GoLiveDraftLimitError when the run would take the trading day above maxDrafts;
+   * a refused run writes nothing. Each candidate is counted once:
+   * - created: its id is new; it is stored as a proposed entry draft.
+   * - updated: its id is stored without a decision, and the stored quote, facts or entry basis
+   *   differ (they are replaced), or the draft was expired by an earlier run of this trading day
+   *   (it goes back to proposed with the content of this run).
+   * - unchanged: nothing was written: the stored draft is the same, or it is approved or
+   *   rejected. Approved and rejected drafts never change.
+   * Then expires proposed drafts of earlier trading days and proposed entry drafts of this
+   * trading day that are not in this run (expired).
    */
   collect: (run: GoLiveCollectRecord) => Promise<GoLiveCollectResult>;
   /**
    * Records the owner's decision on a proposed draft. An approval stores its order in the same
-   * statement that moves the draft from proposed to approved; a rejection stores no order. Throws
-   * GoLiveDraftNotFoundError for an unknown id and GoLiveDraftConflictError when the draft is not
-   * proposed any more.
+   * statement that moves the draft from proposed to approved, and only while the draft is as it
+   * was read (expectedUpdatedAt); a rejection stores no order. Throws GoLiveDraftNotFoundError
+   * for an unknown id, GoLiveDraftChangedError when a proposed draft changed after it was read,
+   * and GoLiveDraftConflictError when the draft is not proposed any more.
    */
   decide: (input: GoLiveDecideInput) => Promise<GoLiveDraftRecord>;
 }>;
@@ -434,6 +484,124 @@ const assertPlanInForce = (
   }
 };
 
+// A draft without a decision: proposed, or expired (an expired draft never holds a decision).
+const OPEN_STATES: GoLiveDraftStateValue[] = ["proposed", "expired"];
+
+const sameQuote = (
+  a: GoLiveStoredQuoteValue | null,
+  b: GoLiveStoredQuoteValue | null
+): boolean =>
+  a === null || b === null
+    ? a === b
+    : a.asOf === b.asOf &&
+      a.longAsk === b.longAsk &&
+      a.longBid === b.longBid &&
+      a.shortAsk === b.shortAsk &&
+      a.shortBid === b.shortBid &&
+      a.source === b.source;
+
+/**
+ * true when collect must write a stored draft that a run sends again: the draft has no decision
+ * and it is expired (it goes back to proposed), or its quote, its facts or its entry basis
+ * differ from the candidate. Approved and rejected drafts are never written.
+ */
+const needsRefresh = (
+  row: Readonly<{
+    entryBasis: GoLiveEntryBasisValue | null;
+    quote: GoLiveStoredQuoteValue | null;
+    signalFacts: readonly string[];
+    state: GoLiveDraftStateValue;
+  }>,
+  candidate: GoLiveDraftCandidateInput
+): boolean => {
+  if (!OPEN_STATES.includes(row.state)) return false;
+  return (
+    row.state === "expired" ||
+    row.entryBasis !== candidate.entryBasis ||
+    !sameQuote(row.quote, storedQuote(candidate.quote)) ||
+    row.signalFacts.length !== candidate.signalFacts.length ||
+    row.signalFacts.some((fact, index) => fact !== candidate.signalFacts[index])
+  );
+};
+
+/**
+ * Stores the wanted entries of a run that are new and refreshes the stored ones that have no
+ * decision. Throws GoLiveDraftLimitError before the first write when the trading day would hold
+ * more than run.maxDrafts. Returns how many drafts were created and how many were updated.
+ */
+const storeWanted = async (
+  transaction: DatabaseExecutor,
+  run: GoLiveCollectRecord,
+  wanted: ReadonlyMap<string, GoLiveDraftCandidateInput>,
+  at: Date
+): Promise<Readonly<{ created: number; updated: number }>> => {
+  let created = 0;
+  let updated = 0;
+  // Every draft of this trading day, locked until the transaction ends, in id order so
+  // that two runs take the locks in the same order. An id holds its trading day, so a
+  // stored draft with a wanted id is always in this list.
+  const stored = await transaction
+    .select({
+      entryBasis: goLiveDrafts.entryBasis,
+      id: goLiveDrafts.id,
+      quote: goLiveDrafts.quote,
+      signalFacts: goLiveDrafts.signalFacts,
+      state: goLiveDrafts.state,
+    })
+    .from(goLiveDrafts)
+    .where(eq(goLiveDrafts.tradingDay, run.tradingDay))
+    .orderBy(asc(goLiveDrafts.id))
+    .for("update");
+  const storedById = new Map(stored.map((row) => [row.id, row]));
+  const fresh = [...wanted].filter(([id]) => !storedById.has(id));
+  // Checked before the first write: a refused run stores, refreshes and expires nothing.
+  if (stored.length + fresh.length > run.maxDrafts)
+    throw new GoLiveDraftLimitError(
+      run.tradingDay,
+      run.maxDrafts,
+      stored.length,
+      fresh.length
+    );
+  if (fresh.length > 0) {
+    const inserted = await transaction
+      .insert(goLiveDrafts)
+      .values(
+        fresh.map(([id, candidate]) => draftValues(run, id, candidate, at))
+      )
+      .onConflictDoNothing({ target: goLiveDrafts.id })
+      .returning({ id: goLiveDrafts.id });
+    created = inserted.length;
+  }
+  // A stored draft without a decision gets the quote, the facts and the entry basis of
+  // this run, so the 12:40 and 15:40 runs replace what the first run of the day stored.
+  // A draft that an earlier run of today expired and that is wanted again goes back to
+  // proposed. Nothing is written for a proposed draft that is sent again unchanged, and
+  // approved and rejected drafts never change, whatever the run sends.
+  for (const [id, candidate] of wanted) {
+    const row = storedById.get(id);
+    if (row === undefined || !needsRefresh(row, candidate)) continue;
+    const refreshed = await transaction
+      .update(goLiveDrafts)
+      .set({
+        entryBasis: candidate.entryBasis,
+        quote: storedQuote(candidate.quote),
+        signalFacts: [...candidate.signalFacts],
+        state: "proposed",
+        updatedAt: at,
+      })
+      .where(
+        and(
+          eq(goLiveDrafts.id, id),
+          inArray(goLiveDrafts.state, OPEN_STATES),
+          isNull(goLiveDrafts.decidedBy)
+        )
+      )
+      .returning({ id: goLiveDrafts.id });
+    updated += refreshed.length;
+  }
+  return { created, updated };
+};
+
 export const createGoLiveDraftsRepository = (
   database: DatabaseExecutor,
   dependencies: GoLiveDraftsRepositoryDependencies = {}
@@ -464,32 +632,10 @@ export const createGoLiveDraftsRepository = (
           if (!wanted.has(id)) wanted.set(id, candidate);
         }
         const ids = [...wanted.keys()];
-        const rows = [...wanted].map(([id, candidate]) =>
-          draftValues(run, id, candidate, at)
-        );
-        let created = 0;
-        if (ids.length > 0) {
-          const inserted = await transaction
-            .insert(goLiveDrafts)
-            .values(rows)
-            .onConflictDoNothing({ target: goLiveDrafts.id })
-            .returning({ id: goLiveDrafts.id });
-          created = inserted.length;
-          // A draft that dropped out of an earlier run of this trading day and is wanted again
-          // goes back to proposed, so it can be approved today. Only an undecided expired draft
-          // of this trading day: approved and rejected drafts and earlier days never change.
-          await transaction
-            .update(goLiveDrafts)
-            .set({ state: "proposed", updatedAt: at })
-            .where(
-              and(
-                eq(goLiveDrafts.tradingDay, run.tradingDay),
-                eq(goLiveDrafts.state, "expired"),
-                isNull(goLiveDrafts.decidedBy),
-                inArray(goLiveDrafts.id, ids)
-              )
-            );
-        }
+        const { created, updated } =
+          ids.length === 0
+            ? { created: 0, updated: 0 }
+            : await storeWanted(transaction, run, wanted, at);
         // Exit drafts are not part of a generator run, so a run never expires today's exits.
         const todayNotWanted = and(
           eq(goLiveDrafts.tradingDay, run.tradingDay),
@@ -522,14 +668,26 @@ export const createGoLiveDraftsRepository = (
         return {
           created,
           expired: expired.length,
-          unchanged: ids.length - created,
+          unchanged: ids.length - created - updated,
+          updated,
         };
       }),
     decide: async (input) => {
       const at = now();
-      // Built before the statement, so an input without a usable order writes nothing.
+      // Both are built before the statement, so an approval without a usable order or without
+      // the time its draft was read at writes nothing.
       const approvedOrder =
         input.decision === "approved" ? storedOrder(input.approvedOrder) : null;
+      // An approval matches the draft only as it was read: a collect that refreshed the quote,
+      // the facts or the entry basis in between moved updated_at. A rejection has no such
+      // condition: it does not depend on what the draft holds.
+      const asRead =
+        input.decision === "approved"
+          ? eq(
+              goLiveDrafts.updatedAt,
+              new Date(input.expectedUpdatedAt.getTime())
+            )
+          : undefined;
       // One statement: the state, the decision fields and the approved order change together,
       // and only while the draft is still proposed. The table check refuses an approved row
       // without an order and an order on any other state.
@@ -545,17 +703,25 @@ export const createGoLiveDraftsRepository = (
           updatedAt: at,
         })
         .where(
-          and(eq(goLiveDrafts.id, input.id), eq(goLiveDrafts.state, "proposed"))
+          and(
+            eq(goLiveDrafts.id, input.id),
+            eq(goLiveDrafts.state, "proposed"),
+            asRead
+          )
         )
         .returning();
       const row = decided[0];
       if (row !== undefined) return draftOf(row);
       const existing = await database
-        .select({ id: goLiveDrafts.id })
+        .select({ id: goLiveDrafts.id, state: goLiveDrafts.state })
         .from(goLiveDrafts)
         .where(eq(goLiveDrafts.id, input.id))
         .limit(1);
-      if (existing.length === 0) throw new GoLiveDraftNotFoundError(input.id);
+      const found = existing[0];
+      if (found === undefined) throw new GoLiveDraftNotFoundError(input.id);
+      // Still proposed, and the statement did not match: the draft is not as it was read.
+      if (found.state === "proposed")
+        throw new GoLiveDraftChangedError(input.id);
       throw new GoLiveDraftConflictError(input.id);
     },
     lastRun: async (tradingDay) => {

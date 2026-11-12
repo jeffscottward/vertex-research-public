@@ -6,21 +6,31 @@ import {
   type GoLiveSizing,
   goLiveStrikesFitStructure,
 } from "../contracts/golive-drafts.ts";
-import type { VertexComboInput } from "../contracts/vertex-orders.ts";
+import {
+  type VertexComboInput,
+  VertexComboInputSchema,
+} from "../contracts/vertex-orders.ts";
 import { formatDay, parseDay } from "../options-engine/calendar.ts";
 import { isNyseTradingDay } from "../strategy-dsl-compile.ts";
 
 // Go-live draft queue: order session day, limit, size and approval rules. Pure: no I/O and no
-// clock; the account value, the quotes and the time are passed in. The max-loss arithmetic is the arithmetic of
-// final-order-gate.ts (golive-drafts-sizing.test.ts checks that both agree).
+// clock; the account value, the quotes and the time are passed in. Money is counted in whole
+// cents, so a max loss is never a cent above its budget or a cap. The max-loss arithmetic is the
+// arithmetic of final-order-gate.ts (golive-drafts-sizing.test.ts checks that both agree).
 // Known limit of this version: positions already held in the account are not counted against the
 // sleeve, name, open-risk and position caps. Only the drafts of the trading day are.
 
-const MULTIPLIER = 100;
-const EPSILON = 1e-6;
-// A quote counts as live for 120 s. A time more than 60 s in the future is not trusted.
+// A cent amount computed from decimal prices is within this of a whole number (binary floats).
+const CENT_NOISE = 1e-6;
+// A quote counts as live for 120 s. A time more than 60 s in the future is not trusted: not when
+// a draft is approved, and not when collect stores the quote.
 export const GOLIVE_QUOTE_MAX_AGE_MS = 120_000;
-const QUOTE_MAX_FUTURE_SKEW_MS = 60_000;
+export const GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS = 60_000;
+// The most spreads one combo order may hold: the quantity limit of VertexComboInputSchema, read
+// from the schema. Number(null) is 0, so a schema without a limit would size nothing.
+export const GOLIVE_ORDER_MAX_QUANTITY = Number(
+  VertexComboInputSchema.shape.quantity.maxValue
+);
 
 const NY_DATE = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
@@ -71,16 +81,19 @@ export type GoLiveSizingPlan = Readonly<{
   sleeves: readonly Readonly<{ budgetPct: number; key: string }>[];
 }>;
 
-export type GoLiveSizingDraft = Readonly<{
-  id: string;
-  longStrike: number;
-  quote: QuotePrices | null;
-  shortStrike: number;
-  sleeveKey: string;
-  state: DraftState;
-  structure: Structure;
-  symbol: string;
-}>;
+export type GoLiveSizingDraft = GoLiveSpread &
+  Readonly<{
+    // The order stored with an approval: it gives the room an approved draft holds.
+    approvedOrder: VertexComboInput | null;
+    entryBasis: GoLiveDraftOutput["entryBasis"];
+    id: string;
+    quote: QuotePrices | null;
+    sleeveKey: string;
+    state: DraftState;
+  }>;
+
+/** Whole cents of a price or a strike width in dollars. */
+const toCents = (dollars: number): number => Math.round(dollars * 100);
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
@@ -153,11 +166,12 @@ export const buildCombo = (
   };
 };
 
-// null: the side is missing (not a number, a negative bid, no ask) or crossed (bid above ask).
+// null: the side is missing (not a number, no ask), has no bid (a bid of 0 or below: nobody
+// bids, so the mid is no price) or is crossed (bid above ask).
 const mid = (bid: number, ask: number): number | null =>
   Number.isFinite(bid) &&
   Number.isFinite(ask) &&
-  bid >= 0 &&
+  bid > 0 &&
   ask > 0 &&
   bid <= ask
     ? (bid + ask) / 2
@@ -166,8 +180,8 @@ const mid = (bid: number, ask: number): number | null =>
 /**
  * Net limit per spread from the two mids. Debit: long mid - short mid, rounded DOWN to a cent
  * (never above mid). Credit: short mid - long mid, rounded UP to a cent (never below mid) and
- * returned negative. null when a side is missing or crossed, or when the net or the rounded
- * limit is not strictly between 0 and the strike width.
+ * returned negative. null when a side is missing, has a bid of 0 or is crossed, or when the
+ * rounded limit is not strictly between 0 and the strike width (at least one cent from each).
  */
 export const limitFromQuote = (
   structure: Structure,
@@ -180,35 +194,56 @@ export const limitFromQuote = (
   if (long === null || short === null) return null;
   const debit = isDebit(structure);
   const net = debit ? long - short : short - long;
-  if (!(net > 0 && net < width)) return null;
-  // Mids are half cents: the epsilon removes binary float noise before the cent rounding.
-  const limit =
-    (debit ? Math.floor(net * 100 + EPSILON) : Math.ceil(net * 100 - EPSILON)) /
-    100;
-  if (!(limit > 0 && limit < width)) return null;
-  return debit ? limit : -limit;
+  // Mids are half cents: the noise term removes binary float error before the cent rounding.
+  const cents = debit
+    ? Math.floor(net * 100 + CENT_NOISE)
+    : Math.ceil(net * 100 - CENT_NOISE);
+  if (!(cents >= 1 && cents <= toCents(width) - 1)) return null;
+  return (debit ? cents : -cents) / 100;
 };
+
+// One option contract is 100 shares.
+const MULTIPLIER = 100;
+
+// Max loss of one spread in whole cents: the price per share in cents x 100 shares. Debit: the
+// limit. Credit: width - credit.
+const lossCentsPerSpread = (
+  structure: Structure,
+  limitPrice: number,
+  width: number
+): number =>
+  MULTIPLIER *
+  (isDebit(structure)
+    ? toCents(limitPrice)
+    : toCents(width) - toCents(-limitPrice));
 
 /**
  * Max loss of `quantity` spreads. Debit: limit x quantity x 100. Credit: (width - credit) x
- * quantity x 100. The same expressions as classifyVertical in final-order-gate.ts.
+ * quantity x 100. The same amounts as classifyVertical in final-order-gate.ts, counted in cents.
  */
 export const maxLoss = (
   structure: Structure,
   limitPrice: number,
   width: number,
   quantity: number
-): number => {
-  if (isDebit(structure)) return round2(limitPrice * quantity * MULTIPLIER);
-  const credit = -limitPrice;
-  return round2((width - credit) * quantity * MULTIPLIER);
-};
+): number =>
+  (lossCentsPerSpread(structure, limitPrice, width) * quantity) / 100;
 
 export const maxLossPerSpread = (
   structure: Structure,
   limitPrice: number,
   width: number
 ): number => maxLoss(structure, limitPrice, width, 1);
+
+/**
+ * pct% of an amount of whole cents, rounded DOWN to the cent. Whole-number arithmetic (the
+ * percentage is cut at its sixth decimal), so the result is never above the exact share.
+ */
+const shareCents = (amountCents: number, pct: number): number =>
+  Number(
+    (BigInt(amountCents) * BigInt(Math.floor(pct * 1_000_000 + 1e-3))) /
+      100_000_000n
+  );
 
 // No plan: no budget and no room, so every draft is sized to 0.
 const NO_PLAN: GoLiveSizingPlan = {
@@ -219,13 +254,6 @@ const NO_PLAN: GoLiveSizingPlan = {
     positionRiskPct: 0,
   },
   sleeves: [],
-};
-
-const STATE_RANK: Readonly<Record<DraftState, number>> = {
-  approved: 0,
-  expired: 2,
-  proposed: 1,
-  rejected: 2,
 };
 
 const compareText = (a: string, b: string): number => {
@@ -245,102 +273,6 @@ const unsized = (
   quantity: 0,
   reason,
 });
-
-/**
- * Quantity and max loss of every draft, in the order given.
- * Per draft: budget = positionRiskPct% of NLV; quantity = floor(budget / max loss per spread).
- * Then the caps, in this fixed order, over the drafts sorted approved first, then by sleeve order
- * in the plan, then by symbol: sleeve budget, name cap, open risk cap, max positions. A draft that
- * does not fit whole gets quantity 0 and the reason of the first cap it breaks.
- * Only proposed and approved drafts use cap room. A rejected or expired draft is sized on its own
- * budget alone, to show what was proposed.
- */
-export const sizeDrafts = <T extends GoLiveSizingDraft>(
-  plan: GoLiveSizingPlan | null,
-  drafts: readonly T[],
-  nlv: number | null
-): Readonly<{ draft: T; sizing: GoLiveSizing }>[] => {
-  // Before anything else, also before the account value is looked at: see the function.
-  for (const draft of drafts) assertStrikesFitStructure(draft);
-  if (nlv === null || !(nlv > 0))
-    return drafts.map((draft) => ({
-      draft,
-      sizing: unsized(null, "nlv_unavailable"),
-    }));
-  const { limits, sleeves } = plan ?? NO_PLAN;
-  const share = (pct: number): number => (nlv * pct) / 100;
-  const budget = round2(share(limits.positionRiskPct));
-  const sleeveRank = (key: string): number => {
-    const index = sleeves.findIndex((sleeve) => sleeve.key === key);
-    return index === -1 ? sleeves.length : index;
-  };
-  const usedBySleeve = new Map<string, number>();
-  const usedByName = new Map<string, number>();
-  let openRisk = 0;
-  let positions = 0;
-
-  const capReason = (draft: T, loss: number): SizingReason => {
-    const sleeve = sleeves.find((entry) => entry.key === draft.sleeveKey);
-    const inSleeve = usedBySleeve.get(draft.sleeveKey) ?? 0;
-    const inName = usedByName.get(draft.symbol) ?? 0;
-    if (inSleeve + loss > share(sleeve?.budgetPct ?? 0) + EPSILON)
-      return "sleeve_budget_used";
-    if (inName + loss > share(limits.nameRiskCapPct) + EPSILON)
-      return "name_cap_reached";
-    if (openRisk + loss > share(limits.openRiskCapPct) + EPSILON)
-      return "open_risk_cap_reached";
-    if (positions + 1 > limits.maxPositions) return "max_positions_reached";
-    usedBySleeve.set(draft.sleeveKey, inSleeve + loss);
-    usedByName.set(draft.symbol, inName + loss);
-    openRisk += loss;
-    positions += 1;
-    return "sized";
-  };
-
-  const sizeOne = (draft: T): GoLiveSizing => {
-    const width = strikeWidth(draft);
-    const limitPrice = limitFromQuote(draft.structure, draft.quote, width);
-    if (limitPrice === null) return unsized(budget, "no_quote");
-    const perSpread = maxLossPerSpread(draft.structure, limitPrice, width);
-    const quantity = Math.floor(budget / perSpread + EPSILON);
-    const loss = maxLoss(draft.structure, limitPrice, width, quantity);
-    let reason: SizingReason = "sized";
-    if (quantity === 0) reason = "budget_below_one_spread";
-    else if (STATE_RANK[draft.state] < 2) reason = capReason(draft, loss);
-    const fits = reason === "sized";
-    return {
-      budget,
-      limitPrice,
-      maxLoss: fits ? loss : null,
-      maxLossPctNlv: fits ? round2((loss / nlv) * 100) : null,
-      maxLossPerSpread: perSpread,
-      quantity: fits ? quantity : 0,
-      reason,
-    };
-  };
-
-  return drafts
-    .map((draft, index) => ({ draft, index }))
-    .sort(
-      (a, b) =>
-        STATE_RANK[a.draft.state] - STATE_RANK[b.draft.state] ||
-        sleeveRank(a.draft.sleeveKey) - sleeveRank(b.draft.sleeveKey) ||
-        compareText(a.draft.symbol, b.draft.symbol) ||
-        compareText(a.draft.id, b.draft.id)
-    )
-    .map(({ draft, index }) => ({ draft, index, sizing: sizeOne(draft) }))
-    .sort((a, b) => a.index - b.index)
-    .map(({ draft, sizing }) => ({ draft, sizing }));
-};
-
-/** The exact combo of a sized draft; null when the draft is sized to 0. */
-export const orderFor = (
-  draft: GoLiveSpread,
-  sizing: GoLiveSizing
-): VertexComboInput | null =>
-  sizing.quantity > 0 && sizing.limitPrice !== null
-    ? buildCombo(draft, sizing.quantity, sizing.limitPrice)
-    : null;
 
 /** true when both combos have the same symbol, quantity, limit and legs in the same order. */
 export const sameCombo = (
@@ -364,13 +296,204 @@ export const sameCombo = (
     );
   });
 
+/**
+ * true when `order` is the order of this draft: its symbol and legs, a whole number of spreads
+ * that one order may hold, and a limit in whole cents on the side of the structure (debit above
+ * 0, credit below 0) strictly inside the strike width. The room of an approved draft is computed
+ * from its stored order, so an order that fails here gives no room that can be trusted.
+ */
+export const approvedOrderFitsDraft = (
+  draft: GoLiveSpread,
+  order: VertexComboInput | null
+): order is VertexComboInput => {
+  if (order === null) return false;
+  if (
+    !goLiveStrikesFitStructure(
+      draft.structure,
+      draft.longStrike,
+      draft.shortStrike
+    )
+  )
+    return false;
+  const { limitPrice, quantity } = order;
+  if (
+    !(
+      Number.isInteger(quantity) &&
+      quantity >= 1 &&
+      quantity <= GOLIVE_ORDER_MAX_QUANTITY
+    )
+  )
+    return false;
+  const limitCents = toCents(
+    isDebit(draft.structure) ? limitPrice : -limitPrice
+  );
+  if (
+    !(
+      Math.abs(limitPrice * 100 - Math.round(limitPrice * 100)) < CENT_NOISE &&
+      limitCents >= 1 &&
+      limitCents <= toCents(strikeWidth(draft)) - 1
+    )
+  )
+    return false;
+  return sameCombo(order, buildCombo(draft, quantity, limitPrice));
+};
+
+// The max loss in cents that an approved draft holds: the quantity of its stored order at the
+// approved limit. null for a draft that is not approved. Throws when the stored order is missing
+// or is not the order of the draft: no room can be computed, so nothing is sized.
+const approvedLossCents = (draft: GoLiveSizingDraft): number | null => {
+  if (draft.state !== "approved") return null;
+  const order = draft.approvedOrder;
+  if (!approvedOrderFitsDraft(draft, order))
+    throw new Error(
+      `The stored approved order of draft ${draft.id} is not the order of that draft`
+    );
+  return (
+    order.quantity *
+    lossCentsPerSpread(draft.structure, order.limitPrice, strikeWidth(draft))
+  );
+};
+
+/**
+ * Quantity and max loss of every draft, in the order given. Money is counted in whole cents.
+ * Per draft: budget = positionRiskPct% of NLV, rounded down to the cent; quantity =
+ * floor(budget / max loss per spread). A quantity above what one order may hold is not reduced:
+ * quantity 0 (quantity_above_order_limit).
+ *
+ * Cap room, in this order:
+ * 1. Every approved draft holds one position and the max loss of its STORED order (quantity x
+ *    max loss per spread at the approved limit) in its sleeve, its name and the open risk,
+ *    whatever the account value and the quote are now. Its own sizing in the answer is what the
+ *    position budget would buy today; no cap is applied to that figure.
+ * 2. Proposed drafts with the entry basis signal_today, by sleeve order in the plan, then symbol,
+ *    then id, pass the caps in this fixed order: sleeve budget, name cap, open risk cap, max
+ *    positions. A draft that does not fit whole gets quantity 0 and the reason of the first cap
+ *    it breaks.
+ * Every other draft takes no room and is sized on the position budget alone: a rejected or an
+ * expired draft (to show what was proposed), and a late entry (model_holds_account_does_not),
+ * which can never be approved and which the account does not hold.
+ */
+export const sizeDrafts = <T extends GoLiveSizingDraft>(
+  plan: GoLiveSizingPlan | null,
+  drafts: readonly T[],
+  nlv: number | null
+): Readonly<{ draft: T; sizing: GoLiveSizing }>[] => {
+  // Before anything else, also before the account value is looked at: a draft with wrong
+  // strikes or an approved draft without its order refuses the whole call.
+  const entries = drafts.map((draft, index) => {
+    assertStrikesFitStructure(draft);
+    return { draft, held: approvedLossCents(draft), index };
+  });
+  if (nlv === null || !(nlv > 0 && Number.isFinite(nlv)))
+    return drafts.map((draft) => ({
+      draft,
+      sizing: unsized(null, "nlv_unavailable"),
+    }));
+  const { limits, sleeves } = plan ?? NO_PLAN;
+  // The account value in whole cents; a part of a cent is dropped.
+  const nlvCents = Math.floor(nlv * 100 + CENT_NOISE);
+  const share = (pct: number): number => shareCents(nlvCents, pct);
+  const budgetCents = share(limits.positionRiskPct);
+  const budget = budgetCents / 100;
+  const sleeveRank = (key: string): number => {
+    const index = sleeves.findIndex((sleeve) => sleeve.key === key);
+    return index === -1 ? sleeves.length : index;
+  };
+  const usedBySleeve = new Map<string, number>();
+  const usedByName = new Map<string, number>();
+  let openRisk = 0;
+  let positions = 0;
+
+  const hold = (draft: T, lossCents: number): void => {
+    usedBySleeve.set(
+      draft.sleeveKey,
+      (usedBySleeve.get(draft.sleeveKey) ?? 0) + lossCents
+    );
+    usedByName.set(
+      draft.symbol,
+      (usedByName.get(draft.symbol) ?? 0) + lossCents
+    );
+    openRisk += lossCents;
+    positions += 1;
+  };
+  // Step 1: approved drafts first, without a cap check. The owner approved them.
+  for (const { draft, held } of entries) if (held !== null) hold(draft, held);
+
+  const capReason = (draft: T, lossCents: number): SizingReason => {
+    const sleeve = sleeves.find((entry) => entry.key === draft.sleeveKey);
+    const inSleeve = usedBySleeve.get(draft.sleeveKey) ?? 0;
+    const inName = usedByName.get(draft.symbol) ?? 0;
+    if (inSleeve + lossCents > share(sleeve?.budgetPct ?? 0))
+      return "sleeve_budget_used";
+    if (inName + lossCents > share(limits.nameRiskCapPct))
+      return "name_cap_reached";
+    if (openRisk + lossCents > share(limits.openRiskCapPct))
+      return "open_risk_cap_reached";
+    if (positions + 1 > limits.maxPositions) return "max_positions_reached";
+    hold(draft, lossCents);
+    return "sized";
+  };
+
+  const sizeOne = (draft: T): GoLiveSizing => {
+    const width = strikeWidth(draft);
+    const limitPrice = limitFromQuote(draft.structure, draft.quote, width);
+    if (limitPrice === null) return unsized(budget, "no_quote");
+    // At least one cent: limitFromQuote keeps the limit a cent inside the width.
+    const perSpread = lossCentsPerSpread(draft.structure, limitPrice, width);
+    const quantity = Math.floor(budgetCents / perSpread);
+    const lossCents = quantity * perSpread;
+    let reason: SizingReason = "sized";
+    if (quantity === 0) reason = "budget_below_one_spread";
+    else if (quantity > GOLIVE_ORDER_MAX_QUANTITY)
+      reason = "quantity_above_order_limit";
+    else if (
+      draft.state === "proposed" &&
+      draft.entryBasis !== "model_holds_account_does_not"
+    )
+      reason = capReason(draft, lossCents);
+    const fits = reason === "sized";
+    return {
+      budget,
+      limitPrice,
+      maxLoss: fits ? lossCents / 100 : null,
+      maxLossPctNlv: fits ? round2((lossCents / nlvCents) * 100) : null,
+      maxLossPerSpread: perSpread / 100,
+      quantity: fits ? quantity : 0,
+      reason,
+    };
+  };
+
+  // Step 2. The order only matters between the drafts that take room.
+  return entries
+    .sort(
+      (a, b) =>
+        sleeveRank(a.draft.sleeveKey) - sleeveRank(b.draft.sleeveKey) ||
+        compareText(a.draft.symbol, b.draft.symbol) ||
+        compareText(a.draft.id, b.draft.id)
+    )
+    .map(({ draft, index }) => ({ draft, index, sizing: sizeOne(draft) }))
+    .sort((a, b) => a.index - b.index)
+    .map(({ draft, sizing }) => ({ draft, sizing }));
+};
+
+/** The exact combo of a sized draft; null when the draft is sized to 0. */
+export const orderFor = (
+  draft: GoLiveSpread,
+  sizing: GoLiveSizing
+): VertexComboInput | null =>
+  sizing.quantity > 0 && sizing.limitPrice !== null
+    ? buildCombo(draft, sizing.quantity, sizing.limitPrice)
+    : null;
+
 const isLiveQuote = (
   quote: Pick<GoLiveQuote, "asOf" | "source"> | null,
   now: Date
 ): boolean => {
   if (quote === null || quote.source !== "ibkr_live") return false;
   const age = now.getTime() - quote.asOf.getTime();
-  return age >= -QUOTE_MAX_FUTURE_SKEW_MS && age <= GOLIVE_QUOTE_MAX_AGE_MS;
+  return (
+    age >= -GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS && age <= GOLIVE_QUOTE_MAX_AGE_MS
+  );
 };
 
 export type GoLiveNotApprovableInput = Readonly<{

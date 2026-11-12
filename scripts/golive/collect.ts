@@ -476,8 +476,8 @@ const run = async (io: CollectIo): Promise<string> => {
   const today = document.candidates.filter(
     (candidate) => candidate.entryBasis === "signal_today"
   ).length;
-  const { created, expired, unchanged } = stored.data.json;
-  return `${tradingDay} plan ${plan.id} v${plan.version} (${plan.status}): ${today} signal_today, ${document.candidates.length - today} model_holds_account_does_not; stored: ${created} created, ${unchanged} unchanged, ${expired} expired`;
+  const { created, expired, unchanged, updated } = stored.data.json;
+  return `${tradingDay} plan ${plan.id} v${plan.version} (${plan.status}): ${today} signal_today, ${document.candidates.length - today} model_holds_account_does_not; stored: ${created} created, ${updated} updated, ${unchanged} unchanged, ${expired} expired`;
 };
 
 /** Runs one collection and returns the process exit code: 0 ok, 1 failure, 2 usage. */

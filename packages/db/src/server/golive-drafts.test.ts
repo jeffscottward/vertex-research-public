@@ -10,7 +10,9 @@ import {
   type GoLiveApprovedOrderInput,
   type GoLiveDecideInput,
   type GoLiveDraftCandidateInput,
+  GoLiveDraftChangedError,
   GoLiveDraftConflictError,
+  GoLiveDraftLimitError,
   GoLiveDraftNotFoundError,
   GoLivePlanMismatchError,
   type GoLivePlanSeedInput,
@@ -19,6 +21,8 @@ import {
 
 const NOW = new Date("2026-11-11T21:15:00.000Z");
 const GENERATED_AT = new Date("2026-11-11T14:35:00.000Z");
+// When the owner's request read the draft it approves.
+const READ_AT = new Date("2026-11-11T21:14:30.000Z");
 const DAY = "2026-11-11";
 const dialect = new PgDialect();
 
@@ -27,6 +31,7 @@ interface Operation {
   fields?: unknown;
   kind: "select" | "insert" | "update";
   limit?: number;
+  lock?: string;
   orderBy?: unknown[];
   returning?: boolean;
   set?: unknown;
@@ -42,6 +47,10 @@ const createDouble = (outcomes: Array<readonly Record<string, unknown>[]>) => {
   const builder = (operation: Operation) => {
     operations.push(operation);
     const chain: Record<string, unknown> = {
+      for: (strength: string) => {
+        operation.lock = strength;
+        return chain;
+      },
       from: (table: unknown) => {
         operation.table = table;
         return chain;
@@ -216,6 +225,8 @@ const repositoryFor = (database: Database) =>
 
 const RUN = {
   generatedAt: GENERATED_AT,
+  // GOLIVE_DRAFT_LIST_MAX of packages/api: the service passes it.
+  maxDrafts: 200,
   planId: SEED.id,
   planVersion: 3,
   tradingDay: DAY,
@@ -471,28 +482,46 @@ describe("createGoLiveDraftsRepository", () => {
     }
   );
 
+  // The stored fields collect reads of a draft, as the select returns them.
+  const storedOf = async (
+    wanted: GoLiveDraftCandidateInput,
+    overrides: Record<string, unknown> = {}
+  ) => ({
+    entryBasis: wanted.entryBasis,
+    id: await goLiveEntryDraftId(RUN, wanted),
+    quote:
+      wanted.quote === null
+        ? null
+        : { ...wanted.quote, asOf: wanted.quote.asOf.toISOString() },
+    signalFacts: [...wanted.signalFacts],
+    state: "proposed",
+    ...overrides,
+  });
+  const QUOTE = {
+    asOf: new Date("2026-11-11T15:00:00.000Z"),
+    longAsk: 1,
+    longBid: 0.9,
+    shortAsk: 0.5,
+    shortBid: 0.4,
+    source: "yahoo_delayed_snapshot",
+  } as const;
+  const steps = (operations: readonly Operation[]) =>
+    operations.map((operation) => [operation.kind, operation.table]);
+
   it("stores new candidates as proposed entries, expires what is no longer wanted and records the run", async () => {
-    const spy = candidate({
-      quote: {
-        asOf: new Date("2026-11-11T15:00:00.000Z"),
-        longAsk: 1,
-        longBid: 0.9,
-        shortAsk: 0.5,
-        shortBid: 0.4,
-        source: "ibkr_live",
-      },
-    });
+    const spy = candidate({ quote: QUOTE });
     const qqq = candidate({
       entryBasis: "model_holds_account_does_not",
       symbol: "QQQ",
     });
     const spyId = await goLiveEntryDraftId(RUN, spy);
     const qqqId = await goLiveEntryDraftId(RUN, qqq);
-    // The SPY draft is new; the QQQ draft was stored by an earlier run; two old drafts expire.
+    // The SPY draft is new. The QQQ draft was stored by an earlier run with the same content,
+    // so nothing is written for it. Two old drafts expire.
     const double = createDouble([
       [planRow()],
+      [await storedOf(qqq)],
       [{ id: spyId }],
-      [],
       [{ id: "old-1" }, { id: "old-2" }],
       [],
     ]);
@@ -502,13 +531,31 @@ describe("createGoLiveDraftsRepository", () => {
         // The same candidate twice is one draft.
         candidates: [spy, qqq, { ...spy, signalFacts: ["sent twice"] }],
       })
-    ).resolves.toEqual({ created: 1, expired: 2, unchanged: 1 });
+    ).resolves.toEqual({ created: 1, expired: 2, unchanged: 1, updated: 0 });
     expect(double.transactions).toHaveLength(1);
-    const [, insert, , expire, run] = double.operations;
-    expect(insert?.table).toBe(goLiveDrafts);
+    expect(steps(double.operations)).toEqual([
+      ["select", goLivePlans],
+      ["select", goLiveDrafts],
+      ["insert", goLiveDrafts],
+      ["update", goLiveDrafts],
+      ["insert", goLiveDraftRuns],
+    ]);
+    const [, stored, insert, expire, run] = double.operations;
+    // The drafts of this trading day and of no other, locked in id order until the end.
+    expect(query(stored?.where)).toEqual({
+      params: [DAY],
+      sql: '"golive_drafts"."trading_day" = $1',
+    });
+    expect(stored?.lock).toBe("update");
+    expect(
+      (stored?.orderBy ?? []).map(
+        (order) => dialect.sqlToQuery(order as SQL).sql
+      )
+    ).toEqual(['"golive_drafts"."id" asc']);
     expect(insert?.conflict).toBe("nothing");
     expect(insert?.target).toBe(goLiveDrafts.id);
     expect(insert?.returning).toBe(true);
+    // Only the draft that is not stored yet.
     expect(insert?.values).toEqual([
       {
         createdAt: NOW,
@@ -526,7 +573,7 @@ describe("createGoLiveDraftsRepository", () => {
           longBid: 0.9,
           shortAsk: 0.5,
           shortBid: 0.4,
-          source: "ibkr_live",
+          source: "yahoo_delayed_snapshot",
         },
         shortStrike: 620.5,
         signalFacts: ["VIX 19.5 on 2026-11-11"],
@@ -537,15 +584,7 @@ describe("createGoLiveDraftsRepository", () => {
         tradingDay: DAY,
         updatedAt: NOW,
       },
-      expect.objectContaining({
-        entryBasis: "model_holds_account_does_not",
-        id: qqqId,
-        quote: null,
-        symbol: "QQQ",
-      }),
     ]);
-    expect(expire?.kind).toBe("update");
-    expect(expire?.table).toBe(goLiveDrafts);
     expect(expire?.set).toEqual({ state: "expired", updatedAt: NOW });
     expect(expire?.returning).toBe(true);
     // Only proposed drafts expire, so approved and rejected drafts never change.
@@ -553,7 +592,6 @@ describe("createGoLiveDraftsRepository", () => {
       params: ["proposed", DAY, DAY, "entry", spyId, qqqId],
       sql: '("golive_drafts"."state" = $1 and ("golive_drafts"."trading_day" < $2 or ("golive_drafts"."trading_day" = $3 and "golive_drafts"."kind" = $4 and "golive_drafts"."id" not in ($5, $6))))',
     });
-    expect(run?.kind).toBe("insert");
     expect(run?.table).toBe(goLiveDraftRuns);
     const runValues = {
       candidateCount: 3,
@@ -568,53 +606,293 @@ describe("createGoLiveDraftsRepository", () => {
     });
   });
 
-  describe("a draft that returns in a later run of the same trading day", () => {
-    const collectAgain = async () => {
-      const spy = candidate();
-      const spyId = await goLiveEntryDraftId(RUN, spy);
-      // The id is stored already (expired by an earlier run), so the insert creates nothing.
-      const double = createDouble([[planRow()], [], [], [], []]);
-      const result = await repositoryFor(double.database).collect({
-        ...RUN,
-        candidates: [spy],
+  describe("a draft that is sent again in a later run of the same trading day", () => {
+    const LATER_QUOTE = {
+      ...QUOTE,
+      asOf: new Date("2026-11-11T17:40:00.000Z"),
+      longAsk: 1.2,
+    };
+    // The update of one stored draft: every field a rerun may change, and the guard.
+    const expectRefresh = (
+      update: Operation | undefined,
+      id: string,
+      wanted: GoLiveDraftCandidateInput
+    ): void => {
+      expect(update?.kind).toBe("update");
+      expect(update?.table).toBe(goLiveDrafts);
+      expect(update?.returning).toBe(true);
+      expect(update?.set).toEqual({
+        entryBasis: wanted.entryBasis,
+        quote:
+          wanted.quote === null
+            ? null
+            : { ...wanted.quote, asOf: wanted.quote.asOf.toISOString() },
+        signalFacts: wanted.signalFacts,
+        state: "proposed",
+        updatedAt: NOW,
       });
-      const revive = double.operations[2] as Operation;
-      return { double, result, revive, spyId, where: query(revive.where) };
+      // Only a draft without a decision: an approved or rejected draft is never matched.
+      expect(query(update?.where)).toEqual({
+        params: [id, "proposed", "expired"],
+        sql: '("golive_drafts"."id" = $1 and "golive_drafts"."state" in ($2, $3) and "golive_drafts"."decided_by" is null)',
+      });
     };
 
-    it("revives the same-day expired draft to proposed and counts it as unchanged", async () => {
-      const { double, result, revive, spyId, where } = await collectAgain();
-      expect(result).toEqual({ created: 0, expired: 0, unchanged: 1 });
-      expect(
-        double.operations.map((operation) => [operation.kind, operation.table])
-      ).toEqual([
+    it("gives a proposed draft the quote, the facts and the entry basis of the later run", async () => {
+      const first = candidate({ quote: QUOTE });
+      const later = candidate({
+        entryBasis: "model_holds_account_does_not",
+        quote: LATER_QUOTE,
+        signalFacts: ["VIX 21.0 on 2026-11-11", "model holds since 2026-11-09"],
+      });
+      const stored = await storedOf(first);
+      const double = createDouble([
+        [planRow()],
+        [stored],
+        [{ id: stored.id }],
+        [],
+        [],
+      ]);
+      await expect(
+        repositoryFor(double.database).collect({ ...RUN, candidates: [later] })
+      ).resolves.toEqual({ created: 0, expired: 0, unchanged: 0, updated: 1 });
+      // No insert: the id is stored.
+      expect(steps(double.operations)).toEqual([
         ["select", goLivePlans],
+        ["select", goLiveDrafts],
+        ["update", goLiveDrafts],
+        ["update", goLiveDrafts],
+        ["insert", goLiveDraftRuns],
+      ]);
+      expectRefresh(double.operations[2], stored.id, later);
+    });
+
+    it.each([
+      ["a later quote time", { quote: LATER_QUOTE }],
+      ["one other price", { quote: { ...QUOTE, shortBid: 0.41 } }],
+      ["another quote source", { quote: { ...QUOTE, source: "model" } }],
+      ["no quote any more", { quote: null }],
+      ["one more fact", { signalFacts: ["VIX 19.5 on 2026-11-11", "new"] }],
+      ["another fact", { signalFacts: ["VIX 20.1 on 2026-11-11"] }],
+      ["no fact", { signalFacts: [] }],
+      ["another entry basis", { entryBasis: "model_holds_account_does_not" }],
+    ] as const)("updates the stored draft for %s", async (_name, change) => {
+      const first = candidate({ quote: QUOTE });
+      const later = candidate({ quote: QUOTE, ...change });
+      const stored = await storedOf(first);
+      const double = createDouble([
+        [planRow()],
+        [stored],
+        [{ id: stored.id }],
+        [],
+        [],
+      ]);
+      await expect(
+        repositoryFor(double.database).collect({ ...RUN, candidates: [later] })
+      ).resolves.toEqual({ created: 0, expired: 0, unchanged: 0, updated: 1 });
+      expectRefresh(double.operations[2], stored.id, later);
+    });
+
+    it("gives a stored draft without a quote the quote of the later run", async () => {
+      const later = candidate({ quote: QUOTE });
+      const stored = await storedOf(candidate());
+      const double = createDouble([
+        [planRow()],
+        [stored],
+        [{ id: stored.id }],
+        [],
+        [],
+      ]);
+      await expect(
+        repositoryFor(double.database).collect({ ...RUN, candidates: [later] })
+      ).resolves.toMatchObject({ unchanged: 0, updated: 1 });
+      expectRefresh(double.operations[2], stored.id, later);
+    });
+
+    it("writes nothing for a proposed draft that is sent again unchanged", async () => {
+      for (const same of [candidate({ quote: QUOTE }), candidate()]) {
+        const double = createDouble([
+          [planRow()],
+          [await storedOf(same)],
+          [],
+          [],
+        ]);
+        await expect(
+          repositoryFor(double.database).collect({ ...RUN, candidates: [same] })
+        ).resolves.toEqual({
+          created: 0,
+          expired: 0,
+          unchanged: 1,
+          updated: 0,
+        });
+        // Plan, stored drafts, the expiry of others, the run row: no insert, no draft update.
+        expect(steps(double.operations)).toEqual([
+          ["select", goLivePlans],
+          ["select", goLiveDrafts],
+          ["update", goLiveDrafts],
+          ["insert", goLiveDraftRuns],
+        ]);
+        expect(double.operations[2]?.set).toEqual({
+          state: "expired",
+          updatedAt: NOW,
+        });
+      }
+    });
+
+    it.each(["approved", "rejected"])(
+      "never changes a draft that is %s, whatever the later run sends",
+      async (state) => {
+        const later = candidate({
+          entryBasis: "model_holds_account_does_not",
+          quote: LATER_QUOTE,
+          signalFacts: ["changed"],
+        });
+        const stored = await storedOf(candidate({ quote: QUOTE }), { state });
+        const double = createDouble([[planRow()], [stored], [], []]);
+        await expect(
+          repositoryFor(double.database).collect({
+            ...RUN,
+            candidates: [later],
+          })
+        ).resolves.toEqual({
+          created: 0,
+          expired: 0,
+          unchanged: 1,
+          updated: 0,
+        });
+        // The one update is the expiry, which matches proposed drafts only.
+        expect(steps(double.operations)).toEqual([
+          ["select", goLivePlans],
+          ["select", goLiveDrafts],
+          ["update", goLiveDrafts],
+          ["insert", goLiveDraftRuns],
+        ]);
+        expect(double.operations[2]?.set).toEqual({
+          state: "expired",
+          updatedAt: NOW,
+        });
+      }
+    );
+
+    it("brings a same-day expired draft back to proposed with the later content, counted as updated", async () => {
+      // Expired by an earlier run of today and wanted again, also when nothing else changed.
+      for (const later of [
+        candidate({ quote: QUOTE }),
+        candidate({ quote: LATER_QUOTE }),
+      ]) {
+        const stored = await storedOf(candidate({ quote: QUOTE }), {
+          state: "expired",
+        });
+        const double = createDouble([
+          [planRow()],
+          [stored],
+          [{ id: stored.id }],
+          [],
+          [],
+        ]);
+        await expect(
+          repositoryFor(double.database).collect({
+            ...RUN,
+            candidates: [later],
+          })
+        ).resolves.toEqual({
+          created: 0,
+          expired: 0,
+          unchanged: 0,
+          updated: 1,
+        });
+        expectRefresh(double.operations[2], stored.id, later);
+      }
+    });
+
+    it("counts a draft as unchanged when the guarded update or insert matched no row", async () => {
+      // Another transaction decided the draft, or stored the new id, first.
+      const stored = await storedOf(candidate({ quote: QUOTE }));
+      const double = createDouble([[planRow()], [stored], [], [], [], []]);
+      await expect(
+        repositoryFor(double.database).collect({
+          ...RUN,
+          candidates: [
+            candidate({ quote: LATER_QUOTE }),
+            candidate({ symbol: "QQQ" }),
+          ],
+        })
+      ).resolves.toEqual({ created: 0, expired: 0, unchanged: 2, updated: 0 });
+      expect(steps(double.operations)).toEqual([
+        ["select", goLivePlans],
+        ["select", goLiveDrafts],
         ["insert", goLiveDrafts],
         ["update", goLiveDrafts],
         ["update", goLiveDrafts],
         ["insert", goLiveDraftRuns],
       ]);
-      expect(revive.set).toEqual({ state: "proposed", updatedAt: NOW });
-      expect(where.params).toEqual([DAY, "expired", spyId]);
-      expect(where.sql).toContain('"golive_drafts"."id" in ($3)');
+    });
+  });
+
+  describe("the most drafts one trading day may hold", () => {
+    const other = (index: number) => ({
+      entryBasis: "signal_today",
+      id: `other-${index}`,
+      quote: null,
+      signalFacts: [],
+      state: index % 2 === 0 ? "expired" : "rejected",
     });
 
-    it("leaves an expired draft of an earlier trading day expired", async () => {
-      const { where } = await collectAgain();
-      // Only this trading day is matched; no earlier day is.
-      expect(where.sql).toContain('"golive_drafts"."trading_day" = $1');
-      expect(where.sql).not.toMatch(/trading_day" (<|<=|<>|>)/u);
-      expect(where.params[0]).toBe(DAY);
+    it("refuses a run that would take the day above the limit, before anything is written", async () => {
+      const stored = await storedOf(candidate());
+      const double = createDouble([[planRow()], [other(0), other(1), stored]]);
+      const failure = await repositoryFor(double.database)
+        .collect({
+          ...RUN,
+          candidates: [
+            candidate(),
+            candidate({ symbol: "QQQ" }),
+            candidate({ symbol: "IWM" }),
+          ],
+          maxDrafts: 4,
+        })
+        .catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(GoLiveDraftLimitError);
+      expect(failure).toMatchObject({
+        limit: 4,
+        message: `Trading day ${DAY} holds 3 go-live drafts and the run adds 2: more than the limit of 4`,
+        name: "GoLiveDraftLimitError",
+        tradingDay: DAY,
+      });
+      // Two reads and no write: nothing is stored, refreshed or expired, and no run is recorded.
+      expect(steps(double.operations)).toEqual([
+        ["select", goLivePlans],
+        ["select", goLiveDrafts],
+      ]);
     });
 
-    it("leaves a rejected draft rejected and an approved draft approved", async () => {
-      const { where } = await collectAgain();
-      // Only state expired without a decision is matched, so a decided draft never changes.
-      expect(where.sql).toBe(
-        '("golive_drafts"."trading_day" = $1 and "golive_drafts"."state" = $2 and "golive_drafts"."decided_by" is null and "golive_drafts"."id" in ($3))'
-      );
-      expect(where.params).not.toContain("rejected");
-      expect(where.params).not.toContain("approved");
+    it("accepts a run that fills the day exactly, and a rerun of a full day", async () => {
+      const stored = await storedOf(candidate());
+      const fresh = candidate({ symbol: "QQQ" });
+      const freshId = await goLiveEntryDraftId(RUN, fresh);
+      const filling = createDouble([
+        [planRow()],
+        [other(0), other(1), stored],
+        [{ id: freshId }],
+        [],
+        [],
+      ]);
+      await expect(
+        repositoryFor(filling.database).collect({
+          ...RUN,
+          candidates: [candidate(), fresh],
+          maxDrafts: 4,
+        })
+      ).resolves.toEqual({ created: 1, expired: 0, unchanged: 1, updated: 0 });
+      // Every id is stored: the run adds nothing, so a full day is not above the limit.
+      const full = createDouble([[planRow()], [other(0), stored], [], []]);
+      await expect(
+        repositoryFor(full.database).collect({
+          ...RUN,
+          candidates: [candidate()],
+          maxDrafts: 2,
+        })
+      ).resolves.toEqual({ created: 0, expired: 0, unchanged: 1, updated: 0 });
     });
   });
 
@@ -622,11 +900,9 @@ describe("createGoLiveDraftsRepository", () => {
     const double = createDouble([[planRow()], [{ id: "old-1" }], []]);
     await expect(
       repositoryFor(double.database).collect({ ...RUN, candidates: [] })
-    ).resolves.toEqual({ created: 0, expired: 1, unchanged: 0 });
-    // No draft insert: plan read, expiry, run row.
-    expect(
-      double.operations.map((operation) => [operation.kind, operation.table])
-    ).toEqual([
+    ).resolves.toEqual({ created: 0, expired: 1, unchanged: 0, updated: 0 });
+    // No draft read and no draft insert: plan read, expiry, run row.
+    expect(steps(double.operations)).toEqual([
       ["select", goLivePlans],
       ["update", goLiveDrafts],
       ["insert", goLiveDraftRuns],
@@ -656,6 +932,7 @@ describe("createGoLiveDraftsRepository", () => {
       approvedOrder: sent,
       decidedBy: "owner-1",
       decision: "approved",
+      expectedUpdatedAt: READ_AT,
       id: "draft-1",
       nodeBadge: "running-disarmed",
       note: "ok",
@@ -684,10 +961,11 @@ describe("createGoLiveDraftsRepository", () => {
     expect(written.approvedOrder).not.toBe(sent);
     expect(written.approvedOrder.legs).not.toBe(sent.legs);
     expect(written.approvedOrder.legs[0]).not.toBe(sent.legs[0]);
-    // Decided once: only a draft that is still proposed is matched.
+    // Decided once: only a draft that is still proposed is matched, and only as it was read:
+    // a later collect that changed its quote, facts or entry basis moved updated_at.
     expect(query(update?.where)).toEqual({
-      params: ["draft-1", "proposed"],
-      sql: '("golive_drafts"."id" = $1 and "golive_drafts"."state" = $2)',
+      params: ["draft-1", "proposed", READ_AT.toISOString()],
+      sql: '("golive_drafts"."id" = $1 and "golive_drafts"."state" = $2 and "golive_drafts"."updated_at" = $3)',
     });
   });
 
@@ -732,7 +1010,17 @@ describe("createGoLiveDraftsRepository", () => {
       note: null,
     };
     // @ts-expect-error an approval needs approvedOrder
-    const withoutOrder: GoLiveDecideInput = { ...base, decision: "approved" };
+    const withoutOrder: GoLiveDecideInput = {
+      ...base,
+      decision: "approved",
+      expectedUpdatedAt: READ_AT,
+    };
+    // @ts-expect-error an approval needs the time the draft was read at
+    const withoutReadTime: GoLiveDecideInput = {
+      ...base,
+      approvedOrder: ORDER,
+      decision: "approved",
+    };
     // @ts-expect-error a rejection takes no approvedOrder
     const withOrder: GoLiveDecideInput = {
       ...base,
@@ -746,10 +1034,54 @@ describe("createGoLiveDraftsRepository", () => {
       repositoryFor(double.database).decide(withoutOrder)
     ).rejects.toThrow();
     expect(double.operations).toHaveLength(0);
+    // The same without the time the draft was read at: no statement is sent.
+    await expect(
+      repositoryFor(double.database).decide(withoutReadTime)
+    ).rejects.toThrow();
+    expect(double.operations).toHaveLength(0);
     // A rejection that carries an order by mistake still stores none.
     await repositoryFor(double.database).decide(withOrder);
     expect(double.operations[0]?.set).toEqual(
       expect.objectContaining({ approvedOrder: null, state: "rejected" })
+    );
+  });
+
+  it("refuses an approval of a draft that changed after it was read", async () => {
+    // A collect refreshed the draft between the owner's read and the approval: the update
+    // matches no row, and the draft is still proposed.
+    const double = createDouble([[], [{ id: "draft-1", state: "proposed" }]]);
+    const changed = await repositoryFor(double.database)
+      .decide({
+        approvedOrder: ORDER,
+        decidedBy: "owner-1",
+        decision: "approved",
+        expectedUpdatedAt: READ_AT,
+        id: "draft-1",
+        nodeBadge: null,
+        note: null,
+      })
+      .catch((error: unknown) => error);
+    expect(changed).toBeInstanceOf(GoLiveDraftChangedError);
+    expect(changed).toMatchObject({
+      draftId: "draft-1",
+      message: "Go-live draft draft-1 changed after it was read",
+      name: "GoLiveDraftChangedError",
+    });
+    expect(double.operations.map((operation) => operation.kind)).toEqual([
+      "update",
+      "select",
+    ]);
+    // A rejection does not depend on what the draft holds: it has no such condition.
+    const rejecting = createDouble([[draftRow({ state: "rejected" })]]);
+    await repositoryFor(rejecting.database).decide({
+      decidedBy: "owner-1",
+      decision: "rejected",
+      id: "draft-1",
+      nodeBadge: null,
+      note: "no",
+    });
+    expect(query(rejecting.operations[0]?.where).sql).toBe(
+      '("golive_drafts"."id" = $1 and "golive_drafts"."state" = $2)'
     );
   });
 
@@ -776,7 +1108,35 @@ describe("createGoLiveDraftsRepository", () => {
     expect(lookup?.limit).toBe(1);
     expect(query(lookup?.where).params).toEqual(["draft-9"]);
 
-    const decidedBefore = createDouble([[], [{ id: "draft-9" }]]);
+    for (const state of ["approved", "rejected", "expired"]) {
+      const decidedBefore = createDouble([[], [{ id: "draft-9", state }]]);
+      const conflict = await repositoryFor(decidedBefore.database)
+        .decide(input)
+        .catch((error: unknown) => error);
+      expect(conflict).toBeInstanceOf(GoLiveDraftConflictError);
+      expect(conflict).toMatchObject({
+        draftId: "draft-9",
+        message: "Go-live draft draft-9 is no longer proposed",
+        name: "GoLiveDraftConflictError",
+      });
+      // The same for an approval, whatever time it was read at.
+      const approving = createDouble([[], [{ id: "draft-9", state }]]);
+      await expect(
+        repositoryFor(approving.database).decide({
+          approvedOrder: ORDER,
+          decidedBy: "owner-1",
+          decision: "approved",
+          expectedUpdatedAt: READ_AT,
+          id: "draft-9",
+          nodeBadge: null,
+          note: null,
+        })
+      ).rejects.toBeInstanceOf(GoLiveDraftConflictError);
+    }
+    const decidedBefore = createDouble([
+      [],
+      [{ id: "draft-9", state: "approved" }],
+    ]);
     const conflict = await repositoryFor(decidedBefore.database)
       .decide(input)
       .catch((error: unknown) => error);

@@ -88,6 +88,9 @@ export const GOLIVE_QUOTE_SOURCE_VALUES = [
 export const GOLIVE_SIZING_REASON_VALUES = [
   "sized",
   "budget_below_one_spread",
+  // The budget buys more spreads than one order may hold (the quantity limit of the combo
+  // order). The draft is not reduced: quantity 0.
+  "quantity_above_order_limit",
   "nlv_unavailable",
   "no_quote",
   "sleeve_budget_used",
@@ -101,6 +104,8 @@ export const GOLIVE_NODE_BADGE_VALUES = [
   "down",
   "unknown",
 ] as const;
+// The most drafts one trading day may hold. collect refuses a batch that would go above it, so
+// the queue always lists every draft of the day.
 export const GOLIVE_DRAFT_LIST_MAX = 200;
 export const GOLIVE_COLLECT_MAX = 50;
 // Standing owner rule: at most 2% of the account at risk in one position. A plan may only be
@@ -132,6 +137,12 @@ const ExpirySchema = z
   .regex(/^\d{8}$/u, "Expiry must be YYYYMMDD")
   .refine(isCalendarDay, { message: "Expiry must be a real calendar day" });
 const StrikeSchema = z.number().finite().positive().max(100_000);
+// A time as ISO-8601 date-time text with "Z" or a numeric offset ("2026-11-11T20:45:02Z"), read
+// as a date. Nothing is coerced: null, true and a number are refused (coercion read them as 1970),
+// and so is a time without an offset, which names no fixed instant.
+const InstantTextSchema = z.iso
+  .datetime({ offset: true })
+  .transform((text) => new Date(text));
 // A message link, not a channel link: /channels/<guild>/<channel>/<message>.
 const OwnerMessageUrlSchema = z
   .string()
@@ -305,7 +316,7 @@ export const GoLiveDraftCandidateSchema = z
     entryBasis: z.enum(GOLIVE_ENTRY_BASIS_VALUES),
     expiry: ExpirySchema,
     longStrike: StrikeSchema,
-    quote: GoLiveQuoteSchema.extend({ asOf: z.coerce.date() }).nullable(),
+    quote: GoLiveQuoteSchema.extend({ asOf: InstantTextSchema }).nullable(),
     shortStrike: StrikeSchema,
     // Gate and signal values with their dates, as plain text facts ("VIX 19.5 on 2026-11-11").
     signalFacts: z.array(z.string().max(200)).max(20),
@@ -413,7 +424,8 @@ export const GoLiveNodeSchema = z
 export const GoLiveQueueOutputSchema = z
   .object({
     account: GoLiveAccountSchema,
-    drafts: z.array(GoLiveDraftSchema),
+    // Every draft of the trading day: collect keeps a day at or below this number.
+    drafts: z.array(GoLiveDraftSchema).max(GOLIVE_DRAFT_LIST_MAX),
     // null: the generator has not reported for this trading day.
     generatedAt: z.date().nullable(),
     marketNotes: z.enum(["attached", "none_active", "feature_not_deployed"]),
@@ -435,7 +447,7 @@ export const GoLiveQueueInputSchema = z
 export const GoLiveCollectInputSchema = z
   .object({
     candidates: z.array(GoLiveDraftCandidateSchema).max(GOLIVE_COLLECT_MAX),
-    generatedAt: z.coerce.date(),
+    generatedAt: InstantTextSchema,
     planId: IdSchema,
     planVersion: z.number().int().positive(),
     tradingDay: CalendarDateSchema,
@@ -453,11 +465,15 @@ export const GoLiveCollectInputSchema = z
         });
     });
   });
+// Every candidate of the batch is counted once: created (a new draft), updated (a stored draft
+// that is still open got the new quote, facts or entry basis, or came back from expired) or
+// unchanged (nothing was written for it). expired counts the stored drafts this run expired.
 export const GoLiveCollectOutputSchema = z
   .object({
     created: z.number().int().min(0),
     expired: z.number().int().min(0),
     unchanged: z.number().int().min(0),
+    updated: z.number().int().min(0),
   })
   .strict();
 
@@ -470,8 +486,9 @@ export const GoLiveDraftApproveInputSchema = z
     order: VertexComboInputSchema,
   })
   .strict();
+// The note is trimmed first: blanks alone are no note.
 export const GoLiveDraftRejectInputSchema = z
-  .object({ id: IdSchema, note: z.string().min(1).max(1000) })
+  .object({ id: IdSchema, note: z.string().trim().min(1).max(1000) })
   .strict();
 
 const goLiveApi = oc.errors(AGENT_OPS_API_ERRORS);

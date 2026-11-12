@@ -147,7 +147,10 @@ const collectWith = async (setup: Setup = {}) => {
         ? (setup.queue ?? (() => queueOf(PLAN)))()
         : (
             setup.collect ??
-            (() => json({ json: { created: 2, expired: 0, unchanged: 0 } }))
+            (() =>
+              json({
+                json: { created: 2, expired: 0, unchanged: 0, updated: 0 },
+              }))
           )());
     },
     run: (command, args, options) => {
@@ -230,7 +233,7 @@ describe("golive collect: the run", () => {
     });
     expect(GoLiveCollectInputSchema.parse(posted.json)).toEqual(checked);
     expect(result.stdout).toBe(
-      `${DAY} plan funded-lower-bar-pie v3 (approved): 1 signal_today, 1 model_holds_account_does_not; stored: 2 created, 0 unchanged, 0 expired\n`
+      `${DAY} plan funded-lower-bar-pie v3 (approved): 1 signal_today, 1 model_holds_account_does_not; stored: 2 created, 0 updated, 0 unchanged, 0 expired\n`
     );
   });
 
@@ -316,6 +319,38 @@ describe("golive collect: the run", () => {
     );
     expect(JSON.parse(result.stdout).candidates).toHaveLength(2);
   });
+
+  it.each([
+    ["2026-11-30T20:30:00Z", "2026-12-01T12:15:00Z"],
+    ["2026-11-30T15:30:00-05:00", "2026-12-01T07:15:00-05:00"],
+    ["2026-11-30T20:30:00.000+00:00", "2026-12-01T12:15:00.000+00:00"],
+  ])(
+    "posts asOf %s and generatedAt %s as text for the generator's instants",
+    async (asOf, generatedAt) => {
+      const result = await collectWith({
+        python: {
+          stdout: JSON.stringify({
+            ...DOCUMENT,
+            candidates: [candidate({ quote: { ...candidate().quote, asOf } })],
+            generatedAt,
+          }),
+        },
+      });
+      expect(result.code).toBe(0);
+      const posted = JSON.parse(result.posts[0]?.init.body as string).json;
+      const postedAsOf: unknown = posted.candidates[0].quote.asOf;
+      // Text with "Z", which the server's schema reads, and the same instant as the generator's.
+      expect(postedAsOf).toBe("2026-11-30T20:30:00.000Z");
+      expect(new Date(postedAsOf as string).getTime()).toBe(
+        new Date(asOf).getTime()
+      );
+      expect(posted.generatedAt).toBe("2026-12-01T12:15:00.000Z");
+      expect(new Date(posted.generatedAt).getTime()).toBe(
+        new Date(generatedAt).getTime()
+      );
+      expect(GoLiveCollectInputSchema.safeParse(posted).success).toBe(true);
+    }
+  );
 
   it("posts a document with zero candidates when the generator ended cleanly and wrote no stderr", async () => {
     const empty = { ...DOCUMENT, candidates: [] };
@@ -479,6 +514,29 @@ describe("golive collect: refusals", () => {
       "The generator output is not JSON: Traceback",
     ],
     ["an empty output", "", "The generator output is not JSON: "],
+    ...[
+      ["a quote time without an offset", "2026-11-30T20:30:00"],
+      ["a quote time that is a date only", "2026-11-30"],
+      ["a quote time that is a number", 1_796_070_600_000],
+      ["a quote time that is null", null],
+    ].map(([name, asOf]): [string, string, string] => [
+      name as string,
+      JSON.stringify({
+        ...DOCUMENT,
+        candidates: [candidate({ quote: { ...candidate().quote, asOf } })],
+      }),
+      "candidates[0].quote.asOf",
+    ]),
+    [
+      "a generatedAt without an offset",
+      JSON.stringify({ ...DOCUMENT, generatedAt: "2026-12-01T12:15:00" }),
+      "generatedAt",
+    ],
+    [
+      "a generatedAt that is a number",
+      JSON.stringify({ ...DOCUMENT, generatedAt: 0 }),
+      "generatedAt",
+    ],
     [
       "a quote labelled live",
       JSON.stringify({
@@ -726,17 +784,32 @@ describe("golive collect: the collect answer", () => {
     ],
     [
       "counts that are not whole numbers",
-      () => json({ json: { created: "2", expired: 0, unchanged: 0 } }),
+      () =>
+        json({ json: { created: "2", expired: 0, unchanged: 0, updated: 0 } }),
+      "goLiveDrafts.collect answered with a body that is not a collect result",
+    ],
+    [
+      "an answer without the updated counter",
+      () => json({ json: { created: 2, expired: 0, unchanged: 0 } }),
+      "goLiveDrafts.collect answered with a body that is not a collect result",
+    ],
+    [
+      "a negative counter",
+      () =>
+        json({ json: { created: 2, expired: 0, unchanged: 0, updated: -1 } }),
       "goLiveDrafts.collect answered with a body that is not a collect result",
     ],
     [
       "a field the contract does not have",
-      () => json({ json: { created: 2, expired: 0, stored: 2, unchanged: 0 } }),
+      () =>
+        json({
+          json: { created: 2, expired: 0, stored: 2, unchanged: 0, updated: 0 },
+        }),
       "goLiveDrafts.collect answered with a body that is not a collect result",
     ],
     [
       "no envelope",
-      () => json({ created: 2, expired: 0, unchanged: 0 }),
+      () => json({ created: 2, expired: 0, unchanged: 0, updated: 0 }),
       "goLiveDrafts.collect answered with a body that is not a collect result",
     ],
   ])(
@@ -872,7 +945,9 @@ describe("golive collect: redirects", () => {
 
   it("a 307 answer to the collect post ends the run with exit 1: the second server gets no request and no key", async () => {
     const second = await listen(() => ({
-      body: JSON.stringify({ json: { created: 2, expired: 0, unchanged: 0 } }),
+      body: JSON.stringify({
+        json: { created: 2, expired: 0, unchanged: 0, updated: 0 },
+      }),
       status: 200,
     }));
     const first = await listen((request) =>
@@ -906,7 +981,7 @@ describe("golive collect: redirects", () => {
         json:
           request.method === "GET"
             ? { plan: PLAN, sendsOrders: false, tradingDay: DAY }
-            : { created: 1, expired: 1, unchanged: 1 },
+            : { created: 1, expired: 4, unchanged: 3, updated: 2 },
       }),
       status: 200,
     }));
@@ -917,7 +992,7 @@ describe("golive collect: redirects", () => {
     expect(result.stderr).toBe("");
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(
-      "stored: 1 created, 1 unchanged, 1 expired"
+      "stored: 1 created, 2 updated, 3 unchanged, 4 expired"
     );
     expect(server.seen.map((request) => request.key)).toEqual([KEY, KEY]);
   });

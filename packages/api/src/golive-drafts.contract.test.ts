@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { appContract } from "./contract.ts";
 import {
   GOLIVE_COLLECT_MAX,
+  GOLIVE_DRAFT_LIST_MAX,
   GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_SIZING_REASON_VALUES,
   GOLIVE_STANDING_MAX_LOSS_PCT,
@@ -262,8 +263,63 @@ describe("goLiveDrafts contract", () => {
         expired: 0,
         submitted: 1,
         unchanged: 0,
+        updated: 0,
       }).success
     ).toBe(false);
+  });
+
+  it("answers a collect with four counters, each of them required", () => {
+    const answer = { created: 1, expired: 2, unchanged: 3, updated: 4 };
+    expect(GoLiveCollectOutputSchema.parse(answer)).toEqual(answer);
+    for (const key of ["created", "expired", "unchanged", "updated"] as const) {
+      const { [key]: _left, ...without } = answer;
+      expect(GoLiveCollectOutputSchema.safeParse(without).success).toBe(false);
+      for (const bad of [-1, 0.5, null, "1"])
+        expect(
+          GoLiveCollectOutputSchema.safeParse({ ...answer, [key]: bad }).success
+        ).toBe(false);
+    }
+  });
+
+  it("reads a time only from ISO-8601 date-time text with an offset", () => {
+    const withTimes = (
+      asOf: unknown,
+      generatedAt: unknown = "2026-11-13T21:00:00Z"
+    ) => ({
+      ...batch(),
+      candidates: [{ ...candidate(), quote: { ...candidate().quote, asOf } }],
+      generatedAt,
+    });
+    // What the generator sends, with fractions, and with a numeric offset.
+    for (const [text, instant] of [
+      ["2026-11-11T20:45:02Z", "2026-11-11T20:45:02.000Z"],
+      ["2026-11-11T20:45:02.123Z", "2026-11-11T20:45:02.123Z"],
+      ["2026-11-11T15:45:02-05:00", "2026-11-11T20:45:02.000Z"],
+    ] as const) {
+      const parsed = GoLiveCollectInputSchema.parse(withTimes(text, text));
+      expect(parsed.candidates[0]?.quote?.asOf).toEqual(new Date(instant));
+      expect(parsed.generatedAt).toEqual(new Date(instant));
+    }
+    // null and true were read as 1970 before; a time without an offset has no fixed instant.
+    for (const bad of [
+      null,
+      true,
+      false,
+      0,
+      1_794_429_902_000,
+      "",
+      "yesterday",
+      "2026-11-11",
+      "2026-11-11T20:45:02",
+      "2026-11-11 20:45:02Z",
+      "2026-02-30T20:45:02Z",
+      new Date("2026-11-11T20:45:02Z"),
+    ]) {
+      expect(collectIssues(withTimes(bad))).not.toEqual([]);
+      expect(collectIssues(withTimes("2026-11-11T20:45:02Z", bad))).not.toEqual(
+        []
+      );
+    }
   });
 
   const collectIssues = (value: unknown): string[] =>
@@ -361,9 +417,20 @@ describe("goLiveDrafts contract", () => {
     expect(
       GoLiveDraftRejectInputSchema.parse({ id: "d-spy", note: "Too close" })
     ).toEqual({ id: "d-spy", note: "Too close" });
+    // The note is stored without the blanks around it.
+    expect(
+      GoLiveDraftRejectInputSchema.parse({
+        id: "d-spy",
+        note: "  Too close \n",
+      })
+    ).toEqual({ id: "d-spy", note: "Too close" });
     for (const bad of [
       { id: "d-spy" },
       { id: "d-spy", note: "" },
+      // Blanks alone are no note.
+      { id: "d-spy", note: " " },
+      { id: "d-spy", note: " \t\n " },
+      { id: "d-spy", note: "x".repeat(1001) },
       { id: "", note: "Too close" },
       { id: "d-spy", note: "Too close", order: order() },
     ])
@@ -487,6 +554,46 @@ describe("goLiveDrafts contract", () => {
       GOLIVE_SIZING_REASON_VALUES,
     ])
       expect(values.filter((value) => /unknown/iu.test(value))).toEqual([]);
+    // A quantity above what one order may hold has its own reason and quantity 0.
+    const aboveLimit = {
+      ...draft(),
+      order: null,
+      sizing: {
+        budget: 12_000,
+        limitPrice: 0.01,
+        maxLoss: null,
+        maxLossPctNlv: null,
+        maxLossPerSpread: 1,
+        quantity: 0,
+        reason: "quantity_above_order_limit",
+      },
+    };
+    expect(GoLiveDraftSchema.parse(aboveLimit)).toEqual(aboveLimit);
+  });
+
+  it("lists at most GOLIVE_DRAFT_LIST_MAX drafts of one trading day", () => {
+    const queue = (count: number) => ({
+      account: { asOf: null, netLiquidation: null, unavailableReason: null },
+      canDecide: false,
+      drafts: Array.from({ length: count }, (_unused, index) => ({
+        ...draft(),
+        id: `d-${index}`,
+      })),
+      generatedAt: null,
+      marketNotes: "none_active",
+      node: { armedAt: null, badge: "unknown", checkedAt: NOW },
+      plan: null,
+      sendsOrders: false,
+      tradingDay: "2026-11-16",
+    });
+    expect(GOLIVE_DRAFT_LIST_MAX).toBe(200);
+    expect(
+      GoLiveQueueOutputSchema.safeParse(queue(GOLIVE_DRAFT_LIST_MAX)).success
+    ).toBe(true);
+    expect(
+      GoLiveQueueOutputSchema.safeParse(queue(GOLIVE_DRAFT_LIST_MAX + 1))
+        .success
+    ).toBe(false);
   });
 });
 
