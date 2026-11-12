@@ -770,6 +770,15 @@ describe("assistant client helpers", () =>
         message: "Model provider rate limited the request (429); retry shortly",
       })
     ).toMatch(/429/);
+    expect(
+      describeAssistantFailure({
+        code: "FORBIDDEN",
+        message: "Agent viewer may chat in Plan mode only",
+      })
+    ).toBe("Agent viewer may chat in Plan mode only");
+    expect(describeAssistantFailure({ code: "FORBIDDEN" })).toBe(
+      "Operator access required."
+    );
     expect(describeAssistantFailure({ code: "UNAUTHORIZED" })).toBe(
       "Session expired. Sign in again."
     );
