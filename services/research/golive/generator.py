@@ -43,7 +43,7 @@ itself (`required_series` lists them per sleeve). An older day matters as much: 
 is one path from its start, and a hole on any day of it can move a strike or remove a spread. So
 `check_history` refuses the run when a series a sleeve reads, the bars of an ETF it trades or the
 calendar's bars lack a value on an older day that the data the plan was tested on has a value for
-(the holes of that data are pinned in golive/tested_gaps.py; `python -m golive.pin` prints it).
+(the holes of that data are pinned in golive/tested_gaps.py; `python -m golive.pin --out` writes it).
 
 Chain snapshots: a candidate names listed strikes. Each model strike moves to the nearest listed
 strike of the OLDEST snapshot that holds the chain of the symbol, expiry and side and is not older

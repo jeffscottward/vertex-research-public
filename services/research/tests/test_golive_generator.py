@@ -769,6 +769,19 @@ def test_golive_pin_prints_the_module_of_a_data_directory(monkeypatch):
     assert namespace["TESTED_GAPS"]["VIX3M"] == (FIRST_DAY, (("2025-08-04", "2025-08-04"),))
 
 
+def test_golive_pin_writes_the_module_atomically_with_out(monkeypatch, tmp_path):
+    from golive import pin
+    data = _dataset("2026-01-30")
+    monkeypatch.setattr(pin.study, "load_study_data", lambda path: SimpleNamespace(dataset=data))
+    out = tmp_path / "tested_gaps.py"
+    out.write_text("TESTED_GAPS = {}\n")
+    stdout, stderr = io.StringIO(), io.StringIO()
+    assert pin.main(["--data", "/srv/qc-ports", "--out", str(out)], stdout=stdout, stderr=stderr) == 0
+    assert stdout.getvalue() == "" and stderr.getvalue() == f"golive.pin: wrote {out}\n"
+    assert out.read_text() == pin.module_text(gl.data_gaps(data), "2026-01-30")
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["tested_gaps.py"]  # no partial file left
+
+
 def test_golive_pin_reports_a_file_that_is_not_qc_ports_data(monkeypatch):
     from golive import pin
 
