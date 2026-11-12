@@ -242,6 +242,10 @@ import {
   createBreadth90Repository,
 } from "./breadth-90.ts";
 import {
+  createGoLiveDraftsRepository,
+  type GoLiveDraftsRepository,
+} from "./golive-drafts.ts";
+import {
   createLeveragedEtfUniverseRepository,
   type LeveragedEtfUniverseRepository,
 } from "./leveraged-etf-universe.ts";
@@ -4366,6 +4370,7 @@ export type Repositories = Readonly<{
   clickLog?: ClickLogRepository;
   semanticLayer?: SemanticLayerRepository;
   breadth90?: Breadth90Repository;
+  goLiveDrafts?: GoLiveDraftsRepository;
   leveragedEtfUniverse?: LeveragedEtfUniverseRepository;
 }>;
 
@@ -4463,6 +4468,10 @@ export const createRepositories = (
     resolveDependencies(dependencies).now
   ),
   breadth90: createBreadth90Repository(
+    database,
+    resolveDependencies(dependencies)
+  ),
+  goLiveDrafts: createGoLiveDraftsRepository(
     database,
     resolveDependencies(dependencies)
   ),

@@ -10,7 +10,7 @@ The data lives in Postgres, not in a JSON file (AGENTS.md rule 13). A Python fet
 
 | Part | Path |
 | --- | --- |
-| Table and its checks | `packages/db/src/schema/leveraged-etf.ts`, migration `0067_leveraged_etf_universe` |
+| Table and its checks | `packages/db/src/schema/leveraged-etf.ts`, migration `0068_leveraged_etf_universe` |
 | Repository (`replaceUniverse`) | `packages/db/src/server/leveraged-etf-universe.ts`, wired as `leveragedEtfUniverse` in `createRepositories` |
 | Document schema (Zod) | `scripts/leveraged-etf-universe/document.ts` |
 | Import CLI | `scripts/leveraged-etf-universe/import.ts`, entry `scripts/vertex-leveraged-etf-universe-import.ts` |
@@ -144,13 +144,13 @@ When any step fails, nothing changes. The repository also refuses a document wit
 
 ## Deploy
 
-Apply the migration to the live database as [flow-pipeline.md](flow-pipeline.md#deploy) states. Do not run `db:migrate` against the QuantVPS database (its Drizzle ledger is incomplete). Apply `packages/db/migrations/0067_leveraged_etf_universe.sql` alone with `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. Then check that the table `leveraged_etf_universe` exists and that `vertex_research` has SELECT, INSERT, UPDATE and DELETE on it.
+Apply the migration to the live database as [flow-pipeline.md](flow-pipeline.md#deploy) states. Do not run `db:migrate` against the QuantVPS database (its Drizzle ledger is incomplete). Apply `packages/db/migrations/0068_leveraged_etf_universe.sql` alone with `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. Then check that the table `leveraged_etf_universe` exists and that `vertex_research` has SELECT, INSERT, UPDATE and DELETE on it.
 
 The migration only creates the table, its index and the grant. It changes no existing table, so it can be applied before or after the app build.
 
-Rollback: `packages/db/rollback/0067_leveraged_etf_universe.down.sql` drops the index and the table. The rows are derived data; the next import writes them again.
+Rollback: `packages/db/rollback/0068_leveraged_etf_universe.down.sql` drops the index and the table. The rows are derived data; the next import writes them again.
 
-The number `0067` is the next free number on this branch. When another branch with a migration merges first, run `pnpm db:renumber` during the merge ([CONVENTIONS.md](../../CONVENTIONS.md#migration-numbers)).
+The number `0068` was given by `pnpm db:renumber` when the go-live migration `0067_golive_drafts` merged first. When another branch with a migration merges first again, run `pnpm db:renumber` during the merge ([CONVENTIONS.md](../../CONVENTIONS.md#migration-numbers)); it renames the files and this document.
 
 ## Tests
 

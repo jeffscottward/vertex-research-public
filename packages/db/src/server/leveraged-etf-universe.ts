@@ -1,7 +1,7 @@
 // What: Drizzle repository for the leveraged ETF universe (one row per fund).
 // Used by: packages/db/src/server/repositories.ts (createRepositories) and
 // scripts/leveraged-etf-universe/import.ts (`bun run vertex:leveraged-etf-universe:import`).
-// See: packages/db/migrations/0067_leveraged_etf_universe.sql;
+// See: packages/db/migrations/0068_leveraged_etf_universe.sql;
 // docs/vertex-rebuild/leveraged-etf-universe.md.
 // The repository stores the document as given. The caller validates it first with
 // LeveragedEtfUniverseDocumentSchema (scripts/leveraged-etf-universe/document.ts); the table checks

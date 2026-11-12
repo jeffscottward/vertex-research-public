@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { leveragedEtfUniverse } from "../schema/index.ts";
 
-const TAG = "0067_leveraged_etf_universe";
+const TAG = "0068_leveraged_etf_universe";
 
 describe(`${TAG} migration`, () => {
   const migration = readFileSync(

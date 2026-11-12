@@ -124,3 +124,4 @@ tests/test_leveraged_etf_universe.py
 tests/test_leveraged_etf_study.py
 tests/test_leveraged_etf_study_forms.py
 tests/test_leveraged_etf_study_run.py
+tests/test_golive_generator.py
