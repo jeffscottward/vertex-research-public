@@ -213,22 +213,21 @@ No code reads option quotes from IBKR. The rig generator sends delayed indicativ
 
 The drafts of a day are computed on the rig and stored through `collect`. Three units in `infra/golive-drafts/` run the wrapper `vertex-golive-drafts-run` on weekdays at 07:15, 12:40 and 15:40 New York time.
 
-1. Data refresh. The wrapper fetches the daily data with `research/backtests/qc-ports/fetch_data.py` (public market data) into a work directory and moves the files into the generator's own data directory only after a complete fetch. That directory is `GOLIVE_DATA_DIR`, by default `~/.local/share/vertex/golive-data`. It is never the shared research dataset, whose files pin the inputs of other backtests. The fetch runs without the write key, for at most 600 seconds. The fetch always ends before today in New York, so today's unfinished bar is never fetched. A run for a past trading day does not refresh. A failed refresh is reported and the collect still runs; the generator then decides on the data that is there. `GOLIVE_SKIP_REFRESH=1` skips the refresh.
+1. Data refresh. The wrapper fetches the daily data with `research/backtests/qc-ports/fetch_data.py` (public market data) into a work directory and moves the files in only after a complete fetch. The fetch runs without the write key, for at most 600 seconds. A failed refresh is reported and the collect still runs; the generator then decides on the data that is there. `GOLIVE_SKIP_REFRESH=1` skips the refresh.
 2. Generator (`python -m golive` in `services/research`). It runs the signal code of the backtest (`strategies.qc_ports` and `funded_pie.sleeve_definitions`) and prints one JSON document. It has no network access and gets no key.
 3. Collect (`scripts/golive/collect.ts`). It reads the plan in force, runs the generator, checks the document and posts it.
 
 The generator refuses the run (exit 1, nothing printed) in these cases:
 
-- The bars, or any series a sleeve reads (gates, signal inputs, the volatility index of each symbol, the rate), have no value of their own on a day the tested rule reads: the last data day, and every day back to the signal day of the oldest position that can still be open, plus the look-back of each gate. A carried-forward value does not count. A gap must never look like "the plan wants nothing today", and it must never move a strike.
-- The option-chain store or a chain file cannot be read, or a candidate has no listed strikes (see below).
+- The bars, or any series a sleeve reads (gates, signal inputs, the volatility index of each symbol, the rate), have no value dated the last data day itself. A carried-forward value does not count. A gap must never look like "the plan wants nothing today".
+- The option-chain store or a chain file cannot be read.
 - A candidate breaks an output rule: strikes equal or the wrong way round for the structure, an expiry on or before the trading day, a number that is not finite, a quote label other than `yahoo_delayed_snapshot`.
 
-A candidate names listed strikes, taken from the oldest usable chain snapshot fetched on or after the last data day, so every run of a trading day names the same strikes or is refused; the quote comes from the newest such snapshot. The one exception is a model-held spread whose expiry is fewer than 30 calendar days after the trading day: the chain store keeps expiries of 30 to 75 days only (`DTE_RANGE` of `snapshot.py`), so that candidate keeps the model's strikes, has no quote, and says so in its facts. A `signal_today` candidate is never exempt, and any other missing chain refuses the run. Every candidate carries fact lines with the dates of the values that set its strikes and gates.
+A chain snapshot gives a quote only when its New York fetch day is the last data day or later. Every candidate carries fact lines with the dates of the values that set its strikes and gates.
 
 The collect script posts nothing and ends with a non-zero exit in these cases:
 
-- `VERTEX_ORIGIN` is not a plain `https:` origin: it has userinfo, a path, a query, or a host that the URL parser rewrites (`http:` is accepted only for a host written as `127.0.0.1`, `[::1]` or `localhost`, for tests). Or a request is answered with a redirect. The key is never sent to a second host, and it is replaced in every text the script prints before that text is cut.
-- The generator prints more than 5 MB on stdout or on stderr.
+- `VERTEX_ORIGIN` is not `https:` (loopback hosts excepted, for tests), or a request is answered with a redirect. The key is never sent to a second host.
 - The generator exits non-zero, is killed, runs longer than 300 seconds, or writes to stderr together with an empty candidate list.
 - The document fails `GoLiveCollectInputSchema`, or a quote label is not `yahoo_delayed_snapshot`.
 - The answer of the server is not a `collect` answer (for example a 200 page of HTML). The message then says that the stored state is not known.
@@ -236,8 +235,7 @@ The collect script posts nothing and ends with a non-zero exit in these cases:
 Limits:
 
 - A refused run stores nothing. The page then shows "the generator has not reported" for that day, the same as before the first run. The journal of `vertex-golive-drafts.service` on the rig says which it is.
-- One volatility index that stops being published, or one missing print inside the days the rule reads, refuses every run until the refresh fills the gap or the plan changes. The backtest carried a value forward for up to 5 days and skipped a symbol without an index; the generator is stricter. In the two years to 2026-11-11 no series the plan reads missed a trading day, except VXSLV before 2025-05-15.
-- Every data file of the fetch must be present, also one that no sleeve reads.
+- One volatility index that stops being published refuses every run until the plan or the data changes. The backtest skipped such a symbol; the generator is stricter.
 
 ## Seed script
 
