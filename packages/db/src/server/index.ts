@@ -514,10 +514,22 @@ export {
   createDashboardRepository,
   DashboardPersistenceError,
 } from "./dashboard-repository.ts";
-export type { DeploymentRequestAction } from "./deployment-requests.ts";
+export type {
+  DeploymentOptionGroup,
+  DeploymentOptionLeg,
+  DeploymentOptionStructure,
+  DeploymentRequestAction,
+  DeploymentRequestOptions,
+} from "./deployment-requests.ts";
 export {
   checkDeploymentTransition,
+  DEPLOYMENT_GROUP_MAX_SYMBOLS,
+  DEPLOYMENT_GROUP_MIN_SYMBOLS,
   DEPLOYMENT_LIMIT_KEYS,
+  DEPLOYMENT_MAX_LOSS_PCT_CEILING,
+  DEPLOYMENT_OPTION_STRUCTURES,
+  deploymentOptionLegs,
+  normalizeDeploymentOptions,
   DEPLOYMENT_REQUEST_ACTIONS,
   DEPLOYMENT_REQUEST_TRANSITIONS,
   DeploymentRequestInputError,
