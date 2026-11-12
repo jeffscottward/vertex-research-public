@@ -1377,7 +1377,7 @@ describe("notApprovableReasons", () => {
 });
 
 describe("exitScheduleOf (owner_standing_rule_v1)", () => {
-  const order = {
+  const order: Parameters<typeof exitScheduleOf>[0]["approvedOrder"] = {
     legs: [
       { expiry: "20261218", ratio: 1, right: "C", side: "BUY", strike: 600 },
       { expiry: "20261218", ratio: 1, right: "C", side: "SELL", strike: 610 },
@@ -1385,7 +1385,7 @@ describe("exitScheduleOf (owner_standing_rule_v1)", () => {
     limitPrice: 2.5,
     quantity: 3,
     symbol: "SPY",
-  } as const;
+  };
 
   it("closes a loser 3 trading days before expiry and a winner at 15:45 New York time", () => {
     expect(
