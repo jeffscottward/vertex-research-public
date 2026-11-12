@@ -56127,6 +56127,11 @@
                               "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                               "type": "string"
                             },
+                            "exitEvery": {
+                              "maximum": 390,
+                              "minimum": 1,
+                              "type": "integer"
+                            },
                             "open": {
                               "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                               "type": "string"
@@ -58351,6 +58356,11 @@
                                         "entryTo": {
                                           "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                           "type": "string"
+                                        },
+                                        "exitEvery": {
+                                          "maximum": 390,
+                                          "minimum": 1,
+                                          "type": "integer"
                                         },
                                         "open": {
                                           "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
@@ -63616,6 +63626,11 @@
                                                 "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                                 "type": "string"
                                               },
+                                              "exitEvery": {
+                                                "maximum": 390,
+                                                "minimum": 1,
+                                                "type": "integer"
+                                              },
                                               "open": {
                                                 "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                                 "type": "string"
@@ -65602,6 +65617,11 @@
                                   "entryTo": {
                                     "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                     "type": "string"
+                                  },
+                                  "exitEvery": {
+                                    "maximum": 390,
+                                    "minimum": 1,
+                                    "type": "integer"
                                   },
                                   "open": {
                                     "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
@@ -69079,6 +69099,11 @@
                                         "entryTo": {
                                           "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                           "type": "string"
+                                        },
+                                        "exitEvery": {
+                                          "maximum": 390,
+                                          "minimum": 1,
+                                          "type": "integer"
                                         },
                                         "open": {
                                           "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
@@ -72869,6 +72894,11 @@
                                         "entryTo": {
                                           "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                           "type": "string"
+                                        },
+                                        "exitEvery": {
+                                          "maximum": 390,
+                                          "minimum": 1,
+                                          "type": "integer"
                                         },
                                         "open": {
                                           "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
@@ -77307,6 +77337,11 @@
                                                         "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                                         "type": "string"
                                                       },
+                                                      "exitEvery": {
+                                                        "maximum": 390,
+                                                        "minimum": 1,
+                                                        "type": "integer"
+                                                      },
                                                       "open": {
                                                         "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                                         "type": "string"
@@ -79359,6 +79394,11 @@
                                                 "entryTo": {
                                                   "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                                   "type": "string"
+                                                },
+                                                "exitEvery": {
+                                                  "maximum": 390,
+                                                  "minimum": 1,
+                                                  "type": "integer"
                                                 },
                                                 "open": {
                                                   "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
@@ -162502,6 +162542,11 @@
                             "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
+                          "exitEvery": {
+                            "maximum": 390,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
                           "open": {
                             "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
@@ -164661,6 +164706,11 @@
                                 "entryTo": {
                                   "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                   "type": "string"
+                                },
+                                "exitEvery": {
+                                  "maximum": 390,
+                                  "minimum": 1,
+                                  "type": "integer"
                                 },
                                 "open": {
                                   "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
@@ -167287,6 +167337,11 @@
                                   "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                   "type": "string"
                                 },
+                                "exitEvery": {
+                                  "maximum": 390,
+                                  "minimum": 1,
+                                  "type": "integer"
+                                },
                                 "open": {
                                   "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                   "type": "string"
@@ -169854,6 +169909,11 @@
                                 "entryTo": {
                                   "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
                                   "type": "string"
+                                },
+                                "exitEvery": {
+                                  "maximum": 390,
+                                  "minimum": 1,
+                                  "type": "integer"
                                 },
                                 "open": {
                                   "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",

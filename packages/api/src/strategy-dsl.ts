@@ -1100,7 +1100,8 @@ export const STRATEGY_VOL_TARGET_MAX_LENGTH = 252;
  * and close at or before `close`; other bars never enter, never hold a position and are NaN in the
  * session indicators. Entries only on regular bars closing in [entryFrom, entryTo] and, with
  * `decisionEvery`, a whole number of those minutes after `open`; exit conditions only on regular
- * bars on that grid. Stops and targets stay live. A position open at the close of the last regular
+ * bars on that grid, or with `exitEvery` on its own grid (for example entries every 30 minutes and
+ * exits every 5). Stops and targets stay live. A position open at the close of the last regular
  * bar of its session day exits at that close (market on close); that bar takes no entry.
  */
 export const StrategyIntradaySchema = z
@@ -1115,6 +1116,13 @@ export const StrategyIntradaySchema = z
       .optional(),
     entryFrom: NewYorkTimeSchema,
     entryTo: NewYorkTimeSchema,
+    /** Optional with no default: minutes of the exit grid; without it exits use the decision grid. */
+    exitEvery: z
+      .number()
+      .int()
+      .min(1)
+      .max(STRATEGY_INTRADAY_MAX_DECISION_MINUTES)
+      .optional(),
     open: NewYorkTimeSchema,
     timezone: z.literal("America/New_York"),
   })
