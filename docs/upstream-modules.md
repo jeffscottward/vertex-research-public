@@ -1,0 +1,40 @@
+# Integrated upstream modules
+
+This page lists every upstream project Vertex uses, where its code or adapter lives and how it is pinned. The [README](../README.md) links here.
+
+No upstream project is a git submodule. Each one is a separate service, an adapter behind a port, or a pinned dependency. The runtime engines (Nautilus Trader and the Agno bridge) are disabled in [`capabilities.yaml`](../capabilities.yaml).
+
+| Module | What it does in Vertex | Where it lives | Isolation | Pin |
+| --- | --- | --- | --- | --- |
+| Agno with vLLM | Optional text-only model bridge for the research agents | `services/research/adapters/agno.py`, `services/research/agents/adapters.py` | Optional SDK, imported lazily behind ports; capability `agno-vllm` is disabled | `agno` 1.7.12, `openai` 1.93.0, `httpx` 0.28.1, vLLM 0.9.2 (in `agno.py`) |
+| TradingAgents | Five research desks: regime, themes, candidates, bull/bear and setup debate. Output that contains order fields is rejected. | `services/research/agents/external_research.py` (`TradingAgentsResearchAdapter`) | Adapter behind the `ResearchGenerator` protocol with an injected model transport. No TradingAgents code is copied (`services/research/NOTICE.txt`). | Not pinned; Vertex's own adapter, no upstream code |
+| QuantMind | Knowledge search with excerpts and extractive summaries | `services/research/agents/external_research.py` (`QuantMindClient`) | Injected client behind a protocol. No QuantMind code is copied. | Not pinned |
+| ai-hedge-fund | Event-study statistics (OLS, abnormal returns, CAR, t-test, bootstrap) for offline backtests; investor-persona instructions (Buffett, Munger, Graham, Lynch, Druckenmiller) for the one-call research committee | `services/research/backtesting/event_stats.py`, `event_study.py`; `services/research/agents/hedgefund_committee.py` (persona instruction text only) | Adapted copy inside the research package, with the MIT notice `AI_HEDGE_FUND_LICENSE.txt` | Upstream file SHA-256 values in the `event_stats.py` docstring and in `QuantReplayBuild-v1.json` (not tracked); persona files: commit `29b32f71` and SHA-256 values in the `hedgefund_committee.py` docstring |
+| [QuantJourney Backtester](https://github.com/QuantJourneyOrg/quantjourney-bt) | 50 example strategies (quants.md) re-run on Vertex data for research; published versus re-run figures and gates in [`docs/vertex-rebuild/quantjourney-library.md`](vertex-rebuild/quantjourney-library.md) | `research/backtests/quantjourney/` (`qj_adapter.py`) | Research tool outside the platform: the adapter imports the upstream package from a pinned clone kept outside the repository and replaces only its data download. No upstream code is copied; Apache-2.0. | Commit `4f403d85` (`research/backtests/quantjourney/library.json`) |
+| [Nautilus Trader](https://github.com/nautechsystems/nautilus_trader) | Backtest engine of record (owner decision 2026-11-05; features switch one by one after parity, see [`docs/vertex-rebuild/nautilus-backtest-engine.md`](vertex-rebuild/nautilus-backtest-engine.md)). Also the Quant Lab engine, an offline execution adapter and an IBKR history source patch. | `services/research/nautilus_backtest/`, `services/research/quantlab/nautilus_engine.py`, `services/execution/vertex_execution/adapters/nautilus_200rc5.py`, `services/ibkr-history/nautilus/` | Research: hash-pinned lock `services/research/requirements-nautilus-linux-py312.lock`. Execution: optional `nautilus` extra of `services/execution`; capability `nautilus-trader` is disabled | Research `nautilus-trader==1.227.0`; execution `nautilus-trader==2.0.0rc5`, tag `v2.0.0rc5`, commit `1b0a49d2` (`services/ibkr-history/nautilus/provenance.json`); never mixed in one environment (ADR-V06) |
+| [rust-ibapi](https://github.com/wboayue/rust-ibapi) | IBKR historical-data client for the Rust history service | `services/ibkr-history/vendor/ibapi-3.3.0/` | Vendored, patched path dependency. Source only: not compiled or activated. | `=3.3.0` and the crate SHA-256 in `services/ibkr-history/Cargo.toml` |
+| IBKR TWS API (Python `ibapi` from PyPI) | Read-only historical bars service on QuantVPS | `infra/quant-vps/history/` | Separate host service; the installer downloads and checks the package | `ibapi` 9.81.1.post1 and its SHA-256 in `infra/quant-vps/history/install-history.sh` |
+| [TanStack Charts](https://github.com/TanStack/charts), KLineCharts, d3-scale | Chart rendering behind a replaceable renderer (ADR-V07) | `apps/web/src/features/charts/` | npm dependencies | Exact versions in `apps/web/package.json` and `pnpm-lock.yaml` |
+| [OpenBB Platform](https://github.com/OpenBB-finance/OpenBB) | Free research data sets (CFTC, FINRA, Fama-French, Federal Reserve, SEC and others) fetched on a timer and stored through `openbb.ingest`; see [`vertex-rebuild/openbb.md`](vertex-rebuild/openbb.md) | `services/openbb/`, `scripts/openbb/`, `infra/openbb/` | Separate Python service; rows pass the Zod contract `packages/api/src/contracts/openbb.ts` before they are stored. Apache-2.0 (`services/openbb/NOTICE`). | Hash-pinned lock `services/openbb/requirements-openbb-linux-py312.lock` (`openbb-core==2.0.1`) |
+| [Vibe-Trading](https://github.com/HKUDS/Vibe-Trading) | Third agent framework of the framework benchmark ([agent-benchmark.md](agent-benchmark.md)) | `services/vibe-trading/` (driver only) | No upstream code is in the repository; `scripts/vibe-trading-setup.sh` clones the pinned release outside it. MIT. | Tag `v0.1.18`, commit `66eb5763` (`services/vibe-trading/README.md`) |
+
+Reference only, no code copied:
+
+- [FinceptTerminal](https://github.com/Fincept-Corporation/FinceptTerminal): capability checklist. No copy until the license of an exact revision is cleared (ADR-V10).
+- "151 Trading Strategies" (Kakushadze and Serur): backtest target list in `research/backtests/151-strategies/`.
+- [Open-Alpha-Lab](https://github.com/Guillain-RDCDE/Open-Alpha-Lab): published results used as validation references in `research/backtests/carousel/`.
+
+The license and rights state of each source is tracked in `docs/vertex-rebuild/migration-matrix.json`.
+
+## First-party research building blocks
+
+The research building blocks are first-party Vertex code in `services/research`. The Python distribution `vertex-gamma-research`, the `gamma` import package, the recipe profile IDs `vertex-gamma-research-v1` and `vertex-gamma-recipe-v1`, the `gammaProvenance` contract field and the `GAMMA_RESEARCH_API_URL`/`GAMMA_RESEARCH_API_TOKEN` environment variables keep their historical names, so that imports, stored recipes, the API contract and configured environments stay stable.
+
+| Block | What it does | Where it lives |
+| --- | --- | --- |
+| Features | Momentum, market structure, volatility, liquidity, fundamental/catalyst and option-flow features | `services/research/gamma/features/` |
+| Indicators | TA-Lib-compatible EMA, MACD, RSI, ATR, ADX and similar indicators | `services/research/indicators/` |
+| Setups | Setup identification from the features, research brief and market regime | `services/research/gamma/engines/setup_engine.py` |
+| Options | Options strategy selection and the BridgingCycles short strangle | `services/research/gamma/engines/options_strategy_selector.py`, `services/research/gamma/engines/bridgingcycles_short_strangle.py`, `services/research/gamma/schemas/options.py` |
+| Portfolio | Portfolio committee and portfolio schemas | `services/research/gamma/engines/portfolio_committee.py`, `services/research/gamma/schemas/portfolio.py` |
+| Replay | Replay manifests and offline backtest replay | `services/research/backtesting/replay.py`, `services/research/backtesting/manifest.py` |
