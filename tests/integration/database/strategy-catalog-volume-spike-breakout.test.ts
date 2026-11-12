@@ -29,10 +29,10 @@ const rollbackSql = readFileSync(
   ),
   "utf8"
 );
-// Later catalog rows that also carry an external claim (0069 triple-rsi) are rolled back first, in reverse
+// Later catalog rows that also carry an external claim (0070 triple-rsi) are rolled back first, in reverse
 // migration order, so this suite sees the claim columns as 0065 left them.
 const laterClaimRollbacks = [
-  "../../../packages/db/rollback/0069_strategy_catalog_triple_rsi.down.sql",
+  "../../../packages/db/rollback/0070_strategy_catalog_triple_rsi.down.sql",
 ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
 // The DDL runs once; only the insert-if-missing statement may run again.
 const insertSql = migrationSql.slice(migrationSql.indexOf("INSERT INTO"));

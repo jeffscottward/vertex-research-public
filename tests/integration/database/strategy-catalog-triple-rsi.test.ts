@@ -9,17 +9,17 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Data migration 0069 (Triple RSI, tested and failed) and its guarded rollback on a real database.
+// Data migration 0070 (Triple RSI, tested and failed) and its guarded rollback on a real database.
 const migrationSql = readFileSync(
   new URL(
-    "../../../packages/db/migrations/0069_strategy_catalog_triple_rsi.sql",
+    "../../../packages/db/migrations/0070_strategy_catalog_triple_rsi.sql",
     import.meta.url
   ),
   "utf8"
 );
 const rollbackSql = readFileSync(
   new URL(
-    "../../../packages/db/rollback/0069_strategy_catalog_triple_rsi.down.sql",
+    "../../../packages/db/rollback/0070_strategy_catalog_triple_rsi.down.sql",
     import.meta.url
   ),
   "utf8"
@@ -40,7 +40,7 @@ const countRows = async (): Promise<number> => {
   return result[0]?.n ?? Number.NaN;
 };
 
-describe("0069 Triple RSI catalog row (Postgres)", () => {
+describe("0070 Triple RSI catalog row (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({

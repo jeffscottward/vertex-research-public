@@ -1,4 +1,4 @@
--- Guarded reversal of 0069_strategy_catalog_triple_rsi only.
+-- Guarded reversal of 0070_strategy_catalog_triple_rsi only.
 -- Deletes the catalog row only while it was not edited and no preset, spec, backtest, backtest run,
 -- optimization run, deployment request or Autopilot candidate references it (no silent SET NULL).
 -- The backtest study in research_studies (id triple-rsi) is kept; it has no link to the row.
