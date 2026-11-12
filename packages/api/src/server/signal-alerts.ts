@@ -52,10 +52,11 @@ import {
 } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
-  type PriceAlertsNtfyConfig,
+  type PriceAlertsNtfyDelivery,
   sendPriceAlertsNtfy,
-} from "./price-alerts.ts";
+} from "./price-alerts-ntfy.ts";
 import { fetchBoundedJson } from "./research-lenses.ts";
+import type { PriceAlertsNtfyConfig } from "./service-config.ts";
 
 // Signal alert and watch procedures (priceAlerts.signals.*), LuxAlgo P4. Operator-only. A run
 // fetches each symbol/timeframe series once (IBKR history first within merged-bars.ts's per-isolate
@@ -91,7 +92,6 @@ export const setSignalAlertsOptionsForTesting = (
 const currentTime = (): Date =>
   (signalAlertsOptions.now ?? (() => new Date()))();
 
-type Delivery = "sent" | "not-configured" | "failed";
 type SeriesError = Readonly<{
   symbol: string;
   timeframe: SignalAlertTimeframe;
@@ -298,7 +298,7 @@ type RunResult = Readonly<{
   checked: number;
   events: SignalAlertEventRecord[];
   seriesErrors: SeriesError[];
-  deliveries: ReadonlyMap<string, Delivery>;
+  deliveries: ReadonlyMap<string, PriceAlertsNtfyDelivery>;
 }>;
 
 /**
@@ -385,7 +385,7 @@ const runSignalAlerts = async (
   const owners = new Map<string, SignalAlertEventRecord[]>();
   for (const event of events)
     owners.set(event.userId, [...(owners.get(event.userId) ?? []), event]);
-  const deliveries = new Map<string, Delivery>();
+  const deliveries = new Map<string, PriceAlertsNtfyDelivery>();
   const settled: SignalAlertEventRecord[] = [];
   for (const [userId, owned] of owners) {
     const ids = owned.map((event) => event.id);
