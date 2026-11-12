@@ -24,6 +24,7 @@ import {
   type DeployStatusConfig,
   type DeployStatusFetch,
 } from "./deploy-status.ts";
+import { redactIbkrAccounts } from "./ibkr-account-redaction.ts";
 import { requireOperator } from "./operator-access.ts";
 
 // Bounded, read-only fetch of IBKR historical bars, historical ticks and one-shot depth snapshots
@@ -215,10 +216,8 @@ const UpstreamErrorSchema = z.object({
   retry_after_seconds: z.number().int().nonnegative().optional(),
 });
 
-const ACCOUNT_PATTERN = /\b(?:D?U|F|I)\d{5,}\b/g;
 const clean = (text: string): string => {
-  return text
-    .replace(ACCOUNT_PATTERN, "[account]")
+  return redactIbkrAccounts(text)
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .trim()
     .slice(0, 300);
