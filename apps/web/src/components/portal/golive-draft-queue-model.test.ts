@@ -8,6 +8,7 @@ import {
   GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   GOLIVE_QUOTE_SOURCE_VALUES,
+  GOLIVE_QUOTE_SPREAD_FLOOR,
   GOLIVE_SIZING_REASON_VALUES,
   GOLIVE_STRUCTURE_VALUES,
   type GoLiveDraftOutput,
@@ -868,10 +869,35 @@ describe("drafts", () => {
     expect(new Set(reasons).size).toBe(reasons.length);
   });
 
-  it("writes the limit in dollars per spread as a debit, a credit or no limit", () => {
-    expect(limitText(2.35)).toBe("$2.35 debit per spread");
-    expect(limitText(-1.1)).toBe("$1.10 credit per spread");
-    expect(limitText(null)).toBe("no limit: no usable quote");
+  it("writes the limit in dollars per spread as a debit or a credit", () => {
+    expect(limitText({ limitPrice: 2.35, reason: "sized" })).toBe(
+      "$2.35 debit per spread"
+    );
+    expect(limitText({ limitPrice: -1.1, reason: "sized" })).toBe(
+      "$1.10 credit per spread"
+    );
+  });
+
+  it("names the cause of a missing limit from the sizing reason, and blames the quote only for no_quote", () => {
+    const none = (reason: GoLiveDraftOutput["sizing"]["reason"]): string =>
+      limitText({ limitPrice: null, reason });
+    expect(none("no_quote")).toBe("no limit: no usable quote");
+    // The server sends no limit when the account value is missing, also beside a good quote.
+    expect(none("nlv_unavailable")).toBe(
+      "no limit: the account value is not available"
+    );
+    for (const reason of GOLIVE_SIZING_REASON_VALUES) {
+      const text = none(reason);
+      expect(text.startsWith("no limit: ")).toBe(true);
+      expect(text.includes("quote")).toBe(reason === "no_quote");
+    }
+    expect(none("quantity_above_order_limit")).toBe(
+      `no limit: ${SIZING_REASON_WORDS.quantity_above_order_limit}`
+    );
+    expect(none("sized")).toBe("no limit: no limit was computed");
+    expect(none(future("new_cap"))).toBe(
+      "no limit: sizing reason not known to this page version (new_cap)"
+    );
   });
 
   it.each(GOLIVE_SIZING_REASON_VALUES)(
@@ -915,9 +941,11 @@ describe("drafts", () => {
     ).toBe(`not available: ${SIZING_REASON_WORDS.no_quote}`);
     // no_quote covers more than a missing quote: every cause the server has is named.
     expect(SIZING_REASON_WORDS.no_quote).toBe(
-      "there is no usable quote: none was recorded, a leg has no bid or no ask, a leg is crossed (bid above ask), a leg has a bid-ask spread wider than half its mid, or the net price is not between 0 and the strike width"
+      "there is no usable quote: none was recorded, a leg has no bid or no ask, a leg is crossed (bid above ask), a leg has a bid-ask spread wider than half its mid and wider than $0.05, or the net price is not between 0 and the strike width"
     );
+    // The two numbers in the sentence are the contract's.
     expect(GOLIVE_QUOTE_MAX_SPREAD_SHARE).toBe(0.5);
+    expect(GOLIVE_QUOTE_SPREAD_FLOOR).toBe(0.05);
     expect(
       maxLossText({ maxLoss: null, maxLossPctNlv: null, reason: "sized" })
     ).toBe("not available: no max loss was computed");

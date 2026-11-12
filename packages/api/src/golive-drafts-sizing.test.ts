@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
+  GOLIVE_QUOTE_SPREAD_FLOOR,
   type GoLiveSizing,
 } from "./contracts/golive-drafts.ts";
 import { VertexComboInputSchema } from "./contracts/vertex-orders.ts";
@@ -256,7 +257,6 @@ describe("limitFromQuote", () => {
         ).toBeNull();
       }
       expect(usable(0.01, 5)).toEqual([false, false]);
-      expect(usable(0.01, 0.05)).toEqual([false, false]);
       expect(usable(1, 2)).toEqual([false, false]);
     });
 
@@ -268,10 +268,42 @@ describe("limitFromQuote", () => {
       expect(usable(0.75, 1.26)).toEqual([false, false]);
       // Mid 0.04, width 0.02 (0.05 - 0.03 is 0.020000000000000004 in binary floats).
       expect(usable(0.03, 0.05)).toEqual([true, true]);
-      expect(usable(0.03, 0.06)).toEqual([false, false]);
       // Mid 12, width 6.
       expect(usable(9, 15)).toEqual([true, true]);
       expect(usable(8.99, 15)).toEqual([false, false]);
+    });
+
+    it("uses a cheap leg that is quoted one tick wide", () => {
+      // A cheap leg next to a leg of 2.90/3.00, as the short leg of a debit spread and as the
+      // long leg of a credit spread.
+      const usableCheap = (bid: number, ask: number): boolean[] => [
+        limitFromQuote("callDebitVertical", quote(2.9, 3, bid, ask), 500) !==
+          null,
+        limitFromQuote("putCreditVertical", quote(bid, ask, 2.9, 3), 500) !==
+          null,
+      ];
+      expect(GOLIVE_QUOTE_SPREAD_FLOOR).toBe(0.05);
+      // One 5-cent tick on 0.05/0.10 is more than half of the mid of 0.075, and it is the
+      // tightest market such an option can have. The same for one cent on 0.01/0.02.
+      expect(usableCheap(0.05, 0.1)).toEqual([true, true]);
+      expect(usableCheap(0.01, 0.02)).toEqual([true, true]);
+      expect(
+        limitFromQuote("callDebitVertical", quote(2.9, 3, 0.05, 0.1), 5)
+      ).toBe(2.87);
+      // Up to 5 cents wide is usable; one cent more is not.
+      expect(usableCheap(0.01, 0.05)).toEqual([true, true]);
+      expect(usableCheap(0.01, 0.06)).toEqual([true, true]);
+      expect(usableCheap(0.03, 0.06)).toEqual([true, true]);
+      expect(usableCheap(0.01, 0.07)).toEqual([false, false]);
+      expect(usableCheap(0.05, 0.11)).toEqual([false, false]);
+      // Above 5 cents the share of the mid decides: 0.10 wide on a mid of 0.25, and on 0.15.
+      expect(usableCheap(0.2, 0.3)).toEqual([true, true]);
+      expect(usableCheap(0.1, 0.2)).toEqual([false, false]);
+      // The 5 cents do not make a wide market usable: the long leg of 0.01/5.00 still refuses.
+      expect(
+        limitFromQuote("callDebitVertical", quote(0.01, 5, 0.01, 0.05), 5)
+      ).toBeNull();
+      expect(usableCheap(0.01, 5)).toEqual([false, false]);
     });
 
     it("uses markets as they are quoted for liquid options", () => {

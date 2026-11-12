@@ -119,7 +119,7 @@ The limit comes from the mid prices of the two legs of the stored quote.
 - Debit vertical: long mid minus short mid, rounded down to a cent. The limit is never above the mid.
 - Credit vertical: short mid minus long mid, rounded up to a cent, stored as a negative number. The credit asked is never below the mid.
 - No limit (and so no size) when a bid or ask is missing, when a bid is 0 (nobody bids, so the mid is not a price), when a bid is above its ask, or when the rounded limit is not at least one cent above 0 and one cent below the strike width.
-- No limit when one leg is a wide market: its ask minus its bid is more than half of its mid (`GOLIVE_QUOTE_MAX_SPREAD_SHARE` = 0.5). Nobody trades at such a mid. Example: long 0.01/5.00 and short 0.01/0.05 give no limit and the sizing reason `no_quote`. A leg quoted at exactly half of its mid (0.75/1.25) is still used.
+- No limit when one leg is a wide market: its ask minus its bid is more than half of its mid (`GOLIVE_QUOTE_MAX_SPREAD_SHARE` = 0.5) and also more than 5 cents (`GOLIVE_QUOTE_SPREAD_FLOOR` = 0.05). Nobody trades at such a mid. Example: long 0.01/5.00 and short 0.01/0.05 give no limit and the sizing reason `no_quote`, because of the long leg. A leg quoted at exactly half of its mid (0.75/1.25) is still used. A leg at most 5 cents wide is always used: one tick is the tightest market a cheap option has (0.05/0.10, 0.01/0.02), and 0.01/0.07 is not used.
 
 ## Sizing
 

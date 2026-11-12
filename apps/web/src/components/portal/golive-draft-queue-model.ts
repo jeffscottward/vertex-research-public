@@ -6,6 +6,7 @@ import {
   type GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   type GOLIVE_QUOTE_SOURCE_VALUES,
+  GOLIVE_QUOTE_SPREAD_FLOOR,
   type GOLIVE_SIZING_REASON_VALUES,
   type GOLIVE_STRUCTURE_VALUES,
   type GoLiveDraftOutput,
@@ -145,12 +146,14 @@ export const QUOTE_SOURCE_WORDS: Readonly<Record<GoLiveQuoteSource, string>> =
     yahoo_delayed_snapshot: "Yahoo, 15 min delayed, indicative",
   });
 
-// The server takes a leg quote whose bid-ask spread is wider than this share of its mid as no
-// usable quote (GOLIVE_QUOTE_MAX_SPREAD_SHARE in the contract).
-const MAX_SPREAD_WORDS =
+// The server takes a leg quote as not usable only when its bid-ask spread is wider than this
+// share of its mid AND wider than this many dollars (GOLIVE_QUOTE_MAX_SPREAD_SHARE and
+// GOLIVE_QUOTE_SPREAD_FLOOR in the contract). Both numbers in the sentence come from there.
+const MAX_SPREAD_WORDS = `wider than ${
   GOLIVE_QUOTE_MAX_SPREAD_SHARE === 0.5
     ? "half"
-    : `${GOLIVE_QUOTE_MAX_SPREAD_SHARE * 100}% of`;
+    : `${GOLIVE_QUOTE_MAX_SPREAD_SHARE * 100}% of`
+} its mid and wider than $${GOLIVE_QUOTE_SPREAD_FLOOR.toFixed(2)}`;
 
 export const SIZING_REASON_WORDS: Readonly<Record<GoLiveSizingReason, string>> =
   Object.freeze({
@@ -160,7 +163,7 @@ export const SIZING_REASON_WORDS: Readonly<Record<GoLiveSizingReason, string>> =
     name_cap_reached: "the per-name risk cap is reached",
     nlv_unavailable: "the account value is not available",
     // Every cause the server sizes as no_quote, not only a missing quote.
-    no_quote: `there is no usable quote: none was recorded, a leg has no bid or no ask, a leg is crossed (bid above ask), a leg has a bid-ask spread wider than ${MAX_SPREAD_WORDS} its mid, or the net price is not between 0 and the strike width`,
+    no_quote: `there is no usable quote: none was recorded, a leg has no bid or no ask, a leg is crossed (bid above ask), a leg has a bid-ask spread ${MAX_SPREAD_WORDS}, or the net price is not between 0 and the strike width`,
     open_risk_cap_reached: "the open risk cap is reached",
     quantity_above_order_limit:
       "the budget buys more spreads than one order may hold, and the draft is not reduced",
@@ -610,10 +613,27 @@ const notApprovableText = (
 const spreadsText = (quantity: number): string =>
   `${quantity} ${quantity === 1 ? "spread" : "spreads"}`;
 
-/** Net limit per spread in dollars: positive is a debit paid, negative is a credit received. */
-export const limitText = (limitPrice: number | null): string => {
-  if (limitPrice === null) return "no limit: no usable quote";
-  return `$${Math.abs(limitPrice).toFixed(2)} ${limitPrice < 0 ? "credit" : "debit"} per spread`;
+/** A net price per spread in dollars: positive is a debit paid, negative is a credit received. */
+const netPriceText = (limitPrice: number): string =>
+  `$${Math.abs(limitPrice).toFixed(2)} ${limitPrice < 0 ? "credit" : "debit"} per spread`;
+
+/**
+ * The limit of the live sizing, or why there is none. The server sends no limit for more causes
+ * than a bad quote (a missing account value, for one), so the cause is the sizing reason's own:
+ * the quote is called unusable only when the reason is no_quote.
+ */
+export const limitText = (
+  sizing: Pick<GoLiveSizing, "limitPrice" | "reason">
+): string => {
+  if (sizing.limitPrice !== null) return netPriceText(sizing.limitPrice);
+  switch (sizing.reason) {
+    case "no_quote":
+      return "no limit: no usable quote";
+    case "sized":
+      return "no limit: no limit was computed";
+    default:
+      return `no limit: ${sizingReasonText(sizing.reason)}`;
+  }
 };
 
 /** The quantity in spreads with its sizing reason. 0 always shows why. */
@@ -639,7 +659,7 @@ export const maxLossText = (
 
 /** The live numbers of a draft in one line, for a row whose approved order is shown separately. */
 export const currentSizingText = (sizing: GoLiveSizing): string =>
-  `limit ${limitText(sizing.limitPrice)}; quantity ${quantityText(sizing)}; max loss ${maxLossText(sizing)}`;
+  `limit ${limitText(sizing)}; quantity ${quantityText(sizing)}; max loss ${maxLossText(sizing)}`;
 
 export type GoLivePreCheckView = Readonly<{
   decision: string;
@@ -782,7 +802,7 @@ export const orderLegLines = (order: GoLiveOrder): readonly string[] =>
 
 const orderRows = (order: GoLiveOrder): readonly GoLiveLabelValue[] => [
   { label: "Quantity", value: spreadsText(order.quantity) },
-  { label: "Limit", value: limitText(order.limitPrice) },
+  { label: "Limit", value: netPriceText(order.limitPrice) },
 ];
 
 /** The rows of the confirm dialog: the exact order and its max loss. */

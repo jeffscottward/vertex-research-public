@@ -432,7 +432,7 @@ const DraftRow = ({
           </Field>
           {approved === null ? (
             <>
-              <Field label="Limit">{limitText(draft.sizing.limitPrice)}</Field>
+              <Field label="Limit">{limitText(draft.sizing)}</Field>
               <Field label="Quantity">{quantityText(draft.sizing)}</Field>
               <Field label="Max loss">{maxLossText(draft.sizing)}</Field>
             </>

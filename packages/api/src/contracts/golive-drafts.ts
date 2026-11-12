@@ -107,6 +107,9 @@ export const GOLIVE_NODE_BADGE_VALUES = [
 // The widest market of one leg that still gives a price: ask - bid at most this share of the mid.
 // A wider leg (0.01 bid, 5.00 asked) has a mid that nobody trades at, so it gives no limit.
 export const GOLIVE_QUOTE_MAX_SPREAD_SHARE = 0.5;
+// In dollars. A leg is never called wide for ask - bid at or below this: it is one tick of an
+// option priced under 3 dollars, so 0.05 bid, 0.10 asked is the tightest market such a leg has.
+export const GOLIVE_QUOTE_SPREAD_FLOOR = 0.05;
 // The most drafts one trading day may hold. collect refuses a batch that would go above it, so
 // the queue always lists every draft of the day.
 export const GOLIVE_DRAFT_LIST_MAX = 200;
@@ -502,8 +505,9 @@ export const GoLiveDraftApproveInputSchema = z
     // The owner confirms the exact order shown: the server refuses when its own sized order differs.
     order: VertexComboInputSchema,
     // The revision of the draft as the owner read it: the server refuses when the draft has
-    // another one (a later generator run changed its quote, facts or entry basis).
-    revision: z.number().int().positive(),
+    // another one (a later generator run changed its quote, facts or entry basis). At most the
+    // largest value the stored whole number (int4) holds.
+    revision: z.number().int().positive().max(2_147_483_647),
   })
   .strict();
 // The note is trimmed first: blanks alone are no note.

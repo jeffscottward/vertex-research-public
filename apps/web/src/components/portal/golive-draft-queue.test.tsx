@@ -635,7 +635,11 @@ describe("GoLiveDraftQueue", () => {
     expect(row.textContent).toContain(
       "Yahoo, 15 min delayed, indicative, as of 2026-11-11 10:30 ET"
     );
-    expect(row.textContent).toContain("no limit: no usable quote");
+    // The quote of this draft is fine: the account value is what is missing.
+    expect(row.textContent).toContain(
+      "Limitno limit: the account value is not available"
+    );
+    expect(row.textContent).not.toContain("no usable quote");
     expect(row.textContent).toContain(
       "0 spreads (the account value is not available)"
     );

@@ -1,5 +1,6 @@
 import {
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
+  GOLIVE_QUOTE_SPREAD_FLOOR,
   type GoLiveDraftOutput,
   type GoLivePlanLimits,
   type GoLivePlanStatus,
@@ -173,7 +174,9 @@ const PRICE_NOISE = 1e-9;
 
 // null: the side is missing (not a number, no ask), has no bid (a bid of 0 or below: nobody
 // bids, so the mid is no price), is crossed (bid above ask), or is a wide market: ask - bid is
-// above GOLIVE_QUOTE_MAX_SPREAD_SHARE of the mid, so nobody trades at that mid.
+// above GOLIVE_QUOTE_MAX_SPREAD_SHARE of the mid, so nobody trades at that mid. A leg that is at
+// most GOLIVE_QUOTE_SPREAD_FLOOR wide is never a wide market: one tick is the tightest market a
+// cheap option has.
 const mid = (bid: number, ask: number): number | null => {
   if (
     !(
@@ -186,9 +189,11 @@ const mid = (bid: number, ask: number): number | null => {
   )
     return null;
   const middle = (bid + ask) / 2;
-  return ask - bid <= GOLIVE_QUOTE_MAX_SPREAD_SHARE * middle + PRICE_NOISE
-    ? middle
-    : null;
+  const widest = Math.max(
+    GOLIVE_QUOTE_MAX_SPREAD_SHARE * middle,
+    GOLIVE_QUOTE_SPREAD_FLOOR
+  );
+  return ask - bid <= widest + PRICE_NOISE ? middle : null;
 };
 
 /**

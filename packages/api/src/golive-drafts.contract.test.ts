@@ -5,6 +5,7 @@ import {
   GOLIVE_COLLECT_MAX,
   GOLIVE_DRAFT_LIST_MAX,
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
+  GOLIVE_QUOTE_SPREAD_FLOOR,
   GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_SIZING_REASON_VALUES,
   GOLIVE_STANDING_MAX_LOSS_PCT,
@@ -408,6 +409,12 @@ describe("goLiveDrafts contract", () => {
       GoLiveDraftApproveInputSchema.parse({ ...approval, note: "As shown" })
         .note
     ).toBe("As shown");
+    expect(
+      GoLiveDraftApproveInputSchema.parse({
+        ...approval,
+        revision: 2_147_483_647,
+      }).revision
+    ).toBe(2_147_483_647);
     for (const bad of [
       { ...approval, confirm: false },
       { id: "d-spy", order: order(), revision: 3 },
@@ -419,6 +426,8 @@ describe("goLiveDrafts contract", () => {
       { ...approval, revision: 1.5 },
       { ...approval, revision: "3" },
       { ...approval, revision: null },
+      // Above the range of the stored whole number.
+      { ...approval, revision: 2_147_483_648 },
       { ...approval, order: { ...order(), limitPrice: 0 } },
       { ...approval, order: { ...order(), quantity: 0 } },
       { ...approval, order: { ...order(), legs: order().legs.slice(0, 1) } },
@@ -572,8 +581,9 @@ describe("goLiveDrafts contract", () => {
       expect(GoLiveDraftSchema.safeParse(bad).success).toBe(false);
   });
 
-  it("sets the widest usable market at half of the mid", () => {
+  it("sets the widest usable market at half of the mid, and never below 5 cents", () => {
     expect(GOLIVE_QUOTE_MAX_SPREAD_SHARE).toBe(0.5);
+    expect(GOLIVE_QUOTE_SPREAD_FLOOR).toBe(0.05);
   });
 
   it("returns a plan only with a Discord message link and an https evidence link, or without them", () => {
