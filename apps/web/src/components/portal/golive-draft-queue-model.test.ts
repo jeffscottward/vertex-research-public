@@ -94,6 +94,7 @@ import {
   SIZING_REASON_WORDS,
   STRUCTURE_WORDS,
   safeHttpsUrl,
+  sendOutcomeText,
   sleeveRow,
   staleDialogNotice,
   staleDialogReason,
@@ -325,14 +326,14 @@ describe("wording maps", () => {
         "Proposal to close: open winner, 15:45 ET on expiry day",
     });
     expect(NO_ORDERS_NOTICE).toBe(
-      "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve records your decision and then sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position, counting open positions and working orders). Disarmed, it records only and says so. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The notice never tells the owner to place an approved vertical on a Vertex screen.
     expect(NO_ORDERS_NOTICE).not.toMatch(/to place|use the|yourself/iu);
     expect(NO_ORDERS_NOTICE_PARTS.link).toBe("Portfolio");
     expect(PORTFOLIO_HREF).toBe("/portfolio?tab=orders");
     expect(APPROVAL_NOT_SENT_SENTENCE).toBe(
-      "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today."
+      "This records your approval and then sends this exact order to IBKR as one combo limit order, only if the execution node is armed and the plan caps allow it. Otherwise nothing is sent and the page says why."
     );
   });
 
@@ -381,9 +382,9 @@ describe("wording maps", () => {
       plan: plan(),
       tradingDay: "2026-11-11",
     };
+    // NO_ORDERS_NOTICE and APPROVAL_NOT_SENT_SENTENCE describe the send after an approval
+    // (GO-LIVE 4, owner 2026-11-12) and are pinned word for word above.
     const sentences = [
-      NO_ORDERS_NOTICE,
-      APPROVAL_NOT_SENT_SENTENCE,
       REJECTION_RECORD_SENTENCE,
       NODE_DISARMED_NOTE,
       ENGINE_POLICY_LINE,
@@ -1846,5 +1847,40 @@ describe("exitScheduleText", () => {
     });
     expect(text).toContain("Loser closes 2026-12-15");
     expect(text).toContain("3x SPY SELL 600C / BUY 610C");
+  });
+});
+
+describe("sendOutcomeText", () => {
+  it("says approved and disarmed, approved and refused, or approved and sent", () => {
+    expect(
+      sendOutcomeText({
+        reasons: [
+          "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked T); the owner arms the node",
+        ],
+        sent: false,
+      })
+    ).toBe(
+      "Approved, engine disarmed: nothing was sent. approved, engine running-disarmed (checked T); the owner arms the node"
+    );
+    expect(
+      sendOutcomeText({
+        reasons: ["GO-LIVE OPEN_RISK_CAP: over the total cap"],
+        sent: false,
+      })
+    ).toBe("Approved, not sent: GO-LIVE OPEN_RISK_CAP: over the total cap");
+    expect(
+      sendOutcomeText({
+        result: {
+          message: "Sent to IBKR (status Submitted).",
+          mode: "live",
+          orderRef: "vertex-abc",
+          permId: null,
+          state: "submitted",
+        },
+        sent: true,
+      })
+    ).toContain(
+      "Approved and sent to IBKR as one combo limit order (live, submitted, ref vertex-abc)"
+    );
   });
 });

@@ -88,7 +88,7 @@ describe("automation lab entries", () => {
     try {
       const host = await mount("drafts");
       const text = host.textContent ?? "";
-      expect(text).toContain("This page sends no orders.");
+      expect(text).toContain("only while you have ARMED the execution node");
       expect(text).toContain(
         "Plan approved by delegation (the owner delegated the allocation choice)"
       );

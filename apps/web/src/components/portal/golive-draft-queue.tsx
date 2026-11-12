@@ -7,6 +7,7 @@ import {
   type GoLiveDraftRejectInput,
   type GoLivePlanOutput,
   type GoLiveQueueOutput,
+  type VertexComboInput,
 } from "@darkfactory/api";
 import { Button, Textarea } from "@darkfactory/ui";
 import { Dialog, DialogContent } from "@darkfactory/ui/client/dialog";
@@ -50,6 +51,7 @@ import {
   expiryDate,
   type GoLiveDecisionFailure,
   type GoLiveDraftContext,
+  type GoLiveSendResult,
   generatorText,
   groupDrafts,
   keyedLines,
@@ -78,6 +80,7 @@ import {
   REJECT_NOTE_REQUIRED,
   REJECTION_RECORD_SENTENCE,
   safeHttpsUrl,
+  sendOutcomeText,
   sleeveRow,
   staleDialogNotice,
   staleDialogReason,
@@ -88,9 +91,10 @@ import {
 // Go-live order draft queue (/drafts): the allocation plan in force, the state of the account,
 // node and generator, and the order drafts of the order session day. The owner approves or
 // rejects each draft. The page has no polling: it says when it was loaded and has a Reload button.
-// RECORDS ONLY: goLiveDrafts has no send route. An approval is a stored decision and nothing
-// more. No Vertex screen opens a vertical spread on the live account: the live order screen (the
-// Vertex orders tab of /portfolio) has no vertical ticket. The notice on the page says so.
+// GO-LIVE 4 (owner 2026-11-12): after an approval is recorded, the page asks the owner order path
+// (vertexOrders combo preview and submit, bound to the draft id) to send the stored order. The
+// server sends only the exact approved order, only while the node is armed and only inside the plan
+// caps; otherwise it names why and the notice says so ("Approved, engine disarmed").
 
 export interface GoLiveDraftsGateway {
   readonly approve: (
@@ -103,15 +107,39 @@ export interface GoLiveDraftsGateway {
   readonly reject: (
     input: GoLiveDraftRejectInput
   ) => Promise<GoLiveDraftOutput>;
+  /**
+   * Sends the order stored with an approval through the owner order checks (combo preview and
+   * submit bound to the draft id). The server sends only the exact approved order, only while the
+   * owner has armed the execution node, and only inside the plan caps; otherwise it names why.
+   */
+  readonly sendApproved: (
+    input: Readonly<{ draftId: string; order: VertexComboInput }>
+  ) => Promise<GoLiveSendResult>;
 }
 
 // The one place that reads goLiveDrafts from the root API client.
 const connectGoLiveDrafts = (): GoLiveDraftsGateway => {
-  const api = createApiClient({ baseUrl: window.location.origin }).goLiveDrafts;
+  const client = createApiClient({ baseUrl: window.location.origin });
+  const api = client.goLiveDrafts;
   return {
     approve: (input) => api.approve(input),
     queue: (options) => api.queue({}, options),
     reject: (input) => api.reject(input),
+    sendApproved: async ({ draftId, order }) => {
+      const preview = await client.vertexOrders.comboPreview({
+        ...order,
+        goLiveDraftId: draftId,
+      });
+      if (preview.confirmToken === null)
+        return { reasons: preview.review.reasons, sent: false };
+      const result = await client.vertexOrders.comboSubmit({
+        confirm: true,
+        confirmToken: preview.confirmToken,
+        goLiveDraftId: draftId,
+        order,
+      });
+      return { result, sent: true };
+    },
   };
 };
 
@@ -127,6 +155,9 @@ export const createBrowserGoLiveDraftsGateway = (): GoLiveDraftsGateway => {
     queue: (options: Readonly<{ signal: AbortSignal }>) =>
       current().queue(options),
     reject: (input: GoLiveDraftRejectInput) => current().reject(input),
+    sendApproved: (
+      input: Readonly<{ draftId: string; order: VertexComboInput }>
+    ) => current().sendApproved(input),
   });
 };
 
@@ -905,6 +936,18 @@ export const GoLiveDraftQueue = ({
       if (!mounted.current) return;
       keep(decided);
       setDecision(null);
+      if (decided.state === "approved" && decided.approvedOrder !== null) {
+        const order = decided.approvedOrder;
+        const outcome = await gateway
+          .sendApproved({ draftId: decided.id, order })
+          .catch(
+            (error: unknown): GoLiveSendResult => ({
+              reasons: [error instanceof Error ? error.message : String(error)],
+              sent: false,
+            })
+          );
+        if (mounted.current) setNotice(sendOutcomeText(outcome));
+      }
       await load();
     } catch (error) {
       if (!mounted.current) return;

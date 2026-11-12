@@ -16,6 +16,7 @@ import {
   type GoLiveQueueOutput,
   type GoLiveQuote,
   type GoLiveSizing,
+  type VertexOrderResult,
 } from "@darkfactory/api";
 
 import { pct, price, usd } from "./portfolio-monitor-model.ts";
@@ -85,12 +86,12 @@ export const PORTFOLIO_HREF = `/portfolio?tab=${VERTEX_ORDERS_TAB_VALUE}`;
 export const NO_ORDERS_NOTICE_PARTS = Object.freeze({
   after: `, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks.`,
   before:
-    "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (",
+    "Approve records your decision and then sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position, counting open positions and working orders). Disarmed, it records only and says so. The live order screen (",
   link: "Portfolio",
 });
 export const NO_ORDERS_NOTICE = `${NO_ORDERS_NOTICE_PARTS.before}${NO_ORDERS_NOTICE_PARTS.link}${NO_ORDERS_NOTICE_PARTS.after}`;
 export const APPROVAL_NOT_SENT_SENTENCE =
-  "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today.";
+  "This records your approval and then sends this exact order to IBKR as one combo limit order, only if the execution node is armed and the plan caps allow it. Otherwise nothing is sent and the page says why.";
 export const REJECTION_RECORD_SENTENCE =
   "This records your rejection with the note. It changes no order.";
 export const NODE_DISARMED_NOTE =
@@ -1243,4 +1244,32 @@ export const exitScheduleText = (
     .map((leg) => `${leg.side} ${leg.strike}${leg.right}`)
     .join(" / ");
   return `Loser closes ${schedule.loserCloseDay} (3 trading days before expiry); open winner closes ${etDayClock(schedule.winnerCloseAt)}. Close: ${closeOrder.quantity}x ${closeOrder.symbol} ${legs}, limit from the live quote at exit.`;
+};
+
+/** What the send after an approval gave: sent to the order bridge, or refused with its reasons. */
+export type GoLiveSendResult =
+  | Readonly<{ result: VertexOrderResult; sent: true }>
+  | Readonly<{ reasons: readonly string[]; sent: false }>;
+
+const ENGINE_DISARMED_CODE = "GO-LIVE ENGINE_DISARMED";
+
+/**
+ * The notice after an approval: what the order path did with the approved order. A disarmed node
+ * reads "Approved, engine disarmed"; any other refusal is listed by name.
+ */
+export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
+  if (outcome.sent) {
+    const { result } = outcome;
+    const reached =
+      result.state === "submitted" || result.state === "unconfirmed";
+    return reached
+      ? `Approved and sent to IBKR as one combo limit order (${result.mode}, ${result.state}, ref ${result.orderRef}). ${result.message}`
+      : `Approved; IBKR did not take the order (${result.state}): ${result.message}`;
+  }
+  const disarmed = outcome.reasons.find((reason) =>
+    reason.startsWith(ENGINE_DISARMED_CODE)
+  );
+  if (disarmed !== undefined)
+    return `Approved, engine disarmed: nothing was sent. ${disarmed.slice(ENGINE_DISARMED_CODE.length + 2)}`;
+  return `Approved, not sent: ${outcome.reasons.join(" ")}`;
 };

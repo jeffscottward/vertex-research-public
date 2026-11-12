@@ -255,6 +255,12 @@ const gatewayOf = (
     approve: vi.fn<GoLiveDraftsGateway["approve"]>(async () => draft()),
     queue: queueMock,
     reject: vi.fn<GoLiveDraftsGateway["reject"]>(async () => draft()),
+    sendApproved: vi.fn<GoLiveDraftsGateway["sendApproved"]>(async () => ({
+      reasons: [
+        "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked 2026-11-11T15:00:00.000Z); the owner arms the node",
+      ],
+      sent: false,
+    })),
   };
 };
 
@@ -756,7 +762,7 @@ describe("GoLiveDraftQueue", () => {
     expect(order).toContain("Limit$2.35 debit per spread");
     expect(order).toContain("Max loss$470.00 (0.47% of account)");
     expect(one(dialog, "[data-golive-not-sent]").textContent).toBe(
-      "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today."
+      "This records your approval and then sends this exact order to IBKR as one combo limit order, only if the execution node is armed and the plan caps allow it. Otherwise nothing is sent and the page says why."
     );
     expect(dialog.querySelector("textarea")).toBeNull();
     expect(gateway.approve).not.toHaveBeenCalled();
@@ -777,6 +783,27 @@ describe("GoLiveDraftQueue", () => {
         "data-golive-draft-state"
       )
     ).toBe("approved");
+  });
+
+  it("after an approval asks the order path to send the stored order and says what it did", async () => {
+    const approved = draft({
+      approvedOrder: ORDER,
+      decidedAt: AT,
+      state: "approved",
+    });
+    const gateway = gatewayOf(queue(), queue({ drafts: [approved] }));
+    gateway.approve.mockResolvedValueOnce(approved);
+    const container = await mount(gateway);
+    await click(button(container, "Approve SPY 2026-12-18"));
+    await click(button(one(document, "[role='dialog']"), "Record approval"));
+    expect(gateway.sendApproved).toHaveBeenCalledTimes(1);
+    expect(gateway.sendApproved).toHaveBeenCalledWith({
+      draftId: "draft-spy",
+      order: ORDER,
+    });
+    expect(
+      one(container, "[data-golive-decision-notice]").textContent
+    ).toContain("Approved, engine disarmed: nothing was sent.");
   });
 
   it("closes the dialog on Cancel and on Escape without recording anything", async () => {
@@ -957,7 +984,7 @@ describe("GoLiveDraftQueue", () => {
     const notice = one(container, "[data-golive-notice]");
     expect(notice.textContent).toBe(NO_ORDERS_NOTICE);
     expect(notice.textContent).toBe(
-      "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve records your decision and then sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position, counting open positions and working orders). Disarmed, it records only and says so. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The owner is not told to place an approved vertical on a Vertex screen.
     expect(notice.textContent).not.toMatch(/to place|use the|yourself/iu);
