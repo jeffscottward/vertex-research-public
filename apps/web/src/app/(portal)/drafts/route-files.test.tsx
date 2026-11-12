@@ -50,6 +50,9 @@ describe("order drafts route", () => {
     const reset = vi.fn();
     const container = await render(<OrderDraftsError reset={reset} />);
     expect(container.textContent).toContain("Order drafts unavailable");
+    expect(container.textContent).toContain(
+      "The order drafts page failed to render. This page sends no orders."
+    );
     const retry = container.querySelector("button");
     expect(retry?.textContent).toBe("Try again");
     await act(async () => retry?.click());
