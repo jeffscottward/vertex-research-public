@@ -146,7 +146,7 @@ A release needs exact-SHA evidence. PRs do not. This is operator policy: the dep
 
 1. Merge the release PR with every required check green ([Branch protection](#branch-protection)).
 2. Bump `version` in the root `package.json`, the workspace packages and `capabilities.yaml`, then move `## [Unreleased]` in `CHANGELOG.md` to the new version with today's date.
-3. Dispatch `ci.yml` (`workflow_dispatch`) on the exact commit you will ship; merges to `main` do not trigger it. Confirm the run's `head_sha` equals that commit and that all four lanes passed (`gh run view <run-id> --json headSha,conclusion,jobs`). A dispatch request alone is not evidence.
+3. Dispatch `ci.yml` (`workflow_dispatch`) on the exact commit you will ship. A push to the live branch also starts a run, but push runs are batched, so the run for your commit can be replaced by a newer one. Confirm the run's `head_sha` equals that commit and that all four lanes passed (`gh run view <run-id> --json headSha,conclusion,jobs`). A dispatch request alone is not evidence.
 4. Check CodeQL and Dependency Review for open high or critical findings.
 5. Apply pending migrations ([Migrations](#migrations)).
 6. `bun run deploy:web:staging:check`, then `bun run deploy:web:staging`, and smoke-test staging.
