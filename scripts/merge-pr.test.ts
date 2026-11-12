@@ -1,4 +1,5 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,11 +9,12 @@ import { describe, expect, it } from "vitest";
 const script = fileURLToPath(new URL("merge-pr", import.meta.url));
 
 // Answers one response per call from $STATE/<key>, one line per call; the last
-// line repeats. A line "!N text" prints text and exits N. Every call is logged.
+// line repeats. A line "!N text" prints text and exits N. A missing key fails
+// with 3 unless the caller asks for an empty answer.
 const responder = [
   "respond() {",
   '  local file="$STATE/$1" count n line',
-  '  [[ -f "$file" ]] || exit 3',
+  '  if [[ ! -f "$file" ]]; then [[ "${2:-}" == empty ]] && exit 0; exit 3; fi',
   '  count=$(cat "$file.count" 2>/dev/null || echo 0)',
   '  n=$(wc -l <"$file")',
   "  count=$((count + 1))",
@@ -27,91 +29,114 @@ const responder = [
   "}",
 ].join("\n");
 
-// Stands in for the GitHub CLI, keyed on the exact calls scripts/merge-pr makes for PR 9.
+const API = "repos/owner/vertex-research-public";
+
+// Stands in for the GitHub CLI, keyed on the exact calls scripts/merge-pr makes for
+// PR 9. Commit reads are keyed by SHA, so a check run only exists for the commit
+// a test gives it.
 const fakeGh = [
   "#!/usr/bin/env bash",
   'echo "gh $*" >>"$CALL_LOG"',
   responder,
+  'sha() { local rest=${1#*/commits/}; echo "${rest%%/*}"; }',
   'case "$*" in',
   '  "repo view --json nameWithOwner "*) respond repo ;;',
-  '  "pr view 9 --json state,isDraft,"*) respond view ;;',
-  '  "pr view 9 --json headRefOid "*) respond head ;;',
+  '  "pr view 9 --json state,isDraft,baseRefName,headRefOid,mergeStateStatus "*) respond view ;;',
   '  "pr view 9 --json state,mergeCommit "*) respond merged ;;',
-  '  "api repos/owner/vertex-research-public/git/ref/heads/base/main "*) respond ref ;;',
-  '  "api repos/owner/vertex-research-public/compare/"*) respond compare ;;',
-  '  "api repos/owner/vertex-research-public/commits/"*) respond tree ;;',
+  `  "api ${API}/branches/base%2Fmain/protection/required_status_checks "*) respond required ;;`,
+  `  "api ${API}/rules/branches/base%2Fmain "*) respond rules empty ;;`,
+  `  "api ${API}/git/ref/heads/base/main "*) respond ref ;;`,
+  `  "api ${API}/compare/"*) respond compare ;;`,
+  `  "api -X GET ${API}/commits/"*"/check-runs "*) respond "runs-$(sha "$4")" empty ;;`,
+  `  "api ${API}/commits/"*"/status "*) respond "status-$(sha "$2")" empty ;;`,
+  `  "api ${API}/commits/"*" --jq [.parents"*) respond "parents-$(sha "$2")" ;;`,
+  `  "api ${API}/commits/"*" --jq .commit.tree.sha") respond "tree-$(sha "$2")" ;;`,
   '  "pr update-branch 9") respond update ;;',
-  '  "pr checks 9 --required --json bucket "*) respond checks ;;',
-  '  "pr checks 9 --required") echo "ci-gate fail" ;;',
   '  "pr merge 9 --merge --match-head-commit "*) respond merge ;;',
   "  *) exit 2 ;;",
   "esac",
   "",
 ].join("\n");
 
-// Stands in for the firstmate CLI: claim answers from $STATE/claim, beat and release succeed.
+// Stands in for the firstmate CLI: claim and claims answer from $STATE.
 const fakeFm = [
   "#!/usr/bin/env bash",
   'echo "fm $*" >>"$CALL_LOG"',
   responder,
   'case "$1" in',
   "  claim) respond claim ;;",
+  "  claims) respond claims ;;",
   "  beat | release) exit 0 ;;",
   "  *) exit 2 ;;",
   "esac",
   "",
 ].join("\n");
 
+const H1 = "1".repeat(40);
+const H2 = "2".repeat(40);
+const B1 = "b".repeat(40);
 const BASE = "base/main";
+const view = (head: string, mergeState = "CLEAN", draft = "false") =>
+  `OPEN\\t${draft}\\t${BASE}\\t${head}\\t${mergeState}`;
+const PASS = "completed\\tsuccess";
+
 const CLEAN: Record<string, string[]> = {
-  checks: ["pass"],
   claim: ["claimed"],
+  claims: ["[]"],
   compare: ["0"],
-  head: ["head1"],
   merge: [""],
   merged: ["MERGED\\tmerge1"],
-  ref: ["base1"],
+  ref: [B1],
   repo: ["owner/vertex-research-public"],
-  tree: ["tree1"],
+  required: ["ci-gate\\t15368"],
+  [`runs-${H1}`]: [PASS],
+  [`runs-${H2}`]: [PASS],
+  [`tree-${H1}`]: ["tree1"],
+  [`tree-${H2}`]: ["tree1"],
+  "tree-merge1": ["tree1"],
   update: [""],
-  view: [`OPEN\\tfalse\\t${BASE}\\thead1`],
+  view: [view(H1)],
 };
 
-const run = (
-  responses: Record<string, string[]>,
-  args: string[] = ["9", "--card", "job-a"]
-): {
-  calls: string[];
-  status: number | null;
-  stdout: string;
-  stderr: string;
-} => {
+const ARGS = ["9", "--card", "job-a", "--head", H1];
+
+const setup = (responses: Record<string, string[]>) => {
   const directory = mkdtempSync(join(tmpdir(), "merge-pr-"));
   const log = join(directory, "calls.log");
+  writeFileSync(join(directory, "gh"), fakeGh, { mode: 0o755 });
+  writeFileSync(join(directory, "fm"), fakeFm, { mode: 0o755 });
+  writeFileSync(log, "");
+  for (const [key, lines] of Object.entries({ ...CLEAN, ...responses })) {
+    writeFileSync(join(directory, key), `${lines.join("\n")}\n`);
+  }
+  const env = {
+    CALL_LOG: log,
+    MERGE_PR_POLL_SECONDS: "0",
+    MERGE_PR_RETRY_SECONDS: "0",
+    PATH: `${directory}:${process.env["PATH"] ?? ""}`,
+    STATE: directory,
+    XDG_RUNTIME_DIR: directory,
+  };
+  const calls = () => readFileSync(log, "utf8").split("\n").filter(Boolean);
+  const cleanup = () => rmSync(directory, { force: true, recursive: true });
+  return { calls, cleanup, env };
+};
+
+const run = (responses: Record<string, string[]>, args: string[] = ARGS) => {
+  const { calls, cleanup, env } = setup(responses);
   try {
-    writeFileSync(join(directory, "gh"), fakeGh, { mode: 0o755 });
-    writeFileSync(join(directory, "fm"), fakeFm, { mode: 0o755 });
-    writeFileSync(log, "");
-    for (const [key, lines] of Object.entries({ ...CLEAN, ...responses })) {
-      writeFileSync(join(directory, key), `${lines.join("\n")}\n`);
-    }
     const result = spawnSync("bash", [script, ...args], {
       encoding: "utf8",
-      env: {
-        CALL_LOG: log,
-        MERGE_PR_POLL_SECONDS: "0",
-        PATH: `${directory}:${process.env["PATH"] ?? ""}`,
-        STATE: directory,
-      },
+      env,
     });
     return {
-      calls: readFileSync(log, "utf8").split("\n").filter(Boolean),
+      calls: calls(),
       status: result.status,
       stderr: result.stderr,
       stdout: result.stdout,
     };
   } finally {
-    rmSync(directory, { force: true, recursive: true });
+    cleanup();
   }
 };
 
@@ -119,50 +144,94 @@ const claimCall = `fm claim job-a branch:vertex-research-public:${BASE}`;
 const releaseCall = `fm release job-a branch:vertex-research-public:${BASE}`;
 const merges = (calls: string[]): string[] =>
   calls.filter((call) => call.startsWith("gh pr merge"));
+const checkRunShas = (calls: string[]): string[] =>
+  calls
+    .filter((call) => call.includes("/check-runs "))
+    .map((call) => call.split("/commits/")[1]?.slice(0, 40) ?? "");
 
 describe("scripts/merge-pr", () => {
-  it("merges an up-to-date green PR pinned to its head and releases the claim", () => {
+  it("merges a green reviewed head pinned to that head and releases the claim", () => {
     const { calls, status, stdout } = run({});
     expect(status).toBe(0);
     expect(stdout.trim()).toBe("merge1");
-    expect(calls).toContain(claimCall);
     expect(merges(calls)).toEqual([
-      "gh pr merge 9 --merge --match-head-commit head1",
+      `gh pr merge 9 --merge --match-head-commit ${H1}`,
     ]);
+    // The claim is renewed right before merging.
+    const lastClaim = calls.lastIndexOf(claimCall);
+    expect(lastClaim).toBeGreaterThan(calls.indexOf(claimCall));
+    expect(lastClaim).toBeLessThan(calls.indexOf(merges(calls)[0] ?? ""));
     expect(calls.at(-1)).toBe(releaseCall);
     expect(calls.some((call) => call.includes("update-branch"))).toBe(false);
   });
 
-  it("updates a behind PR, waits for CI on the new head, then merges that head", () => {
+  it("updates a behind PR, then waits for checks on the new head only", () => {
     const { calls, status } = run({
-      checks: ["!1 no required checks reported", "pending", "pass"],
       compare: ["3", "0"],
-      head: ["head1", "head2"],
+      [`parents-${H2}`]: [`${H1} ${B1}`],
+      [`runs-${H2}`]: ["", "in_progress\\t", PASS],
+      view: [view(H1), view(H1), view(H2)],
     });
     expect(status).toBe(0);
-    expect(calls).toContain("gh pr update-branch 9");
+    const update = calls.indexOf("gh pr update-branch 9");
+    const firstRun = calls.findIndex((call) => call.includes("/check-runs "));
+    expect(update).toBeGreaterThan(-1);
+    expect(firstRun).toBeGreaterThan(update);
+    expect(checkRunShas(calls)).toEqual([H2, H2, H2]);
     expect(merges(calls)).toEqual([
-      "gh pr merge 9 --merge --match-head-commit head2",
+      `gh pr merge 9 --merge --match-head-commit ${H2}`,
     ]);
-    expect(
-      calls.filter((call) =>
-        call.startsWith("gh pr checks 9 --required --json")
-      )
-    ).toHaveLength(3);
   });
 
-  it("updates again when the base moved while CI ran", () => {
+  it("updates again when GitHub reports the PR behind after CI passed", () => {
     const { calls, status } = run({
-      compare: ["0", "2", "2", "0"],
-      head: ["head1", "head1", "head1", "head2"],
+      compare: ["0", "2", "0"],
+      [`parents-${H2}`]: [`${H1} ${B1}`],
+      view: [view(H1), view(H1), view(H1, "BEHIND"), view(H1), view(H2)],
     });
     expect(status).toBe(0);
     expect(
       calls.filter((call) => call === "gh pr update-branch 9")
     ).toHaveLength(1);
     expect(merges(calls)).toEqual([
-      "gh pr merge 9 --merge --match-head-commit head2",
+      `gh pr merge 9 --merge --match-head-commit ${H2}`,
     ]);
+  });
+
+  it("waits out a lingering BLOCKED merge state after the checks pass", () => {
+    const { calls, status } = run({
+      view: [
+        view(H1),
+        view(H1),
+        view(H1, "BLOCKED"),
+        view(H1, "UNKNOWN"),
+        view(H1),
+      ],
+    });
+    expect(status).toBe(0);
+    expect(merges(calls)).toHaveLength(1);
+  });
+
+  it("refuses to merge when GitHub keeps the PR blocked", () => {
+    const { calls, status, stderr } = run({
+      view: [view(H1), view(H1), view(H1, "DIRTY")],
+    });
+    expect(status).toBe(1);
+    expect(stderr).toContain("merge state DIRTY");
+    expect(merges(calls)).toEqual([]);
+  });
+
+  it("refuses a PR whose head is not the reviewed --head, before claiming", () => {
+    const { calls, status, stderr } = run({}, [
+      "9",
+      "--card",
+      "job-a",
+      "--head",
+      H2,
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toContain(`not the reviewed --head ${H2}`);
+    expect(calls.some((call) => call.startsWith("fm claim"))).toBe(false);
   });
 
   it("refuses with exit 4 while another card holds the base, touching nothing", () => {
@@ -172,37 +241,132 @@ describe("scripts/merge-pr", () => {
     expect(status).toBe(4);
     expect(stderr).toContain("held by card job-b");
     expect(merges(calls)).toEqual([]);
-    expect(calls).not.toContain(releaseCall);
     expect(calls.some((call) => call.includes("update-branch"))).toBe(false);
   });
 
   it("with --wait retries the claim until the holder releases it", () => {
     const { calls, status } = run(
       { claim: ["!4 held by job-b", "!4 held by job-b", "claimed"] },
-      ["9", "--card", "job-a", "--wait", "1"]
+      [...ARGS, "--wait", "1"]
     );
     expect(status).toBe(0);
-    expect(calls.filter((call) => call === claimCall)).toHaveLength(3);
+    expect(calls.filter((call) => call === claimCall).length).toBeGreaterThan(
+      3
+    );
     expect(merges(calls)).toHaveLength(1);
   });
 
-  it("stops on failed checks without merging and releases the claim", () => {
-    const { calls, status, stderr } = run({ checks: ["pending", "fail"] });
+  it("stops on any fm claim error other than a refusal", () => {
+    const { calls, status } = run({ claim: ["!1 coord.json unreadable"] });
     expect(status).toBe(1);
-    expect(stderr).toContain("required checks failed on head1");
+    expect(merges(calls)).toEqual([]);
+  });
+
+  it("keeps a claim the card held before it started", () => {
+    const { calls, status } = run({ claims: ['[{"card": "job-a"}]'] });
+    expect(status).toBe(0);
+    expect(calls).not.toContain(releaseCall);
+  });
+
+  it("stops with exit 6 when the claim is lost before merging", () => {
+    const { calls, status, stderr } = run({
+      claim: ["claimed", "claimed", "!4 held by card job-b"],
+    });
+    expect(status).toBe(6);
+    expect(stderr).toContain("lost branch:vertex-research-public");
+    expect(merges(calls)).toEqual([]);
+  });
+
+  it("stops on a failed required check without merging and releases the claim", () => {
+    const { calls, status, stderr } = run({
+      [`runs-${H1}`]: ["queued\\t", "completed\\tfailure"],
+    });
+    expect(status).toBe(1);
+    expect(stderr).toContain(`required check ci-gate failed on ${H1}`);
     expect(merges(calls)).toEqual([]);
     expect(calls.at(-1)).toBe(releaseCall);
+  });
+
+  it("treats a cancelled required check as failed", () => {
+    const { status } = run({ [`runs-${H1}`]: ["completed\\tcancelled"] });
+    expect(status).toBe(1);
+  });
+
+  it("does not count a skipped required check as passed", () => {
+    const { calls, status, stderr } = run({
+      [`runs-${H1}`]: ["completed\\tskipped"],
+    });
+    expect(status).toBe(1);
+    expect(stderr).toContain("ci-gate was skipped");
+    expect(merges(calls)).toEqual([]);
+  });
+
+  it("ignores a passing run from another app", () => {
+    const { calls, status, stderr } = run(
+      {
+        required: ["ci-gate\\t999"],
+        [`runs-${H1}`]: [""],
+      },
+      [...ARGS, "--ci-timeout", "0"]
+    );
+    expect(status).toBe(1);
+    expect(stderr).toContain("still pending");
+    expect(calls.find((call) => call.includes("/check-runs "))).toContain(
+      '(.app.id | tostring) == "999"'
+    );
+  });
+
+  it("falls back to commit statuses for a check without a required app", () => {
+    const { calls, status } = run({
+      required: ["ci-gate\\t"],
+      [`runs-${H1}`]: [""],
+      [`status-${H1}`]: ["pending", "success"],
+    });
+    expect(status).toBe(0);
+    expect(merges(calls)).toHaveLength(1);
+  });
+
+  it("stops when the checks stay pending past --ci-timeout", () => {
+    const { calls, status, stderr } = run({ [`runs-${H1}`]: [""] }, [
+      ...ARGS,
+      "--ci-timeout",
+      "0",
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toContain(`still pending on ${H1} after 0 min: ci-gate`);
+    expect(merges(calls)).toEqual([]);
+    expect(calls.at(-1)).toBe(releaseCall);
+  });
+
+  it("stops when the base has no readable required checks", () => {
+    const empty = run({ required: [""] });
+    expect(empty.status).toBe(1);
+    expect(empty.stderr).toContain("no required checks found");
+    const unreadable = run({ required: ["!1 Not Found"] });
+    expect(unreadable.status).toBe(1);
+    expect(merges(unreadable.calls)).toEqual([]);
   });
 
   it("stops when the PR head moves while CI runs", () => {
     const { calls, status, stderr } = run({
-      checks: ["pending"],
-      head: ["head1", "head9"],
+      [`runs-${H1}`]: [""],
+      view: [view(H1), view(H1), view(H2)],
     });
     expect(status).toBe(1);
-    expect(stderr).toContain("PR head moved to head9");
+    expect(stderr).toContain(`PR head moved to ${H2}`);
     expect(merges(calls)).toEqual([]);
     expect(calls.at(-1)).toBe(releaseCall);
+  });
+
+  it("stops when the PR changes base or turns draft after the claim", () => {
+    const retargeted = run({
+      view: [view(H1), `OPEN\\tfalse\\tother\\t${H1}\\tCLEAN`],
+    });
+    expect(retargeted.status).toBe(1);
+    expect(retargeted.stderr).toContain("PR base changed");
+    const drafted = run({ view: [view(H1), view(H1, "DRAFT", "true")] });
+    expect(drafted.status).toBe(1);
+    expect(merges(drafted.calls)).toEqual([]);
   });
 
   it("stops on an update-branch conflict and names the local fix", () => {
@@ -216,21 +380,136 @@ describe("scripts/merge-pr", () => {
     expect(calls.at(-1)).toBe(releaseCall);
   });
 
-  it("refuses a draft PR before claiming", () => {
-    const { calls, status } = run({ view: [`OPEN\\ttrue\\t${BASE}\\thead1`] });
+  it("rejects an updated head that is not the update merge of head and base", () => {
+    const foreign = run({
+      compare: ["1"],
+      [`parents-${H2}`]: [`${H1} ${"c".repeat(40)}`],
+      view: [view(H1), view(H1), view(H2)],
+    });
+    expect(foreign.status).toBe(1);
+    expect(foreign.stderr).toContain("not the update merge");
+    const stuck = run({ compare: ["1"] });
+    expect(stuck.status).toBe(1);
+    expect(stuck.stderr).toContain("did not move the PR head");
+  });
+
+  it("gives up after five base updates", () => {
+    // Every round finds the base moved again; each update is a valid merge.
+    const heads = [1, 2, 3, 4, 5, 6].map((digit) => String(digit).repeat(40));
+    const responses: Record<string, string[]> = {
+      compare: ["1"],
+      view: [view(H1), ...heads.flatMap((head) => [view(head), view(head)])],
+    };
+    heads.slice(1).forEach((head, index) => {
+      responses[`parents-${head}`] = [`${heads[index]} ${B1}`];
+    });
+    const { calls, status, stderr } = run(responses);
     expect(status).toBe(1);
-    expect(calls.some((call) => call.startsWith("fm claim"))).toBe(false);
+    expect(stderr).toContain("base moved 5 times");
+    expect(
+      calls.filter((call) => call === "gh pr update-branch 9")
+    ).toHaveLength(5);
+    expect(merges(calls)).toEqual([]);
   });
 
-  it("fails with exit 5 when the merge commit tree differs from the PR head tree", () => {
-    const { status, stderr } = run({ tree: ["tree1", "tree2"] });
+  it("retries a transient gh read failure", () => {
+    const { calls, status } = run({ compare: ["!1 HTTP 502", "0"] });
+    expect(status).toBe(0);
+    // The failed read and its retry; no other round needs a compare.
+    expect(calls.filter((call) => call.includes("/compare/"))).toHaveLength(2);
+  });
+
+  it("refuses a draft or closed PR before claiming", () => {
+    for (const row of [
+      view(H1, "DRAFT", "true"),
+      `CLOSED\\tfalse\\t${BASE}\\t${H1}\\tCLEAN`,
+    ]) {
+      const { calls, status } = run({ view: [row] });
+      expect(status).toBe(1);
+      expect(calls.some((call) => call.startsWith("fm claim"))).toBe(false);
+    }
+  });
+
+  it("stops when gh pr merge fails", () => {
+    const { calls, status, stderr } = run({
+      merge: ["!1 Pull request is not mergeable"],
+    });
+    expect(status).toBe(1);
+    expect(stderr).toContain("gh pr merge failed");
+    expect(calls.at(-1)).toBe(releaseCall);
+  });
+
+  it("exits 5 when the merge commit tree differs from the PR head tree", () => {
+    const { calls, status, stderr } = run({ "tree-merge1": ["tree2"] });
     expect(status).toBe(5);
-    expect(stderr).toContain("differs from PR head head1");
+    expect(stderr).toContain(`differs from PR head ${H1}`);
+    expect(calls.at(-1)).toBe(releaseCall);
   });
 
-  it("rejects calls without a PR number or card", () => {
-    expect(run({}, ["9"]).status).toBe(2);
-    expect(run({}, ["--card", "job-a"]).status).toBe(2);
-    expect(run({}, ["9", "--card", "job-a", "--wait", "x"]).status).toBe(2);
+  it("releases the claim when terminated while waiting for CI", async () => {
+    const { calls, cleanup, env } = setup({ [`runs-${H1}`]: [""] });
+    try {
+      const child = spawn("bash", [script, ...ARGS], {
+        env: { ...env, MERGE_PR_POLL_SECONDS: "30" },
+      });
+      const exited = once(child, "exit");
+      // Keep reading stderr: closing the pipe would kill bash with SIGPIPE instead.
+      const waiting = Promise.withResolvers<void>();
+      let stderr = "";
+      child.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+        if (stderr.includes("waiting for required checks")) waiting.resolve();
+      });
+      await waiting.promise;
+      child.kill("SIGTERM");
+      const [code] = await exited;
+      expect(code).toBe(143);
+      expect(calls().at(-1)).toBe(releaseCall);
+      expect(merges(calls())).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("serializes two runs on one host with a lock", async () => {
+    const { calls, cleanup, env } = setup({});
+    try {
+      const lock = join(
+        env.XDG_RUNTIME_DIR,
+        "merge-pr-vertex-research-public-base_main.lock"
+      );
+      const holder = spawn("flock", [
+        "-n",
+        "-o",
+        lock,
+        "-c",
+        "echo locked; exec sleep 10",
+      ]);
+      try {
+        await once(holder.stdout, "data");
+        const result = spawnSync("bash", [script, ...ARGS], {
+          encoding: "utf8",
+          env,
+        });
+        expect(result.status).toBe(4);
+        expect(result.stderr).toContain("another merge-pr run holds");
+        expect(calls().some((call) => call.startsWith("fm claim"))).toBe(false);
+      } finally {
+        holder.kill();
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("rejects calls without a PR number, card or reviewed head", () => {
+    expect(run({}, ["9", "--card", "job-a"]).status).toBe(2);
+    expect(run({}, ["--card", "job-a", "--head", H1]).status).toBe(2);
+    expect(run({}, ["9", "--card", "job-a", "--head", "abc"]).status).toBe(2);
+    expect(run({}, ["9", "--card", "--wait", "1", "--head", H1]).status).toBe(
+      2
+    );
+    expect(run({}, [...ARGS, "--wait", "x"]).status).toBe(2);
+    expect(run({}, ["--help"]).status).toBe(0);
   });
 });
