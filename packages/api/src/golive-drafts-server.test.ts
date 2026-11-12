@@ -1935,6 +1935,56 @@ describe("goLiveDrafts.approve", () => {
   });
 });
 
+describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
+  const delayed = liveQuote({ source: "yahoo_delayed_snapshot" });
+
+  it("overlays the live spread quote on a proposed draft, so it becomes approvable", async () => {
+    const reader = vi.fn(async () => ({
+      ...liveQuote(),
+      asOf: new Date(LIVE_AS_OF),
+    }));
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const client = clientFor({ repository: memory.repository });
+    const queue = await client.goLiveDrafts.queue({});
+    expect(reader).toHaveBeenCalledWith({
+      long: { expiry: EXPIRY, right: "C", strike: 100, symbol: "SPY" },
+      short: { expiry: EXPIRY, right: "C", strike: 105, symbol: "SPY" },
+    });
+    expect(queue.drafts[0]?.quote?.source).toBe("ibkr_live");
+    expect(queue.drafts[0]?.notApprovable).toEqual([]);
+    expect(queue.drafts[0]?.order).toEqual(ORDER);
+    await client.goLiveDrafts.approve(approval());
+    expect(memory.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({ approvedOrder: ORDER, id: "d-spy" })
+    );
+  });
+
+  it("keeps the stored delayed quote when the reader has no live quote", async () => {
+    inject({ liveQuotes: async () => null });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    expect(queue.drafts[0]?.quote?.source).toBe("yahoo_delayed_snapshot");
+    expect(queue.drafts[0]?.notApprovable).toContain("NO_LIVE_IBKR_QUOTE");
+  });
+
+  it("never quotes a decided draft or an API key caller", async () => {
+    const reader = vi.fn(async () => null);
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed, state: "rejected" })],
+    });
+    await clientFor({ repository: memory.repository }).goLiveDrafts.queue({});
+    expect(reader).not.toHaveBeenCalled();
+  });
+});
+
 describe("goLiveDrafts.reject", () => {
   it("records the owner's rejection with the note", async () => {
     const memory = createMemoryRepository({

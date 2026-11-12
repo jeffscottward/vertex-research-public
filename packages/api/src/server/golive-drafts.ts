@@ -28,6 +28,7 @@ import {
   sameCombo,
   sizeDrafts,
 } from "./golive-drafts-sizing.ts";
+import type { GoLiveQuotesPort } from "./golive-live-quotes.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -45,6 +46,8 @@ import {
 // IBKR option quote source exists (dependencies.liveQuoteSource, false by default), and so is a
 // quote dated more than 60 s after the server clock. A later run of the day refreshes the stored
 // drafts that have no decision; a trading day holds at most GOLIVE_DRAFT_LIST_MAX drafts.
+// Live quotes: queue and approve read each proposed draft's spread from the live quote reader
+// (context.goLiveQuotes, bridge POST /quotes, read only) and size it from that quote; never stored.
 // approve and reject: the owner (operator and admin role) in a browser session; API keys refused.
 // approve names the revision of the draft the owner read and is refused when the draft has
 // another one.
@@ -80,6 +83,8 @@ export type GoLiveDraftsDependencies = Readonly<{
   // true: a live IBKR option quote source exists, so collect accepts a quote labelled ibkr_live.
   // None exists in this version, so the default refuses the label. Not an environment setting.
   liveQuoteSource?: boolean;
+  // Live IBKR spread quotes; defaults to context.goLiveQuotes (the bridge POST /quotes reader).
+  liveQuotes?: GoLiveQuotesPort;
   marketNotes?: GoLiveMarketNotesPort;
   node?: (context: ApiContext) => Promise<GoLiveNodeReading>;
   now?: () => Date;
@@ -244,6 +249,40 @@ type Loaded = Readonly<{
   records: readonly GoLiveDraftRecord[];
 }>;
 
+/**
+ * Each proposed draft with the live IBKR quote of its two legs in place of its stored delayed
+ * quote, when the quote reader (context.goLiveQuotes) has one now; every other draft unchanged.
+ * Read only, never stored: approve sizes from the same overlay (the reader caches it 60 s), and
+ * the revision the owner approves stays the stored revision. A key caller is never quoted.
+ */
+const withLiveQuotes = async (
+  context: ApiContext,
+  records: readonly GoLiveDraftRecord[]
+): Promise<readonly GoLiveDraftRecord[]> => {
+  const reader = dependencies.liveQuotes ?? context.goLiveQuotes;
+  if (reader === undefined) return records;
+  return await Promise.all(
+    records.map(async (record) => {
+      if (record.state !== "proposed") return record;
+      const right = record.structure.startsWith("call") ? "C" : "P";
+      const leg = (strike: number) =>
+        ({
+          expiry: record.expiry,
+          right,
+          strike,
+          symbol: record.symbol,
+        }) as const;
+      const live = await reader({
+        long: leg(record.longStrike),
+        short: leg(record.shortStrike),
+      }).catch(() => null);
+      return live === null
+        ? record
+        : { ...record, quote: { ...live, asOf: live.asOf.toISOString() } };
+    })
+  );
+};
+
 const load = async (
   context: ApiContext,
   repository: GoLiveDraftsRepositoryPort,
@@ -258,6 +297,7 @@ const load = async (
     forKey ? KEY_ACCOUNT : (dependencies.account ?? readAccount)(context, now),
     (dependencies.node ?? readNode)(context),
   ]);
+  const quoted = forKey ? records : await withLiveQuotes(context, records);
   const notes =
     dependencies.marketNotes === undefined
       ? null
@@ -272,7 +312,7 @@ const load = async (
     notes,
     now,
     plan,
-    records,
+    records: quoted,
   };
 };
 
