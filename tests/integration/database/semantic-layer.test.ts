@@ -411,7 +411,12 @@ describe("semantic layer (Postgres)", () => {
     expect(session.map(({ status }) => status)).toEqual(["ok", "ok"]);
     expect(session[0]).toMatchObject({ rows: [{ probe: "leaked" }] });
     expect(session[1]).toMatchObject({ rows: [{ held: 0, probe: "" }] });
-    expect(session[1]?.rows[0]?.["pid"]).toBe(session[0]?.rows[0]?.["pid"]);
+    // Both texts ran on one connection: the same backend pid.
+    const pids = session.map((result) =>
+      result.status === "ok" ? result.rows[0]?.["pid"] : undefined
+    );
+    expect(pids[0]).toEqual(expect.any(Number));
+    expect(pids[1]).toBe(pids[0]);
 
     // A failed text ends the batch: nothing runs on the connection after it.
     const refused = await reader.runAll(
