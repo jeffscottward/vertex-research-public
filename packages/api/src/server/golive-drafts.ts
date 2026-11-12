@@ -20,6 +20,7 @@ import type { ApiContext } from "./context.ts";
 import { evaluateFinalOrderGate } from "./final-order-gate.ts";
 import {
   approvedOrderFitsDraft,
+  approvedRoomOf,
   GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS,
   notApprovableReasons,
   orderFor,
@@ -45,6 +46,8 @@ import {
 // quote dated more than 60 s after the server clock. A later run of the day refreshes the stored
 // drafts that have no decision; a trading day holds at most GOLIVE_DRAFT_LIST_MAX drafts.
 // approve and reject: the owner (operator and admin role) in a browser session; API keys refused.
+// approve names the revision of the draft the owner read and is refused when the draft has
+// another one.
 // queue.canDecide tells the caller whether it is that owner, by the same check (decisionRefusal).
 // Quantity, limit, max loss and the pre-check are computed at read time and never stored. The
 // one stored order is approvedOrder: the order this server sized, written with the approval.
@@ -176,6 +179,8 @@ const repositoryFor = (
   return repository;
 };
 
+const DRAFT_CHANGED_MESSAGE =
+  "The draft changed after the queue was read (a later generator run); reload the queue";
 const PLAN_MISMATCH_MESSAGE =
   "The batch was built for a plan that is not the plan in force";
 
@@ -189,11 +194,7 @@ const STORE_ERRORS: ReadonlyMap<
 > = new Map([
   [
     "GoLiveDraftChangedError",
-    {
-      code: "CONFLICT",
-      message:
-        "The draft changed after the queue was read (a later generator run); reload the queue",
-    },
+    { code: "CONFLICT", message: DRAFT_CHANGED_MESSAGE },
   ],
   [
     "GoLiveDraftConflictError",
@@ -361,8 +362,9 @@ const storedProblem = (loaded: Loaded): string | null =>
 /**
  * Each record with its size, exact order, dry pre-check and the reasons it cannot be approved.
  * approvedOrder is the stored order of an approved draft and null for every other state; sizing
- * and order are computed now, also for an approved draft, so they can differ from it. An API key
- * gets no approvedOrder: its quantity was sized from the account value, which a key never gets.
+ * and order are computed now, also for an approved draft, so they can differ from it.
+ * approvedRoom is the max loss that stored order holds. An API key gets no approvedOrder and no
+ * approvedRoom: the quantity was sized from the account value, which a key never gets.
  * The web final gate runs dry: nothing is sent. Inputs this module does not read: held positions
  * ([]: the order is checked as a new position, never as a risk-reducing one) and the account
  * gates (kill switch, OPTIONS_ONLY: not evaluated here; the order screen checks them at send).
@@ -403,6 +405,9 @@ const viewsOf = (
         draft.state === "approved" && !loaded.forKey
           ? draft.approvedOrder
           : null,
+      // What the approved order holds, whatever today's sizing below reads. Not for a key: the
+      // amount comes from a quantity that was sized from the account value.
+      approvedRoom: loaded.forKey ? null : approvedRoomOf(draft, nlv),
       notApprovable: notApprovableReasons({
         draft,
         nlv,
@@ -625,6 +630,12 @@ const approve = api.goLiveDrafts.approve
       throw failures.CONFLICT({
         message: `Draft cannot be approved: ${draft.notApprovable.join(", ")}`,
       });
+    // The owner must have read this draft as it is now: a later run that replaced its quote, its
+    // facts or its entry basis gave it another revision, also when the order is the same.
+    // Checked after the reasons above, so a draft that was decided or expired in between is
+    // named as that.
+    if (draft.revision !== input.revision)
+      throw failures.CONFLICT({ message: DRAFT_CHANGED_MESSAGE });
     // The owner must have seen the exact order: one cent or one contract of difference refuses.
     const sized = draft.order;
     if (sized === null || !sameCombo(input.order, sized))
@@ -638,8 +649,9 @@ const approve = api.goLiveDrafts.approve
         approvedOrder: sized,
         decidedBy: context.principal.userId,
         decision: "approved",
-        // The draft as this request read it: a collect that changed it since refuses the write.
-        expectedUpdatedAt: draft.updatedAt,
+        // The revision the owner read, which is the revision of the draft this request read: a
+        // collect that changes the draft before the write refuses the write.
+        expectedRevision: input.revision,
         id: input.id,
         nodeBadge: loaded.node.badge,
         note: input.note ?? null,

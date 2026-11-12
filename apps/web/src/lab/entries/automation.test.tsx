@@ -180,7 +180,12 @@ describe("automation lab entries", () => {
 
     // The model-held draft cannot be approved, as on the real server: the refusal names why.
     await expect(
-      gateway.approve({ confirm: true, id: draft.id, order })
+      gateway.approve({
+        confirm: true,
+        id: draft.id,
+        order,
+        revision: draft.revision,
+      })
     ).rejects.toMatchObject({
       code: "CONFLICT",
       message:
@@ -198,6 +203,8 @@ describe("automation lab entries", () => {
       state: "rejected",
     });
     expect(rejected.notApprovable).toContain("DRAFT_NOT_PROPOSED");
+    expect(rejected.approvedRoom).toBeNull();
+    expect(rejected.revision).toBe(draft.revision + 1);
     GoLiveQueueOutputSchema.parse(await gateway.queue({ signal }));
     expect((await gateway.queue({ signal })).drafts[0]?.state).toBe("rejected");
     // A second decision on the same draft is refused like the server refuses it.
@@ -225,14 +232,31 @@ describe("automation lab entries", () => {
       ...LAB_GOLIVE_QUEUE,
       drafts: [{ ...draft, entryBasis: "signal_today", notApprovable: [] }],
     });
+    // Another revision than the one the caller saw is refused, like on the server.
+    await expect(
+      gateway.approve({
+        confirm: true,
+        id: draft.id,
+        order,
+        revision: draft.revision + 1,
+      })
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     const approved = await gateway.approve({
       confirm: true,
       id: draft.id,
       order,
+      revision: draft.revision,
     });
     expect(approved).toMatchObject({
       approvedOrder: order,
+      // The room held is the max loss of the approved order.
+      approvedRoom: {
+        maxLoss: draft.sizing.maxLoss,
+        maxLossPctNlv: draft.sizing.maxLossPctNlv,
+      },
       nodeBadgeAtDecision: "running-disarmed",
+      // Every write to a draft adds 1 to its revision.
+      revision: draft.revision + 1,
       state: "approved",
     });
     GoLiveQueueOutputSchema.parse(await gateway.queue({ signal }));

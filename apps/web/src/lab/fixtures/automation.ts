@@ -623,6 +623,7 @@ export const LAB_GOLIVE_QUEUE: GoLiveQueueOutput = {
   drafts: [
     {
       approvedOrder: null,
+      approvedRoom: null,
       createdAt: LAB_GOLIVE_RAN_AT,
       decidedAt: null,
       decidedBy: null,
@@ -684,6 +685,7 @@ export const LAB_GOLIVE_QUEUE: GoLiveQueueOutput = {
         shortBid: 7.3,
         source: "yahoo_delayed_snapshot",
       },
+      revision: 1,
       shortStrike: 590,
       signalFacts: ["Dummy model has held SPY since 2026-10-20"],
       sizing: {

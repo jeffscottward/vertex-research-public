@@ -1,5 +1,5 @@
 {
-  "id": "e5042968-c16e-4f1c-814b-f13bf586674c",
+  "id": "cfbf1f3f-b7e8-48bd-ada4-2fc17ddae0bf",
   "prevId": "8734f81a-3bbc-4c70-942b-8fc9f13cd0d0",
   "version": "7",
   "dialect": "postgresql",
@@ -5266,6 +5266,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
         "short_strike": {
           "name": "short_strike",
           "type": "double precision",
@@ -5359,6 +5366,10 @@
         "golive_drafts_decision_check": {
           "name": "golive_drafts_decision_check",
           "value": "(\"golive_drafts\".\"state\" in ('approved', 'rejected')) = (\"golive_drafts\".\"decided_by\" is not null) and (\"golive_drafts\".\"state\" in ('approved', 'rejected')) = (\"golive_drafts\".\"decided_at\" is not null)"
+        },
+        "golive_drafts_revision_check": {
+          "name": "golive_drafts_revision_check",
+          "value": "\"golive_drafts\".\"revision\" > 0"
         },
         "golive_drafts_approved_order_check": {
           "name": "golive_drafts_approved_order_check",

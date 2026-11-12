@@ -90,6 +90,7 @@ const draft = (
   overrides: Partial<GoLiveDraftOutput> = {}
 ): GoLiveDraftOutput => ({
   approvedOrder: null,
+  approvedRoom: null,
   createdAt: AT,
   decidedAt: null,
   decidedBy: null,
@@ -131,6 +132,7 @@ const draft = (
     shortBid: 2.6,
     source: "ibkr_live",
   },
+  revision: 3,
   shortStrike: 455,
   signalFacts: ["VIX 19.5 on 2026-11-11"],
   sizing: {
@@ -633,7 +635,7 @@ describe("GoLiveDraftQueue", () => {
     expect(row.textContent).toContain(
       "Yahoo, 15 min delayed, indicative, as of 2026-11-11 10:30 ET"
     );
-    expect(row.textContent).toContain("no limit: no quote");
+    expect(row.textContent).toContain("no limit: no usable quote");
     expect(row.textContent).toContain(
       "0 spreads (the account value is not available)"
     );
@@ -748,6 +750,7 @@ describe("GoLiveDraftQueue", () => {
       confirm: true,
       id: "draft-spy",
       order: ORDER,
+      revision: 3,
     });
     expect(gateway.reject).not.toHaveBeenCalled();
     expect(gateway.queue).toHaveBeenCalledTimes(2);
@@ -963,6 +966,8 @@ describe("GoLiveDraftQueue", () => {
           drafts: [
             draft({
               approvedOrder: ORDER,
+              // The room the approval holds is the approved order's, not the moved sizing's.
+              approvedRoom: { maxLoss: 470, maxLossPctNlv: 0.47 },
               decidedAt: AT,
               decidedBy: "owner",
               nodeBadgeAtDecision: "running-disarmed",
@@ -990,10 +995,13 @@ describe("GoLiveDraftQueue", () => {
       ])
     );
     expect(facts["Approved order (recorded 2026-11-11 10:30 ET)"]).toBe(
-      "BUY 1 SPY 2026-12-18 $450.00 callSELL 1 SPY 2026-12-18 $455.00 callQuantity: 2 spreadsLimit: $2.35 debit per spreadNode badge read at approval: Node running, disarmed"
+      "BUY 1 SPY 2026-12-18 $450.00 callSELL 1 SPY 2026-12-18 $455.00 callQuantity: 2 spreadsLimit: $2.35 debit per spreadNode badge read at approval: Node running, disarmedRisk room held by this approval: $470.00 max loss (0.47% of account value)"
     );
     expect(one(row, "[data-golive-node-at-approval]").textContent).toBe(
       "Node badge read at approval: Node running, disarmed"
+    );
+    expect(one(row, "[data-golive-approved-room]").textContent).toBe(
+      "Risk room held by this approval: $470.00 max loss (0.47% of account value)"
     );
     expect(facts[CURRENT_SIZING_LABEL]).toBe(
       "limit $2.50 debit per spread; quantity 3 spreads (sized from the plan's risk per position); max loss $750.00 (0.75% of account)"
@@ -1644,6 +1652,64 @@ describe("GoLiveDraftQueue", () => {
     expect(row.querySelector("button")).toBeNull();
   });
 
+  it("sends the revision of the draft the dialog shows with the approval", async () => {
+    const gateway = gatewayOf(
+      queue({ drafts: [draft({ revision: 7 })] }),
+      queue({ drafts: [draft({ revision: 8, state: "approved" })] })
+    );
+    const container = await mount(gateway);
+    await click(button(container, "Approve SPY 2026-12-18"));
+    await click(button(document, "Record approval"));
+    expect(gateway.approve).toHaveBeenCalledWith({
+      confirm: true,
+      id: "draft-spy",
+      order: ORDER,
+      revision: 7,
+    });
+  });
+
+  it("shows no risk room on a draft that is not approved, and says so when an approved draft comes without it", async () => {
+    const container = await mount(
+      gatewayOf(
+        queue({
+          drafts: [
+            draft(),
+            draft({
+              approvedOrder: ORDER,
+              decidedAt: AT,
+              id: "approved",
+              state: "approved",
+            }),
+            draft({
+              approvedOrder: ORDER,
+              approvedRoom: { maxLoss: 470, maxLossPctNlv: null },
+              decidedAt: AT,
+              id: "no-percent",
+              state: "approved",
+            }),
+          ],
+        })
+      )
+    );
+    expect(
+      one(container, "[data-golive-draft='draft-spy']").textContent
+    ).not.toContain("Risk room");
+    expect(
+      one(
+        container,
+        "[data-golive-draft='approved'] [data-golive-approved-room]"
+      ).textContent
+    ).toBe("Risk room held by this approval: the server did not send it");
+    expect(
+      one(
+        container,
+        "[data-golive-draft='no-percent'] [data-golive-approved-room]"
+      ).textContent
+    ).toBe(
+      "Risk room held by this approval: $470.00 max loss (% of account value not available: the account value is not available)"
+    );
+  });
+
   it("disables Approve and Reject on every row while a load runs", async () => {
     const slow = deferred<GoLiveQueueOutput>();
     const gateway = gatewayOf(queue());
@@ -1691,6 +1757,7 @@ describe("GoLiveDraftQueue", () => {
       confirm: true,
       id: "draft-spy",
       order: ORDER,
+      revision: 3,
     });
   });
 
@@ -1704,6 +1771,11 @@ describe("GoLiveDraftQueue", () => {
       "has a blocker",
       draft({ notApprovable: ["PRECHECK_DENIED"] }),
       "A newer read of the queue shows that the draft can no longer be approved: the dry pre-check (web final gate) denied the order. The open dialog was closed and nothing was recorded.",
+    ],
+    [
+      "was refreshed to another revision with the same order",
+      draft({ revision: 4 }),
+      "A newer read of the queue shows that the draft was refreshed after the dialog opened (it is now revision 4; the dialog showed revision 3). The open dialog was closed and nothing was recorded.",
     ],
     [
       "carries another order than the dialog shows",
@@ -1913,7 +1985,12 @@ describe("createBrowserGoLiveDraftsGateway", () => {
     const { signal } = new AbortController();
     await expect(gateway.queue({ signal })).resolves.toEqual(queue());
     expect(api.queue).toHaveBeenCalledWith({}, { signal });
-    const approval = { confirm: true as const, id: "draft-spy", order: ORDER };
+    const approval = {
+      confirm: true as const,
+      id: "draft-spy",
+      order: ORDER,
+      revision: 3,
+    };
     await expect(gateway.approve(approval)).resolves.toMatchObject({
       state: "approved",
     });

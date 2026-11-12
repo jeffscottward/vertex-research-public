@@ -454,6 +454,7 @@ const DraftRow = ({
                   </div>
                 )}
                 <div data-golive-node-at-approval="">{approved.nodeBadge}</div>
+                <div data-golive-approved-room="">{approved.room}</div>
               </Field>
               <Field label={CURRENT_SIZING_LABEL}>
                 <span data-golive-current-sizing="">
@@ -856,6 +857,8 @@ export const GoLiveDraftQueue = ({
           confirm: true,
           id: current.draft.id,
           order: current.order,
+          // The revision of the draft the dialog shows: the server refuses another one.
+          revision: current.draft.revision,
         })
       : gateway.reject({ id: current.draft.id, note });
 

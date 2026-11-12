@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   GOLIVE_NOT_APPROVABLE_VALUES,
+  GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   type GoLiveSizing,
 } from "./contracts/golive-drafts.ts";
 import { VertexComboInputSchema } from "./contracts/vertex-orders.ts";
 import { evaluateFinalOrderGate } from "./server/final-order-gate.ts";
 import {
   approvedOrderFitsDraft,
+  approvedRoomOf,
   buildCombo,
   GOLIVE_ORDER_MAX_QUANTITY,
   GOLIVE_QUOTE_MAX_AGE_MS,
@@ -218,8 +220,90 @@ describe("limitFromQuote", () => {
         expect(limitFromQuote(structure, bad, 5)).toBeNull();
     // The smallest bid is a price.
     expect(
-      limitFromQuote("callDebitVertical", quote(2.3, 2.4, 0.01, 0.03), 5)
-    ).toBe(2.33);
+      limitFromQuote("callDebitVertical", quote(2.3, 2.4, 0.01, 0.01), 5)
+    ).toBe(2.34);
+  });
+
+  describe("a wide market", () => {
+    // [bid, ask] of one leg next to a tight other leg, as the long and as the short leg.
+    const usable = (bid: number, ask: number): boolean[] => [
+      limitFromQuote("callDebitVertical", quote(bid, ask, 0.01, 0.01), 500) !==
+        null,
+      limitFromQuote("putCreditVertical", quote(0.01, 0.01, bid, ask), 500) !==
+        null,
+    ];
+
+    it("gives no limit when a leg is quoted wider than half of its mid", () => {
+      // Long 0.01/5.00 and short 0.01/0.05 gave a limit of 2.47 before: nobody trades at 2.505.
+      for (const structure of [
+        "callDebitVertical",
+        "putDebitVertical",
+        "putCreditVertical",
+        "callCreditVertical",
+      ] as const) {
+        expect(
+          limitFromQuote(structure, quote(0.01, 5, 0.01, 0.05), 5)
+        ).toBeNull();
+        expect(
+          limitFromQuote(structure, quote(0.01, 0.05, 0.01, 5), 5)
+        ).toBeNull();
+        // One wide leg is enough, whichever it is.
+        expect(
+          limitFromQuote(structure, quote(0.01, 5, 2.3, 2.4), 5)
+        ).toBeNull();
+        expect(
+          limitFromQuote(structure, quote(2.3, 2.4, 0.01, 5), 5)
+        ).toBeNull();
+      }
+      expect(usable(0.01, 5)).toEqual([false, false]);
+      expect(usable(0.01, 0.05)).toEqual([false, false]);
+      expect(usable(1, 2)).toEqual([false, false]);
+    });
+
+    it("still uses a leg quoted at exactly half of its mid, and not a cent wider", () => {
+      // Mid 1.00, width 0.50: exactly the share.
+      expect(GOLIVE_QUOTE_MAX_SPREAD_SHARE).toBe(0.5);
+      expect(usable(0.75, 1.25)).toEqual([true, true]);
+      expect(usable(0.74, 1.25)).toEqual([false, false]);
+      expect(usable(0.75, 1.26)).toEqual([false, false]);
+      // Mid 0.04, width 0.02 (0.05 - 0.03 is 0.020000000000000004 in binary floats).
+      expect(usable(0.03, 0.05)).toEqual([true, true]);
+      expect(usable(0.03, 0.06)).toEqual([false, false]);
+      // Mid 12, width 6.
+      expect(usable(9, 15)).toEqual([true, true]);
+      expect(usable(8.99, 15)).toEqual([false, false]);
+    });
+
+    it("uses markets as they are quoted for liquid options", () => {
+      for (const [bid, ask] of [
+        [2.9, 3.3],
+        [0.6, 0.71],
+        [24.68, 24.8],
+        [0.76, 0.78],
+        [2.16, 2.17],
+        [3.83, 3.86],
+        // No width at all.
+        [1.25, 1.25],
+      ] as const)
+        expect(usable(bid, ask)).toEqual([true, true]);
+    });
+
+    it("sizes nothing on a wide market", () => {
+      const [sized] = sizeDrafts(
+        PLAN,
+        [draft("d1", { quote: quote(0.01, 5, 0.01, 0.05) })],
+        50_000
+      );
+      expect(sized?.sizing).toEqual({
+        budget: 1000,
+        limitPrice: null,
+        maxLoss: null,
+        maxLossPctNlv: null,
+        maxLossPerSpread: null,
+        quantity: 0,
+        reason: "no_quote",
+      });
+    });
   });
 
   it("refuses a net outside (0, width), before and after rounding", () => {
@@ -236,18 +320,18 @@ describe("limitFromQuote", () => {
     expect(limitFromQuote("callDebitVertical", DEBIT_QUOTE, 1)).toBeNull();
     // Net debit 0.005 rounds down to 0.
     expect(
-      limitFromQuote("callDebitVertical", quote(0.015, 0.025, 0.01, 0.02), 5)
+      limitFromQuote("callDebitVertical", quote(0.02, 0.02, 0.015, 0.015), 5)
     ).toBeNull();
     // Net credit 0.995 on a 1 wide spread rounds up to the width.
     expect(
-      limitFromQuote("putCreditVertical", quote(0.005, 0.015, 1, 1.01), 1)
+      limitFromQuote("putCreditVertical", quote(0.01, 0.01, 1, 1.01), 1)
     ).toBeNull();
     // One cent inside the width on each side is a limit.
     expect(
-      limitFromQuote("callDebitVertical", quote(1, 1.02, 0.01, 0.03), 1)
+      limitFromQuote("callDebitVertical", quote(1, 1.02, 0.02, 0.02), 1)
     ).toBe(0.99);
     expect(
-      limitFromQuote("putCreditVertical", quote(0.01, 0.03, 0.02, 0.04), 1)
+      limitFromQuote("putCreditVertical", quote(0.02, 0.02, 0.03, 0.03), 1)
     ).toBe(-0.01);
   });
 });
@@ -650,6 +734,64 @@ describe("sizeDrafts", () => {
       });
     });
 
+    it("reports the room it holds: the approved 882, as a share of the account value now", () => {
+      expect(approvedRoomOf(approved, 50_000)).toEqual({
+        maxLoss: 882,
+        maxLossPctNlv: 1.76,
+      });
+      // The amount does not move with the account value; its share does.
+      expect(approvedRoomOf(approved, 10_000)).toEqual({
+        maxLoss: 882,
+        maxLossPctNlv: 8.82,
+      });
+      expect(approvedRoomOf(approved, 7000)).toEqual({
+        maxLoss: 882,
+        maxLossPctNlv: 12.6,
+      });
+      // Without a quote today, too: the room comes from the stored order.
+      expect(approvedRoomOf({ ...approved, quote: null }, 10_000)).toEqual({
+        maxLoss: 882,
+        maxLossPctNlv: 8.82,
+      });
+      // A credit order: 3 x (5 - 2.06) x 100.
+      expect(
+        approvedRoomOf(
+          approvedDraft("a2", 3, -2.06, {
+            longStrike: 95,
+            shortStrike: 100,
+            structure: "putCreditVertical",
+          }),
+          10_000
+        )
+      ).toEqual({ maxLoss: 882, maxLossPctNlv: 8.82 });
+      // No account value: the amount is known, its share is not. Never 0 and never infinite.
+      for (const nlv of [
+        null,
+        0,
+        -5,
+        0.004,
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+      ])
+        expect(approvedRoomOf(approved, nlv)).toEqual({
+          maxLoss: 882,
+          maxLossPctNlv: null,
+        });
+    });
+
+    it("reports no room for a draft that is not approved, and refuses a wrong stored order", () => {
+      for (const state of ["proposed", "rejected", "expired"] as const)
+        expect(
+          approvedRoomOf(draft("d1", { quote: APPROVED_QUOTE, state }), 10_000)
+        ).toBeNull();
+      // An order that is not the order of the draft gives no room that can be trusted.
+      expect(() =>
+        approvedRoomOf({ ...approved, approvedOrder: null }, 10_000)
+      ).toThrow(
+        "The stored approved order of draft a1 is not the order of that draft"
+      );
+    });
+
     it("still holds its position slot at NLV 7,000, where one spread is above the budget", () => {
       // No money cap can refuse here: only the position count is left.
       const onePosition: GoLiveSizingPlan = {
@@ -753,9 +895,9 @@ describe("sizeDrafts", () => {
         quantity: GOLIVE_ORDER_MAX_QUANTITY + 1,
       }).success
     ).toBe(false);
-    // A penny spread: long mid 0.025, short mid 0.0075, limit 0.01, 1 per spread. At NLV 600,000
+    // A penny spread: long mid 0.025, short mid 0.01, limit 0.01, 1 per spread. At NLV 600,000
     // the budget of 12,000 buys 12,000 spreads.
-    const penny = draft("d1", { quote: quote(0.02, 0.03, 0.005, 0.01) });
+    const penny = draft("d1", { quote: quote(0.02, 0.03, 0.01, 0.01) });
     const both = [penny, draft("d2", { symbol: "QQQ" })];
     const sizing = sizeDrafts(PLAN, both, 600_000)[0]?.sizing;
     expect(sizing).toEqual({
@@ -914,14 +1056,14 @@ describe("sizeDrafts", () => {
       const quotes = [
         DEBIT_QUOTE,
         quote(2.4, 2.5, 0.95, 1),
-        quote(0.02, 0.03, 0.005, 0.01),
+        quote(0.02, 0.03, 0.01, 0.01),
         quote(4.31, 4.37, 0.11, 0.13),
         quote(299.9, 300.1, 99.9, 100.1),
-        quote(0.07, 0.09, 0.01, 0.03),
+        quote(0.07, 0.09, 0.02, 0.03),
       ];
       const creditQuotes = [
         quote(0.45, 0.55, 1.2, 1.31),
-        quote(0.01, 0.03, 4.9, 4.96),
+        quote(0.02, 0.03, 4.9, 4.96),
         quote(1.1, 1.2, 2.25, 2.35),
       ];
       const symbols = ["SPY", "QQQ", "IWM"] as const;

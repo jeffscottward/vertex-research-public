@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { SQL } from "drizzle-orm";
+import { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
@@ -21,8 +21,10 @@ import {
 
 const NOW = new Date("2026-11-11T21:15:00.000Z");
 const GENERATED_AT = new Date("2026-11-11T14:35:00.000Z");
-// When the owner's request read the draft it approves.
-const READ_AT = new Date("2026-11-11T21:14:30.000Z");
+// The revision of the draft as the approving request read it.
+const READ_REVISION = 4;
+// Every write to a stored draft adds 1 to its revision, in the same statement.
+const NEXT_REVISION = '"golive_drafts"."revision" + 1';
 const DAY = "2026-11-11";
 const dialect = new PgDialect();
 
@@ -105,6 +107,15 @@ const createDouble = (outcomes: Array<readonly Record<string, unknown>[]>) => {
   } as unknown as Database;
   return { database, operations, transactions };
 };
+
+// The values of set(): a SQL expression is shown as its text.
+const setOf = (operation: Operation | undefined): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(operation?.set ?? {}).map(([key, value]) => [
+      key,
+      value instanceof SQL ? dialect.sqlToQuery(value).sql : value,
+    ])
+  );
 
 const query = (condition: SQL | undefined) => {
   const { params, sql } = dialect.sqlToQuery(condition as SQL);
@@ -189,6 +200,7 @@ const ORDER = {
 } as const satisfies GoLiveApprovedOrderInput;
 
 const draftRow = (overrides: Record<string, unknown> = {}) => ({
+  revision: 1,
   approvedOrder: null,
   createdAt: NOW,
   decidedAt: null,
@@ -575,6 +587,8 @@ describe("createGoLiveDraftsRepository", () => {
           shortBid: 0.4,
           source: "yahoo_delayed_snapshot",
         },
+        // A new draft has revision 1.
+        revision: 1,
         shortStrike: 620.5,
         signalFacts: ["VIX 19.5 on 2026-11-11"],
         sleeveKey: "long-index",
@@ -585,7 +599,11 @@ describe("createGoLiveDraftsRepository", () => {
         updatedAt: NOW,
       },
     ]);
-    expect(expire?.set).toEqual({ state: "expired", updatedAt: NOW });
+    expect(setOf(expire)).toEqual({
+      revision: NEXT_REVISION,
+      state: "expired",
+      updatedAt: NOW,
+    });
     expect(expire?.returning).toBe(true);
     // Only proposed drafts expire, so approved and rejected drafts never change.
     expect(query(expire?.where)).toEqual({
@@ -621,12 +639,13 @@ describe("createGoLiveDraftsRepository", () => {
       expect(update?.kind).toBe("update");
       expect(update?.table).toBe(goLiveDrafts);
       expect(update?.returning).toBe(true);
-      expect(update?.set).toEqual({
+      expect(setOf(update)).toEqual({
         entryBasis: wanted.entryBasis,
         quote:
           wanted.quote === null
             ? null
             : { ...wanted.quote, asOf: wanted.quote.asOf.toISOString() },
+        revision: NEXT_REVISION,
         signalFacts: wanted.signalFacts,
         state: "proposed",
         updatedAt: NOW,
@@ -732,7 +751,8 @@ describe("createGoLiveDraftsRepository", () => {
           ["update", goLiveDrafts],
           ["insert", goLiveDraftRuns],
         ]);
-        expect(double.operations[2]?.set).toEqual({
+        expect(setOf(double.operations[2])).toEqual({
+          revision: NEXT_REVISION,
           state: "expired",
           updatedAt: NOW,
         });
@@ -767,7 +787,8 @@ describe("createGoLiveDraftsRepository", () => {
           ["update", goLiveDrafts],
           ["insert", goLiveDraftRuns],
         ]);
-        expect(double.operations[2]?.set).toEqual({
+        expect(setOf(double.operations[2])).toEqual({
+          revision: NEXT_REVISION,
           state: "expired",
           updatedAt: NOW,
         });
@@ -932,7 +953,7 @@ describe("createGoLiveDraftsRepository", () => {
       approvedOrder: sent,
       decidedBy: "owner-1",
       decision: "approved",
-      expectedUpdatedAt: READ_AT,
+      expectedRevision: READ_REVISION,
       id: "draft-1",
       nodeBadge: "running-disarmed",
       note: "ok",
@@ -946,12 +967,13 @@ describe("createGoLiveDraftsRepository", () => {
     expect(update?.kind).toBe("update");
     expect(update?.table).toBe(goLiveDrafts);
     expect(update?.returning).toBe(true);
-    expect(update?.set).toEqual({
+    expect(setOf(update)).toEqual({
       approvedOrder: ORDER,
       decidedAt: NOW,
       decidedBy: "owner-1",
       decisionNote: "ok",
       nodeBadgeAtDecision: "running-disarmed",
+      revision: NEXT_REVISION,
       state: "approved",
       updatedAt: NOW,
     });
@@ -961,11 +983,12 @@ describe("createGoLiveDraftsRepository", () => {
     expect(written.approvedOrder).not.toBe(sent);
     expect(written.approvedOrder.legs).not.toBe(sent.legs);
     expect(written.approvedOrder.legs[0]).not.toBe(sent.legs[0]);
-    // Decided once: only a draft that is still proposed is matched, and only as it was read:
-    // a later collect that changed its quote, facts or entry basis moved updated_at.
+    // Decided once: only a draft that is still proposed is matched, and only at the revision
+    // that was read: a later collect that changed its quote, facts or entry basis, or that
+    // expired and revived it, gave it another one.
     expect(query(update?.where)).toEqual({
-      params: ["draft-1", "proposed", READ_AT.toISOString()],
-      sql: '("golive_drafts"."id" = $1 and "golive_drafts"."state" = $2 and "golive_drafts"."updated_at" = $3)',
+      params: ["draft-1", "proposed", READ_REVISION],
+      sql: '("golive_drafts"."id" = $1 and "golive_drafts"."state" = $2 and "golive_drafts"."revision" = $3)',
     });
   });
 
@@ -987,12 +1010,13 @@ describe("createGoLiveDraftsRepository", () => {
     expect(rejected).toEqual(decided);
     expect(rejected.approvedOrder).toBeNull();
     expect(double.operations).toHaveLength(1);
-    expect(double.operations[0]?.set).toEqual({
+    expect(setOf(double.operations[0])).toEqual({
       approvedOrder: null,
       decidedAt: NOW,
       decidedBy: "owner-1",
       decisionNote: "not now",
       nodeBadgeAtDecision: null,
+      revision: NEXT_REVISION,
       state: "rejected",
       updatedAt: NOW,
     });
@@ -1013,10 +1037,10 @@ describe("createGoLiveDraftsRepository", () => {
     const withoutOrder: GoLiveDecideInput = {
       ...base,
       decision: "approved",
-      expectedUpdatedAt: READ_AT,
+      expectedRevision: READ_REVISION,
     };
-    // @ts-expect-error an approval needs the time the draft was read at
-    const withoutReadTime: GoLiveDecideInput = {
+    // @ts-expect-error an approval needs the revision the draft was read at
+    const withoutRevision: GoLiveDecideInput = {
       ...base,
       approvedOrder: ORDER,
       decision: "approved",
@@ -1034,10 +1058,27 @@ describe("createGoLiveDraftsRepository", () => {
       repositoryFor(double.database).decide(withoutOrder)
     ).rejects.toThrow();
     expect(double.operations).toHaveLength(0);
-    // The same without the time the draft was read at: no statement is sent.
-    await expect(
-      repositoryFor(double.database).decide(withoutReadTime)
-    ).rejects.toThrow();
+    // The same without the revision the draft was read at, or with a value that is no
+    // revision: no statement is sent.
+    for (const expectedRevision of [
+      undefined,
+      null,
+      0,
+      -1,
+      1.5,
+      "4",
+      Number.NaN,
+    ]) {
+      const wrong = {
+        ...withoutRevision,
+        expectedRevision,
+      } as unknown as GoLiveDecideInput;
+      await expect(
+        repositoryFor(double.database).decide(wrong)
+      ).rejects.toThrow(
+        "An approval needs the revision of the draft as it was read"
+      );
+    }
     expect(double.operations).toHaveLength(0);
     // A rejection that carries an order by mistake still stores none.
     await repositoryFor(double.database).decide(withOrder);
@@ -1047,15 +1088,15 @@ describe("createGoLiveDraftsRepository", () => {
   });
 
   it("refuses an approval of a draft that changed after it was read", async () => {
-    // A collect refreshed the draft between the owner's read and the approval: the update
-    // matches no row, and the draft is still proposed.
+    // A collect refreshed the draft between the owner's read and the approval, so its revision
+    // is another one: the update matches no row, and the draft is still proposed.
     const double = createDouble([[], [{ id: "draft-1", state: "proposed" }]]);
     const changed = await repositoryFor(double.database)
       .decide({
         approvedOrder: ORDER,
         decidedBy: "owner-1",
         decision: "approved",
-        expectedUpdatedAt: READ_AT,
+        expectedRevision: READ_REVISION,
         id: "draft-1",
         nodeBadge: null,
         note: null,
@@ -1119,14 +1160,14 @@ describe("createGoLiveDraftsRepository", () => {
         message: "Go-live draft draft-9 is no longer proposed",
         name: "GoLiveDraftConflictError",
       });
-      // The same for an approval, whatever time it was read at.
+      // The same for an approval, whatever revision it read.
       const approving = createDouble([[], [{ id: "draft-9", state }]]);
       await expect(
         repositoryFor(approving.database).decide({
           approvedOrder: ORDER,
           decidedBy: "owner-1",
           decision: "approved",
-          expectedUpdatedAt: READ_AT,
+          expectedRevision: READ_REVISION,
           id: "draft-9",
           nodeBadge: null,
           note: null,

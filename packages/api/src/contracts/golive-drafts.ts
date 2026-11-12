@@ -104,6 +104,9 @@ export const GOLIVE_NODE_BADGE_VALUES = [
   "down",
   "unknown",
 ] as const;
+// The widest market of one leg that still gives a price: ask - bid at most this share of the mid.
+// A wider leg (0.01 bid, 5.00 asked) has a mid that nobody trades at, so it gives no limit.
+export const GOLIVE_QUOTE_MAX_SPREAD_SHARE = 0.5;
 // The most drafts one trading day may hold. collect refuses a batch that would go above it, so
 // the queue always lists every draft of the day.
 export const GOLIVE_DRAFT_LIST_MAX = 200;
@@ -380,6 +383,17 @@ export const GoLiveDraftSchema = z
     // The exact order the owner approved, stored with the decision. null unless state is approved.
     // sizing and order below are recomputed at every read and can differ from it later.
     approvedOrder: VertexComboInputSchema.nullable(),
+    // The room an approved draft holds in its sleeve, its name and the open risk: the quantity of
+    // approvedOrder x the max loss per spread at the approved limit. It does not change with the
+    // account value; maxLossPctNlv is that amount as a share of the account value now, and null
+    // when the account value is unavailable. null unless state is approved, and for API keys.
+    approvedRoom: z
+      .object({
+        maxLoss: z.number().finite(),
+        maxLossPctNlv: z.number().finite().nullable(),
+      })
+      .strict()
+      .nullable(),
     // The node badge read when the owner approved. An approval never sends anything.
     nodeBadgeAtDecision: z.enum(GOLIVE_NODE_BADGE_VALUES).nullable(),
     notApprovable: z.array(z.enum(GOLIVE_NOT_APPROVABLE_VALUES)),
@@ -391,6 +405,9 @@ export const GoLiveDraftSchema = z
     planVersion: z.number().int().positive(),
     preCheck: GoLivePreCheckSchema,
     quote: GoLiveQuoteSchema.nullable(),
+    // 1 when the draft is stored; every later write to it adds 1. approve sends the revision the
+    // owner read and is refused when the draft has another one.
+    revision: z.number().int().positive(),
     shortStrike: z.number(),
     signalFacts: z.array(z.string()),
     // Computed at read time from the live account; never stored.
@@ -484,6 +501,9 @@ export const GoLiveDraftApproveInputSchema = z
     note: z.string().max(1000).optional(),
     // The owner confirms the exact order shown: the server refuses when its own sized order differs.
     order: VertexComboInputSchema,
+    // The revision of the draft as the owner read it: the server refuses when the draft has
+    // another one (a later generator run changed its quote, facts or entry basis).
+    revision: z.number().int().positive(),
   })
   .strict();
 // The note is trimmed first: blanks alone are no note.

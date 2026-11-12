@@ -161,6 +161,7 @@ const record = (
   planId: "pie",
   planVersion: 1,
   quote: liveQuote(),
+  revision: 1,
   shortStrike: 105,
   signalFacts: ["VIX 19.5 on 2026-11-11"],
   sleeveKey: "trend",
@@ -258,6 +259,8 @@ const createMemoryRepository = (seed: Seed = {}) => {
           drafts.set(id, {
             ...stored,
             ...content,
+            // As the Postgres store: every write to a draft adds 1 to its revision.
+            revision: stored.revision + 1,
             state: "proposed",
             updatedAt: REFRESHED_AT,
           });
@@ -277,10 +280,10 @@ const createMemoryRepository = (seed: Seed = {}) => {
         if (draft === undefined) throw new GoLiveDraftNotFoundError(input.id);
         if (draft.state !== "proposed")
           throw new GoLiveDraftConflictError(input.id);
-        // As the Postgres store: an approval matches the draft only as it was read.
+        // As the Postgres store: an approval matches the draft only at the revision read.
         if (
           input.decision === "approved" &&
-          input.expectedUpdatedAt.getTime() !== draft.updatedAt.getTime()
+          input.expectedRevision !== draft.revision
         )
           throw new GoLiveDraftChangedError(input.id);
         const decided: GoLiveDraftRecord = {
@@ -297,6 +300,7 @@ const createMemoryRepository = (seed: Seed = {}) => {
           decidedBy: input.decidedBy,
           decisionNote: input.note,
           nodeBadgeAtDecision: input.nodeBadge,
+          revision: draft.revision + 1,
           state: input.decision,
         };
         drafts.set(decided.id, decided);
@@ -540,6 +544,7 @@ describe("goLiveDrafts.queue", () => {
     const [spy, qqq, iwm] = queue.drafts;
     expect(spy).toEqual({
       ...record("d-spy"),
+      approvedRoom: null,
       notApprovable: [],
       notes: [],
       order: ORDER,
@@ -840,9 +845,12 @@ describe("goLiveDrafts.queue", () => {
         state: "approved",
       });
       const answer = JSON.stringify(queue);
+      expect(queue.drafts[0]?.approvedRoom).toBeNull();
+      // 7,919 x 313 = 2,478,647: the room the approved order holds.
       for (const value of [
         approvedOrder.quantity,
         approvedOrder.limitPrice,
+        2_478_647,
         NLV,
       ])
         expect(answer).not.toContain(String(value));
@@ -863,6 +871,10 @@ describe("goLiveDrafts.queue", () => {
     ]) {
       const queue = await clientFor(options).goLiveDrafts.queue({});
       expect(queue.drafts[0]?.approvedOrder).toEqual(approvedOrder);
+      expect(queue.drafts[0]?.approvedRoom).toEqual({
+        maxLoss: 2_478_647,
+        maxLossPctNlv: 2478.65,
+      });
       expect(JSON.stringify(queue)).toContain('"quantity":7919');
     }
   });
@@ -1589,6 +1601,8 @@ const approval = (
   confirm: true,
   id: "d-spy",
   order: ORDER,
+  // The revision of a draft that no later run changed.
+  revision: 1,
   ...overrides,
 });
 
@@ -1603,8 +1617,8 @@ describe("goLiveDrafts.approve", () => {
       approvedOrder: ORDER,
       decidedBy: "owner",
       decision: "approved",
-      // The updated time of the draft as this request read it.
-      expectedUpdatedAt: NOW,
+      // The revision the owner read, which is the revision of the draft this request read.
+      expectedRevision: 1,
       id: "d-spy",
       nodeBadge: "running-disarmed",
       note: "As shown",
@@ -1664,7 +1678,7 @@ describe("goLiveDrafts.approve", () => {
       approvedOrder: sized,
       decidedBy: "owner",
       decision: "approved",
-      expectedUpdatedAt: NOW,
+      expectedRevision: 1,
       id: "d-qqq",
       nodeBadge: "running-disarmed",
       note: null,
@@ -1676,6 +1690,8 @@ describe("goLiveDrafts.approve", () => {
       decidedBy: "owner",
       decisionNote: null,
       nodeBadgeAtDecision: "running-disarmed",
+      // The decision is a write: the revision went from 1 to 2.
+      revision: 2,
       state: "approved",
     });
     // The next read shows the stored order as the approved order.
@@ -2134,11 +2150,14 @@ describe("goLiveDrafts sizing rules at the API", () => {
     // Today's size of the approved draft is 1 spread in a budget of 200. Its order is unchanged.
     expect(spy).toMatchObject({
       approvedOrder: ORDER,
+      // The room it holds is the approved 2,000: 20% of the account value now.
+      approvedRoom: { maxLoss: 2000, maxLossPctNlv: 20 },
       sizing: { budget: 200, maxLoss: 125, quantity: 1, reason: "sized" },
     });
     // The approved 2,000 fill the sleeve. Sized again at today's value the approved draft would
     // count 125, and QQQ would fit.
     expect(qqq).toMatchObject({
+      approvedRoom: null,
       notApprovable: ["SIZED_TO_ZERO"],
       order: null,
       sizing: { quantity: 0, reason: "sleeve_budget_used" },
@@ -2194,7 +2213,7 @@ describe("goLiveDrafts sizing rules at the API", () => {
   });
 
   it("lists a draft whose budget buys more spreads than one order may hold, with quantity 0", async () => {
-    // Long mid 0.025, short mid 0.0075: limit 0.01, 1 per spread. 2% of 600,000 buys 12,000.
+    // Long mid 0.025, short mid 0.01: limit 0.01, 1 per spread. 2% of 600,000 buys 12,000.
     inject({ account: accountOf(600_000) });
     const memory = createMemoryRepository({
       drafts: [
@@ -2203,7 +2222,7 @@ describe("goLiveDrafts sizing rules at the API", () => {
             longAsk: 0.03,
             longBid: 0.02,
             shortAsk: 0.01,
-            shortBid: 0.005,
+            shortBid: 0.01,
           }),
         }),
         record("d-qqq", { symbol: "QQQ" }),
@@ -2262,6 +2281,84 @@ describe("goLiveDrafts sizing rules at the API", () => {
         order: null,
         sizing: { limitPrice: null, quantity: 0, reason: "no_quote" },
       });
+    await expectCode(
+      client.goLiveDrafts.approve(
+        approval({ order: { ...ORDER, limitPrice: 2.47, quantity: 8 } })
+      ),
+      "CONFLICT",
+      409,
+      "SIZED_TO_ZERO"
+    );
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+  });
+
+  it("reports the room an approved draft holds next to today's size", async () => {
+    // Approved as 6 x 147 = 882. Today's quote sizes 1 x 125 at NLV 10,000.
+    const approvedOrder = { ...ORDER, limitPrice: 1.47, quantity: 6 };
+    const memory = createMemoryRepository({
+      drafts: [
+        approvedRecord("d-spy", approvedOrder),
+        record("d-qqq", { symbol: "QQQ" }),
+      ],
+      plan: plan({
+        limits: {
+          maxPositions: 4,
+          nameRiskCapPct: 2,
+          openRiskCapPct: 9,
+          positionRiskPct: 2,
+        },
+        sleeves: [sleeve("trend", ["SPY", "QQQ"], "callDebitVertical", 100)],
+      }),
+    });
+    const client = clientFor({ repository: memory.repository });
+    inject({ account: accountOf(10_000) });
+    const [spy, qqq] = (await client.goLiveDrafts.queue({})).drafts;
+    expect(spy).toMatchObject({
+      approvedOrder,
+      approvedRoom: { maxLoss: 882, maxLossPctNlv: 8.82 },
+      order: { ...ORDER, quantity: 1 },
+      sizing: { maxLoss: 125, maxLossPctNlv: 1.25, quantity: 1 },
+    });
+    // The 882 are what blocks the next draft: 882 + 125 is above the open risk cap of 900.
+    expect(qqq).toMatchObject({
+      approvedRoom: null,
+      sizing: { quantity: 0, reason: "open_risk_cap_reached" },
+    });
+    // Without an account value the amount is still shown, and its share is empty.
+    inject({
+      account: async () => ({
+        asOf: null,
+        netLiquidation: null,
+        unavailableReason: "Portfolio monitor did not answer",
+      }),
+    });
+    const [unsized] = (await client.goLiveDrafts.queue({})).drafts;
+    expect(unsized).toMatchObject({
+      approvedRoom: { maxLoss: 882, maxLossPctNlv: null },
+      sizing: { maxLoss: null, quantity: 0, reason: "nlv_unavailable" },
+    });
+  });
+
+  it("gives no size to a leg quoted wider than half of its mid", async () => {
+    // Long 0.01/5.00 and short 0.01/0.05 gave limit 2.47 and a size before.
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-spy", {
+          quote: liveQuote({
+            longAsk: 5,
+            longBid: 0.01,
+            shortAsk: 0.05,
+            shortBid: 0.01,
+          }),
+        }),
+      ],
+    });
+    const client = clientFor({ repository: memory.repository });
+    expect((await client.goLiveDrafts.queue({})).drafts[0]).toMatchObject({
+      notApprovable: ["SIZED_TO_ZERO"],
+      order: null,
+      sizing: { limitPrice: null, quantity: 0, reason: "no_quote" },
+    });
     await expectCode(
       client.goLiveDrafts.approve(
         approval({ order: { ...ORDER, limitPrice: 2.47, quantity: 8 } })
@@ -2340,6 +2437,7 @@ describe("goLiveDrafts.collect, a later run of the trading day", () => {
       entryBasis: "model_holds_account_does_not",
       id: SPY_ID,
       quote: { asOf: new Date(at(-5000)), longAsk: 2.6, longBid: 2.5 },
+      revision: 2,
       signalFacts: ["model holds since 2026-11-09"],
       state: "proposed",
       updatedAt: REFRESHED_AT,
@@ -2386,6 +2484,7 @@ describe("goLiveDrafts.collect, a later run of the trading day", () => {
     // entry.
     const refreshed = record("d-spy", {
       entryBasis: "model_holds_account_does_not",
+      revision: 2,
       updatedAt: REFRESHED_AT,
     });
     memory.drafts.set("d-spy", refreshed);
@@ -2397,7 +2496,7 @@ describe("goLiveDrafts.collect, a later run of the trading day", () => {
       "The draft changed after the queue was read (a later generator run); reload the queue"
     );
     expect(memory.repository.decide).toHaveBeenCalledWith(
-      expect.objectContaining({ expectedUpdatedAt: NOW })
+      expect.objectContaining({ expectedRevision: 1 })
     );
     // Nothing was stored, and the draft as it is now cannot be approved.
     expect(memory.drafts.get("d-spy")).toEqual(refreshed);
@@ -2407,6 +2506,124 @@ describe("goLiveDrafts.collect, a later run of the trading day", () => {
       409,
       "LATE_ENTRY_NOT_TESTED"
     );
+  });
+
+  it("refuses an approval of a revision the owner did not read, and stores nothing", async () => {
+    inject({ liveQuoteSource: true });
+    const memory = createMemoryRepository();
+    const key = keyClient(memory.repository);
+    const owner = clientFor({ repository: memory.repository });
+    const live = { ...liveQuote(), asOf: LIVE_AS_OF };
+    await key.goLiveDrafts.collect(
+      batch({ candidates: [candidate({ quote: live })] })
+    );
+    // 12:39: the owner reads the queue.
+    expect((await owner.goLiveDrafts.queue({})).drafts[0]).toMatchObject({
+      id: SPY_ID,
+      notApprovable: [],
+      order: ORDER,
+      revision: 1,
+      signalFacts: ["VIX 19.5 on 2026-11-11"],
+    });
+    // 12:40: a run replaces the facts. The quote is the same, and so is the order.
+    expect(
+      await key.goLiveDrafts.collect(
+        batch({
+          candidates: [
+            candidate({ quote: live, signalFacts: ["VIX 23.0 on 2026-11-13"] }),
+          ],
+        })
+      )
+    ).toEqual({ created: 0, expired: 0, unchanged: 0, updated: 1 });
+    expect((await owner.goLiveDrafts.queue({})).drafts[0]).toMatchObject({
+      notApprovable: [],
+      order: ORDER,
+      revision: 2,
+      signalFacts: ["VIX 23.0 on 2026-11-13"],
+    });
+    // 12:41: the owner approves what was read at 12:39: the same order, other facts.
+    const changed =
+      "The draft changed after the queue was read (a later generator run); reload the queue";
+    await expectCode(
+      owner.goLiveDrafts.approve(approval({ id: SPY_ID, revision: 1 })),
+      "CONFLICT",
+      409,
+      changed
+    );
+    // A revision the draft does not have yet is no better.
+    await expectCode(
+      owner.goLiveDrafts.approve(approval({ id: SPY_ID, revision: 3 })),
+      "CONFLICT",
+      409,
+      changed
+    );
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+    expect(memory.drafts.get(SPY_ID)).toMatchObject({
+      approvedOrder: null,
+      decidedBy: null,
+      revision: 2,
+      state: "proposed",
+    });
+    // After a reload the owner approves revision 2, and that is stored.
+    await expect(
+      owner.goLiveDrafts.approve(approval({ id: SPY_ID, revision: 2 }))
+    ).resolves.toMatchObject({
+      approvedOrder: ORDER,
+      revision: 3,
+      signalFacts: ["VIX 23.0 on 2026-11-13"],
+      state: "approved",
+    });
+    expect(memory.repository.decide).toHaveBeenCalledTimes(1);
+    expect(memory.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedRevision: 2 })
+    );
+  });
+
+  it("names the cause first when the changed draft cannot be approved any more", async () => {
+    // Read as revision 1; since then the draft was rejected in another session (revision 2).
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { revision: 2, state: "rejected" })],
+    });
+    await expectCode(
+      clientFor({ repository: memory.repository }).goLiveDrafts.approve(
+        approval({ revision: 1 })
+      ),
+      "CONFLICT",
+      409,
+      "Draft cannot be approved: DRAFT_NOT_PROPOSED"
+    );
+  });
+
+  it("needs the revision in an approval, and none in a rejection", async () => {
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-spy", { revision: 5 }),
+        record("d-qqq", { revision: 7, symbol: "QQQ" }),
+      ],
+    });
+    const client = clientFor({ repository: memory.repository });
+    const { revision: _revision, ...without } = approval();
+    for (const bad of [
+      without,
+      { ...without, revision: 0 },
+      { ...without, revision: 1.5 },
+      { ...without, revision: "5" },
+      { ...without, revision: null },
+    ])
+      await expectCode(
+        client.goLiveDrafts.approve(bad as GoLiveDraftApproveInput),
+        "BAD_REQUEST",
+        400
+      );
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+    // A rejection of a draft that changed is harmless: it does not depend on what the draft
+    // holds, so it names no revision.
+    await expect(
+      client.goLiveDrafts.reject({ id: "d-qqq", note: "No" })
+    ).resolves.toMatchObject({ revision: 8, state: "rejected" });
+    await expect(
+      client.goLiveDrafts.approve(approval({ revision: 5 }))
+    ).resolves.toMatchObject({ revision: 6, state: "approved" });
   });
 
   it("refuses a quote dated more than 60 s after the server clock, and stores nothing", async () => {

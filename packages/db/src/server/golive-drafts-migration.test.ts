@@ -156,6 +156,25 @@ describe(`${TAG} migration`, () => {
     );
   });
 
+  it("gives every draft a revision above 0 that starts at 1", () => {
+    const drafts = tableBody("golive_drafts");
+    expect(drafts).toMatch(/^\s+"revision" integer DEFAULT 1 NOT NULL,$/mu);
+    expect(drafts).toContain(
+      'CONSTRAINT "golive_drafts_revision_check" CHECK ("golive_drafts"."revision" > 0)'
+    );
+    const config = getTableConfig(goLiveDrafts);
+    const column = config.columns.find((entry) => entry.name === "revision");
+    expect(column?.getSQLType()).toBe("integer");
+    expect(column?.notNull).toBe(true);
+    expect(column?.default).toBe(1);
+    expect(config.checks.map((check) => check.name)).toContain(
+      "golive_drafts_revision_check"
+    );
+    // Only the drafts table has it: a plan gets a new version, and a run row is replaced.
+    for (const table of ["golive_plans", "golive_draft_runs"])
+      expect(tableBody(table)).not.toContain('"revision"');
+  });
+
   // migration-journal.test.ts owns the full order; this pins no neighbouring tag (CONVENTIONS.md#migration-numbers).
   it("is journaled once, newer than the entry before it", () => {
     expect(journal.entries.filter((entry) => entry.tag === TAG)).toHaveLength(
@@ -186,6 +205,6 @@ describe(`${TAG} migration`, () => {
     );
     // The approved_order column and its check go with the table: no separate statement. Only an
     // approved draft holds an order, and an approved draft blocks the rollback above.
-    expect(rollback).not.toMatch(/ALTER TABLE|approved_order/u);
+    expect(rollback).not.toMatch(/ALTER TABLE|approved_order|revision/u);
   });
 });

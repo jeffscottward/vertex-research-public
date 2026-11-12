@@ -1,4 +1,5 @@
 import {
+  GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   type GoLiveDraftOutput,
   type GoLivePlanLimits,
   type GoLivePlanStatus,
@@ -166,22 +167,36 @@ export const buildCombo = (
   };
 };
 
+// A difference of two decimal prices is within this of its decimal value (0.05 - 0.03 is
+// 0.020000000000000004 in binary floats).
+const PRICE_NOISE = 1e-9;
+
 // null: the side is missing (not a number, no ask), has no bid (a bid of 0 or below: nobody
-// bids, so the mid is no price) or is crossed (bid above ask).
-const mid = (bid: number, ask: number): number | null =>
-  Number.isFinite(bid) &&
-  Number.isFinite(ask) &&
-  bid > 0 &&
-  ask > 0 &&
-  bid <= ask
-    ? (bid + ask) / 2
+// bids, so the mid is no price), is crossed (bid above ask), or is a wide market: ask - bid is
+// above GOLIVE_QUOTE_MAX_SPREAD_SHARE of the mid, so nobody trades at that mid.
+const mid = (bid: number, ask: number): number | null => {
+  if (
+    !(
+      Number.isFinite(bid) &&
+      Number.isFinite(ask) &&
+      bid > 0 &&
+      ask > 0 &&
+      bid <= ask
+    )
+  )
+    return null;
+  const middle = (bid + ask) / 2;
+  return ask - bid <= GOLIVE_QUOTE_MAX_SPREAD_SHARE * middle + PRICE_NOISE
+    ? middle
     : null;
+};
 
 /**
  * Net limit per spread from the two mids. Debit: long mid - short mid, rounded DOWN to a cent
  * (never above mid). Credit: short mid - long mid, rounded UP to a cent (never below mid) and
- * returned negative. null when a side is missing, has a bid of 0 or is crossed, or when the
- * rounded limit is not strictly between 0 and the strike width (at least one cent from each).
+ * returned negative. null when a side is missing, has a bid of 0, is crossed or is a wide market,
+ * or when the rounded limit is not strictly between 0 and the strike width (at least one cent
+ * from each).
  */
 export const limitFromQuote = (
   structure: Structure,
@@ -354,6 +369,36 @@ const approvedLossCents = (draft: GoLiveSizingDraft): number | null => {
   );
 };
 
+// The account value in whole cents (a part of a cent is dropped); null when it is not a usable
+// amount.
+const nlvCentsOf = (nlv: number | null): number | null =>
+  nlv === null || !(nlv > 0 && Number.isFinite(nlv))
+    ? null
+    : Math.floor(nlv * 100 + CENT_NOISE);
+
+/**
+ * The room an approved draft holds in its sleeve, its name and the open risk: the max loss of its
+ * stored order, and that amount as a share of the account value now (null when the account value
+ * is unavailable). null for a draft that is not approved. Throws, as sizeDrafts does, when the
+ * stored order is not the order of the draft.
+ */
+export const approvedRoomOf = (
+  draft: GoLiveSizingDraft,
+  nlv: number | null
+): GoLiveDraftOutput["approvedRoom"] => {
+  const lossCents = approvedLossCents(draft);
+  if (lossCents === null) return null;
+  const nlvCents = nlvCentsOf(nlv);
+  return {
+    maxLoss: lossCents / 100,
+    // An account value below one cent has no share to show.
+    maxLossPctNlv:
+      nlvCents === null || nlvCents === 0
+        ? null
+        : round2((lossCents / nlvCents) * 100),
+  };
+};
+
 /**
  * Quantity and max loss of every draft, in the order given. Money is counted in whole cents.
  * Per draft: budget = positionRiskPct% of NLV, rounded down to the cent; quantity =
@@ -384,14 +429,13 @@ export const sizeDrafts = <T extends GoLiveSizingDraft>(
     assertStrikesFitStructure(draft);
     return { draft, held: approvedLossCents(draft), index };
   });
-  if (nlv === null || !(nlv > 0 && Number.isFinite(nlv)))
+  const nlvCents = nlvCentsOf(nlv);
+  if (nlvCents === null)
     return drafts.map((draft) => ({
       draft,
       sizing: unsized(null, "nlv_unavailable"),
     }));
   const { limits, sleeves } = plan ?? NO_PLAN;
-  // The account value in whole cents; a part of a cent is dropped.
-  const nlvCents = Math.floor(nlv * 100 + CENT_NOISE);
   const share = (pct: number): number => shareCents(nlvCents, pct);
   const budgetCents = share(limits.positionRiskPct);
   const budget = budgetCents / 100;

@@ -4,6 +4,7 @@ import { appContract } from "./contract.ts";
 import {
   GOLIVE_COLLECT_MAX,
   GOLIVE_DRAFT_LIST_MAX,
+  GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_SIZING_REASON_VALUES,
   GOLIVE_STANDING_MAX_LOSS_PCT,
@@ -96,6 +97,7 @@ const order = () => ({
 // A proposed draft as the queue returns it, sized.
 const draft = () => ({
   approvedOrder: null,
+  approvedRoom: null,
   createdAt: NOW,
   decidedAt: null,
   decidedBy: null,
@@ -119,6 +121,7 @@ const draft = () => ({
     webFinalGate: null,
   },
   quote: null,
+  revision: 1,
   shortStrike: 105,
   signalFacts: [],
   sizing: {
@@ -394,7 +397,12 @@ describe("goLiveDrafts contract", () => {
   });
 
   it("needs the explicit confirmation and the exact order to approve", () => {
-    const approval = { confirm: true, id: "d-spy", order: order() };
+    const approval = {
+      confirm: true,
+      id: "d-spy",
+      order: order(),
+      revision: 3,
+    };
     expect(GoLiveDraftApproveInputSchema.parse(approval)).toEqual(approval);
     expect(
       GoLiveDraftApproveInputSchema.parse({ ...approval, note: "As shown" })
@@ -402,8 +410,15 @@ describe("goLiveDrafts contract", () => {
     ).toBe("As shown");
     for (const bad of [
       { ...approval, confirm: false },
-      { id: "d-spy", order: order() },
-      { confirm: true, id: "d-spy" },
+      { id: "d-spy", order: order(), revision: 3 },
+      { confirm: true, id: "d-spy", revision: 3 },
+      // The revision of the draft the owner read: required, a whole number above 0.
+      { confirm: true, id: "d-spy", order: order() },
+      { ...approval, revision: 0 },
+      { ...approval, revision: -1 },
+      { ...approval, revision: 1.5 },
+      { ...approval, revision: "3" },
+      { ...approval, revision: null },
       { ...approval, order: { ...order(), limitPrice: 0 } },
       { ...approval, order: { ...order(), quantity: 0 } },
       { ...approval, order: { ...order(), legs: order().legs.slice(0, 1) } },
@@ -493,7 +508,13 @@ describe("goLiveDrafts contract", () => {
 
   it("carries the approved order of a draft, or null, and never leaves it out", () => {
     expect(GoLiveDraftSchema.parse(draft())).toEqual(draft());
-    const approved = { ...draft(), approvedOrder: order(), state: "approved" };
+    const approved = {
+      ...draft(),
+      approvedOrder: order(),
+      approvedRoom: { maxLoss: 2000, maxLossPctNlv: 2 },
+      revision: 2,
+      state: "approved",
+    };
     expect(GoLiveDraftSchema.parse(approved)).toEqual(approved);
     // The approved order and today's order are separate fields: one can be null without the other.
     const unsizedToday = { ...approved, order: null };
@@ -509,6 +530,50 @@ describe("goLiveDrafts contract", () => {
       { ...draft(), approvedOrder: { ...order(), sent: true } },
     ])
       expect(GoLiveDraftSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("carries the revision of a draft: a whole number above 0", () => {
+    for (const revision of [1, 2, 4711])
+      expect(GoLiveDraftSchema.parse({ ...draft(), revision }).revision).toBe(
+        revision
+      );
+    const { revision: _revision, ...without } = draft();
+    for (const bad of [
+      without,
+      { ...draft(), revision: 0 },
+      { ...draft(), revision: -1 },
+      { ...draft(), revision: 1.5 },
+      { ...draft(), revision: "1" },
+      { ...draft(), revision: null },
+    ])
+      expect(GoLiveDraftSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("carries the room an approved draft holds, or null, and never leaves it out", () => {
+    const withRoom = (approvedRoom: unknown) => ({ ...draft(), approvedRoom });
+    // The share of the account value is null when the account value is unavailable.
+    for (const room of [
+      null,
+      { maxLoss: 882, maxLossPctNlv: 8.82 },
+      { maxLoss: 882, maxLossPctNlv: null },
+    ])
+      expect(GoLiveDraftSchema.parse(withRoom(room))).toEqual(withRoom(room));
+    const { approvedRoom: _approvedRoom, ...without } = draft();
+    for (const bad of [
+      without,
+      withRoom({}),
+      withRoom(882),
+      withRoom({ maxLoss: 882 }),
+      withRoom({ maxLossPctNlv: 8.82 }),
+      withRoom({ maxLoss: null, maxLossPctNlv: 8.82 }),
+      withRoom({ maxLoss: Number.POSITIVE_INFINITY, maxLossPctNlv: 1 }),
+      withRoom({ maxLoss: 882, maxLossPctNlv: 8.82, quantity: 6 }),
+    ])
+      expect(GoLiveDraftSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("sets the widest usable market at half of the mid", () => {
+    expect(GOLIVE_QUOTE_MAX_SPREAD_SHARE).toBe(0.5);
   });
 
   it("returns a plan only with a Discord message link and an https evidence link, or without them", () => {

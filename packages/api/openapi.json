@@ -108569,11 +108569,18 @@
                       "legs"
                     ],
                     "type": "object"
+                  },
+                  "revision": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
                   }
                 },
                 "required": [
                   "confirm",
-                  "order"
+                  "order",
+                  "revision"
                 ],
                 "type": "object"
               }
@@ -108660,6 +108667,36 @@
                             "quantity",
                             "limitPrice",
                             "legs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "approvedRoom": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "maxLoss": {
+                              "type": "number"
+                            },
+                            "maxLossPctNlv": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "maxLoss",
+                            "maxLossPctNlv"
                           ],
                           "type": "object"
                         },
@@ -109064,6 +109101,12 @@
                         }
                       ]
                     },
+                    "revision": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
                     "shortStrike": {
                       "type": "number"
                     },
@@ -109204,6 +109247,7 @@
                     "kind",
                     "longStrike",
                     "approvedOrder",
+                    "approvedRoom",
                     "nodeBadgeAtDecision",
                     "notApprovable",
                     "notes",
@@ -109213,6 +109257,7 @@
                     "planVersion",
                     "preCheck",
                     "quote",
+                    "revision",
                     "shortStrike",
                     "signalFacts",
                     "sizing",
@@ -109864,6 +109909,36 @@
                         }
                       ]
                     },
+                    "approvedRoom": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "maxLoss": {
+                              "type": "number"
+                            },
+                            "maxLossPctNlv": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "maxLoss",
+                            "maxLossPctNlv"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "createdAt": {
                       "format": "date-time",
                       "type": "string",
@@ -110260,6 +110335,12 @@
                         }
                       ]
                     },
+                    "revision": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
                     "shortStrike": {
                       "type": "number"
                     },
@@ -110400,6 +110481,7 @@
                     "kind",
                     "longStrike",
                     "approvedOrder",
+                    "approvedRoom",
                     "nodeBadgeAtDecision",
                     "notApprovable",
                     "notes",
@@ -110409,6 +110491,7 @@
                     "planVersion",
                     "preCheck",
                     "quote",
+                    "revision",
                     "shortStrike",
                     "signalFacts",
                     "sizing",
@@ -111802,6 +111885,36 @@
                               }
                             ]
                           },
+                          "approvedRoom": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "maxLoss": {
+                                    "type": "number"
+                                  },
+                                  "maxLossPctNlv": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "maxLoss",
+                                  "maxLossPctNlv"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "createdAt": {
                             "format": "date-time",
                             "type": "string",
@@ -112198,6 +112311,12 @@
                               }
                             ]
                           },
+                          "revision": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
                           "shortStrike": {
                             "type": "number"
                           },
@@ -112338,6 +112457,7 @@
                           "kind",
                           "longStrike",
                           "approvedOrder",
+                          "approvedRoom",
                           "nodeBadgeAtDecision",
                           "notApprovable",
                           "notes",
@@ -112347,6 +112467,7 @@
                           "planVersion",
                           "preCheck",
                           "quote",
+                          "revision",
                           "shortStrike",
                           "signalFacts",
                           "sizing",

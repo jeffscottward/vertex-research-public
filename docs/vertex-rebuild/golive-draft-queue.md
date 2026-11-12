@@ -21,7 +21,7 @@ The queue stores decisions. It sends nothing.
 
 An agent API key never learns the account value. For a key caller the queue does not read the account: `account.netLiquidation` is empty with the reason `account value is not shown to API keys`, every draft has the sizing reason `nlv_unavailable`, and no budget, limit, max loss or order is returned.
 
-A key caller also gets no approved order: `approvedOrder` is empty for a key, also on an approved draft. The quantity of an approved order was sized from the account value, and a key sees the plan's risk percentages, so quantity × limit would bound the account value. Sessions (owner, operator and agent viewer) see the full queue, with the approved order.
+A key caller also gets no approved order and no approved room: `approvedOrder` and `approvedRoom` are empty for a key, also on an approved draft. The quantity of an approved order was sized from the account value, and a key sees the plan's risk percentages, so quantity × limit would bound the account value. Sessions (owner, operator and agent viewer) see the full queue, with the approved order.
 
 `canDecide` in the queue answer tells the caller whether it may approve and reject. It is true only for the owner in a browser session. It is false for an operator without the admin role, for an agent viewer and for every agent API key. The value comes from the same check that `approve` and `reject` run. It is information for the page; `approve` and `reject` run the check again on every call.
 
@@ -61,9 +61,18 @@ The queue returns the stored order as `approvedOrder`. It is empty for a propose
 
 `sizing` and `order` are still computed at every read, also for an approved draft. They are the current indicative sizing. They can differ from `approvedOrder` later, for example when the account value has changed. The approved order does not change.
 
-`approve` writes only while the draft is as the request read it. If a later run changed the draft between the read and the write, `approve` answers `CONFLICT` ("The draft changed after the queue was read") and stores nothing. The owner reloads the queue and sees the draft as it is now. The store compares the `updated_at` time of the draft for this. `reject` has no such condition, because a rejection does not depend on what the draft holds.
+Every draft has a `revision`. It is 1 when the draft is stored, and every later write to the draft adds 1 in the same database statement: a refresh by a later run, an expiry, a return from expired, and a decision.
 
-An approved draft holds the room of its stored order, whatever the account value is later (see Sizing).
+`approve` names the revision of the draft the owner read. The server refuses with `CONFLICT` ("The draft changed after the queue was read (a later generator run); reload the queue") and stores nothing when the draft has another revision. This also holds when the later run left the order the same and changed only the facts: the owner approves what the owner read, not only the order. The store repeats the condition in its statement (`revision` equal and state proposed), so a run that lands between the server's read and its write is refused too. A draft that was decided or expired in between is refused with that cause (`DRAFT_NOT_PROPOSED`), not with this text.
+
+`reject` names no revision. A rejection does not depend on what the draft holds, so rejecting a draft that changed is harmless.
+
+An approved draft holds the room of its stored order, whatever the account value is later (see Sizing). The queue returns this room as `approvedRoom`:
+
+- `maxLoss`: the approved quantity × the max loss per spread at the approved limit. It does not change with the account value.
+- `maxLossPctNlv`: that amount as a share of the account value now. It is empty when the account value is unavailable.
+
+`approvedRoom` is empty for a draft that is not approved, and for an agent API key caller. Example: a draft approved as 6 × 147 has `approvedRoom.maxLoss` 882. At NLV 10,000 its `sizing` reads 1 spread and 147, and the room it holds is still 882 (8.82%).
 
 If an approved draft has no stored order, a stored value that is not an order, or an order that is not the order of that draft (another symbol, other legs, a limit outside the strike width or not in whole cents, a quantity no order can hold), `queue` answers `STORAGE_ERROR` and names the draft. `approve` refuses in the same way. The room of an approved draft is computed from its stored order, so no draft of that trading day is sized until the row is corrected. The table check and the service prevent this, so it can only follow a manual change of the row.
 
@@ -89,7 +98,7 @@ A stored draft with its strikes the wrong way round gets no size and no order. N
 
 The generator runs three times on a trading day. A draft has the same id in every run of the day (plan, plan version, trading day, sleeve, symbol, structure, expiry and strikes), so a later run adds no second draft. For a candidate whose id is stored:
 
-- The draft is proposed, and its quote, its facts or its entry basis differ from the candidate: the three fields are replaced. A draft first sent as `signal_today` and later sent as `model_holds_account_does_not` is a late entry from then on, and cannot be approved.
+- The draft is proposed, and its quote, its facts or its entry basis differ from the candidate: the three fields are replaced and the draft gets the next revision (see Approved order). A draft first sent as `signal_today` and later sent as `model_holds_account_does_not` is a late entry from then on, and cannot be approved.
 - The draft was expired by an earlier run of the same trading day: it goes back to proposed, with the content of this run.
 - The draft is proposed and nothing differs: nothing is written.
 - The draft is approved or rejected: nothing is written, whatever the run sends.
@@ -110,6 +119,7 @@ The limit comes from the mid prices of the two legs of the stored quote.
 - Debit vertical: long mid minus short mid, rounded down to a cent. The limit is never above the mid.
 - Credit vertical: short mid minus long mid, rounded up to a cent, stored as a negative number. The credit asked is never below the mid.
 - No limit (and so no size) when a bid or ask is missing, when a bid is 0 (nobody bids, so the mid is not a price), when a bid is above its ask, or when the rounded limit is not at least one cent above 0 and one cent below the strike width.
+- No limit when one leg is a wide market: its ask minus its bid is more than half of its mid (`GOLIVE_QUOTE_MAX_SPREAD_SHARE` = 0.5). Nobody trades at such a mid. Example: long 0.01/5.00 and short 0.01/0.05 give no limit and the sizing reason `no_quote`. A leg quoted at exactly half of its mid (0.75/1.25) is still used.
 
 ## Sizing
 
@@ -161,7 +171,7 @@ Limits of this version:
 - Positions already held in the account are not counted against the four caps. Only the drafts of the trading day are.
 - Rejected and expired drafts are sized on the position budget alone, to show what was proposed. They use no cap room.
 - A late entry (`model_holds_account_does_not`) is sized on the position budget alone and uses no cap room. It can never be approved (`LATE_ENTRY_NOT_TESTED`) and the account does not hold it, so it must not take a sleeve, name, open-risk or position room from a `signal_today` draft.
-- The `sizing` and `order` of an approved draft show what the position budget would buy today. No cap is applied to these two figures, because the draft already holds its approved room. They can be 0 while the draft still holds its room.
+- The `sizing` and `order` of an approved draft show what the position budget would buy today. No cap is applied to these two figures, because the draft already holds its approved room. They can be 0 while the draft still holds its room. The room itself is in `approvedRoom` (see Approved order).
 - Exit drafts are not derived yet. The sizing treats every draft as an entry.
 
 ## Why a draft cannot be approved

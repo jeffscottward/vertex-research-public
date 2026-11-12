@@ -43,7 +43,9 @@ import { type DatabaseExecutor, withTransaction } from "./client.ts";
 // gives a stored draft without a decision the quote, the facts and the entry basis of the later
 // run, and expires proposed drafts that are no longer wanted. decide records the owner's
 // approval or rejection of a proposed draft, once; an approval stores the approved order in the
-// same statement, and only while the draft is as the approval read it. Inputs are validated by
+// same statement, and only while the draft has the revision the approval read. A draft is stored
+// with revision 1, and every later write to it (refresh, revive, expire, decide) adds 1 in the
+// same statement. Inputs are validated by
 // the oRPC contract and the seed script; the table checks enforce the same rules.
 // RECORDS ONLY: no order path.
 
@@ -111,6 +113,8 @@ export type GoLiveDraftRecord = Readonly<{
   decidedAt: Date | null;
   decisionNote: string | null;
   nodeBadgeAtDecision: GoLiveNodeBadgeValue | null;
+  /** 1 when the draft was stored; every later write to it added 1. */
+  revision: number;
   /** The order the owner approved, as stored with the approval. null unless state is approved. */
   approvedOrder: GoLiveApprovedOrderValue | null;
   createdAt: Date;
@@ -193,22 +197,22 @@ interface GoLiveDecisionFields {
 }
 
 /**
- * An approval always carries the approved order and the updated time of the draft as the
- * approving request read it; a rejection carries neither.
+ * An approval always carries the approved order and the revision of the draft as it was read; a
+ * rejection carries neither.
  */
 export type GoLiveDecideInput =
   | Readonly<
       GoLiveDecisionFields & {
         decision: "approved";
         approvedOrder: GoLiveApprovedOrderInput;
-        expectedUpdatedAt: Date;
+        expectedRevision: number;
       }
     >
   | Readonly<
       GoLiveDecisionFields & {
         decision: "rejected";
         approvedOrder?: never;
-        expectedUpdatedAt?: never;
+        expectedRevision?: never;
       }
     >;
 
@@ -231,7 +235,7 @@ export class GoLiveDraftConflictError extends Error {
   }
 }
 
-/** The draft is still proposed and is not as the approval read it: a collect changed it. */
+/** The draft is still proposed and has another revision than the approval read: a collect changed it. */
 export class GoLiveDraftChangedError extends Error {
   readonly draftId: string;
   constructor(draftId: string) {
@@ -309,8 +313,9 @@ export type GoLiveDraftsRepository = Readonly<{
   collect: (run: GoLiveCollectRecord) => Promise<GoLiveCollectResult>;
   /**
    * Records the owner's decision on a proposed draft. An approval stores its order in the same
-   * statement that moves the draft from proposed to approved, and only while the draft is as it
-   * was read (expectedUpdatedAt); a rejection stores no order. Throws GoLiveDraftNotFoundError
+   * statement that moves the draft from proposed to approved, and only while the draft has the
+   * revision that was read (expectedRevision); a rejection stores no order and has no such
+   * condition. Throws GoLiveDraftNotFoundError
    * for an unknown id, GoLiveDraftChangedError when a proposed draft changed after it was read,
    * and GoLiveDraftConflictError when the draft is not proposed any more.
    */
@@ -359,6 +364,7 @@ const draftOf = (row: GoLiveDraftRow): GoLiveDraftRecord => ({
   planId: row.planId,
   planVersion: row.planVersion,
   quote: row.quote,
+  revision: row.revision,
   shortStrike: row.shortStrike,
   signalFacts: row.signalFacts,
   sleeveKey: row.sleeveKey,
@@ -458,6 +464,7 @@ const draftValues = (
   planId: run.planId,
   planVersion: run.planVersion,
   quote: storedQuote(candidate.quote),
+  revision: 1,
   shortStrike: candidate.shortStrike,
   signalFacts: [...candidate.signalFacts],
   sleeveKey: candidate.sleeveKey,
@@ -483,6 +490,9 @@ const assertPlanInForce = (
     );
   }
 };
+
+// Every write to a stored draft sets this: the revision goes up by 1 in the same statement.
+const NEXT_REVISION = sql`${goLiveDrafts.revision} + 1`;
 
 // A draft without a decision: proposed, or expired (an expired draft never holds a decision).
 const OPEN_STATES: GoLiveDraftStateValue[] = ["proposed", "expired"];
@@ -522,6 +532,17 @@ const needsRefresh = (
     row.signalFacts.length !== candidate.signalFacts.length ||
     row.signalFacts.some((fact, index) => fact !== candidate.signalFacts[index])
   );
+};
+
+// The revision an approval read, as a whole number above 0. Anything else (a caller without
+// types) throws before a statement is sent: a condition on no revision would match nothing or
+// everything.
+const readRevision = (value: number): number => {
+  if (!(Number.isInteger(value) && value > 0))
+    throw new TypeError(
+      "An approval needs the revision of the draft as it was read"
+    );
+  return value;
 };
 
 /**
@@ -585,6 +606,7 @@ const storeWanted = async (
       .set({
         entryBasis: candidate.entryBasis,
         quote: storedQuote(candidate.quote),
+        revision: NEXT_REVISION,
         signalFacts: [...candidate.signalFacts],
         state: "proposed",
         updatedAt: at,
@@ -644,7 +666,7 @@ export const createGoLiveDraftsRepository = (
         );
         const expired = await transaction
           .update(goLiveDrafts)
-          .set({ state: "expired", updatedAt: at })
+          .set({ revision: NEXT_REVISION, state: "expired", updatedAt: at })
           .where(
             and(
               eq(goLiveDrafts.state, "proposed"),
@@ -675,18 +697,16 @@ export const createGoLiveDraftsRepository = (
     decide: async (input) => {
       const at = now();
       // Both are built before the statement, so an approval without a usable order or without
-      // the time its draft was read at writes nothing.
+      // the revision its draft was read at writes nothing.
       const approvedOrder =
         input.decision === "approved" ? storedOrder(input.approvedOrder) : null;
-      // An approval matches the draft only as it was read: a collect that refreshed the quote,
-      // the facts or the entry basis in between moved updated_at. A rejection has no such
-      // condition: it does not depend on what the draft holds.
+      // An approval matches the draft only at the revision that was read: a collect that
+      // refreshed the quote, the facts or the entry basis in between, or that expired and
+      // revived the draft, gave it another one. A rejection has no such condition: it does not
+      // depend on what the draft holds.
       const asRead =
         input.decision === "approved"
-          ? eq(
-              goLiveDrafts.updatedAt,
-              new Date(input.expectedUpdatedAt.getTime())
-            )
+          ? eq(goLiveDrafts.revision, readRevision(input.expectedRevision))
           : undefined;
       // One statement: the state, the decision fields and the approved order change together,
       // and only while the draft is still proposed. The table check refuses an approved row
@@ -699,6 +719,7 @@ export const createGoLiveDraftsRepository = (
           decidedBy: input.decidedBy,
           decisionNote: input.note,
           nodeBadgeAtDecision: input.nodeBadge,
+          revision: NEXT_REVISION,
           state: input.decision,
           updatedAt: at,
         })
@@ -719,7 +740,7 @@ export const createGoLiveDraftsRepository = (
         .limit(1);
       const found = existing[0];
       if (found === undefined) throw new GoLiveDraftNotFoundError(input.id);
-      // Still proposed, and the statement did not match: the draft is not as it was read.
+      // Still proposed, and the statement did not match: the draft has another revision.
       if (found.state === "proposed")
         throw new GoLiveDraftChangedError(input.id);
       throw new GoLiveDraftConflictError(input.id);

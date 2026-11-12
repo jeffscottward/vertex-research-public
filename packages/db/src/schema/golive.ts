@@ -240,6 +240,11 @@ export const goLiveDrafts = pgTable(
     planId: text("plan_id").notNull(),
     planVersion: integer("plan_version").notNull(),
     quote: jsonb("quote").$type<GoLiveStoredQuoteValue>(),
+    /**
+     * Counts the writes to this row: 1 at insert, plus 1 at every later write. An approval names
+     * the revision the owner read, so it is refused when the draft changed in between.
+     */
+    revision: integer("revision").notNull().default(1),
     shortStrike: doublePrecision("short_strike").notNull(),
     signalFacts: jsonb("signal_facts").$type<string[]>().notNull(),
     sleeveKey: text("sleeve_key").notNull(),
@@ -270,6 +275,7 @@ export const goLiveDrafts = pgTable(
       "golive_drafts_decision_check",
       sql`(${table.state} in ('approved', 'rejected')) = (${table.decidedBy} is not null) and (${table.state} in ('approved', 'rejected')) = (${table.decidedAt} is not null)`
     ),
+    check("golive_drafts_revision_check", sql`${table.revision} > 0`),
     // An approval always stores the order that was approved; no other state carries one.
     check(
       "golive_drafts_approved_order_check",

@@ -4,6 +4,7 @@ import {
   type GOLIVE_EXIT_REASON_VALUES,
   type GOLIVE_NODE_BADGE_VALUES,
   type GOLIVE_NOT_APPROVABLE_VALUES,
+  GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   type GOLIVE_QUOTE_SOURCE_VALUES,
   type GOLIVE_SIZING_REASON_VALUES,
   type GOLIVE_STRUCTURE_VALUES,
@@ -144,6 +145,13 @@ export const QUOTE_SOURCE_WORDS: Readonly<Record<GoLiveQuoteSource, string>> =
     yahoo_delayed_snapshot: "Yahoo, 15 min delayed, indicative",
   });
 
+// The server takes a leg quote whose bid-ask spread is wider than this share of its mid as no
+// usable quote (GOLIVE_QUOTE_MAX_SPREAD_SHARE in the contract).
+const MAX_SPREAD_WORDS =
+  GOLIVE_QUOTE_MAX_SPREAD_SHARE === 0.5
+    ? "half"
+    : `${GOLIVE_QUOTE_MAX_SPREAD_SHARE * 100}% of`;
+
 export const SIZING_REASON_WORDS: Readonly<Record<GoLiveSizingReason, string>> =
   Object.freeze({
     budget_below_one_spread:
@@ -151,7 +159,8 @@ export const SIZING_REASON_WORDS: Readonly<Record<GoLiveSizingReason, string>> =
     max_positions_reached: "the plan's maximum number of positions is reached",
     name_cap_reached: "the per-name risk cap is reached",
     nlv_unavailable: "the account value is not available",
-    no_quote: "there is no quote",
+    // Every cause the server sizes as no_quote, not only a missing quote.
+    no_quote: `there is no usable quote: none was recorded, a leg has no bid or no ask, a leg is crossed (bid above ask), a leg has a bid-ask spread wider than ${MAX_SPREAD_WORDS} its mid, or the net price is not between 0 and the strike width`,
     open_risk_cap_reached: "the open risk cap is reached",
     quantity_above_order_limit:
       "the budget buys more spreads than one order may hold, and the draft is not reduced",
@@ -603,7 +612,7 @@ const spreadsText = (quantity: number): string =>
 
 /** Net limit per spread in dollars: positive is a debit paid, negative is a credit received. */
 export const limitText = (limitPrice: number | null): string => {
-  if (limitPrice === null) return "no limit: no quote";
+  if (limitPrice === null) return "no limit: no usable quote";
   return `$${Math.abs(limitPrice).toFixed(2)} ${limitPrice < 0 ? "credit" : "debit"} per spread`;
 };
 
@@ -785,6 +794,16 @@ export const orderSummaryRows = (
   { label: "Max loss", value: maxLossText(sizing) },
 ];
 
+/** The stored room of an approval. The page computes nothing here: it shows what the server holds. */
+const approvedRoomText = (room: GoLiveDraftOutput["approvedRoom"]): string => {
+  if (room === null) return "the server did not send it";
+  return `${usd(room.maxLoss, 2)} max loss (${
+    room.maxLossPctNlv === null
+      ? "% of account value not available: the account value is not available"
+      : `${pct(room.maxLossPctNlv)} of account value`
+  })`;
+};
+
 export type GoLiveApprovedOrderView = Readonly<{
   label: string;
   legs: readonly string[];
@@ -792,6 +811,8 @@ export type GoLiveApprovedOrderView = Readonly<{
   missing: string | null;
   /** The node badge the server read when the owner approved. */
   nodeBadge: string;
+  /** The max loss this approval holds against the plan's caps, as stored with the approval. */
+  room: string;
   rows: readonly GoLiveLabelValue[];
 }>;
 
@@ -802,7 +823,11 @@ export type GoLiveApprovedOrderView = Readonly<{
 export const approvedOrderView = (
   draft: Pick<
     GoLiveDraftOutput,
-    "approvedOrder" | "decidedAt" | "nodeBadgeAtDecision" | "state"
+    | "approvedOrder"
+    | "approvedRoom"
+    | "decidedAt"
+    | "nodeBadgeAtDecision"
+    | "state"
   >
 ): GoLiveApprovedOrderView | null => {
   if (draft.state !== "approved") return null;
@@ -817,6 +842,7 @@ export const approvedOrderView = (
         ? "not recorded"
         : nodeBadgeText(draft.nodeBadgeAtDecision)
     }`,
+    room: `Risk room held by this approval: ${approvedRoomText(draft.approvedRoom)}`,
   };
   const order = draft.approvedOrder;
   return order === null
@@ -1121,9 +1147,11 @@ export const decisionAftermathText = (
 
 // ---------- an open dialog and a newer read ----------
 
+// The draft is the one the dialog shows: its revision is what the owner saw.
+type GoLiveShownDraft = Pick<GoLiveDraftOutput, "revision">;
 type GoLiveOpenDecision =
-  | Readonly<{ order: GoLiveOrder; type: "approve" }>
-  | Readonly<{ type: "reject" }>;
+  | Readonly<{ draft: GoLiveShownDraft; order: GoLiveOrder; type: "approve" }>
+  | Readonly<{ draft: GoLiveShownDraft; type: "reject" }>;
 
 /** The fields of an order in a fixed sequence, so two orders compare by value. */
 const orderKey = (order: GoLiveOrder): string =>
@@ -1143,8 +1171,8 @@ const orderKey = (order: GoLiveOrder): string =>
 /**
  * Why an open dialog no longer matches the queue, or null when it still does. A newer read can
  * arrive behind the dialog; the page then closes it instead of offering a decision that its own
- * row forbids. A rejection needs only a proposed draft; an approval also needs no blocker and the
- * exact order the dialog shows.
+ * row forbids. Both decisions need a proposed draft of the revision the dialog shows; an approval
+ * also needs no blocker and the exact order the dialog shows.
  */
 export const staleDialogReason = (
   decision: GoLiveOpenDecision,
@@ -1154,6 +1182,10 @@ export const staleDialogReason = (
   if (fresh === undefined) return "the draft is no longer in the queue";
   if (fresh.state !== "proposed")
     return `the draft is no longer proposed (${draftStateText(fresh.state)})`;
+  // A rerun of the generator refreshes an open draft under a new revision: the owner has not
+  // seen that draft, whatever the decision and even when the order is the same.
+  if (fresh.revision !== decision.draft.revision)
+    return `the draft was refreshed after the dialog opened (it is now revision ${fresh.revision}; the dialog showed revision ${decision.draft.revision})`;
   if (decision.type === "reject") return null;
   const blockers = approveBlockers(fresh, context);
   if (blockers.length > 0)

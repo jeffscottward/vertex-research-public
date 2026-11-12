@@ -3,7 +3,11 @@
 // The run detail reads ?id= (default: the first fake run).
 "use client";
 
-import type { GoLiveDraftOutput, GoLiveQueueOutput } from "@darkfactory/api";
+import type {
+  GoLiveDraftApproveInput,
+  GoLiveDraftOutput,
+  GoLiveQueueOutput,
+} from "@darkfactory/api";
 import { PageHeader, Panel, StatusBadge } from "@darkfactory/ui";
 import { useState } from "react";
 
@@ -138,7 +142,7 @@ export const createLabGoLiveDraftsGateway = (
   let { drafts } = start;
   const decide = (
     id: string,
-    approval: GoLiveDraftOutput["approvedOrder"],
+    approval: Pick<GoLiveDraftApproveInput, "order" | "revision"> | null,
     note: string | null
   ): Promise<GoLiveDraftOutput> => {
     const draft = drafts.find((entry) => entry.id === id);
@@ -146,20 +150,33 @@ export const createLabGoLiveDraftsGateway = (
       return labRefusal("NOT_FOUND", "UI lab: no such dummy draft");
     if (draft.state !== "proposed")
       return labRefusal("CONFLICT", "The draft is no longer proposed");
+    if (approval !== null && approval.revision !== draft.revision)
+      return labRefusal(
+        "CONFLICT",
+        `UI lab: revision ${approval.revision} was shown and the dummy draft is at revision ${draft.revision}`
+      );
     if (approval !== null && draft.notApprovable.length > 0)
       return labRefusal(
         "CONFLICT",
         `Draft cannot be approved: ${draft.notApprovable.join(", ")}`
       );
     const at = new Date();
+    const { maxLoss, maxLossPctNlv } = draft.sizing;
     const decided: GoLiveDraftOutput = {
       ...draft,
-      approvedOrder: approval,
+      approvedOrder: approval?.order ?? null,
+      // The room an approval holds is the max loss of the order it approved.
+      approvedRoom:
+        approval === null || maxLoss === null
+          ? null
+          : { maxLoss, maxLossPctNlv },
       decidedAt: at,
       decidedBy: "demo-owner",
       decisionNote: note,
       nodeBadgeAtDecision: approval === null ? null : start.node.badge,
       notApprovable: [...draft.notApprovable, "DRAFT_NOT_PROPOSED"],
+      // Every write to a draft adds 1 to its revision, as on the server.
+      revision: draft.revision + 1,
       state: approval === null ? "rejected" : "approved",
       updatedAt: at,
     };
@@ -167,7 +184,7 @@ export const createLabGoLiveDraftsGateway = (
     return Promise.resolve(decided);
   };
   return {
-    approve: (input) => decide(input.id, input.order, input.note ?? null),
+    approve: (input) => decide(input.id, input, input.note ?? null),
     queue: () => Promise.resolve({ ...start, drafts }),
     reject: (input) => decide(input.id, null, input.note),
   };

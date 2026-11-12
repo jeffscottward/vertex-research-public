@@ -6,6 +6,7 @@ import {
   GOLIVE_EXIT_RULE,
   GOLIVE_NODE_BADGE_VALUES,
   GOLIVE_NOT_APPROVABLE_VALUES,
+  GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   GOLIVE_QUOTE_SOURCE_VALUES,
   GOLIVE_SIZING_REASON_VALUES,
   GOLIVE_STRUCTURE_VALUES,
@@ -129,6 +130,7 @@ const draft = (
   overrides: Partial<GoLiveDraftOutput> = {}
 ): GoLiveDraftOutput => ({
   approvedOrder: null,
+  approvedRoom: null,
   createdAt: AT,
   decidedAt: null,
   decidedBy: null,
@@ -152,6 +154,7 @@ const draft = (
     webFinalGate: null,
   },
   quote: null,
+  revision: 3,
   shortStrike: 455,
   signalFacts: [],
   sizing: {
@@ -868,7 +871,7 @@ describe("drafts", () => {
   it("writes the limit in dollars per spread as a debit, a credit or no limit", () => {
     expect(limitText(2.35)).toBe("$2.35 debit per spread");
     expect(limitText(-1.1)).toBe("$1.10 credit per spread");
-    expect(limitText(null)).toBe("no limit: no quote");
+    expect(limitText(null)).toBe("no limit: no usable quote");
   });
 
   it.each(GOLIVE_SIZING_REASON_VALUES)(
@@ -909,7 +912,12 @@ describe("drafts", () => {
     );
     expect(
       maxLossText({ maxLoss: null, maxLossPctNlv: null, reason: "no_quote" })
-    ).toBe("not available: there is no quote");
+    ).toBe(`not available: ${SIZING_REASON_WORDS.no_quote}`);
+    // no_quote covers more than a missing quote: every cause the server has is named.
+    expect(SIZING_REASON_WORDS.no_quote).toBe(
+      "there is no usable quote: none was recorded, a leg has no bid or no ask, a leg is crossed (bid above ask), a leg has a bid-ask spread wider than half its mid, or the net price is not between 0 and the strike width"
+    );
+    expect(GOLIVE_QUOTE_MAX_SPREAD_SHARE).toBe(0.5);
     expect(
       maxLossText({ maxLoss: null, maxLossPctNlv: null, reason: "sized" })
     ).toBe("not available: no max loss was computed");
@@ -1117,6 +1125,7 @@ describe("drafts", () => {
       legs: orderLegLines(ORDER),
       missing: null,
       nodeBadge: "Node badge read at approval: Node running, disarmed",
+      room: "Risk room held by this approval: the server did not send it",
       rows: [
         { label: "Quantity", value: "2 spreads" },
         { label: "Limit", value: "$2.35 debit per spread" },
@@ -1129,6 +1138,7 @@ describe("drafts", () => {
       legs: [],
       missing: APPROVED_ORDER_NOT_SHOWN,
       nodeBadge: "Node badge read at approval: not recorded",
+      room: "Risk room held by this approval: the server did not send it",
       rows: [],
     });
     // True for the one case a page can meet: the server leaves the order out of the answer.
@@ -1160,6 +1170,41 @@ describe("drafts", () => {
     expect(blockers(draft({ kind: future("roll") }))).toEqual([
       "The draft kind is not known to this page version (roll)",
     ]);
+  });
+
+  it("shows the risk room an approval holds, in dollars and percent of the account value", () => {
+    const approved = (
+      approvedRoom: GoLiveDraftOutput["approvedRoom"]
+    ): string | undefined =>
+      approvedOrderView(
+        draft({
+          approvedOrder: ORDER,
+          approvedRoom,
+          decidedAt: AT,
+          state: "approved",
+        })
+      )?.room;
+    expect(approved({ maxLoss: 882, maxLossPctNlv: 8.82 })).toBe(
+      "Risk room held by this approval: $882.00 max loss (8.82% of account value)"
+    );
+    expect(approved({ maxLoss: 882, maxLossPctNlv: null })).toBe(
+      "Risk room held by this approval: $882.00 max loss (% of account value not available: the account value is not available)"
+    );
+    expect(approved(null)).toBe(
+      "Risk room held by this approval: the server did not send it"
+    );
+    // A draft that is not approved holds no room and shows none.
+    expect(
+      approvedOrderView(draft({ approvedRoom: null, state: "proposed" }))
+    ).toBeNull();
+    expect(
+      approvedOrderView(
+        draft({
+          approvedRoom: { maxLoss: 882, maxLossPctNlv: 8.82 },
+          state: "rejected",
+        })
+      )
+    ).toBeNull();
   });
 
   it("gives equal lines different keys", () => {
@@ -1588,8 +1633,9 @@ describe("decisionAftermathText", () => {
 });
 
 describe("staleDialogReason", () => {
-  const approve = { order: ORDER, type: "approve" as const };
-  const reject = { type: "reject" as const };
+  // The dialog shows revision 3 of the draft (the fixture's revision).
+  const approve = { draft: draft(), order: ORDER, type: "approve" as const };
+  const reject = { draft: draft(), type: "reject" as const };
 
   it("finds nothing when the fresh row is the draft the dialog shows", () => {
     expect(staleDialogReason(approve, draft(), CONTEXT)).toBeNull();
@@ -1660,6 +1706,16 @@ describe("staleDialogReason", () => {
       expect(staleDialogReason(reject, draft({ order }), CONTEXT)).toBeNull();
     }
   );
+
+  it("names a draft that was refreshed to another revision, for approve and reject, also with an equal order", () => {
+    for (const decision of [approve, reject])
+      expect(staleDialogReason(decision, draft({ revision: 4 }), CONTEXT)).toBe(
+        "the draft was refreshed after the dialog opened (it is now revision 4; the dialog showed revision 3)"
+      );
+    expect(
+      staleDialogReason(approve, draft({ revision: 3 }), CONTEXT)
+    ).toBeNull();
+  });
 
   it("puts the reason in a notice that says the dialog closed and nothing was recorded", () =>
     expect(staleDialogNotice("the draft is no longer in the queue")).toBe(
