@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 // The exec-node broker-safety tests are standard-library Python unittest files:
 // the kill switch clears the arm record (test_arm_killswitch.py), the
 // options-only, defined-risk order policy with its 2% max-loss cap and
-// persisted close reservations (test_order_policy.py), the run_live.py
+// persisted close reservations (test_order_policy.py), policy v3 for
+// defined-risk vertical spreads behind its switch (test_order_policy_v3.py), the run_live.py
 // signal-intake removal (test_no_signal_intake.py), the disabled
 // direct-placeOrder host script (test_transmit_disabled.py), plus the
 // file-only checks of test_exec_node.py that pin those owned files against the
@@ -17,6 +18,7 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const SUITES: ReadonlyArray<{ name: string; args: readonly string[] }> = [
   { args: [], name: "test_arm_killswitch.py" },
   { args: [], name: "test_order_policy.py" },
+  { args: [], name: "test_order_policy_v3.py" },
   { args: [], name: "test_no_signal_intake.py" },
   { args: [], name: "test_transmit_disabled.py" },
   {

@@ -1239,7 +1239,7 @@ class OrderPolicyTest(unittest.TestCase):
             self.assert_refused(option(), order("BUY", Decimal(1)), "policy_error")
 
     def test_status_reports_the_order_policy(self) -> None:
-        self.assertEqual(self.gate.status().as_dict()["order_policy"], "options_only_defined_risk_v2")
+        self.assertEqual(self.gate.status().as_dict()["order_policy"], "options_only_defined_risk_v3")
         self.assertEqual(arm_gate.current_status().as_dict()["order_policy"], arm_gate.ORDER_POLICY)
         status = arm_gate.order_policy_status({MAX_AGE_ENV: "bad"})
         self.assertEqual(status["order_policy"], arm_gate.ORDER_POLICY)
