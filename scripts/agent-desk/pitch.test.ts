@@ -534,13 +534,16 @@ describe("pitchAgent scenario tree", () => {
       fundamentals: fullFundamentals([
         { id: "bear", upsidePct: -10 },
         { id: "base", upsidePct: 100_000 },
-        { id: "bull", upsidePct: 1e308 },
+        { id: "bull", upsidePct: 100_000.01 },
       ]),
     });
     expect(result.scenarios.map((scenario) => scenario.upsidePct)).toEqual([
       -10, 100_000,
     ]);
-    expect(JSON.stringify(result)).not.toContain("Infinity");
+    const huge = pitchFor({
+      fundamentals: fullFundamentals([{ id: "bull", upsidePct: 1e308 }]),
+    });
+    expect(huge.scenarios).toEqual([]);
   });
 
   it("drops a case whose upside is NaN, infinite or below -100", () => {
@@ -581,6 +584,7 @@ describe("pitchAgent scenario tree", () => {
       0.000_01,
       1e308,
       1_000_000_001,
+      1_000_000_000,
       80,
     ];
     const seen = prices.map(
@@ -591,7 +595,17 @@ describe("pitchAgent scenario tree", () => {
           ]),
         }).scenarios[0]?.presentPrice
     );
-    expect(seen).toEqual([null, null, null, null, null, null, null, 80]);
+    expect(seen).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      1_000_000_000,
+      80,
+    ]);
   });
 
   it("gives no skew and says so when the three cases are out of order", () => {
@@ -700,11 +714,42 @@ describe("pitchAgent exits and monitoring", () => {
     ).toBe("Alpha");
   });
 
-  it("keeps a catalyst title on one line", () => {
+  it("keeps a catalyst title on one line without invisible or separator characters", () => {
     const result = withCatalysts([
       { date: later(1), title: "  Earnings\r\n  call\u2028\tQ3\u0000 " },
+      {
+        date: later(2),
+        title: "A\u2029B\u000BC\u000CD\u007FE\u0085F\u202EG\u200BH | I",
+      },
     ]);
-    expect(result.exits.nextCatalyst?.title).toBe("Earnings call Q3");
+    expect(result.monitoring.map((item) => item.title)).toEqual([
+      "Earnings call Q3",
+      "A B C D E F G H / I",
+    ]);
+  });
+
+  it("drops a catalyst whose title has nothing visible", () => {
+    const result = withCatalysts([{ date: later(1), title: " \n\u200B " }]);
+    expect(result.monitoring).toEqual([]);
+    expect(result.exits.nextCatalyst).toBeNull();
+    expect(result.postureReasons).toContain(
+      "No upcoming dated catalyst after the run date."
+    );
+  });
+
+  it("orders same-date catalysts by the shown title and never ends a title on a space", () => {
+    const result = withCatalysts([
+      { date: later(1), title: "\tZeta" },
+      { date: later(1), title: "Alpha" },
+      { date: later(2), title: `${"z".repeat(119)} tail` },
+      { date: later(3), title: `${"z".repeat(118)} \u{1F600}` },
+    ]);
+    expect(result.monitoring.map((item) => item.title)).toEqual([
+      "Alpha",
+      "Zeta",
+      "z".repeat(119),
+      "z".repeat(118),
+    ]);
   });
 
   it("bounds a catalyst title to MAX_TITLE_LENGTH characters", () => {
@@ -735,22 +780,46 @@ describe("pitchAgent exits and monitoring", () => {
       bearRule(-40),
       ...TREND_RULES,
     ]);
-    // The agent's inputs are separate values; a caller can pass a fundamental result without
-    // its dataset, or with a dataset that lacks a case. No scenario rule is invented.
-    const input = inputFor();
-    expect(
-      pitchAgent({ ...input, fundamentals: null }).exits.reUnderwrite
-    ).toEqual([
+    // A dataset without a bear case: no bear rule is invented.
+    const baseOnly = pitchFor({
+      fundamentals: fullFundamentals([{ id: "base", upsidePct: 20 }]),
+    });
+    expect(baseOnly.exits.reUnderwrite).toEqual([
+      baseRule(20),
       "Committee status changes.",
       `A new earnings report replaces the ${lastDate} evidence.`,
       ...TREND_RULES,
     ]);
+  });
+
+  it("supports no direction without the base case in its own scenario tree", () => {
+    // The agent's inputs are separate values; a caller can pass a fundamental result that
+    // reports base-case upside without the dataset, or with a dataset that lacks the base case.
+    const input = inputFor();
+    expect(input.fundamental.valuationView).toBe("base-case-upside");
     const bearOnly = inputFor({
       fundamentals: fullFundamentals([{ id: "bear", upsidePct: -40 }]),
     }).fundamentals;
-    expect(
-      pitchAgent({ ...input, fundamentals: bearOnly }).exits.reUnderwrite[0]
-    ).toBe(bearRule(-40));
+    for (const fundamentals of [null, bearOnly]) {
+      const result = pitchAgent({ ...input, fundamentals });
+      expect(result.direction).toBe("unknown");
+      expect(result.exits.reUnderwrite).toEqual([]);
+    }
+    // A base-case upside beyond the sanity bound: the fundamental agent still reports upside,
+    // the scenario tree drops the case as a data error, so no direction rests on it.
+    const absurd = pitchFor({
+      fundamentals: fullFundamentals([
+        { id: "bear", upsidePct: -40 },
+        { id: "base", upsidePct: 1e308 },
+        { id: "bull", upsidePct: 50 },
+      ]),
+    });
+    expect(absurd.scenarios.map((scenario) => scenario.case)).toEqual([
+      "bear",
+      "bull",
+    ]);
+    expect(absurd.direction).toBe("unknown");
+    expect(absurd.exits.reUnderwrite).toEqual([]);
   });
 
   it("does not repeat dataset free text in the claim rules", () => {

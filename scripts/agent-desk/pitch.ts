@@ -125,8 +125,9 @@ type ScenarioView = Readonly<{
 /**
  * The first record of each case from a dataset captured at or before the run date; null when
  * the dataset is missing, undated or captured later. A case is dropped when its upside is not
- * a finite number or is below -100 (a price cannot fall further); a present price that is not
- * a finite positive number becomes null.
+ * a finite number, is below -100 (a price cannot fall further) or is above MAX_UPSIDE_PCT; a
+ * present price becomes null unless it is finite, at most MAX_PRESENT_PRICE and still above 0
+ * after rounding to four decimals.
  */
 const scenarioViewOn = (
   fundamentals: Fundamentals | null,
@@ -301,15 +302,19 @@ const readPosture = (
 
 /**
  * Long-supported needs both a base case with upside and an evaluated uptrend (close above the
- * SMA and the SMA rising). A missing input gives unknown, also when the other one fails.
+ * SMA and the SMA rising). A missing input gives unknown, also when the other one fails. The
+ * base case must also be in this agent's own scenario tree: a base case that the tree dropped
+ * as a data error cannot support a direction.
  */
 const directionOf = (
   fundamental: FundamentalResult,
-  technical: TechnicalResult
+  technical: TechnicalResult,
+  scenarios: readonly PitchScenario[]
 ): PitchResult["direction"] => {
   const { checks } = technical;
   if (
     fundamental.valuationView === "unknown" ||
+    !scenarios.some((scenario) => scenario.case === "base") ||
     technical.status !== "evaluated" ||
     checks === null ||
     checks.closeAboveSma === null ||
@@ -353,25 +358,25 @@ const SCENARIO_CLAIMS = [
  * the list is empty. The rules name inputs and dates only: no free text of a dataset is
  * repeated, and a scenario figure is given with the capture date of its dataset.
  */
+const scenarioClaimsOf = (view: ScenarioView): string[] =>
+  SCENARIO_CLAIMS.flatMap(([name, claim]) => {
+    const found = view.cases.find((scenario) => scenario.case === name);
+    return found === undefined
+      ? []
+      : [
+          `${claim}; the fundamentals dataset captured ${view.capturedOn} gives ${found.upsidePct}%.`,
+        ];
+  });
+
 const reUnderwriteOf = (
   direction: PitchResult["direction"],
   fundamental: FundamentalResult,
   technical: TechnicalResult,
-  view: ScenarioView | null
+  scenarioClaims: readonly string[]
 ): string[] => {
   if (direction !== "long-supported") return [];
   const period = technical.rule.smaPeriod;
-  const rules: string[] =
-    view === null
-      ? []
-      : SCENARIO_CLAIMS.flatMap(([name, claim]) => {
-          const found = view.cases.find((scenario) => scenario.case === name);
-          return found === undefined
-            ? []
-            : [
-                `${claim}; the fundamentals dataset captured ${view.capturedOn} gives ${found.upsidePct}%.`,
-              ];
-        });
+  const rules = [...scenarioClaims];
   if (fundamental.committee !== null) rules.push("Committee status changes.");
   if (fundamental.lastEarnings !== null)
     rules.push(
@@ -390,16 +395,19 @@ const byText = (a: string, b: string): number => {
 };
 
 /**
- * One line of at most MAX_TITLE_LENGTH UTF-16 units, never ending on half of a surrogate pair.
- * Line breaks and other control characters become one space, so dataset text cannot add a
- * line to the desk summary.
+ * One line of at most MAX_TITLE_LENGTH UTF-16 units, never ending on half of a surrogate pair
+ * or on a space. Each run of white space, control, format or other invisible characters becomes
+ * one space, and the field separator of the desk summary becomes a slash, so dataset text can
+ * neither add a line to the summary nor imitate one of its fields. The result can be empty.
  */
 const boundedTitle = (title: string): string =>
   title
-    .replace(/[\p{Cc}\p{Zl}\p{Zp}\s]+/gu, " ")
+    .replace(/[\p{C}\p{Z}\s]+/gu, " ")
+    .replaceAll("|", "/")
     .trim()
     .slice(0, MAX_TITLE_LENGTH)
-    .replace(/[\uD800-\uDBFF]$/u, "");
+    .replace(/[\uD800-\uDBFF]$/u, "")
+    .trimEnd();
 
 /** Pitch agent: posture, scenario tree, exit references and monitoring for one ticker as of `asOf`. */
 export const pitchAgent = ({
@@ -426,13 +434,14 @@ export const pitchAgent = ({
   const view = scenarioViewOn(fundamentals, asOf);
   const scenarios = view?.cases ?? [];
   const datasetExcluded = fundamentals !== null && view === null;
-  // Same-date catalysts are ordered by title, so the list does not depend on dataset order.
+  // A catalyst with no visible title is dropped. Same-date catalysts are ordered by the shown
+  // title, so the list does not depend on dataset order.
   const monitoring = newsSentiment.upcomingCatalysts
-    .filter((item) => item.date > asOf)
+    .map(({ date, title }) => ({ date, title: boundedTitle(title) }))
+    .filter((item) => item.date > asOf && item.title !== "")
     .sort((a, b) => byText(a.date, b.date) || byText(a.title, b.title))
-    .slice(0, MAX_MONITORING)
-    .map(({ date, title }) => ({ date, title: boundedTitle(title) }));
-  const direction = directionOf(fundamental, technical);
+    .slice(0, MAX_MONITORING);
+  const direction = directionOf(fundamental, technical, scenarios);
   const gaps = [...PITCH_GAPS];
   if (datasetExcluded)
     gaps.push(`${DATASET_EXCLUDED}; its scenarios are excluded.`);
@@ -441,7 +450,12 @@ export const pitchAgent = ({
     direction,
     exits: {
       nextCatalyst: monitoring[0] ?? null,
-      reUnderwrite: reUnderwriteOf(direction, fundamental, technical, view),
+      reUnderwrite: reUnderwriteOf(
+        direction,
+        fundamental,
+        technical,
+        view === null ? [] : scenarioClaimsOf(view)
+      ),
       smaExitReference: smaExitReferenceOf(technical),
     },
     gaps,
