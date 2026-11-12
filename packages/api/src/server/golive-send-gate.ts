@@ -39,6 +39,11 @@ export type GoLiveSendInputs = Readonly<{
   }>;
   draftId: string;
   drafts: readonly GoLiveDraftRecord[];
+  // orderRef -> max loss of the approved order, for the go-live combos of the day.
+  goLiveRisk?: ReadonlyMap<string, number>;
+  // false until engine policy v3 checks the live path (owner 2026-11-12, card
+  // vertex-golive-exec-intake): every go-live send is then refused by name.
+  sendEnabled: boolean;
   node: Pick<NautilusArmStatusOutput, "arm" | "badge" | "checkedAt"> | null;
   now: Date;
   order: VertexComboInput;
@@ -62,42 +67,59 @@ const CAP_TEXT: Readonly<Record<SendCapRefusal, string>> = {
 };
 
 /**
- * Max loss of each working order, conservatively: a share order and an option SELL that reduces
- * a held long take no new risk; an option BUY limit takes limit x quantity x 100; anything else
- * (a combo, a SELL that would open a short, no limit) is unknown.
+ * Max loss of each working order, conservatively: a share SELL takes no new risk and a share BUY
+ * takes its limit x quantity; option SELLs that together stay within a held long take no new
+ * risk; an option BUY limit takes limit x quantity x 100; a go-live combo (its orderRef is in
+ * goLiveRisk) takes the max loss of the order the owner approved; anything else (another combo,
+ * a SELL that would open a short, no limit) is unknown.
  */
 export const workingOrderRisks = (
   orders: readonly GatewayOpenOrder[],
-  positions: readonly HeldPosition[]
-): WorkingOrderRisk[] =>
-  orders.map((order) => {
-    if (order.secType === "STK") return { maxLoss: 0, symbol: order.symbol };
-    if (order.secType === "OPT" && order.side === "SELL") {
-      const held = positions.find(
-        (p) =>
-          p.secType === "OPT" &&
-          p.symbol === order.symbol &&
-          p.expiry === order.expiry &&
-          p.strike === order.strike &&
-          p.right === order.right
+  positions: readonly HeldPosition[],
+  goLiveRisk: ReadonlyMap<string, number> = new Map()
+): WorkingOrderRisk[] => {
+  const sellLeft = new Map<string, number>();
+  for (const p of positions)
+    if (p.secType === "OPT" && p.quantity > 0)
+      sellLeft.set(
+        JSON.stringify([p.symbol, p.expiry, p.strike, p.right]),
+        p.quantity
       );
+  return orders.map((order) => {
+    const symbol = order.symbol;
+    const known = goLiveRisk.get(order.orderRef);
+    if (known !== undefined) return { maxLoss: known, symbol };
+    if (order.secType === "STK")
       return {
         maxLoss:
-          held !== undefined && held.quantity >= order.quantity ? 0 : null,
-        symbol: order.symbol,
+          order.side === "SELL"
+            ? 0
+            : order.limitPrice === null
+              ? null
+              : order.limitPrice * order.quantity,
+        symbol,
       };
+    if (order.secType === "OPT" && order.side === "SELL") {
+      const key = JSON.stringify([
+        symbol,
+        order.expiry,
+        order.strike,
+        order.right,
+      ]);
+      const left = sellLeft.get(key) ?? 0;
+      if (left < order.quantity) return { maxLoss: null, symbol };
+      sellLeft.set(key, left - order.quantity);
+      return { maxLoss: 0, symbol };
     }
     if (
       order.secType === "OPT" &&
       order.side === "BUY" &&
       order.limitPrice !== null
     )
-      return {
-        maxLoss: order.limitPrice * order.quantity * 100,
-        symbol: order.symbol,
-      };
-    return { maxLoss: null, symbol: order.symbol };
+      return { maxLoss: order.limitPrice * order.quantity * 100, symbol };
+    return { maxLoss: null, symbol };
   });
+};
 
 /** The named refusals of sending this order for this draft now; empty = allowed. */
 export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
@@ -105,9 +127,19 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
   const draft = input.drafts.find(
     (d) => d.id === input.draftId && d.tradingDay === day
   );
+  const refusals: string[] = input.sendEnabled
+    ? []
+    : [
+        line(
+          "V3_NOT_ON_LIVE_PATH",
+          "go-live sends wait until engine policy v3 checks the live path (owner 2026-11-12); the approval is recorded"
+        ),
+      ];
   if (draft === undefined)
-    return [line("DRAFT_NOT_FOUND", `no draft ${input.draftId} on ${day}`)];
-  const refusals: string[] = [];
+    return [
+      ...refusals,
+      line("DRAFT_NOT_FOUND", `no draft ${input.draftId} on ${day}`),
+    ];
   if (draft.kind !== "entry" || draft.state !== "approved")
     refusals.push(
       line("DRAFT_NOT_APPROVED", "only an approved entry draft is sent")
@@ -159,7 +191,8 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
       symbol: input.order.symbol,
       working: workingOrderRisks(
         input.account.openOrders.filter((o) => planNames.has(o.symbol)),
-        positions
+        positions,
+        input.goLiveRisk
       ),
     });
     for (const code of caps.refusals) refusals.push(line(code, CAP_TEXT[code]));

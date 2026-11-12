@@ -68,6 +68,7 @@ const inputs = (
   now: NOW,
   order: ORDER,
   plan: PLAN,
+  sendEnabled: true,
   ...overrides,
 });
 
@@ -77,6 +78,12 @@ const codes = (refusals: string[]) =>
 describe("goLiveSendRefusals", () => {
   it("allows the approved order of an approved entry with the node armed and room in every cap", () => {
     expect(goLiveSendRefusals(inputs())).toEqual([]);
+  });
+
+  it("refuses every send by name while go-live sends are off (v3 not on the live path)", () => {
+    expect(codes(goLiveSendRefusals(inputs({ sendEnabled: false })))).toEqual([
+      "GO-LIVE V3_NOT_ON_LIVE_PATH",
+    ]);
   });
 
   it("refuses with the engine disarmed and says so", () => {
@@ -209,5 +216,32 @@ describe("workingOrderRisks", () => {
         held
       ).map((r) => r.maxLoss)
     ).toEqual([200, 0, null, null]);
+  });
+
+  it("counts two sells against one held long once, a share buy at its cost, a go-live combo at its approved max loss", () => {
+    const held = [
+      {
+        expiry: "20261218",
+        premium: 100,
+        quantity: 1,
+        right: "C",
+        secType: "OPT",
+        strike: 100,
+        symbol: "SPY",
+      },
+    ];
+    expect(
+      workingOrderRisks(
+        [
+          { ...order, side: "SELL" },
+          { ...order, side: "SELL" },
+          { ...order, limitPrice: 50, quantity: 10, secType: "STK" },
+          { ...order, quantity: 10, secType: "STK", side: "SELL" },
+          { ...order, orderRef: "vertex-glabc", secType: "BAG" },
+        ] as never,
+        held,
+        new Map([["vertex-glabc", 500]])
+      ).map((r) => r.maxLoss)
+    ).toEqual([0, null, 500, 0, 500]);
   });
 });

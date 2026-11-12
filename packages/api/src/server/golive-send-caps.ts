@@ -5,13 +5,15 @@
 // <= nameRiskCapPct, the order itself <= positionRiskPct. Every refusal has a name.
 //
 // Held risk is counted conservatively, in whole cents:
-// - a long option: what was paid for it (|premium|);
 // - a short option is paired with a long of the same symbol, expiry and right (a vertical): the
-//   strike width x 100 x paired contracts is at risk (the credit is not subtracted);
+//   strike width x 100 x paired contracts is at risk (an upper bound: a debit never exceeds the
+//   width and the credit is not subtracted); the paired long contracts count nothing more;
+// - a long option no short pairs with: its share of what was paid for it (|premium|);
 // - a short option with no long to cover it is undefined risk: the send is refused
 //   (UNDEFINED_RISK_HELD), never estimated;
 // - a working order: its max loss as the bridge reports it, or, without one, refused
 //   (WORKING_ORDER_RISK_UNKNOWN). Shares count their premium (cost) as at risk.
+// Callers pass only the plan's names (golive-send-gate.ts).
 
 export type HeldPosition = Readonly<{
   expiry: string;
@@ -113,9 +115,15 @@ export const heldRiskCents = (
     const longs: Cover[] = group
       .filter((p) => p.quantity > 0)
       .map((p) => ({ left: p.quantity, p }));
-    for (const long of longs) add(symbol, cents(Math.abs(long.p.premium)));
+    // Shorts first: a paired contract counts its width only (a vertical never loses more);
+    // what is left of each long then counts its share of the premium paid.
     for (const short of group.filter((p) => p.quantity < 0))
       for (const amount of coverShort(short, longs)) add(symbol, amount);
+    for (const long of longs)
+      add(
+        symbol,
+        cents((Math.abs(long.p.premium) * long.left) / long.p.quantity)
+      );
   }
   return bySymbol;
 };

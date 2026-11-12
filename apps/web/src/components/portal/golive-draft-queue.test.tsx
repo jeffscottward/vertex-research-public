@@ -762,7 +762,7 @@ describe("GoLiveDraftQueue", () => {
     expect(order).toContain("Limit$2.35 debit per spread");
     expect(order).toContain("Max loss$470.00 (0.47% of account)");
     expect(one(dialog, "[data-golive-not-sent]").textContent).toBe(
-      "This records your approval and then sends this exact order to IBKR as one combo limit order, only if the execution node is armed and the plan caps allow it. Otherwise nothing is sent and the page says why."
+      "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it."
     );
     expect(dialog.querySelector("textarea")).toBeNull();
     expect(gateway.approve).not.toHaveBeenCalled();
@@ -803,7 +803,7 @@ describe("GoLiveDraftQueue", () => {
     });
     expect(
       one(container, "[data-golive-decision-notice]").textContent
-    ).toContain("Approved, engine disarmed: nothing was sent.");
+    ).toContain("Approved, engine disarmed: nothing was sent");
   });
 
   it("lets the owner approve a late entry only with the outside-the-tested-rule tick", async () => {
@@ -1013,7 +1013,7 @@ describe("GoLiveDraftQueue", () => {
     const notice = one(container, "[data-golive-notice]");
     expect(notice.textContent).toBe(NO_ORDERS_NOTICE);
     expect(notice.textContent).toBe(
-      "Approve records your decision and then sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position, counting open positions and working orders). Disarmed, it records only and says so. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The owner is not told to place an approved vertical on a Vertex screen.
     expect(notice.textContent).not.toMatch(/to place|use the|yourself/iu);

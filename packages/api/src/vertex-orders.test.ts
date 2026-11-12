@@ -620,6 +620,46 @@ describe("vertexOrders procedures", () => {
     );
   });
 
+  it("refuses every go-live send by name while sends are off (the default)", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>();
+    setVertexOrdersDependenciesForTesting({
+      goLiveNode: async () => ({
+        arm: null,
+        badge: "running-armed",
+        checkedAt: "T",
+      }),
+      mock: { ...mock, placeCombo },
+      now: () => clock,
+    });
+    const client = clientFor({
+      goLiveDrafts: {
+        listDrafts: async () => [],
+        planInForce: async () => null,
+      },
+      intents: intentStore().store,
+    });
+    const preview = await client.vertexOrders.comboPreview({
+      goLiveDraftId: "d-9",
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    });
+    expect(preview.confirmToken).toBeNull();
+    expect(preview.review.reasons).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /^GO-LIVE (?:V3_NOT_ON_LIVE_PATH|DRAFT_NOT_FOUND)/u
+        ),
+      ])
+    );
+    expect(placeCombo).not.toHaveBeenCalled();
+  });
+
   it("sends an approved go-live draft once, armed, and refuses a second send of it", async () => {
     clock = new Date("2026-11-13T15:00:00.000Z");
     const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>(async () => ({
@@ -667,6 +707,7 @@ describe("vertexOrders procedures", () => {
     let badge: "running-armed" | "running-disarmed" = "running-disarmed";
     setVertexOrdersDependenciesForTesting({
       goLiveNode: async () => ({ arm: null, badge, checkedAt: "T" }),
+      goLiveSendEnabled: true,
       mock: {
         ...mock,
         account: async () => ({

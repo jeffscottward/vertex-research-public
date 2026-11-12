@@ -134,13 +134,21 @@ const connectGoLiveDrafts = (): GoLiveDraftsGateway => {
       });
       if (preview.confirmToken === null)
         return { reasons: preview.review.reasons, sent: false };
-      const result = await client.vertexOrders.comboSubmit({
-        confirm: true,
-        confirmToken: preview.confirmToken,
-        goLiveDraftId: draftId,
-        order,
-      });
-      return { result, sent: true };
+      // An error after the preview may mean the order reached IBKR: never shown as "not sent".
+      try {
+        const result = await client.vertexOrders.comboSubmit({
+          confirm: true,
+          confirmToken: preview.confirmToken,
+          goLiveDraftId: draftId,
+          order,
+        });
+        return { result, sent: true };
+      } catch (error) {
+        return {
+          message: error instanceof Error ? error.message : String(error),
+          sent: "unknown",
+        };
+      }
     },
   };
 };

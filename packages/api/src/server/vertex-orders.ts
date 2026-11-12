@@ -16,7 +16,11 @@ import {
   type FinalGateOrder,
   isRiskReducing,
 } from "./final-order-gate.ts";
-import { orderSessionDay } from "./golive-drafts-sizing.ts";
+import {
+  maxLoss,
+  orderSessionDay,
+  strikeWidth,
+} from "./golive-drafts-sizing.ts";
 import { goLiveSendRefusals } from "./golive-send-gate.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
@@ -57,6 +61,9 @@ interface Dependencies {
   goLiveNode?: (
     context: ApiContext
   ) => Promise<Parameters<typeof goLiveSendRefusals>[0]["node"]>;
+  // Go-live sends: off (refused by name) until engine policy v3 checks the live path (owner
+  // 2026-11-12, card vertex-golive-exec-intake turns it on). Tests set it to reach the gate.
+  goLiveSendEnabled?: boolean;
   // Cached P5 JEV verdict for the final gate; defaults to the shared verdict store.
   jevVerdict?: (symbol: string) => JevVerdictOutput | null;
   mock: OrderGatewayPort;
@@ -207,14 +214,29 @@ const goLiveRefusals = async (
     deps().goLiveNode ??
     ((c: ApiContext) => call(nautilusArmRouter.status, {}, { context: c }))
   )(context).catch(() => null);
+  // The working go-live combos of the day hold the max loss of their approved order.
+  const goLiveRisk = new Map<string, number>();
+  for (const draft of drafts)
+    if (draft.state === "approved" && draft.approvedOrder !== null)
+      goLiveRisk.set(
+        await goLiveOrderRef(draft.id),
+        maxLoss(
+          draft.structure,
+          draft.approvedOrder.limitPrice,
+          strikeWidth(draft),
+          draft.approvedOrder.quantity
+        )
+      );
   return goLiveSendRefusals({
     account,
     draftId,
     drafts,
+    goLiveRisk,
     node,
     now,
     order,
     plan,
+    sendEnabled: deps().goLiveSendEnabled === true,
   });
 };
 
@@ -838,12 +860,28 @@ const comboSubmit = api.vertexOrders.comboSubmit
       await auditFailure(review.reasons.join(" | "));
       throw failures.ORDER_REJECTED({ message: review.reasons.join(" ") });
     }
+    // Reserve the go-live ref in this process before the first await that follows, so a second
+    // submit of the same draft cannot pass the once-only check while this one is in flight.
+    if (goLiveRef !== null) {
+      if (goLiveSentRefs.has(goLiveRef)) {
+        await auditFailure(DRAFT_ALREADY_SENT);
+        throw failures.ORDER_REJECTED({ message: DRAFT_ALREADY_SENT });
+      }
+      goLiveSentRefs.add(goLiveRef);
+    }
     const orderRef = goLiveRef ?? `vertex-${claims.nonce}`;
+    // Nothing is sent before the intent row exists: a failure until then frees the reservation.
+    const release = () => {
+      if (goLiveRef !== null) goLiveSentRefs.delete(goLiveRef);
+    };
     await requireAudit(context, failures, "comboSubmit", {
       ...base,
       mode: gateway.mode,
       orderRef,
       ...gateAudit(review.finalGate),
+    }).catch((error: unknown) => {
+      release();
+      throw error;
     });
     // The intent tracks the first leg: reconciliation finds the orderRef in open orders, or a changed
     // position in that leg after the wait.
@@ -867,12 +905,12 @@ const comboSubmit = api.vertexOrders.comboSubmit
         requestId: context.requestId,
       });
     } catch {
+      release();
       await auditFailure("intent store unavailable");
       throw failures.AUDIT_UNAVAILABLE({
         message: "Order intent store unavailable; nothing was sent",
       });
     }
-    if (goLiveRef !== null) goLiveSentRefs.add(goLiveRef);
     const outcomeOf = outcomeRecorder(context, store, orderRef);
     let result: Awaited<ReturnType<OrderGatewayPort["placeCombo"]>>;
     try {

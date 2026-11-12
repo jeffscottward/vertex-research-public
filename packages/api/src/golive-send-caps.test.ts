@@ -20,10 +20,15 @@ const opt = (
 });
 
 describe("heldRiskCents", () => {
-  it("counts a long at its cost and a vertical's short at its width", () => {
-    // Debit vertical: long 600C paid 2,000; short 610C 2x covered by the 2 longs -> width 10 x 100 x 2.
-    const held = heldRiskCents([opt("SPY", 600, 2, 2000), opt("SPY", 610, -2)]);
-    expect(held.get("SPY")).toBe(200_000 + 200_000);
+  it("counts a vertical at its width only and an unpaired long at its cost", () => {
+    // 2 long 600C (paid 2,000), 2 short 610C: width 10 x 100 x 2 = 2,000 at risk, nothing more.
+    expect(
+      heldRiskCents([opt("SPY", 600, 2, 2000), opt("SPY", 610, -2)]).get("SPY")
+    ).toBe(200_000);
+    // 3 long 600C (paid 3,000), 1 short 610C: width 1,000 + 2/3 of the premium 2,000.
+    expect(
+      heldRiskCents([opt("SPY", 600, 3, 3000), opt("SPY", 610, -1)]).get("SPY")
+    ).toBe(100_000 + 200_000);
   });
 
   it("marks a symbol with an uncovered short option as undefined risk", () => {

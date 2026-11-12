@@ -81,8 +81,9 @@ export type GoLiveDraftsDependencies = Readonly<{
   account?: (context: ApiContext, now: Date) => Promise<GoLiveAccountReading>;
   // Cached P5 JEV verdict for the dry final gate; defaults to the shared verdict store.
   jevVerdict?: (symbol: string) => JevVerdictOutput | null;
-  // true: a live IBKR option quote source exists, so collect accepts a quote labelled ibkr_live.
-  // None exists in this version, so the default refuses the label. Not an environment setting.
+  // true: collect accepts a quote labelled ibkr_live from the generator. Off by default: the
+  // generator reads delayed snapshots, and live quotes reach the queue only through the live
+  // quote reader below (read at queue and approve time, never stored). Not an environment setting.
   liveQuoteSource?: boolean;
   // Live IBKR spread quotes; defaults to context.goLiveQuotes (the bridge POST /quotes reader).
   liveQuotes?: GoLiveQuotesPort;
@@ -257,7 +258,7 @@ type Loaded = Readonly<{
 /**
  * Each proposed draft with the live IBKR quote of its two legs in place of its stored delayed
  * quote, when the quote reader (context.goLiveQuotes) has one now; every other draft unchanged.
- * Read only, never stored: approve sizes from the same overlay (the reader caches it 60 s), and
+ * Read only, never stored: approve sizes from the same overlay (the reader caches it 100 s), and
  * the revision the owner approves stays the stored revision. A key caller is never quoted.
  */
 const withLiveQuotes = async (
@@ -297,14 +298,16 @@ const load = async (
   now: Date
 ): Promise<Loaded> => {
   const forKey = context.agentApiKeyPresented === true;
-  const [plan, records, run, account, node] = await Promise.all([
+  const listed = repository.listDrafts({ tradingDay });
+  // The live quotes are read while the account and the node are read.
+  const [plan, records, quoted, run, account, node] = await Promise.all([
     repository.planInForce(),
-    repository.listDrafts({ tradingDay }),
+    listed,
+    listed.then((rows) => (forKey ? rows : withLiveQuotes(context, rows))),
     repository.lastRun(tradingDay),
     forKey ? KEY_ACCOUNT : (dependencies.account ?? readAccount)(context, now),
     (dependencies.node ?? readNode)(context),
   ]);
-  const quoted = forKey ? records : await withLiveQuotes(context, records);
   const notes =
     dependencies.marketNotes === undefined
       ? null

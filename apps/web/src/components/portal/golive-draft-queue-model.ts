@@ -86,12 +86,12 @@ export const PORTFOLIO_HREF = `/portfolio?tab=${VERTEX_ORDERS_TAB_VALUE}`;
 export const NO_ORDERS_NOTICE_PARTS = Object.freeze({
   after: `, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks.`,
   before:
-    "Approve records your decision and then sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position, counting open positions and working orders). Disarmed, it records only and says so. The live order screen (",
+    "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (",
   link: "Portfolio",
 });
 export const NO_ORDERS_NOTICE = `${NO_ORDERS_NOTICE_PARTS.before}${NO_ORDERS_NOTICE_PARTS.link}${NO_ORDERS_NOTICE_PARTS.after}`;
 export const APPROVAL_NOT_SENT_SENTENCE =
-  "This records your approval and then sends this exact order to IBKR as one combo limit order, only if the execution node is armed and the plan caps allow it. Otherwise nothing is sent and the page says why.";
+  "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it.";
 export const REJECTION_RECORD_SENTENCE =
   "This records your rejection with the note. It changes no order.";
 export const NODE_DISARMED_NOTE =
@@ -1255,18 +1255,29 @@ export const exitScheduleText = (
   return `Loser closes ${schedule.loserCloseDay} (3 trading days before expiry); open winner closes ${etDayClock(schedule.winnerCloseAt)}. Close: ${closeOrder.quantity}x ${closeOrder.symbol} ${legs}, limit from the live quote at exit.`;
 };
 
-/** What the send after an approval gave: sent to the order bridge, or refused with its reasons. */
+/** What the send after an approval gave: sent, refused with its reasons, or an unknown outcome. */
 export type GoLiveSendResult =
   | Readonly<{ result: VertexOrderResult; sent: true }>
-  | Readonly<{ reasons: readonly string[]; sent: false }>;
+  | Readonly<{ reasons: readonly string[]; sent: false }>
+  | Readonly<{ message: string; sent: "unknown" }>;
 
-const ENGINE_DISARMED_CODE = "GO-LIVE ENGINE_DISARMED";
+const GO_LIVE_PREFIX = "GO-LIVE ";
+const reasonCode = (reason: string): string =>
+  reason.startsWith(GO_LIVE_PREFIX)
+    ? (reason.slice(GO_LIVE_PREFIX.length).split(":")[0] ?? "")
+    : "";
+const reasonText = (reason: string): string =>
+  reason.startsWith(GO_LIVE_PREFIX)
+    ? reason.slice(reason.indexOf(":") + 1).trim()
+    : reason;
 
 /**
- * The notice after an approval: what the order path did with the approved order. A disarmed node
- * reads "Approved, engine disarmed"; any other refusal is listed by name.
+ * The notice after an approval: what the order path did with the approved order. Sends off (v3
+ * not on the live path) and a disarmed node lead the notice; every other refusal is listed.
  */
 export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
+  if (outcome.sent === "unknown")
+    return `Approved; the send outcome is unknown (${outcome.message}). Check open orders at IBKR before doing anything else.`;
   if (outcome.sent) {
     const { result } = outcome;
     const reached =
@@ -1275,12 +1286,22 @@ export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
       ? `Approved and sent to IBKR as one combo limit order (${result.mode}, ${result.state}, ref ${result.orderRef}). ${result.message}`
       : `Approved; IBKR did not take the order (${result.state}): ${result.message}`;
   }
-  const disarmed = outcome.reasons.find((reason) =>
-    reason.startsWith(ENGINE_DISARMED_CODE)
+  const codes = outcome.reasons.map(reasonCode);
+  const others = outcome.reasons
+    .filter((reason) => {
+      const code = reasonCode(reason);
+      return code !== "V3_NOT_ON_LIVE_PATH" && code !== "ENGINE_DISARMED";
+    })
+    .map(reasonText);
+  const rest = others.length === 0 ? "" : ` Also: ${others.join("; ")}.`;
+  if (codes.includes("V3_NOT_ON_LIVE_PATH"))
+    return `Approved and recorded; nothing was sent: go-live sends wait until engine policy v3 checks the live path.${rest}`;
+  const disarmed = outcome.reasons.find(
+    (reason) => reasonCode(reason) === "ENGINE_DISARMED"
   );
   if (disarmed !== undefined)
-    return `Approved, engine disarmed: nothing was sent. ${disarmed.slice(ENGINE_DISARMED_CODE.length + 2)}`;
-  return `Approved, not sent: ${outcome.reasons.join(" ")}`;
+    return `Approved, engine disarmed: nothing was sent (${reasonText(disarmed).replace(/^approved, /u, "")}).${rest}`;
+  return `Approved, not sent: ${others.join("; ")}.`;
 };
 
 export const OUTSIDE_TESTED_RULE_LABEL =

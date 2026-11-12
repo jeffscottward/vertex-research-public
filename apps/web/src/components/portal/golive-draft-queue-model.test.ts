@@ -326,14 +326,14 @@ describe("wording maps", () => {
         "Proposal to close: open winner, 15:45 ET on expiry day",
     });
     expect(NO_ORDERS_NOTICE).toBe(
-      "Approve records your decision and then sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position, counting open positions and working orders). Disarmed, it records only and says so. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The notice never tells the owner to place an approved vertical on a Vertex screen.
     expect(NO_ORDERS_NOTICE).not.toMatch(/to place|use the|yourself/iu);
     expect(NO_ORDERS_NOTICE_PARTS.link).toBe("Portfolio");
     expect(PORTFOLIO_HREF).toBe("/portfolio?tab=orders");
     expect(APPROVAL_NOT_SENT_SENTENCE).toBe(
-      "This records your approval and then sends this exact order to IBKR as one combo limit order, only if the execution node is armed and the plan caps allow it. Otherwise nothing is sent and the page says why."
+      "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it."
     );
   });
 
@@ -1851,23 +1851,40 @@ describe("exitScheduleText", () => {
 });
 
 describe("sendOutcomeText", () => {
-  it("says approved and disarmed, approved and refused, or approved and sent", () => {
+  it("leads with sends off, then a disarmed node, lists every other refusal, and never calls an unknown outcome not sent", () => {
     expect(
       sendOutcomeText({
         reasons: [
+          "GO-LIVE V3_NOT_ON_LIVE_PATH: go-live sends wait until engine policy v3 checks the live path (owner 2026-11-12); the approval is recorded",
           "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked T); the owner arms the node",
         ],
         sent: false,
       })
     ).toBe(
-      "Approved, engine disarmed: nothing was sent. approved, engine running-disarmed (checked T); the owner arms the node"
+      "Approved and recorded; nothing was sent: go-live sends wait until engine policy v3 checks the live path."
+    );
+    expect(
+      sendOutcomeText({
+        reasons: [
+          "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked T); the owner arms the node",
+          "GO-LIVE OPEN_RISK_CAP: over the total cap",
+        ],
+        sent: false,
+      })
+    ).toBe(
+      "Approved, engine disarmed: nothing was sent (engine running-disarmed (checked T); the owner arms the node). Also: over the total cap."
     );
     expect(
       sendOutcomeText({
         reasons: ["GO-LIVE OPEN_RISK_CAP: over the total cap"],
         sent: false,
       })
-    ).toBe("Approved, not sent: GO-LIVE OPEN_RISK_CAP: over the total cap");
+    ).toBe("Approved, not sent: over the total cap.");
+    expect(
+      sendOutcomeText({ message: "Outcome unknown (timeout)", sent: "unknown" })
+    ).toBe(
+      "Approved; the send outcome is unknown (Outcome unknown (timeout)). Check open orders at IBKR before doing anything else."
+    );
     expect(
       sendOutcomeText({
         result: {

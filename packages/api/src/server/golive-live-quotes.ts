@@ -39,6 +39,8 @@ const GOLIVE_QUOTES_TIMEOUT_MS = 45_000;
 // size the same order (the approve compares the order to the cent). Under the 120 s live-quote
 // age limit of the sizing (GOLIVE_QUOTE_MAX_AGE_MS), so a cached quote is still live.
 export const GOLIVE_QUOTES_CACHE_MS = 100_000;
+// A spread with no live quote is asked again after this long (a Reload soon after a miss).
+const GOLIVE_QUOTES_MISS_CACHE_MS = 10_000;
 // The bridge takes at most 8 legs per request.
 const GOLIVE_QUOTES_SPREADS_PER_CALL = 4;
 
@@ -150,10 +152,18 @@ export const createBridgeQuotesReader = (
     );
   };
 
+  // One bridge run per missing spread at a time: a second caller waits for the run in flight.
+  const inFlight = new Map<string, Promise<GoLiveQuote | null>>();
+  const fresh = (key: string, time: number): boolean => {
+    const hit = cache.get(key);
+    if (hit === undefined) return false;
+    const ttl =
+      hit.quote === null ? GOLIVE_QUOTES_MISS_CACHE_MS : GOLIVE_QUOTES_CACHE_MS;
+    return time - hit.at < ttl;
+  };
+
   return async (spreads) => {
     const time = now().getTime();
-    for (const [k, v] of cache)
-      if (time - v.at >= GOLIVE_QUOTES_CACHE_MS) cache.delete(k);
     const keys = spreads.map((spread) =>
       JSON.stringify([spread.long, spread.short])
     );
@@ -161,7 +171,7 @@ export const createBridgeQuotesReader = (
       ...new Map(
         spreads
           .map((spread, index) => [keys[index] ?? "", spread] as const)
-          .filter(([key]) => !cache.has(key))
+          .filter(([key]) => !(fresh(key, time) || inFlight.has(key)))
       ),
     ];
     for (
@@ -173,11 +183,27 @@ export const createBridgeQuotesReader = (
         start,
         start + GOLIVE_QUOTES_SPREADS_PER_CALL
       );
-      const quotes = await read(chunk.map(([, spread]) => spread));
-      for (const [index, [key]] of chunk.entries())
-        cache.set(key, { at: time, quote: quotes[index] ?? null });
+      const run = read(chunk.map(([, spread]) => spread));
+      for (const [index, [key]] of chunk.entries()) {
+        const one = run.then((batch) => {
+          const quote = batch[index] ?? null;
+          cache.set(key, { at: time, quote });
+          inFlight.delete(key);
+          return quote;
+        });
+        inFlight.set(key, one);
+      }
     }
-    return keys.map((key) => cache.get(key)?.quote ?? null);
+    const quotes = await Promise.all(
+      keys.map(async (key) =>
+        fresh(key, time) && !inFlight.has(key)
+          ? (cache.get(key)?.quote ?? null)
+          : await (inFlight.get(key) ?? Promise.resolve(null))
+      )
+    );
+    for (const [k, v] of cache)
+      if (time - v.at >= GOLIVE_QUOTES_CACHE_MS) cache.delete(k);
+    return quotes;
   };
 };
 

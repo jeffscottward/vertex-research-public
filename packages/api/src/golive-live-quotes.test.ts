@@ -143,4 +143,19 @@ describe("createBridgeQuotesReader", () => {
     await read([SPREAD]);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
+
+  it("shares one bridge run between callers and asks again soon after a miss", async () => {
+    let time = Date.parse(AS_OF);
+    const fetch = reply([leg(600), leg(610, { dataType: "delayed" })]);
+    const read = createBridgeQuotesReader(URL_, TOKEN, {
+      fetch,
+      now: () => new Date(time),
+    });
+    const [a, b] = await Promise.all([read([SPREAD]), read([SPREAD])]);
+    expect([a, b]).toEqual([[null], [null]]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    time += 10_000;
+    await read([SPREAD]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
 });
