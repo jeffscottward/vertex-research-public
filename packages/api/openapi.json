@@ -108469,6 +108469,4877 @@
         ]
       }
     },
+    "/golive-drafts/{id}/approve": {
+      "post": {
+        "operationId": "goLiveDrafts.approve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "const": true
+                  },
+                  "note": {
+                    "maxLength": 1000,
+                    "type": "string"
+                  },
+                  "order": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "legs": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "expiry": {
+                              "pattern": "^\\d{8}$",
+                              "type": "string"
+                            },
+                            "ratio": {
+                              "maximum": 10,
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "right": {
+                              "enum": [
+                                "C",
+                                "P"
+                              ],
+                              "type": "string"
+                            },
+                            "side": {
+                              "enum": [
+                                "BUY",
+                                "SELL"
+                              ],
+                              "type": "string"
+                            },
+                            "strike": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 100000,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "expiry",
+                            "strike",
+                            "right",
+                            "side",
+                            "ratio"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 6,
+                        "minItems": 2,
+                        "type": "array"
+                      },
+                      "limitPrice": {
+                        "maximum": 100000,
+                        "minimum": -100000,
+                        "type": "number"
+                      },
+                      "quantity": {
+                        "exclusiveMinimum": 0,
+                        "maximum": 10000,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      "symbol": {
+                        "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "symbol",
+                      "quantity",
+                      "limitPrice",
+                      "legs"
+                    ],
+                    "type": "object"
+                  },
+                  "revision": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 2147483647,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "confirm",
+                  "order",
+                  "revision"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "approvedOrder": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "legs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expiry": {
+                                    "pattern": "^\\d{8}$",
+                                    "type": "string"
+                                  },
+                                  "ratio": {
+                                    "maximum": 10,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  },
+                                  "right": {
+                                    "enum": [
+                                      "C",
+                                      "P"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "side": {
+                                    "enum": [
+                                      "BUY",
+                                      "SELL"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "strike": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 100000,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "expiry",
+                                  "strike",
+                                  "right",
+                                  "side",
+                                  "ratio"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 6,
+                              "minItems": 2,
+                              "type": "array"
+                            },
+                            "limitPrice": {
+                              "maximum": 100000,
+                              "minimum": -100000,
+                              "type": "number"
+                            },
+                            "quantity": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 10000,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "symbol": {
+                              "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "symbol",
+                            "quantity",
+                            "limitPrice",
+                            "legs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "approvedRoom": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "maxLoss": {
+                              "type": "number"
+                            },
+                            "maxLossPctNlv": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "maxLoss",
+                            "maxLossPctNlv"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    },
+                    "decidedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string",
+                          "x-native-type": "date"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "decidedBy": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "decisionNote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "entryBasis": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "signal_today",
+                            "model_holds_account_does_not"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "exitReason": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "loser_3_trading_days_before_expiry",
+                            "winner_expiry_day_1545_et",
+                            "monthly_roll"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "exitRule": {
+                      "const": "owner_standing_rule_v1"
+                    },
+                    "expiry": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "entry",
+                        "exit"
+                      ],
+                      "type": "string"
+                    },
+                    "longStrike": {
+                      "type": "number"
+                    },
+                    "nodeBadgeAtDecision": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "running-disarmed",
+                            "running-armed",
+                            "down",
+                            "unknown"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "notApprovable": {
+                      "items": {
+                        "enum": [
+                          "PLAN_NOT_APPROVED",
+                          "LATE_ENTRY_NOT_TESTED",
+                          "NO_LIVE_IBKR_QUOTE",
+                          "NLV_UNAVAILABLE",
+                          "SIZED_TO_ZERO",
+                          "PRECHECK_DENIED",
+                          "DRAFT_NOT_PROPOSED",
+                          "DRAFT_EXPIRED"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "notes": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "stance": {
+                            "type": "string"
+                          },
+                          "theme": {
+                            "type": "string"
+                          },
+                          "verified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "stance",
+                          "theme",
+                          "verified"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "order": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "legs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expiry": {
+                                    "pattern": "^\\d{8}$",
+                                    "type": "string"
+                                  },
+                                  "ratio": {
+                                    "maximum": 10,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  },
+                                  "right": {
+                                    "enum": [
+                                      "C",
+                                      "P"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "side": {
+                                    "enum": [
+                                      "BUY",
+                                      "SELL"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "strike": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 100000,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "expiry",
+                                  "strike",
+                                  "right",
+                                  "side",
+                                  "ratio"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 6,
+                              "minItems": 2,
+                              "type": "array"
+                            },
+                            "limitPrice": {
+                              "maximum": 100000,
+                              "minimum": -100000,
+                              "type": "number"
+                            },
+                            "quantity": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 10000,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "symbol": {
+                              "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "symbol",
+                            "quantity",
+                            "limitPrice",
+                            "legs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "parentDraftId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "planId": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "planVersion": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "preCheck": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "enginePolicy": {
+                          "const": "not_evaluated_not_in_web_order_path"
+                        },
+                        "webFinalGate": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "decision": {
+                                  "enum": [
+                                    "allow",
+                                    "deny"
+                                  ],
+                                  "type": "string"
+                                },
+                                "jevStance": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "BULLISH",
+                                        "NEUTRAL",
+                                        "BEARISH"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "jevState": {
+                                  "enum": [
+                                    "fresh",
+                                    "stale",
+                                    "none",
+                                    "unreachable"
+                                  ],
+                                  "type": "string"
+                                },
+                                "maxLoss": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "maxLossPct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "reasons": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "structure": {
+                                  "enum": [
+                                    "long-option",
+                                    "debit-vertical",
+                                    "credit-vertical",
+                                    "risk-reducing",
+                                    "rejected"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "decision",
+                                "structure",
+                                "maxLoss",
+                                "maxLossPct",
+                                "jevState",
+                                "jevStance",
+                                "reasons"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enginePolicy",
+                        "webFinalGate"
+                      ],
+                      "type": "object"
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "asOf": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "longAsk": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "longBid": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "shortAsk": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "shortBid": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "source": {
+                              "enum": [
+                                "ibkr_live",
+                                "yahoo_delayed_snapshot",
+                                "model"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "asOf",
+                            "longAsk",
+                            "longBid",
+                            "shortAsk",
+                            "shortBid",
+                            "source"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "revision": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "shortStrike": {
+                      "type": "number"
+                    },
+                    "signalFacts": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "sizing": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "budget": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "limitPrice": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxLoss": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxLossPctNlv": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxLossPerSpread": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantity": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "reason": {
+                          "enum": [
+                            "sized",
+                            "budget_below_one_spread",
+                            "quantity_above_order_limit",
+                            "nlv_unavailable",
+                            "no_quote",
+                            "sleeve_budget_used",
+                            "name_cap_reached",
+                            "open_risk_cap_reached",
+                            "max_positions_reached"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "budget",
+                        "limitPrice",
+                        "maxLoss",
+                        "maxLossPctNlv",
+                        "maxLossPerSpread",
+                        "quantity",
+                        "reason"
+                      ],
+                      "type": "object"
+                    },
+                    "sleeveKey": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "proposed",
+                        "approved",
+                        "rejected",
+                        "expired"
+                      ],
+                      "type": "string"
+                    },
+                    "structure": {
+                      "enum": [
+                        "callDebitVertical",
+                        "putDebitVertical",
+                        "putCreditVertical",
+                        "callCreditVertical"
+                      ],
+                      "type": "string"
+                    },
+                    "symbol": {
+                      "type": "string"
+                    },
+                    "tradingDay": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    }
+                  },
+                  "required": [
+                    "createdAt",
+                    "decidedAt",
+                    "decidedBy",
+                    "decisionNote",
+                    "entryBasis",
+                    "exitReason",
+                    "exitRule",
+                    "expiry",
+                    "id",
+                    "kind",
+                    "longStrike",
+                    "approvedOrder",
+                    "approvedRoom",
+                    "nodeBadgeAtDecision",
+                    "notApprovable",
+                    "notes",
+                    "order",
+                    "parentDraftId",
+                    "planId",
+                    "planVersion",
+                    "preCheck",
+                    "quote",
+                    "revision",
+                    "shortStrike",
+                    "signalFacts",
+                    "sizing",
+                    "sleeveKey",
+                    "state",
+                    "structure",
+                    "symbol",
+                    "tradingDay",
+                    "updatedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record conflict",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "VALIDATION_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record validation failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 422
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "422"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Upstream metadata source failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Agent operations storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_CONFIGURED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Deployment status endpoint not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Record the owner's approval of one exact draft order; sends nothing",
+        "tags": [
+          "Go-live draft queue"
+        ]
+      }
+    },
+    "/golive-drafts/{id}/reject": {
+      "post": {
+        "operationId": "goLiveDrafts.reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "note": {
+                    "maxLength": 1000,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "note"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "approvedOrder": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "legs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expiry": {
+                                    "pattern": "^\\d{8}$",
+                                    "type": "string"
+                                  },
+                                  "ratio": {
+                                    "maximum": 10,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  },
+                                  "right": {
+                                    "enum": [
+                                      "C",
+                                      "P"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "side": {
+                                    "enum": [
+                                      "BUY",
+                                      "SELL"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "strike": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 100000,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "expiry",
+                                  "strike",
+                                  "right",
+                                  "side",
+                                  "ratio"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 6,
+                              "minItems": 2,
+                              "type": "array"
+                            },
+                            "limitPrice": {
+                              "maximum": 100000,
+                              "minimum": -100000,
+                              "type": "number"
+                            },
+                            "quantity": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 10000,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "symbol": {
+                              "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "symbol",
+                            "quantity",
+                            "limitPrice",
+                            "legs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "approvedRoom": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "maxLoss": {
+                              "type": "number"
+                            },
+                            "maxLossPctNlv": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "maxLoss",
+                            "maxLossPctNlv"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    },
+                    "decidedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string",
+                          "x-native-type": "date"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "decidedBy": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "decisionNote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "entryBasis": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "signal_today",
+                            "model_holds_account_does_not"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "exitReason": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "loser_3_trading_days_before_expiry",
+                            "winner_expiry_day_1545_et",
+                            "monthly_roll"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "exitRule": {
+                      "const": "owner_standing_rule_v1"
+                    },
+                    "expiry": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "entry",
+                        "exit"
+                      ],
+                      "type": "string"
+                    },
+                    "longStrike": {
+                      "type": "number"
+                    },
+                    "nodeBadgeAtDecision": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "running-disarmed",
+                            "running-armed",
+                            "down",
+                            "unknown"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "notApprovable": {
+                      "items": {
+                        "enum": [
+                          "PLAN_NOT_APPROVED",
+                          "LATE_ENTRY_NOT_TESTED",
+                          "NO_LIVE_IBKR_QUOTE",
+                          "NLV_UNAVAILABLE",
+                          "SIZED_TO_ZERO",
+                          "PRECHECK_DENIED",
+                          "DRAFT_NOT_PROPOSED",
+                          "DRAFT_EXPIRED"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "notes": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "stance": {
+                            "type": "string"
+                          },
+                          "theme": {
+                            "type": "string"
+                          },
+                          "verified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "stance",
+                          "theme",
+                          "verified"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "order": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "legs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expiry": {
+                                    "pattern": "^\\d{8}$",
+                                    "type": "string"
+                                  },
+                                  "ratio": {
+                                    "maximum": 10,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  },
+                                  "right": {
+                                    "enum": [
+                                      "C",
+                                      "P"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "side": {
+                                    "enum": [
+                                      "BUY",
+                                      "SELL"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "strike": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 100000,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "expiry",
+                                  "strike",
+                                  "right",
+                                  "side",
+                                  "ratio"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 6,
+                              "minItems": 2,
+                              "type": "array"
+                            },
+                            "limitPrice": {
+                              "maximum": 100000,
+                              "minimum": -100000,
+                              "type": "number"
+                            },
+                            "quantity": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 10000,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "symbol": {
+                              "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "symbol",
+                            "quantity",
+                            "limitPrice",
+                            "legs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "parentDraftId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "planId": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "planVersion": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "preCheck": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "enginePolicy": {
+                          "const": "not_evaluated_not_in_web_order_path"
+                        },
+                        "webFinalGate": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "decision": {
+                                  "enum": [
+                                    "allow",
+                                    "deny"
+                                  ],
+                                  "type": "string"
+                                },
+                                "jevStance": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "BULLISH",
+                                        "NEUTRAL",
+                                        "BEARISH"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "jevState": {
+                                  "enum": [
+                                    "fresh",
+                                    "stale",
+                                    "none",
+                                    "unreachable"
+                                  ],
+                                  "type": "string"
+                                },
+                                "maxLoss": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "maxLossPct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "reasons": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "structure": {
+                                  "enum": [
+                                    "long-option",
+                                    "debit-vertical",
+                                    "credit-vertical",
+                                    "risk-reducing",
+                                    "rejected"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "decision",
+                                "structure",
+                                "maxLoss",
+                                "maxLossPct",
+                                "jevState",
+                                "jevStance",
+                                "reasons"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enginePolicy",
+                        "webFinalGate"
+                      ],
+                      "type": "object"
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "asOf": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "longAsk": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "longBid": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "shortAsk": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "shortBid": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "source": {
+                              "enum": [
+                                "ibkr_live",
+                                "yahoo_delayed_snapshot",
+                                "model"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "asOf",
+                            "longAsk",
+                            "longBid",
+                            "shortAsk",
+                            "shortBid",
+                            "source"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "revision": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "shortStrike": {
+                      "type": "number"
+                    },
+                    "signalFacts": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "sizing": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "budget": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "limitPrice": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxLoss": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxLossPctNlv": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxLossPerSpread": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantity": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "reason": {
+                          "enum": [
+                            "sized",
+                            "budget_below_one_spread",
+                            "quantity_above_order_limit",
+                            "nlv_unavailable",
+                            "no_quote",
+                            "sleeve_budget_used",
+                            "name_cap_reached",
+                            "open_risk_cap_reached",
+                            "max_positions_reached"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "budget",
+                        "limitPrice",
+                        "maxLoss",
+                        "maxLossPctNlv",
+                        "maxLossPerSpread",
+                        "quantity",
+                        "reason"
+                      ],
+                      "type": "object"
+                    },
+                    "sleeveKey": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "proposed",
+                        "approved",
+                        "rejected",
+                        "expired"
+                      ],
+                      "type": "string"
+                    },
+                    "structure": {
+                      "enum": [
+                        "callDebitVertical",
+                        "putDebitVertical",
+                        "putCreditVertical",
+                        "callCreditVertical"
+                      ],
+                      "type": "string"
+                    },
+                    "symbol": {
+                      "type": "string"
+                    },
+                    "tradingDay": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    }
+                  },
+                  "required": [
+                    "createdAt",
+                    "decidedAt",
+                    "decidedBy",
+                    "decisionNote",
+                    "entryBasis",
+                    "exitReason",
+                    "exitRule",
+                    "expiry",
+                    "id",
+                    "kind",
+                    "longStrike",
+                    "approvedOrder",
+                    "approvedRoom",
+                    "nodeBadgeAtDecision",
+                    "notApprovable",
+                    "notes",
+                    "order",
+                    "parentDraftId",
+                    "planId",
+                    "planVersion",
+                    "preCheck",
+                    "quote",
+                    "revision",
+                    "shortStrike",
+                    "signalFacts",
+                    "sizing",
+                    "sleeveKey",
+                    "state",
+                    "structure",
+                    "symbol",
+                    "tradingDay",
+                    "updatedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record conflict",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "VALIDATION_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record validation failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 422
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "422"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Upstream metadata source failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Agent operations storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_CONFIGURED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Deployment status endpoint not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Record the owner's rejection of one draft with a note",
+        "tags": [
+          "Go-live draft queue"
+        ]
+      }
+    },
+    "/golive-drafts/collect": {
+      "post": {
+        "operationId": "goLiveDrafts.collect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "candidates": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "entryBasis": {
+                          "enum": [
+                            "signal_today",
+                            "model_holds_account_does_not"
+                          ],
+                          "type": "string"
+                        },
+                        "expiry": {
+                          "pattern": "^\\d{8}$",
+                          "type": "string"
+                        },
+                        "longStrike": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 100000,
+                          "type": "number"
+                        },
+                        "quote": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "asOf": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "longAsk": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "longBid": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "shortAsk": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "shortBid": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "source": {
+                                  "enum": [
+                                    "ibkr_live",
+                                    "yahoo_delayed_snapshot",
+                                    "model"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "asOf",
+                                "longAsk",
+                                "longBid",
+                                "shortAsk",
+                                "shortBid",
+                                "source"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "shortStrike": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 100000,
+                          "type": "number"
+                        },
+                        "signalFacts": {
+                          "items": {
+                            "maxLength": 200,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
+                        "sleeveKey": {
+                          "maxLength": 40,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "structure": {
+                          "enum": [
+                            "callDebitVertical",
+                            "putDebitVertical",
+                            "putCreditVertical",
+                            "callCreditVertical"
+                          ],
+                          "type": "string"
+                        },
+                        "symbol": {
+                          "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entryBasis",
+                        "expiry",
+                        "longStrike",
+                        "quote",
+                        "shortStrike",
+                        "signalFacts",
+                        "sleeveKey",
+                        "structure",
+                        "symbol"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 50,
+                    "type": "array"
+                  },
+                  "generatedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "planId": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "planVersion": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "tradingDay": {
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "candidates",
+                  "generatedAt",
+                  "planId",
+                  "planVersion",
+                  "tradingDay"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "created": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "expired": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "unchanged": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "updated": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "created",
+                    "expired",
+                    "unchanged",
+                    "updated"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record conflict",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "VALIDATION_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record validation failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 422
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "422"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Upstream metadata source failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Agent operations storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_CONFIGURED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Deployment status endpoint not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Store the generator's draft candidates for one trading day (idempotent; sends nothing)",
+        "tags": [
+          "Go-live draft queue"
+        ]
+      }
+    },
+    "/golive-drafts/queue": {
+      "get": {
+        "operationId": "goLiveDrafts.queue",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "tradingDay",
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "account": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "asOf": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "netLiquidation": {
+                          "anyOf": [
+                            {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unavailableReason": {
+                          "anyOf": [
+                            {
+                              "maxLength": 120,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "asOf",
+                        "netLiquidation",
+                        "unavailableReason"
+                      ],
+                      "type": "object"
+                    },
+                    "canDecide": {
+                      "type": "boolean"
+                    },
+                    "drafts": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "approvedOrder": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "legs": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "expiry": {
+                                          "pattern": "^\\d{8}$",
+                                          "type": "string"
+                                        },
+                                        "ratio": {
+                                          "maximum": 10,
+                                          "minimum": 1,
+                                          "type": "integer"
+                                        },
+                                        "right": {
+                                          "enum": [
+                                            "C",
+                                            "P"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "side": {
+                                          "enum": [
+                                            "BUY",
+                                            "SELL"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "strike": {
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 100000,
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "expiry",
+                                        "strike",
+                                        "right",
+                                        "side",
+                                        "ratio"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "maxItems": 6,
+                                    "minItems": 2,
+                                    "type": "array"
+                                  },
+                                  "limitPrice": {
+                                    "maximum": 100000,
+                                    "minimum": -100000,
+                                    "type": "number"
+                                  },
+                                  "quantity": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 10000,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  "symbol": {
+                                    "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "symbol",
+                                  "quantity",
+                                  "limitPrice",
+                                  "legs"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "approvedRoom": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "maxLoss": {
+                                    "type": "number"
+                                  },
+                                  "maxLossPctNlv": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "maxLoss",
+                                  "maxLossPctNlv"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          },
+                          "decidedAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "decidedBy": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "decisionNote": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "entryBasis": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "signal_today",
+                                  "model_holds_account_does_not"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "exitReason": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "loser_3_trading_days_before_expiry",
+                                  "winner_expiry_day_1545_et",
+                                  "monthly_roll"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "exitRule": {
+                            "const": "owner_standing_rule_v1"
+                          },
+                          "expiry": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "entry",
+                              "exit"
+                            ],
+                            "type": "string"
+                          },
+                          "longStrike": {
+                            "type": "number"
+                          },
+                          "nodeBadgeAtDecision": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "running-disarmed",
+                                  "running-armed",
+                                  "down",
+                                  "unknown"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "notApprovable": {
+                            "items": {
+                              "enum": [
+                                "PLAN_NOT_APPROVED",
+                                "LATE_ENTRY_NOT_TESTED",
+                                "NO_LIVE_IBKR_QUOTE",
+                                "NLV_UNAVAILABLE",
+                                "SIZED_TO_ZERO",
+                                "PRECHECK_DENIED",
+                                "DRAFT_NOT_PROPOSED",
+                                "DRAFT_EXPIRED"
+                              ],
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "notes": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "stance": {
+                                  "type": "string"
+                                },
+                                "theme": {
+                                  "type": "string"
+                                },
+                                "verified": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "stance",
+                                "theme",
+                                "verified"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "order": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "legs": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "expiry": {
+                                          "pattern": "^\\d{8}$",
+                                          "type": "string"
+                                        },
+                                        "ratio": {
+                                          "maximum": 10,
+                                          "minimum": 1,
+                                          "type": "integer"
+                                        },
+                                        "right": {
+                                          "enum": [
+                                            "C",
+                                            "P"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "side": {
+                                          "enum": [
+                                            "BUY",
+                                            "SELL"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "strike": {
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 100000,
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "expiry",
+                                        "strike",
+                                        "right",
+                                        "side",
+                                        "ratio"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "maxItems": 6,
+                                    "minItems": 2,
+                                    "type": "array"
+                                  },
+                                  "limitPrice": {
+                                    "maximum": 100000,
+                                    "minimum": -100000,
+                                    "type": "number"
+                                  },
+                                  "quantity": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 10000,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  "symbol": {
+                                    "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "symbol",
+                                  "quantity",
+                                  "limitPrice",
+                                  "legs"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "parentDraftId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "planId": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "planVersion": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "preCheck": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "enginePolicy": {
+                                "const": "not_evaluated_not_in_web_order_path"
+                              },
+                              "webFinalGate": {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "decision": {
+                                        "enum": [
+                                          "allow",
+                                          "deny"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "jevStance": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "BULLISH",
+                                              "NEUTRAL",
+                                              "BEARISH"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "jevState": {
+                                        "enum": [
+                                          "fresh",
+                                          "stale",
+                                          "none",
+                                          "unreachable"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "maxLoss": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "maxLossPct": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "reasons": {
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "structure": {
+                                        "enum": [
+                                          "long-option",
+                                          "debit-vertical",
+                                          "credit-vertical",
+                                          "risk-reducing",
+                                          "rejected"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "decision",
+                                      "structure",
+                                      "maxLoss",
+                                      "maxLossPct",
+                                      "jevState",
+                                      "jevStance",
+                                      "reasons"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "enginePolicy",
+                              "webFinalGate"
+                            ],
+                            "type": "object"
+                          },
+                          "quote": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "asOf": {
+                                    "format": "date-time",
+                                    "type": "string",
+                                    "x-native-type": "date"
+                                  },
+                                  "longAsk": {
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  "longBid": {
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  "shortAsk": {
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  "shortBid": {
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  "source": {
+                                    "enum": [
+                                      "ibkr_live",
+                                      "yahoo_delayed_snapshot",
+                                      "model"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "asOf",
+                                  "longAsk",
+                                  "longBid",
+                                  "shortAsk",
+                                  "shortBid",
+                                  "source"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "revision": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "shortStrike": {
+                            "type": "number"
+                          },
+                          "signalFacts": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "sizing": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "budget": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "limitPrice": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maxLoss": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maxLossPctNlv": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maxLossPerSpread": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "quantity": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "reason": {
+                                "enum": [
+                                  "sized",
+                                  "budget_below_one_spread",
+                                  "quantity_above_order_limit",
+                                  "nlv_unavailable",
+                                  "no_quote",
+                                  "sleeve_budget_used",
+                                  "name_cap_reached",
+                                  "open_risk_cap_reached",
+                                  "max_positions_reached"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "budget",
+                              "limitPrice",
+                              "maxLoss",
+                              "maxLossPctNlv",
+                              "maxLossPerSpread",
+                              "quantity",
+                              "reason"
+                            ],
+                            "type": "object"
+                          },
+                          "sleeveKey": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "enum": [
+                              "proposed",
+                              "approved",
+                              "rejected",
+                              "expired"
+                            ],
+                            "type": "string"
+                          },
+                          "structure": {
+                            "enum": [
+                              "callDebitVertical",
+                              "putDebitVertical",
+                              "putCreditVertical",
+                              "callCreditVertical"
+                            ],
+                            "type": "string"
+                          },
+                          "symbol": {
+                            "type": "string"
+                          },
+                          "tradingDay": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          }
+                        },
+                        "required": [
+                          "createdAt",
+                          "decidedAt",
+                          "decidedBy",
+                          "decisionNote",
+                          "entryBasis",
+                          "exitReason",
+                          "exitRule",
+                          "expiry",
+                          "id",
+                          "kind",
+                          "longStrike",
+                          "approvedOrder",
+                          "approvedRoom",
+                          "nodeBadgeAtDecision",
+                          "notApprovable",
+                          "notes",
+                          "order",
+                          "parentDraftId",
+                          "planId",
+                          "planVersion",
+                          "preCheck",
+                          "quote",
+                          "revision",
+                          "shortStrike",
+                          "signalFacts",
+                          "sizing",
+                          "sleeveKey",
+                          "state",
+                          "structure",
+                          "symbol",
+                          "tradingDay",
+                          "updatedAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 200,
+                      "type": "array"
+                    },
+                    "generatedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string",
+                          "x-native-type": "date"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "marketNotes": {
+                      "enum": [
+                        "attached",
+                        "none_active",
+                        "feature_not_deployed"
+                      ],
+                      "type": "string"
+                    },
+                    "node": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "armedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "badge": {
+                          "enum": [
+                            "running-disarmed",
+                            "running-armed",
+                            "down",
+                            "unknown"
+                          ],
+                          "type": "string"
+                        },
+                        "checkedAt": {
+                          "format": "date-time",
+                          "type": "string",
+                          "x-native-type": "date"
+                        }
+                      },
+                      "required": [
+                        "armedAt",
+                        "badge",
+                        "checkedAt"
+                      ],
+                      "type": "object"
+                    },
+                    "plan": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "approvalBasis": {
+                              "anyOf": [
+                                {
+                                  "enum": [
+                                    "owner_decision",
+                                    "owner_delegation"
+                                  ],
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "approvedAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "approvedBy": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "createdAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "evidenceUrl": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 400,
+                                  "pattern": "^https:\\/\\/[^/\\s]",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "exitRule": {
+                              "const": "owner_standing_rule_v1"
+                            },
+                            "id": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "limits": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "maxPositions": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 50,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "nameRiskCapPct": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 2,
+                                  "type": "number"
+                                },
+                                "openRiskCapPct": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 100,
+                                  "type": "number"
+                                },
+                                "positionRiskPct": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 2,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "maxPositions",
+                                "nameRiskCapPct",
+                                "openRiskCapPct",
+                                "positionRiskPct"
+                              ],
+                              "type": "object"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "ownerMessageUrl": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "pattern": "^https:\\/\\/discord\\.com\\/channels\\/\\d+\\/\\d+\\/\\d+$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "retiredAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sleeves": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "anchorDelta": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 1,
+                                    "type": "number"
+                                  },
+                                  "budgetPct": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 100,
+                                    "type": "number"
+                                  },
+                                  "definitionNote": {
+                                    "maxLength": 300,
+                                    "type": "string"
+                                  },
+                                  "definitionVariant": {
+                                    "enum": [
+                                      "as_studied",
+                                      "always_on_entry",
+                                      "top_1"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "dteMin": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 1000,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  "dteTarget": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 1000,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  "key": {
+                                    "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "maxLength": 80,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "runKey": {
+                                    "maxLength": 80,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "structure": {
+                                    "enum": [
+                                      "callDebitVertical",
+                                      "putDebitVertical",
+                                      "putCreditVertical",
+                                      "callCreditVertical"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "symbols": {
+                                    "items": {
+                                      "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                                      "type": "string"
+                                    },
+                                    "maxItems": 20,
+                                    "minItems": 1,
+                                    "type": "array"
+                                  },
+                                  "widthSigma": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 10,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "anchorDelta",
+                                  "budgetPct",
+                                  "definitionNote",
+                                  "definitionVariant",
+                                  "dteMin",
+                                  "dteTarget",
+                                  "key",
+                                  "name",
+                                  "runKey",
+                                  "structure",
+                                  "symbols",
+                                  "widthSigma"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 20,
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "status": {
+                              "enum": [
+                                "proposed",
+                                "approved",
+                                "retired"
+                              ],
+                              "type": "string"
+                            },
+                            "updatedAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "version": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "approvalBasis",
+                            "approvedAt",
+                            "approvedBy",
+                            "createdAt",
+                            "evidenceUrl",
+                            "exitRule",
+                            "id",
+                            "limits",
+                            "name",
+                            "ownerMessageUrl",
+                            "retiredAt",
+                            "sleeves",
+                            "status",
+                            "updatedAt",
+                            "version"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sendsOrders": {
+                      "const": false
+                    },
+                    "tradingDay": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "account",
+                    "drafts",
+                    "generatedAt",
+                    "marketNotes",
+                    "node",
+                    "plan",
+                    "canDecide",
+                    "sendsOrders",
+                    "tradingDay"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record conflict",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "VALIDATION_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Record validation failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 422
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "422"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Upstream metadata source failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Agent operations storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_CONFIGURED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Deployment status endpoint not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "The allocation plan in force and the order drafts of one trading day (records only)",
+        "tags": [
+          "Go-live draft queue"
+        ]
+      }
+    },
     "/ibkr-monitor/round-handles": {
       "get": {
         "operationId": "ibkrMonitor.roundHandles",

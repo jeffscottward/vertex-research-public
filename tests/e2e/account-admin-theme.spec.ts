@@ -99,6 +99,7 @@ const PORTAL_NAVIGATION_HREFS = [
   "/agents",
   "/agents/benchmark",
   "/deployments",
+  "/drafts",
   "/engines",
   "/semantic-terms",
   "/audit",

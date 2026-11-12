@@ -51,6 +51,7 @@ export default function robots() {
         "/charts",
         "/flow",
         "/deployments",
+        "/drafts",
         "/engines",
         "/semantic-terms",
         "/forgot-password",
