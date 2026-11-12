@@ -169,6 +169,8 @@ def test_volume_scaling(sec_type, currency, volume, expected):
      "NOT_FOUND", "IBKR 200: No security definition"),
     (failure(502, {"error": "entitlement", "message": "No market data permissions for DU1234567"}),
      "ENTITLEMENT", "No market data permissions for [account]"),
+    (failure(502, {"error": "entitlement", "message": "No market data permissions for DF0000003 and U0001"}),
+     "ENTITLEMENT", "No market data permissions for [account] and [account]"),
     (failure(504, {"error": "timeout"}), "UNAVAILABLE", "IBKR history service unavailable"),
     (failure(400, {"error": "bad_request", "message": "bad\nduration"}), "BAD_REQUEST", "bad duration"),
     (failure(502, {"error": "upstream", "message": "boom", "ibkr_code": 162}), "UPSTREAM_ERROR", "IBKR 162: boom"),

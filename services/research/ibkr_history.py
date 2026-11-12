@@ -169,7 +169,8 @@ def urllib_transport(url: str, headers: Mapping[str, str], timeout: float, max_b
 
 # --- request rules and parsing ---------------------------------------------------------------------------
 
-_ACCOUNT = re.compile(r"\b(?:D?U|F|I)\d{5,}\b")
+# The same account codes as packages/api/src/server/ibkr-account-redaction.ts: DF codes and four digits too.
+_ACCOUNT = re.compile(r"\b(?:D?U|DF|F|I)\d{4,}\b")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
 _END_DATETIME = re.compile(r"^\d{8}-\d{2}:\d{2}:\d{2}$")
 
