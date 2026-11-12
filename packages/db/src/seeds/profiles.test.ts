@@ -134,6 +134,21 @@ describe("development profile seeds", () => {
     ).toBe(true);
   });
 
+  it("counts the rows of the list it converges, not the persona list", async () => {
+    const double = createProfileSeedDatabase([[]]);
+
+    await expect(
+      convergeDevelopmentProfiles(
+        double.database,
+        DEVELOPMENT_PROFILES.slice(0, 1)
+      )
+    ).resolves.toBe(1);
+
+    return expect(
+      double.operations.filter((operation) => operation.kind === "insert")
+    ).toHaveLength(1);
+  });
+
   it("leaves profiles unchanged when every authored field already matches", async () => {
     const double = createProfileSeedDatabase(profileRows());
 
