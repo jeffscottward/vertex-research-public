@@ -23,7 +23,7 @@ const fakeDatabase = (rows: Row[]) => {
 
 const now = new Date("2026-11-03T12:00:00.000Z");
 const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000);
-const deps = { now: () => now, generateId: () => "row-1" };
+const deps = { generateId: () => "row-1", now: () => now };
 
 describe("order intent repository", () => {
   it("writes intent and outcome rows keyed by orderRef", async () => {
@@ -31,27 +31,28 @@ describe("order intent repository", () => {
     const repository = createOrderIntentRepository(database, deps);
     await repository.recordIntent({
       actorUserId: "u1",
-      requestId: "req-1",
       intent: {
-        orderRef: "leaps-vertex-a",
         contract: "AAPL C",
-        symbol: "AAPL",
         expiry: "2027-01-15",
-        strike: 200,
-        right: "C",
         heldBefore: 2,
+        orderRef: "leaps-vertex-a",
+        right: "C",
+        strike: 200,
+        symbol: "AAPL",
       },
+      requestId: "req-1",
     });
     await repository.recordOutcome({
       action: "vertex.order.result",
       actorUserId: "u1",
-      requestId: "req-1",
       orderRef: "leaps-vertex-a",
       outcome: "unknown",
+      requestId: "req-1",
     });
     expect(inserted).toEqual([
       expect.objectContaining({
         action: "vertex.order.intent",
+        createdAt: now,
         entityId: "leaps-vertex-a",
         entityType: "vertex_order",
         metadata: {
@@ -62,7 +63,6 @@ describe("order intent repository", () => {
           strike: 200,
           symbol: "AAPL",
         },
-        createdAt: now,
       }),
       expect.objectContaining({
         action: "vertex.order.result",
@@ -77,22 +77,22 @@ describe("order intent repository", () => {
       deps
     );
     const intent = {
-      orderRef: "r",
       contract: "X",
-      symbol: "X",
       expiry: "2027-01-15",
-      strike: 1,
-      right: "C",
       heldBefore: 0,
+      orderRef: "r",
+      right: "C",
+      strike: 1,
+      symbol: "X",
     };
     await expect(
-      repository.recordIntent({ actorUserId: "u", requestId: " ", intent })
+      repository.recordIntent({ actorUserId: "u", intent, requestId: " " })
     ).rejects.toThrow("requestId");
     return expect(
       repository.recordIntent({
         actorUserId: "u",
-        requestId: "q",
         intent: { ...intent, orderRef: "" },
+        requestId: "q",
       })
     ).rejects.toThrow("orderRef");
   });
@@ -111,11 +111,11 @@ describe("order intent repository", () => {
         entityId: "a",
         metadata: {
           contract: "A",
-          symbol: "A",
           expiry: "2027-01-15",
-          strike: 5,
-          right: "C",
           heldBefore: 1,
+          right: "C",
+          strike: 5,
+          symbol: "A",
         },
       },
       {
@@ -155,25 +155,44 @@ describe("order intent repository", () => {
     );
     return expect(repository.unresolved(at(-60))).resolves.toEqual([
       {
-        orderRef: "a",
         contract: "A",
-        symbol: "A",
-        expiry: "2027-01-15",
-        strike: 5,
-        right: "C",
-        heldBefore: 1,
         createdAt: at(0),
+        expiry: "2027-01-15",
+        heldBefore: 1,
+        orderRef: "a",
+        right: "C",
+        strike: 5,
+        symbol: "A",
       },
       {
-        orderRef: "b",
         contract: "",
-        symbol: "",
-        expiry: "",
-        strike: 0,
-        right: "",
-        heldBefore: 0,
         createdAt: at(0),
+        expiry: "",
+        heldBefore: 0,
+        orderRef: "b",
+        right: "",
+        strike: 0,
+        symbol: "",
       },
     ]);
+  });
+
+  it("answers whether any row exists for an orderRef", async () => {
+    const limited = (rows: unknown[]) =>
+      ({
+        select: () => ({
+          from: () => ({ where: () => ({ limit: async () => rows }) }),
+        }),
+      }) as unknown as DatabaseExecutor;
+    expect(
+      await createOrderIntentRepository(limited([{ id: "r" }]), deps).hasIntent(
+        "vertex-gla"
+      )
+    ).toBe(true);
+    expect(
+      await createOrderIntentRepository(limited([]), deps).hasIntent(
+        "vertex-gla"
+      )
+    ).toBe(false);
   });
 });

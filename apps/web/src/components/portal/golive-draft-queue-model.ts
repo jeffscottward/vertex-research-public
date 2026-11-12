@@ -16,6 +16,7 @@ import {
   type GoLiveQueueOutput,
   type GoLiveQuote,
   type GoLiveSizing,
+  type VertexOrderResult,
 } from "@darkfactory/api";
 
 import { pct, price, usd } from "./portfolio-monitor-model.ts";
@@ -85,12 +86,12 @@ export const PORTFOLIO_HREF = `/portfolio?tab=${VERTEX_ORDERS_TAB_VALUE}`;
 export const NO_ORDERS_NOTICE_PARTS = Object.freeze({
   after: `, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks.`,
   before:
-    "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (",
+    "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (",
   link: "Portfolio",
 });
 export const NO_ORDERS_NOTICE = `${NO_ORDERS_NOTICE_PARTS.before}${NO_ORDERS_NOTICE_PARTS.link}${NO_ORDERS_NOTICE_PARTS.after}`;
 export const APPROVAL_NOT_SENT_SENTENCE =
-  "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today.";
+  "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it.";
 export const REJECTION_RECORD_SENTENCE =
   "This records your rejection with the note. It changes no order.";
 export const NODE_DISARMED_NOTE =
@@ -105,7 +106,7 @@ export const ENGINE_POLICY_LINE =
 export const NO_PLAN_TEXT =
   "No plan record: no proposed or approved plan is stored";
 export const MODEL_HOLDS_GROUP_TITLE =
-  "Model holds, account does not (late entry not tested, cannot be approved)";
+  "Model holds, account does not (late entry, outside the tested entry rule: approve only with the tick box)";
 export const EXIT_GROUP_TITLE =
   "Exit proposals under the owner exit rule (you close the position)";
 export const OTHER_GROUP_TITLE = "Other drafts (cannot be approved)";
@@ -1181,7 +1182,12 @@ export const decisionAftermathText = (
 // The draft is the one the dialog shows: its revision is what the owner saw.
 type GoLiveShownDraft = Pick<GoLiveDraftOutput, "revision">;
 type GoLiveOpenDecision =
-  | Readonly<{ draft: GoLiveShownDraft; order: GoLiveOrder; type: "approve" }>
+  | Readonly<{
+      draft: GoLiveShownDraft;
+      order: GoLiveOrder;
+      outsideTestedEntryRule?: boolean;
+      type: "approve";
+    }>
   | Readonly<{ draft: GoLiveShownDraft; type: "reject" }>;
 
 /** The fields of an order in a fixed sequence, so two orders compare by value. */
@@ -1218,7 +1224,11 @@ export const staleDialogReason = (
   if (fresh.revision !== decision.draft.revision)
     return `the draft was refreshed after the dialog opened (it is now revision ${fresh.revision}; the dialog showed revision ${decision.draft.revision})`;
   if (decision.type === "reject") return null;
-  const blockers = approveBlockers(fresh, context);
+  const blockers =
+    decision.outsideTestedEntryRule === true &&
+    lateEntryOnlyBlocker(fresh, context)
+      ? []
+      : approveBlockers(fresh, context);
   if (blockers.length > 0)
     return `the draft can no longer be approved: ${blockers.map(lowerFirst).join("; ")}`;
   return fresh.order !== null &&
@@ -1229,3 +1239,84 @@ export const staleDialogReason = (
 
 export const staleDialogNotice = (reason: string): string =>
   `A newer read of the queue shows that ${reason}. The open dialog was closed and nothing was recorded.`;
+
+/**
+ * The owner's standing exit rule for an approved entry, in words: the day a loser closes and the
+ * time an open winner closes, and the closing combo. null when the draft has no schedule.
+ */
+export const exitScheduleText = (
+  schedule: GoLiveDraftOutput["exitSchedule"]
+): string | null => {
+  if (schedule === null) return null;
+  const { closeOrder } = schedule;
+  const legs = closeOrder.legs
+    .map((leg) => `${leg.side} ${leg.strike}${leg.right}`)
+    .join(" / ");
+  return `Loser closes ${schedule.loserCloseDay} (3 trading days before expiry); open winner closes ${etDayClock(schedule.winnerCloseAt)}. Close: ${closeOrder.quantity}x ${closeOrder.symbol} ${legs}, limit from the live quote at exit.`;
+};
+
+/** What the send after an approval gave: sent, refused with its reasons, or an unknown outcome. */
+export type GoLiveSendResult =
+  | Readonly<{ result: VertexOrderResult; sent: true }>
+  | Readonly<{ reasons: readonly string[]; sent: false }>
+  | Readonly<{ message: string; sent: "unknown" }>;
+
+const GO_LIVE_PREFIX = "GO-LIVE ";
+const GO_LIVE_REASON = /^GO-LIVE ([A-Z0-9_]+):/u;
+const reasonCode = (reason: string): string =>
+  String(GO_LIVE_REASON.exec(reason)?.[1]);
+const reasonText = (reason: string): string =>
+  reason.startsWith(GO_LIVE_PREFIX)
+    ? reason.slice(reason.indexOf(":") + 1).trim()
+    : reason;
+
+/**
+ * The notice after an approval: what the order path did with the approved order. Sends off (v3
+ * not on the live path) and a disarmed node lead the notice; every other refusal is listed.
+ */
+export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
+  if (outcome.sent === "unknown")
+    return `Approved; the send outcome is unknown (${outcome.message}). Check open orders at IBKR before doing anything else.`;
+  if (outcome.sent) {
+    const { result } = outcome;
+    const reached =
+      result.state === "submitted" || result.state === "unconfirmed";
+    return reached
+      ? `Approved and sent to IBKR as one combo limit order (${result.mode}, ${result.state}, ref ${result.orderRef}). ${result.message}`
+      : `Approved; IBKR did not take the order (${result.state}): ${result.message}`;
+  }
+  const codes = outcome.reasons.map(reasonCode);
+  const others = outcome.reasons
+    .filter((reason) => {
+      const code = reasonCode(reason);
+      return code !== "V3_NOT_ON_LIVE_PATH" && code !== "ENGINE_DISARMED";
+    })
+    .map(reasonText);
+  const rest = others.length === 0 ? "" : ` Also: ${others.join("; ")}.`;
+  if (codes.includes("V3_NOT_ON_LIVE_PATH"))
+    return `Approved and recorded; nothing was sent: go-live sends wait until engine policy v3 checks the live path.${rest}`;
+  const disarmed = outcome.reasons.find(
+    (reason) => reasonCode(reason) === "ENGINE_DISARMED"
+  );
+  if (disarmed !== undefined)
+    return `Approved, engine disarmed: nothing was sent (${reasonText(disarmed).replace(/^approved, /u, "")}).${rest}`;
+  return `Approved, not sent: ${others.join("; ")}.`;
+};
+
+export const OUTSIDE_TESTED_RULE_LABEL =
+  "I approve this position outside the tested entry rule (a late entry the backtest never tested).";
+
+/**
+ * Whether the only thing that blocks Approve is that the draft is a late entry: the owner may then
+ * approve it with the explicit outside-the-tested-rule tick (owner 2026-11-12). The server lifts
+ * that one reason only with the tick; every other blocker stays.
+ */
+export const lateEntryOnlyBlocker = (
+  draft: GoLiveApproveFacts,
+  context: GoLiveDraftContext
+): boolean =>
+  draft.order !== null &&
+  draft.notApprovable.includes("LATE_ENTRY_NOT_TESTED") &&
+  approveBlockers(draft, context).every(
+    (reason) => reason === NOT_APPROVABLE_WORDS.LATE_ENTRY_NOT_TESTED
+  );

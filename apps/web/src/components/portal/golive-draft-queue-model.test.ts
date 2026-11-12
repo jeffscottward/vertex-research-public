@@ -46,6 +46,7 @@ import {
   etDayClock,
   exitReasonText,
   exitRuleText,
+  exitScheduleText,
   expiryDate,
   type GoLiveDraftContext,
   generatorText,
@@ -93,6 +94,7 @@ import {
   SIZING_REASON_WORDS,
   STRUCTURE_WORDS,
   safeHttpsUrl,
+  sendOutcomeText,
   sleeveRow,
   staleDialogNotice,
   staleDialogReason,
@@ -140,6 +142,7 @@ const draft = (
   entryBasis: "signal_today",
   exitReason: null,
   exitRule: "owner_standing_rule_v1",
+  exitSchedule: null,
   expiry: "20261218",
   id: "draft-1",
   kind: "entry",
@@ -323,14 +326,14 @@ describe("wording maps", () => {
         "Proposal to close: open winner, 15:45 ET on expiry day",
     });
     expect(NO_ORDERS_NOTICE).toBe(
-      "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The notice never tells the owner to place an approved vertical on a Vertex screen.
     expect(NO_ORDERS_NOTICE).not.toMatch(/to place|use the|yourself/iu);
     expect(NO_ORDERS_NOTICE_PARTS.link).toBe("Portfolio");
     expect(PORTFOLIO_HREF).toBe("/portfolio?tab=orders");
     expect(APPROVAL_NOT_SENT_SENTENCE).toBe(
-      "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today."
+      "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it."
     );
   });
 
@@ -379,9 +382,9 @@ describe("wording maps", () => {
       plan: plan(),
       tradingDay: "2026-11-11",
     };
+    // NO_ORDERS_NOTICE and APPROVAL_NOT_SENT_SENTENCE describe the send after an approval
+    // (GO-LIVE 4, owner 2026-11-12) and are pinned word for word above.
     const sentences = [
-      NO_ORDERS_NOTICE,
-      APPROVAL_NOT_SENT_SENTENCE,
       REJECTION_RECORD_SENTENCE,
       NODE_DISARMED_NOTE,
       ENGINE_POLICY_LINE,
@@ -1812,5 +1815,104 @@ describe("plan links", () => {
       "not a url",
     ])
       expect(safeHttpsUrl(value)).toBeNull();
+  });
+});
+
+describe("exitScheduleText", () => {
+  it("names the loser day, the winner time and the closing combo", () => {
+    expect(exitScheduleText(null)).toBeNull();
+    const text = exitScheduleText({
+      closeOrder: {
+        legs: [
+          {
+            expiry: "20261218",
+            ratio: 1,
+            right: "C",
+            side: "SELL",
+            strike: 600,
+          },
+          {
+            expiry: "20261218",
+            ratio: 1,
+            right: "C",
+            side: "BUY",
+            strike: 610,
+          },
+        ],
+        quantity: 3,
+        symbol: "SPY",
+      },
+      loserCloseDay: "2026-12-15",
+      winnerCloseAt: new Date("2026-12-18T20:45:00.000Z"),
+    });
+    expect(text).toContain("Loser closes 2026-12-15");
+    expect(text).toContain("3x SPY SELL 600C / BUY 610C");
+  });
+});
+
+describe("sendOutcomeText", () => {
+  it("leads with sends off, then a disarmed node, lists every other refusal, and never calls an unknown outcome not sent", () => {
+    expect(
+      sendOutcomeText({
+        reasons: [
+          "GO-LIVE V3_NOT_ON_LIVE_PATH: go-live sends wait until engine policy v3 checks the live path (owner 2026-11-12); the approval is recorded",
+          "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked T); the owner arms the node",
+        ],
+        sent: false,
+      })
+    ).toBe(
+      "Approved and recorded; nothing was sent: go-live sends wait until engine policy v3 checks the live path."
+    );
+    expect(
+      sendOutcomeText({
+        reasons: [
+          "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked T); the owner arms the node",
+          "GO-LIVE OPEN_RISK_CAP: over the total cap",
+        ],
+        sent: false,
+      })
+    ).toBe(
+      "Approved, engine disarmed: nothing was sent (engine running-disarmed (checked T); the owner arms the node). Also: over the total cap."
+    );
+    expect(
+      sendOutcomeText({
+        reasons: ["GO-LIVE OPEN_RISK_CAP: over the total cap"],
+        sent: false,
+      })
+    ).toBe("Approved, not sent: over the total cap.");
+    expect(
+      sendOutcomeText({ message: "Outcome unknown (timeout)", sent: "unknown" })
+    ).toBe(
+      "Approved; the send outcome is unknown (Outcome unknown (timeout)). Check open orders at IBKR before doing anything else."
+    );
+    expect(
+      sendOutcomeText({
+        result: {
+          message: "Sent to IBKR (status Submitted).",
+          mode: "live",
+          orderRef: "vertex-abc",
+          permId: null,
+          state: "submitted",
+        },
+        sent: true,
+      })
+    ).toContain(
+      "Approved and sent to IBKR as one combo limit order (live, submitted, ref vertex-abc)"
+    );
+    const result = {
+      message: "m",
+      mode: "live" as const,
+      orderRef: "vertex-abc",
+      permId: null,
+    };
+    expect(
+      sendOutcomeText({
+        result: { ...result, state: "unconfirmed" },
+        sent: true,
+      })
+    ).toContain("(live, unconfirmed, ref vertex-abc)");
+    expect(
+      sendOutcomeText({ result: { ...result, state: "aborted" }, sent: true })
+    ).toBe("Approved; IBKR did not take the order (aborted): m");
   });
 });

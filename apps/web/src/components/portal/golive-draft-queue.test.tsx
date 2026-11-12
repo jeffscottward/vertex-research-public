@@ -43,6 +43,7 @@ import {
   CURRENT_SIZING_LABEL,
   ENGINE_POLICY_LINE,
   EXIT_RULE_WORDS,
+  type GoLiveSendResult,
   NO_ORDERS_NOTICE,
   NODE_DISARMED_NOTE,
   REJECT_NOTE_REQUIRED,
@@ -98,6 +99,7 @@ const draft = (
   entryBasis: "signal_today",
   exitReason: null,
   exitRule: "owner_standing_rule_v1",
+  exitSchedule: null,
   expiry: "20261218",
   id: "draft-spy",
   kind: "entry",
@@ -254,6 +256,12 @@ const gatewayOf = (
     approve: vi.fn<GoLiveDraftsGateway["approve"]>(async () => draft()),
     queue: queueMock,
     reject: vi.fn<GoLiveDraftsGateway["reject"]>(async () => draft()),
+    sendApproved: vi.fn<GoLiveDraftsGateway["sendApproved"]>(async () => ({
+      reasons: [
+        "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked 2026-11-11T15:00:00.000Z); the owner arms the node",
+      ],
+      sent: false,
+    })),
   };
 };
 
@@ -453,7 +461,7 @@ describe("GoLiveDraftQueue", () => {
     expect(container.textContent).not.toContain("$0");
     expect(texts(container, "[data-golive-group] > h3")).toEqual([
       "Entry signal for 2026-11-11",
-      "Model holds, account does not (late entry not tested, cannot be approved)",
+      "Model holds, account does not (late entry, outside the tested entry rule: approve only with the tick box)",
     ]);
     expect(one(container, "#golive-group-entry-signal + p").textContent).toBe(
       "No plan record is stored, so there is no entry rule to draft from for 2026-11-11."
@@ -718,7 +726,7 @@ describe("GoLiveDraftQueue", () => {
     expect(rejected.querySelector("button")).toBeNull();
     expect(texts(container, "[data-golive-group] > h3")).toEqual([
       "Entry signal for 2026-11-11",
-      "Model holds, account does not (late entry not tested, cannot be approved)",
+      "Model holds, account does not (late entry, outside the tested entry rule: approve only with the tick box)",
       "Exit proposals under the owner exit rule (you close the position)",
     ]);
     const exit = one(
@@ -755,7 +763,7 @@ describe("GoLiveDraftQueue", () => {
     expect(order).toContain("Limit$2.35 debit per spread");
     expect(order).toContain("Max loss$470.00 (0.47% of account)");
     expect(one(dialog, "[data-golive-not-sent]").textContent).toBe(
-      "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today."
+      "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it."
     );
     expect(dialog.querySelector("textarea")).toBeNull();
     expect(gateway.approve).not.toHaveBeenCalled();
@@ -776,6 +784,113 @@ describe("GoLiveDraftQueue", () => {
         "data-golive-draft-state"
       )
     ).toBe("approved");
+  });
+
+  it("after an approval asks the order path to send the stored order and says what it did", async () => {
+    const approved = draft({
+      approvedOrder: ORDER,
+      decidedAt: AT,
+      state: "approved",
+    });
+    const gateway = gatewayOf(queue(), queue({ drafts: [approved] }));
+    gateway.approve.mockResolvedValueOnce(approved);
+    const container = await mount(gateway);
+    await click(button(container, "Approve SPY 2026-12-18"));
+    await click(button(one(document, "[role='dialog']"), "Record approval"));
+    expect(gateway.sendApproved).toHaveBeenCalledTimes(1);
+    expect(gateway.sendApproved).toHaveBeenCalledWith({
+      draftId: "draft-spy",
+      order: ORDER,
+    });
+    expect(
+      one(container, "[data-golive-decision-notice]").textContent
+    ).toContain("Approved, engine disarmed: nothing was sent");
+  });
+
+  it("shows the exit schedule of an approved entry, and drops a send answer after the page is left", async () => {
+    const approved = draft({
+      approvedOrder: ORDER,
+      decidedAt: AT,
+      exitSchedule: {
+        closeOrder: {
+          legs: ORDER.legs.map((leg) => ({
+            ...leg,
+            side: leg.side === "BUY" ? ("SELL" as const) : ("BUY" as const),
+          })),
+          quantity: ORDER.quantity,
+          symbol: ORDER.symbol,
+        },
+        loserCloseDay: "2026-12-15",
+        winnerCloseAt: new Date("2026-12-18T20:45:00.000Z"),
+      },
+      state: "approved",
+    });
+    const shown = await mount(gatewayOf(queue({ drafts: [approved] })));
+    expect(shown.textContent).toContain("Loser closes 2026-12-15");
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+
+    const sent = deferred<GoLiveSendResult>();
+    const gateway = gatewayOf(queue(), queue({ drafts: [approved] }));
+    gateway.approve.mockResolvedValueOnce(approved);
+    gateway.sendApproved.mockReturnValueOnce(sent.promise);
+    const container = await mount(gateway);
+    await click(button(container, "Approve SPY 2026-12-18"));
+    await click(button(one(document, "[role='dialog']"), "Record approval"));
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await act(async () => {
+      sent.resolve({ reasons: ["x"], sent: false });
+      await sent.promise;
+    });
+    expect(gateway.sendApproved).toHaveBeenCalledTimes(1);
+  });
+
+  it("says what failed when the send after an approval throws", async () => {
+    const approved = draft({
+      approvedOrder: ORDER,
+      decidedAt: AT,
+      state: "approved",
+    });
+    for (const failure of [new Error("preview failed"), "plain failure"]) {
+      const gateway = gatewayOf(queue(), queue({ drafts: [approved] }));
+      gateway.approve.mockResolvedValueOnce(approved);
+      gateway.sendApproved.mockRejectedValueOnce(failure);
+      const container = await mount(gateway);
+      await click(button(container, "Approve SPY 2026-12-18"));
+      await click(button(one(document, "[role='dialog']"), "Record approval"));
+      expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
+        `Approved, not sent: ${failure instanceof Error ? failure.message : failure}.`
+      );
+      for (const root of roots.splice(0)) await act(async () => root.unmount());
+    }
+  });
+
+  it("lets the owner approve a late entry only with the outside-the-tested-rule tick", async () => {
+    const late = draft({
+      entryBasis: "model_holds_account_does_not",
+      notApprovable: ["LATE_ENTRY_NOT_TESTED"],
+    });
+    const gateway = gatewayOf(
+      queue({ drafts: [late] }),
+      queue({ drafts: [late] })
+    );
+    const container = await mount(gateway);
+    const approveButton = button(container, "Approve SPY 2026-12-18");
+    expect(approveButton.textContent).toBe("Approve outside tested rule");
+    expect(approveButton.hasAttribute("disabled")).toBe(false);
+    await click(approveButton);
+    const dialog = one(document, "[role='dialog']");
+    const submit = one(dialog, "[data-golive-dialog-submit]");
+    expect(submit.hasAttribute("disabled")).toBe(true);
+    await click(one(dialog, "[data-golive-outside-rule]"));
+    expect(submit.hasAttribute("disabled")).toBe(false);
+    await click(submit);
+    expect(gateway.approve).toHaveBeenCalledWith({
+      confirm: true,
+      id: "draft-spy",
+      order: ORDER,
+      outsideTestedEntryRule: true,
+      revision: 3,
+    });
   });
 
   it("closes the dialog on Cancel and on Escape without recording anything", async () => {
@@ -956,7 +1071,7 @@ describe("GoLiveDraftQueue", () => {
     const notice = one(container, "[data-golive-notice]");
     expect(notice.textContent).toBe(NO_ORDERS_NOTICE);
     expect(notice.textContent).toBe(
-      "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The owner is not told to place an approved vertical on a Vertex screen.
     expect(notice.textContent).not.toMatch(/to place|use the|yourself/iu);
@@ -1500,7 +1615,7 @@ describe("GoLiveDraftQueue", () => {
     );
     expect(texts(container, "[data-golive-group] > h3")).toEqual([
       "Entry signal for 2026-11-11",
-      "Model holds, account does not (late entry not tested, cannot be approved)",
+      "Model holds, account does not (late entry, outside the tested entry rule: approve only with the tick box)",
       "Other drafts (cannot be approved)",
     ]);
     const row = one(
@@ -2126,6 +2241,58 @@ describe("createBrowserGoLiveDraftsGateway", () => {
     });
     expect(api.reject).toHaveBeenCalledWith(rejection);
     expect(runtime.origins).toEqual([window.location.origin]);
+  });
+
+  it("sends an approved order through combo preview and submit, and keeps refusals, sends and unknown outcomes apart", async () => {
+    const reasons = ["GO-LIVE V3_NOT_ON_LIVE_PATH: off"];
+    const result = {
+      message: "ok",
+      mode: "live" as const,
+      orderRef: "vertex-gl1",
+      permId: null,
+      state: "submitted",
+    };
+    const vertexOrders = {
+      comboPreview: vi
+        .fn()
+        .mockResolvedValueOnce({ confirmToken: null, review: { reasons } })
+        .mockResolvedValue({ confirmToken: "t", review: { reasons: [] } }),
+      comboSubmit: vi
+        .fn()
+        .mockResolvedValueOnce(result)
+        .mockRejectedValueOnce(new Error("Outcome unknown"))
+        .mockRejectedValueOnce("bridge"),
+    };
+    runtime.client = { goLiveDrafts: {}, vertexOrders };
+    const gateway = createBrowserGoLiveDraftsGateway();
+    const input = { draftId: "draft-spy", order: ORDER };
+    await expect(gateway.sendApproved(input)).resolves.toEqual({
+      reasons,
+      sent: false,
+    });
+    expect(vertexOrders.comboSubmit).not.toHaveBeenCalled();
+    await expect(gateway.sendApproved(input)).resolves.toEqual({
+      result,
+      sent: true,
+    });
+    expect(vertexOrders.comboPreview).toHaveBeenLastCalledWith({
+      ...ORDER,
+      goLiveDraftId: "draft-spy",
+    });
+    expect(vertexOrders.comboSubmit).toHaveBeenLastCalledWith({
+      confirm: true,
+      confirmToken: "t",
+      goLiveDraftId: "draft-spy",
+      order: ORDER,
+    });
+    await expect(gateway.sendApproved(input)).resolves.toEqual({
+      message: "Outcome unknown",
+      sent: "unknown",
+    });
+    await expect(gateway.sendApproved(input)).resolves.toEqual({
+      message: "bridge",
+      sent: "unknown",
+    });
   });
 
   it("is what the queue uses when no gateway is supplied", async () => {
