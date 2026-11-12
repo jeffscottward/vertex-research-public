@@ -9,7 +9,7 @@ This is the public development repository. Every change is sanitized before it l
 ```mermaid
 flowchart LR
   owner["Owner browser"]
-  subgraph rig["Research host"]
+  subgraph rhost["Research host"]
     worker["Nautilus backtest worker"]
     openbb["OpenBB data timer"]
     research["services/research: backtests, research agents"]
@@ -18,8 +18,8 @@ flowchart LR
     subgraph app["Web app and API (vertex-web.service)"]
       web["apps/web: portal pages"]
       api["packages/api: oRPC contracts and services"]
-      db[("PostgreSQL via packages/db")]
     end
+    db[("PostgreSQL via packages/db")]
     ro["Read-only services: status, history, portfolio, research lenses"]
     flow["Flow collector timer"]
     exec["Exec node: IBKR gateway, and Nautilus Trader (disarmed)"]
@@ -92,12 +92,12 @@ Most feature jobs (the `vertex:` scripts) are documented with their feature unde
 
 [`ci.yml`](.github/workflows/ci.yml) runs on GitHub-hosted runners for pull requests, for pushes to the live branch and on manual dispatch. It runs the coverage shards and four lanes: `Verification (core)`, `Verification (coverage)`, `Verification (integration)` and `Verification (browser)`. A docs-only change or a draft pull request gets the light lane (core only). Marking a pull request with code changes ready starts the full lane, and a manual run always takes it. The browser lane is created only while the repository variable `BROWSER_TESTS` is `on`, or when a manual run asks for it. CodeQL, Dependency Review and OpenSSF Scorecard have their own workflows. Lanes and gates: [ARCHITECTURE.md](ARCHITECTURE.md#ci-lanes) and [docs/testing.md](docs/testing.md#ci-lanes).
 
-A test (`scripts/ci/readme-invariants.test.ts`) fails when a link in this README does not resolve or a script named here is missing from `package.json`. A change to this README counts as a code change, so the full lane runs the test.
+`bun run test:readme` fails when a link in this README does not resolve or a script named here is missing from `package.json` (`scripts/ci/readme-invariants.test.ts`). The pre-push hook and the full lane run it with the other operations tests. The light lane does not, so a docs-only change is checked by the pre-push hook and by the next full run.
 
 ### Deploy
 
 - A change reaches the live branch through a pull request whose required checks are green. Before any deploy, dispatch `ci.yml` on the exact commit and confirm the run's `head_sha` ([docs/deploy.md](docs/deploy.md#release-checklist)).
-- Execution host: the web app runs as `vertex-web.service`. Deploy a web build and restart the unit only through `infra/quantvps/restart-when-idle.sh` ([infra/quantvps/README.md](infra/quantvps/README.md)). The other host services and their install and rollback steps are in `infra/quant-vps/`.
+- Execution host: the web app runs as `vertex-web.service`. Deploy a web build and restart the unit only through `infra/quantvps/restart-when-idle.sh` ([infra/quantvps/README.md](infra/quantvps/README.md)). The other host services and their install and rollback steps are in `infra/quant-vps/`; the flow collector timer installs from `infra/flow/quantvps/`.
 - Cloudflare: only through the official `@vinext/cloudflare` path (`bun run deploy:web:check`, [docs/deploy.md](docs/deploy.md)). This deployment is blocked today ([docs/vertex-deployment-safety.md](docs/vertex-deployment-safety.md)).
 
 ## Safety and trading authority

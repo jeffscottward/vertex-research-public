@@ -17,7 +17,7 @@ Python and Rust services are the one exception to the TypeScript rule (ADR-V03).
 | `services/openbb` | Python | Pinned OpenBB Platform fetcher for research data sets; prints JSON for `openbb.ingest`, no order path |
 | `services/vibe-trading` | Python | Driver for the Vibe-Trading agent framework in the agent benchmark; no upstream code in the repository |
 
-Each service keeps its tests next to its code. The CI lanes run only the `services/gateway` tests (`bun run test:gateway`).
+Each service keeps its tests next to its code. In CI the core lane runs the `services/gateway` tests (`bun run test:gateway`), the Python research, execution and service suites (`scripts/ci/research-python.sh`) and the Rust suites of the contracts, execution kernel and kernel bridge (`scripts/ci/native-rust.sh`). `services/ibkr-history` is not tested in CI.
 
 ## First-party research building blocks
 

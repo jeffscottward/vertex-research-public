@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 
 // The root README must not rot silently: every relative link resolves to a
 // file (and to a heading when it has an anchor), and every script it names is
-// a script in the root package.json. scripts/ci/ci-changes.sh treats the root
-// README as code, so CI runs this test when only the README changes.
+// a script in the root package.json. `bun run test:readme` runs this file
+// alone. The pre-push hook and the CI coverage lane run it with the other
+// operations tests; the light lane (docs-only changes) does not, because
+// every test file runs exactly once in `verify` (test-invariants.test.ts).
 const rootUrl = new URL("../../", import.meta.url);
 const read = (path: string): Promise<string> =>
   readFile(new URL(path, rootUrl), "utf8");
@@ -18,15 +20,22 @@ const exists = async (path: string): Promise<boolean> => {
   }
 };
 
-/** Markdown lines outside fenced code blocks. A fence closes only on its own marker. */
+/**
+ * Markdown lines outside fenced code blocks. A fence closes only on a line
+ * that holds its own marker and nothing else.
+ */
 const proseLines = (markdown: string): string[] => {
   const lines: string[] = [];
   let fence = "";
   for (const line of markdown.split("\n")) {
-    const marker = /^\s*(`{3,}|~{3,})/u.exec(line)?.[1] ?? "";
-    if (fence === "" && marker !== "") fence = marker;
-    else if (fence !== "" && marker.startsWith(fence)) fence = "";
-    else if (fence === "") lines.push(line);
+    const [, marker = "", info = ""] =
+      /^\s*(`{3,}|~{3,})(.*)$/u.exec(line) ?? [];
+    if (fence === "") {
+      // A backtick opener cannot carry a backtick in its info string.
+      if (marker !== "" && !(marker.startsWith("`") && info.includes("`")))
+        fence = marker;
+      else lines.push(line);
+    } else if (marker.startsWith(fence) && info.trim() === "") fence = "";
   }
   return lines;
 };
@@ -57,32 +66,37 @@ const headingAnchors = (markdown: string): ReadonlySet<string> => {
 const readme = await read("README.md");
 const prose = proseLines(readme).join("\n");
 // Inline links, with an optional `<...>` wrapper and an optional title.
-const links = [
-  ...new Set(
-    [...prose.matchAll(/\]\(<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/gu)].map(
-      ([, target = ""]) => target
-    )
-  ),
-].filter((link) => !/^[a-z][a-z0-9+.-]*:/iu.test(link));
+const linkMatches = [
+  ...prose.matchAll(/\]\(<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/gu),
+];
+const links = [...new Set(linkMatches.map(([, target = ""]) => target))].filter(
+  (link) => !/^[a-z][a-z0-9+.-]*:/iu.test(link)
+);
 const targets = links.map((link) => {
   const [path = "", anchor] = link.split("#");
   return { anchor, link, path: path === "" ? "README.md" : decodeURI(path) };
 });
 // `bun run <script>` anywhere, and inline code that is only a script name
 // (`verify:core`). A trailing colon (`vertex:`) names a script family.
-const scriptNames = [
-  ...new Set([
-    ...[...readme.matchAll(/\bbun run ([\w:.-]+)/gu)].map(
-      ([, name = ""]) => name
-    ),
-    ...[...prose.matchAll(/`([a-z][\w-]*(?::[\w-]+)*:?)`/gu)]
-      .map(([, name = ""]) => name)
-      .filter((name) => name.includes(":")),
-  ]),
-];
 const manifest = JSON.parse(await read("package.json")) as Readonly<{
   scripts: Readonly<Record<string, string>>;
 }>;
+const defined = Object.keys(manifest.scripts);
+const scriptGroups = new Set(defined.map((script) => script.split(":")[0]));
+const scriptNames = [
+  ...new Set([
+    ...[...readme.matchAll(/\bbun run ([\w-]+(?::[\w-]+)*:?)/gu)].map(
+      ([, name = ""]) => name
+    ),
+    // Inline code counts only when its first segment is a script group, so
+    // `node:fs` or a host and port are not read as scripts.
+    ...[...prose.matchAll(/`([a-z][\w-]*(?::[\w-]+)*:?)`/gu)]
+      .map(([, name = ""]) => name)
+      .filter(
+        (name) => name.includes(":") && scriptGroups.has(name.split(":")[0])
+      ),
+  ]),
+];
 
 describe("README invariants", () => {
   it("finds the README's links", () => {
@@ -93,8 +107,12 @@ describe("README invariants", () => {
     expect(scriptNames.length).toBeGreaterThan(5);
   });
 
-  it("uses only inline links, which this test can check", () => {
+  it("uses no reference-style or HTML links", () => {
     expect(prose).not.toMatch(/^\s*\[[^\]]+\]:\s|<a\s|href=/mu);
+  });
+
+  it("writes every inline link in a form this test can read", () => {
+    expect(linkMatches.length).toBe(prose.split("](").length - 1);
   });
 
   it("links only to paths inside the repository", () => {
@@ -120,13 +138,20 @@ describe("README invariants", () => {
     expect(missing).toEqual([]);
   });
 
-  it("names only scripts and script families that package.json defines", () => {
-    const defined = Object.keys(manifest.scripts);
+  it("names only scripts that package.json defines", () => {
     expect(
-      scriptNames.filter((name) =>
-        name.endsWith(":")
-          ? !defined.some((script) => script.startsWith(name))
-          : !Object.hasOwn(manifest.scripts, name)
+      scriptNames.filter(
+        (name) => !(name.endsWith(":") || Object.hasOwn(manifest.scripts, name))
+      )
+    ).toEqual([]);
+  });
+
+  it("names only script families that have a script", () => {
+    expect(
+      scriptNames.filter(
+        (name) =>
+          name.endsWith(":") &&
+          !defined.some((script) => script.startsWith(name))
       )
     ).toEqual([]);
   });
