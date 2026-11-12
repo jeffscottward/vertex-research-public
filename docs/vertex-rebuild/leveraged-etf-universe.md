@@ -115,6 +115,28 @@ The three spread reasons are judged only in the regular session. So a `fail` fro
 
 Why these thresholds: 1000 contracts in the band keeps an order of 2% of the account small against open interest. A 4% half spread is the widest cost class that the qc-ports option model already charges (SLV, USO). The median of 1 or 2 quotes is one quote or the mean of two, so one tight quote among 8 contracts must not pass: the rule needs 3. A chain of Thursday is 4 days old on the Monday after a Friday holiday; an older chain is not the current chain of the fund.
 
+## Limits seen on 2026-11-12
+
+The first in-session run (10:02 to 10:25 New York, 793 funds) showed three limits of gate version 1. They are facts of
+that run; none of them is fixed yet.
+
+- Cboe does not rewrite every delayed quote file during the session. 14 of the 458 chains held quotes of the regular
+  session of that day. The other files were hours old (for example UPRO, QLD and AGQ), also when they were requested a
+  second time 25 minutes later. So 77 funds with enough open interest kept the label `spread-not-measured`. One run
+  cannot measure every fund.
+- The gate reads the nearest expiry that is 5 to 21 days out. For TQQQ that was a Wednesday expiry (9,781 contracts near
+  the money, half spread 6.5%). The study forms use the first Friday that is at least 3 sessions after the entry
+  (107,732 contracts). A second free source, the Yahoo adapter of the app (`packages/api/src/server/options-chain-yahoo.ts`),
+  showed a half spread of 2.6% for that Friday expiry at 10:32: inside the limit. So the `fail` of TQQQ comes from the
+  expiry that the gate reads.
+- The run reads quotes of the first 40 minutes of the session, when spreads are wider than later in the day. For SQQQ,
+  TSLL and NVDL the second source also showed a half spread above the 4% limit (4.7% to 6.6%). Their options are cheap:
+  a quote that is 0.05 USD wide is 5% of a 0.50 USD option.
+
+How to read the table until a second gate version exists: the reasons `no-listed-options` and
+`open-interest-below-minimum` are solid. A `fail` whose only reason is `spread-above-maximum` says that one early read
+was above the limit; it does not say that the fund has no option market.
+
 ## Universe document
 
 One JSON document, schema `leveraged-etf-universe-v1`: `schema`, `generatedAt` (UTC, the time after the fetcher read the last chain), `gate` (the constants) and `funds` (1 to 2000 funds, sorted by symbol, no symbol twice). A fund has the columns above in camelCase; its option facts are in `options`, which is null exactly when `optionsListed` is false.

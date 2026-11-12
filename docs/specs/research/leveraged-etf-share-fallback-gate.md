@@ -32,7 +32,7 @@ snapshot rules, arming and the kill switch. A BUY of shares is allowed only when
 | # | Rule | Value |
 | --- | --- | --- |
 | 0 | Switch | `NAUTILUS_ORDER_POLICY_ALLOW_LEVERAGED_SHARES` is on only with the value `owner-decision:<link to the owner's message>`. Off is the default and equals today's behavior. No environment value arms the node. |
-| 1 | Allow-list | `NAUTILUS_ORDER_POLICY_LEVERAGED_SHARE_SYMBOLS`: explicit tickers, copied from `leveraged_etf_universe` rows with `option_gate = 'fail'` that the owner approved. An invalid entry refuses every leveraged share buy. |
+| 1 | Allow-list | `NAUTILUS_ORDER_POLICY_LEVERAGED_SHARE_SYMBOLS`: explicit tickers that the owner approved, copied from `leveraged_etf_universe` rows with `option_gate = 'fail'` whose reasons are `no-listed-options` or `open-interest-below-minimum`. A row that fails only on `spread-above-maximum`, `stale-chain` or another reason is not a candidate: such a fund has an option market, or its market is not known. An invalid entry refuses every leveraged share buy. |
 | 2 | Order form | Limit order, day order, USD, sized by share count. |
 | 3 | Size cap | Share count x limit price is at most 2% of the account value (the setting of the option cap, `NAUTILUS_ORDER_POLICY_MAX_LOSS_PCT`; it can only be lowered; with the spread switch of policy v3 on, a value set in the environment also needs its `_SOURCE` entry). |
 | 4 | No adding | One open per fund. A second buy of a fund that has an open record or a held position is refused. Averaging down is not possible. |
@@ -95,4 +95,17 @@ The proof is for policy v2 only. Policy v3 (defined-risk vertical spreads, card 
 
 ## Owner decision
 
-The proposal was sent to the owner as one menu. This section records the answer when it arrives.
+The proposal was sent to the owner as one menu on 2026-11-12, with a chart of the three choices (not now; build it as
+proposed; build it with tighter caps of 1% per fund and 1 fund at a time).
+
+**Answer of 2026-11-12: "Not now: the gate stays options-only."** The owner picked it after the backtest result (0 of 40
+form rows pass the gate; the 8 share rows fail too). No layer of the order gate is changed. The rules above stay as a
+written proposal for a later decision.
+
+Open before any later decision:
+
+- The option gate of the universe table needs a second version first. On 2026-11-12 it read a Wednesday expiry for TQQQ,
+  not the Friday expiry of the study forms, and it read each chain once, early in the session
+  ([leveraged-etf-universe.md](../../vertex-rebuild/leveraged-etf-universe.md), "Limits seen on 2026-11-12").
+- The study covered the 7 underlyings that have intraday signal data. Single-sector and single-stock funds (for example
+  SOXL, TSLL, NVDL) were not tested.
