@@ -9,6 +9,7 @@ import {
   createSemanticLayerRepository,
   createSemanticReader,
   type Database,
+  SEMANTIC_READER_ROLE,
   type SemanticLayerRepository,
   type SemanticReader,
 } from "@darkfactory/db/server";
@@ -358,6 +359,52 @@ describe("semantic layer (Postgres)", () => {
     expect(
       await reader.run({ sql: "select id from strategies for update" }, [], RUN)
     ).toMatchObject({ status: "failed" });
+  });
+
+  it("keeps the texts of one batch apart on their shared connection", async () => {
+    // A session-level setting made by one text is rolled back with its transaction: the next text
+    // sees the defaults, the reader role, a read-only transaction and its own statement timeout.
+    const settings = await reader.runAll(
+      [
+        {
+          sql: "select set_config('search_path', 'pg_catalog', false) as path",
+        },
+        { sql: "select current_setting('search_path') as path" },
+        {
+          sql: "select set_config('statement_timeout', '0', false) as timeout",
+        },
+        {
+          sql: "select current_setting('statement_timeout') as timeout, current_setting('transaction_read_only') as read_only, current_user::text as role",
+        },
+      ],
+      [],
+      RUN
+    );
+    expect(settings.map(({ status }) => status)).toEqual([
+      "ok",
+      "ok",
+      "ok",
+      "ok",
+    ]);
+    expect(settings[0]).toMatchObject({ rows: [{ path: "pg_catalog" }] });
+    expect(settings[1]).toMatchObject({ rows: [{ path: '"$user", public' }] });
+    expect(settings[3]).toMatchObject({
+      rows: [{ read_only: "on", role: SEMANTIC_READER_ROLE, timeout: "5s" }],
+    });
+
+    // A failed text ends the batch: nothing runs on the connection after it.
+    const refused = await reader.runAll(
+      [
+        { sql: "select count(*)::int as n from strategies" },
+        { sql: 'select email from "user"' },
+        { sql: "select count(*)::int as n from strategies" },
+      ],
+      [],
+      RUN
+    );
+    expect(refused.map(({ status }) => status)).toEqual(["ok", "failed"]);
+    expect(refused[0]).toMatchObject({ rows: [{ n: strategiesBefore }] });
+    expect(refused[1]).toMatchObject({ failure: "permission_denied" });
   });
 
   it("answers reader_unavailable for a missing or app-role connection, never falling back", async () => {

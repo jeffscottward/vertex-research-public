@@ -243,9 +243,19 @@ export type SemanticReader = Readonly<{
     params: readonly SemanticParamValue[],
     options: SemanticAttributeRunOptions
   ) => Promise<SemanticAttributeResult>;
+  /**
+   * Runs certified SQL texts in order over one reader connection. Every text gets all checks of
+   * `run`: the identity check, its own read-only transaction with the statement timeout, and a
+   * rollback before the next text. A failed text ends the batch and is the last result.
+   */
+  runAll: (
+    attributes: readonly Pick<SemanticSqlAttributeRow, "sql">[],
+    params: readonly SemanticParamValue[],
+    options: SemanticAttributeRunOptions
+  ) => Promise<SemanticAttributeResult[]>;
 }>;
 
-/** The pg client a reader opens per run (a test seam). */
+/** The pg client a reader opens per batch (a test seam). */
 export type SemanticReaderClient = Readonly<{
   query: (
     config:
@@ -320,76 +330,102 @@ export const createSemanticReader = (
     query,
     status: "failed" as const,
   });
+  /** One certified text on the connection of its batch; the first text that needs it opens it. */
+  const runOne = async (
+    attribute: Pick<SemanticSqlAttributeRow, "sql">,
+    params: readonly SemanticParamValue[],
+    { rowLimit, timeoutMs }: SemanticAttributeRunOptions,
+    batch: { connection?: SemanticReaderConnection }
+  ): Promise<SemanticAttributeResult> => {
+    let statement: CertifiedStatement;
+    try {
+      statement = certifiedStatement(attribute.sql, params, rowLimit);
+    } catch (error) {
+      const message = (error as SemanticSqlParameterError).message;
+      return failed(attribute.sql, "invalid_sql", message);
+    }
+    if (url === null) return failed(statement.text, "reader_unavailable");
+    const timeout = Number.isFinite(timeoutMs)
+      ? Math.max(1, Math.trunc(timeoutMs))
+      : 1;
+    let connected = batch.connection !== undefined;
+    try {
+      batch.connection ??= await open(url);
+      connected = true;
+      const { client } = batch.connection;
+      const [identity] = (await client.query(IDENTITY_SQL)).rows;
+      if (
+        identity?.["session_user"] !== SEMANTIC_READER_ROLE ||
+        identity["current_user"] !== SEMANTIC_READER_ROLE ||
+        identity["rolsuper"] !== false ||
+        identity["rolbypassrls"] !== false ||
+        identity["no_memberships"] !== true
+      ) {
+        return failed(
+          statement.text,
+          "reader_unavailable",
+          `The reader connection is not the plain read-only role ${SEMANTIC_READER_ROLE}.`
+        );
+      }
+      await client.query("begin read only");
+      await client.query(`set local statement_timeout = ${timeout}`);
+      const result = await client.query({
+        queryMode: "extended",
+        text: statement.text,
+        values: statement.values,
+      });
+      await client.query("rollback");
+      const rows = result.rows;
+      return {
+        query: statement.text,
+        rows: rows.slice(0, rowLimit).map((row) => toJson(row) as SemanticRow),
+        status: "ok",
+        truncated: rows.length > rowLimit,
+      };
+    } catch (error) {
+      const code = databaseErrorDetails(error).code;
+      if (typeof code === "string" && SQLSTATE.test(code)) {
+        return failed(
+          statement.text,
+          CONNECTION_SQLSTATES.test(code)
+            ? "reader_unavailable"
+            : (FAILURES[code] ?? "query_failed")
+        );
+      }
+      // Network codes (ECONNREFUSED, ...) and errors while connecting: the reader is unavailable.
+      // Any other error after connecting is a bug: rethrow it.
+      if (typeof code === "string" || !connected) {
+        return failed(statement.text, "reader_unavailable");
+      }
+      throw error;
+    }
+  };
+  const runAll: SemanticReader["runAll"] = async (
+    attributes,
+    params,
+    options
+  ) => {
+    const batch: { connection?: SemanticReaderConnection } = {};
+    const results: SemanticAttributeResult[] = [];
+    try {
+      for (const attribute of attributes) {
+        const result = await runOne(attribute, params, options, batch);
+        results.push(result);
+        // A failed text may leave its transaction open: nothing more runs on this connection.
+        if (result.status === "failed") break;
+      }
+      return results;
+    } finally {
+      await batch.connection?.close().catch(() => undefined);
+    }
+  };
   return {
-    run: async (attribute, params, { rowLimit, timeoutMs }) => {
-      let statement: CertifiedStatement;
-      try {
-        statement = certifiedStatement(attribute.sql, params, rowLimit);
-      } catch (error) {
-        const message = (error as SemanticSqlParameterError).message;
-        return failed(attribute.sql, "invalid_sql", message);
-      }
-      if (url === null) return failed(statement.text, "reader_unavailable");
-      const timeout = Number.isFinite(timeoutMs)
-        ? Math.max(1, Math.trunc(timeoutMs))
-        : 1;
-      let connection: SemanticReaderConnection | undefined;
-      let connected = false;
-      try {
-        connection = await open(url);
-        connected = true;
-        const { client } = connection;
-        const [identity] = (await client.query(IDENTITY_SQL)).rows;
-        if (
-          identity?.["session_user"] !== SEMANTIC_READER_ROLE ||
-          identity["current_user"] !== SEMANTIC_READER_ROLE ||
-          identity["rolsuper"] !== false ||
-          identity["rolbypassrls"] !== false ||
-          identity["no_memberships"] !== true
-        ) {
-          return failed(
-            statement.text,
-            "reader_unavailable",
-            `The reader connection is not the plain read-only role ${SEMANTIC_READER_ROLE}.`
-          );
-        }
-        await client.query("begin read only");
-        await client.query(`set local statement_timeout = ${timeout}`);
-        const result = await client.query({
-          queryMode: "extended",
-          text: statement.text,
-          values: statement.values,
-        });
-        await client.query("rollback");
-        const rows = result.rows;
-        return {
-          query: statement.text,
-          rows: rows
-            .slice(0, rowLimit)
-            .map((row) => toJson(row) as SemanticRow),
-          status: "ok",
-          truncated: rows.length > rowLimit,
-        };
-      } catch (error) {
-        const code = databaseErrorDetails(error).code;
-        if (typeof code === "string" && SQLSTATE.test(code)) {
-          return failed(
-            statement.text,
-            CONNECTION_SQLSTATES.test(code)
-              ? "reader_unavailable"
-              : (FAILURES[code] ?? "query_failed")
-          );
-        }
-        // Network codes (ECONNREFUSED, ...) and errors while connecting: the reader is unavailable.
-        // Any other error after connecting is a bug: rethrow it.
-        if (typeof code === "string" || !connected) {
-          return failed(statement.text, "reader_unavailable");
-        }
-        throw error;
-      } finally {
-        await connection?.close().catch(() => undefined);
-      }
+    run: async (attribute, params, options) => {
+      // One text gives one result.
+      const [result] = await runAll([attribute], params, options);
+      return result as SemanticAttributeResult;
     },
+    runAll,
   };
 };
 

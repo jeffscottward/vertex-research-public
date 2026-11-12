@@ -685,5 +685,147 @@ describe("semantic layer persistence errors", () => {
       ]);
       expect(fake.calls.at(-1)).toBe("close");
     });
+
+    describe("runAll", () => {
+      const SECOND_ATTRIBUTE = { sql: "select * from runs where id = $1" };
+      const SECOND = certifiedStatement(SECOND_ATTRIBUTE.sql, ["s1"], 2);
+      const checked = (statement: typeof STATEMENT) => [
+        "identity",
+        "begin read only",
+        "set local statement_timeout = 1500",
+        { queryMode: "extended", text: statement.text, values: ["s1", 3] },
+      ];
+
+      it("runs every text on one connection, each with the identity check and its own read-only transaction", async () => {
+        const fake = createFakeOpen({ rows: [{ a: 1 }] });
+        const reader = createSemanticReader(READER_URL, fake.open);
+        await expect(
+          reader.runAll([ATTRIBUTE, SECOND_ATTRIBUTE], ["s1"], OPTIONS)
+        ).resolves.toEqual([
+          {
+            query: STATEMENT.text,
+            rows: [{ a: 1 }],
+            status: "ok",
+            truncated: false,
+          },
+          {
+            query: SECOND.text,
+            rows: [{ a: 1 }],
+            status: "ok",
+            truncated: false,
+          },
+        ]);
+        expect(fake.opened).toEqual([READER_URL]);
+        expect(fake.calls).toEqual([
+          ...checked(STATEMENT),
+          "rollback",
+          ...checked(SECOND),
+          "rollback",
+          "close",
+        ]);
+      });
+
+      it("checks the identity again before every text and runs nothing after a failed check", async () => {
+        const calls: unknown[] = [];
+        let identityChecks = 0;
+        const client: SemanticReaderClient = {
+          query: async (query) => {
+            if (
+              typeof query !== "string" ||
+              !query.startsWith("select session_user")
+            ) {
+              calls.push(query);
+              return { rows: [] };
+            }
+            calls.push("identity");
+            identityChecks += 1;
+            return {
+              rows: [
+                identityChecks === 1
+                  ? IDENTITY
+                  : { ...IDENTITY, current_user: "vertex_research" },
+              ],
+            };
+          },
+        };
+        const reader = createSemanticReader(READER_URL, async () => ({
+          client,
+          close: async () => {
+            calls.push("close");
+          },
+        }));
+        await expect(
+          reader.runAll(
+            [ATTRIBUTE, SECOND_ATTRIBUTE, ATTRIBUTE],
+            ["s1"],
+            OPTIONS
+          )
+        ).resolves.toEqual([
+          {
+            query: STATEMENT.text,
+            rows: [],
+            status: "ok",
+            truncated: false,
+          },
+          {
+            failure: "reader_unavailable",
+            message: `The reader connection is not the plain read-only role ${SEMANTIC_READER_ROLE}.`,
+            query: SECOND.text,
+            status: "failed",
+          },
+        ]);
+        expect(calls).toEqual([
+          ...checked(STATEMENT),
+          "rollback",
+          "identity",
+          "close",
+        ]);
+      });
+
+      it("ends the batch at a text that fails before it reaches the database", async () => {
+        const fake = createFakeOpen();
+        const reader = createSemanticReader(READER_URL, fake.open);
+        const results = await reader.runAll(
+          [ATTRIBUTE, { sql: "select $2" }, SECOND_ATTRIBUTE],
+          ["s1"],
+          OPTIONS
+        );
+        expect(results.map(({ status }) => status)).toEqual(["ok", "failed"]);
+        expect(results[1]).toMatchObject({ failure: "invalid_sql" });
+        expect(fake.opened).toEqual([READER_URL]);
+        expect(fake.calls).toEqual([
+          ...checked(STATEMENT),
+          "rollback",
+          "close",
+        ]);
+      });
+
+      it("runs no further text on the connection after a failed statement", async () => {
+        const fake = createFakeOpen({
+          error: Object.assign(new Error("canceled"), { code: "57014" }),
+        });
+        const reader = createSemanticReader(READER_URL, fake.open);
+        const results = await reader.runAll(
+          [ATTRIBUTE, SECOND_ATTRIBUTE],
+          ["s1"],
+          OPTIONS
+        );
+        expect(results).toHaveLength(1);
+        expect(results[0]).toMatchObject({
+          query: STATEMENT.text,
+          status: "failed",
+        });
+        // No rollback and no second text: the connection is closed with its transaction open.
+        expect(fake.calls).toEqual([...checked(STATEMENT), "close"]);
+      });
+
+      it("opens no connection for no texts", async () => {
+        const fake = createFakeOpen();
+        const reader = createSemanticReader(READER_URL, fake.open);
+        await expect(reader.runAll([], ["s1"], OPTIONS)).resolves.toEqual([]);
+        expect(fake.opened).toEqual([]);
+        expect(fake.calls).toEqual([]);
+      });
+    });
   });
 });
