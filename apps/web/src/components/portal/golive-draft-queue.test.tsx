@@ -98,6 +98,7 @@ const draft = (
   entryBasis: "signal_today",
   exitReason: null,
   exitRule: "owner_standing_rule_v1",
+  exitSchedule: null,
   expiry: "20261218",
   id: "draft-spy",
   kind: "entry",

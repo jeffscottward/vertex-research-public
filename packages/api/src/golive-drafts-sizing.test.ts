@@ -12,6 +12,7 @@ import {
   approvedOrderFitsDraft,
   approvedRoomOf,
   buildCombo,
+  exitScheduleOf,
   GOLIVE_ORDER_MAX_QUANTITY,
   GOLIVE_QUOTE_MAX_AGE_MS,
   GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS,
@@ -1372,5 +1373,83 @@ describe("notApprovableReasons", () => {
         )
       )
     ).toEqual([...GOLIVE_NOT_APPROVABLE_VALUES]);
+  });
+});
+
+describe("exitScheduleOf (owner_standing_rule_v1)", () => {
+  const order = {
+    legs: [
+      { expiry: "20261218", ratio: 1, right: "C", side: "BUY", strike: 600 },
+      { expiry: "20261218", ratio: 1, right: "C", side: "SELL", strike: 610 },
+    ],
+    limitPrice: 2.5,
+    quantity: 3,
+    symbol: "SPY",
+  } as const;
+
+  it("closes a loser 3 trading days before expiry and a winner at 15:45 New York time", () => {
+    expect(
+      exitScheduleOf({
+        approvedOrder: order,
+        expiry: "20261218",
+        kind: "entry",
+        state: "approved",
+      })
+    ).toEqual({
+      closeOrder: {
+        legs: [
+          {
+            expiry: "20261218",
+            ratio: 1,
+            right: "C",
+            side: "SELL",
+            strike: 600,
+          },
+          {
+            expiry: "20261218",
+            ratio: 1,
+            right: "C",
+            side: "BUY",
+            strike: 610,
+          },
+        ],
+        quantity: 3,
+        symbol: "SPY",
+      },
+      loserCloseDay: "2026-12-15",
+      winnerCloseAt: new Date("2026-12-18T20:45:00.000Z"),
+    });
+  });
+
+  it("skips NYSE holidays and follows daylight saving time", () => {
+    // 2026-06-19 (Juneteenth) is closed; the Thursday expiry counts back over Mon-Wed.
+    const schedule = exitScheduleOf({
+      approvedOrder: order,
+      expiry: "20260618",
+      kind: "entry",
+      state: "approved",
+    });
+    expect(schedule?.loserCloseDay).toBe("2026-06-15");
+    expect(schedule?.winnerCloseAt).toEqual(
+      new Date("2026-06-18T19:45:00.000Z")
+    );
+    // Over a holiday: 2026-11-26 (Thanksgiving) is skipped for a 2026-11-30 expiry.
+    expect(
+      exitScheduleOf({
+        approvedOrder: order,
+        expiry: "20261130",
+        kind: "entry",
+        state: "approved",
+      })?.loserCloseDay
+    ).toBe("2026-11-24");
+  });
+
+  it("is null unless the draft is an approved entry with its order", () => {
+    for (const draft of [
+      { approvedOrder: order, kind: "exit", state: "approved" },
+      { approvedOrder: order, kind: "entry", state: "proposed" },
+      { approvedOrder: null, kind: "entry", state: "approved" },
+    ] as const)
+      expect(exitScheduleOf({ ...draft, expiry: "20261218" })).toBeNull();
   });
 });

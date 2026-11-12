@@ -46,6 +46,7 @@ import {
   etDayClock,
   exitReasonText,
   exitRuleText,
+  exitScheduleText,
   expiryDate,
   type GoLiveDecisionFailure,
   type GoLiveDraftContext,
@@ -427,6 +428,11 @@ const DraftRow = ({
           <Field label="State">{draftStateText(draft.state)}</Field>
           <Field label="Expiry">{expiryDate(draft.expiry)}</Field>
           <Field label="Strikes">{strikesText(draft)}</Field>
+          {draft.exitSchedule === null ? null : (
+            <Field label="Exit (standing rule)">
+              {exitScheduleText(draft.exitSchedule)}
+            </Field>
+          )}
           {/* On an approved row every live value is labelled as current, not as approved. */}
           <Field label={approved === null ? "Quote" : CURRENT_QUOTE_LABEL}>
             {quoteText(draft, context.readAt)}

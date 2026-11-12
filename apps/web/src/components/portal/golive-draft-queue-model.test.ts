@@ -46,6 +46,7 @@ import {
   etDayClock,
   exitReasonText,
   exitRuleText,
+  exitScheduleText,
   expiryDate,
   type GoLiveDraftContext,
   generatorText,
@@ -140,6 +141,7 @@ const draft = (
   entryBasis: "signal_today",
   exitReason: null,
   exitRule: "owner_standing_rule_v1",
+  exitSchedule: null,
   expiry: "20261218",
   id: "draft-1",
   kind: "entry",
@@ -1812,5 +1814,37 @@ describe("plan links", () => {
       "not a url",
     ])
       expect(safeHttpsUrl(value)).toBeNull();
+  });
+});
+
+describe("exitScheduleText", () => {
+  it("names the loser day, the winner time and the closing combo", () => {
+    expect(exitScheduleText(null)).toBeNull();
+    const text = exitScheduleText({
+      closeOrder: {
+        legs: [
+          {
+            expiry: "20261218",
+            ratio: 1,
+            right: "C",
+            side: "SELL",
+            strike: 600,
+          },
+          {
+            expiry: "20261218",
+            ratio: 1,
+            right: "C",
+            side: "BUY",
+            strike: 610,
+          },
+        ],
+        quantity: 3,
+        symbol: "SPY",
+      },
+      loserCloseDay: "2026-12-15",
+      winnerCloseAt: new Date("2026-12-18T20:45:00.000Z"),
+    });
+    expect(text).toContain("Loser closes 2026-12-15");
+    expect(text).toContain("3x SPY SELL 600C / BUY 610C");
   });
 });

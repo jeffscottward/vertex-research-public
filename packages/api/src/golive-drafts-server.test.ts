@@ -545,6 +545,7 @@ describe("goLiveDrafts.queue", () => {
     expect(spy).toEqual({
       ...record("d-spy"),
       approvedRoom: null,
+      exitSchedule: null,
       notApprovable: [],
       notes: [],
       order: ORDER,
@@ -2208,6 +2209,7 @@ describe("goLiveDrafts sizing rules at the API", () => {
     // count 125, and QQQ would fit.
     expect(qqq).toMatchObject({
       approvedRoom: null,
+      exitSchedule: null,
       notApprovable: ["SIZED_TO_ZERO"],
       order: null,
       sizing: { quantity: 0, reason: "sleeve_budget_used" },
@@ -2372,6 +2374,7 @@ describe("goLiveDrafts sizing rules at the API", () => {
     // The 882 are what blocks the next draft: 882 + 125 is above the open risk cap of 900.
     expect(qqq).toMatchObject({
       approvedRoom: null,
+      exitSchedule: null,
       sizing: { quantity: 0, reason: "open_risk_cap_reached" },
     });
     // Without an account value the amount is still shown, and its share is empty.

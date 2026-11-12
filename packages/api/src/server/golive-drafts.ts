@@ -21,6 +21,7 @@ import { evaluateFinalOrderGate } from "./final-order-gate.ts";
 import {
   approvedOrderFitsDraft,
   approvedRoomOf,
+  exitScheduleOf,
   GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS,
   notApprovableReasons,
   orderFor,
@@ -448,6 +449,7 @@ const viewsOf = (
       // What the approved order holds, whatever today's sizing below reads. Not for a key: the
       // amount comes from a quantity that was sized from the account value.
       approvedRoom: loaded.forKey ? null : approvedRoomOf(draft, nlv),
+      exitSchedule: loaded.forKey ? null : exitScheduleOf(draft),
       notApprovable: notApprovableReasons({
         draft,
         nlv,

@@ -1229,3 +1229,18 @@ export const staleDialogReason = (
 
 export const staleDialogNotice = (reason: string): string =>
   `A newer read of the queue shows that ${reason}. The open dialog was closed and nothing was recorded.`;
+
+/**
+ * The owner's standing exit rule for an approved entry, in words: the day a loser closes and the
+ * time an open winner closes, and the closing combo. null when the draft has no schedule.
+ */
+export const exitScheduleText = (
+  schedule: GoLiveDraftOutput["exitSchedule"]
+): string | null => {
+  if (schedule === null) return null;
+  const { closeOrder } = schedule;
+  const legs = closeOrder.legs
+    .map((leg) => `${leg.side} ${leg.strike}${leg.right}`)
+    .join(" / ");
+  return `Loser closes ${schedule.loserCloseDay} (3 trading days before expiry); open winner closes ${etDayClock(schedule.winnerCloseAt)}. Close: ${closeOrder.quantity}x ${closeOrder.symbol} ${legs}, limit from the live quote at exit.`;
+};
