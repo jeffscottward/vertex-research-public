@@ -615,6 +615,24 @@ def _positive(value: Any) -> Decimal | None:
     return number if number is not None and number > 0 else None
 
 
+def _number_set(value: Any, *, unset_markers: bool) -> bool:
+    """Whether an order number that the policy refuses when set is set.
+
+    Unset: None, False, "", 0 and, with ``unset_markers``, ibapi's UNSET_INTEGER
+    and UNSET_DOUBLE. A value this module cannot read as a finite number
+    (True, text, NaN, infinity) counts as set: ibapi would still send it.
+    """
+
+    if value is None or value is False or _text(value) == "":
+        return False
+    number = _decimal(value)
+    if number is None:
+        return True
+    if number == 0:
+        return False
+    return not (unset_markers and (number == _UNSET_INTEGER or abs(number) >= _UNSET_PRICE))
+
+
 def _short(value: Any, limit: int = 64) -> str:
     return _text(value)[:limit]
 
@@ -625,7 +643,7 @@ def _con_id(value: Any) -> int | None:
     if isinstance(value, int):
         return value if value > 0 else None
     text = _text(value)
-    return int(text) if text.isdigit() and int(text) > 0 else None
+    return int(text) if text.isascii() and text.isdigit() and int(text) > 0 else None
 
 
 def _identity(get: Callable[[str], Any]) -> dict[str, Any]:
@@ -1245,11 +1263,9 @@ def _check_option_premium(
     limit = _positive(getattr(order, "lmtPrice", None))
     if limit is None or limit >= _UNSET_PRICE:
         raise OrderPolicyError("limit_price_missing", "an option buy needs a positive lmtPrice")
-    discretionary = _decimal(getattr(order, "discretionaryAmt", None))
-    if discretionary is not None and discretionary != 0:
+    if _number_set(getattr(order, "discretionaryAmt", None), unset_markers=False):
         raise OrderPolicyError("discretionary_refused", "discretionary amounts can fill above lmtPrice")
-    cash_quantity = _positive(getattr(order, "cashQty", None))
-    if cash_quantity is not None and cash_quantity < _UNSET_PRICE:
+    if _number_set(getattr(order, "cashQty", None), unset_markers=True):
         raise OrderPolicyError("cash_quantity_refused", "an option buy must size by totalQuantity")
     if identity["currency"] != "USD":
         raise OrderPolicyError(
@@ -1591,8 +1607,10 @@ def _open_risk_groups(
     The trading class is part of the group: an SPXW option does not cover an
     SPX option of the same date (they settle differently).
 
-    RISK_UNKNOWN: a held option lacks its strike, right, expiry date,
-    multiplier or a non-negative average_cost (per contract, as IBKR reports it).
+    RISK_UNKNOWN: a held option lacks its strike, right, expiry date, trading
+    class, multiplier or a non-negative average_cost (per contract, as IBKR
+    reports it). Without the trading class (no class sidecar for the snapshot)
+    an SPXW option would be netted against an SPX option.
     """
 
     lots: dict[tuple[str, str, str], list[_Lot] | None] = {}
@@ -1605,6 +1623,7 @@ def _open_risk_groups(
         cost_each = _decimal(position.get("average_cost"))
         if (
             not _identity_complete(held)
+            or not held["trading_class"]
             or held["multiplier"] is None
             or _expiry_date(held["expiry"]) is None
             or cost_each is None
@@ -1773,8 +1792,8 @@ def _check_risk_caps(
         if exposure == RISK_UNKNOWN:
             raise OrderPolicyError(
                 f"{label}_open_risk_unavailable",
-                f"a held option of {subject} lacks strike, right, expiry, multiplier or "
-                "average_cost in the snapshot, so its open risk cannot be measured",
+                f"a held option of {subject} lacks strike, right, expiry, trading class, multiplier "
+                "or average_cost in the snapshot, so its open risk cannot be measured",
             )
         if exposure == RISK_UNBOUNDED:
             raise OrderPolicyError(
@@ -2267,17 +2286,18 @@ def _check_combo_order_fields(order: Any) -> tuple[str, Decimal, Decimal]:
         raise OrderPolicyError(
             "limit_price_precision_refused", "lmtPrice may have at most 4 decimal places"
         )
-    discretionary = _decimal(getattr(order, "discretionaryAmt", None))
-    if discretionary is not None and discretionary != 0:
+    if _number_set(getattr(order, "discretionaryAmt", None), unset_markers=False):
         raise OrderPolicyError("discretionary_refused", "discretionary amounts can fill above lmtPrice")
-    cash_quantity = _positive(getattr(order, "cashQty", None))
-    if cash_quantity is not None and cash_quantity < _UNSET_PRICE:
+    if _number_set(getattr(order, "cashQty", None), unset_markers=True):
         raise OrderPolicyError("cash_quantity_refused", "a combo order must size by totalQuantity")
     if getattr(order, "orderComboLegs", None):
         raise OrderPolicyError(
             "combo_leg_prices_refused", "per-leg prices are not supported: use one net lmtPrice"
         )
-    for param in getattr(order, "smartComboRoutingParams", None) or []:
+    routing = getattr(order, "smartComboRoutingParams", None) or []
+    if not isinstance(routing, (list, tuple)):
+        raise OrderPolicyError("combo_routing_params_refused", "smartComboRoutingParams must be a list")
+    for param in routing:
         tag = _text(getattr(param, "tag", ""))
         if tag != "NonGuaranteed":
             raise OrderPolicyError(
@@ -2295,11 +2315,11 @@ def _check_combo_order_fields(order: Any) -> tuple[str, Decimal, Decimal]:
     # Order features that add orders or change the working price. ibapi leaves
     # the scale sizes at UNSET_INTEGER and the increment at UNSET_DOUBLE.
     for name in ("scaleInitLevelSize", "scaleSubsLevelSize", "scalePriceIncrement"):
-        scale = _decimal(getattr(order, name, None))
-        if scale is not None and scale > 0 and scale != _UNSET_INTEGER and scale < _UNSET_PRICE:
+        if _number_set(getattr(order, name, None), unset_markers=True):
             raise OrderPolicyError("scale_order_refused", "scale orders are not supported for combos")
-    parent = _decimal(getattr(order, "parentId", None))
-    if (parent is not None and parent != 0) or _text(getattr(order, "ocaGroup", "")):
+    if _number_set(getattr(order, "parentId", None), unset_markers=False) or _text(
+        getattr(order, "ocaGroup", "")
+    ):
         raise OrderPolicyError(
             "attached_order_refused", "attached (parentId) and one-cancels-all orders are not supported"
         )
@@ -2511,6 +2531,9 @@ def _evaluate_order(
 
     if contract is None or order is None:
         raise OrderPolicyError("order_missing", "contract and order are required")
+    if not isinstance(getattr(order, "whatIf", False), bool):
+        # ibapi sends a truthy text such as "0" as a live order; it must not skip the reservation.
+        raise OrderPolicyError("what_if_not_boolean", "whatIf must be True or False")
     identity = _order_contract_identity(contract)
     sec_type = identity["sec_type"]
     spreads = _spreads_flag(env)[0]

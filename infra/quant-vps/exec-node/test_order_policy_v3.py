@@ -1155,6 +1155,7 @@ class RefuseTableTest(V3TestCase):
             ("combo_non_guaranteed_refused", "NonGuaranteed=1", make(smartComboRoutingParams=routing("NonGuaranteed", "1"))),
             ("combo_non_guaranteed_refused", "NonGuaranteed empty", make(smartComboRoutingParams=routing("NonGuaranteed", ""))),
             ("combo_routing_params_refused", "LeginPrio", make(smartComboRoutingParams=routing("LeginPrio", "0"))),
+            ("combo_routing_params_refused", "routing params that are no list", make(smartComboRoutingParams=5)),
             (
                 "combo_leg_prices_refused",
                 "per-leg prices",
@@ -1179,6 +1180,18 @@ class RefuseTableTest(V3TestCase):
             ("action_refused", "action missing", make(action="")),
             ("discretionary_refused", "discretionary amount", make(discretionaryAmt=0.05)),
             ("cash_quantity_refused", "cashQty", make(cashQty=500.0)),
+            # A value the gate cannot read as a number counts as set: ibapi would still send it.
+            ("discretionary_refused", "discretionary amount True", make(discretionaryAmt=True)),
+            ("discretionary_refused", "discretionary amount NaN", make(discretionaryAmt="NaN")),
+            ("discretionary_refused", "discretionary amount infinite", make(discretionaryAmt=float("inf"))),
+            ("discretionary_refused", "discretionary amount ibapi UNSET_DOUBLE", make(discretionaryAmt=sys.float_info.max)),
+            ("cash_quantity_refused", "cashQty True", make(cashQty=True)),
+            ("cash_quantity_refused", "cashQty text", make(cashQty="all")),
+            ("cash_quantity_refused", "cashQty negative", make(cashQty=-500.0)),
+            ("scale_order_refused", "scaleInitLevelSize True", make(scaleInitLevelSize=True)),
+            ("scale_order_refused", "scalePriceIncrement text", make(scalePriceIncrement="Infinity")),
+            ("attached_order_refused", "parentId True", make(parentId=True)),
+            ("attached_order_refused", "parentId text", make(parentId="twelve")),
             ("hedge_order_refused", "hedge order", make(hedgeType="D")),
             ("algo_order_refused", "algo order", make(algoStrategy="Adaptive")),
             ("scale_order_refused", "scaleInitLevelSize", make(scaleInitLevelSize=5)),
@@ -1203,6 +1216,7 @@ class RefuseTableTest(V3TestCase):
             ("combo_leg_mismatch", "a third leg contract", (contract, order_, [*legs, third])),
             ("combo_leg_mismatch", "the same leg contract twice", (contract, order_, [legs[0], legs[0]])),
             ("combo_leg_mismatch", "a leg contract without conId", (contract, order_, [legs[0], self.leg(205, conId=0)])),
+            ("combo_leg_mismatch", "a leg conId of a non-ASCII digit", (contract, order_, [legs[0], self.leg(205, conId="\u00b2")])),
             (
                 "combo_leg_mismatch",
                 "both comboLegs name one conId",
@@ -1264,6 +1278,21 @@ class RefuseTableTest(V3TestCase):
         )
         self.assertEqual({item["source"] for item in refusals}, {SOURCE})
 
+    def test_a_whatif_value_that_is_no_boolean_is_refused(self) -> None:
+        # ibapi sends a truthy text such as "0" as a live order. Read as a preflight, it would be placed
+        # without its ledger entry (opening order) or its reservation (close).
+        self.write_snapshot([self.held(2, 200, cost=100.0)])
+        for value in ("0", "false", " ", 1, 0, None):
+            with self.subTest(value=value):
+                contract, order_, legs = self.make(whatIf=value)
+                self.assert_refused(contract, order_, legs, "what_if_not_boolean")
+                self.assert_place_refused(contract, order_, legs, "what_if_not_boolean")
+                close = v2.order("SELL", 1, lmtPrice=1.00, whatIf=value)
+                self.assert_place_refused(self.leg(200), close, None, "what_if_not_boolean")
+        self.assertEqual(self.client.placed, [])
+        self.assertFalse(self.open_risk.exists())
+        self.assertFalse(self.reservations.exists())
+
     def test_a_whatif_preflight_is_refused_for_the_same_reason(self) -> None:
         self.write_snapshot([])
         for code, name, (contract, order_, legs) in self.cases():
@@ -1299,7 +1328,13 @@ class RefuseTableTest(V3TestCase):
         self.assert_refused(contract, order_, legs, "trading_class_unverifiable")
         self.write_snapshot([self.held(1, 205, cost=100.0)], classes=False)
         self.assert_refused(contract, order_, legs, "trading_class_unverifiable")
+        # A held option that is no leg of the order: without its class its open risk cannot be measured
+        # (an SPXW option would be netted against an SPX option).
         self.write_snapshot([self.held(1, 210, cost=100.0)], classes=False)
+        self.assert_refused(contract, order_, legs, "name_open_risk_unavailable")
+        self.write_snapshot([self.held(1, 210, symbol="MSFT", cost=100.0)], classes=False)
+        self.assert_refused(contract, order_, legs, "total_open_risk_unavailable")
+        self.write_snapshot([v2.held_stock(100)], classes=False)  # shares have no open option risk
         self.assert_accepted(contract, order_, legs, 150)
 
 
@@ -1425,6 +1460,30 @@ class RiskCapsTest(V3TestCase):
         self.write_snapshot([*book[:4], self.held(1, 50, symbol="XOM", cost=0.01)])  # 8,000.01 USD
         self.assert_refused(*self.debit_call(2000), "total_risk_cap_exceeded")
         self.assert_accepted(*self.debit_call("1999.99"), "1999.99")
+
+    def test_no_cap_comparison_rounds_the_risk_or_the_cap(self) -> None:
+        # A loss a fraction of a cent over a cap is over the cap: nothing is rounded before the comparison.
+        self.write_snapshot([])  # NLV 100,000: 2,000 USD per order
+        # A limit has at most 4 decimals, so only a multiplier of 1 can put an order under a cent over its cap.
+        small = {"expiry": self.near, "multiplier": "1"}
+        contract, legs = vertical(leg(1000, "C", **small), leg(4000, "C", **small))
+        self.assert_accepted(contract, v2.order("BUY", 1, lmtPrice=2000.0), legs, 2000)
+        self.assert_refused(contract, v2.order("BUY", 1, lmtPrice=2000.0049), legs, "max_loss_exceeded")
+        self.write_snapshot([self.held(5, 200, cost=200.0)])  # 1,000 USD held in AAPL
+        self.assert_accepted(contract, v2.order("BUY", 1, lmtPrice=1000.0), legs, 1000)
+        self.assert_refused(contract, v2.order("BUY", 1, lmtPrice=1000.0049), legs, "name_short_dated_cap_exceeded")
+        book = [self.held(4, 50, symbol=name, cost=500.0) for name in ("AMD", "IBM", "KO", "PEP")]
+        self.write_snapshot(book)  # 8,000 USD in four other names: 2,000 USD left under the 10% total cap
+        self.assert_accepted(*self.debit_call(2000), 2000)
+        self.write_snapshot([*book, self.held(1, 50, symbol="XOM", cost=0.004)])
+        self.assert_refused(*self.debit_call(2000), "total_risk_cap_exceeded")
+        # A cap that is not a whole dollar stays exact: NLV 100,000.40 -> 2,000.008 per name, 10,000.04 in total.
+        self.write_snapshot([self.held(5, 200, cost=200.0)], nlv="100000.40")
+        self.assert_accepted(contract, v2.order("BUY", 1, lmtPrice=1000.008), legs, "1000.008")
+        self.assert_refused(contract, v2.order("BUY", 1, lmtPrice=1000.0081), legs, "name_short_dated_cap_exceeded")
+        self.write_snapshot([*book, self.held(1, 50, symbol="XOM", cost=0.04)], nlv="100000.40")
+        self.assert_accepted(contract, v2.order("BUY", 1, lmtPrice=2000.0), legs, 2000)  # 8,000.04 + 2,000
+        self.assert_refused(contract, v2.order("BUY", 1, lmtPrice=2000.0001), legs, "total_risk_cap_exceeded")
 
     def test_total_cap_counts_working_orders_of_other_names(self) -> None:
         self.write_snapshot([])
@@ -2501,6 +2560,19 @@ class DryTransmitTest(V3TestCase):
         self.assertEqual(self.client.detail_requests, [])  # a disarmed gate and a dry check ask IBKR nothing
         self.assertIsNone(self.ledger())
         self.assertFalse(self.reservations.exists())
+
+    def test_a_fault_inside_the_policy_is_a_named_refusal_and_never_an_accept(self) -> None:
+        self.write_snapshot([])
+        contract, order_, legs, _ = self.samples()["bull call debit"]
+        with mock.patch.object(arm_gate, "_evaluate_order", side_effect=RuntimeError("fault")):
+            result = self.preview(contract, order_, legs)
+        self.assertEqual(result["policy_decision"], "refused")
+        self.assertEqual(result["policy_refusal"], "policy_error")
+        self.assertEqual(result["policy_refusal_detail"], "RuntimeError")
+        self.assertEqual(result["transmit_refusal"], "policy_error")
+        self.assertIs(result["would_transmit"], False)
+        self.assertNotIn("allowance", result)
+        self.assert_nothing_happened()
 
     def test_accepted_by_the_policy_and_refused_by_the_disarmed_engine(self) -> None:
         self.write_snapshot([])
