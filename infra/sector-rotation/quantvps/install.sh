@@ -13,9 +13,11 @@
 # stays as *.prev for rollback.
 #
 # It never writes secrets. It requires the existing 0600 environment file
-# /etc/vertex-autopilot/autopilot.env (VERTEX_ORIGIN, VERTEX_AGENT_API_KEY). It installs the chat route
-# drop-in only when /etc/vertex-sector-rotation/alert.env exists (VERTEX_ALERT_POST_URL,
-# VERTEX_ALERT_CHANNEL).
+# /etc/vertex-autopilot/autopilot.env (VERTEX_ORIGIN, VERTEX_AGENT_API_KEY). It installs the key
+# drop-in only when /etc/vertex-sector-rotation/agent-key.env exists (VERTEX_AGENT_API_KEY: the
+# collection's own operator write key, which replaces the Autopilot key) and removes that drop-in
+# when the file is missing. It installs the chat route drop-in only when
+# /etc/vertex-sector-rotation/alert.env exists (VERTEX_ALERT_POST_URL, VERTEX_ALERT_CHANNEL).
 #
 # Environment:
 #   VERTEX_SECTOR_ROTATION_SSH          remote command prefix (default: ssh to the `quantvps` alias)
@@ -52,7 +54,8 @@ stage() {
     --outfile "$out/$bundle" >/dev/null) || fail "bun build failed"
   printf '%s\n' "$sha" >"$out/SOURCE_SHA"
   cp "$here/vertex-sector-rotation.service" "$here/vertex-sector-rotation.timer" "$out/"
-  cp "$here/vertex-sector-rotation.service.d/alert-route.conf" "$out/vertex-sector-rotation.service.d/"
+  cp "$here/vertex-sector-rotation.service.d/agent-key.conf" \
+    "$here/vertex-sector-rotation.service.d/alert-route.conf" "$out/vertex-sector-rotation.service.d/"
   remote_step >"$out/remote-install.sh"
 }
 
@@ -71,6 +74,12 @@ units="$prefix/etc/systemd/system"
 bundle=vertex-sector-rotation-tick.mjs
 [ -x "$node" ] || fail "missing $node (install the Autopilot tick first)"
 [ -f "$prefix/etc/vertex-autopilot/autopilot.env" ] || fail "missing /etc/vertex-autopilot/autopilot.env"
+key_env="$prefix/etc/vertex-sector-rotation/agent-key.env"
+if [ -e "$key_env" ] || [ -L "$key_env" ]; then
+  # A regular file, mode 0600, owned by the installing user (root on QuantVPS); never a symlink.
+  [ -f "$key_env" ] && [ ! -L "$key_env" ] && [ "$(stat -c '%a %u' "$key_env")" = "600 $(id -u)" ] ||
+    fail "/etc/vertex-sector-rotation/agent-key.env must be a regular file with mode 0600 owned by $(id -un)"
+fi
 "$node" --check "$src/$bundle" || fail "the bundle does not parse with $node"
 install -d -m 0755 "$app"
 # Keep the replaced pair as *.prev for rollback, only when the bundle changes, so a repeated
@@ -85,6 +94,15 @@ for file in "$bundle" SOURCE_SHA; do
 done
 install -d -m 0755 "$units"
 install -m 0644 "$src/vertex-sector-rotation.service" "$src/vertex-sector-rotation.timer" "$units/"
+# The key drop-in names a file without the "-" prefix, so it is only installed when that file exists
+# (else every start would fail); without the file the service falls back to the Autopilot key.
+if [ -f "$key_env" ]; then
+  install -d -m 0755 "$units/vertex-sector-rotation.service.d"
+  install -m 0644 "$src/vertex-sector-rotation.service.d/agent-key.conf" "$units/vertex-sector-rotation.service.d/"
+else
+  rm -f "$units/vertex-sector-rotation.service.d/agent-key.conf"
+  echo "note: no /etc/vertex-sector-rotation/agent-key.env; the service uses the Autopilot key"
+fi
 if [ -f "$prefix/etc/vertex-sector-rotation/alert.env" ]; then
   install -d -m 0755 "$units/vertex-sector-rotation.service.d"
   install -m 0600 "$src/vertex-sector-rotation.service.d/alert-route.conf" "$units/vertex-sector-rotation.service.d/"

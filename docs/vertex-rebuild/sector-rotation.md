@@ -103,7 +103,7 @@ Second alert route (optional): when `VERTEX_ALERT_POST_URL` (a loopback chat bot
 
 ### QuantVPS deployment (live)
 
-The live scheduler runs on QuantVPS as the system units `vertex-sector-rotation.service` and `vertex-sector-rotation.timer` (owner decision 2026-11-04). The repository copies are in `infra/sector-rotation/quantvps/`; they are byte-identical to the files in `/etc/systemd/system/`. The timer runs Monday to Friday at 16:50 and 18:40 New York time (the second run picks up late or corrected bars) with `Persistent=true`.
+The live scheduler runs on QuantVPS as the system units `vertex-sector-rotation.service` and `vertex-sector-rotation.timer` (owner decision 2026-11-04). It is the only scheduler: the rig user timer also ran the collection from 2026-11-05 to 2026-11-10 and is retired (see [Rig user units](#rig-user-units-retired)). The repository copies are in `infra/sector-rotation/quantvps/`; they are byte-identical to the files in `/etc/systemd/system/`. The timer runs Monday to Friday at 16:50 and 18:40 New York time (the second run picks up late or corrected bars) with `Persistent=true`.
 
 QuantVPS has no bun and no source checkout. `bun build --target=node` bundles `scripts/vertex-sector-rotation-tick.ts` into one file, `/opt/vertex-sector-rotation/vertex-sector-rotation-tick.mjs`, with the source commit in `/opt/vertex-sector-rotation/SOURCE_SHA`. The service runs it with the Autopilot Node (`/opt/vertex-autopilot/bin/node`, Node 24) and the systemd sandbox settings of the Autopilot unit.
 
@@ -111,8 +111,16 @@ Settings come from root-only (mode 0600) environment files that stay on QuantVPS
 
 | File | Keys | Used by |
 | --- | --- | --- |
-| `/etc/vertex-autopilot/autopilot.env` | `VERTEX_ORIGIN`, `VERTEX_AGENT_API_KEY` (the Autopilot operator write key) | the service |
+| `/etc/vertex-autopilot/autopilot.env` | `VERTEX_ORIGIN`, `VERTEX_AGENT_API_KEY` (the Autopilot operator write key) | the service (it uses this key only when `agent-key.env` is missing) |
+| `/etc/vertex-sector-rotation/agent-key.env` | `VERTEX_AGENT_API_KEY` (the collection's own operator write key, read and write, made by the owner on 2026-11-05) | the drop-in `vertex-sector-rotation.service.d/agent-key.conf`; systemd reads it after `autopilot.env`, so this key replaces the Autopilot key |
 | `/etc/vertex-sector-rotation/alert.env` | `VERTEX_ALERT_POST_URL=http://127.0.0.1:47821/post`, `VERTEX_ALERT_CHANNEL=trading-alerts` | the drop-in `vertex-sector-rotation.service.d/alert-route.conf` |
+
+The collection has its own key since 2026-11-10 (card vertex-sector-rotation-two-schedulers), so it no longer shares the Autopilot key. The key was written on QuantVPS from its rig copy without showing it:
+
+```sh
+{ printf 'VERTEX_AGENT_API_KEY='; tr -d '\r\n' <~/.config/vertex/sector-rotation-key; echo; } |
+  ssh quantvps 'umask 077; cat >/etc/vertex-sector-rotation/agent-key.env'
+```
 
 The web app has no ntfy settings, so the server stores each alert as `not-configured`, and the client posts the line through the chat route. Port 47821 on QuantVPS is the reverse SSH tunnel to the rig Discord bot; `vertex-nautilus-health-alert` uses the same route for `#omp-alerts`. Since card vertex-rrg-alert-writeback (2026-11-04), the client writes the chat result back, so a posted line moves its row from `not-configured` to `sent` (or `failed`). The three alerts stored before the route existed (XLB 2026-10-27, XLF 2026-10-30, XLRE 2026-11-02) were posted once by hand on 2026-11-04 and their rows were set to `sent`.
 
@@ -123,13 +131,13 @@ infra/sector-rotation/quantvps/install.sh                   # build, copy over `
 infra/sector-rotation/quantvps/install.sh --build-only DIR   # build the files into DIR only
 ```
 
-The script refuses uncommitted changes and stops before any change when the Autopilot Node or `autopilot.env` is missing. It checks that Node can parse the bundle. When the bundle changes, it keeps the replaced bundle and `SOURCE_SHA` as `*.prev`; a repeated install of the same build keeps the earlier `*.prev`. Then it installs the units, installs the chat route drop-in only when `alert.env` exists, then runs `systemctl daemon-reload` and `systemctl enable --now vertex-sector-rotation.timer`. It does not start a collection. To compare a checkout with the live bundle, run `--build-only` and compare `sha256sum` with `/opt/vertex-sector-rotation/vertex-sector-rotation-tick.mjs` (on 2026-11-04 the build of the base commit was byte-identical to the live file).
+The script refuses uncommitted changes and stops before any change when the Autopilot Node or `autopilot.env` is missing, or when `agent-key.env` is not a regular root-owned file with mode 0600. It checks that Node can parse the bundle. When the bundle changes, it keeps the replaced bundle and `SOURCE_SHA` as `*.prev`; a repeated install of the same build keeps the earlier `*.prev`. Then it installs the units, installs the key drop-in only when `agent-key.env` exists (and removes it when that file is missing, because the drop-in names the file without the `-` prefix and every start would fail), installs the chat route drop-in only when `alert.env` exists, then runs `systemctl daemon-reload` and `systemctl enable --now vertex-sector-rotation.timer`. It does not start a collection. To compare a checkout with the live bundle, run `--build-only` and compare `sha256sum` with `/opt/vertex-sector-rotation/vertex-sector-rotation-tick.mjs`.
 
-To remove the chat route: delete the drop-in and `alert.env`, then run `systemctl daemon-reload`.
+To remove the chat route: delete the drop-in and `alert.env`, then run `systemctl daemon-reload`. To go back to the Autopilot key: delete the drop-in `agent-key.conf` first, then `agent-key.env` (the other order fails a run that starts in between), then run `systemctl daemon-reload`.
 
-### Rig user units (not used)
+### Rig user units (retired)
 
-The user units `infra/sector-rotation/vertex-sector-rotation.{service,timer}` were the first plan for the rig. They are not installed or enabled anywhere. Do not enable them beside the QuantVPS timer: two schedulers would run the same collection. They run `bun run vertex:sector-rotation:tick` from a checkout at `~/Github/trading/vertex-research-public` with `~/.config/vertex/sector-rotation.env` (mode 0600, the same keys as above).
+The user units `infra/sector-rotation/vertex-sector-rotation.{service,timer}` were the first plan for the rig. They run `bun run vertex:sector-rotation:tick` from a checkout at `~/Github/trading/vertex-research-public` with `~/.config/vertex/sector-rotation.env` (mode 0600, the same keys as above). On the rig, a local drop-in (`runner.conf`, not in the repository) ran a wrapper from a separate runner checkout instead, which read the key from its own 0600 file. On 2026-11-05 (card vertex-sector-rotation-key) the rig timer was enabled with the collection's new key, beside the QuantVPS timer, so each slot ran the collection twice. That did no harm: the alert table keeps one row per `(symbol, quadrant, entered_on)`, so only the run that inserts the row returns and posts the alert. On 2026-11-10 (card vertex-sector-rotation-two-schedulers) the key moved to QuantVPS and the rig timer was disabled with `systemctl --user disable --now vertex-sector-rotation.timer`; the unit files stay installed on the rig. Do not enable them beside the QuantVPS timer.
 
 ## Rollback
 

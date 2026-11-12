@@ -35,6 +35,7 @@ describe("QuantVPS units", () => {
   const service = read("vertex-sector-rotation.service");
   const timer = read("vertex-sector-rotation.timer");
   const dropIn = read("vertex-sector-rotation.service.d/alert-route.conf");
+  const keyDropIn = read("vertex-sector-rotation.service.d/agent-key.conf");
 
   it("runs the installed bundle with the Autopilot Node", () => {
     expect(directives(service, "ExecStart")).toEqual([
@@ -55,7 +56,11 @@ describe("QuantVPS units", () => {
     expect(directives(dropIn, "EnvironmentFile")).toEqual([
       "/etc/vertex-sector-rotation/alert.env",
     ]);
-    for (const text of [service, timer, dropIn]) {
+    // A drop-in's EnvironmentFile is read after the unit's, so this key replaces the Autopilot key.
+    expect(directives(keyDropIn, "EnvironmentFile")).toEqual([
+      "/etc/vertex-sector-rotation/agent-key.env",
+    ]);
+    for (const text of [service, timer, dropIn, keyDropIn]) {
       expect(directives(text, "Environment")).toEqual([]);
     }
   });
@@ -97,9 +102,11 @@ describe("install.sh", () => {
     chmodSync(path, 0o755);
   };
 
-  // A fake QuantVPS root with the Autopilot Node and environment files.
+  // A fake QuantVPS root with the Autopilot Node and environment files. keyMode writes the key
+  // file with that mode; without it there is no key file.
   const fakeHost = (options: {
     alertEnv: boolean;
+    keyMode?: number;
     node: boolean;
   }): FakeHost => {
     const base = mkdtempSync(join(tmpdir(), "rrg-install-"));
@@ -110,6 +117,12 @@ describe("install.sh", () => {
     if (options.alertEnv) {
       mkdirSync(join(root, "etc/vertex-sector-rotation"), { recursive: true });
       writeFileSync(join(root, "etc/vertex-sector-rotation/alert.env"), "");
+    }
+    if (options.keyMode !== undefined) {
+      const keyEnv = join(root, "etc/vertex-sector-rotation/agent-key.env");
+      mkdirSync(join(root, "etc/vertex-sector-rotation"), { recursive: true });
+      writeFileSync(keyEnv, "");
+      chmodSync(keyEnv, options.keyMode);
     }
     if (options.node) {
       mkdirSync(join(root, "opt/vertex-autopilot/bin"), { recursive: true });
@@ -137,10 +150,10 @@ describe("install.sh", () => {
       },
     });
 
-  it("installs the bundle, the units and the chat route, then enables the timer", {
+  it("installs the bundle, the units, the key drop-in and the chat route, then enables the timer", {
     timeout: 60_000,
   }, () => {
-    const host = fakeHost({ alertEnv: true, node: true });
+    const host = fakeHost({ alertEnv: true, keyMode: 0o600, node: true });
     const first = install(host);
     expect(first.stderr).toBe("");
     expect(first.status).toBe(0);
@@ -155,15 +168,21 @@ describe("install.sh", () => {
     for (const name of [
       "vertex-sector-rotation.service",
       "vertex-sector-rotation.timer",
+      "vertex-sector-rotation.service.d/agent-key.conf",
       "vertex-sector-rotation.service.d/alert-route.conf",
     ]) {
       expect(readFileSync(join(units, name), "utf8")).toBe(read(name));
     }
-    expect(
-      statSync(
-        join(units, "vertex-sector-rotation.service.d/alert-route.conf")
-      ).mode.toString(8)
-    ).toMatch(/600$/u);
+    for (const [name, mode] of [
+      ["alert-route.conf", /600$/u],
+      ["agent-key.conf", /644$/u],
+    ] as const) {
+      expect(
+        statSync(
+          join(units, "vertex-sector-rotation.service.d", name)
+        ).mode.toString(8)
+      ).toMatch(mode);
+    }
     expect(readFileSync(host.calls, "utf8").trim().split("\n")).toEqual([
       "daemon-reload",
       "enable --now vertex-sector-rotation.timer",
@@ -187,18 +206,52 @@ describe("install.sh", () => {
     expect(readFileSync(join(app, "SOURCE_SHA.prev"), "utf8")).toBe("older\n");
   });
 
-  it("skips the chat route when the alert environment file is missing", {
+  it("skips both drop-ins when their environment files are missing", {
     timeout: 60_000,
   }, () => {
     const host = fakeHost({ alertEnv: false, node: true });
     const result = install(host);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("chat alert route not installed");
+    expect(result.stdout).toContain("the service uses the Autopilot key");
     expect(
       existsSync(
         join(host.root, "etc/systemd/system/vertex-sector-rotation.service.d")
       )
     ).toBe(false);
+  });
+
+  it("removes the key drop-in when the key file is gone", {
+    timeout: 60_000,
+  }, () => {
+    const host = fakeHost({ alertEnv: true, keyMode: 0o600, node: true });
+    const dropIns = join(
+      host.root,
+      "etc/systemd/system/vertex-sector-rotation.service.d"
+    );
+    expect(install(host).status).toBe(0);
+    expect(existsSync(join(dropIns, "agent-key.conf"))).toBe(true);
+    rmSync(join(host.root, "etc/vertex-sector-rotation/agent-key.env"));
+    const again = install(host);
+    expect(again.status).toBe(0);
+    expect(again.stdout).toContain("the service uses the Autopilot key");
+    expect(existsSync(join(dropIns, "agent-key.conf"))).toBe(false);
+    expect(existsSync(join(dropIns, "alert-route.conf"))).toBe(true);
+  });
+
+  it("stops before any change when the key file is readable by others", {
+    timeout: 60_000,
+  }, () => {
+    const host = fakeHost({ alertEnv: true, keyMode: 0o644, node: true });
+    const result = install(host);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "agent-key.env must be a regular file with mode 0600"
+    );
+    expect(existsSync(join(host.root, "opt/vertex-sector-rotation"))).toBe(
+      false
+    );
+    expect(existsSync(host.calls)).toBe(false);
   });
 
   it("stops before any change when the Autopilot Node is missing", {
