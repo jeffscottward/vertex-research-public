@@ -1,8 +1,10 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -58,7 +60,7 @@ const home = (setup: Home = {}): string => {
     mkdirSync(bin, { recursive: true });
     writeFileSync(
       join(bin, "bun"),
-      '#!/usr/bin/env bash\necho collect >> "$HOME/order.log"\necho "args:$* key:$VERTEX_AGENT_API_KEY data:${GOLIVE_DATA_DIR#"$HOME"/} chains:${GOLIVE_CHAIN_STORE#"$HOME"/} python:${GOLIVE_PYTHON#"$HOME"/} cwd:${PWD#"$HOME"/}"\n'
+      '#!/usr/bin/env bash\necho collect >> "$HOME/order.log"\ngrep SigIgn "/proc/$$/status" > "$HOME/collect-signals.log"\nls -d "$GOLIVE_DATA_DIR".refresh.* >> "$HOME/work-at-collect.log" 2>/dev/null\necho "args:$* key:$VERTEX_AGENT_API_KEY data:${GOLIVE_DATA_DIR#"$HOME"/} chains:${GOLIVE_CHAIN_STORE#"$HOME"/} python:${GOLIVE_PYTHON#"$HOME"/} cwd:${PWD#"$HOME"/}"\n'
     );
     chmodSync(join(bin, "bun"), 0o755);
   }
@@ -107,10 +109,40 @@ const runWrapper = (
 
 const log = (root: string, name: string): string =>
   readFileSync(join(root, name), "utf8");
-const DATA = "Documents/reports/vertex-qc-ports/data";
+const DATA = ".local/share/vertex/golive-data";
 const COLLECT_LINE = `args:run vertex:golive:collect key:${KEY} data:${DATA} chains:.local/share/vertex/option-chain python:.local/share/vertex/nautilus-venv/bin/python cwd:runner`;
 const FETCH =
   "run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 python research/backtests/qc-ports/fetch_data.py";
+
+/** The New York calendar date `offset` days from today, YYYY-MM-DD. */
+const nyDay = (offset = 0): string => {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+  }).format(new Date());
+  const day = new Date(`${today}T12:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + offset);
+  return day.toISOString().slice(0, 10);
+};
+/** Runs `run` again when New York midnight passed during it, so `today` is the wrapper's day too. */
+const onOneNewYorkDay = <T>(run: (today: string) => T): T => {
+  for (;;) {
+    const today = nyDay();
+    const result = run(today);
+    if (nyDay() === today) {
+      return result;
+    }
+  }
+};
+/** The work directories of the refresh that exist beside the data directory `data` of `root`. */
+const workDirectories = (root: string, data = DATA): string[] => {
+  const parent = join(root, data, "..");
+  const prefix = `${data.split("/").at(-1)}.refresh.`;
+  return existsSync(parent)
+    ? readdirSync(parent).filter((name) => name.startsWith(prefix))
+    : [];
+};
+const endOf = (root: string): string =>
+  log(root, "uv-args.log").trim().split(" --end ")[1] ?? "";
 
 describe("vertex-golive-drafts units", () => {
   it("the timer runs before the open and after each chain snapshot, on weekdays in New York time", () => {
@@ -185,43 +217,185 @@ describe("vertex-golive-drafts units", () => {
     expect(
       Number(values(service, "TimeoutStartSec")[0])
     ).toBeGreaterThanOrEqual(910);
+    const wrapper = read("vertex-golive-drafts-run");
+    expect(wrapper).toContain(
+      'REFRESH_TIMEOUT="${GOLIVE_REFRESH_TIMEOUT:-600}"'
+    );
+    expect(wrapper).toContain('timeout -k 10 "$REFRESH_TIMEOUT"');
+  });
+
+  it("the wrapper refreshes the data through uv before the collect, and the work directory is gone before the collect", () => {
+    onOneNewYorkDay((today) => {
+      const root = home();
+      const result = runWrapper(root);
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
+      expect(log(root, "order.log")).toBe("refresh\ncollect\n");
+      const args = log(root, "uv-args.log").trim();
+      const shape = new RegExp(
+        `^${FETCH.replaceAll(".", "\\.")} --out ${root}/${DATA}\\.refresh\\.[A-Za-z0-9]{6} --end (\\d{4}-\\d{2}-\\d{2})$`
+      );
+      expect(args).toMatch(shape);
+      // --end is exclusive: the fetch ends on the last session before today in New York.
+      expect([today, nyDay()]).toContain(shape.exec(args)?.[1]);
+      // The fetched file moved into the data directory. The script ends in exec, where no EXIT
+      // trap runs, so the work directory must be gone when the collect starts.
+      expect(log(root, `${DATA}/SPY.csv`)).toBe("fresh\n");
+      expect(log(root, "work-at-collect.log")).toBe("");
+      expect(workDirectories(root)).toEqual([]);
+    });
+  });
+
+  it.each([
+    ["today", 0],
+    ["tomorrow", 1],
+    ["a far day", 400],
+  ] as const)(
+    "--trading-day %s refreshes with --end today in New York: the bar of today is never fetched",
+    (_name, offset) => {
+      onOneNewYorkDay((today) => {
+        const root = home();
+        const result = runWrapper(root, {}, ["--trading-day", nyDay(offset)]);
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe("");
+        if (nyDay() === today) {
+          expect(endOf(root)).toBe(today);
+          expect(log(root, "order.log")).toBe("refresh\ncollect\n");
+        }
+      });
+    }
+  );
+
+  it.each([
+    ["--trading-day <day>", (day: string) => ["--trading-day", day]],
+    ["--trading-day=<day>", (day: string) => [`--trading-day=${day}`]],
+  ] as const)(
+    "a past trading day (%s) does not refresh: the fetch would cut the data back; the collect runs",
+    (_name, args) => {
+      onOneNewYorkDay((today) => {
+        const root = home();
+        mkdirSync(join(root, DATA), { recursive: true });
+        writeFileSync(join(root, DATA, "SPY.csv"), "old\n");
+        const past = nyDay(-1);
+        const result = runWrapper(root, {}, args(past));
+        expect(result.status).toBe(0);
+        if (nyDay() === today) {
+          expect(result.stderr).toBe(
+            `vertex-golive-drafts-run: the data refresh is skipped for a past trading day (${past} is before ${today}, today in New York): a fetch that ends there would cut ${root}/${DATA} back to that day; the collect runs on the data that is there\n`
+          );
+        }
+        expect(existsSync(join(root, "uv-args.log"))).toBe(false);
+        expect(log(root, "order.log")).toBe("collect\n");
+        expect(log(root, `${DATA}/SPY.csv`)).toBe("old\n");
+        expect(workDirectories(root)).toEqual([]);
+        expect(result.stdout).toContain(
+          `args:run vertex:golive:collect ${args(past).join(" ")} key:`
+        );
+      });
+    }
+  );
+
+  it("the refresh reads today's date in New York time and reports a date it cannot trust", () => {
     expect(read("vertex-golive-drafts-run")).toContain(
-      'timeout -k 10 "${GOLIVE_REFRESH_TIMEOUT:-600}"'
+      "TZ=America/New_York date '+%F %Z'"
     );
-  });
-
-  it("the wrapper refreshes the data through uv before the collect, ending before the trading day", () => {
+    // Without the zone data `date` answers in UTC, which is a day ahead in the New York evening.
+    // The fake date is found first: the wrapper's PATH starts with the bun directory.
     const root = home();
-    const result = runWrapper(root, {}, ["--trading-day", "2026-12-01"]);
-    expect(result.stderr).toBe("");
+    const fake = join(root, ".local/share/mise/installs/bun/9.8.7/bin/date");
+    writeFileSync(fake, "#!/bin/bash\necho '2026-12-01 America'\n");
+    chmodSync(fake, 0o755);
+    const result = runWrapper(root);
     expect(result.status).toBe(0);
-    expect(log(root, "order.log")).toBe("refresh\ncollect\n");
-    const args = log(root, "uv-args.log").trim();
-    expect(args).toMatch(
-      new RegExp(
-        `^${FETCH.replaceAll(".", "\\.")} --out ${root}/${DATA}\\.refresh\\.[A-Za-z0-9]{6} --end 2026-12-01$`
-      )
+    expect(result.stderr).toBe(
+      `vertex-golive-drafts-run: the data refresh failed: today's date in New York could not be read (date answered '2026-12-01 America'); ${root}/${DATA} is unchanged and the collect runs on it\n`
     );
-    // The fetched file moved into the data directory and the work directory is gone.
-    expect(log(root, `${DATA}/SPY.csv`)).toBe("fresh\n");
-    const work = spawnSync("bash", [
-      "-c",
-      `ls -d ${root}/Documents/reports/vertex-qc-ports/data.refresh.* 2>/dev/null`,
-    ]);
-    expect(work.stdout.toString()).toBe("");
+    expect(log(root, "order.log")).toBe("collect\n");
   });
 
-  it("the refresh ends today in New York when no trading day is given", () => {
+  it("a move of the fetched files that fails midway is reported as a possible mix, not as unchanged, and the collect runs", () => {
+    // QQQ.csv is a directory in the data directory, so mv moves SPY.csv and fails on QQQ.csv.
+    const root = home({
+      uv: 'out="${@: -3:1}"; echo new > "$out/SPY.csv"; echo new > "$out/QQQ.csv"',
+    });
+    mkdirSync(join(root, DATA, "QQQ.csv"), { recursive: true });
+    writeFileSync(join(root, DATA, "SPY.csv"), "old\n");
+    const result = runWrapper(root);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain(
+      `vertex-golive-drafts-run: the data refresh fetched the files and the move into ${root}/${DATA} failed (exit 1); the directory may hold a mix of old and new files and the collect runs on it (the generator refuses the day when a series it reads has no value of the last data day)\n`
+    );
+    expect(result.stderr).not.toContain("unchanged");
+    expect(log(root, `${DATA}/SPY.csv`)).toBe("new\n");
+    expect(log(root, "order.log")).toBe("refresh\ncollect\n");
+    expect(log(root, "work-at-collect.log")).toBe("");
+    expect(workDirectories(root)).toEqual([]);
+    expect(result.stdout.trim()).toBe(COLLECT_LINE);
+  });
+
+  it.each([
+    ["SIGTERM", 143],
+    ["SIGINT", 130],
+    ["SIGHUP", 129],
+  ] as const)(
+    "%s during the fetch stops the fetch, removes the work directory and runs no collect",
+    async (signal, code) => {
+      const root = home({
+        uv: 'echo $$ > "$HOME/uv.pid"; exec sleep 30',
+      });
+      const child = spawn("bash", [WRAPPER], {
+        env: {
+          GOLIVE_RUNNER_DIR: join(root, "runner"),
+          HOME: root,
+          VERTEX_ORIGIN: "https://v",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stderr = "";
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      const exited = new Promise<number | null>((resolve) => {
+        child.on("exit", (status) => resolve(status));
+      });
+      for (let tries = 0; !existsSync(join(root, "uv.pid")); tries += 1) {
+        expect(tries).toBeLessThan(200);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(workDirectories(root)).toHaveLength(1);
+      child.kill(signal);
+      expect(await exited).toBe(code);
+      expect(workDirectories(root)).toEqual([]);
+      expect(stderr).toBe(
+        `vertex-golive-drafts-run: stopped by ${signal} before the collect; nothing was posted\n`
+      );
+      expect(log(root, "order.log")).toBe("refresh\n");
+      // The fetch itself is gone: its process no longer exists.
+      const pid = Number(log(root, "uv.pid"));
+      expect(() => process.kill(pid, 0)).toThrow();
+    }
+  );
+
+  it("the collect starts with the signal handling of the caller: the traps of the refresh end before the exec", () => {
+    // The fake bun records the signals it ignores (SigIgn of /proc). Run by itself it gives the
+    // value of a script that inherited nothing; run by the wrapper it must give the same.
     const root = home();
+    spawnSync(join(root, ".local/share/mise/installs/bun/9.8.7/bin/bun"), [], {
+      env: {
+        GOLIVE_DATA_DIR: join(root, DATA),
+        HOME: root,
+        PATH: "/usr/bin:/bin",
+      },
+    });
+    const alone = log(root, "collect-signals.log");
+    expect(alone).toMatch(/^SigIgn:\s+[0-9a-f]{16}\n$/u);
+    rmSync(join(root, "collect-signals.log"));
     runWrapper(root);
-    const today = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/New_York",
-    }).format(new Date());
-    const end = log(root, "uv-args.log").trim().split(" --end ")[1] ?? "";
-    // A run across New York midnight may see the day after.
-    const next = new Date(`${today}T12:00:00Z`);
-    next.setUTCDate(next.getUTCDate() + 1);
-    expect([today, next.toISOString().slice(0, 10)]).toContain(end);
+    expect(log(root, "collect-signals.log")).toBe(alone);
+    const script = read("vertex-golive-drafts-run");
+    expect(script.indexOf("trap - EXIT INT TERM HUP")).toBeGreaterThan(
+      script.indexOf('refresh_data "$today"')
+    );
   });
 
   it("the refresh gets HOME and PATH only: no write key, also when the caller's environment has one", () => {
@@ -247,9 +421,9 @@ describe("vertex-golive-drafts units", () => {
     expect(result.stdout.trim()).toBe(COLLECT_LINE);
     // The key is read after the refresh, and the fetch starts from an empty environment.
     const script = read("vertex-golive-drafts-run");
-    expect(script.indexOf('refresh_data "$@"')).toBeLessThan(
-      script.indexOf('VERTEX_AGENT_API_KEY="$(')
-    );
+    const refresh = script.indexOf('refresh_data "$today"');
+    expect(refresh).toBeGreaterThan(0);
+    expect(refresh).toBeLessThan(script.indexOf('VERTEX_AGENT_API_KEY="$('));
     expect(script).toContain('env -i "${settings[@]}" timeout');
   });
 
@@ -315,6 +489,19 @@ describe("vertex-golive-drafts units", () => {
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe(COLLECT_LINE);
+  });
+
+  it("the default data directory is the generator's own copy, never the shared research dataset", () => {
+    // The refresh replaces files in the data directory. The shared qc-ports dataset pins the
+    // inputs of other backtests (SOURCES.json, SHA256SUMS), so it must not be the default.
+    const wrapper = read("vertex-golive-drafts-run");
+    expect(wrapper).toContain(
+      'export GOLIVE_DATA_DIR="${GOLIVE_DATA_DIR:-$HOME/.local/share/vertex/golive-data}"'
+    );
+    expect(wrapper).not.toMatch(
+      /:-\$HOME\/Documents\/reports\/vertex-qc-ports/u
+    );
+    expect(COLLECT_LINE).toContain("data:.local/share/vertex/golive-data ");
   });
 
   it("the wrapper passes its arguments on and takes the directories, the Python and the key file from the environment", () => {
@@ -383,15 +570,66 @@ describe("vertex-golive-drafts units", () => {
       {},
       "must have mode 0600",
     ],
+    // A relative path would be the runner checkout for the refresh and services/research for
+    // the generator: two different directories.
+    [
+      "GOLIVE_DATA_DIR is relative",
+      {},
+      { GOLIVE_DATA_DIR: "data" },
+      "GOLIVE_DATA_DIR must be an absolute path below /, not 'data'",
+    ],
+    [
+      "GOLIVE_DATA_DIR is /",
+      {},
+      { GOLIVE_DATA_DIR: "/" },
+      "GOLIVE_DATA_DIR must be an absolute path below /, not '/'",
+    ],
+    [
+      "GOLIVE_CHAIN_STORE is relative",
+      {},
+      { GOLIVE_CHAIN_STORE: "./chains" },
+      "GOLIVE_CHAIN_STORE must be an absolute path below /, not './chains'",
+    ],
+    // The unit allows 1200 s for the refresh and the collect (TimeoutStartSec).
+    [
+      "GOLIVE_REFRESH_TIMEOUT is above 600",
+      {},
+      { GOLIVE_REFRESH_TIMEOUT: "601" },
+      "GOLIVE_REFRESH_TIMEOUT must be a whole number of seconds from 1 to 600, not '601'",
+    ],
+    [
+      "GOLIVE_REFRESH_TIMEOUT is 0 (no timeout)",
+      {},
+      { GOLIVE_REFRESH_TIMEOUT: "0" },
+      "GOLIVE_REFRESH_TIMEOUT must be a whole number of seconds from 1 to 600, not '0'",
+    ],
+    [
+      "GOLIVE_REFRESH_TIMEOUT has a unit",
+      {},
+      { GOLIVE_REFRESH_TIMEOUT: "20m" },
+      "GOLIVE_REFRESH_TIMEOUT must be a whole number of seconds from 1 to 600, not '20m'",
+    ],
   ] as const)(
     "the wrapper runs nothing and exits 64 when %s, without printing the key",
     (_name, setup, env, message) => {
-      const result = runWrapper(home(setup), env);
+      const root = home(setup);
+      const result = runWrapper(root, env);
       expect(result.status).toBe(64);
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain(message);
       expect(result.stderr).toContain("nothing was run");
       expect(result.stderr).not.toContain(KEY);
+      // No refresh and no collect, and nothing written in the runner checkout.
+      expect(existsSync(join(root, "order.log"))).toBe(false);
+      expect(readdirSync(join(root, "runner"))).toEqual([".bun-version"]);
     }
   );
+
+  it("a GOLIVE_REFRESH_TIMEOUT of 600 is accepted", () => {
+    const root = home();
+    const result = runWrapper(root, { GOLIVE_REFRESH_TIMEOUT: "600" });
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    expect(log(root, "order.log")).toBe("refresh\ncollect\n");
+  });
 });

@@ -41,6 +41,16 @@ const proseLines = (markdown: string): string[] => {
   return lines;
 };
 
+/** Drops HTML tags, repeated until none is left (`<<b>i>` leaves no tag). */
+const withoutTags = (text: string): string => {
+  let current = text;
+  for (;;) {
+    const next = current.replace(/<[^>]+>/gu, "");
+    if (next === current) return current;
+    current = next;
+  }
+};
+
 /**
  * GitHub heading anchors: inline Markdown and HTML tags dropped, lower case,
  * punctuation removed, spaces to dashes, `-1`, `-2` for repeated headings.
@@ -51,9 +61,7 @@ const headingAnchors = (markdown: string): ReadonlySet<string> => {
   for (const line of proseLines(markdown)) {
     const heading = /^#{1,6}\s+(.+?)(?:\s+#+)?\s*$/u.exec(line)?.[1];
     if (heading === undefined) continue;
-    const slug = heading
-      .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
-      .replace(/<[^>]+>/gu, "")
+    const slug = withoutTags(heading.replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1"))
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s_-]/gu, "")
       .replace(/\s/gu, "-");
