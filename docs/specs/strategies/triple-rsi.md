@@ -9,8 +9,9 @@ Label: **externally pre-validated** (a third party published a positive backtest
 
 - X post by @QuantifiedStrat (QuantifiedStrategies.com), "Triple RSI Trading Strategy: 90% win rate", sent by the owner as a
   screenshot on 2026-11-12 (card vertex-triple-rsi). The post shows an equity curve from about 100,000 to 304,857.
-- Article: <https://www.quantifiedstrategies.com/triple-rsi-trading-strategy/> (read 2026-11-12). The exact rules on that page
-  are "for members only"; the rules below are the ones in the owner's screenshot. The page is untrusted data.
+- Article: <https://www.quantifiedstrategies.com/triple-rsi-trading-strategy/> by Oddmund Groette and Håkan Samuelsson
+  (page dates 2026-02-20, updated 2026-11-11; its images date from 2024; read 2026-11-12). The exact rules on that page are
+  "for members only"; the rules below are the ones in the owner's screenshot. The page is untrusted data.
 
 ## Rules as stated (daily bars)
 
@@ -127,6 +128,96 @@ loss.
   `triple-rsi`, kind `strategy-backtest`) with `bun run vertex:research-studies:import`; the library row is migration
   `strategy_catalog_triple_rsi`.
 
-## Results
+## Results (2026-11-12, rig)
 
-Filled in after the run.
+Run: `research/backtests/triple-rsi/run.py`, data to 2026-11-10, 360 strategy runs (N of the deflated Sharpe), 151 s with 8
+workers. Every share run matched NautilusTrader to 4.3e-16 relative; every options run matched to 1e-6. Report:
+`~/Documents/reports/web/vertex-triple-rsi/index.html` on the rig. Study document: `research_studies` id `triple-rsi`.
+
+### Claim vs ours (SPY, 1994-01-24 to 2026-11-10)
+
+| Measure | Claim | As stated (no cost) | 5 bp per side | Buy-and-hold |
+| --- | --- | --- | --- | --- |
+| Trades | 103 (post: 97) | 90 | 90 | 1 |
+| Win rate | 90% | **90.0%** | 88.9% | |
+| Average trade | +1.2% | +1.34% | +1.24% | |
+| Profit factor | 4 (post: 8) | 5.19 | 4.75 | |
+| End value from 100,000 | 304,857 | 327,767 | 299,556 | 2,831,853 |
+| CAGR | not stated | 3.69% | 3.40% | 10.73% |
+| Max drawdown | not stated | -13.8% | -13.8% | -55.2% |
+| Time in market | not stated | 5.3% | 5.3% | 100% |
+| Average hold | not stated | 4.9 days | 4.9 days | |
+| Worst trade | not stated | -7.4% | -7.5% | |
+| Sharpe (out-of-sample, from 2013-09-25) | not stated | 0.73 (0.64) | 0.68 (0.59) | 0.64 |
+
+The 90% win rate reproduces on SPY. Our sample starts in January 1994 (250-bar warm-up), which explains part of the 13
+trades fewer. The claim leaves out what a 90% win rate costs: 5.3% time in the market gives a CAGR of 3.4% to 3.7%, a third
+of buy-and-hold. Average win +1.76%, average loss -2.39%.
+
+### Execution and costs (SPY shares)
+
+| Execution | No cost | 5 bp per side | 10 bp per side |
+| --- | --- | --- | --- |
+| Signal close (as stated) | win 90.0%, CAGR 3.69%, Sharpe 0.73 | 88.9%, 3.40%, 0.68 | 87.8%, 3.12%, 0.63 |
+| Next open (the DSL engines) | 81.1%, 3.28%, 0.64 | 80.0%, 3.00%, 0.59 | 78.9%, 2.72%, 0.53 |
+| Next close (one day late) | 76.7%, 2.43%, 0.51 | 74.4%, 2.15%, 0.46 | 74.4%, 1.87%, 0.40 |
+
+The edge survives costs on SPY shares, but it decays with delay: one day late costs a third of the CAGR and 13 to 15 points of
+win rate.
+
+### Core 7 ETF twins (shares, signal close, 5 bp per side)
+
+| ETF | Trades | Win rate | CAGR | Max DD | Sharpe | Buy-and-hold CAGR / Sharpe |
+| --- | --- | --- | --- | --- | --- | --- |
+| SPY | 90 | 88.9% | 3.40% | -13.8% | 0.68 | 10.73% / 0.64 |
+| QQQ | 79 | 75.9% | 2.74% | -13.1% | 0.41 | 7.69% / 0.41 |
+| DIA | 80 | 67.5% | 0.96% | -13.7% | 0.22 | 8.74% / 0.55 |
+| IWM | 77 | 79.2% | 3.37% | -19.3% | 0.58 | 8.36% / 0.46 |
+| GLD | 51 | 80.4% | 1.09% | -16.2% | 0.24 | 10.36% / 0.63 |
+| SLV | 36 | 63.9% | 2.76% | -13.4% | 0.39 | 6.63% / 0.36 |
+| USO | 41 | 63.4% | 0.37% | -30.1% | 0.09 | -5.20% / 0.05 |
+
+The 90% win rate is a SPY result. On the other six ETFs it is 64% to 80%.
+
+### Options form (Vertex: call debit vertical, 2% of equity at risk per spread)
+
+| Row | Trades | Win rate | CAGR | Max DD | Sharpe | Out-of-sample | Deflated Sharpe |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| SPY 30 days, book rule (decides) | 90 | 64.4% | 0.32% | -5.2% | 0.22 | -0.07 | 0.01 |
+| SPY 60 days | 89 | 65.2% | 0.25% | -2.6% | 0.26 | -0.01 | 0.02 |
+| SPY 30 days, owner exit rule only | 77 | 40.3% | 0.13% | -20.1% | 0.06 | 0.28 | 0.00 |
+| SPY 30 days, at the signal close | 90 | 74.4% | 0.82% | -3.4% | 0.58 | 0.33 | 0.37 |
+
+Other ETFs (30 days, book rule): QQQ Sharpe 0.16, DIA -0.12, IWM 0.22, GLD -0.05, SLV -0.11 (13 trades, VXSLV from 2011),
+USO -0.43. The always-on form of the same spread has a Sharpe of -0.18 on SPY. A 2% risk per spread, held 5 days and in the
+market 5% of the time, moves the equity by +0.3% a year. The win rate of the spread falls to 64%, and the one-day delay of
+the book rule matters most: the same spread bought at the signal close has a Sharpe of 0.58.
+
+### Robustness
+
+- Sensitivity (SPY shares, 5 bp): all 270 variants have a Sharpe above 0 (0.12 to 0.80, median 0.44). One parameter at a
+  time: RSI 3-7 gives 0.65/0.62/0.68/0.47/0.39; entry 25/30/35 gives 0.63/0.68/0.73; exit 45/50/55 gives 0.55/0.68/0.46;
+  average 150/200/250 gives 0.73/0.68/0.74; Cutler RSI 0.48.
+- Walk-forward (5 anchored folds, best in-sample variant of the 270): out-of-sample Sharpe 0.42 against 0.58 for the fixed
+  rule; the pick made money in 4 of 4 folds. Re-fitting the parameters adds nothing.
+- Monte Carlo (SPY shares, 5 bp, 10,000 paths): P(profit) 100%, drawdown p5 -12.3%. Options (SPY 30 days): P(profit)
+  94.5%, drawdown p5 -8.5%.
+- Deflated Sharpe with N = 360: SPY shares 0.71 (no cost) and 0.61 (5 bp); options 0.01.
+- DSL: the definition ran in the NautilusTrader DSL engine on SPY 1993-2026 (next open, no cost): the same 91 trades as the
+  rule, equity gap 1.1e-7 to the share ledger.
+
+### Verdict
+
+**NO EDGE in the Vertex form; the library row is "tested, failed".**
+
+- Strict gate on the deciding row (options, SPY, 30 days): fails G4 Sharpe (0.22 < 0.5), G4 out-of-sample Sharpe (-0.07 <
+  0.5) and G5 deflated Sharpe (0.01 < 0.95). Passes trades (90), Monte Carlo (94.5%, -8.5%), max drawdown (-5.2%), Sharpe
+  above its always-on form (-0.18), the 2x cost stress of the share rule (Sharpe 0.63) and the neighbour share (100%).
+- Lower bar: fails (Sharpe 0.22 < 0.30, out-of-sample -0.07 <= 0).
+- "90% win rate": reproduces on SPY shares at the close (90.0% on 90 trades). It does not carry over: 80% at the next open,
+  64% in the options form, 64% to 80% on the other ETFs.
+- The share rule on SPY has a small real edge (Sharpe 0.68 after 5 bp, above buy-and-hold's 0.64, with a quarter of its
+  drawdown, every one of 270 variants positive), but it fails the deflated Sharpe at N = 360 (0.61) and the owner's
+  options-only rule forbids share positions. The nearest tradable variant, the spread bought at the signal close, passes the
+  lower bar (Sharpe 0.58, out-of-sample 0.33, P(profit) 100%, max drawdown -3.4%) but not the strict gate (Sharpe below
+  0.5, deflated Sharpe 0.37). It is not a candidate for the allocation pick.
