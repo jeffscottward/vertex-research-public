@@ -5,13 +5,18 @@
 # ~/.config/systemd/user/, copy vertex-golive-drafts-run to ~/.local/bin/ (mode 0755) and run
 # systemctl --user daemon-reload && systemctl --user enable --now vertex-golive-drafts.timer
 # Environment file (nonsecret values only): VERTEX_ORIGIN (required), GOLIVE_RUNNER_DIR,
-# GOLIVE_DATA_DIR (the qc-ports data directory; it must end on the trading day before the run, or the
-# run fails and names the last data day), GOLIVE_CHAIN_STORE, GOLIVE_PYTHON, GOLIVE_KEY_FILE (the
+# GOLIVE_DATA_DIR (the generator's own copy of the qc-ports daily data, default
+# ~/.local/share/vertex/golive-data, never the shared research dataset: the refresh replaces its files;
+# it must end on the trading day before the run, or the run fails and names the last data day), GOLIVE_CHAIN_STORE, GOLIVE_PYTHON, GOLIVE_KEY_FILE (the
 # operator write key file, mode 0600), GOLIVE_UV (the uv that runs the data refresh; default: the first
-# of ~/.local/bin/uv, ~/.cargo/bin/uv, the mise shim), GOLIVE_SKIP_REFRESH=1 (no data refresh).
+# of ~/.local/bin/uv, ~/.cargo/bin/uv, the mise shim), GOLIVE_SKIP_REFRESH=1 (no data refresh),
+# GOLIVE_REFRESH_TIMEOUT (seconds for the fetch, 1 to 600, default 600). GOLIVE_DATA_DIR and
+# GOLIVE_CHAIN_STORE must be absolute paths. The wrapper refuses a relative path and a timeout
+# outside 1 to 600 (exit 64, nothing run).
 # Before the collect the wrapper refreshes GOLIVE_DATA_DIR with research/backtests/qc-ports/fetch_data.py
-# (public market data, at most 600 s, without the write key). A failed refresh is reported in the
-# journal and the collect still runs on the data that is there.
+# (public market data, without the write key). The fetch always ends before today in New York: the
+# bar of today is never fetched. A run for a trading day before today does not refresh. A failed
+# refresh is reported in the journal and the collect still runs on the data that is there.
 # The wrapper changes to the runner checkout, so the unit sets no WorkingDirectory.
 [Unit]
 Description=Vertex go-live draft collection (records only, no orders)

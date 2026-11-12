@@ -213,7 +213,7 @@ No code reads option quotes from IBKR. The rig generator sends delayed indicativ
 
 The drafts of a day are computed on the rig and stored through `collect`. Three units in `infra/golive-drafts/` run the wrapper `vertex-golive-drafts-run` on weekdays at 07:15, 12:40 and 15:40 New York time.
 
-1. Data refresh. The wrapper fetches the daily data with `research/backtests/qc-ports/fetch_data.py` (public market data) into a work directory and moves the files in only after a complete fetch. The fetch runs without the write key, for at most 600 seconds. A failed refresh is reported and the collect still runs; the generator then decides on the data that is there. `GOLIVE_SKIP_REFRESH=1` skips the refresh.
+1. Data refresh. The wrapper fetches the daily data with `research/backtests/qc-ports/fetch_data.py` (public market data) into a work directory and moves the files into the data directory only after a complete fetch. The data directory is `GOLIVE_DATA_DIR`. Its default is the generator's own copy, `~/.local/share/vertex/golive-data`, not the shared research dataset, whose files pin the inputs of other backtests; do not point it there. The fetch runs without the write key, for at most 600 seconds. It always ends before today in New York, so today's unfinished bar is never fetched, and a run for a past trading day does not refresh. A failed refresh is reported and the collect still runs; the generator then decides on the data that is there. `GOLIVE_SKIP_REFRESH=1` skips the refresh.
 2. Generator (`python -m golive` in `services/research`). It runs the signal code of the backtest (`strategies.qc_ports` and `funded_pie.sleeve_definitions`) and prints one JSON document. It has no network access and gets no key.
 3. Collect (`scripts/golive/collect.ts`). It reads the plan in force, runs the generator, checks the document and posts it.
 
@@ -227,7 +227,8 @@ A chain snapshot gives a quote only when its New York fetch day is the last data
 
 The collect script posts nothing and ends with a non-zero exit in these cases:
 
-- `VERTEX_ORIGIN` is not `https:` (loopback hosts excepted, for tests), or a request is answered with a redirect. The key is never sent to a second host.
+- `VERTEX_ORIGIN` is not a plain `https:` origin: it has userinfo, a path, a query, or a host that the URL parser rewrites (`http:` is accepted only for a host written as `127.0.0.1`, `[::1]` or `localhost`, for tests). Or a request is answered with a redirect. The key is never sent to a second host, and it is replaced in every text the script prints before that text is cut.
+- The generator prints more than 5 MB on stdout or on stderr.
 - The generator exits non-zero, is killed, runs longer than 300 seconds, or writes to stderr together with an empty candidate list.
 - The document fails `GoLiveCollectInputSchema`, or a quote label is not `yahoo_delayed_snapshot`.
 - The answer of the server is not a `collect` answer (for example a 200 page of HTML). The message then says that the stored state is not known.
@@ -236,6 +237,9 @@ Limits:
 
 - A refused run stores nothing. The page then shows "the generator has not reported" for that day, the same as before the first run. The journal of `vertex-golive-drafts.service` on the rig says which it is.
 - One volatility index that stops being published refuses every run until the plan or the data changes. The backtest skipped such a symbol; the generator is stricter.
+- The generator checks the last data day only. A value missing on an older day (the signal day or the entry day of an open model position) is not noticed: the draft is then dropped or a strike moves, with exit 0.
+- Strikes are the listed strikes of the newest usable chain snapshot, and the model's strikes when no snapshot is usable, or when a leg has no listed strike within one step of the backtest's strike grid. On a chain listed in 5-dollar steps many model strikes are further away than that. The draft id holds the strikes, so two runs of one day can name different strikes; the earlier draft then expires and a new one appears. A draft with model strikes may name a contract that is not listed.
+- The chain store keeps expiries of 30 to 75 days. A held spread nearer to expiry has no chain and no quote.
 
 ## Seed script
 
