@@ -7,7 +7,11 @@
 # Environment file (nonsecret values only): VERTEX_ORIGIN (required), GOLIVE_RUNNER_DIR,
 # GOLIVE_DATA_DIR (the qc-ports data directory; it must end on the trading day before the run, or the
 # run fails and names the last data day), GOLIVE_CHAIN_STORE, GOLIVE_PYTHON, GOLIVE_KEY_FILE (the
-# operator write key file, mode 0600).
+# operator write key file, mode 0600), GOLIVE_UV (the uv that runs the data refresh; default: the first
+# of ~/.local/bin/uv, ~/.cargo/bin/uv, the mise shim), GOLIVE_SKIP_REFRESH=1 (no data refresh).
+# Before the collect the wrapper refreshes GOLIVE_DATA_DIR with research/backtests/qc-ports/fetch_data.py
+# (public market data, at most 600 s, without the write key). A failed refresh is reported in the
+# journal and the collect still runs on the data that is there.
 # The wrapper changes to the runner checkout, so the unit sets no WorkingDirectory.
 [Unit]
 Description=Vertex go-live draft collection (records only, no orders)
@@ -17,5 +21,6 @@ After=network-online.target
 Type=oneshot
 EnvironmentFile=-%h/.config/vertex/golive-drafts.env
 ExecStart=%h/.local/bin/vertex-golive-drafts-run
-TimeoutStartSec=300
+# The data refresh is bounded at 600 s (plus 10 s to kill it) inside the wrapper; the collect follows.
+TimeoutStartSec=1200
 NoNewPrivileges=yes

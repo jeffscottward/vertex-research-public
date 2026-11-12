@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Runs one go-live draft collection from the runner checkout. RECORDS ONLY: it reads the allocation
+# Runs one go-live draft collection from the runner checkout. RECORDS ONLY: it refreshes the local
+# daily data (public market data, research/backtests/qc-ports/fetch_data.py), reads the allocation
 # plan from Vertex, computes draft candidates from local research files (qc-ports data, option-chain
 # snapshots) and stores them in Vertex. No order, no broker call. The operator write key is read
 # from its 0600 file and is never printed. The generator (python -m golive) does not get the key:
-# scripts/golive/collect.ts starts it with HOME and PATH only.
+# scripts/golive/collect.ts starts it with HOME and PATH only. The data refresh does not get it
+# either: it runs before the key is read, in an environment built from nothing (env -i).
 set -euo pipefail
 cd "${GOLIVE_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-ticks-runner}"
 # The bun version is the pin of the runner checkout (.bun-version), installed by mise.
@@ -30,6 +32,76 @@ if [[ "$(stat -c %a "$KEYF")" != "600" ]]; then
 fi
 export GOLIVE_DATA_DIR="${GOLIVE_DATA_DIR:-$HOME/Documents/reports/vertex-qc-ports/data}"
 export GOLIVE_CHAIN_STORE="${GOLIVE_CHAIN_STORE:-$HOME/.local/share/vertex/option-chain}"
+
+# The data refresh. The generator needs daily data that ends on the trading day before the run and
+# refuses any other end, so the fetch ends before the trading day (--end is exclusive): the day of
+# --trading-day when given, else today in New York. It writes to a work directory beside the data
+# and the files move in only after a complete fetch, so a failed or timed-out refresh leaves the
+# old data as it was. A failure is reported and the collect still runs: the generator decides.
+refresh_end() {
+  local day="" previous=""
+  for argument in "$@"; do
+    if [[ "$previous" == "--trading-day" ]]; then day="$argument"; fi
+    if [[ "$argument" == --trading-day=* ]]; then day="${argument#--trading-day=}"; fi
+    previous="$argument"
+  done
+  if [[ "$day" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    printf '%s\n' "$day"
+  else
+    TZ=America/New_York date +%F
+  fi
+}
+find_uv() {
+  local candidate
+  for candidate in "${GOLIVE_UV:-}" "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "$HOME/.local/share/mise/shims/uv"; do
+    if [[ -n "$candidate" && -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+# Runs the fetch into the work directory $1 with the end date $2. Its environment holds HOME, PATH
+# and the two optional settings of the IBKR history source; nothing else of this shell reaches it.
+# Its stdout (one line per file) goes to stderr: the stdout of this script is the collect's.
+run_fetch() {
+  local uv
+  uv="$(find_uv)" || {
+    echo "vertex-golive-drafts-run: no uv found; set GOLIVE_UV" >&2
+    return 127
+  }
+  local -a settings=("HOME=$HOME" "PATH=$(dirname "$uv"):$PATH")
+  if [[ -n "${VERTEX_HISTORY_URL:-}" && -n "${VERTEX_DEPLOY_STATUS_TOKEN:-}" ]]; then
+    settings+=("VERTEX_HISTORY_URL=$VERTEX_HISTORY_URL" "VERTEX_DEPLOY_STATUS_TOKEN=$VERTEX_DEPLOY_STATUS_TOKEN")
+  fi
+  env -i "${settings[@]}" timeout -k 10 "${GOLIVE_REFRESH_TIMEOUT:-600}" \
+    "$uv" run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 \
+    python research/backtests/qc-ports/fetch_data.py --out "$1" --end "$2" >&2
+}
+refresh_data() {
+  local end work status=0
+  end="$(refresh_end "$@")" || return 1
+  mkdir -p "$GOLIVE_DATA_DIR" || return 1
+  work="$(mktemp -d "${GOLIVE_DATA_DIR%/}.refresh.XXXXXX")" || return 1
+  run_fetch "$work" "$end" || status=$?
+  if [[ "$status" -eq 0 ]]; then
+    find "$work" -maxdepth 1 -type f -exec mv -f -t "$GOLIVE_DATA_DIR" {} + || status=$?
+  fi
+  rm -rf "$work"
+  return "$status"
+}
+if [[ "${GOLIVE_SKIP_REFRESH:-}" == "1" ]]; then
+  echo "vertex-golive-drafts-run: data refresh skipped (GOLIVE_SKIP_REFRESH=1)" >&2
+else
+  refresh_status=0
+  refresh_data "$@" || refresh_status=$?
+  if [[ "$refresh_status" -eq 124 || "$refresh_status" -eq 137 ]]; then
+    echo "vertex-golive-drafts-run: the data refresh timed out after ${GOLIVE_REFRESH_TIMEOUT:-600} s; $GOLIVE_DATA_DIR is unchanged and the collect runs on it" >&2
+  elif [[ "$refresh_status" -ne 0 ]]; then
+    echo "vertex-golive-drafts-run: the data refresh failed (exit $refresh_status); $GOLIVE_DATA_DIR is unchanged and the collect runs on it" >&2
+  fi
+fi
+
 VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
 export VERTEX_AGENT_API_KEY
 exec "$BUN/bun" run vertex:golive:collect "$@"
