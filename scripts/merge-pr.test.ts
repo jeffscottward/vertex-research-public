@@ -33,12 +33,15 @@ const API = "repos/owner/vertex-research-public";
 
 // Stands in for the GitHub CLI, keyed on the exact calls scripts/merge-pr makes for
 // PR 9. Commit reads are keyed by SHA, so a check run only exists for the commit
-// a test gives it.
+// a test gives it. Check-run and status answers are raw API JSON filtered through
+// the script's own --jq expression with the system jq, as gh does.
 const fakeGh = [
   "#!/usr/bin/env bash",
+  "set -o pipefail",
   'echo "gh $*" >>"$CALL_LOG"',
   responder,
   'sha() { local rest=${1#*/commits/}; echo "${rest%%/*}"; }',
+  'filter() { local args=("$@") i; for ((i = 0; i < ${#args[@]}; i++)); do [[ "${args[i]}" == --jq ]] && echo "${args[i + 1]}"; done; }',
   'case "$*" in',
   '  "repo view --json nameWithOwner "*) respond repo ;;',
   '  "pr view 9 --json state,isDraft,baseRefName,headRefOid,mergeStateStatus "*) respond view ;;',
@@ -47,9 +50,9 @@ const fakeGh = [
   `  "api ${API}/rules/branches/base%2Fmain "*) respond rules empty ;;`,
   `  "api ${API}/git/ref/heads/base/main "*) respond ref ;;`,
   `  "api ${API}/compare/"*) respond compare ;;`,
-  `  "api -X GET ${API}/commits/"*"/check-runs "*) respond "runs-$(sha "$4")" empty ;;`,
-  `  "api ${API}/commits/"*"/status "*) respond "status-$(sha "$2")" empty ;;`,
-  `  "api ${API}/commits/"*" --jq [.parents"*) respond "parents-$(sha "$2")" ;;`,
+  `  "api -X GET ${API}/commits/"*"/check-runs "*) respond "runs-$(sha "$4")" | jq -r "$(filter "$@")" ;;`,
+  `  "api ${API}/commits/"*"/status?per_page=100 "*) respond "status-$(sha "$2")" | jq -r "$(filter "$@")" ;;`,
+  `  "api ${API}/commits/"*" --jq [([.parents"*) respond "parents-$(sha "$2")" ;;`,
   `  "api ${API}/commits/"*" --jq .commit.tree.sha") respond "tree-$(sha "$2")" ;;`,
   '  "pr update-branch 9") respond update ;;',
   '  "pr merge 9 --merge --match-head-commit "*) respond merge ;;',
@@ -78,7 +81,17 @@ const B1 = "b".repeat(40);
 const BASE = "base/main";
 const view = (head: string, mergeState = "CLEAN", draft = "false") =>
   `OPEN\\t${draft}\\t${BASE}\\t${head}\\t${mergeState}`;
-const PASS = "completed\\tsuccess";
+// A check-runs API page with one ci-gate run, or none.
+const runs = (status?: string, conclusion?: string, app = 15_368) =>
+  JSON.stringify({
+    check_runs: status
+      ? [{ app: { id: app }, conclusion: conclusion ?? null, id: 1, status }]
+      : [],
+  });
+const PASS = runs("completed", "success");
+const PENDING = runs();
+const updateOf = (previous: string) => `${previous} ${B1}\\ttrue\\tweb-flow`;
+const RESOURCE = `branch:vertex-research-public:${BASE}`;
 
 const CLEAN: Record<string, string[]> = {
   claim: ["claimed"],
@@ -140,8 +153,8 @@ const run = (responses: Record<string, string[]>, args: string[] = ARGS) => {
   }
 };
 
-const claimCall = `fm claim job-a branch:vertex-research-public:${BASE}`;
-const releaseCall = `fm release job-a branch:vertex-research-public:${BASE}`;
+const claimCall = `fm claim job-a ${RESOURCE}`;
+const releaseCall = `fm release job-a ${RESOURCE}`;
 const merges = (calls: string[]): string[] =>
   calls.filter((call) => call.startsWith("gh pr merge"));
 const checkRunShas = (calls: string[]): string[] =>
@@ -168,8 +181,8 @@ describe("scripts/merge-pr", () => {
   it("updates a behind PR, then waits for checks on the new head only", () => {
     const { calls, status } = run({
       compare: ["3", "0"],
-      [`parents-${H2}`]: [`${H1} ${B1}`],
-      [`runs-${H2}`]: ["", "in_progress\\t", PASS],
+      [`parents-${H2}`]: [updateOf(H1)],
+      [`runs-${H2}`]: [PENDING, runs("in_progress"), PASS],
       view: [view(H1), view(H1), view(H2)],
     });
     expect(status).toBe(0);
@@ -186,7 +199,7 @@ describe("scripts/merge-pr", () => {
   it("updates again when GitHub reports the PR behind after CI passed", () => {
     const { calls, status } = run({
       compare: ["0", "2", "0"],
-      [`parents-${H2}`]: [`${H1} ${B1}`],
+      [`parents-${H2}`]: [updateOf(H1)],
       view: [view(H1), view(H1), view(H1, "BEHIND"), view(H1), view(H2)],
     });
     expect(status).toBe(0);
@@ -196,6 +209,15 @@ describe("scripts/merge-pr", () => {
     expect(merges(calls)).toEqual([
       `gh pr merge 9 --merge --match-head-commit ${H2}`,
     ]);
+  });
+
+  it("stops instead of spinning when GitHub keeps reporting BEHIND", () => {
+    const { calls, status, stderr } = run({
+      view: [view(H1), view(H1, "BEHIND")],
+    });
+    expect(status).toBe(1);
+    expect(stderr).toContain("base moved 5 times");
+    expect(merges(calls)).toEqual([]);
   });
 
   it("waits out a lingering BLOCKED merge state after the checks pass", () => {
@@ -241,6 +263,7 @@ describe("scripts/merge-pr", () => {
     expect(status).toBe(4);
     expect(stderr).toContain("held by card job-b");
     expect(merges(calls)).toEqual([]);
+    expect(calls).not.toContain(releaseCall);
     expect(calls.some((call) => call.includes("update-branch"))).toBe(false);
   });
 
@@ -263,23 +286,41 @@ describe("scripts/merge-pr", () => {
   });
 
   it("keeps a claim the card held before it started", () => {
-    const { calls, status } = run({ claims: ['[{"card": "job-a"}]'] });
+    const { calls, status } = run({
+      claims: [`[{"card": "job-a", "resource": "${RESOURCE}"}]`],
+    });
     expect(status).toBe(0);
     expect(calls).not.toContain(releaseCall);
   });
 
-  it("stops with exit 6 when the claim is lost before merging", () => {
+  it("does not mistake a prefix-matching claim for the base claim", () => {
+    const { calls, status } = run({
+      claims: [`[{"card": "job-a", "resource": "${RESOURCE}-fix"}]`],
+    });
+    expect(status).toBe(0);
+    expect(calls.at(-1)).toBe(releaseCall);
+  });
+
+  it("stops with exit 6 when another card takes the claim before merging", () => {
     const { calls, status, stderr } = run({
       claim: ["claimed", "claimed", "!4 held by card job-b"],
     });
     expect(status).toBe(6);
-    expect(stderr).toContain("lost branch:vertex-research-public");
+    expect(stderr).toContain(`lost ${RESOURCE}`);
     expect(merges(calls)).toEqual([]);
+  });
+
+  it("retries a transient fm claim error during a renewal", () => {
+    const { calls, status } = run({
+      claim: ["claimed", "!1 coord.json busy", "claimed"],
+    });
+    expect(status).toBe(0);
+    expect(merges(calls)).toHaveLength(1);
   });
 
   it("stops on a failed required check without merging and releases the claim", () => {
     const { calls, status, stderr } = run({
-      [`runs-${H1}`]: ["queued\\t", "completed\\tfailure"],
+      [`runs-${H1}`]: [runs("queued"), runs("completed", "failure")],
     });
     expect(status).toBe(1);
     expect(stderr).toContain(`required check ci-gate failed on ${H1}`);
@@ -288,13 +329,15 @@ describe("scripts/merge-pr", () => {
   });
 
   it("treats a cancelled required check as failed", () => {
-    const { status } = run({ [`runs-${H1}`]: ["completed\\tcancelled"] });
+    const { status } = run({
+      [`runs-${H1}`]: [runs("completed", "cancelled")],
+    });
     expect(status).toBe(1);
   });
 
   it("does not count a skipped required check as passed", () => {
     const { calls, status, stderr } = run({
-      [`runs-${H1}`]: ["completed\\tskipped"],
+      [`runs-${H1}`]: [runs("completed", "skipped")],
     });
     expect(status).toBe(1);
     expect(stderr).toContain("ci-gate was skipped");
@@ -303,31 +346,28 @@ describe("scripts/merge-pr", () => {
 
   it("ignores a passing run from another app", () => {
     const { calls, status, stderr } = run(
-      {
-        required: ["ci-gate\\t999"],
-        [`runs-${H1}`]: [""],
-      },
+      { [`runs-${H1}`]: [runs("completed", "success", 999)] },
       [...ARGS, "--ci-timeout", "0"]
     );
     expect(status).toBe(1);
     expect(stderr).toContain("still pending");
-    expect(calls.find((call) => call.includes("/check-runs "))).toContain(
-      '(.app.id | tostring) == "999"'
-    );
+    expect(merges(calls)).toEqual([]);
   });
 
   it("falls back to commit statuses for a check without a required app", () => {
-    const { calls, status } = run({
+    const status = (state: string) =>
+      JSON.stringify({ statuses: [{ context: "ci-gate", state }] });
+    const result = run({
       required: ["ci-gate\\t"],
-      [`runs-${H1}`]: [""],
-      [`status-${H1}`]: ["pending", "success"],
+      [`runs-${H1}`]: [PENDING],
+      [`status-${H1}`]: [status("pending"), status("success")],
     });
-    expect(status).toBe(0);
-    expect(merges(calls)).toHaveLength(1);
+    expect(result.status).toBe(0);
+    expect(merges(result.calls)).toHaveLength(1);
   });
 
   it("stops when the checks stay pending past --ci-timeout", () => {
-    const { calls, status, stderr } = run({ [`runs-${H1}`]: [""] }, [
+    const { calls, status, stderr } = run({ [`runs-${H1}`]: [PENDING] }, [
       ...ARGS,
       "--ci-timeout",
       "0",
@@ -349,13 +389,23 @@ describe("scripts/merge-pr", () => {
 
   it("stops when the PR head moves while CI runs", () => {
     const { calls, status, stderr } = run({
-      [`runs-${H1}`]: [""],
+      [`runs-${H1}`]: [PENDING],
       view: [view(H1), view(H1), view(H2)],
     });
     expect(status).toBe(1);
     expect(stderr).toContain(`PR head moved to ${H2}`);
     expect(merges(calls)).toEqual([]);
     expect(calls.at(-1)).toBe(releaseCall);
+  });
+
+  it("stops when the PR is retargeted while CI runs", () => {
+    const { calls, status, stderr } = run({
+      [`runs-${H1}`]: [PENDING],
+      view: [view(H1), view(H1), `OPEN\\tfalse\\tother\\t${H1}\\tCLEAN`],
+    });
+    expect(status).toBe(1);
+    expect(stderr).toContain("PR base changed");
+    expect(merges(calls)).toEqual([]);
   });
 
   it("stops when the PR changes base or turns draft after the claim", () => {
@@ -380,14 +430,21 @@ describe("scripts/merge-pr", () => {
     expect(calls.at(-1)).toBe(releaseCall);
   });
 
-  it("rejects an updated head that is not the update merge of head and base", () => {
-    const foreign = run({
-      compare: ["1"],
-      [`parents-${H2}`]: [`${H1} ${"c".repeat(40)}`],
-      view: [view(H1), view(H1), view(H2)],
-    });
-    expect(foreign.status).toBe(1);
-    expect(foreign.stderr).toContain("not the update merge");
+  it("accepts a new head only as GitHub's verified update merge of head and base", () => {
+    for (const identity of [
+      `${H1} ${"c".repeat(40)}\\ttrue\\tweb-flow`,
+      `${H1} ${B1}\\tfalse\\tweb-flow`,
+      `${H1} ${B1}\\ttrue\\tsomeone`,
+    ]) {
+      const { calls, status, stderr } = run({
+        compare: ["1"],
+        [`parents-${H2}`]: [identity],
+        view: [view(H1), view(H1), view(H2)],
+      });
+      expect(status).toBe(1);
+      expect(stderr).toContain("is not GitHub's update merge");
+      expect(merges(calls)).toEqual([]);
+    }
     const stuck = run({ compare: ["1"] });
     expect(stuck.status).toBe(1);
     expect(stuck.stderr).toContain("did not move the PR head");
@@ -398,10 +455,16 @@ describe("scripts/merge-pr", () => {
     const heads = [1, 2, 3, 4, 5, 6].map((digit) => String(digit).repeat(40));
     const responses: Record<string, string[]> = {
       compare: ["1"],
-      view: [view(H1), ...heads.flatMap((head) => [view(head), view(head)])],
+      view: [
+        view(H1),
+        view(H1),
+        ...heads
+          .slice(1)
+          .flatMap((head) => [view(head), view(head), view(head)]),
+      ],
     };
     heads.slice(1).forEach((head, index) => {
-      responses[`parents-${head}`] = [`${heads[index]} ${B1}`];
+      responses[`parents-${head}`] = [updateOf(heads[index] ?? "")];
     });
     const { calls, status, stderr } = run(responses);
     expect(status).toBe(1);
@@ -430,13 +493,27 @@ describe("scripts/merge-pr", () => {
     }
   });
 
-  it("stops when gh pr merge fails", () => {
+  it("stops when gh pr merge fails and the PR is not merged", () => {
     const { calls, status, stderr } = run({
       merge: ["!1 Pull request is not mergeable"],
     });
     expect(status).toBe(1);
     expect(stderr).toContain("gh pr merge failed");
     expect(calls.at(-1)).toBe(releaseCall);
+  });
+
+  it("verifies the merge when gh pr merge errors but the PR merged", () => {
+    const { status, stdout } = run({
+      merge: ["!1 timeout"],
+      view: [
+        view(H1),
+        view(H1),
+        view(H1),
+        `MERGED\\tfalse\\t${BASE}\\t${H1}\\tUNKNOWN`,
+      ],
+    });
+    expect(status).toBe(0);
+    expect(stdout.trim()).toBe("merge1");
   });
 
   it("exits 5 when the merge commit tree differs from the PR head tree", () => {
@@ -446,8 +523,14 @@ describe("scripts/merge-pr", () => {
     expect(calls.at(-1)).toBe(releaseCall);
   });
 
+  it("exits 5 when the merged PR has no merge commit", () => {
+    const { status, stderr } = run({ merged: ["MERGED\\t"] });
+    expect(status).toBe(5);
+    expect(stderr).toContain("merge commit ''");
+  });
+
   it("releases the claim when terminated while waiting for CI", async () => {
-    const { calls, cleanup, env } = setup({ [`runs-${H1}`]: [""] });
+    const { calls, cleanup, env } = setup({ [`runs-${H1}`]: [PENDING] });
     try {
       const child = spawn("bash", [script, ...ARGS], {
         env: { ...env, MERGE_PR_POLL_SECONDS: "30" },
