@@ -388,16 +388,32 @@ const scrubPrivateKeys = (input: string): string => {
 // Email addresses. The local part starts at the first letter, digit or "_" of its run; leading
 // punctuation stays in the text (first group). An address can follow another one directly
 // ("a@x.io%2Cb@y.io": the next local part starts at the ".", "%", "+" or "-" where the last one
-// ended), so one match takes the whole chain and each address becomes one [REDACTED].
-const EMAIL_CHAIN =
-  /(?<![A-Z0-9._%+-])([.%+-]*)[A-Z0-9_][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}\b(?:[.%+-][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}\b)*/gi;
+// ended), so after each address EMAIL_NEXT is tried at that exact place. A loop, not one pattern
+// with a repeated group: a repeated group uses regular-expression stack for every address.
+const EMAIL_FIRST =
+  /(?<![A-Z0-9._%+-])([.%+-]*)[A-Z0-9_][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const EMAIL_NEXT = /[.%+-][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}\b/iy;
 
-const scrubEmails = (input: string): string =>
-  input.replace(
-    EMAIL_CHAIN,
-    (chain: string, lead: string) =>
-      `${lead}${REDACTED.repeat(chain.split("@").length - 1)}`
-  );
+const scrubEmails = (input: string): string => {
+  let out = "";
+  let copied = 0;
+  EMAIL_FIRST.lastIndex = 0;
+  for (
+    let first = EMAIL_FIRST.exec(input);
+    first !== null;
+    first = EMAIL_FIRST.exec(input)
+  ) {
+    out += `${input.slice(copied, first.index)}${first[1]}${REDACTED}`;
+    copied = EMAIL_FIRST.lastIndex;
+    EMAIL_NEXT.lastIndex = copied;
+    while (EMAIL_NEXT.exec(input) !== null) {
+      out += REDACTED;
+      copied = EMAIL_NEXT.lastIndex;
+    }
+    EMAIL_FIRST.lastIndex = copied;
+  }
+  return copied === 0 ? input : out + input.slice(copied);
+};
 
 // A JWT ("eyJ" + three dot-separated segments). It starts at the first "eyJ" of its run that is at
 // the run start or after a "-"; the lookahead finds that place once and keeps the text before it

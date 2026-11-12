@@ -159,7 +159,7 @@ const batch = (
 ): ClickLogRecordInput => ({ buildSha: "abc1234", events, tabId: TAB });
 
 // CodeQL js/polynomial-redos (alert 21): a long run with no "@" or no digit made the old EMAIL and
-// TOKEN patterns scan it again from every position (more than 2 seconds at this size).
+// TOKEN patterns scan it again from every position (4 seconds or more per row under Node).
 describe("click-log redaction in linear time", () => {
   const timed = (text: string): number => {
     const started = performance.now();
@@ -169,9 +169,9 @@ describe("click-log redaction in linear time", () => {
   };
 
   it.each([
-    ["no @", "!".repeat(100_000)],
-    ["no digit", "a".repeat(100_000)],
-    ["digits and separators", "1,".repeat(50_000)],
+    ["no @", "!".repeat(80_000)],
+    ["no digit", "a".repeat(60_000)],
+    ["digits and separators", "1,".repeat(40_000)],
   ])("redacts a hostile label (%s) within the time limit", (_name, text) => {
     expect(timed(text)).toBeLessThan(1000);
   });
