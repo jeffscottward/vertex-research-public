@@ -105,6 +105,25 @@ describe("searchWords", () => {
 });
 
 describe("searchMasterRules", () => {
+  it("orders equal scores by class, then consensus (unknown last), then id", () => {
+    const tied: MasterRulesIndex = {
+      ...INDEX,
+      rows: [
+        row({ consensus: null, id: "T6", title: "Tie rule" }),
+        row({ consensus: null, id: "T4", title: "Tie rule" }),
+        row({ consensus: 2, id: "T3", title: "Tie rule" }),
+        row({ id: "T2", title: "Tie rule" }),
+        row({ id: "T1", title: "Tie rule" }),
+        row({ cls: "A", consensus: null, id: "T5", title: "Tie rule" }),
+      ],
+    };
+    const ids = searchMasterRules(
+      tied,
+      MasterRulesSearchInputSchema.parse({ query: "tie" })
+    ).matches.map((match) => match.id);
+    return expect(ids).toEqual(["T5", "T3", "T1", "T2", "T4", "T6"]);
+  });
+
   it("ranks by score, then class and consensus, and adds the advisory note", () => {
     const result = search({ query: "yield curve" });
     expect(result.note).toBe(MASTER_RULES_NOTE);

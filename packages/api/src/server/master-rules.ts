@@ -151,10 +151,11 @@ const scoreRow = (
       if (entry.fields[field].has(word)) weight += WEIGHTS[field];
     if (weight === 0) continue;
     matched += 1;
+    // A word that matched a field is in rowsWithWord (built from the same fields).
     const rarity = Math.log(
       1 +
         searchIndex.rows.length /
-          (1 + (searchIndex.rowsWithWord.get(word) ?? 0))
+          (1 + Number(searchIndex.rowsWithWord.get(word)))
     );
     score += weight * rarity;
   }
@@ -178,7 +179,7 @@ const compareMatches = (
   right.score - left.score ||
   classRank(left.row.cls) - classRank(right.row.cls) ||
   (right.row.consensus ?? -1) - (left.row.consensus ?? -1) ||
-  (left.row.id < right.row.id ? -1 : left.row.id > right.row.id ? 1 : 0);
+  left.row.id.localeCompare(right.row.id, "en");
 
 const toMatch = (
   index: MasterRulesIndex,
