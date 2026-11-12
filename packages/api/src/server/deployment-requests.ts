@@ -2,8 +2,12 @@ import { isAcademyStrategySlug } from "@darkfactory/academy/courses";
 import {
   DatabaseConflictError,
   DatabasePersistenceError,
+  DeploymentRequestInputError,
   DeploymentRequestStateError,
   InvalidRepositoryInputError,
+  normalizeDeploymentOptions,
+  normalizeDeploymentSymbol,
+  type DeploymentRequestOptions,
   type DeploymentRequestRow,
   type DeploymentRequestsRepository,
 } from "@darkfactory/db/server";
@@ -75,6 +79,8 @@ const mapDeploymentError = (error: unknown, errors: unknown): never => {
       message: error.message.replace(/^Invalid repository input: /u, ""),
     });
   }
+  if (error instanceof DeploymentRequestInputError)
+    throw failures.VALIDATION_ERROR({ message: error.message });
   if (error instanceof DeploymentRequestStateError)
     throw failures.CONFLICT({ message: error.message });
   if (error instanceof DatabaseConflictError)
@@ -84,10 +90,39 @@ const mapDeploymentError = (error: unknown, errors: unknown): never => {
   if (error instanceof DatabasePersistenceError) {
     throw failures.STORAGE_ERROR({
       message:
-        "Deployment request storage unavailable. Apply migration 0021 if the table is missing.",
+        "Deployment request storage unavailable. Apply migration 0021 if the table is missing, and 0067 for the options column.",
     });
   }
   throw error;
+};
+
+// The stored options block; null for a request in the old format (written before migration 0067).
+const storedOptions = (
+  row: DeploymentRequestRow
+): DeploymentRequestOptions | null => {
+  return (
+    (row as Readonly<{ options?: DeploymentRequestOptions | null }>).options ??
+    null
+  );
+};
+
+const toOptionsOutput = (
+  options: DeploymentRequestOptions | null
+): DeploymentRequestOutput["options"] => {
+  if (options === null) return null;
+  return {
+    structure: options.structure,
+    dte: { target: options.dte.target, min: options.dte.min },
+    width: { unit: options.width.unit, value: options.width.value },
+    anchorDelta: options.anchorDelta,
+    legs: options.legs.map((leg) => ({ ...leg })),
+    budgetPctOfAccount: options.budgetPctOfAccount,
+    maxLossPctOfAccount: options.maxLossPctOfAccount,
+    group:
+      options.group === null
+        ? null
+        : { key: options.group.key, symbols: [...options.group.symbols] },
+  };
 };
 
 const toDeploymentRequestOutput = (
@@ -109,6 +144,7 @@ const toDeploymentRequestOutput = (
     maxOrdersPerMinute: row.limits.maxOrdersPerMinute,
     dailyLossLimit: row.limits.dailyLossLimit,
   },
+  options: toOptionsOutput(storedOptions(row)),
   status: row.status,
   requestedBy: row.requestedBy,
   requestedAt: row.requestedAt ?? null,
@@ -225,11 +261,46 @@ const deploymentRequestsCreate = api.deploymentRequests.create
           symbol: input.symbol,
           timeframe: input.timeframe,
           limits: input.limits,
+          ...(input.options === undefined ? {} : { options: input.options }),
           requestedBy: context.principal.userId,
         }),
       errors
     );
     return found(row, errors, "Strategy not found");
+  });
+
+// One draft per symbol, all or nothing: the options block is checked for every symbol before the
+// repository is called, and the repository writes all rows in one transaction.
+const deploymentRequestsCreateGroup = api.deploymentRequests.createGroup
+  .use(refuseApiKeys)
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const repository = requestsFor(context, errors);
+    await refuseAcademyStrategy(context, input.strategyId, errors);
+    const groupKey = `grp-${crypto.randomUUID()}`;
+    const rows = await procedure(async () => {
+      const symbols = input.symbols.map(normalizeDeploymentSymbol);
+      const options = { ...input.options, group: { key: groupKey, symbols } };
+      // Refuses repeated symbols and every options rule before anything is written.
+      for (const symbol of symbols) normalizeDeploymentOptions(options, symbol);
+      return await repository.createGroup({
+        strategyId: input.strategyId,
+        ...(input.presetId === undefined ? {} : { presetId: input.presetId }),
+        ...(input.params === undefined ? {} : { params: input.params }),
+        symbols,
+        timeframe: input.timeframe,
+        limits: input.limits,
+        options,
+        requestedBy: context.principal.userId,
+      });
+    }, errors);
+    if (rows === null)
+      throw factories(errors).NOT_FOUND({ message: "Strategy not found" });
+    return {
+      groupKey,
+      requests: rows.map(toDeploymentRequestOutput),
+      ...DEPLOYMENT_LOCK,
+    };
   });
 
 const deploymentRequestsUpdate = api.deploymentRequests.update
@@ -249,6 +320,7 @@ const deploymentRequestsUpdate = api.deploymentRequests.update
             ? {}
             : { timeframe: input.timeframe }),
           ...(input.limits === undefined ? {} : { limits: input.limits }),
+          ...(input.options === undefined ? {} : { options: input.options }),
         }),
       errors
     );
@@ -280,6 +352,13 @@ export const deploymentRequestsApprove = api.deploymentRequests.approve
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const repository = requestsFor(context, errors);
+    // The stored options block is checked again: a request that breaks a rule (for example a max
+    // loss above the ceiling written before the rule, or by hand) can never be approved.
+    await procedure(async () => {
+      const current = await repository.get(input.id);
+      if (current !== null)
+        normalizeDeploymentOptions(storedOptions(current), current.symbol);
+    }, errors);
     const row = await procedure(
       () =>
         repository.transition({
@@ -337,6 +416,7 @@ export const deploymentRequestsRouter = {
   list: deploymentRequestsList,
   get: deploymentRequestsGet,
   create: deploymentRequestsCreate,
+  createGroup: deploymentRequestsCreateGroup,
   update: deploymentRequestsUpdate,
   submit: deploymentRequestsSubmit,
   approve: deploymentRequestsApprove,

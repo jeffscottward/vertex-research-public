@@ -218,9 +218,11 @@ import {
   checkDeploymentTransition,
   normalizeDeploymentLimits,
   normalizeDeploymentNote,
+  normalizeDeploymentOptions,
   normalizeDeploymentStatus,
   normalizeDeploymentSymbol,
   normalizeDeploymentTimeframe,
+  resolveDeploymentOptionsEdit,
   resolveDeploymentParams,
   type DeploymentRequestAction,
 } from "./deployment-requests.ts";
@@ -3611,8 +3613,18 @@ export type CreateDeploymentRequestInput = Readonly<{
   symbol: string;
   timeframe: string;
   limits: unknown;
+  // Optional options block; null or absent is the old format.
+  options?: unknown;
   requestedBy: string;
 }>;
+
+// One draft per symbol with the same fields; options.group must list exactly these symbols.
+export type CreateDeploymentRequestGroupInput = Readonly<
+  Omit<CreateDeploymentRequestInput, "symbol" | "options"> & {
+    symbols: readonly string[];
+    options: unknown;
+  }
+>;
 
 export type UpdateDeploymentRequestInput = Readonly<{
   id: string;
@@ -3621,6 +3633,8 @@ export type UpdateDeploymentRequestInput = Readonly<{
   symbol?: string;
   timeframe?: string;
   limits?: unknown;
+  // null removes the options block; undefined keeps the stored one.
+  options?: unknown;
 }>;
 
 export type TransitionDeploymentRequestInput = Readonly<{
@@ -3641,6 +3655,11 @@ export type DeploymentRequestsRepository = Readonly<{
   create: (
     input: CreateDeploymentRequestInput
   ) => Promise<DeploymentRequestRow | null>;
+  // One draft per symbol in one transaction (all or nothing), in the order of input.symbols;
+  // null when the strategy does not exist.
+  createGroup: (
+    input: CreateDeploymentRequestGroupInput
+  ) => Promise<DeploymentRequestRow[] | null>;
   // Drafts only; null when the request does not exist.
   update: (
     input: UpdateDeploymentRequestInput
@@ -3768,6 +3787,10 @@ export const createDeploymentRequestsRepository = (
         symbol: normalizeDeploymentSymbol(input.symbol),
         timeframe: normalizeDeploymentTimeframe(input.timeframe),
         limits: normalizeDeploymentLimits(input.limits),
+        options: normalizeDeploymentOptions(
+          input.options,
+          normalizeDeploymentSymbol(input.symbol)
+        ),
       }));
       const presetId = input.presetId ?? null;
       try {
@@ -3810,6 +3833,79 @@ export const createDeploymentRequestsRepository = (
       }
     },
 
+    createGroup: async (input) => {
+      requireNonBlank(input.strategyId, "strategyId");
+      requireNonBlank(input.requestedBy, "requestedBy");
+      const requests = deploymentInput(() => {
+        const timeframe = normalizeDeploymentTimeframe(input.timeframe);
+        const limits = normalizeDeploymentLimits(input.limits);
+        const symbols = input.symbols.map(normalizeDeploymentSymbol);
+        return symbols.map((symbol) => {
+          const options = normalizeDeploymentOptions(input.options, symbol);
+          if (
+            options === null ||
+            options.group === null ||
+            options.group.symbols.length !== symbols.length ||
+            options.group.symbols.some((entry, at) => entry !== symbols[at])
+          ) {
+            throw new DeploymentRequestInputError(
+              "options.group.symbols must list exactly the symbols of the group, without repeats"
+            );
+          }
+          return { symbol, timeframe, limits, options };
+        });
+      });
+      const presetId = input.presetId ?? null;
+      try {
+        return await withTransaction(database, async (transaction) => {
+          const [strategy] = await transaction
+            .select({ params: strategies.params })
+            .from(strategies)
+            .where(eq(strategies.id, input.strategyId))
+            .limit(1);
+          if (strategy === undefined) return null;
+          const presetValues =
+            presetId === null
+              ? undefined
+              : await presetValuesFor(transaction, input.strategyId, presetId);
+          const params = deploymentInput(() =>
+            resolveDeploymentParams(
+              strategy.params ?? [],
+              presetValues,
+              input.params
+            )
+          );
+          const timestamp = dependencies.now();
+          const values = requests.map((fields) => ({
+            id: dependencies.generateId(),
+            strategyId: input.strategyId,
+            presetId,
+            params,
+            ...fields,
+            mode: "paper" as const,
+            status: "draft" as const,
+            requestedBy: input.requestedBy,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          }));
+          // One statement in one transaction: every row is written or none is.
+          await transaction.insert(deploymentRequests).values(values);
+          const rows: DeploymentRequestRow[] = [];
+          for (const { id } of values) {
+            const row = await readDeploymentRequest(transaction, id);
+            if (row === null)
+              throw new DatabasePersistenceError(
+                "deployment request group could not be read back"
+              );
+            rows.push(row);
+          }
+          return rows;
+        });
+      } catch (error) {
+        return mapAgentOpsMutationError(error, "deployment request");
+      }
+    },
+
     update: async (input) => {
       requireNonBlank(input.id, "id");
       const changes = deploymentInput(() => ({
@@ -3825,6 +3921,7 @@ export const createDeploymentRequestsRepository = (
       }));
       if (
         Object.keys(changes).length === 0 &&
+        input.options === undefined &&
         input.params === undefined &&
         input.presetId === undefined
       ) {
@@ -3838,6 +3935,8 @@ export const createDeploymentRequestsRepository = (
             .select({
               status: deploymentRequests.status,
               strategyId: deploymentRequests.strategyId,
+              symbol: deploymentRequests.symbol,
+              options: deploymentRequests.options,
             })
             .from(deploymentRequests)
             .where(eq(deploymentRequests.id, input.id))
@@ -3876,10 +3975,18 @@ export const createDeploymentRequestsRepository = (
               : deploymentInput(() =>
                   resolveDeploymentParams(schema, input.params)
                 );
+          // undefined keeps the stored block; a changed symbol re-checks it (a group must contain it).
+          const options = deploymentInput(() =>
+            resolveDeploymentOptionsEdit(
+              { options: input.options, symbol: changes.symbol },
+              current
+            )
+          );
           await transaction
             .update(deploymentRequests)
             .set({
               ...changes,
+              ...(options === undefined ? {} : { options }),
               ...(presetId === undefined ? {} : { presetId }),
               ...(params === undefined ? {} : { params }),
               updatedAt: dependencies.now(),
@@ -3925,6 +4032,8 @@ export const createDeploymentRequestsRepository = (
               status: deploymentRequests.status,
               strategyId: deploymentRequests.strategyId,
               params: deploymentRequests.params,
+              symbol: deploymentRequests.symbol,
+              options: deploymentRequests.options,
             })
             .from(deploymentRequests)
             .where(eq(deploymentRequests.id, input.id))
@@ -3948,6 +4057,11 @@ export const createDeploymentRequestsRepository = (
             }
             deploymentInput(() =>
               checkDeploymentParamsFit(strategy?.params ?? [], current.params)
+            );
+            // A stored options block that breaks a rule (above the max-loss ceiling) is never
+            // submitted or approved.
+            deploymentInput(() =>
+              normalizeDeploymentOptions(current.options, current.symbol)
             );
           }
           const timestamp = dependencies.now();

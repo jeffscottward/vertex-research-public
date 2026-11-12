@@ -7,10 +7,14 @@ import type { Database } from "./client.ts";
 import {
   checkDeploymentParamsFit,
   checkDeploymentTransition,
+  DEPLOYMENT_MAX_LOSS_PCT_CEILING,
+  DEPLOYMENT_OPTION_STRUCTURES,
+  deploymentOptionLegs,
   DeploymentRequestInputError,
   DeploymentRequestStateError,
   normalizeDeploymentLimits,
   normalizeDeploymentNote,
+  normalizeDeploymentOptions,
   normalizeDeploymentSymbol,
   normalizeDeploymentTimeframe,
   resolveDeploymentParams,
@@ -46,6 +50,22 @@ const limits = {
   dailyLossLimit: 500,
 };
 
+const options = {
+  structure: "callDebitVertical",
+  dte: { target: 45, min: 30 },
+  width: { unit: "sigma", value: 1 },
+  anchorDelta: 0.5,
+  budgetPctOfAccount: 1,
+  maxLossPctOfAccount: 2,
+};
+const optionsMigration = readFileSync(
+  new URL(
+    "../../migrations/0067_deployment_request_options.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
+
 describe("0021 deployment requests migration", () => {
   const migration = readFileSync(
     new URL("../../migrations/0021_deployment_requests.sql", import.meta.url),
@@ -77,8 +97,12 @@ describe("0021 deployment requests migration", () => {
     const sqlColumns = [...migration.matchAll(/^\s{2}"([a-z_]+)" /gm)].map(
       (match) => match[1]
     );
+    // "options" is added by 0067 (checked in its own block below).
     expect([...sqlColumns].sort()).toEqual(
-      config.columns.map((column) => column.name).sort()
+      config.columns
+        .map((column) => column.name)
+        .filter((name) => name !== "options")
+        .sort()
     );
     for (const index of config.indexes) {
       expect(migration).toContain(
@@ -86,8 +110,12 @@ describe("0021 deployment requests migration", () => {
       );
     }
     for (const check of config.checks) {
-      expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
-      expect(migration).toContain(dialect.sqlToQuery(check.value).sql);
+      const source =
+        check.name === "deployment_requests_options_check"
+          ? optionsMigration
+          : migration;
+      expect(source).toContain(`CONSTRAINT "${check.name}" CHECK`);
+      expect(source).toContain(dialect.sqlToQuery(check.value).sql);
     }
     expect(migration).toContain(
       'FOREIGN KEY ("strategy_id") REFERENCES "public"."strategies"("id") ON DELETE restrict'
@@ -126,6 +154,263 @@ describe("0021 deployment requests migration", () => {
     );
     expect(rollback).toContain('DROP TABLE "public"."deployment_requests"');
     return expect(rollback).not.toMatch(/CASCADE|TRUNCATE/i);
+  });
+});
+
+describe("0067 deployment request options migration", () => {
+  const rollback = readFileSync(
+    new URL(
+      "../../rollback/0067_deployment_request_options.down.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  it("adds a nullable column without a default, idempotently, and leaves mode fixed to paper", () => {
+    expect(optionsMigration).toContain(
+      'ALTER TABLE "deployment_requests" ADD COLUMN IF NOT EXISTS "options" jsonb;'
+    );
+    expect(optionsMigration).not.toMatch(
+      /"options" jsonb[^;]*(DEFAULT|NOT NULL)/i
+    );
+    expect(optionsMigration).toContain(
+      "IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'deployment_requests_options_check'"
+    );
+    expect(optionsMigration).not.toMatch(
+      /^\s*(GRANT|TRUNCATE|UPDATE|DELETE|INSERT|DROP)\s/im
+    );
+    // Comments aside, no statement names the mode column or its check.
+    return expect(optionsMigration.replace(/^--.*$/gm, "")).not.toMatch(
+      /mode|live/i
+    );
+  });
+
+  it("repeats the cheap hard rules in the CHECK: object, size, structure and the max-loss ceiling", () => {
+    expect(optionsMigration).toContain(
+      '"deployment_requests"."options" is null or (case when jsonb_typeof("deployment_requests"."options") = \'object\''
+    );
+    expect(optionsMigration).toContain(
+      'octet_length("deployment_requests"."options"::text) <= 4096'
+    );
+    expect(optionsMigration).toContain(
+      `in (${DEPLOYMENT_OPTION_STRUCTURES.map((name) => `'${name}'`).join(", ")})`
+    );
+    expect(optionsMigration).toContain(
+      `("deployment_requests"."options"->>'maxLossPctOfAccount')::numeric > 0 and ("deployment_requests"."options"->>'maxLossPctOfAccount')::numeric <= ${DEPLOYMENT_MAX_LOSS_PCT_CEILING} else false end`
+    );
+    const column = getTableConfig(deploymentRequests).columns.find(
+      (entry) => entry.name === "options"
+    );
+    // The drizzle column, once declared, must be nullable without a default like the SQL.
+    return expect(column?.notNull ?? false).toBe(false);
+  });
+
+  return it("rollback refuses while a row has options, then drops the check and the column", () => {
+    expect(rollback).toContain(
+      "deployment_requests has rows with options; refusing rollback"
+    );
+    expect(rollback).toContain(
+      'DROP CONSTRAINT IF EXISTS "deployment_requests_options_check"'
+    );
+    expect(rollback).toContain('DROP COLUMN IF EXISTS "options"');
+    expect(rollback.indexOf("DROP CONSTRAINT")).toBeLessThan(
+      rollback.indexOf("DROP COLUMN")
+    );
+    return expect(rollback).not.toMatch(/CASCADE|TRUNCATE|DROP TABLE/i);
+  });
+});
+
+describe("deployment request options rules", () => {
+  const refused = (value: unknown, message: string | RegExp, symbol = "SPY") =>
+    expect(() => normalizeDeploymentOptions(value, symbol)).toThrow(message);
+
+  it("keeps the old format valid: no options block normalises to null", () => {
+    expect(normalizeDeploymentOptions(undefined, "SPY")).toBeNull();
+    return expect(normalizeDeploymentOptions(null, "SPY")).toBeNull();
+  });
+
+  it("refuses a max loss above the ceiling and accepts exactly the ceiling", () => {
+    expect(DEPLOYMENT_MAX_LOSS_PCT_CEILING).toBe(2);
+    refused(
+      { ...options, maxLossPctOfAccount: 2.5 },
+      "options.maxLossPctOfAccount must be greater than 0 and at most 2"
+    );
+    refused({ ...options, maxLossPctOfAccount: 2.000_001 }, /at most 2/);
+    refused({ ...options, maxLossPctOfAccount: 0 }, /greater than 0/);
+    refused({ ...options, maxLossPctOfAccount: "2" }, /must be a number/);
+    expect(() => normalizeDeploymentOptions(options, "SPY")).not.toThrow();
+    return expect(normalizeDeploymentOptions(options, "SPY")).toEqual({
+      ...options,
+      legs: [
+        { role: "anchor", action: "buy", right: "call" },
+        { role: "wing", action: "sell", right: "call" },
+      ],
+      group: null,
+    });
+  });
+
+  it("keeps the budget within the max loss", () => {
+    refused(
+      { ...options, maxLossPctOfAccount: 1, budgetPctOfAccount: 1.5 },
+      "options.budgetPctOfAccount must not exceed options.maxLossPctOfAccount"
+    );
+    refused({ ...options, budgetPctOfAccount: 0 }, /greater than 0/);
+    return expect(
+      normalizeDeploymentOptions(
+        { ...options, maxLossPctOfAccount: 1, budgetPctOfAccount: 1 },
+        "SPY"
+      )
+    ).toMatchObject({ budgetPctOfAccount: 1, maxLossPctOfAccount: 1 });
+  });
+
+  it("derives the legs from the structure and refuses legs that disagree", () => {
+    expect(deploymentOptionLegs("putDebitVertical")).toEqual([
+      { role: "anchor", action: "buy", right: "put" },
+      { role: "wing", action: "sell", right: "put" },
+    ]);
+    expect(deploymentOptionLegs("putCreditVertical")).toEqual([
+      { role: "anchor", action: "sell", right: "put" },
+      { role: "wing", action: "buy", right: "put" },
+    ]);
+    expect(deploymentOptionLegs("callCreditVertical")).toEqual([
+      { role: "anchor", action: "sell", right: "call" },
+      { role: "wing", action: "buy", right: "call" },
+    ]);
+    for (const structure of DEPLOYMENT_OPTION_STRUCTURES) {
+      expect(
+        normalizeDeploymentOptions(
+          { ...options, structure, legs: deploymentOptionLegs(structure) },
+          "SPY"
+        )?.legs
+      ).toEqual(deploymentOptionLegs(structure));
+    }
+    // A debit vertical described with the legs of a credit vertical.
+    refused(
+      { ...options, legs: deploymentOptionLegs("callCreditVertical") },
+      "options.legs do not agree with callDebitVertical: the anchor leg must buy a call"
+    );
+    // The right of one leg differs.
+    refused(
+      {
+        ...options,
+        legs: [
+          { role: "anchor", action: "buy", right: "call" },
+          { role: "wing", action: "sell", right: "put" },
+        ],
+      },
+      "the wing leg must sell a call"
+    );
+    refused(
+      { ...options, legs: [{ role: "anchor", action: "buy", right: "call" }] },
+      /exactly the anchor leg and the wing leg/
+    );
+    return refused(
+      {
+        ...options,
+        legs: [
+          { role: "anchor", action: "buy", right: "call", strike: 500 },
+          { role: "wing", action: "sell", right: "call" },
+        ],
+      },
+      "options.legs[0].strike is not a recognized field"
+    );
+  });
+
+  it("checks structure, expiry, width, delta and unknown keys", () => {
+    refused(
+      { ...options, structure: "ironCondor" },
+      /options.structure must be one of/
+    );
+    refused({ ...options, dte: { target: 45, min: 46 } }, /options.dte.min/);
+    refused({ ...options, dte: { target: 0, min: 0 } }, /options.dte.target/);
+    refused({ ...options, dte: { target: 45.5, min: 30 } }, /whole number/);
+    refused(
+      { ...options, dte: { target: 45, min: 30, max: 60 } },
+      /options.dte.max/
+    );
+    refused(
+      { ...options, width: 5 },
+      "options.width must be an object with unit and value"
+    );
+    refused(
+      { ...options, width: { unit: "sigma", value: 0 } },
+      /options.width.value/
+    );
+    refused(
+      { ...options, width: { unit: "sigma", value: 10_000.5 } },
+      /options.width.value/
+    );
+    refused(
+      { ...options, width: { unit: "sigma", value: "1" } },
+      "options.width.value must be a number"
+    );
+    refused(
+      { ...options, width: { unit: "percent", value: 1 } },
+      "options.width.unit must be one of sigma, price"
+    );
+    refused({ ...options, width: { value: 1 } }, /options.width.unit/);
+    refused(
+      { ...options, width: { unit: "price", value: 5, strikes: 1 } },
+      "options.width.strikes is not a recognized field"
+    );
+    expect(
+      normalizeDeploymentOptions(
+        { ...options, width: { unit: "price", value: 10_000 } },
+        "SPY"
+      )?.width
+    ).toEqual({ unit: "price", value: 10_000 });
+    refused({ ...options, anchorDelta: 1 }, /options.anchorDelta/);
+    refused({ ...options, anchorDelta: 0 }, /options.anchorDelta/);
+    refused(
+      { ...options, live: true },
+      "options.live is not a recognized field"
+    );
+    refused([], "options must be an object");
+    return refused("callDebitVertical", "options must be an object");
+  });
+
+  it("applies the group rules: 2 to 16 unique symbols that include the request symbol", () => {
+    const group = { key: "grp-1", symbols: ["spy", "QQQ", "IWM"] };
+    expect(
+      normalizeDeploymentOptions({ ...options, group }, "qqq")?.group
+    ).toEqual({ key: "grp-1", symbols: ["SPY", "QQQ", "IWM"] });
+    refused(
+      { ...options, group: { key: "grp-1", symbols: ["SPY", "spy"] } },
+      "options.group.symbols must not repeat a symbol"
+    );
+    refused(
+      { ...options, group: { key: "grp-1", symbols: ["SPY"] } },
+      "options.group.symbols must list 2 to 16 symbols"
+    );
+    refused(
+      {
+        ...options,
+        group: {
+          key: "grp-1",
+          symbols: Array.from({ length: 17 }, (_, index) => `S${index}`),
+        },
+      },
+      "options.group.symbols must list 2 to 16 symbols"
+    );
+    refused(
+      { ...options, group },
+      "options.group.symbols must include the request symbol GLD",
+      "GLD"
+    );
+    refused(
+      { ...options, group: { key: "bad key", symbols: ["SPY", "QQQ"] } },
+      /options.group.key/
+    );
+    return refused(
+      { ...options, group: { ...group, owner: "x" } },
+      "options.group.owner is not a recognized field"
+    );
+  });
+
+  return it("throws DeploymentRequestInputError", () => {
+    return expect(() =>
+      normalizeDeploymentOptions({ ...options, maxLossPctOfAccount: 3 }, "SPY")
+    ).toThrow(DeploymentRequestInputError);
   });
 });
 
@@ -545,5 +830,171 @@ describe("deployment requests repository", () => {
         actorId: "user-a",
       })
     ).toBeNull();
+  });
+});
+
+describe("deployment requests repository options", () => {
+  it("stores the normalised options block on create and null for the old format", async () => {
+    const withOptions = repositoryFor([[{ params: schema }], [], [stored()]]);
+    await withOptions.repository.create({
+      strategyId: "s-1",
+      symbol: "spy",
+      timeframe: "1d",
+      limits,
+      options,
+      requestedBy: "user-a",
+    });
+    expect(
+      withOptions.operations.find((operation) => operation.kind === "insert")!
+        .values
+    ).toMatchObject({
+      symbol: "SPY",
+      options: {
+        ...options,
+        legs: deploymentOptionLegs("callDebitVertical"),
+        group: null,
+      },
+    });
+
+    const oldFormat = repositoryFor([[{ params: schema }], [], [stored()]]);
+    await oldFormat.repository.create({
+      strategyId: "s-1",
+      symbol: "ES",
+      timeframe: "5m",
+      limits,
+      requestedBy: "user-a",
+    });
+    expect(
+      oldFormat.operations.find((operation) => operation.kind === "insert")!
+        .values
+    ).toMatchObject({ options: null });
+
+    const refused = repositoryFor([]);
+    await expect(
+      refused.repository.create({
+        strategyId: "s-1",
+        symbol: "SPY",
+        timeframe: "1d",
+        limits,
+        options: { ...options, maxLossPctOfAccount: 2.5 },
+        requestedBy: "user-a",
+      })
+    ).rejects.toThrow(InvalidRepositoryInputError);
+    return expect(refused.operations).toEqual([]);
+  });
+
+  it("creates one draft per symbol in a single insert and refuses repeated symbols before any query", async () => {
+    const group = { key: "grp-1", symbols: ["SPY", "QQQ", "IWM"] };
+    const { repository, operations } = repositoryFor([
+      [{ params: schema }],
+      [],
+      [stored({ symbol: "SPY" })],
+      [stored({ symbol: "QQQ" })],
+      [stored({ symbol: "IWM" })],
+    ]);
+    const rows = await repository.createGroup({
+      strategyId: "s-1",
+      symbols: ["spy", "QQQ", "IWM"],
+      timeframe: "1d",
+      limits,
+      options: { ...options, group },
+      requestedBy: "user-a",
+    });
+    expect(rows?.map((row) => row.symbol)).toEqual(["SPY", "QQQ", "IWM"]);
+    const inserts = operations.filter(
+      (operation) => operation.kind === "insert"
+    );
+    expect(inserts).toHaveLength(1);
+    const values = inserts[0]!.values as unknown as Row[];
+    expect(values.map((value) => value["symbol"])).toEqual([
+      "SPY",
+      "QQQ",
+      "IWM",
+    ]);
+    for (const value of values) {
+      expect(value).toMatchObject({
+        mode: "paper",
+        status: "draft",
+        options: { maxLossPctOfAccount: 2, group },
+      });
+    }
+
+    const duplicate = repositoryFor([]);
+    await expect(
+      duplicate.repository.createGroup({
+        strategyId: "s-1",
+        symbols: ["SPY", "spy"],
+        timeframe: "1d",
+        limits,
+        options: {
+          ...options,
+          group: { key: "grp-1", symbols: ["SPY", "spy"] },
+        },
+        requestedBy: "user-a",
+      })
+    ).rejects.toThrow("options.group.symbols must not repeat a symbol");
+    expect(duplicate.operations).toEqual([]);
+
+    // The group in the options must be the group being created.
+    const mismatch = repositoryFor([]);
+    await expect(
+      mismatch.repository.createGroup({
+        strategyId: "s-1",
+        symbols: ["SPY", "QQQ"],
+        timeframe: "1d",
+        limits,
+        options: { ...options, group },
+        requestedBy: "user-a",
+      })
+    ).rejects.toThrow(/exactly the symbols of the group/);
+    expect(mismatch.operations).toEqual([]);
+
+    return expect(
+      await repositoryFor([[]]).repository.createGroup({
+        strategyId: "missing",
+        symbols: ["SPY", "QQQ"],
+        timeframe: "1d",
+        limits,
+        options: {
+          ...options,
+          group: { key: "grp-1", symbols: ["SPY", "QQQ"] },
+        },
+        requestedBy: "user-a",
+      })
+    ).toBeNull();
+  });
+
+  return it("never approves a stored options block above the ceiling", async () => {
+    const { repository, operations } = repositoryFor([
+      [
+        {
+          status: "requested",
+          strategyId: "s-1",
+          params: { lookback: 20, threshold: 0.5, side: "long" },
+          symbol: "SPY",
+          options: {
+            ...options,
+            legs: deploymentOptionLegs("callDebitVertical"),
+            group: null,
+            maxLossPctOfAccount: 2.5,
+            budgetPctOfAccount: 1,
+          },
+        },
+      ],
+      [{ slug: "hmm", params: schema }],
+    ]);
+    await expect(
+      repository.transition({
+        id: "dr-1",
+        action: "approve",
+        actorId: "user-b",
+        confirmSlug: "hmm",
+      })
+    ).rejects.toThrow(
+      "options.maxLossPctOfAccount must be greater than 0 and at most 2"
+    );
+    return expect(
+      operations.filter((operation) => operation.kind === "update")
+    ).toEqual([]);
   });
 });
