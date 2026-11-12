@@ -416,7 +416,13 @@ class PaperPathTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("paper_deploy_runner_test_arm_gate", ARM_GATE)
         arm_gate = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = arm_gate
-        spec.loader.exec_module(arm_gate)
+        # No bytecode: the node's runtime folder must hold exactly its listed files (test_exec_node.py).
+        before, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+        try:
+            spec.loader.exec_module(arm_gate)
+        finally:
+            sys.dont_write_bytecode = before
+        self.assertFalse((ARM_GATE.parent / "__pycache__").exists())
         with tempfile.TemporaryDirectory(prefix="paper-deploy-runner-") as folder:
             env = {"NAUTILUS_ACCOUNT_SNAPSHOT_DIR": folder}
             for name in ("RESERVATIONS_ENV", "OPEN_RISK_ENV"):
