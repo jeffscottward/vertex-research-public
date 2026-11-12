@@ -44,6 +44,7 @@ from .data import (
     data_root,
     load_bars,
     load_context,
+    term_columns,
 )
 from .ledger import DEFAULT_CAPITAL, LedgerResult, run_ledger
 from .metrics import summarize
@@ -157,13 +158,13 @@ def _slice(data: Dataset, end: str | None) -> Dataset:
 
 
 def market_of(data: Dataset, symbol: str) -> Market:
-    """The options book's view of one symbol (data.load_market): IV index and IRX aligned to its bars."""
+    """The options book's view of one symbol (data.load_market): IV index, IV term and IRX aligned to its bars."""
     if symbol not in IV_INDEX:
         raise ValueError(f"No IV index for {symbol}")
     bar = data.bars[symbol]
     iv = align(data.series[IV_INDEX[symbol]], bar.dates, MAX_FILL_DAYS)
     rate = [None if value is None else value / 100 for value in align(data.series["IRX"], bar.dates, MAX_FILL_DAYS)]
-    return Market(symbol, bar.dates, bar.close, tuple(iv), tuple(rate))
+    return Market(symbol, bar.dates, bar.close, tuple(iv), tuple(rate), term_columns(symbol, data.series, bar.dates))
 
 
 def dsl_bars(dates: Sequence[str], open_: Sequence[float], high: Sequence[float], low: Sequence[float],

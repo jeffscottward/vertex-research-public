@@ -373,17 +373,6 @@ export const GoLivePreCheckSchema = z
 
 export const GoLiveDraftSchema = z
   .object({
-    createdAt: z.date(),
-    decidedAt: z.date().nullable(),
-    decidedBy: z.string().nullable(),
-    decisionNote: z.string().nullable(),
-    entryBasis: z.enum(GOLIVE_ENTRY_BASIS_VALUES).nullable(),
-    exitReason: z.enum(GOLIVE_EXIT_REASON_VALUES).nullable(),
-    exitRule: z.literal(GOLIVE_EXIT_RULE),
-    expiry: z.string(),
-    id: z.string().min(1),
-    kind: z.enum(GOLIVE_DRAFT_KIND_VALUES),
-    longStrike: z.number(),
     // The exact order the owner approved, stored with the decision. null unless state is approved.
     // sizing and order below are recomputed at every read and can differ from it later.
     approvedOrder: VertexComboInputSchema.nullable(),
@@ -398,6 +387,36 @@ export const GoLiveDraftSchema = z
       })
       .strict()
       .nullable(),
+    createdAt: z.date(),
+    decidedAt: z.date().nullable(),
+    decidedBy: z.string().nullable(),
+    decisionNote: z.string().nullable(),
+    entryBasis: z.enum(GOLIVE_ENTRY_BASIS_VALUES).nullable(),
+    exitReason: z.enum(GOLIVE_EXIT_REASON_VALUES).nullable(),
+    exitRule: z.literal(GOLIVE_EXIT_RULE),
+    // When the owner's standing exit rule (owner_standing_rule_v1) closes this position, for an
+    // approved entry draft: a loser closes on loserCloseDay (3 NYSE trading days before expiry),
+    // an open winner at winnerCloseAt (15:45 New York time on the expiry day). closeOrder is the
+    // combo that closes the approved order (every leg reversed, same quantity); its limit is set
+    // from the live quote when the exit draft is placed, so it is null here. null otherwise.
+    exitSchedule: z
+      .object({
+        closeOrder: z
+          .object({
+            legs: VertexComboInputSchema.shape.legs,
+            quantity: z.number().int().positive(),
+            symbol: z.string(),
+          })
+          .strict(),
+        loserCloseDay: CalendarDateSchema,
+        winnerCloseAt: z.date(),
+      })
+      .strict()
+      .nullable(),
+    expiry: z.string(),
+    id: z.string().min(1),
+    kind: z.enum(GOLIVE_DRAFT_KIND_VALUES),
+    longStrike: z.number(),
     // The node badge read when the owner approved. An approval never sends anything.
     nodeBadgeAtDecision: z.enum(GOLIVE_NODE_BADGE_VALUES).nullable(),
     notApprovable: z.array(z.enum(GOLIVE_NOT_APPROVABLE_VALUES)),
@@ -445,6 +464,8 @@ export const GoLiveNodeSchema = z
 export const GoLiveQueueOutputSchema = z
   .object({
     account: GoLiveAccountSchema,
+    // True when this caller may approve and reject (owner in a browser session).
+    canDecide: z.boolean(),
     // Every draft of the trading day: collect keeps a day at or below this number.
     drafts: z.array(GoLiveDraftSchema).max(GOLIVE_DRAFT_LIST_MAX),
     // null: the generator has not reported for this trading day.
@@ -453,8 +474,6 @@ export const GoLiveQueueOutputSchema = z
     node: GoLiveNodeSchema,
     // null: no plan record exists.
     plan: GoLivePlanSchema.nullable(),
-    // True when this caller may approve and reject (owner in a browser session).
-    canDecide: z.boolean(),
     // Literal: this API cannot send an order.
     sendsOrders: z.literal(false),
     tradingDay: CalendarDateSchema,
@@ -505,6 +524,9 @@ export const GoLiveDraftApproveInputSchema = z
     note: z.string().max(1000).optional(),
     // The owner confirms the exact order shown: the server refuses when its own sized order differs.
     order: VertexComboInputSchema,
+    // Owner 2026-11-12 (GO-LIVE 4 step 6): a late entry (model_holds_account_does_not) may be
+    // approved only with this explicit acknowledgement that it is outside the tested entry rule.
+    outsideTestedEntryRule: z.literal(true).optional(),
     // The revision of the draft as the owner read it: the server refuses when the draft has
     // another one (a later generator run changed its quote, facts or entry basis). At most the
     // largest value the stored whole number (int4) holds.

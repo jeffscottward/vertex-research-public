@@ -63,15 +63,19 @@ def timeline(trades: Sequence[PricedTrade], dates: Iterable[str] | None = None) 
 
 def trade_record(trade: PricedTrade, contracts: int, entry_price: float, exit_price: float,
                  entry_fee: float, exit_fee: float) -> dict:
-    """The trade record both ledgers return. Fees are the totals for all contracts."""
+    """The trade record both ledgers return. Fees are the totals for all contracts. A calendar (two expiries) also
+    has `farExpiry`, the expiry of its long leg; `expiry` is its near leg."""
     pnl = round(contracts * (exit_price - entry_price) - entry_fee - exit_fee, 2)
-    return {
+    record = {
         "id": trade.trade_id, "symbol": trade.symbol, "structure": trade.structure, "expiry": trade.expiry,
         "longStrike": trade.long_strike, "shortStrike": trade.short_strike,
         "entryDate": trade.entry_date, "exitDate": trade.exit_date, "contracts": contracts,
         "entryPrice": entry_price, "exitPrice": exit_price, "entryFee": entry_fee, "exitFee": exit_fee,
         "pnl": pnl, "returnOnRisk": pnl / (contracts * trade.max_loss), "exitReason": trade.exit_reason,
     }
+    if trade.far_expiry is not None:
+        record["farExpiry"] = trade.far_expiry
+    return record
 
 
 def run_ledger(trades: Sequence[PricedTrade], capital: float = DEFAULT_CAPITAL,
