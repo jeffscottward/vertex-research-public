@@ -564,7 +564,7 @@ def snapshots(store: Path, now: datetime) -> list[Snapshot]:
         if not day_dir.is_dir():
             continue
         for run_dir in _entries(day_dir):
-            path = run_dir / "summary.json"
+            path = run_dir / "summary.json"  # json-data-ignore: option-chain snapshot store on the rig, outside the repo (infra/option-chain writes it); the app never reads it
             try:
                 summary = json.loads(path.read_text())
                 as_of = datetime.fromisoformat(summary["fetchedAt"])
