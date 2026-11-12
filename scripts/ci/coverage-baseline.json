@@ -1,5 +1,5 @@
 {
-  "_comment": "Coverage ratchet (user decision, 2026-10-11). Each file listed here was below 100% when Vertex moved to TypeScript; its numbers are minimums that may only rise. Every file not listed must stay at 100%. Raise a file's numbers when its tests improve, and remove it when it reaches 100%.",
+  "_comment": "Coverage ratchet (user decision, 2026-10-11). Each file listed here was below 100% when Vertex moved to TypeScript; its numbers are minimums that may only rise. Every file not listed must stay at 100%. Raise a file's numbers when its tests improve, and remove it when it reaches 100%. One exception (owner decision, 2026-11-11, ADR-017): after a proved pure-move split (bun run coverage:split-proof) the files after the split get the entries the command prints.",
   "files": {
     "apps/web/src/app/(portal)/agents/page.tsx": {
       "lines": 0.0,

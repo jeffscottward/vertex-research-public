@@ -61,7 +61,7 @@ Code rules. Workflow is in [AGENTS.md](AGENTS.md), boundaries in [ARCHITECTURE.m
 
 - Put Vitest tests next to the code: `*.test.ts`, and `*.contract.test.ts` for contracts. Integration tests live in `tests/integration/`, Playwright specs in `tests/e2e/` (`*.a11y.spec.ts` for axe). Layers: [docs/testing.md](docs/testing.md).
 - Use the fakes from each brick's `./test` export (`createRecordingAiPort`, `createRecordingAnalyticsPort`, `createRecordingEventSink`, `createRecordingTelemetry`). Do not mock vendor SDKs in feature tests.
-- Coverage must stay at 100% for lines, branches, functions and statements, except the legacy files in `scripts/ci/coverage-baseline.json`: each keeps its recorded minimums, which may only rise, and the list may only shrink (ADR-016). Do not add coverage exclusions: `scripts/ci/test-invariants.test.ts` pins the exclusion list and fails if a tracked source file is not measured. Do not add coverage-ignore comments either (reviewed, not machine-checked).
+- Coverage must stay at 100% for lines, branches, functions and statements, except the legacy files in `scripts/ci/coverage-baseline.json`: each keeps its recorded minimums, which may only rise, and the list may only shrink (ADR-016). The one exception is a proved pure-move split of a listed file (ADR-017, `bun run coverage:split-proof`, [docs/testing.md](docs/testing.md#pure-move-split-of-a-listed-file)). Do not add coverage exclusions: `scripts/ci/test-invariants.test.ts` pins the exclusion list and fails if a tracked source file is not measured. Do not add coverage-ignore comments either (reviewed, not machine-checked).
 - One behavior per test, named after the behavior.
 
 ## Feature slice layout

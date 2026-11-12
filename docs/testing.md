@@ -41,6 +41,29 @@ If coverage drops, write the missing test. Do not add ignore pragmas or exclusio
 
 Vitest always runs under Node through `pnpm exec`, even when Bun orchestrates the script: Bun does not implement the `node:inspector` coverage APIs that `@vitest/coverage-v8` needs. The raw report goes to the ignored `coverage/` directory.
 
+### Pure-move split of a listed file
+
+A file in `scripts/ci/coverage-baseline.json` may be split into new files without raising its coverage first (owner decision 2026-11-11, ADR-017). The split must only move code. `bun run coverage:split-proof` proves it:
+
+```sh
+bun run coverage:split-proof --base <base commit> --from <listed file> --to <new file> [--to <new file>...] \
+  --coverage-before <coverage-summary.json at the base> --coverage-after <coverage-summary.json at the head>
+```
+
+`bun run verify:coverage` writes `coverage/coverage-summary.json`; run it once on the base commit and once on the split. The command prints `Result: PROVED` only when all three hold:
+
+1. Statements: every top-level statement of the original file is in exactly one file after the split, token for token and in its original order. Comments and layout are not compared. Three things may differ: import declarations, an `export` added to a declaration, and re-exports of the new files from the original file. Only declarations may move (functions, classes, types, interfaces, enums, `const`/`let`): a statement that runs at import time stays in the original file.
+2. Exports: the original file exports the same names before and after.
+3. Coverage: the covered and total lines, branches, functions and statements of the original file equal the sums over the files after the split.
+
+In the PR:
+
+- Set the baseline entries of the files after the split to the values the command prints. New files may be added, the original file's minimums may change, and a file at 100% gets no entry.
+- Change nothing else in the baseline, and keep the count under the limit in `scripts/ci/test-invariants.test.ts`.
+- Put the command output in the PR description.
+
+Any other change to the moved code (a rename, a new parameter, a fix) goes in its own PR under the normal rule.
+
 ## Generated artifacts
 
 Generated files are checked against their sources in `verify:prepush` and the core lane. Regenerate instead of editing them:
@@ -85,7 +108,7 @@ The browser lane (`bun run verify:browser`) needs the same two variables.
 
 In CI the coverage lane does not run the tests itself. A 2-vCPU runner cannot finish them within the 30-minute job limit, so thirteen `Coverage shard` jobs run them first: twelve Vitest shards of the unit, contract, operations and E2E-helper projects, and one job for the acceptance project. The acceptance job has a 50-minute limit, because its fresh-clone test reruns the whole unit suite. Each shard uploads a Vitest blob report as a run artifact (`coverage-blob-<n>`) and checks no threshold. Only the coverage lane (its own job, `verification-coverage`) waits for the shards; the core, integration and browser lanes start at once and run beside them. The coverage lane then merges the reports (`COVERAGE_MERGE_DIR`) and enforces the 100% thresholds on the combined coverage. `scripts/coverage-lane.ts` selects the mode from `COVERAGE_SHARD` or `COVERAGE_MERGE_DIR`; with neither set it runs the whole lane in one process. Blob reports hold absolute paths, and the rig runners check out into different directories. So each shard replaces its checkout root with `<coverage-lane-root>` in its report, and the merge replaces that token with its own checkout root.
 
-Coverage ratchet: every measured file must reach 100% lines, branches, functions and statements, except the files listed in `scripts/ci/coverage-baseline.json`. Those files were below 100% when Vertex moved to TypeScript (2026-10-11). Each has its own recorded minimums, which may only rise. Raise a file's numbers when its tests improve, and remove the file when it reaches 100%. `scripts/ci/test-invariants.test.ts` fails if the list grows, if a listed file is already at 100%, or if the Vitest thresholds stop matching the list.
+Coverage ratchet: every measured file must reach 100% lines, branches, functions and statements, except the files listed in `scripts/ci/coverage-baseline.json`. Those files were below 100% when Vertex moved to TypeScript (2026-10-11). Each has its own recorded minimums, which may only rise. Raise a file's numbers when its tests improve, and remove the file when it reaches 100%. `scripts/ci/test-invariants.test.ts` fails if the list grows, if a listed file is already at 100%, or if the Vitest thresholds stop matching the list. The one exception is a [proved pure-move split](#pure-move-split-of-a-listed-file).
 
 `bun run verify` runs all four locally. `bun run verify:prepush` runs the fast subset on every push: everything except the tests that need Postgres, a build, or a fresh install (integration, browser, acceptance). When the browser lane fails, CI uploads the Playwright report and traces as the run artifact `playwright-failure-<run>-<attempt>`. In CI the browser lane runs through `scripts/ci/browser-lane.sh`: it runs `verify:browser` and its own PostgreSQL in a private network namespace with only loopback. Chromium fails in-flight requests with `net::ERR_NETWORK_CHANGED` when a host network interface changes (a Wi-Fi drop, or a Docker network of another job on the shared rig), so the namespace keeps those changes away from the browser. Where unprivileged user namespaces are not available (GitHub-hosted Ubuntu), the script warns and uses the host network.
 
