@@ -43,24 +43,26 @@ Vitest always runs under Node through `pnpm exec`, even when Bun orchestrates th
 
 ### Pure-move split of a listed file
 
-A file in `scripts/ci/coverage-baseline.json` may be split into new files without raising its coverage first (owner decision 2026-11-11, ADR-017). The split must only move code. `bun run coverage:split-proof` proves it:
+A file in `scripts/ci/coverage-baseline.json` may be split into new files without raising its coverage first (owner decision 2026-11-11, ADR-017). The split must only move code. Commit it, then prove it with `bun run coverage:split-proof`:
 
 ```sh
-bun run coverage:split-proof --base <base commit> --from <listed file> --to <new file> [--to <new file>...] \
-  --coverage-before <coverage-summary.json at the base> --coverage-after <coverage-summary.json at the head>
+bun run coverage:split-proof --from <listed file> --to <new file> [--to <new file>...] \
+  --coverage-before <coverage-summary.json at the base> --coverage-after <coverage-summary.json at HEAD> [--base <commit>]
 ```
 
-`bun run verify:coverage` writes `coverage/coverage-summary.json`; run it once on the base commit and once on the split. The command prints `Result: PROVED` only when all three hold:
+The base is the merge base of HEAD and the target branch (`git merge-base HEAD origin/vertex/rebuild-darkfactory-20260921`); `--base` names another commit, and the command prints which base it used. It reads the files after the split from HEAD, not from the working tree. `bun run verify:coverage` writes `coverage/coverage-summary.json`; run it once on the base and once on HEAD. The command finds each file in a summary by its exact repo-relative path or by the one key that ends with `/<path>`, and stops when more than one key matches. It prints `Result: PROVED` only when all of these hold:
 
-1. Statements: every top-level statement of the original file is in exactly one file after the split, token for token and in its original order. Comments and layout are not compared. Three things may differ: import declarations, an `export` added to a declaration, and re-exports of the new files from the original file. Only declarations may move (functions, classes, types, interfaces, enums, `const`/`let`): a statement that runs at import time stays in the original file.
-2. Exports: the original file exports the same names before and after.
-3. Coverage: the covered and total lines, branches, functions and statements of the original file equal the sums over the files after the split.
+1. Diff: `git diff --name-only <base>..HEAD` lists only the original file, the new files and the baseline. The new files do not exist at the base and are in the folder of the original file.
+2. Statements: every top-level statement of the original file is in exactly one file after the split, token for token, with the same syntax tree and in its original order. Comments and layout are not compared. An `export` may be added to a declaration; imports and the original file's re-exports of the new files are checked by rules 4 and 5.
+3. What moves: only code that runs nothing at load time. That is function declarations, interfaces and type aliases; classes without decorators, static blocks, computed member names or static initializers that run code, whose `extends` is a name not imported from another file of the split; and `const` declarations whose initializers are literals, functions, or arrays and objects of those (`as const` and `satisfies` allowed). Everything else stays in the original file: `let` and `var` (they may be reassigned), enums, namespaces, expressions and other statements. All declarations of one name stay in one file. Moved code may not name its own file (`import.meta` other than `import.meta.dirname`, `__filename`); the same folder keeps `__dirname` and relative `require` and `import()` correct. A `"use server"` module and code that calls `eval` do not split.
+4. Names and imports: every identifier that named an import or a top-level declaration of the original file names the same one after the split, never a global. Each imported name is imported under the same name, from the same module (relative specifiers resolve from each file's folder) and not as a value or deferred import where the original imported it otherwise; or it is a declaration of the original file, imported under its name from the file of the split that declares it. Aliases (`as`), default and namespace imports of a file of the split, and modules the original file did not load are refused.
+5. Exports: the original file exports the same names, and each resolves to the same declaration, import or re-export. Re-exports of the new files do not rename and do not make a value type-only, and `export *` does not re-export a `default`.
+6. Coverage: the covered and total lines, branches, functions and statements of the original file equal the sums over the files after the split.
+7. Baseline: the entries of the files after the split are the values the command prints (a file at 100% has no entry), and everything else in the baseline is unchanged.
 
-In the PR:
+So the original file's minimums may fall only to the values the command prints, new files are listed only with those values, and nothing else in the baseline list changes. Commit the baseline entries the command prints, then run it again.
 
-- Set the baseline entries of the files after the split to the values the command prints. New files may be added, the original file's minimums may change, and a file at 100% gets no entry.
-- Change nothing else in the baseline, and keep the count under the limit in `scripts/ci/test-invariants.test.ts`.
-- Put the command output in the PR description.
+In the PR, put the command and its output in the description and keep the count under the limit in `scripts/ci/test-invariants.test.ts`. The coverage summaries are supplied by the author, so the reviewer reruns the command on the PR head with summaries from their own `bun run verify:coverage` runs on the base and on HEAD.
 
 Any other change to the moved code (a rename, a new parameter, a fix) goes in its own PR under the normal rule.
 
