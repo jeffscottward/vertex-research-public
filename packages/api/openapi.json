@@ -111256,10 +111256,10 @@
                           },
                           "required": [
                             "expiry",
-                            "strike",
+                            "ratio",
                             "right",
                             "side",
-                            "ratio"
+                            "strike"
                           ],
                           "type": "object"
                         },
@@ -111284,10 +111284,10 @@
                       }
                     },
                     "required": [
-                      "symbol",
-                      "quantity",
+                      "legs",
                       "limitPrice",
-                      "legs"
+                      "quantity",
+                      "symbol"
                     ],
                     "type": "object"
                   },
@@ -111356,10 +111356,10 @@
                                 },
                                 "required": [
                                   "expiry",
-                                  "strike",
+                                  "ratio",
                                   "right",
                                   "side",
-                                  "ratio"
+                                  "strike"
                                 ],
                                 "type": "object"
                               },
@@ -111384,10 +111384,10 @@
                             }
                           },
                           "required": [
-                            "symbol",
-                            "quantity",
+                            "legs",
                             "limitPrice",
-                            "legs"
+                            "quantity",
+                            "symbol"
                           ],
                           "type": "object"
                         },
@@ -111494,6 +111494,99 @@
                     },
                     "exitRule": {
                       "const": "owner_standing_rule_v1"
+                    },
+                    "exitSchedule": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "closeOrder": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "legs": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "expiry": {
+                                        "pattern": "^\\d{8}$",
+                                        "type": "string"
+                                      },
+                                      "ratio": {
+                                        "maximum": 10,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                      },
+                                      "right": {
+                                        "enum": [
+                                          "C",
+                                          "P"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "side": {
+                                        "enum": [
+                                          "BUY",
+                                          "SELL"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "strike": {
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 100000,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "expiry",
+                                      "ratio",
+                                      "right",
+                                      "side",
+                                      "strike"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 6,
+                                  "minItems": 2,
+                                  "type": "array"
+                                },
+                                "quantity": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "symbol": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "legs",
+                                "quantity",
+                                "symbol"
+                              ],
+                              "type": "object"
+                            },
+                            "loserCloseDay": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "winnerCloseAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            }
+                          },
+                          "required": [
+                            "closeOrder",
+                            "loserCloseDay",
+                            "winnerCloseAt"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "expiry": {
                       "type": "string"
@@ -111611,10 +111704,10 @@
                                 },
                                 "required": [
                                   "expiry",
-                                  "strike",
+                                  "ratio",
                                   "right",
                                   "side",
-                                  "ratio"
+                                  "strike"
                                 ],
                                 "type": "object"
                               },
@@ -111639,10 +111732,10 @@
                             }
                           },
                           "required": [
-                            "symbol",
-                            "quantity",
+                            "legs",
                             "limitPrice",
-                            "legs"
+                            "quantity",
+                            "symbol"
                           ],
                           "type": "object"
                         },
@@ -111751,12 +111844,12 @@
                               },
                               "required": [
                                 "decision",
-                                "structure",
+                                "jevStance",
+                                "jevState",
                                 "maxLoss",
                                 "maxLossPct",
-                                "jevState",
-                                "jevStance",
-                                "reasons"
+                                "reasons",
+                                "structure"
                               ],
                               "type": "object"
                             },
@@ -111956,6 +112049,8 @@
                     }
                   },
                   "required": [
+                    "approvedOrder",
+                    "approvedRoom",
                     "createdAt",
                     "decidedAt",
                     "decidedBy",
@@ -111963,12 +112058,11 @@
                     "entryBasis",
                     "exitReason",
                     "exitRule",
+                    "exitSchedule",
                     "expiry",
                     "id",
                     "kind",
                     "longStrike",
-                    "approvedOrder",
-                    "approvedRoom",
                     "nodeBadgeAtDecision",
                     "notApprovable",
                     "notes",
@@ -112590,10 +112684,10 @@
                                 },
                                 "required": [
                                   "expiry",
-                                  "strike",
+                                  "ratio",
                                   "right",
                                   "side",
-                                  "ratio"
+                                  "strike"
                                 ],
                                 "type": "object"
                               },
@@ -112618,10 +112712,10 @@
                             }
                           },
                           "required": [
-                            "symbol",
-                            "quantity",
+                            "legs",
                             "limitPrice",
-                            "legs"
+                            "quantity",
+                            "symbol"
                           ],
                           "type": "object"
                         },
@@ -112728,6 +112822,99 @@
                     },
                     "exitRule": {
                       "const": "owner_standing_rule_v1"
+                    },
+                    "exitSchedule": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "closeOrder": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "legs": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "expiry": {
+                                        "pattern": "^\\d{8}$",
+                                        "type": "string"
+                                      },
+                                      "ratio": {
+                                        "maximum": 10,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                      },
+                                      "right": {
+                                        "enum": [
+                                          "C",
+                                          "P"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "side": {
+                                        "enum": [
+                                          "BUY",
+                                          "SELL"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "strike": {
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 100000,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "expiry",
+                                      "ratio",
+                                      "right",
+                                      "side",
+                                      "strike"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 6,
+                                  "minItems": 2,
+                                  "type": "array"
+                                },
+                                "quantity": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "symbol": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "legs",
+                                "quantity",
+                                "symbol"
+                              ],
+                              "type": "object"
+                            },
+                            "loserCloseDay": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "winnerCloseAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            }
+                          },
+                          "required": [
+                            "closeOrder",
+                            "loserCloseDay",
+                            "winnerCloseAt"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "expiry": {
                       "type": "string"
@@ -112845,10 +113032,10 @@
                                 },
                                 "required": [
                                   "expiry",
-                                  "strike",
+                                  "ratio",
                                   "right",
                                   "side",
-                                  "ratio"
+                                  "strike"
                                 ],
                                 "type": "object"
                               },
@@ -112873,10 +113060,10 @@
                             }
                           },
                           "required": [
-                            "symbol",
-                            "quantity",
+                            "legs",
                             "limitPrice",
-                            "legs"
+                            "quantity",
+                            "symbol"
                           ],
                           "type": "object"
                         },
@@ -112985,12 +113172,12 @@
                               },
                               "required": [
                                 "decision",
-                                "structure",
+                                "jevStance",
+                                "jevState",
                                 "maxLoss",
                                 "maxLossPct",
-                                "jevState",
-                                "jevStance",
-                                "reasons"
+                                "reasons",
+                                "structure"
                               ],
                               "type": "object"
                             },
@@ -113190,6 +113377,8 @@
                     }
                   },
                   "required": [
+                    "approvedOrder",
+                    "approvedRoom",
                     "createdAt",
                     "decidedAt",
                     "decidedBy",
@@ -113197,12 +113386,11 @@
                     "entryBasis",
                     "exitReason",
                     "exitRule",
+                    "exitSchedule",
                     "expiry",
                     "id",
                     "kind",
                     "longStrike",
-                    "approvedOrder",
-                    "approvedRoom",
                     "nodeBadgeAtDecision",
                     "notApprovable",
                     "notes",
@@ -114566,10 +114754,10 @@
                                       },
                                       "required": [
                                         "expiry",
-                                        "strike",
+                                        "ratio",
                                         "right",
                                         "side",
-                                        "ratio"
+                                        "strike"
                                       ],
                                       "type": "object"
                                     },
@@ -114594,10 +114782,10 @@
                                   }
                                 },
                                 "required": [
-                                  "symbol",
-                                  "quantity",
+                                  "legs",
                                   "limitPrice",
-                                  "legs"
+                                  "quantity",
+                                  "symbol"
                                 ],
                                 "type": "object"
                               },
@@ -114704,6 +114892,99 @@
                           },
                           "exitRule": {
                             "const": "owner_standing_rule_v1"
+                          },
+                          "exitSchedule": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "closeOrder": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "legs": {
+                                        "items": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "expiry": {
+                                              "pattern": "^\\d{8}$",
+                                              "type": "string"
+                                            },
+                                            "ratio": {
+                                              "maximum": 10,
+                                              "minimum": 1,
+                                              "type": "integer"
+                                            },
+                                            "right": {
+                                              "enum": [
+                                                "C",
+                                                "P"
+                                              ],
+                                              "type": "string"
+                                            },
+                                            "side": {
+                                              "enum": [
+                                                "BUY",
+                                                "SELL"
+                                              ],
+                                              "type": "string"
+                                            },
+                                            "strike": {
+                                              "exclusiveMinimum": 0,
+                                              "maximum": 100000,
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "expiry",
+                                            "ratio",
+                                            "right",
+                                            "side",
+                                            "strike"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "maxItems": 6,
+                                        "minItems": 2,
+                                        "type": "array"
+                                      },
+                                      "quantity": {
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 9007199254740991,
+                                        "minimum": -9007199254740991,
+                                        "type": "integer"
+                                      },
+                                      "symbol": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "legs",
+                                      "quantity",
+                                      "symbol"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "loserCloseDay": {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  "winnerCloseAt": {
+                                    "format": "date-time",
+                                    "type": "string",
+                                    "x-native-type": "date"
+                                  }
+                                },
+                                "required": [
+                                  "closeOrder",
+                                  "loserCloseDay",
+                                  "winnerCloseAt"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "expiry": {
                             "type": "string"
@@ -114821,10 +115102,10 @@
                                       },
                                       "required": [
                                         "expiry",
-                                        "strike",
+                                        "ratio",
                                         "right",
                                         "side",
-                                        "ratio"
+                                        "strike"
                                       ],
                                       "type": "object"
                                     },
@@ -114849,10 +115130,10 @@
                                   }
                                 },
                                 "required": [
-                                  "symbol",
-                                  "quantity",
+                                  "legs",
                                   "limitPrice",
-                                  "legs"
+                                  "quantity",
+                                  "symbol"
                                 ],
                                 "type": "object"
                               },
@@ -114961,12 +115242,12 @@
                                     },
                                     "required": [
                                       "decision",
-                                      "structure",
+                                      "jevStance",
+                                      "jevState",
                                       "maxLoss",
                                       "maxLossPct",
-                                      "jevState",
-                                      "jevStance",
-                                      "reasons"
+                                      "reasons",
+                                      "structure"
                                     ],
                                     "type": "object"
                                   },
@@ -115166,6 +115447,8 @@
                           }
                         },
                         "required": [
+                          "approvedOrder",
+                          "approvedRoom",
                           "createdAt",
                           "decidedAt",
                           "decidedBy",
@@ -115173,12 +115456,11 @@
                           "entryBasis",
                           "exitReason",
                           "exitRule",
+                          "exitSchedule",
                           "expiry",
                           "id",
                           "kind",
                           "longStrike",
-                          "approvedOrder",
-                          "approvedRoom",
                           "nodeBadgeAtDecision",
                           "notApprovable",
                           "notes",
@@ -115534,12 +115816,12 @@
                   },
                   "required": [
                     "account",
+                    "canDecide",
                     "drafts",
                     "generatedAt",
                     "marketNotes",
                     "node",
                     "plan",
-                    "canDecide",
                     "sendsOrders",
                     "tradingDay"
                   ],
@@ -186924,9 +187206,9 @@
                   }
                 },
                 "required": [
-                  "permId",
+                  "confirm",
                   "confirmToken",
-                  "confirm"
+                  "permId"
                 ],
                 "type": "object"
               }
@@ -186970,11 +187252,11 @@
                     }
                   },
                   "required": [
+                    "message",
                     "mode",
-                    "state",
                     "orderRef",
                     "permId",
-                    "message"
+                    "state"
                   ],
                   "type": "object"
                 }
@@ -187410,14 +187692,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "NOT_CONFIGURED"
+                          "const": "AUDIT_UNAVAILABLE"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order gateway not configured",
+                          "default": "Order audit record could not be written; nothing was sent",
                           "type": "string"
                         },
                         "status": {
@@ -187435,14 +187717,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "AUDIT_UNAVAILABLE"
+                          "const": "NOT_CONFIGURED"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order audit record could not be written; nothing was sent",
+                          "default": "Order gateway not configured",
                           "type": "string"
                         },
                         "status": {
@@ -187551,10 +187833,10 @@
                         }
                       },
                       "required": [
-                        "ordersEnabled",
-                        "mode",
                         "killSwitch",
-                        "optionsOnly"
+                        "mode",
+                        "optionsOnly",
+                        "ordersEnabled"
                       ],
                       "type": "object"
                     },
@@ -187631,28 +187913,28 @@
                         }
                       },
                       "required": [
-                        "permId",
-                        "symbol",
-                        "secType",
+                        "cancellable",
                         "expiry",
-                        "strike",
-                        "right",
-                        "side",
-                        "quantity",
-                        "orderType",
                         "limitPrice",
-                        "status",
                         "orderRef",
-                        "cancellable"
+                        "orderType",
+                        "permId",
+                        "quantity",
+                        "right",
+                        "secType",
+                        "side",
+                        "status",
+                        "strike",
+                        "symbol"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
-                    "gates",
-                    "order",
                     "confirmToken",
-                    "expiresAt"
+                    "expiresAt",
+                    "gates",
+                    "order"
                   ],
                   "type": "object"
                 }
@@ -188088,14 +188370,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "NOT_CONFIGURED"
+                          "const": "AUDIT_UNAVAILABLE"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order gateway not configured",
+                          "default": "Order audit record could not be written; nothing was sent",
                           "type": "string"
                         },
                         "status": {
@@ -188113,14 +188395,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "AUDIT_UNAVAILABLE"
+                          "const": "NOT_CONFIGURED"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order audit record could not be written; nothing was sent",
+                          "default": "Order gateway not configured",
                           "type": "string"
                         },
                         "status": {
@@ -188181,6 +188463,11 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "goLiveDraftId": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  },
                   "legs": {
                     "items": {
                       "additionalProperties": false,
@@ -188216,10 +188503,10 @@
                       },
                       "required": [
                         "expiry",
-                        "strike",
+                        "ratio",
                         "right",
                         "side",
-                        "ratio"
+                        "strike"
                       ],
                       "type": "object"
                     },
@@ -188244,10 +188531,10 @@
                   }
                 },
                 "required": [
-                  "symbol",
-                  "quantity",
+                  "legs",
                   "limitPrice",
-                  "legs"
+                  "quantity",
+                  "symbol"
                 ],
                 "type": "object"
               }
@@ -188301,10 +188588,10 @@
                         }
                       },
                       "required": [
-                        "ordersEnabled",
-                        "mode",
                         "killSwitch",
-                        "optionsOnly"
+                        "mode",
+                        "optionsOnly",
+                        "ordersEnabled"
                       ],
                       "type": "object"
                     },
@@ -188387,12 +188674,12 @@
                               },
                               "required": [
                                 "decision",
-                                "structure",
+                                "jevStance",
+                                "jevState",
                                 "maxLoss",
                                 "maxLossPct",
-                                "jevState",
-                                "jevStance",
-                                "reasons"
+                                "reasons",
+                                "structure"
                               ],
                               "type": "object"
                             },
@@ -188445,10 +188732,10 @@
                                 },
                                 "required": [
                                   "expiry",
-                                  "strike",
+                                  "ratio",
                                   "right",
                                   "side",
-                                  "ratio"
+                                  "strike"
                                 ],
                                 "type": "object"
                               },
@@ -188473,10 +188760,10 @@
                             }
                           },
                           "required": [
-                            "symbol",
-                            "quantity",
+                            "legs",
                             "limitPrice",
-                            "legs"
+                            "quantity",
+                            "symbol"
                           ],
                           "type": "object"
                         },
@@ -188488,20 +188775,20 @@
                         }
                       },
                       "required": [
-                        "order",
+                        "accepted",
                         "label",
                         "netAmount",
-                        "accepted",
+                        "order",
                         "reasons"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
-                    "gates",
-                    "review",
                     "confirmToken",
-                    "expiresAt"
+                    "expiresAt",
+                    "gates",
+                    "review"
                   ],
                   "type": "object"
                 }
@@ -188937,14 +189224,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "NOT_CONFIGURED"
+                          "const": "AUDIT_UNAVAILABLE"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order gateway not configured",
+                          "default": "Order audit record could not be written; nothing was sent",
                           "type": "string"
                         },
                         "status": {
@@ -188962,14 +189249,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "AUDIT_UNAVAILABLE"
+                          "const": "NOT_CONFIGURED"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order audit record could not be written; nothing was sent",
+                          "default": "Order gateway not configured",
                           "type": "string"
                         },
                         "status": {
@@ -189038,6 +189325,11 @@
                     "minLength": 16,
                     "type": "string"
                   },
+                  "goLiveDraftId": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  },
                   "order": {
                     "additionalProperties": false,
                     "properties": {
@@ -189076,10 +189368,10 @@
                           },
                           "required": [
                             "expiry",
-                            "strike",
+                            "ratio",
                             "right",
                             "side",
-                            "ratio"
+                            "strike"
                           ],
                           "type": "object"
                         },
@@ -189104,18 +189396,18 @@
                       }
                     },
                     "required": [
-                      "symbol",
-                      "quantity",
+                      "legs",
                       "limitPrice",
-                      "legs"
+                      "quantity",
+                      "symbol"
                     ],
                     "type": "object"
                   }
                 },
                 "required": [
-                  "order",
+                  "confirm",
                   "confirmToken",
-                  "confirm"
+                  "order"
                 ],
                 "type": "object"
               }
@@ -189159,11 +189451,11 @@
                     }
                   },
                   "required": [
+                    "message",
                     "mode",
-                    "state",
                     "orderRef",
                     "permId",
-                    "message"
+                    "state"
                   ],
                   "type": "object"
                 }
@@ -189599,14 +189891,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "NOT_CONFIGURED"
+                          "const": "AUDIT_UNAVAILABLE"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order gateway not configured",
+                          "default": "Order audit record could not be written; nothing was sent",
                           "type": "string"
                         },
                         "status": {
@@ -189624,14 +189916,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "AUDIT_UNAVAILABLE"
+                          "const": "NOT_CONFIGURED"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order audit record could not be written; nothing was sent",
+                          "default": "Order gateway not configured",
                           "type": "string"
                         },
                         "status": {
@@ -189741,15 +190033,15 @@
                   }
                 },
                 "required": [
-                  "symbol",
-                  "secType",
                   "expiry",
-                  "strike",
-                  "right",
-                  "side",
-                  "quantity",
+                  "limitPrice",
                   "orderType",
-                  "limitPrice"
+                  "quantity",
+                  "right",
+                  "secType",
+                  "side",
+                  "strike",
+                  "symbol"
                 ],
                 "type": "object"
               }
@@ -189803,10 +190095,10 @@
                         }
                       },
                       "required": [
-                        "ordersEnabled",
-                        "mode",
                         "killSwitch",
-                        "optionsOnly"
+                        "mode",
+                        "optionsOnly",
+                        "ordersEnabled"
                       ],
                       "type": "object"
                     },
@@ -189845,13 +190137,13 @@
                             }
                           },
                           "required": [
+                            "afterOrder",
+                            "afterOrderPct",
                             "kind",
                             "label",
-                            "limitPct",
                             "limitAmount",
-                            "openPremium",
-                            "afterOrder",
-                            "afterOrderPct"
+                            "limitPct",
+                            "openPremium"
                           ],
                           "type": "object"
                         },
@@ -189937,12 +190229,12 @@
                               },
                               "required": [
                                 "decision",
-                                "structure",
+                                "jevStance",
+                                "jevState",
                                 "maxLoss",
                                 "maxLossPct",
-                                "jevState",
-                                "jevStance",
-                                "reasons"
+                                "reasons",
+                                "structure"
                               ],
                               "type": "object"
                             },
@@ -190016,15 +190308,15 @@
                             }
                           },
                           "required": [
-                            "symbol",
-                            "secType",
                             "expiry",
-                            "strike",
-                            "right",
-                            "side",
-                            "quantity",
+                            "limitPrice",
                             "orderType",
-                            "limitPrice"
+                            "quantity",
+                            "right",
+                            "secType",
+                            "side",
+                            "strike",
+                            "symbol"
                           ],
                           "type": "object"
                         },
@@ -190049,25 +190341,25 @@
                         }
                       },
                       "required": [
-                        "order",
+                        "accepted",
+                        "cap",
                         "contractLabel",
                         "daysToExpiry",
+                        "heldContracts",
+                        "netLiquidation",
+                        "order",
                         "premium",
                         "premiumPctNlv",
-                        "netLiquidation",
-                        "heldContracts",
-                        "cap",
-                        "accepted",
                         "reasons"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
-                    "gates",
-                    "review",
                     "confirmToken",
-                    "expiresAt"
+                    "expiresAt",
+                    "gates",
+                    "review"
                   ],
                   "type": "object"
                 }
@@ -190503,14 +190795,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "NOT_CONFIGURED"
+                          "const": "AUDIT_UNAVAILABLE"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order gateway not configured",
+                          "default": "Order audit record could not be written; nothing was sent",
                           "type": "string"
                         },
                         "status": {
@@ -190528,14 +190820,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "AUDIT_UNAVAILABLE"
+                          "const": "NOT_CONFIGURED"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order audit record could not be written; nothing was sent",
+                          "default": "Order gateway not configured",
                           "type": "string"
                         },
                         "status": {
@@ -190617,10 +190909,10 @@
                         }
                       },
                       "required": [
-                        "ordersEnabled",
-                        "mode",
                         "killSwitch",
-                        "optionsOnly"
+                        "mode",
+                        "optionsOnly",
+                        "ordersEnabled"
                       ],
                       "type": "object"
                     },
@@ -190708,19 +191000,19 @@
                           }
                         },
                         "required": [
-                          "permId",
-                          "symbol",
-                          "secType",
+                          "cancellable",
                           "expiry",
-                          "strike",
-                          "right",
-                          "side",
-                          "quantity",
-                          "orderType",
                           "limitPrice",
-                          "status",
                           "orderRef",
-                          "cancellable"
+                          "orderType",
+                          "permId",
+                          "quantity",
+                          "right",
+                          "secType",
+                          "side",
+                          "status",
+                          "strike",
+                          "symbol"
                         ],
                         "type": "object"
                       },
@@ -191166,14 +191458,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "NOT_CONFIGURED"
+                          "const": "AUDIT_UNAVAILABLE"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order gateway not configured",
+                          "default": "Order audit record could not be written; nothing was sent",
                           "type": "string"
                         },
                         "status": {
@@ -191191,14 +191483,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "AUDIT_UNAVAILABLE"
+                          "const": "NOT_CONFIGURED"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order audit record could not be written; nothing was sent",
+                          "default": "Order gateway not configured",
                           "type": "string"
                         },
                         "status": {
@@ -191319,23 +191611,23 @@
                       }
                     },
                     "required": [
-                      "symbol",
-                      "secType",
                       "expiry",
-                      "strike",
-                      "right",
-                      "side",
-                      "quantity",
+                      "limitPrice",
                       "orderType",
-                      "limitPrice"
+                      "quantity",
+                      "right",
+                      "secType",
+                      "side",
+                      "strike",
+                      "symbol"
                     ],
                     "type": "object"
                   }
                 },
                 "required": [
-                  "order",
+                  "confirm",
                   "confirmToken",
-                  "confirm"
+                  "order"
                 ],
                 "type": "object"
               }
@@ -191379,11 +191671,11 @@
                     }
                   },
                   "required": [
+                    "message",
                     "mode",
-                    "state",
                     "orderRef",
                     "permId",
-                    "message"
+                    "state"
                   ],
                   "type": "object"
                 }
@@ -191819,14 +192111,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "NOT_CONFIGURED"
+                          "const": "AUDIT_UNAVAILABLE"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order gateway not configured",
+                          "default": "Order audit record could not be written; nothing was sent",
                           "type": "string"
                         },
                         "status": {
@@ -191844,14 +192136,14 @@
                     {
                       "properties": {
                         "code": {
-                          "const": "AUDIT_UNAVAILABLE"
+                          "const": "NOT_CONFIGURED"
                         },
                         "data": {},
                         "defined": {
                           "const": true
                         },
                         "message": {
-                          "default": "Order audit record could not be written; nothing was sent",
+                          "default": "Order gateway not configured",
                           "type": "string"
                         },
                         "status": {
