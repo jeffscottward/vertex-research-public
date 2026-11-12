@@ -9,8 +9,10 @@ Postgres.
 Result on 2026-11-11 (data to 2026-11-10): **36 of the 42 strategies now have an options form with an own
 NautilusTrader run. In the study model none of them passes the gate and none passes the owner's lower bar.**
 With the option model the allocation study measured for the Core 7, three forms pass the lower bar: one is
-below its always-on baseline, one equals it within 0.01, and the iron condor has no baseline. The other 6
-strategies were not run then. The report with
+below its always-on baseline, one equals it within 0.01, and the iron condor has no baseline. Of the other 6
+strategies, five trade intraday bars: they have a form in the intraday study of 2026-11-12 (section "Intraday
+forms" below). The sixth, the long calendar spread, was not run then; it runs since the two-expiry book of
+2026-11-12 (section "The long calendar spread" below). The report with
 the tables is outside the repository (rig reports directory `vertex-options-forms`).
 
 Added on 2026-11-12: the option book now prices a two-expiry structure on an IV term structure (VIX, VIX3M,
@@ -24,16 +26,20 @@ strategies are still not run (reasons below).
 | File | What it does |
 | --- | --- |
 | `services/research/strategies/qc_ports/forms.py` | The form: stance per symbol and day, stance to spreads under the owner exit rule, proxy IV index and cost model for underlyings without a Cboe index, indicators |
-| `services/research/strategies/qc_ports/forms_orders.py` | Rules of the 9 QuantJourney order strategies (limit, stop, stop-limit, trailing stop, OCO) |
+| `services/research/strategies/qc_ports/forms_orders.py` | Rules of the 9 QuantJourney order strategies (limit, stop, stop-limit, trailing stop, OCO) and the order machine of the 2 intraday order strategies |
 | `services/research/strategies/qc_ports/forms_weights.py` | Rules of the 16 QuantJourney weights and rotation strategies and of the 151 Strategies sector rotation |
 | `services/research/strategies/qc_ports/forms_other.py` | Rules of the pairs, the FX and futures twins, the 10-month SMA timing, the iron condor, the long calendar spread and the leader pullback |
+| `services/research/strategies/qc_ports/forms_intraday.py` | Rules of the 5 QuantJourney strategies that trade intraday bars, and their baselines |
+| `services/research/strategies/qc_ports/intraday.py` | Intraday bars for the option book: bars from minute sessions, daily IV on bar times, daily closes of a run on bar times |
 | `services/research/strategies/qc_ports/book.py` | The option book; the two-expiry structure of the long calendar spread (`callCalendar`, `putCalendar`) on the IV term structure of `options.term_atm_iv` |
-| `services/research/strategies/qc_ports/forms_library.py` | Registry: the 42 library slugs, each with its form or the reason it has none; the baselines |
-| `services/research/tests/test_qc_ports_forms*.py`, `test_qc_ports_two_expiry.py` | Synthetic tests (base Python lane) |
+| `services/research/strategies/qc_ports/forms_library.py` | Registry: the 42 library slugs, each with its daily form, its intraday form or the reason it has none; the baselines |
+| `services/research/tests/test_qc_ports_forms*.py`, `test_qc_ports_intraday.py`, `test_qc_ports_two_expiry.py` | Synthetic tests (base Python lane) |
 | `research/backtests/options-forms/fetch_data.py` | Fetches the daily bars of the extra underlyings |
-| `research/backtests/options-forms/run.py` | The study: runs every form and writes one JSON document and a results table to `--out` |
+| `research/backtests/options-forms/run.py` | The daily study: runs every daily form and writes one JSON document and a results table to `--out` |
+| `research/backtests/options-forms/run_intraday.py` | The intraday study: runs the 5 intraday forms on intraday bars and writes the same kind of document |
 
-`run.py` writes its output to a report work directory. The app does not read it (AGENTS.md rule 13).
+`run.py` and `run_intraday.py` write their output to a report work directory. The app does not read it (AGENTS.md
+rule 13).
 
 ## Run it (rig)
 
@@ -228,15 +234,11 @@ three configs of the spec (`docs/specs/strategies/long-calendar-spread.md`, B5) 
 - Not run: the put calendar (under this model it differs from the call calendar only by carry) and every other
   underlying (no IV term structure in the data set).
 
-### Not run
+### Not run in this study
 
-| Library strategy | Why it is not run |
+| Library strategy | Why |
 | --- | --- |
-| `quantjourney-o15-intraday-5m-bracket-reversion` | The rule reads 5-minute bars. The option book prices daily closes only, and the data set has no intraday bars and no intraday option prices for it. |
-| `quantjourney-o16-intraday-30m-stop-breakout` | The rule reads 30-minute bars. The option book prices daily closes only, and the data set has no intraday bars and no intraday option prices for it. |
-| `quantjourney-w07-intraday-rsi-15m` | The rule reads 15-minute bars. The option book prices daily closes only, and the data set has no intraday bars and no intraday option prices for it. |
-| `quantjourney-w08-intraday-1m-ema-scalp` | The rule reads 1-minute bars. The option book prices daily closes only, and the data set has no intraday bars and no intraday option prices for it. |
-| `quantjourney-w09-intraday-1h-sma-trend` | The rule reads 1-hour bars. The option book prices daily closes only, and the data set has no intraday bars and no intraday option prices for it. |
+| `quantjourney-o15-intraday-5m-bracket-reversion`, `quantjourney-o16-intraday-30m-stop-breakout`, `quantjourney-w07-intraday-rsi-15m`, `quantjourney-w08-intraday-1m-ema-scalp`, `quantjourney-w09-intraday-1h-sma-trend` | The rule reads intraday bars. These five have a form in the intraday study (section "Intraday forms" below). On 2026-11-11 they were listed as not run: the option book priced daily closes only. |
 
 ## Results
 
@@ -394,3 +396,146 @@ Reading:
 
 Not checked here: live option quotes of the underlyings outside the Core 7, account-level risk caps for a form
 with many names, intraday exits, interest on cash.
+
+## Intraday forms
+
+Five of the 42 strategies read intraday bars: O15 (5 minutes), O16 (30 minutes), W07 (15 minutes), W08 (1 minute)
+and W09 (1 hour). `run_intraday.py` runs their options forms on intraday bars, with the same option book, the
+same gate and an own NautilusTrader run per form. It creates no order, no deployment request, no preset and no
+row in Postgres.
+
+### Run it (rig)
+
+```sh
+<venv with services/research/requirements-nautilus-linux-py312.lock>/bin/python \
+  research/backtests/options-forms/run_intraday.py --data <data dir> --ib <5-minute bars dir> \
+  --spy-1min <SPY 1-minute csv> --prior <results.json of run.py> --capital <account value, rounded> \
+  --out <work dir>/intraday.json
+```
+
+`--prior` is the result of `run.py` under the same option model: the intraday runs are added to its trials.
+The diagnostics `--chain` and `--cost-scale 0` work as in `run.py`.
+
+### Method (fixed on 2026-11-12 before the first run of an intraday form)
+
+Bars:
+
+- 5-minute bars of SPY, QQQ and IWM, regular session: IBKR TRADES bars (`noise_band_ib_fetch.py`; QQQ and IWM
+  from 2008-02, SPY from 2020-03). SPY before 2020-03 is the 1-minute file of the noise-band study (2008-01 to
+  2021-05) in 5-minute bars, as the noise-band re-test reads SPY. The 15-minute, 30-minute and hourly bars are
+  made from the 5-minute bars. A bar starts a multiple of its length after 09:30; the hourly bars of a full
+  day close at 10:30, 11:30, 12:30, 13:30, 14:30, 15:30 and 16:00.
+- 1-minute bars exist for SPY only, 2008-01 to 2021-05. W08 therefore runs on SPY alone and ends in 2021.
+- A session without its 09:30 bar or without a regular last bar is left out; the results count these sessions.
+  The 1-minute file also needs every minute of a session (`noise_band_run.load_sessions`), so this rule holds
+  for W08 and for SPY's 5-minute bars before 2020-03. The IBKR 5-minute files fill a missing bar inside a session
+  with the close of the bar before (`noise_band_retest`); the results count these bars.
+  The prices are traded prices: not adjusted for dividends, and none of the three ETFs had a split in the period.
+- The option book takes its trading days from the bars, so a left-out expiry Friday would move the expiry to
+  the Thursday before. A run stops when a monthly expiry day has no session (none has one in these files).
+- The bars end on the last day that has the IV indices and the rate (the daily data set).
+
+What a form keeps: the stance of the shares rule per symbol and bar, +1 while the rule holds shares and 0 while
+it is flat. All five rules keep a position over night upstream; so does the form.
+
+| Form | Bars | Rule (upstream file `example_..._intraday_*.py`, commit `4f403d85`) |
+| --- | --- | --- |
+| `qj/O15` | 5 minutes | Flat and RSI(14) below 30: buy at market. Take profit at 1.006 and stop at 0.996 times the close of the signal bar, as one bracket. The bracket rests from the bar after the entry fill; a bar that reaches both prices fills the stop. |
+| `qj/O16` | 30 minutes | Flat: buy stop at 1.001 times the highest high of the 12 bars before, valid 3 bars, a new stop on every flat bar. Sell at market on the 8th bar after the bar of the last stop order. |
+| `qj/W07` | 15 minutes | Long from RSI(14) below 35 until RSI(14) above 55. |
+| `qj/W08` | 1 minute | Long while EMA(9) is above EMA(21). SPY only. |
+| `qj/W09` | 1 hour | Long while SMA(10) is above SMA(30). |
+
+The two order strategies run in the order machine of the daily order forms (`forms_orders.py`), with the fills of
+the upstream engine. The three weights strategies trade on every signal change, so their stance is the signal of
+the bar. Not kept: order sizes and weights (also the 25% and 34% caps), slippage and commission of the shares,
+and QQQ and IWM for W08.
+
+Stance to spreads, as in the daily study with "bar" for "day": +1 holds the monthly call debit vertical
+(`MONTHLY_CALL`: 60 days to expiry, long leg at 0.5 delta, 1 sigma wide, at most 2% of equity at risk). The spread
+opens at the close of the bar after the stance starts and closes at the close of the bar after it ends, or under
+the owner exit rule. One open spread per symbol. So the option trade is one bar later than the shares fill, and
+every round trip of the rule pays the option costs twice: per leg $0.65 and half the bid/ask spread, on entry
+and on exit.
+
+Option prices on intraday bars:
+
+- The option book prices every bar of the rule. The time to expiry is the calendar days to the expiry day plus
+  the part of the day left until 16:00. A spread expires at the 16:00 bar of its expiry day, and the loser cut
+  comes at the 16:00 bar 3 days before.
+- The data set has no intraday IV index. The last bar of a day uses the index value of that day, as the daily
+  study does (the index closes at 16:15; the daily study reads that close at its 16:00 bar too). Every earlier
+  bar uses the last index value before that day, filled for at most the daily study's number of days; so after
+  a gap in the index the earlier bars of a day can keep a value one day longer than its last bar. The implied
+  volatility does not move inside a day. In the market it moves against the price: a call spread gains less on
+  a rise and loses less on a fall than this model says.
+- The data set has no intraday option quotes. The half spreads are the daily model's (or the measured Core 7
+  model's); spreads at the open are wider than that.
+- A half day (13:00 close) is priced like a full day: its last bar still has 3 hours to 16:00.
+- The daily study lets the close stand for 15:45 ET, the time at which the owner closes an open winner on expiry
+  day. Here a spread expires, and the loser cut is made, at the bar that closes at 16:00. The move of the
+  underlying between 15:45 and 16:00 is in the result; the owner's earlier close is not modeled.
+
+Statistics, gate, baselines and trials:
+
+- The run is one equity value per bar. The statistics of the gate read the daily closes of it (the equity
+  after the last bar of each day). The largest open risk is taken over all bars.
+- The baseline of check G7 is the always-on call spread on the same symbols and the same days, on hourly bars
+  (`base/intraday3`: SPY, QQQ, IWM; `base/intraday-spy`: SPY 2008 to 2021). An always-on spread does not depend
+  on the bar length: the next one opens when the last one closed. As in the daily study the baseline Sharpe is
+  the mean of two runs that start 0 and 21 trading days after the first bar (21 days of full sessions in bars,
+  so a little longer when a half day falls in them).
+- The deflated Sharpe counts the trials of the daily study (`--prior`) plus every intraday form and baseline that
+  traded. The daily results of 2026-11-11 hold the count and the variance of their trials, not the values. With
+  such a `--prior` the across-trial variance is the daily one: the intraday runs raise the count only. The true
+  variance would be higher with runs far from the daily trials and lower with runs near their mean; with a few
+  runs beside 108 trials it moves little, so read the deflated Sharpe as an estimate, not a bound. `run.py` now
+  writes the trial values (`trials.dailySharpes`); with them the variance is exact. A `--prior` that is an
+  intraday result or a run of some forms only (`--only`) stops the run; `run.py` records `--only` from
+  2026-11-12 on, so an older `--only` result is not caught.
+
+### Results (2026-11-12)
+
+Data to 2026-11-10 (W08: SPY 1-minute bars 2008-01-22 to 2021-05-06), same capital as the daily study, engine
+qc-ports ledger + nautilus_trader 1.227.0. Ledger and Nautilus agree on all 21 runs (7 in each of the three
+option models; largest relative equity gap 4.3e-16). Sessions left out: SPY 1-minute 2, QQQ 5, IWM 1; no
+5-minute bar was filled. The three runs take 11 to 20 minutes side by side, at about 4.4 GB each.
+
+| | Study model | Measured Core 7 model (diagnostic) | Commissions only (diagnostic) |
+| --- | ---: | ---: | ---: |
+| Forms with a positive Sharpe, of 5 | 0 | 1 | 2 |
+| Pass the gate | 0 | 0 | 1 (`qj/W07`) |
+| Pass the lower bar | 0 | 1 (`qj/W07`) | 1 (`qj/W07`) |
+
+Trials counted in the deflated Sharpe: 115 (108 of the daily study + 7 here). The across-trial variance is
+the daily one (see Method).
+
+| Form | Bars | Underlyings | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades of priced | P&L before costs | Costs | Baseline Sharpe | Gate checks failed | Lower bar | Sharpe, measured Core 7 | Lower bar | Sharpe, commissions only | Lower bar |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: | --- |
+| `base/intraday-spy` | 60 min | SPY | +0.51 | +1.04 | 0.09 | 98% | -10.8% | +2.4% | 80 of 80 | +42.6% | 6% | none | 1 of 7 | pass | +0.76 | pass | +0.58 | pass |
+| `base/intraday3` | 60 min | SPY QQQ IWM | +0.35 | +0.31 | 0.01 | 97% | -24.6% | +3.6% | 331 of 331 | +138.4% | 41% | none | 4 of 7 | pass | +0.63 | fail | +0.44 | fail |
+| `qj/W07` | 15 min | SPY QQQ IWM | -0.31 | -0.07 | 0.00 | 1% | -39.9% | -1.9% | 3737 of 3737 | +200.6% | 231% | +0.34 | 7 of 8 | fail | +0.79 | pass | +1.96 | pass |
+| `qj/W09` | 60 min | SPY QQQ IWM | -1.32 | -1.16 | 0.00 | 0% | -85.5% | -9.6% | 1633 of 1807 | -36.3% | 49% | +0.34 | 7 of 8 | fail | -0.52 | fail | -0.60 | fail |
+| `qj/O15` | 5 min | SPY QQQ IWM | -3.42 | -1.16 | 0.00 | 0% | -93.7% | -13.5% | 4120 of 7344 | +11.7% | 105% | +0.34 | 7 of 8 | fail | -2.27 | fail | +0.24 | fail |
+| `qj/O16` | 30 min | SPY QQQ IWM | -5.11 | +0.00 | 0.00 | 0% | -96.0% | -15.6% | 3394 of 7932 | -18.0% | 78% | +0.34 | 7 of 8 | fail | -4.12 | fail | -1.74 | fail |
+| `qj/W08` | 1 min | SPY | -6.83 | +0.00 | 0.00 | 0% | -96.6% | -22.4% | 5843 of 29847 | -7.5% | 89% | +0.42 | 7 of 8 | fail | -7.91 | fail | -7.76 | fail |
+
+"P&L before costs" and "Costs" are shares of the capital, summed over the run. "Trades of priced": the book
+prices every spread of the rule; the ledger books it only while 2% of the equity, and the cash, buy one contract.
+O15, O16, W08 and W09 lose most of the capital (drawdowns of 86% to 97%), so the later spreads get fewer
+contracts or none. O16 and W08 skip most of their spreads, and their runs end flat (an out-of-sample Sharpe of
++0.00).
+
+What the results say:
+
+- No intraday form passes the gate or the lower bar under the study model. Every form trades its spread many
+  more times than the always-on baseline (median hold 7 to 25 bars, against about 295 hourly bars), and every
+  round trip pays the option costs twice.
+- W07 (RSI 15 minutes) is the only rule with an edge before costs: +201% of the capital before costs, 231% in
+  costs. With the measured half spreads of SPY, QQQ and IWM it passes the lower bar, and with commissions only
+  it passes the gate. Both are diagnostics, not the study model: the half spreads of the data set are daily
+  values, and spreads at the open are wider (Method).
+- O15, O16, W08 and W09 lose before costs or gain little, and the costs take the rest. W08 (1-minute EMA
+  cross, about 30,000 spreads in 13 years) is the worst under all three models.
+- The always-on hourly baselines have positive Sharpes (+0.35 and +0.51); a stance that changes every few bars
+  turns them negative.

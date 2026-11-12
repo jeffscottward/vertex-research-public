@@ -4,6 +4,7 @@ Synthetic SPY market without skew or dividends and r = 0. VIX (30 days) gives AT
 gives ATM IV 0.22 unless a test says otherwise, so every expected price is plain Black-Scholes at the ATM IV
 interpolated by hand in total variance.
 """
+import dataclasses
 import math
 import random
 
@@ -210,6 +211,26 @@ def test_calendar_entry_prices_both_legs_on_the_term_structure_and_settles_the_n
     assert len(trade.marks) == NEAR_BAR - ENTRY + 1 and trade.marks[0] == (DATES[ENTRY], trade.entry_price)
     # Time decay: a calendar at the strike gains while the spot stands still.
     assert trade.exit_price > trade.entry_price
+
+
+def test_a_calendar_on_bar_times_counts_the_part_of_the_day_left_and_expires_at_the_close():
+    """Bar keys (calendar.day_left): each leg gets the rest of its day, and the near leg expires at its 16:00 bar."""
+    from strategies.qc_ports.calendar import day_left
+    from tests.qc_ports_synthetic import intraday_market
+
+    size = 13 * 36  # 36 sessions of 30-minute bars, past the near expiry 2024-02-16
+    spy = intraday_market([100.0] * size, 30)
+    levels = (VIX3M_FOR_22,) * size
+    spy = dataclasses.replace(spy, iv_term=(("VIX3M", levels), ("VIX6M", levels)))
+    trade = bk.build_book([("SPY", 0, None)], CALENDAR, {"SPY": spy}).trades[0]
+    left = day_left(spy.dates[1])
+    assert (spy.dates[1], left) == ("2024-01-02T10:30", 5.5 / 24)
+    near_days, far_days = 45 + left, 73 + left  # 2024-02-16 and 2024-03-15 from 2024-01-02
+    near, far = call(100, 100, near_days, term_atm(near_days)), call(100, 100, far_days, term_atm(far_days))
+    assert (trade.expiry, trade.far_expiry, trade.entry_index) == (NEAR, FAR, 1)
+    assert trade.entry_price == round((far - near) * 100, 2)
+    assert (trade.exit_reason, trade.exit_date) == ("expiry", "2024-02-16T16:00")
+    assert trade.exit_price == round(call(100, 100, 28, 0.2) * 100, 2)
 
 
 def test_calendar_strike_follows_the_near_leg_delta():

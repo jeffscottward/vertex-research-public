@@ -1,10 +1,11 @@
 """Registry of the options forms study (research only).
 
 On 2026-11-11 the allocation study found 42 tradable library strategies without a defined-risk
-options form (`LIBRARY_SLUGS`). Each of them is here once: with a form (`STRATEGY_FORMS`) or with
-the reason why this runner cannot run it (`NOT_RUN`). `study_forms` adds configs B and C of the long
-calendar spread, the two forms of the library alert `leader-pullback-and-reclaim` and the always-on
-baseline of every universe.
+options form (`LIBRARY_SLUGS`). Each of them is here once: with a form on daily bars
+(`STRATEGY_FORMS`), with a form on intraday bars (`INTRADAY_FORMS`; these run in a study of their
+own, research/backtests/options-forms/run_intraday.py) or with the reason why no runner can run it
+(`NOT_RUN`). `study_forms` is the daily study: it adds configs B and C of the long calendar spread, the
+two forms of the library alert `leader-pullback-and-reclaim` and the always-on baseline of every universe.
 """
 from __future__ import annotations
 
@@ -22,25 +23,18 @@ from .forms import (
     NotRun,
     always_on,
 )
+from .forms_intraday import FORMS as INTRADAY_FORMS
 from .forms_orders import FORMS as ORDER_FORMS
 from .forms_other import CALENDAR_VARIANTS, LEADER_CALL, LEADERS_BASELINE, leader_forms
 from .forms_other import FORMS as OTHER_FORMS
 from .forms_weights import FORMS as WEIGHT_FORMS
 
-__all__ = ["BASELINE_UNIVERSES", "LEADERS_BASELINE", "LIBRARY_SLUGS", "NOT_RUN", "STRATEGY_FORMS", "baseline_form",
-           "study_forms"]
+__all__ = ["BASELINE_UNIVERSES", "INTRADAY_FORMS", "LEADERS_BASELINE", "LIBRARY_SLUGS", "NOT_RUN", "STRATEGY_FORMS",
+           "baseline_form", "study_forms"]
 
 STRATEGY_FORMS: tuple[Form, ...] = (*ORDER_FORMS, *WEIGHT_FORMS, *OTHER_FORMS)
 
-INTRADAY = ("The rule reads {bars} bars. The option book prices daily closes only, and the data set has no "
-            "intraday bars and no intraday option prices for it.")
-NOT_RUN: tuple[NotRun, ...] = (
-    NotRun("quantjourney-o15-intraday-5m-bracket-reversion", INTRADAY.format(bars="5-minute")),
-    NotRun("quantjourney-o16-intraday-30m-stop-breakout", INTRADAY.format(bars="30-minute")),
-    NotRun("quantjourney-w07-intraday-rsi-15m", INTRADAY.format(bars="15-minute")),
-    NotRun("quantjourney-w08-intraday-1m-ema-scalp", INTRADAY.format(bars="1-minute")),
-    NotRun("quantjourney-w09-intraday-1h-sma-trend", INTRADAY.format(bars="1-hour")),
-)
+NOT_RUN: tuple[NotRun, ...] = ()
 
 # The 42 tradable library strategies without an options form (allocation study, 2026-11-11).
 LIBRARY_SLUGS: tuple[str, ...] = (

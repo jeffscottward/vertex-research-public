@@ -14,6 +14,10 @@ Rules:
   on one close: expiry, stale-iv, exitDte, profit-take, signal, end of data.
 - Expiry: the standard monthly expiration whose calendar DTE is nearest
   dte.target among those with DTE >= dte.min (ties -> the earlier one).
+- Bar keys: a daily bar ("2024-03-15") stands for its close. An intraday bar
+  ("2024-03-15T10:35", the New York time it closes) is priced with the part of
+  the day left until the 16:00 close added to its calendar DTE, so expiry and
+  exitDte are reached at the 16:00 bar of their day (calendar.day_left).
 - Strikes on the grid (options.strike_step): the anchor leg is the strike whose
   |delta| is nearest the target (debit: long leg at longDelta, default 0.5;
   credit: short leg at shortDelta, default 0.25; ties -> nearer the spot, then
@@ -77,7 +81,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from . import options as om
-from .calendar import TradingCalendar, expirations_after, parse
+from .calendar import TradingCalendar, day_left, expirations_after, parse
 from .data import INDEX_TENOR_DAYS, IV_INDEX, IV_TERM, Market
 
 __all__ = [
@@ -355,7 +359,7 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
     expiry = choose_expiry(entry_day, spec.dte_target, spec.dte_min, calendar)
     if expiry is None:
         return "no expiry"
-    dte = (expiry - entry_day).days
+    dte = (expiry - entry_day).days + day_left(market.dates[entry])
     if spec.exit_dte is not None and dte <= spec.exit_dte:
         return "exitDte at entry"
     index_id = IV_INDEX[market.symbol]
@@ -383,7 +387,7 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
         level = market.iv_index[bar] if market.iv_index[bar] is not None else level
         rate = market.rate[bar] if market.rate[bar] is not None else rate
         stale += market.iv_index[bar] is None or market.rate[bar] is None
-        days_left = (expiry - day).days
+        days_left = (expiry - day).days + day_left(market.dates[bar])
         pricing = _Pricing(market.close[bar], max(0, days_left) / DAYS_PER_YEAR, rate, q, om.atm_iv(index_id, level), slope)
         long_mid, short_mid = spread_legs(pricing, right, long_strike, short_strike)
         value = instrument_value(kind, long_mid, short_mid, width)
@@ -484,7 +488,7 @@ def _term_points(market: Market, level: float, terms: Sequence[float]) -> list[t
             *((tenors[index_id], om.atm_iv(index_id, value)) for (index_id, _), value in zip(market.iv_term, terms))]
 
 
-def _leg(spot: float, days: int, rate: float, q: float, slope: float, points: Sequence[tuple[int, float]]) -> _Pricing:
+def _leg(spot: float, days: float, rate: float, q: float, slope: float, points: Sequence[tuple[int, float]]) -> _Pricing:
     """Pricing of the leg `days` calendar days from its expiry, at the ATM IV of the term at that DTE."""
     return _Pricing(spot, max(0, days) / DAYS_PER_YEAR, rate, q, om.term_atm_iv(points, days), slope)
 
@@ -517,13 +521,14 @@ def _price_calendar(event: SignalEvent, market: Market, spec: CalendarSpec, cale
     far = choose_expiry(entry_day, spec.far_target, max(spec.far_min, near_dte + 1), calendar)
     if far is None:
         return "no expiry"
-    if spec.exit_dte is not None and near_dte <= spec.exit_dte:
+    left = day_left(market.dates[entry])
+    if spec.exit_dte is not None and near_dte + left <= spec.exit_dte:
         return "exitDte at entry"
     symbol, right, spot = market.symbol, spec.right, market.close[entry]
     q, slope = om.DIVIDEND_YIELD.get(symbol, 0.0), om.SKEW[symbol]
     points = _term_points(market, level, terms)
-    near_leg = _leg(spot, near_dte, rate, q, slope, points)
-    far_leg = _leg(spot, (far - entry_day).days, rate, q, slope, points)
+    near_leg = _leg(spot, near_dte + left, rate, q, slope, points)
+    far_leg = _leg(spot, (far - entry_day).days + left, rate, q, slope, points)
     if spec.max_term_ratio is not None and far_leg.atm > spec.max_term_ratio * near_leg.atm:
         return "term structure"
     strike = _anchor_strike(near_leg, right, spec.strike_delta)
@@ -545,9 +550,10 @@ def _price_calendar(event: SignalEvent, market: Market, spec: CalendarSpec, cale
         rate = market.rate[bar] if market.rate[bar] is not None else rate
         stale += not fresh or market.rate[bar] is None
         points = _term_points(market, level, terms)
-        near_days, spot = (near - day).days, market.close[bar]
+        left, spot = day_left(market.dates[bar]), market.close[bar]
+        near_days = (near - day).days + left
         near_mid = _leg_mid(_leg(spot, near_days, rate, q, slope, points), right, strike)
-        far_mid = _leg_mid(_leg(spot, (far - day).days, rate, q, slope, points), right, strike)
+        far_mid = _leg_mid(_leg(spot, (far - day).days + left, rate, q, slope, points), right, strike)
         value = instrument_value("debit", far_mid, near_mid, 0.0)
         marks.append((market.dates[bar], value))
         reason = None
