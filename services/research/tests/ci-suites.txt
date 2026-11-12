@@ -121,4 +121,8 @@ tests/test_noise_band_futures.py
 tests/test_noise_band_futures_run.py
 tests/test_noise_band_retest.py
 tests/test_ibkr_history.py
+tests/test_leveraged_etf_universe.py
+tests/test_leveraged_etf_study.py
+tests/test_leveraged_etf_study_forms.py
+tests/test_leveraged_etf_study_run.py
 tests/test_golive_generator.py
