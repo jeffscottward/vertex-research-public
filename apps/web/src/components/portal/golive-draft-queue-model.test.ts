@@ -94,6 +94,8 @@ import {
   STRUCTURE_WORDS,
   safeHttpsUrl,
   sleeveRow,
+  staleDialogNotice,
+  staleDialogReason,
   strikesText,
   structureText,
 } from "./golive-draft-queue-model.ts";
@@ -293,7 +295,8 @@ describe("wording maps", () => {
       "A disarmed node does not stop an order placed on the Portfolio order screen; only the kill switch does."
     );
     expect(DRAFT_STATE_WORDS).toEqual({
-      approved: "Approved (recorded). Not sent: this page sends no orders.",
+      approved:
+        "Approved (recorded). This page did not send it: it sends no orders.",
       expired: "Expired: the generator no longer wants this draft",
       proposed: "Proposed by the generator, not decided",
       rejected: "Rejected by the owner (recorded)",
@@ -387,10 +390,12 @@ describe("wording maps", () => {
       ]),
       generatorText({ ...facts, drafts: [] }),
       generatorText({ ...facts, drafts: [], generatedAt: null }),
-      decisionAftermathText(null, "2026-11-11"),
-      decisionAftermathText(undefined, "2026-11-11"),
+      decisionAftermathText(null, "2026-11-11", true),
+      decisionAftermathText(undefined, "2026-11-11", true),
+      decisionAftermathText(draft(), "2026-11-11", false),
+      staleDialogNotice("the draft is no longer in the queue"),
       ...GOLIVE_DRAFT_STATE_VALUES.map((state) =>
-        decisionAftermathText(draft({ state }), "2026-11-11")
+        decisionAftermathText(draft({ state }), "2026-11-11", true)
       ),
       ...[
         ...Object.keys(AGENT_OPS_API_ERRORS),
@@ -428,7 +433,7 @@ describe("wording maps", () => {
       "This page sends no orders.",
       "this page sends no orders.",
       "It does not send the order.",
-      "Not sent:",
+      "This page did not send it: it sends no orders.",
     ];
     for (const sentence of sentences) {
       const rest = denials.reduce(
@@ -452,6 +457,13 @@ describe("wording maps", () => {
 describe("time and expiry", () => {
   it("formats New York wall clock time", () => {
     expect(etDayClock(AT)).toBe("2026-11-11 10:30 ET");
+    // Midnight in New York is 00:00 on the new day, in winter and in summer time.
+    expect(etDayClock(new Date("2026-11-12T05:00:00.000Z"))).toBe(
+      "2026-11-12 00:00 ET"
+    );
+    expect(etDayClock(new Date("2026-07-01T04:00:00.000Z"))).toBe(
+      "2026-07-01 00:00 ET"
+    );
     // 03:10Z on the 12th is still the evening of the 11th in New York.
     expect(etDayClock(new Date("2026-11-12T03:10:00.000Z"))).toBe(
       "2026-11-11 22:10 ET"
@@ -1031,6 +1043,19 @@ describe("drafts", () => {
     ).toEqual([
       "The plan is not approved for this draft: it was drafted for plan plan-1 version 2, and the plan in force is plan-1 version 3",
     ]);
+    // Marked approved on a basis this page version does not know: not offered either.
+    expect(
+      blockers(draft(), {
+        plan: plan({ approvalBasis: future("committee") }),
+        readAt: AT,
+      })
+    ).toEqual([
+      "The plan's approval basis is not known to this page version (committee)",
+    ]);
+    for (const approvalBasis of ["owner_decision", "owner_delegation"] as const)
+      expect(
+        blockers(draft(), { plan: plan({ approvalBasis }), readAt: AT })
+      ).toEqual([]);
     // The server's own blocker gets the same cause and is not listed twice.
     expect(
       blockers(draft({ notApprovable: ["PLAN_NOT_APPROVED"] }), {
@@ -1123,6 +1148,18 @@ describe("drafts", () => {
     expect(currentSizingText(draft().sizing)).toBe(
       "limit $2.35 debit per spread; quantity 2 spreads (sized from the plan's risk per position); max loss $470.00 (0.47% of account)"
     );
+  });
+
+  it("names the cause that puts a draft under Other drafts", () => {
+    expect(blockers(draft({ entryBasis: null }))).toEqual([
+      NO_ENTRY_BASIS_REASON,
+    ]);
+    expect(blockers(draft({ entryBasis: future("new_basis") }))).toEqual([
+      "The entry basis is not known to this page version (new_basis)",
+    ]);
+    expect(blockers(draft({ kind: future("roll") }))).toEqual([
+      "The draft kind is not known to this page version (roll)",
+    ]);
   });
 
   it("gives equal lines different keys", () => {
@@ -1331,7 +1368,7 @@ describe("decisionFailure", () => {
       for (const error of errors) {
         const { text } = fail(error, type);
         expect(text).toMatch(
-          /Nothing was recorded\.|recorded nothing\.|not known whether it was recorded\./u
+          /Nothing was recorded\.|recorded nothing\.|not known whether it was recorded\.|was stored and/u
         );
         expect(text).not.toContain("Failed to fetch");
         expect(text).not.toContain("boom");
@@ -1364,7 +1401,7 @@ describe("decisionFailure", () => {
   it("says plainly that the session has ended on UNAUTHORIZED", () =>
     expect(fail(coded("UNAUTHORIZED", "Authentication required"))).toEqual({
       action: "stay",
-      aftermath: false,
+      aftermath: "none",
       text: "You are signed out: the session has ended. Sign in again. Nothing was recorded.",
     }));
 
@@ -1375,7 +1412,7 @@ describe("decisionFailure", () => {
     ])
       expect(fail(coded("FORBIDDEN", message))).toEqual({
         action: "close",
-        aftermath: false,
+        aftermath: "none",
         text: "Only the owner can approve or reject a draft. Nothing was recorded.",
       });
     expect(fail(coded("FORBIDDEN", "Operator access required")).text).toBe(
@@ -1406,7 +1443,7 @@ describe("decisionFailure", () => {
   it("does not say that a CONFLICT means nothing is recorded", () => {
     expect(fail(coded("CONFLICT", "The draft is no longer proposed"))).toEqual({
       action: "close",
-      aftermath: true,
+      aftermath: "refused",
       text: "The server refused this approval: the draft was already decided or expired, or its order or plan changed after this page loaded it. This attempt recorded nothing.",
     });
     expect(
@@ -1455,30 +1492,50 @@ describe("decisionFailure", () => {
       )
     ).toEqual({
       action: "close",
-      aftermath: true,
+      aftermath: "refused",
       text: "The server did not find this draft in the queue of the order session day, so this rejection recorded nothing.",
     }));
 
   it("says the result is not known when no answer came back", () =>
     expect(fail(new TypeError("Failed to fetch"))).toEqual({
       action: "close",
-      aftermath: true,
+      aftermath: "result_not_known",
       text: "No answer came back for this approval (network failure or timeout), so it is not known whether it was recorded.",
     }));
 
-  it("closes on a storage error and repeats the server's statement that the rejection was stored", () =>
+  it("says the rejection was stored when the server's storage error says so", () => {
+    const stored = fail(
+      coded(
+        "STORAGE_ERROR",
+        "The rejection of draft draft-1 was stored. Draft d2 has equal strikes."
+      ),
+      "reject"
+    );
+    expect(stored).toEqual({
+      action: "close",
+      aftermath: "result_not_known",
+      text: "The server answered that this rejection was stored and that its store failed afterwards. Server detail: The rejection of draft draft-1 was stored. Draft d2 has equal strikes.",
+    });
+    expect(stored.text).not.toContain("not known whether");
+    // The sentence the page looks for is the sentence the server writes.
     expect(
-      fail(
-        coded(
-          "STORAGE_ERROR",
-          "The rejection of draft draft-1 was stored. Draft d2 has equal strikes."
+      readFileSync(
+        new URL(
+          "../../../../../packages/api/src/server/golive-drafts.ts",
+          import.meta.url
         ),
-        "reject"
+        "utf8"
       )
+    ).toMatch(/`The rejection of draft \$\{[^}]+\} was stored\. /u);
+  });
+
+  it("says the result is not known for a storage error that does not say what was stored", () =>
+    expect(
+      fail(coded("STORAGE_ERROR", "Draft d2 has equal strikes."), "reject")
     ).toEqual({
       action: "close",
-      aftermath: true,
-      text: "The draft store failed during this rejection, so it is not known whether it was recorded. Server detail: The rejection of draft draft-1 was stored. Draft d2 has equal strikes.",
+      aftermath: "result_not_known",
+      text: "The draft store failed during this rejection, so it is not known whether it was recorded. Server detail: Draft d2 has equal strikes.",
     }));
 
   it("does not show a validation text of the server on BAD_REQUEST", () =>
@@ -1486,36 +1543,128 @@ describe("decisionFailure", () => {
       fail(coded("BAD_REQUEST", "Input validation failed: note"), "reject")
     ).toEqual({
       action: "stay",
-      aftermath: false,
+      aftermath: "none",
       text: "The server refused this rejection as an invalid request. Nothing was recorded.",
     }));
 });
 
 describe("decisionAftermathText", () => {
   it("says what the reloaded queue shows for the draft", () => {
-    expect(decisionAftermathText(null, "2026-11-11")).toBe(
+    expect(decisionAftermathText(null, "2026-11-11", true)).toBe(
       "The queue could not be read again, so the rows below may be out of date. Reload the queue before you decide again."
     );
-    expect(decisionAftermathText(undefined, "2026-11-11")).toBe(
+    expect(decisionAftermathText(undefined, "2026-11-11", true)).toBe(
       "The queue was read again: this draft is not in the queue of 2026-11-11."
-    );
-    expect(decisionAftermathText(draft(), "2026-11-11")).toBe(
-      "The queue was read again: the draft is still proposed, so no decision is recorded for it."
     );
     expect(
       decisionAftermathText(
         draft({ decidedAt: AT, decidedBy: "owner", state: "rejected" }),
-        "2026-11-11"
+        "2026-11-11",
+        false
       )
     ).toBe(
       "The queue was read again: the draft is already decided. Its state is: Rejected by the owner (recorded). Decided 2026-11-11 10:30 ET by owner."
     );
     expect(
-      decisionAftermathText(draft({ state: "expired" }), "2026-11-11")
+      decisionAftermathText(draft({ state: "expired" }), "2026-11-11", true)
     ).toBe(
       "The queue was read again: the draft is no longer proposed. Its state is: Expired: the generator no longer wants this draft."
     );
   });
+
+  it("says no decision is recorded for a still-proposed draft only after a refusal", () =>
+    expect(decisionAftermathText(draft(), "2026-11-11", true)).toBe(
+      "The queue was read again: the draft is still proposed, so no decision is recorded for it."
+    ));
+
+  it("does not say that nothing is recorded when the result of the request is not known", () => {
+    // The request may still be running on the server when this read answers "proposed".
+    const text = decisionAftermathText(draft(), "2026-11-11", false);
+    expect(text).toBe(
+      "The queue was read again: the draft is still proposed in this read; the request may still complete. Reload before you decide again."
+    );
+    expect(text).not.toContain("no decision is recorded");
+  });
+});
+
+describe("staleDialogReason", () => {
+  const approve = { order: ORDER, type: "approve" as const };
+  const reject = { type: "reject" as const };
+
+  it("finds nothing when the fresh row is the draft the dialog shows", () => {
+    expect(staleDialogReason(approve, draft(), CONTEXT)).toBeNull();
+    expect(staleDialogReason(reject, draft(), CONTEXT)).toBeNull();
+    // A new object with the same order is still the same order.
+    expect(
+      staleDialogReason(
+        approve,
+        draft({
+          order: { ...ORDER, legs: ORDER.legs.map((leg) => ({ ...leg })) },
+        }),
+        CONTEXT
+      )
+    ).toBeNull();
+  });
+
+  it("names a draft that is gone or no longer proposed, for approve and reject", () => {
+    for (const decision of [approve, reject]) {
+      expect(staleDialogReason(decision, undefined, CONTEXT)).toBe(
+        "the draft is no longer in the queue"
+      );
+      expect(
+        staleDialogReason(decision, draft({ state: "expired" }), CONTEXT)
+      ).toBe(
+        "the draft is no longer proposed (Expired: the generator no longer wants this draft)"
+      );
+    }
+  });
+
+  it("names the blockers of a draft that can no longer be approved; a rejection is not blocked by them", () => {
+    const blocked = draft({
+      notApprovable: ["PRECHECK_DENIED", "SIZED_TO_ZERO"],
+    });
+    expect(staleDialogReason(approve, blocked, CONTEXT)).toBe(
+      "the draft can no longer be approved: the dry pre-check (web final gate) denied the order; the quantity is 0"
+    );
+    expect(staleDialogReason(reject, blocked, CONTEXT)).toBeNull();
+    expect(
+      staleDialogReason(approve, draft(), {
+        plan: plan({ approvalBasis: null, status: "proposed" }),
+        readAt: AT,
+      })
+    ).toBe(
+      "the draft can no longer be approved: the plan is not approved: it is proposed"
+    );
+  });
+
+  it.each([
+    ["quantity", { ...ORDER, quantity: 3 }],
+    ["limit", { ...ORDER, limitPrice: 2.36 }],
+    ["symbol", { ...ORDER, symbol: "QQQ" }],
+    [
+      "strike",
+      {
+        ...ORDER,
+        legs: ORDER.legs.map((leg, index) =>
+          index === 0 ? { ...leg, strike: 451 } : leg
+        ),
+      },
+    ],
+    ["leg count", { ...ORDER, legs: ORDER.legs.slice(0, 1) }],
+  ])(
+    "names an order whose %s differs from the order the dialog shows",
+    (_name, order) => {
+      expect(staleDialogReason(approve, draft({ order }), CONTEXT)).toBe(
+        "the order of the draft changed and is no longer the order the dialog showed"
+      );
+      expect(staleDialogReason(reject, draft({ order }), CONTEXT)).toBeNull();
+    }
+  );
+
+  it("puts the reason in a notice that says the dialog closed and nothing was recorded", () =>
+    expect(staleDialogNotice("the draft is no longer in the queue")).toBe(
+      "A newer read of the queue shows that the draft is no longer in the queue. The open dialog was closed and nothing was recorded."
+    ));
 });
 
 describe("plan links", () => {

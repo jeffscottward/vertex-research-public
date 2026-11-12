@@ -186,7 +186,9 @@ export const NODE_BADGE_WORDS: Readonly<Record<GoLiveNodeBadge, string>> =
 export const DRAFT_STATE_WORDS: Readonly<
   Record<GoLiveDraftStateValue, string>
 > = Object.freeze({
-  approved: "Approved (recorded). Not sent: this page sends no orders.",
+  // "Not sent" would be false once the owner has placed the order by hand: only this page is meant.
+  approved:
+    "Approved (recorded). This page did not send it: it sends no orders.",
   expired: "Expired: the generator no longer wants this draft",
   proposed: "Proposed by the generator, not decided",
   rejected: "Rejected by the owner (recorded)",
@@ -389,7 +391,10 @@ export const generatorText = (
 
 /** The plan in force and the server's clock at the queue read (node.checkedAt). */
 export type GoLiveDraftContext = Readonly<{
-  plan: Pick<GoLivePlanOutput, "id" | "status" | "version"> | null;
+  plan: Pick<
+    GoLivePlanOutput,
+    "approvalBasis" | "id" | "status" | "version"
+  > | null;
   readAt: Date;
 }>;
 
@@ -541,6 +546,11 @@ export const noLiveQuoteReason = (
 
 type GoLivePlanRef = Pick<GoLiveDraftOutput, "planId" | "planVersion">;
 
+// The approval bases planStatusText has words for.
+const APPROVAL_BASIS_KNOWN: Readonly<
+  Record<NonNullable<GoLivePlanOutput["approvalBasis"]>, true>
+> = { owner_decision: true, owner_delegation: true };
+
 /**
  * Why the plan does not let this draft be approved, or null when the plan in force is approved
  * and is the plan the draft was made for. The same rule as the server's PLAN_NOT_APPROVED.
@@ -553,9 +563,13 @@ const planProblem = (
   if (plan === null) return `${lead}: there is no plan record`;
   switch (plan.status) {
     case "approved":
-      return plan.id === draft.planId && plan.version === draft.planVersion
+      if (plan.id !== draft.planId || plan.version !== draft.planVersion)
+        return `${lead} for this draft: it was drafted for plan ${draft.planId} version ${draft.planVersion}, and the plan in force is ${plan.id} version ${plan.version}`;
+      // An approval on a basis this page version has no words for is not offered for Approve.
+      return plan.approvalBasis === null ||
+        isKnown(APPROVAL_BASIS_KNOWN, plan.approvalBasis)
         ? null
-        : `${lead} for this draft: it was drafted for plan ${draft.planId} version ${draft.planVersion}, and the plan in force is ${plan.id} version ${plan.version}`;
+        : `The plan's approval basis is ${notKnownText(plan.approvalBasis)}`;
     case "proposed":
       return `${lead}: it is proposed`;
     case "retired":
@@ -707,6 +721,17 @@ const unknownValueBlockers = (draft: GoLiveApproveFacts): readonly string[] => {
   return [...new Set(reasons)];
 };
 
+/** Why a draft is under "Other drafts": the cause is named, not always "no entry basis". */
+const otherGroupReason = (
+  draft: Pick<GoLiveDraftOutput, "entryBasis" | "kind">
+): string => {
+  if (draft.kind !== "entry" && draft.kind !== "exit")
+    return `The draft kind is ${notKnownText(rawOf(draft.kind))}`;
+  return draft.entryBasis === null
+    ? NO_ENTRY_BASIS_REASON
+    : `The entry basis is ${notKnownText(draft.entryBasis)}`;
+};
+
 /**
  * Why Approve is disabled, in words. Empty means the draft can be approved. The server decides
  * (notApprovable); the page adds what it can see itself, so it never offers an Approve that
@@ -726,7 +751,7 @@ export const approveBlockers = (
   const group = draftGroupOf(draft);
   if (group === "modelHolds" && !listed("LATE_ENTRY_NOT_TESTED"))
     reasons.push(NOT_APPROVABLE_WORDS.LATE_ENTRY_NOT_TESTED);
-  if (group === "other") reasons.push(NO_ENTRY_BASIS_REASON);
+  if (group === "other") reasons.push(otherGroupReason(draft));
   if (
     draft.preCheck.webFinalGate?.decision === "deny" &&
     !listed("PRECHECK_DENIED")
@@ -953,10 +978,19 @@ export type GoLiveDecisionFailure = Readonly<{
    * close: the dialog closes, the queue is read again and the text is shown above it.
    */
   action: "close" | "stay";
-  /** True when the text is followed by what the reloaded queue shows for the draft. */
-  aftermath: boolean;
+  /**
+   * What follows the text after the reload. none: nothing. refused: this attempt recorded
+   * nothing, so the reloaded row is the whole truth. result_not_known: the request may still
+   * complete, so a row that is still proposed does not mean nothing is recorded.
+   */
+  aftermath: "none" | "refused" | "result_not_known";
   text: string;
 }>;
+
+// The server's storage error after a stored rejection starts with this statement
+// (packages/api/src/server/golive-drafts.ts; the model test compares it with the source).
+const STORED_STATEMENT =
+  /^The (?:rejection|approval) of draft \S+ was stored\./u;
 
 /**
  * A failed approve or reject in plain words. Every text says whether anything was recorded or
@@ -973,33 +1007,33 @@ export const decisionFailure = (
   const notKnown = "so it is not known whether it was recorded.";
   const reload = (text: string): GoLiveDecisionFailure => ({
     action: "close",
-    aftermath: true,
+    aftermath: "result_not_known",
     text: `${text}${serverDetail(failure)}`,
   });
   switch (failure.cause) {
     case "UNAUTHORIZED":
       return {
         action: "stay",
-        aftermath: false,
+        aftermath: "none",
         text: `${SIGNED_OUT_TEXT} Nothing was recorded.`,
       };
     case "BAD_REQUEST":
       // The request is checked before anything is stored. The validation text is not shown.
       return {
         action: "stay",
-        aftermath: false,
+        aftermath: "none",
         text: `The server refused this ${act} as an invalid request. Nothing was recorded.`,
       };
     case "FORBIDDEN":
       return {
         action: "close",
-        aftermath: false,
+        aftermath: "none",
         text: forbiddenText(failure.message),
       };
     case "NOT_FOUND":
       return {
         action: "close",
-        aftermath: true,
+        aftermath: "refused",
         text: `The server did not find this draft in the queue of the order session day, so this ${act} recorded nothing.`,
       };
     case "CONFLICT": {
@@ -1008,7 +1042,7 @@ export const decisionFailure = (
       const blockers = blockerWords(failure.message, draft, context);
       return {
         action: "close",
-        aftermath: true,
+        aftermath: "refused",
         text: `The server refused this ${act}: ${
           blockers ??
           "the draft was already decided or expired, or its order or plan changed after this page loaded it"
@@ -1016,8 +1050,13 @@ export const decisionFailure = (
       };
     }
     case "STORAGE_ERROR":
-      // The store can fail after the decision is written (the server then says so in its detail).
-      return reload(`The draft store failed during this ${act}, ${notKnown}`);
+      // The store can fail after the decision is written; the server then says so, and the page
+      // does not call the result unknown next to that statement.
+      return reload(
+        failure.message !== null && STORED_STATEMENT.test(failure.message)
+          ? `The server answered that this ${act} was stored and that its store failed afterwards.`
+          : `The draft store failed during this ${act}, ${notKnown}`
+      );
     case "VALIDATION_ERROR":
       return reload(
         `The server found a record that fails its own checks during this ${act}, ${notKnown}`
@@ -1049,13 +1088,16 @@ export const decisionFailure = (
 /**
  * What the queue shows for the draft after a failed decision was followed by a reload.
  * null: the reload failed. undefined: the draft is not in the reloaded queue.
+ * attemptRecordedNothing is false when the result of the request is not known: the request may
+ * still complete on the server, so "still proposed" is then only what this read shows.
  */
 export const decisionAftermathText = (
   draft:
     | Pick<GoLiveDraftOutput, "decidedAt" | "decidedBy" | "state">
     | null
     | undefined,
-  tradingDay: string
+  tradingDay: string,
+  attemptRecordedNothing: boolean
 ): string => {
   if (draft === null)
     return "The queue could not be read again, so the rows below may be out of date. Reload the queue before you decide again.";
@@ -1063,7 +1105,9 @@ export const decisionAftermathText = (
   if (draft === undefined)
     return `${lead} this draft is not in the queue of ${tradingDay}.`;
   if (draft.state === "proposed")
-    return `${lead} the draft is still proposed, so no decision is recorded for it.`;
+    return attemptRecordedNothing
+      ? `${lead} the draft is still proposed, so no decision is recorded for it.`
+      : `${lead} the draft is still proposed in this read; the request may still complete. Reload before you decide again.`;
   const state = draftStateText(draft.state);
   const decided = decisionText(draft);
   return `${lead} the draft is ${
@@ -1074,3 +1118,51 @@ export const decisionAftermathText = (
     decided === null ? "" : ` ${decided}.`
   }`;
 };
+
+// ---------- an open dialog and a newer read ----------
+
+type GoLiveOpenDecision =
+  | Readonly<{ order: GoLiveOrder; type: "approve" }>
+  | Readonly<{ type: "reject" }>;
+
+/** The fields of an order in a fixed sequence, so two orders compare by value. */
+const orderKey = (order: GoLiveOrder): string =>
+  JSON.stringify([
+    order.symbol,
+    order.quantity,
+    order.limitPrice,
+    order.legs.map((leg) => [
+      leg.side,
+      leg.ratio,
+      leg.expiry,
+      leg.strike,
+      leg.right,
+    ]),
+  ]);
+
+/**
+ * Why an open dialog no longer matches the queue, or null when it still does. A newer read can
+ * arrive behind the dialog; the page then closes it instead of offering a decision that its own
+ * row forbids. A rejection needs only a proposed draft; an approval also needs no blocker and the
+ * exact order the dialog shows.
+ */
+export const staleDialogReason = (
+  decision: GoLiveOpenDecision,
+  fresh: GoLiveDraftOutput | undefined,
+  context: GoLiveDraftContext
+): string | null => {
+  if (fresh === undefined) return "the draft is no longer in the queue";
+  if (fresh.state !== "proposed")
+    return `the draft is no longer proposed (${draftStateText(fresh.state)})`;
+  if (decision.type === "reject") return null;
+  const blockers = approveBlockers(fresh, context);
+  if (blockers.length > 0)
+    return `the draft can no longer be approved: ${blockers.map(lowerFirst).join("; ")}`;
+  return fresh.order !== null &&
+    orderKey(fresh.order) === orderKey(decision.order)
+    ? null
+    : "the order of the draft changed and is no longer the order the dialog showed";
+};
+
+export const staleDialogNotice = (reason: string): string =>
+  `A newer read of the queue shows that ${reason}. The open dialog was closed and nothing was recorded.`;

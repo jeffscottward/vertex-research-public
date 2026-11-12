@@ -335,6 +335,16 @@ const type = (field: HTMLTextAreaElement, value: string): Promise<void> =>
     field.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
+/**
+ * Reload and a row button clicked before React has rendered the reload: the one way a queue
+ * answer can arrive behind an open dialog (the row buttons are disabled once the load shows).
+ */
+const reloadThenOpen = (container: HTMLElement, name: string): Promise<void> =>
+  act(async () => {
+    button(container, "Reload queue").click();
+    button(container, name).click();
+  });
+
 const texts = (root: ParentNode, selector: string): string[] =>
   [...root.querySelectorAll(selector)].map((node) => node.textContent ?? "");
 
@@ -678,7 +688,7 @@ describe("GoLiveDraftQueue", () => {
     );
     const approved = one(container, "[data-golive-draft='approved']");
     expect(approved.textContent).toContain(
-      "Approved (recorded). Not sent: this page sends no orders."
+      "Approved (recorded). This page did not send it: it sends no orders."
     );
     expect(approved.textContent).toContain(
       "Decided 2026-11-11 10:30 ET by owner"
@@ -1070,7 +1080,7 @@ describe("GoLiveDraftQueue", () => {
     const row = one(container, "[data-golive-draft='draft-spy']");
     expect(row.getAttribute("data-golive-draft-state")).toBe("approved");
     expect(row.textContent).toContain(
-      "Approved (recorded). Not sent: this page sends no orders."
+      "Approved (recorded). This page did not send it: it sends no orders."
     );
     expect(row.textContent).toContain(
       "Approved order (recorded 2026-11-11 10:30 ET)"
@@ -1216,14 +1226,14 @@ describe("GoLiveDraftQueue", () => {
     expect(gateway.reject).toHaveBeenCalledTimes(1);
     expect(gateway.queue).toHaveBeenCalledTimes(2);
     expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
-      "The draft store failed during this rejection, so it is not known whether it was recorded. Server detail: The rejection of draft draft-spy was stored. Draft d2 has equal strikes. The queue was read again: the draft is already decided. Its state is: Rejected by the owner (recorded). Decided 2026-11-11 10:30 ET by owner."
+      "The server answered that this rejection was stored and that its store failed afterwards. Server detail: The rejection of draft draft-spy was stored. Draft d2 has equal strikes. The queue was read again: the draft is already decided. Its state is: Rejected by the owner (recorded). Decided 2026-11-11 10:30 ET by owner."
     );
     expect(
       [...document.querySelectorAll("button")].map((node) => node.textContent)
     ).not.toContain("Record rejection");
   });
 
-  it("says the result is not known when no answer comes back, closes and reloads", async () => {
+  it("says the result is not known when no answer comes back, and does not say that nothing is recorded", async () => {
     const gateway = gatewayOf(queue(), queue());
     gateway.approve.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     const container = await mount(gateway);
@@ -1231,10 +1241,54 @@ describe("GoLiveDraftQueue", () => {
     await click(button(document, "Record approval"));
     expect(document.querySelector("[role='dialog']")).toBeNull();
     expect(gateway.queue).toHaveBeenCalledTimes(2);
-    expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
-      "No answer came back for this approval (network failure or timeout), so it is not known whether it was recorded. The queue was read again: the draft is still proposed, so no decision is recorded for it."
+    const notice = one(container, "[data-golive-decision-notice]").textContent;
+    // The request may still be running on the server when the reload reads "proposed".
+    expect(notice).toBe(
+      "No answer came back for this approval (network failure or timeout), so it is not known whether it was recorded. The queue was read again: the draft is still proposed in this read; the request may still complete. Reload before you decide again."
     );
+    expect(notice).not.toContain("no decision is recorded");
     expect(document.body.textContent).not.toContain("Failed to fetch");
+  });
+
+  it("removes the decision notice when a later reload succeeds, so it never contradicts the row", async () => {
+    const approved = draft({
+      approvedOrder: ORDER,
+      decidedAt: AT,
+      decidedBy: "owner",
+      state: "approved",
+    });
+    // The approval did land after the first reload read "proposed".
+    const gateway = gatewayOf(
+      queue(),
+      queue(),
+      new TypeError("Failed to fetch"),
+      queue({ drafts: [approved] })
+    );
+    gateway.approve.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const container = await mount(gateway);
+    await click(button(container, "Approve SPY 2026-12-18"));
+    await click(button(document, "Record approval"));
+    expect(
+      one(container, "[data-golive-decision-notice]").textContent
+    ).toContain("still proposed in this read");
+
+    // A failed reload read nothing new: the notice still describes the rows on screen.
+    await click(button(container, "Reload queue"));
+    expect(
+      container.querySelector("[data-golive-decision-notice]")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-golive-reload-error]")
+    ).not.toBeNull();
+
+    await click(button(container, "Reload queue"));
+    expect(container.querySelector("[data-golive-decision-notice]")).toBeNull();
+    expect(container.textContent).not.toContain("still proposed");
+    expect(
+      one(container, "[data-golive-draft='draft-spy']").getAttribute(
+        "data-golive-draft-state"
+      )
+    ).toBe("approved");
   });
 
   it("says the rows may be out of date when the reload after an unknown result fails too", async () => {
@@ -1551,8 +1605,8 @@ describe("GoLiveDraftQueue", () => {
     gateway.approve.mockResolvedValueOnce(approved);
     const container = await mount(gateway);
     // A reload is still running when the owner approves.
-    await click(button(container, "Reload queue"));
-    await click(button(container, "Approve SPY 2026-12-18"));
+    await reloadThenOpen(container, "Approve SPY 2026-12-18");
+    expect(document.querySelector("[role='dialog']")).not.toBeNull();
     await click(button(document, "Record approval"));
     expect(gateway.queue).toHaveBeenCalledTimes(3);
     const state = (): string | null =>
@@ -1582,8 +1636,7 @@ describe("GoLiveDraftQueue", () => {
     gateway.queue.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     gateway.approve.mockResolvedValueOnce(approved);
     const container = await mount(gateway);
-    await click(button(container, "Reload queue"));
-    await click(button(container, "Approve SPY 2026-12-18"));
+    await reloadThenOpen(container, "Approve SPY 2026-12-18");
     await click(button(document, "Record approval"));
     await act(async () => slow.resolve(queue()));
     const row = one(container, "[data-golive-draft='draft-spy']");
@@ -1591,35 +1644,49 @@ describe("GoLiveDraftQueue", () => {
     expect(row.querySelector("button")).toBeNull();
   });
 
-  it("sends the order the dialog shows when a queue answer arrives behind the open dialog", async () => {
+  it("disables Approve and Reject on every row while a load runs", async () => {
+    const slow = deferred<GoLiveQueueOutput>();
+    const gateway = gatewayOf(queue());
+    gateway.queue.mockReturnValueOnce(slow.promise);
+    const container = await mount(gateway);
+    const approve = button(container, "Approve SPY 2026-12-18");
+    const reject = button(container, "Reject SPY 2026-12-18");
+    expect([approve.disabled, reject.disabled]).toEqual([false, false]);
+    await click(button(container, "Reload queue"));
+    expect([approve.disabled, reject.disabled]).toEqual([true, true]);
+    await click(approve);
+    await click(reject);
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+    await act(async () => slow.resolve(queue()));
+    expect([
+      button(container, "Approve SPY 2026-12-18").disabled,
+      button(container, "Reject SPY 2026-12-18").disabled,
+    ]).toEqual([false, false]);
+  });
+
+  it("keeps the dialog and sends the order it shows when a queue answer behind it has the same draft and order", async () => {
     const slow = deferred<GoLiveQueueOutput>();
     const gateway = gatewayOf(queue());
     gateway.queue.mockReturnValueOnce(slow.promise);
     gateway.queue.mockResolvedValue(queue());
     const container = await mount(gateway);
-    await click(button(container, "Reload queue"));
-    await click(button(container, "Approve SPY 2026-12-18"));
-    // The reload answers behind the dialog with another sizing: 3 spreads at 2.50.
-    const moved = { ...ORDER, limitPrice: 2.5, quantity: 3 };
+    await reloadThenOpen(container, "Approve SPY 2026-12-18");
+    // The same order in new objects, as every read builds it.
     await act(async () =>
       slow.resolve(
         queue({
           drafts: [
             draft({
-              order: moved,
-              sizing: { ...draft().sizing, limitPrice: 2.5, quantity: 3 },
+              order: { ...ORDER, legs: ORDER.legs.map((leg) => ({ ...leg })) },
             }),
           ],
         })
       )
     );
+    await settle();
     const dialog = one(document, "[role='dialog']");
-    const shown = one(dialog, "[data-golive-order]").textContent;
-    expect(shown).toContain("Quantity2 spreads");
-    expect(shown).toContain("Limit$2.35 debit per spread");
-    expect(shown).not.toContain("2.50");
+    expect(container.querySelector("[data-golive-decision-notice]")).toBeNull();
     await click(button(dialog, "Record approval"));
-    // The server compares this order with its own and refuses a difference.
     expect(gateway.approve).toHaveBeenCalledWith({
       confirm: true,
       id: "draft-spy",
@@ -1627,13 +1694,83 @@ describe("GoLiveDraftQueue", () => {
     });
   });
 
+  it.each([
+    [
+      "is no longer proposed",
+      draft({ state: "expired" }),
+      "A newer read of the queue shows that the draft is no longer proposed (Expired: the generator no longer wants this draft). The open dialog was closed and nothing was recorded.",
+    ],
+    [
+      "has a blocker",
+      draft({ notApprovable: ["PRECHECK_DENIED"] }),
+      "A newer read of the queue shows that the draft can no longer be approved: the dry pre-check (web final gate) denied the order. The open dialog was closed and nothing was recorded.",
+    ],
+    [
+      "carries another order than the dialog shows",
+      draft({
+        order: { ...ORDER, limitPrice: 2.5, quantity: 3 },
+        sizing: { ...draft().sizing, limitPrice: 2.5, quantity: 3 },
+      }),
+      "A newer read of the queue shows that the order of the draft changed and is no longer the order the dialog showed. The open dialog was closed and nothing was recorded.",
+    ],
+  ])(
+    "closes the approve dialog when a queue answer behind it says the draft %s",
+    async (_name, fresh, notice) => {
+      const slow = deferred<GoLiveQueueOutput>();
+      const gateway = gatewayOf(queue());
+      gateway.queue.mockReturnValueOnce(slow.promise);
+      const container = await mount(gateway);
+      await reloadThenOpen(container, "Approve SPY 2026-12-18");
+      expect(document.querySelector("[role='dialog']")).not.toBeNull();
+      await act(async () => slow.resolve(queue({ drafts: [fresh] })));
+      await settle();
+      expect(document.querySelector("[role='dialog']")).toBeNull();
+      expect(gateway.approve).not.toHaveBeenCalled();
+      const shown = one(container, "[data-golive-decision-notice]");
+      expect(shown.getAttribute("role")).toBe("alert");
+      expect(shown.textContent).toBe(notice);
+    }
+  );
+
+  it("closes the dialog when a queue answer behind it no longer lists the draft", async () => {
+    const slow = deferred<GoLiveQueueOutput>();
+    const gateway = gatewayOf(queue());
+    gateway.queue.mockReturnValueOnce(slow.promise);
+    const container = await mount(gateway);
+    await reloadThenOpen(container, "Reject SPY 2026-12-18");
+    await act(async () => slow.resolve(queue({ drafts: [] })));
+    await settle();
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+    expect(gateway.reject).not.toHaveBeenCalled();
+    expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
+      "A newer read of the queue shows that the draft is no longer in the queue. The open dialog was closed and nothing was recorded."
+    );
+  });
+
+  it("keeps the reject dialog when a queue answer behind it only adds a blocker to approval", async () => {
+    const slow = deferred<GoLiveQueueOutput>();
+    const gateway = gatewayOf(queue());
+    gateway.queue.mockReturnValueOnce(slow.promise);
+    const container = await mount(gateway);
+    await reloadThenOpen(container, "Reject SPY 2026-12-18");
+    await act(async () =>
+      slow.resolve(
+        queue({ drafts: [draft({ notApprovable: ["PRECHECK_DENIED"] })] })
+      )
+    );
+    await settle();
+    expect(
+      document.querySelector("[data-golive-dialog='reject']")
+    ).not.toBeNull();
+    expect(container.querySelector("[data-golive-decision-notice]")).toBeNull();
+  });
+
   it("closes the dialog with the owner-only sentence when a queue answer behind it says the caller cannot decide", async () => {
     const slow = deferred<GoLiveQueueOutput>();
     const gateway = gatewayOf(queue());
     gateway.queue.mockReturnValueOnce(slow.promise);
     const container = await mount(gateway);
-    await click(button(container, "Reload queue"));
-    await click(button(container, "Approve SPY 2026-12-18"));
+    await reloadThenOpen(container, "Approve SPY 2026-12-18");
     expect(document.querySelector("[role='dialog']")).not.toBeNull();
     await act(async () => slow.resolve(queue({ canDecide: false })));
     await settle();

@@ -78,6 +78,8 @@ import {
   REJECTION_RECORD_SENTENCE,
   safeHttpsUrl,
   sleeveRow,
+  staleDialogNotice,
+  staleDialogReason,
   strikesText,
   structureText,
 } from "./golive-draft-queue-model.ts";
@@ -727,35 +729,41 @@ export const GoLiveDraftQueue = ({
   const mounted = useRef(false);
 
   /** The queue that was loaded, or null when the load failed or a newer load replaced it. */
-  const load = useCallback(async (): Promise<GoLiveQueueOutput | null> => {
-    loadNumber.current += 1;
-    const mine = loadNumber.current;
-    const current = (): boolean =>
-      mounted.current && mine === loadNumber.current;
-    loadAbort.current?.abort();
-    const abort = new AbortController();
-    loadAbort.current = abort;
-    setLoading(true);
-    try {
-      const data = await gateway.queue({ signal: abort.signal });
-      if (!current()) return null;
-      setState({ data, loadedAt: clock(), type: "ready" });
-      return data;
-    } catch (error) {
-      if (!current()) return null;
-      setState((previous) => {
-        if (isOperatorAccessDenied(error)) return { type: "forbidden" };
-        const message = loadErrorText(error);
-        // A failed reload keeps the last loaded queue and reports the failure inline.
-        return previous.type === "ready"
-          ? { ...previous, reloadError: message }
-          : { message, type: "error" };
-      });
-      return null;
-    } finally {
-      if (current()) setLoading(false);
-    }
-  }, [clock, gateway]);
+  const load = useCallback(
+    async (manual = false): Promise<GoLiveQueueOutput | null> => {
+      loadNumber.current += 1;
+      const mine = loadNumber.current;
+      const current = (): boolean =>
+        mounted.current && mine === loadNumber.current;
+      loadAbort.current?.abort();
+      const abort = new AbortController();
+      loadAbort.current = abort;
+      setLoading(true);
+      try {
+        const data = await gateway.queue({ signal: abort.signal });
+        if (!current()) return null;
+        setState({ data, loadedAt: clock(), type: "ready" });
+        // A decision notice describes an earlier read. A Reload that succeeds replaces that read,
+        // so the notice goes with it and never sits above a row that contradicts it.
+        if (manual) setNotice(null);
+        return data;
+      } catch (error) {
+        if (!current()) return null;
+        setState((previous) => {
+          if (isOperatorAccessDenied(error)) return { type: "forbidden" };
+          const message = loadErrorText(error);
+          // A failed reload keeps the last loaded queue and reports the failure inline.
+          return previous.type === "ready"
+            ? { ...previous, reloadError: message }
+            : { message, type: "error" };
+        });
+        return null;
+      } finally {
+        if (current()) setLoading(false);
+      }
+    },
+    [clock, gateway]
+  );
   useEffect(() => {
     mounted.current = true;
     void load();
@@ -766,19 +774,29 @@ export const GoLiveDraftQueue = ({
     };
   }, [load]);
 
-  const cannotDecide = state.type === "ready" && !state.data.canDecide;
-  const lostQueue = state.type !== "ready";
+  // A queue answer can arrive behind an open dialog. The dialog must then not stay usable when
+  // the queue is gone (operator access lost), this caller cannot decide, or the fresh row no
+  // longer allows the decision the dialog shows: not proposed, blocked, or another order.
   useEffect(() => {
     if (decision === null || busy) return;
-    // A queue answer behind the open dialog says this caller cannot decide, or the queue is gone
-    // (operator access lost): the dialog must not stay usable.
-    if (cannotDecide) {
+    if (state.type !== "ready") {
       setDecision(null);
-      setNotice(
-        `${OWNER_ONLY_DECISION_TEXT} The open dialog was closed and nothing was recorded.`
-      );
-    } else if (lostQueue) setDecision(null);
-  }, [busy, cannotDecide, decision, lostQueue]);
+      return;
+    }
+    const { data } = state;
+    const reason = staleDialogReason(
+      decision,
+      data.drafts.find((entry) => entry.id === decision.draft.id),
+      { plan: data.plan, readAt: data.node.checkedAt }
+    );
+    if (data.canDecide && reason === null) return;
+    setDecision(null);
+    setNotice(
+      data.canDecide && reason !== null
+        ? staleDialogNotice(reason)
+        : `${OWNER_ONLY_DECISION_TEXT} The open dialog was closed and nothing was recorded.`
+    );
+  }, [busy, decision, state]);
 
   const open = (next: Decision) => {
     opener.current = {
@@ -850,13 +868,17 @@ export const GoLiveDraftQueue = ({
     setDecision(null);
     setNotice(failure.text);
     const reloaded = await load();
-    if (!(mounted.current && failure.aftermath)) return;
+    if (!mounted.current || failure.aftermath === "none") return;
     const found =
       reloaded === null
         ? null
         : reloaded.drafts.find((entry) => entry.id === draft.id);
     setNotice(
-      `${failure.text} ${decisionAftermathText(found, reloaded?.tradingDay ?? draft.tradingDay)}`
+      `${failure.text} ${decisionAftermathText(
+        found,
+        reloaded?.tradingDay ?? draft.tradingDay,
+        failure.aftermath === "refused"
+      )}`
     );
   };
 
@@ -918,7 +940,7 @@ export const GoLiveDraftQueue = ({
         <div className="flex flex-wrap items-center gap-2">
           <Button
             disabled={loading}
-            onClick={() => void load()}
+            onClick={() => void load(true)}
             variant="outline"
           >
             <RotateCcw aria-hidden="true" className="size-4" />
@@ -937,7 +959,13 @@ export const GoLiveDraftQueue = ({
     plan: data.plan,
     readAt: data.node.checkedAt,
   };
-  const group = { busy, canDecide: data.canDecide, context, onDecide: open };
+  // No decision is started while a load runs: its answer may change what the row allows.
+  const group = {
+    busy: busy || loading,
+    canDecide: data.canDecide,
+    context,
+    onDecide: open,
+  };
   return (
     <Frame inert={dialogOpen} rootRef={rootRef}>
       {notice === null ? null : (
@@ -969,7 +997,7 @@ export const GoLiveDraftQueue = ({
         {loading ? <LoadingMark /> : null}
         <Button
           disabled={busy || dialogOpen || loading}
-          onClick={() => void load()}
+          onClick={() => void load(true)}
           variant="outline"
         >
           <RotateCcw aria-hidden="true" className="size-4" />

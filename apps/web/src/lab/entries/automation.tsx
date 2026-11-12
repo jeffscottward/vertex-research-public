@@ -3,7 +3,9 @@
 // The run detail reads ?id= (default: the first fake run).
 "use client";
 
+import type { GoLiveDraftOutput, GoLiveQueueOutput } from "@darkfactory/api";
 import { PageHeader, Panel, StatusBadge } from "@darkfactory/ui";
+import { useState } from "react";
 
 import { AgentApiKeysSection } from "../../components/portal/agent-api-keys-section.tsx";
 import type { AgentFrameworksGateway } from "../../components/portal/agent-frameworks-client.ts";
@@ -123,11 +125,58 @@ export const labDeploymentStrategies: StrategyLibraryGateway = {
   update: labReadOnly,
 };
 
-/** The order draft queue reads the fake queue; a decision is refused and nothing leaves the browser. */
-export const labGoLiveDraftsGateway: GoLiveDraftsGateway = {
-  approve: labReadOnly,
-  queue: () => Promise.resolve(LAB_GOLIVE_QUEUE),
-  reject: labReadOnly,
+const labRefusal = (code: string, message: string): Promise<never> =>
+  Promise.reject(Object.assign(new Error(message), { code }));
+
+/**
+ * The order draft queue in memory. A decision changes only this gateway's copy of the fake
+ * drafts and is refused the way the real server refuses it; nothing leaves the browser.
+ */
+export const createLabGoLiveDraftsGateway = (
+  start: GoLiveQueueOutput = LAB_GOLIVE_QUEUE
+): GoLiveDraftsGateway => {
+  let { drafts } = start;
+  const decide = (
+    id: string,
+    approval: GoLiveDraftOutput["approvedOrder"],
+    note: string | null
+  ): Promise<GoLiveDraftOutput> => {
+    const draft = drafts.find((entry) => entry.id === id);
+    if (draft === undefined)
+      return labRefusal("NOT_FOUND", "UI lab: no such dummy draft");
+    if (draft.state !== "proposed")
+      return labRefusal("CONFLICT", "The draft is no longer proposed");
+    if (approval !== null && draft.notApprovable.length > 0)
+      return labRefusal(
+        "CONFLICT",
+        `Draft cannot be approved: ${draft.notApprovable.join(", ")}`
+      );
+    const at = new Date();
+    const decided: GoLiveDraftOutput = {
+      ...draft,
+      approvedOrder: approval,
+      decidedAt: at,
+      decidedBy: "demo-owner",
+      decisionNote: note,
+      nodeBadgeAtDecision: approval === null ? null : start.node.badge,
+      notApprovable: [...draft.notApprovable, "DRAFT_NOT_PROPOSED"],
+      state: approval === null ? "rejected" : "approved",
+      updatedAt: at,
+    };
+    drafts = drafts.map((entry) => (entry.id === id ? decided : entry));
+    return Promise.resolve(decided);
+  };
+  return {
+    approve: (input) => decide(input.id, input.order, input.note ?? null),
+    queue: () => Promise.resolve({ ...start, drafts }),
+    reject: (input) => decide(input.id, null, input.note),
+  };
+};
+
+/** A fresh in-memory queue for each visit of the lab page. */
+const LabOrderDrafts = () => {
+  const [gateway] = useState(() => createLabGoLiveDraftsGateway());
+  return <GoLiveDraftQueue gateway={gateway} />;
 };
 
 const labEnginesGateway: EnginesGateway = {
@@ -207,7 +256,7 @@ export const AUTOMATION_LAB_ENTRIES: readonly LabEntry[] = [
     render: () => (
       <div className="space-y-8">
         <PageHeader title="Order drafts" />
-        <GoLiveDraftQueue gateway={labGoLiveDraftsGateway} />
+        <LabOrderDrafts />
       </div>
     ),
     route: "/drafts",

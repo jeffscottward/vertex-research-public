@@ -39,10 +39,10 @@ import { findLabEntry } from "../registry.ts";
 import { mountLab, unmountLab } from "../test-support.tsx";
 import {
   AUTOMATION_LAB_ENTRIES,
+  createLabGoLiveDraftsGateway,
   labAgentOpsGateway,
   labDeploymentRequestsGateway,
   labDeploymentStrategies,
-  labGoLiveDraftsGateway,
   labModelRunsGateway,
 } from "./automation.tsx";
 
@@ -120,25 +120,122 @@ describe("automation lab entries", () => {
     }
   });
 
-  it("gives the order drafts page a gateway that only reads the fake queue", async () => {
-    const { signal } = new AbortController();
-    await expect(labGoLiveDraftsGateway.queue({ signal })).resolves.toBe(
-      LAB_GOLIVE_QUEUE
+  it("records a rejection in the lab page's own memory and shows it, with no network-failure sentence", async () => {
+    const network = vi.fn(() =>
+      Promise.reject(new Error("no network in the lab"))
     );
-    await expect(
-      labGoLiveDraftsGateway.reject({ id: "lab-draft-1", note: "No." })
-    ).rejects.toThrow("UI lab");
+    vi.stubGlobal("fetch", network);
+    try {
+      const host = await mount("drafts");
+      const press = async (name: string): Promise<void> => {
+        const found = [...document.querySelectorAll("button")].find(
+          (item) =>
+            (item.getAttribute("aria-label") ?? item.textContent) === name
+        );
+        if (found === undefined) throw new Error(`No button named ${name}`);
+        await act(async () => found.click());
+      };
+      await press("Reject SPY 2026-12-18");
+      const note = document.querySelector("textarea");
+      if (note === null) throw new Error("the reject dialog has a note");
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set?.call(note, "Dummy rejection.");
+        note.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await press("Record rejection");
+      for (let turn = 0; turn < 5; turn += 1)
+        await act(async () => Promise.resolve());
+      expect(document.querySelector("[role='dialog']")).toBeNull();
+      const row = host.querySelector("[data-golive-draft='lab-draft-1']");
+      expect(row?.getAttribute("data-golive-draft-state")).toBe("rejected");
+      expect(row?.textContent).toContain("Rejected by the owner (recorded)");
+      expect(row?.textContent).toContain("Decision noteDummy rejection.");
+      expect(row?.querySelector("button")).toBeNull();
+      expect(host.textContent).not.toContain("No answer came back");
+      expect(host.querySelector("[data-golive-decision-notice]")).toBeNull();
+      expect(network).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    // The decision lived in that page only: the next visit starts from the fixture again.
+    const again = await mount("drafts");
+    expect(
+      again
+        .querySelector("[data-golive-draft='lab-draft-1']")
+        ?.getAttribute("data-golive-draft-state")
+    ).toBe("proposed");
+  });
+
+  it("answers order draft decisions in memory and never changes the fixture", async () => {
+    const { signal } = new AbortController();
+    const gateway = createLabGoLiveDraftsGateway();
+    await expect(gateway.queue({ signal })).resolves.toEqual(LAB_GOLIVE_QUEUE);
     const [draft] = LAB_GOLIVE_QUEUE.drafts;
     const order = draft?.order ?? null;
     if (draft === undefined || order === null)
       throw new Error("the fake draft has an order");
+
+    // The model-held draft cannot be approved, as on the real server: the refusal names why.
     await expect(
-      labGoLiveDraftsGateway.approve({
-        confirm: true,
-        id: draft.id,
-        order,
-      })
-    ).rejects.toThrow("UI lab");
+      gateway.approve({ confirm: true, id: draft.id, order })
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      message:
+        "Draft cannot be approved: LATE_ENTRY_NOT_TESTED, NO_LIVE_IBKR_QUOTE",
+    });
+    await expect(
+      gateway.reject({ id: "nope", note: "No." })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const rejected = await gateway.reject({ id: draft.id, note: "No." });
+    expect(rejected).toMatchObject({
+      decidedBy: "demo-owner",
+      decisionNote: "No.",
+      id: draft.id,
+      state: "rejected",
+    });
+    expect(rejected.notApprovable).toContain("DRAFT_NOT_PROPOSED");
+    GoLiveQueueOutputSchema.parse(await gateway.queue({ signal }));
+    expect((await gateway.queue({ signal })).drafts[0]?.state).toBe("rejected");
+    // A second decision on the same draft is refused like the server refuses it.
+    await expect(
+      gateway.reject({ id: draft.id, note: "Again." })
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "The draft is no longer proposed",
+    });
+
+    // Only this gateway's copy changed.
+    expect(draft.state).toBe("proposed");
+    expect(
+      (await createLabGoLiveDraftsGateway().queue({ signal })).drafts[0]?.state
+    ).toBe("proposed");
+  });
+
+  it("stores the order with an approval of a dummy draft that can be approved", async () => {
+    const { signal } = new AbortController();
+    const [draft] = LAB_GOLIVE_QUEUE.drafts;
+    const order = draft?.order ?? null;
+    if (draft === undefined || order === null)
+      throw new Error("the fake draft has an order");
+    const gateway = createLabGoLiveDraftsGateway({
+      ...LAB_GOLIVE_QUEUE,
+      drafts: [{ ...draft, entryBasis: "signal_today", notApprovable: [] }],
+    });
+    const approved = await gateway.approve({
+      confirm: true,
+      id: draft.id,
+      order,
+    });
+    expect(approved).toMatchObject({
+      approvedOrder: order,
+      nodeBadgeAtDecision: "running-disarmed",
+      state: "approved",
+    });
+    GoLiveQueueOutputSchema.parse(await gateway.queue({ signal }));
   });
 
   it("opens the fake assistant thread", async () => {
