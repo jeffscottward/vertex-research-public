@@ -16,9 +16,10 @@ Symbols (imported, not copied):
 - --stocks, default: SP100 of research/backtests/freestockalerts/universe.py (KO and PEP are in it). A
   stock that fails is listed under `failed` in FORMS_SOURCES.json and the script goes on.
 - TERM_INDICES: the IV term indices of services/research/strategies/qc_ports/data.py IV_TERM that the
-  qc-ports fetch does not get (VIX6M, Cboe, about 182 days), with the qc-ports helper `_index` (IBKR,
-  Yahoo, the Cboe CSV). One that fails stops the script with an error. `--etfs "" --stocks ""` fetches
-  only them (the other files of the directory keep their provenance).
+  qc-ports fetch does not get (Cboe VIX6M, about 182 days), with the qc-ports helper `_index`. For VIX6M
+  that is Yahoo `^VIX6M` alone: IBKR has no contract mapping for it and the Cboe CSV list does not hold
+  it. One that fails stops the script with an error. `--etfs "" --stocks ""` fetches only them (the other
+  files of the directory keep their provenance).
 
 Output (not committed: the Yahoo and IBKR terms do not allow redistribution), flat in --out:
 - <SYMBOL>.csv, header `date,open,high,low,close,adj_close`, same meaning as the qc-ports ETF files:

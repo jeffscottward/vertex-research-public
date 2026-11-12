@@ -107,7 +107,8 @@ def test_synthetic_calendar_books_match(structure):
     """Two-expiry trades (book.CALENDARS) are one instrument per spread like a vertical: both engines agree."""
     size = 320
     spy = market(_walk(5, size, 450.0), rate=0.03)
-    spy = dataclasses.replace(spy, iv_term=(("VIX3M", tuple(24.0 + (index % 7) for index in range(size))),))
+    spy = dataclasses.replace(spy, iv_term=(("VIX3M", tuple(24.0 + (index % 7) for index in range(size))),
+                                            ("VIX6M", tuple(25.0 + (index % 5) for index in range(size)))))
     rng = random.Random(9)
     events, index = [], 0
     while index < size - 2:

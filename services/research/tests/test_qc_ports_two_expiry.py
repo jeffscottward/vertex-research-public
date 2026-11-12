@@ -33,12 +33,13 @@ NEAR_BAR = DATES.index(NEAR)
 
 def calendar_market(closes, *, vix=VIX_FOR_20, vix3m=VIX3M_FOR_22, rate=0.0, term=True, vix3ms=None,
                     vixes=None) -> Market:
+    """VIX6M carries the VIX3M levels: the ATM IV is flat past 93 days, so under 93 days only VIX and VIX3M count."""
     dates = trading_days("2024-01-02", len(closes))
     size = len(closes)
     levels = tuple(vix3ms) if vix3ms is not None else (vix3m,) * size
     return Market("SPY", dates, tuple(float(value) for value in closes),
                   tuple(vixes) if vixes is not None else (vix,) * size, (rate,) * size,
-                  (("VIX3M", levels),) if term else ())
+                  (("VIX3M", levels), ("VIX6M", levels)) if term else ())
 
 
 def term_atm(days, near_atm=0.2, far_atm=0.22):
@@ -234,6 +235,11 @@ def test_term_structure_check_and_missing_term_refuse_the_entry():
     assert len(run([100.0] * COUNT, {**CALENDAR, "maxTermRatio": 1.1}).trades) == 1
     assert len(run([100.0] * COUNT, vix3m=steep).trades) == 1  # no check without maxTermRatio
     assert run([100.0] * COUNT, term=False).skipped[0].reason == "no IV term"
+    # Part of the term (VIX3M without VIX6M): no calendar either, a 100/200 one would get a flat IV past 93 days.
+    base = calendar_market([100.0] * COUNT)
+    part = Market("SPY", base.dates, base.close, base.iv_index, base.rate, base.iv_term[:1])
+    assert bk.build_book([("SPY", 0, None)], CALENDAR, {"SPY": part}).skipped[0].reason == "no IV term"
+    assert fm.first_priced(part, [CALENDAR]) == COUNT
     assert run([100.0] * COUNT, vix3ms=[VIX3M_FOR_22, None] + [VIX3M_FOR_22] * (COUNT - 2)).skipped[0].reason == (
         "no IV term")
     assert run([100.0] * COUNT, vixes=[VIX_FOR_20, None] + [VIX_FOR_20] * (COUNT - 2)).skipped[0].reason == "no IV"
@@ -356,3 +362,16 @@ def test_a_100_200_calendar_prices_its_legs_on_the_vix6m_point_too():
     gap = Market("SPY", base.dates, base.close, base.iv_index, base.rate,
                  (("VIX3M", (VIX3M_FOR_22,) * size), ("VIX6M", (None,) * size)))
     assert bk.build_book([("SPY", 0, None)], block, {"SPY": gap}).skipped[0].reason == "no IV term"
+
+
+def test_ledger_records_name_the_far_expiry_of_a_calendar_only():
+    from strategies.qc_ports.ledger import run_ledger
+    from tests.qc_ports_synthetic import market as vertical_market
+
+    calendar = run([100.0] * COUNT).trades
+    record = run_ledger(calendar, 100_000.0).trades[0]
+    assert (record["structure"], record["expiry"], record["farExpiry"]) == ("callCalendar", NEAR, FAR)
+    vertical = bk.build_book([("SPY", 0, None)], {"structure": "callDebitVertical", "dte": {"target": 45, "min": 30},
+                                                  "widthSigma": 0.5, "maxLossPct": 2},
+                             {"SPY": vertical_market([100.0] * COUNT)}).trades
+    assert "farExpiry" not in run_ledger(vertical, 100_000.0).trades[0]

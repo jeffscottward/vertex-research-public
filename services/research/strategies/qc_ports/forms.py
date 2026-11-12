@@ -43,7 +43,7 @@ from statistics import pstdev
 from . import allocation as al
 from . import data as qd
 from . import options as om
-from .book import CALENDARS, PricedTrade, SignalEvent, build_book
+from .book import CALENDARS, PricedTrade, SignalEvent, build_book, full_term
 from .calendar import is_nyse_holiday
 from .data import MAX_FILL_DAYS, Bars, Market, align
 from .ideas import CORE7, MONTHLY_CALL, MONTHLY_PUT
@@ -204,11 +204,12 @@ def _window(market: Market, first: int, factor: float) -> Market:
 
 def first_priced(market: Market, blocks: Sequence[Mapping]) -> int:
     """The first bar with every IV input the book needs for `blocks`: the IV index, and every IV term value when
-    a block is a calendar (len(market) when there is none)."""
+    a block is a calendar (len(market) when there is none, or when a calendar lacks a term index: book.full_term)."""
     term = any(block["structure"] in CALENDARS for block in blocks)
+    if term and not full_term(market):
+        return len(market.dates)
     return next((index for index, value in enumerate(market.iv_index) if value is not None and (
-        not term or (market.iv_term and all(levels[index] is not None for _, levels in market.iv_term)))),
-        len(market.dates))
+        not term or all(levels[index] is not None for _, levels in market.iv_term))), len(market.dates))
 
 
 def degenerate(trade: PricedTrade, spot: float) -> bool:

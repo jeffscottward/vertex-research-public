@@ -47,13 +47,16 @@ only):
 - Each leg is priced with the ATM IV at its own DTE from the IV term structure
   of the symbol (options.term_atm_iv over the 30-day index and Market.iv_term),
   with the skew of the symbol, at max(Black-Scholes, intrinsic value) (an
-  American option is worth at least its exercise value, so the spread is never
-  worth less than 0). A symbol without an IV term, or a bar without every term
-  value, opens no calendar ("no IV term"); a term value missing while the trade
-  is open closes it like a stale IV index.
+  American option is worth at least its exercise value). The spread value is
+  floored at 0 (instrument_value): a far leg priced below the near leg (a
+  falling total variance, or the skew of the two tenors) would be an arbitrage.
+  A market without every term index of data.IV_TERM for its symbol, or a bar
+  without every term value, opens no calendar ("no IV term"); a term value
+  missing while the trade is open closes it like a stale IV index.
 - Strike: the grid strike whose near-leg |delta| is nearest `strikeDelta`
   (default 0.5, at the money). `maxTermRatio`: no trade when the far-leg ATM IV
-  is above that multiple of the near-leg ATM IV ("term structure").
+  is above that multiple of the near-leg ATM IV ("term structure"; ATM IVs, not
+  the IVs at the strike).
 - Instrument value per contract = (far leg - near leg) * 100. The trade ends at
   the near expiry at the latest: there the near leg settles at its intrinsic
   value and the far leg is sold at its model value. Profit-take, exitDte,
@@ -79,7 +82,8 @@ from .data import INDEX_TENOR_DAYS, IV_INDEX, IV_TERM, Market
 
 __all__ = [
     "CALENDARS", "MAX_LOSS_PCT_CAP", "STRUCTURES", "Book", "CalendarSpec", "OptionsSpec", "PricedTrade", "SignalEvent",
-    "Skip", "build_book", "choose_expiry", "choose_strikes", "contracts_for", "instrument_value", "parse_calendar",
+    "Skip", "build_book", "choose_expiry", "choose_strikes", "contracts_for", "full_term", "instrument_value",
+    "parse_calendar",
     "parse_options", "spread_legs", "worst_exit_cost",
 ]
 
@@ -468,6 +472,11 @@ def parse_calendar(block: Mapping) -> CalendarSpec:
     )
 
 
+def full_term(market: Market) -> bool:
+    """True when `market` holds every term index data.IV_TERM lists for its symbol (and the symbol has one)."""
+    return bool(market.iv_term) and {index_id for index_id, _ in market.iv_term} == set(IV_TERM.get(market.symbol, {}))
+
+
 def _term_points(market: Market, level: float, terms: Sequence[float]) -> list[tuple[int, float]]:
     """(tenor days, ATM IV) of the 30-day IV index and of every term index of `market` at the given levels."""
     tenors = IV_TERM[market.symbol]
@@ -498,7 +507,7 @@ def _price_calendar(event: SignalEvent, market: Market, spec: CalendarSpec, cale
     if rate is None:
         return "no rate"
     terms = tuple(levels[entry] for _, levels in market.iv_term)
-    if not terms or None in terms:
+    if not full_term(market) or None in terms:
         return "no IV term"
     entry_day = parse(market.dates[entry])
     near = choose_expiry(entry_day, spec.dte_target, spec.dte_min, calendar)
