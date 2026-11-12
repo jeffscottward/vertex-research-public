@@ -1,3 +1,10 @@
+// Run caps: the largest source, bar window and output one script may use.
+export const SCRIPT_SOURCE_MAX = 16_000;
+export const SCRIPT_BARS_MAX = 5000;
+export const SCRIPT_PLOTS_MAX = 16;
+export const SCRIPT_SIGNALS_MAX = 500;
+export const SCRIPT_OPS_DEFAULT = 2_000_000;
+
 // Size caps on every string the engine emits, so results always fit the chart, panel and
 // storage consumers. Longer text is clipped (with a run warning), never rejected.
 

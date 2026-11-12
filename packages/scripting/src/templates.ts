@@ -1,7 +1,7 @@
 // Starter indicator library. Every template is ordinary Vertex script source written for this
 // subset (not copied from TradingView); tests compile and run each one on fixture bars.
 
-import type { ScriptTemplate } from "./index.ts";
+import type { ScriptTemplate } from "./types.ts";
 
 const lines = (...rows: string[]): string => `${rows.join("\n")}\n`;
 

@@ -1,6 +1,6 @@
 // Test fixtures: a tiny hand-checkable series and a longer deterministic wave.
 
-import type { ScriptBar } from "./index.ts";
+import type { ScriptBar } from "./types.ts";
 
 const START_MS = Date.UTC(2026, 0, 5, 14, 30);
 const MINUTE_MS = 60_000;
