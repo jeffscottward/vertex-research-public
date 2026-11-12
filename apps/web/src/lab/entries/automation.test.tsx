@@ -215,6 +215,24 @@ describe("automation lab entries", () => {
       message: "The draft is no longer proposed",
     });
 
+    // A decision changes the decided draft only: another draft of the day stays as it was.
+    const other = { ...draft, id: "lab-draft-2", symbol: "QQQ" };
+    const two = createLabGoLiveDraftsGateway({
+      ...LAB_GOLIVE_QUEUE,
+      drafts: [draft, other],
+    });
+    await two.reject({ id: draft.id, note: "No." });
+    expect(
+      (await two.queue({ signal })).drafts.map((entry) => [
+        entry.id,
+        entry.state,
+      ])
+    ).toEqual([
+      [draft.id, "rejected"],
+      ["lab-draft-2", "proposed"],
+    ]);
+    expect((await two.queue({ signal })).drafts[1]).toBe(other);
+
     // Only this gateway's copy changed.
     expect(draft.state).toBe("proposed");
     expect(

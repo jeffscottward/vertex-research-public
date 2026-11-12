@@ -721,9 +721,11 @@ export const GoLiveDraftQueue = ({
   // A second click on Record arrives before `busy` has rendered; the ref refuses it at once.
   const submitting = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const opener = useRef<{ draftId: string; element: Element | null } | null>(
-    null
-  );
+  // What opened the dialog last: set by every open, read once when that dialog closes.
+  const opener = useRef<{ draftId: string; element: Element | null }>({
+    draftId: "",
+    element: null,
+  });
   // Loads are numbered. Only the answer of the newest load is used, so an older answer never
   // overwrites a newer queue or a draft that a decision returned.
   const loadNumber = useRef(0);
@@ -814,18 +816,15 @@ export const GoLiveDraftQueue = ({
   // the button that opened it, or, when a decision removed or disabled that button, to the
   // draft's row, so focus is not lost to the top of the page.
   const restoreFocus = (event: Event) => {
-    const from = opener.current;
-    opener.current = null;
-    if (from === null) return;
     event.preventDefault();
-    const { element } = from;
+    const { draftId, element } = opener.current;
     const target =
       element instanceof HTMLButtonElement &&
       element.isConnected &&
       !element.disabled
         ? element
         : rootRef.current?.querySelector<HTMLElement>(
-            `[data-golive-draft="${CSS.escape(from.draftId)}"]`
+            `[data-golive-draft="${CSS.escape(draftId)}"]`
           );
     target?.focus();
   };

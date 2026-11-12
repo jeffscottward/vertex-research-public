@@ -582,6 +582,15 @@ describe("GoLiveDraftQueue", () => {
     ]);
   });
 
+  it("shows only the evidence link when a plan has no owner message link", async () => {
+    const container = await mount(
+      gatewayOf(queue({ plan: plan({ ownerMessageUrl: null }) }))
+    );
+    expect(texts(one(container, "[data-golive-plan='approved']"), "a")).toEqual(
+      ["Evidence"]
+    );
+  });
+
   it("shows only the link a plan has", async () => {
     const container = await mount(
       gatewayOf(queue({ plan: plan({ evidenceUrl: null }) }))
@@ -1864,6 +1873,25 @@ describe("GoLiveDraftQueue", () => {
     expect(container.querySelector("[data-golive-action]")).toBeNull();
   });
 
+  it("closes the dialog when the queue is lost behind it (operator access refused on the reload)", async () => {
+    const slow = deferred<GoLiveQueueOutput>();
+    const gateway = gatewayOf(queue(), queue());
+    gateway.queue.mockReset();
+    gateway.queue.mockResolvedValueOnce(queue());
+    gateway.queue.mockReturnValueOnce(slow.promise);
+    gateway.queue.mockResolvedValueOnce(queue());
+    const container = await mount(gateway);
+    await reloadThenOpen(container, "Approve SPY 2026-12-18");
+    expect(document.querySelector("[role='dialog']")).not.toBeNull();
+    await act(async () => slow.reject(forbidden("Operator access required")));
+    await settle();
+    // The page is the operator notice now: no dialog and no decision can be sent.
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+    expect(container.textContent).toContain("Operator access required");
+    expect(container.querySelector("[data-golive-draft]")).toBeNull();
+    expect(gateway.approve).not.toHaveBeenCalled();
+  });
+
   it("abandons a load when the page is left and sets no state after it", async () => {
     const slow = deferred<GoLiveQueueOutput>();
     const gateway = gatewayOf();
@@ -1883,6 +1911,93 @@ describe("GoLiveDraftQueue", () => {
     } finally {
       errors.mockRestore();
     }
+  });
+
+  it("sets no state when a load fails after the page was left", async () => {
+    const slow = deferred<GoLiveQueueOutput>();
+    const gateway = gatewayOf();
+    gateway.queue.mockReturnValueOnce(slow.promise);
+    await mount(gateway);
+    const errors = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    try {
+      for (const root of roots.splice(0)) await act(async () => root.unmount());
+      // The abandoned request ends with an error, as an aborted fetch does.
+      await act(async () =>
+        slow.reject(new Error("The operation was aborted"))
+      );
+      expect(errors).not.toHaveBeenCalled();
+      expect(gateway.queue).toHaveBeenCalledTimes(1);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it("does nothing more when a decision fails after the page was left", async () => {
+    const slow = deferred<GoLiveDraftOutput>();
+    const gateway = gatewayOf(queue());
+    gateway.approve.mockReturnValueOnce(slow.promise);
+    const container = await mount(gateway);
+    await click(button(container, "Approve SPY 2026-12-18"));
+    await click(button(document, "Record approval"));
+    const errors = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    try {
+      for (const root of roots.splice(0)) await act(async () => root.unmount());
+      await act(async () => slow.reject(new TypeError("Failed to fetch")));
+      // No reload and no notice: there is no page left to show them.
+      expect(gateway.queue).toHaveBeenCalledTimes(1);
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it("keeps the other drafts as they are when one decision is recorded and the reload fails", async () => {
+    const gateway = gatewayOf(
+      queue({ drafts: [draft(), lateDraft()] }),
+      new TypeError("Failed to fetch")
+    );
+    gateway.reject.mockResolvedValueOnce(
+      draft({ decidedAt: AT, decisionNote: "No.", state: "rejected" })
+    );
+    const container = await mount(gateway);
+    await click(button(container, "Reject SPY 2026-12-18"));
+    await type(one(document, "textarea") as HTMLTextAreaElement, "No.");
+    await click(button(document, "Record rejection"));
+    const state = (id: string): string | null =>
+      one(container, `[data-golive-draft='${id}']`).getAttribute(
+        "data-golive-draft-state"
+      );
+    expect(state("draft-spy")).toBe("rejected");
+    expect(state("draft-qqq")).toBe("proposed");
+    expect(button(container, "Reject QQQ 2026-12-18").disabled).toBe(false);
+  });
+
+  it("stays on the operator notice when the queue is refused while a decision is being recorded", async () => {
+    const reload = deferred<GoLiveQueueOutput>();
+    const approval = deferred<GoLiveDraftOutput>();
+    const gateway = gatewayOf(queue());
+    gateway.queue.mockReturnValueOnce(reload.promise);
+    gateway.queue.mockRejectedValueOnce(forbidden("Operator access required"));
+    gateway.approve.mockReturnValueOnce(approval.promise);
+    const container = await mount(gateway);
+    await reloadThenOpen(container, "Approve SPY 2026-12-18");
+    await click(button(document, "Record approval"));
+    // Operator access is refused on the reload while the approval is still on its way.
+    await act(async () => reload.reject(forbidden("Operator access required")));
+    expect(container.textContent).toContain("Operator access required");
+    // The approval then answers: there is no queue on screen to put the returned draft into.
+    await act(async () =>
+      approval.resolve(draft({ decidedAt: AT, state: "approved" }))
+    );
+    await settle();
+    expect(gateway.queue).toHaveBeenCalledTimes(3);
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+    expect(container.textContent).toContain("Operator access required");
+    expect(container.querySelector("[data-golive-draft]")).toBeNull();
   });
 
   it("does not reload after a decision that answers when the page was left", async () => {

@@ -100,6 +100,7 @@ import {
   structureText,
   VERTEX_ORDERS_TAB_LABEL,
   VERTEX_ORDERS_TAB_VALUE,
+  wideSpreadWords,
 } from "./golive-draft-queue-model.ts";
 
 // 2026-11-11 is in standard time: 15:30Z is 10:30 in New York.
@@ -965,6 +966,13 @@ describe("drafts", () => {
     expect(GOLIVE_QUOTE_MAX_SPREAD_SHARE).toBe(0.5);
     expect(GOLIVE_QUOTE_SPREAD_FLOOR).toBe(0.05);
     expect(
+      wideSpreadWords(GOLIVE_QUOTE_MAX_SPREAD_SHARE, GOLIVE_QUOTE_SPREAD_FLOOR)
+    ).toBe("wider than half its mid and wider than $0.05");
+    // Other limits in the contract give other numbers in the sentence, never stale words.
+    expect(wideSpreadWords(0.25, 0.1)).toBe(
+      "wider than 25% of its mid and wider than $0.10"
+    );
+    expect(
       maxLossText({ maxLoss: null, maxLossPctNlv: null, reason: "sized" })
     ).toBe("not available: no max loss was computed");
   });
@@ -1587,6 +1595,18 @@ describe("decisionFailure", () => {
       text: "The server did not find this draft in the queue of the order session day, so this rejection recorded nothing.",
     }));
 
+  it("gives a code this build does not handle the fallback: close, reload, result not known", () => {
+    // Also the answer for a code a later contract adds before this page learns its words.
+    for (const type of ["approve", "reject"] as const)
+      expect(fail(coded("INTERNAL_SERVER_ERROR", "boom"), type)).toEqual({
+        action: "close",
+        aftermath: "result_not_known",
+        text: `The server failed during this ${
+          type === "approve" ? "approval" : "rejection"
+        } with an error code not known to this page version (INTERNAL_SERVER_ERROR), so it is not known whether it was recorded.`,
+      });
+  });
+
   it("says the result is not known when no answer came back", () =>
     expect(fail(new TypeError("Failed to fetch"))).toEqual({
       action: "close",
@@ -1782,6 +1802,8 @@ describe("plan links", () => {
       "https:/x",
       "https:///x",
       "https:// example.com",
+      // Starts like a link and is no URL at all: the parser throws, and the answer is still null.
+      "https://[",
       " https://example.com",
       "javascript:alert(1)",
       "data:text/html,x",

@@ -149,14 +149,18 @@ export const QUOTE_SOURCE_WORDS: Readonly<Record<GoLiveQuoteSource, string>> =
     yahoo_delayed_snapshot: "Yahoo, 15 min delayed, indicative",
   });
 
-// The server takes a leg quote as not usable only when its bid-ask spread is wider than this
-// share of its mid AND wider than this many dollars (GOLIVE_QUOTE_MAX_SPREAD_SHARE and
-// GOLIVE_QUOTE_SPREAD_FLOOR in the contract). Both numbers in the sentence come from there.
-const MAX_SPREAD_WORDS = `wider than ${
-  GOLIVE_QUOTE_MAX_SPREAD_SHARE === 0.5
-    ? "half"
-    : `${GOLIVE_QUOTE_MAX_SPREAD_SHARE * 100}% of`
-} its mid and wider than $${GOLIVE_QUOTE_SPREAD_FLOOR.toFixed(2)}`;
+/**
+ * The server's two limits for a usable leg quote, in words: its bid-ask spread is too wide only
+ * when it is wider than `share` of its mid AND wider than `floor` dollars.
+ */
+export const wideSpreadWords = (share: number, floor: number): string =>
+  `wider than ${share === 0.5 ? "half" : `${share * 100}% of`} its mid and wider than $${floor.toFixed(2)}`;
+
+// Both numbers in the no_quote sentence come from the contract.
+const MAX_SPREAD_WORDS = wideSpreadWords(
+  GOLIVE_QUOTE_MAX_SPREAD_SHARE,
+  GOLIVE_QUOTE_SPREAD_FLOOR
+);
 
 export const SIZING_REASON_WORDS: Readonly<Record<GoLiveSizingReason, string>> =
   Object.freeze({
@@ -333,12 +337,17 @@ export const planStatusText = (
  * as a link. The URL parser alone accepts "https:example.com" and "https:/x", which a browser
  * resolves on the app's own origin, so the text itself must start with "https://<host>".
  */
-export const safeHttpsUrl = (value: string | null): string | null => {
-  if (value === null || !/^https:\/\/[^/\s]/u.test(value)) return null;
+export const safeHttpsUrl = (value: string | null): string | null =>
+  value !== null && /^https:\/\/[^/\s]/u.test(value) && parsesAsHttps(value)
+    ? value
+    : null;
+
+/** True when the URL parser accepts the text as an https URL. A text it rejects is no link. */
+const parsesAsHttps = (value: string): boolean => {
   try {
-    return new URL(value).protocol === "https:" ? value : null;
+    return new URL(value).protocol === "https:";
   } catch {
-    return null;
+    return false;
   }
 };
 
@@ -1122,14 +1131,13 @@ export const decisionFailure = (
       return reload(
         `No answer came back for this ${act} (network failure or timeout), ${notKnown}`
       );
-    case "OTHER":
+    default:
+      // OTHER: the server answered with a code this page version does not know. The same answer
+      // covers a cause a later contract adds before this switch has a case for it (the exhaustive
+      // LOAD_ERROR_WORDS map above is where such a code is a type error): close, reload, and say
+      // that the result is not known.
       return reload(
         `The server failed during this ${act} with an error code ${notKnownText(failure.code)}, ${notKnown}`
-      );
-    default:
-      return unhandled(
-        failure.cause,
-        reload(`This ${act} failed, ${notKnown}`)
       );
   }
 };
