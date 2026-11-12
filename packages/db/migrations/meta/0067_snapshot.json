@@ -1,5 +1,5 @@
 {
-  "id": "6c1ee1eb-f22c-481a-bbe4-4874ed511b72",
+  "id": "cfbf1f3f-b7e8-48bd-ada4-2fc17ddae0bf",
   "prevId": "8734f81a-3bbc-4c70-942b-8fc9f13cd0d0",
   "version": "7",
   "dialect": "postgresql",
@@ -3723,12 +3723,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "options": {
-          "name": "options",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -3901,10 +3895,6 @@
         "deployment_requests_limits_check": {
           "name": "deployment_requests_limits_check",
           "value": "jsonb_typeof(\"deployment_requests\".\"limits\") = 'object' and \"deployment_requests\".\"limits\" ?& array['maxOrderSize', 'maxPosition', 'maxOrdersPerMinute', 'dailyLossLimit'] and \"deployment_requests\".\"limits\" - array['maxOrderSize', 'maxPosition', 'maxOrdersPerMinute', 'dailyLossLimit'] = '{}'::jsonb and (case when jsonb_typeof(\"deployment_requests\".\"limits\"->'maxOrderSize') = 'number' and jsonb_typeof(\"deployment_requests\".\"limits\"->'maxPosition') = 'number' and jsonb_typeof(\"deployment_requests\".\"limits\"->'maxOrdersPerMinute') = 'number' and jsonb_typeof(\"deployment_requests\".\"limits\"->'dailyLossLimit') = 'number' then (\"deployment_requests\".\"limits\"->>'maxOrderSize')::numeric > 0 and (\"deployment_requests\".\"limits\"->>'maxPosition')::numeric > 0 and (\"deployment_requests\".\"limits\"->>'maxOrderSize')::numeric <= (\"deployment_requests\".\"limits\"->>'maxPosition')::numeric and (\"deployment_requests\".\"limits\"->>'maxOrdersPerMinute')::numeric between 1 and 1000 and (\"deployment_requests\".\"limits\"->>'maxOrdersPerMinute')::numeric = trunc((\"deployment_requests\".\"limits\"->>'maxOrdersPerMinute')::numeric) and (\"deployment_requests\".\"limits\"->>'dailyLossLimit')::numeric > 0 else false end)"
-        },
-        "deployment_requests_options_check": {
-          "name": "deployment_requests_options_check",
-          "value": "\"deployment_requests\".\"options\" is null or (case when jsonb_typeof(\"deployment_requests\".\"options\") = 'object' and jsonb_typeof(\"deployment_requests\".\"options\"->'structure') = 'string' and jsonb_typeof(\"deployment_requests\".\"options\"->'maxLossPctOfAccount') = 'number' then octet_length(\"deployment_requests\".\"options\"::text) <= 4096 and \"deployment_requests\".\"options\"->>'structure' in ('callDebitVertical', 'putDebitVertical', 'putCreditVertical', 'callCreditVertical') and (\"deployment_requests\".\"options\"->>'maxLossPctOfAccount')::numeric > 0 and (\"deployment_requests\".\"options\"->>'maxLossPctOfAccount')::numeric <= 2 else false end)"
         },
         "deployment_requests_lifecycle_check": {
           "name": "deployment_requests_lifecycle_check",
@@ -5107,6 +5097,434 @@
         "forward_drift_monitors_paper_note_check": {
           "name": "forward_drift_monitors_paper_note_check",
           "value": "\"forward_drift_monitors\".\"paper_note\" is null or char_length(\"forward_drift_monitors\".\"paper_note\") between 1 and 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.golive_draft_runs": {
+      "name": "golive_draft_runs",
+      "schema": "",
+      "columns": {
+        "candidate_count": {
+          "name": "candidate_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_version": {
+          "name": "plan_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trading_day": {
+          "name": "trading_day",
+          "type": "date",
+          "primaryKey": true,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "golive_draft_runs_plan_fk": {
+          "name": "golive_draft_runs_plan_fk",
+          "tableFrom": "golive_draft_runs",
+          "tableTo": "golive_plans",
+          "columnsFrom": ["plan_id", "plan_version"],
+          "columnsTo": ["id", "version"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "golive_draft_runs_fields_check": {
+          "name": "golive_draft_runs_fields_check",
+          "value": "\"golive_draft_runs\".\"candidate_count\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.golive_drafts": {
+      "name": "golive_drafts",
+      "schema": "",
+      "columns": {
+        "approved_order": {
+          "name": "approved_order",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_note": {
+          "name": "decision_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entry_basis": {
+          "name": "entry_basis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exit_reason": {
+          "name": "exit_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exit_rule": {
+          "name": "exit_rule",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiry": {
+          "name": "expiry",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "long_strike": {
+          "name": "long_strike",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "node_badge_at_decision": {
+          "name": "node_badge_at_decision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_draft_id": {
+          "name": "parent_draft_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_version": {
+          "name": "plan_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quote": {
+          "name": "quote",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "short_strike": {
+          "name": "short_strike",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signal_facts": {
+          "name": "signal_facts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sleeve_key": {
+          "name": "sleeve_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "structure": {
+          "name": "structure",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trading_day": {
+          "name": "trading_day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "golive_drafts_trading_day_idx": {
+          "name": "golive_drafts_trading_day_idx",
+          "columns": [
+            {
+              "expression": "trading_day",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "golive_drafts_plan_fk": {
+          "name": "golive_drafts_plan_fk",
+          "tableFrom": "golive_drafts",
+          "tableTo": "golive_plans",
+          "columnsFrom": ["plan_id", "plan_version"],
+          "columnsTo": ["id", "version"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "golive_drafts_fields_check": {
+          "name": "golive_drafts_fields_check",
+          "value": "\"golive_drafts\".\"kind\" in ('entry', 'exit') and \"golive_drafts\".\"structure\" in ('callDebitVertical', 'putDebitVertical', 'putCreditVertical', 'callCreditVertical') and \"golive_drafts\".\"state\" in ('proposed', 'approved', 'rejected', 'expired') and (\"golive_drafts\".\"entry_basis\" is null or \"golive_drafts\".\"entry_basis\" in ('signal_today', 'model_holds_account_does_not')) and (\"golive_drafts\".\"exit_reason\" is null or \"golive_drafts\".\"exit_reason\" in ('loser_3_trading_days_before_expiry', 'winner_expiry_day_1545_et', 'monthly_roll')) and (\"golive_drafts\".\"node_badge_at_decision\" is null or \"golive_drafts\".\"node_badge_at_decision\" in ('running-disarmed', 'running-armed', 'down', 'unknown')) and \"golive_drafts\".\"exit_rule\" = 'owner_standing_rule_v1' and \"golive_drafts\".\"expiry\" ~ '^[0-9]{8}$' and \"golive_drafts\".\"long_strike\" > 0 and \"golive_drafts\".\"long_strike\" < 'Infinity'::double precision and \"golive_drafts\".\"short_strike\" > 0 and \"golive_drafts\".\"short_strike\" < 'Infinity'::double precision and \"golive_drafts\".\"long_strike\" <> \"golive_drafts\".\"short_strike\" and char_length(\"golive_drafts\".\"sleeve_key\") between 1 and 40 and char_length(\"golive_drafts\".\"symbol\") between 1 and 10 and jsonb_typeof(\"golive_drafts\".\"signal_facts\") = 'array'"
+        },
+        "golive_drafts_kind_check": {
+          "name": "golive_drafts_kind_check",
+          "value": "(\"golive_drafts\".\"kind\" <> 'entry' or (\"golive_drafts\".\"entry_basis\" is not null and \"golive_drafts\".\"exit_reason\" is null and \"golive_drafts\".\"parent_draft_id\" is null)) and (\"golive_drafts\".\"kind\" <> 'exit' or (\"golive_drafts\".\"exit_reason\" is not null and \"golive_drafts\".\"entry_basis\" is null and \"golive_drafts\".\"parent_draft_id\" is not null))"
+        },
+        "golive_drafts_decision_check": {
+          "name": "golive_drafts_decision_check",
+          "value": "(\"golive_drafts\".\"state\" in ('approved', 'rejected')) = (\"golive_drafts\".\"decided_by\" is not null) and (\"golive_drafts\".\"state\" in ('approved', 'rejected')) = (\"golive_drafts\".\"decided_at\" is not null)"
+        },
+        "golive_drafts_revision_check": {
+          "name": "golive_drafts_revision_check",
+          "value": "\"golive_drafts\".\"revision\" > 0"
+        },
+        "golive_drafts_approved_order_check": {
+          "name": "golive_drafts_approved_order_check",
+          "value": "(\"golive_drafts\".\"state\" = 'approved') = (\"golive_drafts\".\"approved_order\" is not null) and (\"golive_drafts\".\"approved_order\" is null or jsonb_typeof(\"golive_drafts\".\"approved_order\") = 'object')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.golive_plans": {
+      "name": "golive_plans",
+      "schema": "",
+      "columns": {
+        "approval_basis": {
+          "name": "approval_basis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "evidence_url": {
+          "name": "evidence_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exit_rule": {
+          "name": "exit_rule",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "limits": {
+          "name": "limits",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_message_url": {
+          "name": "owner_message_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sleeves": {
+          "name": "sleeves",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "golive_plans_version_idx": {
+          "name": "golive_plans_version_idx",
+          "columns": [
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "golive_plans_in_force_idx": {
+          "name": "golive_plans_in_force_idx",
+          "columns": [
+            {
+              "expression": "exit_rule",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"golive_plans\".\"status\" in ('proposed', 'approved')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "golive_plans_id_version_pk": {
+          "name": "golive_plans_id_version_pk",
+          "columns": ["id", "version"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "golive_plans_fields_check": {
+          "name": "golive_plans_fields_check",
+          "value": "char_length(\"golive_plans\".\"id\") between 1 and 128 and char_length(\"golive_plans\".\"name\") between 1 and 120 and \"golive_plans\".\"version\" >= 1 and \"golive_plans\".\"status\" in ('proposed', 'approved', 'retired') and (\"golive_plans\".\"approval_basis\" is null or \"golive_plans\".\"approval_basis\" in ('owner_decision', 'owner_delegation')) and \"golive_plans\".\"exit_rule\" = 'owner_standing_rule_v1' and jsonb_typeof(\"golive_plans\".\"limits\") = 'object' and jsonb_typeof(\"golive_plans\".\"sleeves\") = 'array'"
+        },
+        "golive_plans_approval_check": {
+          "name": "golive_plans_approval_check",
+          "value": "(\"golive_plans\".\"status\" <> 'proposed' or \"golive_plans\".\"approval_basis\" is null) and (\"golive_plans\".\"status\" <> 'approved' or (\"golive_plans\".\"approval_basis\" is not null and \"golive_plans\".\"owner_message_url\" is not null and \"golive_plans\".\"approved_by\" is not null and \"golive_plans\".\"approved_at\" is not null)) and (\"golive_plans\".\"approval_basis\" is distinct from 'owner_delegation' or \"golive_plans\".\"evidence_url\" is not null) and ((\"golive_plans\".\"status\" = 'retired') = (\"golive_plans\".\"retired_at\" is not null))"
         }
       },
       "isRLSEnabled": false

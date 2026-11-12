@@ -317,8 +317,10 @@ export const decodeXmlText = (raw: string): string => {
   return out.replace(/\s+/gu, " ").trim();
 };
 
-// Element and attribute names here are fixed identifiers; only "." needs escaping in a pattern.
-const escapeName = (name: string): string => name.replace(/\./gu, "\\.");
+// Element and attribute names here are fixed identifiers. Every pattern metacharacter is escaped
+// all the same (the backslash too), so a name can never change the pattern it is put into.
+const escapeName = (name: string): string =>
+  name.replace(/[\\^$.*+?()[\]{}|]/gu, "\\$&");
 
 // Each pattern is compiled once per (kind, name, flags): a feed reads the same few child names
 // for every item, and Workers CPU time is short. Names are fixed identifiers, so the map stays

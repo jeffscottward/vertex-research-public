@@ -94,7 +94,7 @@ the daily close. The engine rule counts sessions and uses the clock.
 
 ## F5: deployment request with an options block
 
-A request has a new optional field `options` (migration 0067, nullable column). Old requests stay
+A request has a new optional field `options` (migration 0069, nullable column). Old requests stay
 valid and readable.
 
 ```text
@@ -116,7 +116,7 @@ that trades several ETFs (the rotation). The web form does not show the options 
 The request stays a record: `executionAuthorized: false`, `brokerSubmissionAllowed: false`,
 `dispatch.state: "not-dispatched"`. Mode stays fixed to `paper`.
 
-Deploy note: migration 0067 must run before the portal uses the new field. This job made no deploy.
+Deploy note: migration 0069 must run before the portal uses the new field. This job made no deploy.
 
 ## F6: the idle 1% of the vol-premium sleeve
 
@@ -149,7 +149,7 @@ Without it, or with policy v2, every combo stops at the policy with `combo_refus
 - A spread with both legs out of the money at the exit time leaves the book then, 15 minutes before the
   close. A move into the money in those minutes is not handled.
 - A loser check with no fresh mark is skipped with a note, not an alert.
-- The database check of migration 0067 is tested as text, not run on PostgreSQL in the unit tests. The
+- The database check of migration 0069 is tested as text, not run on PostgreSQL in the unit tests. The
   API reads a stored options block without a second shape check.
 - The position book is in memory.
 - Contract ids are made up (`synthetic_con_id`). A real path needs qualified IBKR contracts.

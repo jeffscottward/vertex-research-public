@@ -126,3 +126,8 @@ tests/test_deploy_rehearsal.py
 ../execution/tests/test_paper_deploy_strategy.py
 tests/test_idle_budget.py
 tests/test_paper_path_rehearsal.py
+tests/test_leveraged_etf_universe.py
+tests/test_leveraged_etf_study.py
+tests/test_leveraged_etf_study_forms.py
+tests/test_leveraged_etf_study_run.py
+tests/test_golive_generator.py

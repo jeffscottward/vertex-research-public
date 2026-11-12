@@ -27,7 +27,7 @@ describe("agent framework catalog", () => {
     expect(
       AgentFrameworksOutputSchema.parse({ frameworks: [...AGENT_FRAMEWORKS] })
         .frameworks
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     const ids = AGENT_FRAMEWORKS.map((framework) => framework.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(Object.isFrozen(AGENT_FRAMEWORKS)).toBe(true);
@@ -54,6 +54,44 @@ describe("agent framework catalog", () => {
       benchName: null,
       status: "adapted",
     });
+    const langalpha = byId.get("langalpha");
+    expect(langalpha).toMatchObject({
+      benchName: null,
+      code: ["scripts/agent-desk/pitch.ts"],
+      license:
+        "Apache-2.0, Copyright 2025 Ginlix AI (ideas and structure only; no LangAlpha code is included).",
+      name: "LangAlpha (trade pitch structure)",
+      status: "adapted",
+      toolsAllowed: [],
+      version:
+        "Ideas adapted from commit e102a783; LangAlpha itself does not run in Vertex",
+    });
+    expect(langalpha?.stages.map((stage) => stage.name)).toEqual([
+      "Posture",
+      "Scenario tree",
+      "Exit levels and monitoring",
+    ]);
+    expect(langalpha?.links.map((link) => link.href)).toEqual([
+      "https://github.com/ginlix-ai/LangAlpha/tree/e102a7838225157f7b3beca3fc274b26be852154",
+    ]);
+    expect(
+      langalpha?.dataSources.every((source) => source.pointInTime === "yes")
+    ).toBe(true);
+    expect(langalpha?.summary).toContain("not integrated as a harness");
+    expect(langalpha?.summary).not.toContain("container");
+    expect(langalpha?.stages[0]?.summary).toContain(
+      "decision-grade, is deliberately not used"
+    );
+    expect(langalpha?.stages[2]?.summary).toContain("SMA exit reference");
+    expect(langalpha?.guards).toContain(
+      "The pitch agent does not read scenario probabilities, so no probability-weighted figure is given."
+    );
+    expect(AGENT_FRAMEWORKS.map((framework) => framework.id)).toEqual([
+      "tradingagents",
+      "ai_hedge_fund",
+      "vibe_trading",
+      "langalpha",
+    ]);
     const vibe = byId.get("vibe_trading");
     expect(vibe).toMatchObject({
       benchName: "vibe_trading",

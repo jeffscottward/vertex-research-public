@@ -26,7 +26,7 @@ export const DEPLOYMENT_LIMIT_KEYS = [
   "dailyLossLimit",
 ] as const;
 
-// Optional options block of a request (migration 0067). A request without it is the old format.
+// Optional options block of a request (migration 0069). A request without it is the old format.
 export const DEPLOYMENT_OPTION_STRUCTURES = [
   "callDebitVertical",
   "putDebitVertical",
@@ -68,7 +68,7 @@ export type DeploymentRequestOptions = Readonly<{
   group: DeploymentOptionGroup | null;
 }>;
 
-// Hard ceiling for options.maxLossPctOfAccount (percent of the account). Also in the 0067 CHECK.
+// Hard ceiling for options.maxLossPctOfAccount (percent of the account). Also in the 0069 CHECK.
 export const DEPLOYMENT_MAX_LOSS_PCT_CEILING = 2;
 export const DEPLOYMENT_GROUP_MIN_SYMBOLS = 2;
 export const DEPLOYMENT_GROUP_MAX_SYMBOLS = 16;

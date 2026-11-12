@@ -90,13 +90,13 @@ const mapDeploymentError = (error: unknown, errors: unknown): never => {
   if (error instanceof DatabasePersistenceError) {
     throw failures.STORAGE_ERROR({
       message:
-        "Deployment request storage unavailable. Apply migration 0021 if the table is missing, and 0067 for the options column.",
+        "Deployment request storage unavailable. Apply migration 0021 if the table is missing, and 0069 for the options column.",
     });
   }
   throw error;
 };
 
-// The stored options block; null for a request in the old format (written before migration 0067).
+// The stored options block; null for a request in the old format (written before migration 0069).
 const storedOptions = (
   row: DeploymentRequestRow
 ): DeploymentRequestOptions | null => {

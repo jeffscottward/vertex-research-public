@@ -1,4 +1,4 @@
--- Guarded reversal of 0067_deployment_request_options only.
+-- Guarded reversal of 0069_deployment_request_options only.
 -- Refuses while any deployment request carries an options block so recorded requests are never
 -- silently changed. Drops the check, then the column; the table and its other checks (mode stays
 -- paper) are untouched. Drizzle ledger reconciliation is deliberately not automated. Outside

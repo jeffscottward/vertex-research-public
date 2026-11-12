@@ -252,6 +252,11 @@ describe("XML scanning helpers", () => {
       "two",
     ]);
     expect(xmlBlocks("<a/>", "i")).toEqual([]);
+    // A name is matched literally: no character of it is pattern syntax (CodeQL
+    // js/incomplete-sanitization, alert 36: the backslash was not escaped).
+    expect(xmlBlocks("<x5>one</x5>", "x\\d")).toEqual([]);
+    expect(xmlBlocks("<ab>one</ab>", "a.")).toEqual([]);
+    expect(xmlBlocks("<a+b>one</a+b>", "a+b")).toEqual(["one"]);
     expect(
       childText("<x><items-desc>2.02</items-desc></x>", "items-desc")
     ).toBe("2.02");

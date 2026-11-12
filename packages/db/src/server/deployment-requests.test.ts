@@ -60,7 +60,7 @@ const options = {
 };
 const optionsMigration = readFileSync(
   new URL(
-    "../../migrations/0067_deployment_request_options.sql",
+    "../../migrations/0069_deployment_request_options.sql",
     import.meta.url
   ),
   "utf8"
@@ -97,7 +97,7 @@ describe("0021 deployment requests migration", () => {
     const sqlColumns = [...migration.matchAll(/^\s{2}"([a-z_]+)" /gm)].map(
       (match) => match[1]
     );
-    // "options" is added by 0067 (checked in its own block below).
+    // "options" is added by 0069 (checked in its own block below).
     expect([...sqlColumns].sort()).toEqual(
       config.columns
         .map((column) => column.name)
@@ -157,10 +157,10 @@ describe("0021 deployment requests migration", () => {
   });
 });
 
-describe("0067 deployment request options migration", () => {
+describe("0069 deployment request options migration", () => {
   const rollback = readFileSync(
     new URL(
-      "../../rollback/0067_deployment_request_options.down.sql",
+      "../../rollback/0069_deployment_request_options.down.sql",
       import.meta.url
     ),
     "utf8"

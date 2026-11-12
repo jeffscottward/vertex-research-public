@@ -39,6 +39,10 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // write key, and research agents read the other openbb.* procedures with a read key.
 // The breadth-90 rig tick pushes sessions with a write key (breadth90.collect) and research agents
 // read the signal with a read key (breadth90.get).
+// The go-live draft generator on the rig stores its candidates with a write key
+// (goLiveDrafts.collect) and agents read the queue with a read key (goLiveDrafts.queue), which
+// never shows the account value or a sized order to a key; goLiveDrafts.approve and
+// goLiveDrafts.reject stay session-only, so a key never decides a draft.
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -53,6 +57,8 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "flow.snapshot",
   "breadth90.collect",
   "breadth90.get",
+  "goLiveDrafts.collect",
+  "goLiveDrafts.queue",
 ]);
 
 export const isAgentApiKeyProcedurePath = (
@@ -83,7 +89,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, breadth90.collect and breadth90.get",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, breadth90.collect, breadth90.get, goLiveDrafts.collect and goLiveDrafts.queue",
       })
     );
   }
