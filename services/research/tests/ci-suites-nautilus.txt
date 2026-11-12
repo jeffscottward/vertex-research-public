@@ -11,3 +11,5 @@ tests/test_golden_pandas_reference.py
 tests/test_rvol_at_time.py
 tests/test_imom_study.py
 tests/test_volspike_study.py
+tests/test_leveraged_etf_study_forms.py
+tests/test_leveraged_etf_study_run.py

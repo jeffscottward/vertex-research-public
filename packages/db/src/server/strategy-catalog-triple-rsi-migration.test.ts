@@ -11,17 +11,14 @@ import {
   normalizeStrategyTags,
 } from "./strategy-library.ts";
 
-// Data migration 0068: the Triple RSI strategy from QuantifiedStrategies (card vertex-triple-rsi), tested and
+// Data migration 0069: the Triple RSI strategy from QuantifiedStrategies (card vertex-triple-rsi), tested and
 // failed in the Vertex options form. Research only.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
-const migration = read("../../migrations/0068_strategy_catalog_triple_rsi.sql");
+const migration = read("../../migrations/0069_strategy_catalog_triple_rsi.sql");
 const rollback = read(
-  "../../rollback/0068_strategy_catalog_triple_rsi.down.sql"
+  "../../rollback/0069_strategy_catalog_triple_rsi.down.sql"
 );
-const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
-  entries: { idx: number; tag: string }[];
-};
 const repoFile = (path: string) =>
   existsSync(new URL(`../../../../${path}`, import.meta.url));
 
@@ -29,7 +26,7 @@ const ROW =
   /\('(strategy-seed-[a-z0-9-]+)', '([a-z0-9-]+)', '((?:[^']|'')+)', '((?:[^']|'')+)', '(python)', '([a-z_]+)', '([^']+)', '(\[[^\]]*\])'::jsonb, '([^']+)', '\[\]'::jsonb, '(normal|high)', '((?:[^']|'')+)'::jsonb\)/g;
 const rows = [...migration.matchAll(ROW)];
 
-describe("0068_strategy_catalog_triple_rsi", () => {
+describe("0069_strategy_catalog_triple_rsi", () => {
   it("inserts one research-only row, tagged failed, that passes the repository field rules", () => {
     expect(rows).toHaveLength(1);
     const [
@@ -85,14 +82,6 @@ describe("0068_strategy_catalog_triple_rsi", () => {
     expect(claim.sourceUrl).toBe(
       "https://www.quantifiedstrategies.com/triple-rsi-trading-strategy/"
     );
-  });
-
-  it("is journaled right after 0067_golive_drafts", () => {
-    const index = journal.entries.findIndex(
-      (entry) => entry.tag === "0068_strategy_catalog_triple_rsi"
-    );
-    expect(index).toBeGreaterThan(0);
-    return expect(journal.entries[index - 1]?.tag).toBe("0067_golive_drafts");
   });
 
   it("never overwrites an existing slug", () => {

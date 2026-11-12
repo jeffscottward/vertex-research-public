@@ -481,8 +481,15 @@
     {
       "idx": 68,
       "version": "7",
+      "when": 1794464215690,
+      "tag": "0068_leveraged_etf_universe",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
       "when": 1794487317060,
-      "tag": "0068_strategy_catalog_triple_rsi",
+      "tag": "0069_strategy_catalog_triple_rsi",
       "breakpoints": true
     }
   ]

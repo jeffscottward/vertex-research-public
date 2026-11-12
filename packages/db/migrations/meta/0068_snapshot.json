@@ -1,5 +1,5 @@
 {
-  "id": "cb4cb59d-fb43-4d58-a264-1dd3d0320b1e",
+  "id": "ca8524fa-614e-496d-802e-2ac236061d6a",
   "prevId": "cfbf1f3f-b7e8-48bd-ada4-2fc17ddae0bf",
   "version": "7",
   "dialect": "postgresql",
@@ -5097,6 +5097,199 @@
         "forward_drift_monitors_paper_note_check": {
           "name": "forward_drift_monitors_paper_note_check",
           "value": "\"forward_drift_monitors\".\"paper_note\" is null or char_length(\"forward_drift_monitors\".\"paper_note\") between 1 and 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.leveraged_etf_universe": {
+      "name": "leveraged_etf_universe",
+      "schema": "",
+      "columns": {
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_type": {
+          "name": "product_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "leverage": {
+          "name": "leverage",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "underlying": {
+          "name": "underlying",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "listing_exchange": {
+          "name": "listing_exchange",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "options_listed": {
+          "name": "options_listed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quoted_at": {
+          "name": "quoted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quote_session": {
+          "name": "quote_session",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "spot": {
+          "name": "spot",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nearest_expiries": {
+          "name": "nearest_expiries",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "window_expiry": {
+          "name": "window_expiry",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_open_interest": {
+          "name": "total_open_interest",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "band_open_interest": {
+          "name": "band_open_interest",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "half_spread_pct": {
+          "name": "half_spread_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "option_gate": {
+          "name": "option_gate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "option_gate_reasons": {
+          "name": "option_gate_reasons",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gate_version": {
+          "name": "gate_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gate_min_band_open_interest": {
+          "name": "gate_min_band_open_interest",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gate_max_half_spread_pct": {
+          "name": "gate_max_half_spread_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gate_min_window_days": {
+          "name": "gate_min_window_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gate_max_window_days": {
+          "name": "gate_max_window_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gate_band_pct": {
+          "name": "gate_band_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "leveraged_etf_universe_option_gate_idx": {
+          "name": "leveraged_etf_universe_option_gate_idx",
+          "columns": [
+            {
+              "expression": "option_gate",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "leveraged_etf_universe_fund_check": {
+          "name": "leveraged_etf_universe_fund_check",
+          "value": "\"leveraged_etf_universe\".\"symbol\" ~ '^[A-Z][A-Z0-9.]{0,9}$' and char_length(\"leveraged_etf_universe\".\"name\") between 1 and 200 and \"leveraged_etf_universe\".\"product_type\" in ('etf', 'etn') and \"leveraged_etf_universe\".\"leverage\" between -5 and 5 and \"leveraged_etf_universe\".\"leverage\" not in (0, 1) and (\"leveraged_etf_universe\".\"underlying\" is null or char_length(\"leveraged_etf_universe\".\"underlying\") between 1 and 20) and char_length(\"leveraged_etf_universe\".\"listing_exchange\") between 1 and 20"
+        },
+        "leveraged_etf_universe_options_check": {
+          "name": "leveraged_etf_universe_options_check",
+          "value": "case when jsonb_typeof(\"leveraged_etf_universe\".\"nearest_expiries\") <> 'array' then false when \"leveraged_etf_universe\".\"options_listed\" then \"leveraged_etf_universe\".\"quoted_at\" is not null and \"leveraged_etf_universe\".\"quote_session\" is not null and \"leveraged_etf_universe\".\"quote_session\" in ('regular', 'closed') and \"leveraged_etf_universe\".\"spot\" is not null and \"leveraged_etf_universe\".\"spot\" > 0 and \"leveraged_etf_universe\".\"total_open_interest\" is not null and \"leveraged_etf_universe\".\"total_open_interest\" >= 0 and jsonb_array_length(\"leveraged_etf_universe\".\"nearest_expiries\") between 1 and 4 and (\"leveraged_etf_universe\".\"window_expiry\" is null) = (\"leveraged_etf_universe\".\"band_open_interest\" is null) and (\"leveraged_etf_universe\".\"band_open_interest\" is null or \"leveraged_etf_universe\".\"band_open_interest\" >= 0) and (\"leveraged_etf_universe\".\"half_spread_pct\" is null or (\"leveraged_etf_universe\".\"window_expiry\" is not null and \"leveraged_etf_universe\".\"half_spread_pct\" between 0 and 100)) else \"leveraged_etf_universe\".\"quoted_at\" is null and \"leveraged_etf_universe\".\"quote_session\" is null and \"leveraged_etf_universe\".\"spot\" is null and \"leveraged_etf_universe\".\"window_expiry\" is null and \"leveraged_etf_universe\".\"total_open_interest\" is null and \"leveraged_etf_universe\".\"band_open_interest\" is null and \"leveraged_etf_universe\".\"half_spread_pct\" is null and jsonb_array_length(\"leveraged_etf_universe\".\"nearest_expiries\") = 0 end"
+        },
+        "leveraged_etf_universe_gate_check": {
+          "name": "leveraged_etf_universe_gate_check",
+          "value": "\"leveraged_etf_universe\".\"gate_version\" >= 1 and \"leveraged_etf_universe\".\"gate_min_band_open_interest\" >= 0 and \"leveraged_etf_universe\".\"gate_max_half_spread_pct\" > 0 and \"leveraged_etf_universe\".\"gate_min_window_days\" >= 0 and \"leveraged_etf_universe\".\"gate_max_window_days\" >= \"leveraged_etf_universe\".\"gate_min_window_days\" and \"leveraged_etf_universe\".\"gate_band_pct\" > 0 and case when jsonb_typeof(\"leveraged_etf_universe\".\"option_gate_reasons\") <> 'array' then false when \"leveraged_etf_universe\".\"option_gate\" = 'pass' then \"leveraged_etf_universe\".\"options_listed\" and \"leveraged_etf_universe\".\"quote_session\" = 'regular' and \"leveraged_etf_universe\".\"option_gate_reasons\" = '[]'::jsonb when \"leveraged_etf_universe\".\"option_gate\" = 'spread-not-measured' then \"leveraged_etf_universe\".\"options_listed\" and \"leveraged_etf_universe\".\"quote_session\" = 'closed' and \"leveraged_etf_universe\".\"option_gate_reasons\" = '[\"market-closed-at-quote\"]'::jsonb when \"leveraged_etf_universe\".\"option_gate\" = 'fail' then jsonb_array_length(\"leveraged_etf_universe\".\"option_gate_reasons\") >= 1 else false end"
         }
       },
       "isRLSEnabled": false

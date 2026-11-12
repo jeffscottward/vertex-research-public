@@ -561,6 +561,12 @@ export {
   type ResearchStudyUpsertResult,
 } from "./research-studies.ts";
 export {
+  createLeveragedEtfUniverseRepository,
+  type LeveragedEtfUniverseDocument,
+  type LeveragedEtfUniverseReplaceResult,
+  type LeveragedEtfUniverseRepository,
+} from "./leveraged-etf-universe.ts";
+export {
   type AcademyContentRepository,
   type AcademyCourseImportInput,
   type AcademyCourseImportResult,
