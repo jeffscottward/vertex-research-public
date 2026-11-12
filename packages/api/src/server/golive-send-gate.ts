@@ -138,6 +138,14 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
       )
     );
   else {
+    // The plan caps measure the plan's own book: positions and working orders on the plan's
+    // names (every sleeve symbol). Positions the owner holds outside the plan (manual entries,
+    // owner 2026-11-12) stay under the bridge's own premium and 2% gates, not the plan's 4%.
+    const planNames = new Set(plan.sleeves.flatMap((sleeve) => sleeve.symbols));
+    planNames.add(draft.symbol);
+    const positions = input.account.positions.filter((p) =>
+      planNames.has(p.symbol)
+    );
     const caps = checkSendCaps({
       limits: plan.limits,
       nlv: input.account.netLiquidation,
@@ -147,11 +155,11 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
         strikeWidth(draft),
         input.order.quantity
       ),
-      positions: input.account.positions,
+      positions,
       symbol: input.order.symbol,
       working: workingOrderRisks(
-        input.account.openOrders,
-        input.account.positions
+        input.account.openOrders.filter((o) => planNames.has(o.symbol)),
+        positions
       ),
     });
     for (const code of caps.refusals) refusals.push(line(code, CAP_TEXT[code]));

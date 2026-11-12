@@ -660,6 +660,7 @@ describe("vertexOrders procedures", () => {
           openRiskCapPct: 4,
           positionRiskPct: 1,
         },
+        sleeves: [{ symbols: ["MOCKS"] }],
         status: "approved",
       }),
     };

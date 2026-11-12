@@ -48,6 +48,7 @@ const PLAN = {
     openRiskCapPct: 4,
     positionRiskPct: 1,
   },
+  sleeves: [{ symbols: ["SPY", "QQQ"] }],
   status: "approved",
 } as unknown as GoLivePlanRecord;
 
@@ -123,6 +124,27 @@ describe("goLiveSendRefusals", () => {
         )
       )
     ).toEqual(["GO-LIVE PLAN_NOT_IN_FORCE"]);
+  });
+
+  it("counts only the plan's names: a large position outside the plan does not use the plan caps", () => {
+    const positions = [
+      {
+        expiry: "20280121",
+        premium: 119_474,
+        quantity: 13,
+        right: "C",
+        secType: "OPT",
+        strike: 160,
+        symbol: "BE",
+      },
+    ];
+    expect(
+      goLiveSendRefusals(
+        inputs({
+          account: { netLiquidation: 100_000, openOrders: [], positions },
+        })
+      )
+    ).toEqual([]);
   });
 
   it("applies the caps at send to open positions and working orders", () => {
