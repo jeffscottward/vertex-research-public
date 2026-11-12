@@ -1954,6 +1954,50 @@ class RiskCapsTest(V3TestCase):
         self.assertEqual(len(self.stored_reservations()), 2)
         self.assert_accepted(*self.debit_call(5, symbol="KO"), 5)
 
+    def test_a_write_of_one_list_never_repairs_or_empties_the_other(self) -> None:
+        # Review round 3: an invalid value must stay invalid until a person repairs the file.
+        book, closing, sale = self.closes_beside_a_broken_ledger()
+        self.write_snapshot(book)
+        good = ledger_entry(900, "MSFT", self.near, 100)
+        # 1. open_risk null beside valid reservations: a close write keeps the null.
+        self.reservations.write_text(self.ledger_document(good, **{OPEN_RISK_KEY: None}))
+        self.assert_refused(*self.debit_call(5, symbol="KO"), "open_risk_ledger_invalid")
+        self.place(*closing, order_id=1)
+        stored = json.loads(self.reservations.read_text())
+        self.assertIn(OPEN_RISK_KEY, stored)
+        self.assertIsNone(stored[OPEN_RISK_KEY])
+        self.assertEqual(len(stored["reservations"]), 2)
+        self.assert_refused(*self.debit_call(5, symbol="KO"), "open_risk_ledger_invalid")
+        # 2. No reservations key beside a valid list of working opening orders: a release keeps it missing.
+        document = json.loads(self.ledger_document(good))
+        del document["reservations"]
+        self.reservations.write_text(json.dumps(document))
+        self.assert_refused(*sale, "reservations_invalid")
+        code, payload = self.run_tool(
+            "release-open-risk", "--key", "21:900", "--by", "owner", "--reason", "checked TWS first"
+        )
+        self.assertEqual((code, payload["remaining"]), (0, 0))
+        stored = json.loads(self.reservations.read_text())
+        self.assertNotIn("reservations", stored)
+        self.assertNotIn(OPEN_RISK_KEY, stored)
+        self.assert_refused(*sale, "reservations_invalid")
+        self.assertEqual(len(self.client.placed), 1)
+
+    def test_a_write_that_would_pass_the_size_limit_is_refused(self) -> None:
+        # Review round 3: the readers refuse a file above the limit, so such a file would block
+        # every order (closes too) until a hand edit. The write is refused instead.
+        book, closing, sale = self.closes_beside_a_broken_ledger()
+        self.write_snapshot(book)
+        self.place(*self.debit_call(5, symbol="MSFT"), order_id=1)
+        before = self.reservations.read_text()
+        with mock.patch.object(arm_gate, "RESERVATIONS_MAX_BYTES", len(before.encode()) + 50):
+            self.assert_place_refused(*self.debit_call(5, symbol="IBM"), "reservations_write_failed", order_id=2)
+            self.assert_place_refused(*sale, "reservations_write_failed", order_id=3)
+            self.assertEqual(self.reservations.read_text(), before)
+            self.assertEqual([item["key"] for item in self.ledger()], ["21:1"])  # still readable
+        self.place(*sale, order_id=3)
+        self.assertEqual(len(self.client.placed), 2)
+
     def test_a_file_that_is_no_reservation_file_refuses_opening_orders_and_closes(self) -> None:
         # The working opening orders and the close reservations are one file: a file the v2 reader
         # refuses (every close is refused, as in v2) refuses every opening order too.
@@ -2372,6 +2416,52 @@ class ClosingVerticalTest(V3TestCase):
         self.assert_accepted(v2.stock(), v2.order("BUY", 200), None, None, allowance="position_close")
         self.assertEqual(self.client.placed, [])
 
+    def test_a_long_put_is_not_sold_when_fewer_long_puts_than_short_puts_would_stay(self) -> None:
+        # Review round 3. One long 200 put is worth as much at 0 as two short 100 puts cost, so the
+        # worst value at expiry does not fall when one of two long puts goes. The 1:2 shape left is
+        # refused as an opening order (combo_ratio_refused) and is refused here too.
+        self.write_snapshot([self.held(2, 200, "P", cost=900.0), self.held(-2, 100, "P", cost=300.0)])
+        sale = (self.leg(200, "P"), v2.order("SELL", 1), None)
+        result = self.assert_refused(*sale, "close_would_uncover_short")
+        self.assertIn("more short puts than long ones", result["policy_refusal_detail"])
+        self.assert_place_refused(*sale, "close_would_uncover_short")
+        self.write_snapshot([self.held(5, 130, "P", cost=900.0), self.held(-5, 100, "P", cost=300.0)])
+        self.assert_refused(self.leg(130, "P"), v2.order("SELL", 1), None, "close_would_uncover_short")
+        # A third long put is not needed for two short puts: it may go.
+        self.write_snapshot([self.held(3, 200, "P", cost=900.0), self.held(-2, 100, "P", cost=300.0)])
+        self.assert_accepted(self.leg(200, "P"), v2.order("SELL", 1), None, None, allowance="position_close")
+        self.assert_refused(self.leg(200, "P"), v2.order("SELL", 2), None, "close_would_uncover_short")
+        self.assertEqual(self.client.placed, [])
+
+    def test_shares_that_cover_a_short_call_are_not_sold(self) -> None:
+        # Review round 3. The long call of a spread was exercised early: 200 shares beside 2 short calls.
+        shares = v2.held_stock(200)
+        self.write_snapshot([shares, self.held(-2, 130, cost=300.0)])
+        for quantity in (1, 200):
+            with self.subTest(quantity=quantity):
+                sale = (v2.stock(), v2.order("SELL", quantity), None)
+                result = self.assert_refused(*sale, "close_would_uncover_short")
+                self.assertIn("200 of the held shares cover short calls", result["policy_refusal_detail"])
+                self.assert_place_refused(*sale, "close_would_uncover_short")
+        # Shares beyond the cover may go; a short call that a long call covers needs no shares.
+        self.write_snapshot([v2.held_stock(300), self.held(-2, 130, cost=300.0)])
+        self.assert_accepted(v2.stock(), v2.order("SELL", 100), None, None, allowance="position_close")
+        self.assert_refused(v2.stock(), v2.order("SELL", 101), None, "close_would_uncover_short")
+        self.write_snapshot([shares, self.held(-2, 130, cost=300.0), self.held(2, 150, cost=100.0)])
+        self.assert_accepted(v2.stock(), v2.order("SELL", 200), None, None, allowance="position_close")
+        # A long call of another expiry covers nothing here; short puts and other names need no shares.
+        self.write_snapshot([shares, self.held(-2, 130, cost=300.0), self.held(2, 150, expiry=self.exp(80), cost=100.0)])
+        self.assert_refused(v2.stock(), v2.order("SELL", 1), None, "close_would_uncover_short")
+        self.write_snapshot([shares, self.held(-2, 130, "P", cost=300.0), self.held(-2, 130, symbol="MSFT", cost=300.0)])
+        self.assert_accepted(v2.stock(), v2.order("SELL", 200), None, None, allowance="position_close")
+        # The way out: buy the short calls back first.
+        self.write_snapshot([shares, self.held(-2, 130, cost=300.0)])
+        self.assert_accepted(self.leg(130), v2.order("BUY", 2), None, None, allowance="position_close")
+        # Switch off: the v2 behaviour.
+        with self.flag(None):
+            self.assert_accepted(v2.stock(), v2.order("SELL", 200), None, None, allowance="position_close")
+        self.assertEqual(self.client.placed, [])
+
     def test_a_long_is_not_sold_alone_while_an_opening_spread_of_its_expiry_works(self) -> None:
         # Review round 2 (blocker). A resting opening spread is not in the snapshot. Its sold 130
         # call would net against a 130 call bought after it; with that long sold too, the fills
@@ -2390,7 +2480,7 @@ class ClosingVerticalTest(V3TestCase):
         for name, option in (("the sold strike", self.leg(130)), ("a put of the expiry", self.leg(90, "P"))):
             with self.subTest(sale=name):
                 result = self.assert_refused(option, v2.order("SELL", 1), None, "open_spread_working", order_id=2)
-                self.assertIn("order id 1", result["policy_refusal_detail"])
+                self.assertTrue(result["policy_refusal_detail"].endswith("release-open-risk --key 21:1"))
                 self.assert_place_refused(option, v2.order("SELL", 1), None, "open_spread_working", order_id=2)
         # Another expiry and another name are other groups.
         self.assert_accepted(self.leg(130, expiry=other), v2.order("SELL", 1), None, None, allowance="position_close", order_id=2)

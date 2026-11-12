@@ -1181,9 +1181,9 @@ def _write_reservations(path: Path, reservations: dict[str, dict[str, Any]]) -> 
     }
     # v3: the working opening orders live in the same file. Keep them as stored
     # (an invalid value too: it keeps refusing opening orders until it is repaired).
-    working = _stored_document(path).get(OPEN_RISK_KEY)
-    if working is not None and working != []:
-        document[OPEN_RISK_KEY] = working
+    stored = _stored_document(path)
+    if OPEN_RISK_KEY in stored and stored[OPEN_RISK_KEY] != []:
+        document[OPEN_RISK_KEY] = stored[OPEN_RISK_KEY]
     _write_document(path, document)
 
 
@@ -1200,12 +1200,15 @@ def _stored_document(path: Path) -> dict[str, Any]:
 
 
 def _write_document(path: Path, document: dict[str, Any]) -> None:
+    text = json.dumps(document, sort_keys=True, indent=2) + "\n"
+    if len(text.encode("utf-8")) > RESERVATIONS_MAX_BYTES:
+        # The readers refuse a larger file: writing it would block every order until a hand edit.
+        raise OSError(f"{path.name} would exceed {RESERVATIONS_MAX_BYTES} bytes")
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(document, handle, sort_keys=True, indent=2)
-            handle.write("\n")
+            handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
@@ -1761,9 +1764,7 @@ def _open_risk_to_json(entry: dict[str, Any]) -> dict[str, Any]:
 def _write_open_risk(path: Path, ledger: dict[str, dict[str, Any]]) -> None:
     entries = [_open_risk_to_json(entry) for _, entry in sorted(ledger.items())]
     # The close reservations in the same file stay exactly as stored.
-    document = _stored_document(path)
-    document.setdefault("schema", RESERVATIONS_SCHEMA)
-    document.setdefault("reservations", [])
+    document = _stored_document(path) or {"schema": RESERVATIONS_SCHEMA, "reservations": []}
     document["updated_at"] = utc_now()
     document.pop(OPEN_RISK_KEY, None)
     if entries:
@@ -1984,9 +1985,50 @@ def _check_single_close(
     }
     if key in unresolved:
         raise OrderPolicyError("order_id_reused", "this order id holds a working opening order")
+    if identity["sec_type"] == "STK" and action == "SELL":
+        _check_share_sale(identity, decision, snapshot)
     if sale:
         spreads = [item for item in unresolved.values() if "|SELL:" in item["signature"]]
         _check_close_risk([(identity, action, decision)], {key}, live, snapshot, spreads)
+
+
+def _check_share_sale(identity: dict[str, Any], decision: _Decision, snapshot: _Snapshot) -> None:
+    """Spreads switch on: shares that cover a short call are not sold.
+
+    After an early exercise of the long call of a spread the account holds
+    shares beside the short call. Per expiry and trading class, the short calls
+    that no long call covers need that many shares; a sale may not leave fewer.
+    """
+
+    net: dict[tuple[str, str], Decimal] = {}
+    for position in snapshot.positions:
+        held = _position_identity(position)
+        quantity = _decimal(position.get("quantity")) or Decimal(0)
+        if (
+            held["sec_type"] != "OPT"
+            or held["symbol"] != identity["symbol"]
+            or held["right"] == "P"
+            or quantity == 0
+        ):
+            continue
+        if held["multiplier"] is None:
+            if quantity < 0:
+                raise OrderPolicyError(
+                    "close_risk_unavailable",
+                    "a held short call of this underlying lacks its multiplier in the snapshot, so "
+                    "the shares that cover it cannot be counted: buy the short call back first",
+                )
+            continue
+        group = (held["expiry"], held["trading_class"])
+        net[group] = net.get(group, Decimal(0)) + quantity * held["multiplier"]
+    needed = sum((-size for size in net.values() if size < 0), Decimal(0))
+    left = (decision.held_before or Decimal(0)) - decision.quantity
+    if needed > 0 and left < needed:
+        raise OrderPolicyError(
+            "close_would_uncover_short",
+            f"{needed} of the held shares cover short calls of this underlying and this sale would "
+            f"leave {left} (no bound on the loss): buy the short calls back first",
+        )
 
 
 def _check_close_risk(
@@ -2034,9 +2076,10 @@ def _check_close_risk(
         ):
             raise OrderPolicyError(
                 "open_spread_working",
-                "an opening spread of this underlying and expiry is unresolved (order id "
-                f"{_short(item['order_id'], 32)}): this sale could leave its sold option uncovered. "
-                "Wait until IBKR reports it filled or cancelled and a later snapshot shows it",
+                "an opening spread of this underlying and expiry is unresolved: this sale could "
+                "leave its sold option uncovered. Wait for its final status and a later snapshot. "
+                "If it ended before a node restart, release it: release-open-risk --key "
+                f"{_short(item['key'], 48)}",
             )
     units: dict[tuple[str, Decimal, Decimal], Decimal] = {}
     readable, short_held = True, False
@@ -2126,6 +2169,18 @@ def _check_close_risk(
                 f"after this sale the {'calls' if side == 'C' else 'puts'} left could lose "
                 f"{_usd(worst_after)} USD more than their value now, instead of "
                 f"{_usd(worst_before)} USD: {refusal}",
+            )
+        net_before, net_after = (
+            sum((size for (right, _, _), size in book.items() if right == side), Decimal(0))
+            for book in (before, after)
+        )
+        if net_after < 0 and net_after < net_before:
+            # Puts: one long put of a higher strike can be worth as much as two short puts, so
+            # the worst value alone would let a long go (the 1:2 shape is refused as an opening order).
+            raise OrderPolicyError(
+                "close_would_uncover_short",
+                f"this sale would leave more short {'calls' if side == 'C' else 'puts'} than long "
+                f"ones of this expiry: {refusal}",
             )
 
 
