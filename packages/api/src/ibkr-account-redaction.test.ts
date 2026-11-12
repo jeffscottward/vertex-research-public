@@ -27,6 +27,12 @@ describe("redactIbkrAccounts", () => {
     );
   });
 
+  it("replaces codes next to non-ASCII letters, like the Python history scrub", () => {
+    expect(redactIbkrAccounts("账户DU0000002的 éU0000001")).toBe(
+      "账户[account]的 é[account]"
+    );
+  });
+
   it.each([
     ["three digits", "U001"],
     ["a code inside a longer word", "XU0000001"],
@@ -42,7 +48,8 @@ describe("redactIbkrAccounts", () => {
   // Until it imports this module, this test keeps the two scrubs equal.
   it("removes the same codes as the portfolio monitor scrub", () => {
     const text = `${CODES.join("; ")}; U001; XU0000001; Q0000001`;
-    expect(scrubPortfolioText(text, text.length)).toBe(
+    // No length cap: "[account]" is longer than most codes it replaces.
+    expect(scrubPortfolioText(text, Number.POSITIVE_INFINITY)).toBe(
       redactIbkrAccounts(text)
     );
   });

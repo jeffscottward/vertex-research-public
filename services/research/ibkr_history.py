@@ -170,7 +170,9 @@ def urllib_transport(url: str, headers: Mapping[str, str], timeout: float, max_b
 # --- request rules and parsing ---------------------------------------------------------------------------
 
 # The same account codes as packages/api/src/server/ibkr-account-redaction.ts: DF codes and four digits too.
-_ACCOUNT = re.compile(r"\b(?:D?U|DF|F|I)\d{4,}\b")
+# re.ASCII: \b and \d follow ASCII rules like the TypeScript scrub, so a code next to a non-ASCII
+# letter is still removed and non-ASCII digits are not read as an account number.
+_ACCOUNT = re.compile(r"\b(?:D?U|DF|F|I)\d{4,}\b", re.ASCII)
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
 _END_DATETIME = re.compile(r"^\d{8}-\d{2}:\d{2}:\d{2}$")
 
