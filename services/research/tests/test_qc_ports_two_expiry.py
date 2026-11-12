@@ -110,6 +110,12 @@ def test_market_iv_term_validation():
         Market("SPY", dates, one, (20.0, 20.0), (0.0, 0.0), (("VIX3M", (21.0,)),))
     with pytest.raises(ValueError, match="above 0"):
         Market("SPY", dates, one, (20.0, 20.0), (0.0, 0.0), (("VIX3M", (21.0, 0.0)),))
+    with pytest.raises(ValueError, match="at most once"):
+        Market("SPY", dates, one, (20.0, 20.0), (0.0, 0.0), (("VIX3M", (21.0, 21.0)),) * 2)
+    with pytest.raises(ValueError, match="at most once"):
+        Market("SPY", dates, one, (20.0, 20.0), (0.0, 0.0), (("VXN", (21.0, 21.0)),))
+    with pytest.raises(ValueError, match="at most once"):
+        Market("QQQ", dates, one, (20.0, 20.0), (0.0, 0.0), (("VIX3M", (21.0, 21.0)),))
 
 
 def test_term_columns_align_the_term_indices_of_the_symbol():

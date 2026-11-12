@@ -20,9 +20,10 @@ the tables is outside the repository (rig reports directory `vertex-options-form
 | `services/research/strategies/qc_ports/forms.py` | The form: stance per symbol and day, stance to spreads under the owner exit rule, proxy IV index and cost model for underlyings without a Cboe index, indicators |
 | `services/research/strategies/qc_ports/forms_orders.py` | Rules of the 9 QuantJourney order strategies (limit, stop, stop-limit, trailing stop, OCO) |
 | `services/research/strategies/qc_ports/forms_weights.py` | Rules of the 16 QuantJourney weights and rotation strategies and of the 151 Strategies sector rotation |
-| `services/research/strategies/qc_ports/forms_other.py` | Rules of the pairs, the FX and futures twins, the 10-month SMA timing, the iron condor and the leader pullback |
+| `services/research/strategies/qc_ports/forms_other.py` | Rules of the pairs, the FX and futures twins, the 10-month SMA timing, the iron condor, the long calendar spread and the leader pullback |
+| `services/research/strategies/qc_ports/book.py` | The option book; the two-expiry structure of the long calendar spread (`callCalendar`, `putCalendar`) on the IV term structure of `options.term_atm_iv` |
 | `services/research/strategies/qc_ports/forms_library.py` | Registry: the 42 library slugs, each with its form or the reason it has none; the baselines |
-| `services/research/tests/test_qc_ports_forms*.py` | Synthetic tests (base Python lane) |
+| `services/research/tests/test_qc_ports_forms*.py`, `test_qc_ports_two_expiry.py` | Synthetic tests (base Python lane) |
 | `research/backtests/options-forms/fetch_data.py` | Fetches the daily bars of the extra underlyings |
 | `research/backtests/options-forms/run.py` | The study: runs every form and writes one JSON document and a results table to `--out` |
 
@@ -182,6 +183,38 @@ does not make a form eligible.
 
 The daily option-chain snapshots of card `vertex-option-model-calibration` will replace the assumed spreads.
 
+### The long calendar spread (fixed on 2026-11-12, before its first run)
+
+The run of 2026-11-11 left `long-calendar-spread` out: it holds two expiries, and the option book priced
+single-expiry verticals only. The book now prices the two-expiry structure (`book.py`: `callCalendar`,
+`putCalendar`; the DSL `options` block and the go-live drafts still know verticals only). The form is config A of
+the spec (`docs/specs/strategies/long-calendar-spread.md`):
+
+- Short one call at the near monthly expiry, long one call of the same strike at the far monthly expiry. Near: the
+  monthly nearest 30 days to expiry (at least 21). Far: the monthly nearest 60 days (at least 45, after the near
+  one). Strike: the grid strike whose near-leg delta is nearest 0.5 (at the money).
+- IV term structure: each leg is priced at the ATM IV of its own days to expiry. SPY has two Cboe points in the
+  data set, VIX (30 days) and VIX3M (93 days), each times 0.9 as for every index. Between the two the total
+  variance ATM^2 x T is linear in T; outside them the nearest point holds. The skew of SPY applies to each leg as
+  for the verticals. A leg is worth at least its exercise value, so the spread is never worth less than 0.
+- Entry (spec rule 4): no spread while the far-leg ATM IV is above 1.1 x the near-leg ATM IV (refused bars:
+  `term structure`). No spread before the first VIX3M value (2006-07-17); the equity curve of the form starts
+  there.
+- The form holds the spread on SPY at all times (entry only, as the iron condor): the next spread opens the day
+  after the last one closed. The owner exit rule replaces the spec's 1.5 x debit target (rule 5): a winner is
+  held to the near expiry, a loser closes 3 days before it. At the near expiry the near leg settles at its
+  exercise value and the far leg is sold at its model value.
+- Costs: the cost per leg of the study (commission and half spread on the leg's mid; at the near expiry the far
+  leg, and the near leg when it is in the money). A closing cost is at most two legs priced at the far leg's entry
+  mid (the calendar closes as a package). The max loss per contract is the debit, the entry costs and that cap;
+  sizing risks at most 2% of equity on it.
+- No baseline: no always-on vertical basket holds this structure, so check G7 does not apply (as for the iron
+  condor).
+- Not run: configs B and C of the spec (100 and 200 days: the data set has no IV index past 93 days, so both legs
+  would get the same flat IV and the check of rule 4 would always pass), the put calendar (under this model it
+  differs from the call calendar only by carry), and every other underlying (no IV term structure in the data
+  set).
+
 ### Not run
 
 | Library strategy | Why it is not run |
@@ -191,7 +224,6 @@ The daily option-chain snapshots of card `vertex-option-model-calibration` will 
 | `quantjourney-w07-intraday-rsi-15m` | The rule reads 15-minute bars. The option book prices daily closes only, and the data set has no intraday bars and no intraday option prices for it. |
 | `quantjourney-w08-intraday-1m-ema-scalp` | The rule reads 1-minute bars. The option book prices daily closes only, and the data set has no intraday bars and no intraday option prices for it. |
 | `quantjourney-w09-intraday-1h-sma-trend` | The rule reads 1-hour bars. The option book prices daily closes only, and the data set has no intraday bars and no intraday option prices for it. |
-| `long-calendar-spread` | The strategy is a defined-risk option structure already, but it holds two expiries. The option book prices single-expiry verticals only, and the data set has no IV term structure per symbol. |
 
 ## Results
 

@@ -146,7 +146,6 @@ def intrinsic(right: str, spot: float, strike: float) -> float:
     return max(0.0, spot - strike) if right == "call" else max(0.0, strike - spot)
 
 
-
 def strike_step(spot: float) -> float:
     return 1.0 if spot >= 25 else 0.5
 

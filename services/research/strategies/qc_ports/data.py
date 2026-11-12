@@ -97,6 +97,9 @@ class Market:
             raise ValueError("Market IV index values must be None or finite and above 0")
         if not all(value is None or (_finite(value) and value >= 0) for value in self.rate):
             raise ValueError("Market rates must be None or finite and not negative")
+        ids = [index_id for index_id, _ in self.iv_term]
+        if len(set(ids)) != len(ids) or not set(ids) <= set(IV_TERM.get(self.symbol, {})):
+            raise ValueError(f"Market IV term of {self.symbol} must hold each index of data.IV_TERM at most once")
         for index_id, levels in self.iv_term:
             if len(levels) != size:
                 raise ValueError(f"Market IV term {index_id} must have one value per date")

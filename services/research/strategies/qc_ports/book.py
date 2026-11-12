@@ -61,7 +61,10 @@ only):
 - Costs as for a vertical, per leg on the leg's mid (at the near expiry: the far
   leg, plus the near leg when it is in the money). The calendar closes as a
   package, so a closing cost is capped at two legs priced at the far leg's
-  entry mid (worst_exit_cost); max loss = entry value + entry costs + that cap.
+  entry mid (worst_exit_cost), as a vertical's is capped at two legs worth its
+  width: about the most the package is worth (the far leg's time value at the
+  strike). Max loss = entry value + entry costs + that cap. The cap lowers the
+  cost when the far leg ends deep in the money; legging out could cost more.
 """
 from __future__ import annotations
 
