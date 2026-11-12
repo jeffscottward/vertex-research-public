@@ -112,7 +112,7 @@ The Financial Datasets rights mode is research-only. Evidence text holds a few d
 ## Rig setup
 
 - Runner checkout: the same detached worktree that the breadth-90 tick uses (see `breadth-90.md`).
-- Research interpreter: a Python 3.12 environment at `services/research/.venv` in the runner checkout. In `services/research` run `uv venv --python 3.12 .venv`, then `VIRTUAL_ENV=.venv uv pip sync --require-hashes requirements-linux-py312.lock`. The wrapper exits 127 with this hint when the interpreter is missing.
+- Research interpreter: a Python 3.12 environment named `.venv` in the `services/research` folder of the runner checkout. In that folder run `uv venv --python 3.12 .venv`, then `VIRTUAL_ENV=.venv uv pip sync --require-hashes requirements-linux-py312.lock`. The wrapper exits 127 with this hint when the interpreter is missing.
 - Wrapper: copy `infra/market-notes/vertex-market-note` to `~/.local/bin/` (mode 0755).
 - Nonsecret settings: `~/.config/vertex/market-notes.env`. Write absolute paths. The file must belong to the current user, and the wrapper refuses a settings file that the group or others can write. When `VERTEX_API_URL` in the calling shell and `VERTEX_ORIGIN` in the file name different origins, the wrapper stops: the write key goes only to the configured origin.
 - Write key: a file that only its owner can read (mode 0600). The wrapper refuses any other mode. The key is never printed.
@@ -122,7 +122,7 @@ The Financial Datasets rights mode is research-only. Evidence text holds a few d
 | `VERTEX_ORIGIN` | none | Portal origin (`VERTEX_API_URL` also works). |
 | `MARKET_NOTES_KEY_FILE` | `~/.config/vertex/agent-write-key` | Path of the operator write key file. |
 | `MARKET_NOTES_RUNNER_DIR` | `~/Github/trading/vertex-research-public-ticks-runner` | Runner checkout. |
-| `MARKET_NOTES_PYTHON` | `<runner>/services/research/.venv/bin/python` | Research interpreter. |
+| `MARKET_NOTES_PYTHON` | `.venv/bin/python` in the `services/research` folder of the runner checkout | Research interpreter. |
 | `MARKET_NOTES_ENV_FILE` | `~/.config/vertex/market-notes.env` | Path of the settings file. Set it in the calling environment. |
 | `VERTEX_MARKET_NOTE_YTDLP` | `yt-dlp` on `PATH` | yt-dlp binary. |
 | `VERTEX_MARKET_NOTE_TRANSCRIBE` | `~/Github/tools/ig-kb-systemcracker/transcribe.py` | Path of `transcribe.py`. |
