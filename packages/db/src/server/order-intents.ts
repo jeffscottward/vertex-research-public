@@ -55,6 +55,8 @@ export type OrderIntentRepository = Readonly<{
   ) => Promise<void>;
   /** Intents since a time whose last outcome is missing or "unknown". */
   unresolved: (since: Date) => Promise<readonly OrderIntent[]>;
+  /** Whether any row (intent, result or reconciliation) exists for this orderRef. */
+  hasIntent: (orderRef: string) => Promise<boolean>;
 }>;
 
 export const createOrderIntentRepository = (
@@ -82,6 +84,19 @@ export const createOrderIntentRepository = (
     });
   };
   return {
+    hasIntent: async (orderRef) => {
+      const rows = await database
+        .select({ id: auditRecords.id })
+        .from(auditRecords)
+        .where(
+          and(
+            eq(auditRecords.entityType, "vertex_order"),
+            eq(auditRecords.entityId, orderRef)
+          )
+        )
+        .limit(1);
+      return rows.length > 0;
+    },
     recordIntent: async ({ actorUserId, requestId, intent }) =>
       await insert(
         "vertex.order.intent",
