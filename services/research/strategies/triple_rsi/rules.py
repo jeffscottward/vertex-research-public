@@ -45,8 +45,10 @@ class Params:
             raise ValueError("length and trend_length must be at least 2, falls at least 1")
 
     def key(self) -> str:
+        """Unique per variant; the level and the fall count appear only when they differ from the stated rule."""
+        extra = "" if (self.level_below, self.falls) == (60.0, 3) else f"-lvl{self.level_below:g}-falls{self.falls}"
         return (f"{self.rsi_kind}-rsi{self.length}-in{self.entry_below:g}-out{self.exit_above:g}"
-                f"-sma{self.trend_length}")
+                f"-sma{self.trend_length}{extra}")
 
 
 STATED = Params()

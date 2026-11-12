@@ -150,9 +150,9 @@ workers. Every share run matched NautilusTrader to 4.3e-16 relative; every optio
 | Worst trade | not stated | -7.4% | -7.5% | |
 | Sharpe (out-of-sample, from 2013-09-25) | not stated | 0.73 (0.64) | 0.68 (0.59) | 0.64 |
 
-The 90% win rate reproduces on SPY. Our sample starts in January 1994 (250-bar warm-up), which explains part of the 13
-trades fewer. The claim leaves out what a 90% win rate costs: 5.3% time in the market gives a CAGR of 3.4% to 3.7%, a third
-of buy-and-hold. Average win +1.76%, average loss -2.39%.
+The 90% win rate reproduces on SPY. The 13 trades fewer than the claim are not a warm-up effect: the 200-day average already
+blocks 1993, and the DSL run from the first bar finds 91 trades. The claim leaves out what a 90% win rate costs: 5.3% time in
+the market gives a CAGR of 3.4% to 3.7%, a third of buy-and-hold. Average win +1.76%, average loss -2.39%.
 
 ### Execution and costs (SPY shares)
 
@@ -191,7 +191,9 @@ The 90% win rate is a SPY result. On the other six ETFs it is 64% to 80%.
 Other ETFs (30 days, book rule): QQQ Sharpe 0.16, DIA -0.12, IWM 0.22, GLD -0.05, SLV -0.11 (13 trades, VXSLV from 2011),
 USO -0.43. The always-on form of the same spread has a Sharpe of -0.18 on SPY. A 2% risk per spread, held 5 days and in the
 market 5% of the time, moves the equity by +0.3% a year. The win rate of the spread falls to 64%, and the one-day delay of
-the book rule matters most: the same spread bought at the signal close has a Sharpe of 0.58.
+the book rule matters most: the same spread bought at the signal close has a Sharpe of 0.58. One of the 28 options rows
+passes the lower bar: DIA with the owner exit rule only (Sharpe 0.33, out-of-sample 0.14, 57 trades, deflated Sharpe 0.08);
+with 28 rows tried and the DIA share rule at a Sharpe of 0.22, that is most likely noise.
 
 ### Robustness
 
@@ -203,8 +205,8 @@ the book rule matters most: the same spread bought at the signal close has a Sha
 - Monte Carlo (SPY shares, 5 bp, 10,000 paths): P(profit) 100%, drawdown p5 -12.3%. Options (SPY 30 days): P(profit)
   94.5%, drawdown p5 -8.5%.
 - Deflated Sharpe with N = 360: SPY shares 0.71 (no cost) and 0.61 (5 bp); options 0.01.
-- DSL: the definition ran in the NautilusTrader DSL engine on SPY 1993-2026 (next open, no cost): the same 91 trades as the
-  rule, equity gap 1.1e-7 to the share ledger.
+- DSL: the definition ran in the NautilusTrader DSL engine on SPY from 1993-01-29 (next open, price basis, no cost, no
+  warm-up cut): the same 91 trades as the rule on that sample, equity gap 1.1e-7 to the share ledger.
 
 ### Verdict
 
@@ -216,8 +218,10 @@ the book rule matters most: the same spread bought at the signal close has a Sha
 - Lower bar: fails (Sharpe 0.22 < 0.30, out-of-sample -0.07 <= 0).
 - "90% win rate": reproduces on SPY shares at the close (90.0% on 90 trades). It does not carry over: 80% at the next open,
   64% in the options form, 64% to 80% on the other ETFs.
-- The share rule on SPY has a small real edge (Sharpe 0.68 after 5 bp, above buy-and-hold's 0.64, with a quarter of its
-  drawdown, every one of 270 variants positive), but it fails the deflated Sharpe at N = 360 (0.61) and the owner's
-  options-only rule forbids share positions. The nearest tradable variant, the spread bought at the signal close, passes the
-  lower bar (Sharpe 0.58, out-of-sample 0.33, P(profit) 100%, max drawdown -3.4%) but not the strict gate (Sharpe below
-  0.5, deflated Sharpe 0.37). It is not a candidate for the allocation pick.
+- The share rule on SPY has a small real edge at the close (Sharpe 0.68 after 5 bp, above buy-and-hold's 0.64, with a
+  quarter of its drawdown, every one of 270 variants positive), but it fails the deflated Sharpe at N = 360 (0.61). At the
+  next open, the fill an automated order gets, it falls to a Sharpe of 0.59 (below buy-and-hold) and a deflated Sharpe of
+  0.39. The owner's options-only rule forbids share positions anyway.
+- The spread bought at the signal close is a benchmark, not a tradable form: it trades at the close it computes the signal
+  from. It passes the lower bar (Sharpe 0.58, out-of-sample 0.33, P(profit) 100%, max drawdown -3.4%) but not the strict
+  gate (out-of-sample Sharpe 0.33 < 0.5, deflated Sharpe 0.37 < 0.95). Triple RSI is not a candidate for the allocation pick.

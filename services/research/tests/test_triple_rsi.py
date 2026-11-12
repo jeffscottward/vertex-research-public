@@ -201,7 +201,7 @@ def test_monte_carlo_returns_bounds():
     winners = metrics.monte_carlo_returns([0.01, 0.02], paths=200)
     assert winners["probabilityOfProfit"] == 1.0 and winners["drawdownP5"] == 0.0
     losers = metrics.monte_carlo_returns([-0.1], paths=10)
-    assert losers["probabilityOfProfit"] == 0.0 and losers["drawdownWorst"] == pytest.approx(-0.1)
+    assert losers["probabilityOfProfit"] == 0.0 and losers["worstDrawdown"] == pytest.approx(-0.1)
     assert metrics.monte_carlo_returns([]) is None
 
 
@@ -234,3 +234,117 @@ def test_verdict_mapping():
     assert document.verdict_of(results) == "needs-more-data"
     results["decision"]["passesGate"] = True
     assert document.verdict_of(results) == "edge"
+
+
+# --------------------------------------------------------------------------- review round 1 additions
+
+def test_oos_cagr_by_hand():
+    from strategies.qc_ports.ledger import LedgerResult
+
+    dates = tuple(f"2024-01-{day:02d}" for day in range(1, 11))
+    equity = tuple(100_000.0 * (1 + 0.01 * day) for day in range(10))
+    result = LedgerResult(dates, equity, (0,) * 10, (), (), capital=100_000.0)
+    stats = metrics.equity_stats(result, n_trials=1, sharpe_variance=None, carlo=None)
+    # The last 40%: split = int(10 * 0.6) = 6, so out of sample runs from the close of day 6 (index 5) to day 10.
+    assert stats["oosStart"] == "2024-01-07"
+    years = 4 / 365.25  # 2024-01-06 to 2024-01-10
+    assert stats["oosCagr"] == pytest.approx((equity[-1] / equity[5]) ** (1 / years) - 1)
+
+
+def test_walk_forward_fold_returns():
+    days = 20
+    steady = [1.0 + 0.01 * day for day in range(days)]
+    noisy = [1.0 + (0.02 if day % 2 else 0.0) + 0.001 * day for day in range(days)]
+    walk = metrics.walk_forward({"steady": steady, "noisy": noisy}, "noisy", folds=4)
+    first = walk["picks"][0]
+    assert (first["inSampleDays"], first["outOfSampleDays"]) == (5, 5)
+    assert first["outOfSampleReturn"] == pytest.approx(steady[9] / steady[4] - 1)
+    assert first["fixedReturn"] == pytest.approx(noisy[9] / noisy[4] - 1)
+
+
+def test_gate_fails_a_strategy_row_without_baseline():
+    stats = {"trades": 40, "sharpe": 1.0, "oosSharpe": 1.0, "deflatedSharpe": 0.99, "maxDrawdown": -0.05,
+             "monteCarlo": {"probabilityOfProfit": 0.99, "drawdownP5": -0.05}}
+    with_baseline = metrics.gate(stats, 0.2)
+    assert all(check["pass"] for check in with_baseline)
+    without = metrics.gate(stats, None)
+    assert [check for check in without if check["check"] == metrics.BASELINE_CHECK] == [
+        {"check": metrics.BASELINE_CHECK, "pass": False, "value": None}]
+
+
+def test_options_book_timing():
+    """Book rule: open at the close of the bar after the signal, close at the close of the bar after the exit signal.
+    Signal close: open at the signal bar's close, close at the exit bar's close."""
+    from strategies.qc_ports import forms as fm
+    from tests.qc_ports_synthetic import market
+
+    closes = [400.0 + 0.5 * day for day in range(60)]
+    synthetic = market(closes, symbol="SPY", start="2024-01-02")
+    bars = Bars("SPY", synthetic.dates, tuple(closes), tuple(closes), tuple(closes), tuple(closes), tuple(closes))
+    entries = [index == 10 for index in range(60)]
+    exits = [index == 14 for index in range(60)]
+    expected = {"call30": (11, 15), "call30-signal-close": (10, 14)}
+    for variant in options_form.FORMS:
+        if variant.key not in expected:
+            continue
+        with mock.patch.object(options_form, "signal_bars", return_value=(entries, exits)):
+            form = options_form.form_of("SPY", variant)
+            book = fm.form_book(form, fm.Inputs({"SPY": bars}, {"SPY": synthetic.iv_index}), {"SPY": synthetic},
+                                start=synthetic.dates[0])
+        [trade] = book.trades
+        assert (trade.entry_index, trade.exit_index) == expected[variant.key], variant.key
+        assert trade.exit_reason == "signal"
+
+
+def _job_result(dates, values, trades=()):
+    return {"dates": list(dates), "equity": list(values), "positions": [1] * len(values), "trades": list(trades),
+            "capital": 100_000.0, "engine": "nautilus-trader-1.227.0"}
+
+
+def test_assemble_counts_trials_once_and_decides_on_the_options_row():
+    from strategies.triple_rsi import study
+
+    dates = [f"2020-{1 + day // 28:02d}-{1 + day % 28:02d}" for day in range(120)]
+    def curve(step, wobble):
+        return [100_000.0 * (1 + step * day + wobble * ((day * 7) % 5 - 2)) for day in range(120)]
+    trade = {"pnl": 10.0, "return": 0.01, "holdDays": 3}
+    loss = {"pnl": -5.0, "return": -0.005, "holdDays": 2}
+    shares_runs = []
+    for symbol in study.SYMBOLS:
+        for execution in rules.EXECUTIONS:
+            for cost in study.COSTS.values():
+                shares_runs.append({"symbol": symbol, "params": rules.STATED.key(), "execution": execution,
+                                    "cost": cost, "basis": "total", "nautilusGap": 0.0,
+                                    "engine": "nautilus-trader-1.227.0",
+                                    "result": _job_result(dates, curve(0.0004, 0.0005), [trade, loss] * 20)})
+    stated_spy = dict(shares_runs[0], execution="close", cost=study.COSTS["base"])  # a duplicate key of the grid
+    grid = [{**stated_spy, "params": params.key()} for params in study.grid_params()[:3]]
+    grid.append({**stated_spy})
+    holds = [{"symbol": symbol, "result": _job_result(dates, curve(0.0003, 0.002))} for symbol in study.SYMBOLS]
+    options = []
+    for symbol in study.SYMBOLS:
+        for variant in options_form.FORMS:
+            row_trades = [{"pnl": 10.0, "returnOnRisk": 0.1, "id": 1, "entryDate": dates[1], "exitDate": dates[3]}]
+            rows = [{**row_trades[0], "return": 0.1, "holdDays": 2}]
+            options.append({"symbol": symbol, "variant": variant.key, "baselineDelay": None, "refused": {},
+                            "nautilusGap": 0.0, "engine": "nautilus-trader-1.227.0",
+                            "result": _job_result(dates, curve(0.00001, 0.001), row_trades * 30),
+                            "tradeRows": rows * 30})
+            for delay in (0, 21):
+                if symbol == "QQQ":
+                    continue  # no baseline: G7 must fail on QQQ
+                options.append({"symbol": symbol, "variant": variant.key, "baselineDelay": delay, "refused": {},
+                                "nautilusGap": 0.0, "result": _job_result(dates, curve(-0.0001, 0.001))})
+    with mock.patch.object(metrics, "MONTE_CARLO_PATHS", 50):
+        results = study.assemble(shares_runs, grid, options, holds, {"sameTrades": True})
+    # 63 share runs + 3 new grid variants (the 4th grid run repeats a share run) + 28 options rows
+    assert results["trials"]["n"] == 63 + 3 + 28
+    decision = results["decision"]
+    assert decision["row"] == {"symbol": "SPY", "variant": "call30"}
+    assert any(check["check"] == metrics.BASELINE_CHECK for check in decision["checks"])
+    assert decision["passesGate"] is False  # the options Sharpe is far below 0.5
+    qqq = next(row for row in results["options"] if (row["symbol"], row["variant"]) == ("QQQ", "call30"))
+    assert qqq["baselineSharpe"] is None
+    assert [check["pass"] for check in qqq["checks"] if check["check"] == metrics.BASELINE_CHECK] == [False]
+    assert qqq["buyHold"]["start"] == dates[0]
+    assert len(results["curves"]["statedSpy"]) >= 2

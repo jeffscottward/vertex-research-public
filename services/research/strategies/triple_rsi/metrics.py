@@ -17,7 +17,7 @@ from strategies.qc_ports import allocation as al
 from strategies.qc_ports.ledger import LedgerResult
 from strategies.qc_ports.metrics import DAYS_PER_YEAR, summarize
 
-__all__ = ["LOWER_BAR", "MONTE_CARLO_PATHS", "TRADING_DAYS", "WALK_FORWARD_FOLDS", "daily_returns", "drawdown_curve",
+__all__ = ["BASELINE_CHECK", "LOWER_BAR", "MONTE_CARLO_PATHS", "TRADING_DAYS", "WALK_FORWARD_FOLDS", "daily_returns", "drawdown_curve",
            "equity_stats", "gate", "lower_bar", "monte_carlo_returns", "sharpe", "trade_stats", "walk_forward"]
 
 TRADING_DAYS = al.TRADING_DAYS
@@ -68,14 +68,16 @@ def trade_stats(trades: Sequence[Mapping]) -> dict:
     }
 
 
-def monte_carlo_returns(returns: Sequence[float], *, paths: int = MONTE_CARLO_PATHS, seed: int = 1) -> dict | None:
+def monte_carlo_returns(returns: Sequence[float], *, paths: int | None = None, seed: int = 1) -> dict | None:
     """Bootstrap of compounded trade returns (with replacement, the same trade count per path).
 
     Returns the share of paths that end above the start, the 5th percentile and the worst of the path maximum
-    drawdowns (trade to trade, negative numbers) and the median end multiple; None without trades.
+    drawdowns (trade to trade, negative numbers; the keys of allocation.monte_carlo) and the median end multiple;
+    None without trades.
     """
     if not returns:
         return None
+    paths = MONTE_CARLO_PATHS if paths is None else paths
     rng = random.Random(seed)
     count = len(returns)
     profitable = 0
@@ -93,7 +95,7 @@ def monte_carlo_returns(returns: Sequence[float], *, paths: int = MONTE_CARLO_PA
     drawdowns.sort()
     finals.sort()
     return {"paths": paths, "probabilityOfProfit": profitable / paths,
-            "drawdownP5": al._percentile(drawdowns, 0.05), "drawdownWorst": drawdowns[0],
+            "drawdownP5": al._percentile(drawdowns, 0.05), "worstDrawdown": drawdowns[0],
             "medianMultiple": al._percentile(finals, 0.5)}
 
 
@@ -119,9 +121,17 @@ def equity_stats(result: LedgerResult, *, n_trials: int, sharpe_variance: float 
     }
 
 
+BASELINE_CHECK = "G7 Sharpe above its always-on baseline"
+
+
 def gate(stats: Mapping, baseline_sharpe: float | None) -> list[dict]:
-    """The strict gate checks G3 to G7 of qc_ports.allocation (AUTOPILOT_GATE thresholds)."""
-    return al.gate_checks(dict(stats), baseline_sharpe)
+    """The strict gate checks G3 to G7 of qc_ports.allocation (AUTOPILOT_GATE thresholds) of a strategy row. A
+    strategy row always has the baseline check: without a baseline Sharpe it fails (allocation.gate_checks would drop
+    it, which is right only for a row that is itself a baseline)."""
+    checks = al.gate_checks(dict(stats), baseline_sharpe)
+    if baseline_sharpe is None:
+        checks.append({"check": BASELINE_CHECK, "pass": False, "value": None})
+    return checks
 
 
 def lower_bar(stats: Mapping) -> bool:

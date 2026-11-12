@@ -52,6 +52,8 @@ def main() -> None:
     parser.add_argument("--data", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--allow-dirty", action="store_true",
+                        help="diagnostic: run with uncommitted study code (the study document is then not importable)")
     parser.add_argument("--render-only", action="store_true",
                         help="rebuild study.json and index.html from <out>/results.json without running")
     args = parser.parse_args()
@@ -68,8 +70,11 @@ def main() -> None:
     started = time.time()
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True,
                             check=True).stdout.strip()
-    dirty = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--", "services/research/strategies",
-                            "research/backtests/triple-rsi"], capture_output=True, text=True, check=True).stdout.strip()
+    watched = ["services/research", "research/backtests/triple-rsi", "research/backtests/allocation"]
+    dirty = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--", *watched], capture_output=True,
+                           text=True, check=True).stdout.strip()
+    if dirty and not args.allow_dirty:
+        raise SystemExit(f"Uncommitted study code (commit it first, or --allow-dirty for a diagnostic run):\n{dirty}")
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         share_jobs = [pool.submit(study.share_job, root, symbol, rules.STATED, execution, cost)
                       for symbol in study.SYMBOLS for execution in rules.EXECUTIONS for cost in study.COSTS.values()]

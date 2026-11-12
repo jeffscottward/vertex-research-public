@@ -9,8 +9,9 @@ exit rule (`allocation.owner_exit`: a loser is cut 3 days before expiry) applies
 
 Variants (`FORMS`): the 30-day vertical (the form that decides), the 60-day monthly vertical, the owner exit rule
 alone (`entry_only`: the RSI exit closes nothing), and "signal close": the stance one bar earlier, so the spread
-opens at the close of the signal bar and closes at the close of the exit bar (the as-stated execution; it uses the
-signal bar's close to trade at that close, as the share rule does).
+opens at the close of the signal bar and closes at the close of the exit bar (the as-stated execution, a benchmark:
+its stance at bar i reads the close of bar i+1, a deliberate exception to the qc_ports.forms rule that a stance never
+reads a later bar; it trades at the close it computes the signal from, as the as-stated share rule does).
 
 `book_options` books the priced trades in the qc-ports ledger and in NautilusTrader (`qc_ports.nautilus_runner`)
 and refuses a relative equity gap above `qc_ports.portfolio.PARITY_REL_TOL`.

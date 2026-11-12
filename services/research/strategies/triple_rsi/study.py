@@ -156,6 +156,15 @@ def _share_key(job: Mapping) -> str:
     return f"share:{job['symbol']}:{job['params']}:{job['execution']}:{job['cost']:g}:{job['basis']}"
 
 
+def _window_hold(hold: LedgerResult, start: str, end: str) -> dict:
+    """Buy-and-hold measures over the run days [start, end] of another run (bought at the close of `start`)."""
+    first, last = hold.dates.index(start), hold.dates.index(end)
+    scale = CAPITAL / hold.equity[first]
+    window = LedgerResult(hold.dates[first:last + 1], tuple(value * scale for value in hold.equity[first:last + 1]),
+                          hold.open_positions[first:last + 1], (), (), capital=CAPITAL, engine=hold.engine)
+    return metrics.equity_stats(window, n_trials=1, sharpe_variance=None, carlo=None)
+
+
 def _monthly(result: LedgerResult) -> list[dict]:
     """Month-end points: return since the start and drawdown (fractions)."""
     drawdowns = metrics.drawdown_curve([result.capital, *result.equity])[1:]
@@ -179,9 +188,10 @@ def assemble(share_runs: Sequence[Mapping], grid_runs: Sequence[Mapping], option
     n_trials = len(trials)
     trial_variance = variance(trials.values()) if n_trials > 1 else None
 
-    hold_stats = {}
+    hold_stats, holds = {}, {}
     for job in buy_holds:
         result = _result_of(job["result"])
+        holds[job["symbol"]] = result
         hold_stats[job["symbol"]] = metrics.equity_stats(result, n_trials=1, sharpe_variance=None, carlo=None)
 
     def share_row(job: Mapping) -> dict:
@@ -217,10 +227,11 @@ def assemble(share_runs: Sequence[Mapping], grid_runs: Sequence[Mapping], option
         if job["baselineDelay"] is not None:
             continue
         row = {"symbol": job["symbol"], "variant": job["variant"], "refused": job["refused"],
-               "nautilusGap": job["nautilusGap"], "stats": None, "checks": [], "lowerBar": False,
-               "baselineSharpe": None}
+               "nautilusGap": job["nautilusGap"], "engine": job.get("engine"), "stats": None, "checks": [],
+               "lowerBar": False, "baselineSharpe": None, "buyHold": None}
         if job["result"] is not None:
             result = _result_of(job["result"])
+            row["buyHold"] = _window_hold(holds[job["symbol"]], result.dates[0], result.dates[-1])
             carlo = al.monte_carlo([trade["pnl"] for trade in result.trades], result.capital,
                                    paths=metrics.MONTE_CARLO_PATHS)
             stats = metrics.equity_stats(result, n_trials=n_trials, sharpe_variance=trial_variance, carlo=carlo,

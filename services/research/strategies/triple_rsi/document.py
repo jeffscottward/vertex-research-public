@@ -80,7 +80,7 @@ def _underlying_runs(results: Mapping) -> list[dict]:
 
 
 def _options_runs(results: Mapping) -> list[dict]:
-    return [_run(row["stats"], row["symbol"], VARIANT_LABEL[row["variant"]], results["buyHold"][row["symbol"]])
+    return [_run(row["stats"], row["symbol"], VARIANT_LABEL[row["variant"]], row["buyHold"])
             for row in results["options"] if row["stats"] is not None]
 
 
@@ -127,8 +127,18 @@ def _robustness(results: Mapping) -> list[dict]:
     return out[:20]
 
 
+def _engine(results: Mapping) -> str:
+    """The one NautilusTrader build that booked every share and options run, e.g. "nautilus_trader 1.227.0"."""
+    engines = {row["engine"] for row in [*results["shares"], *results["options"]] if row.get("stats") is not None}
+    if len(engines) != 1 or not next(iter(engines)).startswith("nautilus-trader-"):
+        raise ValueError(f"Expected one NautilusTrader engine, got {sorted(map(str, engines))}")
+    return "nautilus_trader " + next(iter(engines)).removeprefix("nautilus-trader-")
+
+
 def study_document(results: Mapping) -> dict:
     provenance = results["provenance"]
+    if provenance.get("dirtyFiles"):
+        raise ValueError("The study ran with uncommitted code; its document names a commit without that code")
     stated = _share(results, "SPY", "close", 0.0)
     base = _share(results, "SPY", "close", study.COSTS["base"])
     deciding = _deciding(results)
@@ -193,7 +203,7 @@ def study_document(results: Mapping) -> dict:
         "kind": "strategy-backtest",
         "notes": notes,
         "provenance": {"commit": provenance["commit"][:40], "dataHash": f"sha256:{data_hash}",
-                       "engine": "nautilus_trader 1.227.0",
+                       "engine": _engine(results),
                        "runId": f"triple-rsi-{provenance['ran']}-{provenance['commit'][:8]}"},
         "ran": provenance["ran"],
         "robustness": _robustness(results),

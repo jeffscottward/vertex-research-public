@@ -229,7 +229,7 @@ def render(results: Mapping, doc: Mapping) -> str:
     carlo = stated_row["monteCarlo"] or {}
     body.append(f"<p>Monte Carlo (SPY shares, 5 bp/side, 10,000 bootstrap paths of the trade returns): P(profit) "
                 f"{pct(carlo.get('probabilityOfProfit'))}, drawdown p5 {pct(carlo.get('drawdownP5'))}, worst "
-                f"{pct(carlo.get('drawdownWorst'))}, median end multiple {num(carlo.get('medianMultiple'))}. "
+                f"{pct(carlo.get('worstDrawdown'))}, median end multiple {num(carlo.get('medianMultiple'))}. "
                 f"Deflated Sharpe of that row: {num(stated_row['deflatedSharpe'])} with N = {results['trials']['n']} "
                 f"runs (every variant, symbol, execution, cost level and form of this study).</p>")
 
