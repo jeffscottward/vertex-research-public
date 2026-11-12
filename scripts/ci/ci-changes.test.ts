@@ -205,6 +205,7 @@ describe("ci-changes.sh", () => {
     it.each([
       ["scripts/init/plan.ts"],
       ["scripts/init.ts"],
+      ["scripts/lib/git-env.ts"],
       ["README.md\nscripts/init/init.acceptance.test.ts"],
     ])("plans the shard for a pull request that changes %s", (files) => {
       const { out } = planPullRequest("false", "false", files);
@@ -223,6 +224,14 @@ describe("ci-changes.sh", () => {
     ])("plans the shard on %s without asking GitHub", (_label, env) => {
       const { calls, out } = runPlan(env);
       expect(calls).toEqual([]);
+      expect(out).toContain("kind=code");
+      expect(out).toContain("heavy=true");
+      expect(out).toContain("acceptance=true");
+      expect(out).toContain("skip_shards=[]");
+    });
+
+    it("plans the shard when the pull request lists no changed file", () => {
+      const { out } = planPullRequest("false", "false", "");
       expect(out).toContain("kind=code");
       expect(out).toContain("heavy=true");
       expect(out).toContain("acceptance=true");

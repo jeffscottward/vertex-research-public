@@ -14,7 +14,8 @@
 #
 # The template init acceptance shard (scripts/init/init.acceptance.test.ts, the longest
 # job) is part of the full lane only on the nightly run, on a manual run, when a changed
-# path is scripts/init.ts or under scripts/init/, and when the changed files are unknown
+# path is scripts/init.ts, under scripts/init/ or scripts/lib/git-env.ts (init and its
+# acceptance test import it), and when the changed files are unknown or the list is empty
 # (owner 2026-11-11, card vertex-code-stewardship).
 set -euo pipefail
 
@@ -52,7 +53,7 @@ classify() {
 
 # Succeeds when a changed path on stdin belongs to the template init command.
 touches_init() {
-  grep -q -E '^scripts/init(\.ts$|/)'
+  grep -q -E '^scripts/(init(\.ts$|/)|lib/git-env\.ts$)'
 }
 
 changed_paths() {
@@ -101,7 +102,8 @@ plan() {
     kind=code
   elif paths="$(changed_paths)"; then
     kind="$(classify <<<"${paths}")"
-    if ! touches_init <<<"${paths}"; then acceptance=false; fi
+    # An empty list is unknown input (classify reads it as code): keep the shard.
+    if [[ -n "${paths//[[:space:]]/}" ]] && ! touches_init <<<"${paths}"; then acceptance=false; fi
   else
     echo "Could not list the changed files; taking the full lane."
     kind=code
