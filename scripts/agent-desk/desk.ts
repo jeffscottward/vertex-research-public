@@ -4,7 +4,7 @@
 //   3. technical        - 200-session SMA trend plus the 3-month ROC reset rule
 //   4. backtest         - replay of the same rule on the ticker's own history
 //   5. process          - combines the four results and updates the paper journal
-//   6. pitch            - posture, scenario tree, exit levels and monitoring; the process agent
+//   6. pitch            - posture, scenario tree, exit references and monitoring; the process agent
 //                         and the paper book do not read it
 // This module has no broker, network or order code. Paper positions are journal records only.
 // Owner rule (2026-10-16): options only, no share positions. A paper position records the
@@ -547,14 +547,14 @@ export const renderSummary = (report: DeskReport): string => {
   for (const ticker of report.tickers) {
     const { technical, fundamental, newsSentiment, backtest, process, pitch } =
       ticker.agents;
-    const { priceStop, timeStop } = pitch.exits;
+    const { nextCatalyst, smaExitReference } = pitch.exits;
     const above = technical.checks?.closeAboveSma;
     lines.push(
       `${ticker.reportId}: ${process.decision} | ROC ${technical.rocPct ?? "n/a"}% | close above SMA${report.rule.smaPeriod}: ${above === true ? "yes" : above === false ? "no" : "unknown"}` +
         ` | backtest ${backtest.closedTrades} trades, mean underlying reference return ${backtest.meanReturnPct ?? "n/a"}%` +
         ` | fundamentals ${fundamental.status}${fundamental.blocking ? " (blocking)" : ""} | sentiment ${newsSentiment.sentiment.status}`,
       `  ${process.reasons.join(" ")}`,
-      `  Pitch (analysis only): ${pitch.posture} | ${pitch.direction} | price stop ${priceStop === null ? "n/a" : `${priceStop.level} (${priceStop.distancePct}% from close)`} | next catalyst ${timeStop === null ? "none dated" : `${timeStop.date} ${timeStop.title}`}`
+      `  Pitch (analysis only): ${pitch.posture ?? "not-applicable"} | ${pitch.direction} | SMA exit reference ${smaExitReference === null ? "n/a" : `${smaExitReference.level} (${smaExitReference.distancePct}% from close)`} | next catalyst ${nextCatalyst === null ? "none dated" : `${nextCatalyst.date} ${nextCatalyst.title}`}`
     );
   }
   const notInRun =

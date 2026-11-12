@@ -80,12 +80,14 @@ readiness posture ladder of plugins/langalpha_research/skills/
 research-conventions/SKILL.md and the scenario tree, exit levels and
 monitoring steps of plugins/langalpha_research/skills/trade-pitch/SKILL.md.
 
-Changes: structure only, no code or text copied. The skills are instructions
-for a language model; the Vertex file is a deterministic TypeScript function
-over the paper agent desk's own results. The posture rules are Vertex's own
-ordered table; no probability, order, size or instrument is produced; no
-model, network, sandbox or broker connector is used. LangAlpha has no NOTICE
-file at this commit.
+Changes: structure only. Short terms of art (posture names) are kept; no code
+or passages are copied. The skills are instructions for a language model; the
+Vertex file is a deterministic TypeScript function over the paper agent
+desk's own results and the accepted fundamentals dataset. The posture rules
+are Vertex's own ordered table, and LangAlpha's top posture (decision-grade)
+is not used; no probability, order, size or instrument is produced; no model,
+network, sandbox or broker connector is used. LangAlpha has no NOTICE file at
+this commit.
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------

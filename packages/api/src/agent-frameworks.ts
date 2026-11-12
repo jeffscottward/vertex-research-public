@@ -196,7 +196,7 @@ const LANGALPHA: AgentFrameworkOutput = {
     "No order, size, instrument or execution: the pitch states what the inputs support, and the paper book does not read it.",
     "No model call and no network: a deterministic function over the results of the other desk agents.",
     "LangAlpha's sandbox, broker connectors and model routes are not used.",
-    "The datasets carry no scenario probabilities, so the probability-weighted figure is withheld.",
+    "The pitch agent does not read scenario probabilities, so no probability-weighted figure is given.",
   ],
   id: "langalpha",
   license:
@@ -212,22 +212,22 @@ const LANGALPHA: AgentFrameworkOutput = {
     {
       name: "Posture",
       summary:
-        "One readiness posture (decision-grade, review-ready, screen-grade, not-ready or blocked) read from an ordered table against the current inputs, with the inputs responsible. It describes the inputs, not conviction.",
+        "One readiness posture (review-ready, screen-grade, not-ready or blocked) from one ordered table, with the inputs that set it. LangAlpha's top posture, decision-grade, is deliberately not used: the desk does not collect scenario probabilities or bear-case liquidity checks. An ETF, index or future gets no posture.",
     },
     {
       name: "Scenario tree",
       summary:
-        "The bear, base and bull cases of the accepted fundamentals dataset with their upside and present price, labelled an illustrative skew.",
+        "The bear, base and bull cases of the accepted fundamentals dataset with their upside and present price. The three are labelled an illustrative skew only when all exist and are ordered bear, base, bull.",
     },
     {
       name: "Exit levels and monitoring",
       summary:
-        "A price stop at the rule's SMA with its distance from the close, the claims whose change breaks the view, a time stop at the nearest dated catalyst and at most five upcoming catalysts.",
+        "An SMA exit reference (the rule's SMA while the close is above it) with its distance from the close, the changes that break a long-supported view, the next dated catalyst and at most five upcoming catalysts.",
     },
   ],
   status: "adapted",
   summary:
-    "The paper agent desk's pitch agent adapts the structure of LangAlpha's trade-pitch and research-conventions skills. LangAlpha is not integrated as a harness: it needs PostgreSQL, Redis and a container sandbox, it has no one-ticker rated run, and its Claude subscription route presents itself as the Claude Code client.",
+    "The paper agent desk's pitch agent adapts the structure of LangAlpha's trade-pitch and research-conventions skills. LangAlpha is not integrated as a harness: it needs PostgreSQL, Redis and a sandbox, it has no one-ticker rated run, and its Claude subscription route presents itself as the Claude Code client.",
   toolsAllowed: [],
   toolsExcluded: [],
   version:

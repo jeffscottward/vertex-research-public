@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { bars, dateAt, signalCloses } from "./fixtures.test-support.ts";
-import { MAX_MONITORING, type PitchInput, pitchAgent } from "./pitch.ts";
+import {
+  MAX_MONITORING,
+  MAX_TITLE_LENGTH,
+  type PitchInput,
+  pitchAgent,
+} from "./pitch.ts";
 import {
   CommitteeDataset,
   FundamentalsDataset,
@@ -23,14 +28,27 @@ const falling = bars(Array.from({ length: 300 }, (_, index) => 300 - index));
 const lastDate = dateAt(rising.length - 1);
 const later = (days: number) => dateAt(rising.length - 1 + days);
 
+// Round synthetic values; they describe no real company.
 const threeCases = [
-  { id: "bull", presentPrice: 267.697_477, upsidePct: 22.594_558 },
-  { id: "base", presentPrice: 109.2, upsidePct: 8.126 },
-  { id: "bear", presentPrice: 30.9, upsidePct: -85.869_542 },
+  { id: "bull", presentPrice: 150, upsidePct: 50 },
+  { id: "base", presentPrice: 120, upsidePct: 20 },
+  { id: "bear", presentPrice: 60, upsidePct: -40 },
 ];
 const catalysts = [
   { date: later(40), title: "Investor day" },
   { date: later(12), title: "Product launch" },
+];
+const EXCLUDED = "Fundamentals dataset is dated after the run date or undated";
+const CEILING =
+  "Scenario probabilities and bear-case liquidity checks are not collected, so the posture stops at review-ready.";
+const basis = `200-session SMA at the ${lastDate} close; the desk's paper exit rule is a close below it.`;
+const baseRule = (upside: number, captured = lastDate) =>
+  `Base-case upside turns negative or zero; the fundamentals dataset captured ${captured} gives ${upside}%.`;
+const bearRule = (upside: number, captured = lastDate) =>
+  `Bear-case return is revised; the fundamentals dataset captured ${captured} gives ${upside}%.`;
+const TREND_RULES = [
+  "The close falls below the 200-session SMA.",
+  "The 200-session SMA stops rising.",
 ];
 
 type Scene = Readonly<{
@@ -111,31 +129,42 @@ const withTechnical = (overrides: Partial<TechnicalResult>) => {
   });
 };
 
+const withCatalysts = (
+  upcomingCatalysts: PitchInput["newsSentiment"]["upcomingCatalysts"]
+) => {
+  const input = inputFor();
+  return pitchAgent({
+    ...input,
+    newsSentiment: { ...input.newsSentiment, upcomingCatalysts },
+  });
+};
+
 describe("pitchAgent posture", () => {
-  it("is decision-grade when every input is present and fresh", () => {
+  it("stops at review-ready and names the two inputs the desk does not collect", () => {
     const input = inputFor();
     const sma = input.technical.sma as number;
     const close = input.technical.close as number;
-    expect(pitchAgent(input)).toEqual({
+    const result = pitchAgent(input);
+    expect(result).toEqual({
       agent: "pitch",
       direction: "long-supported",
       exits: {
-        priceStop: {
-          basis: `200-session SMA at the ${lastDate} close; the desk's paper exit rule is a close below it.`,
+        nextCatalyst: { date: later(12), title: "Product launch" },
+        reUnderwrite: [
+          baseRule(20),
+          bearRule(-40),
+          "Committee status changes.",
+          `A new earnings report replaces the ${lastDate} evidence.`,
+          ...TREND_RULES,
+        ],
+        smaExitReference: {
+          basis,
           distancePct: Math.round((sma / close - 1) * 10_000) / 100,
           level: sma,
         },
-        reUnderwrite: [
-          "Base-case upside (now 8.13%) turns negative.",
-          "Bear-case return (now -85.87%) is revised in the fundamentals dataset.",
-          "Committee status changes from wait.",
-          `A new earnings report replaces the ${lastDate} evidence.`,
-          "The 200-session SMA stops rising.",
-        ],
-        timeStop: { date: later(12), title: "Product launch" },
       },
       gaps: [
-        "Scenario probabilities are not collected; the probability-weighted return is withheld.",
+        "This agent does not read scenario probabilities, so no probability-weighted return is given.",
         "Bear-case liquidity, covenant and maturity checks are not collected.",
         "Instrument, size and order levels are out of scope: the desk is paper only.",
       ],
@@ -143,34 +172,40 @@ describe("pitchAgent posture", () => {
         { date: later(12), title: "Product launch" },
         { date: later(40), title: "Investor day" },
       ],
-      posture: "decision-grade",
-      postureReasons: [],
+      posture: "review-ready",
+      postureReasons: [CEILING],
       scenarios: [
-        { case: "bear", presentPrice: 30.9, upsidePct: -85.87 },
-        { case: "base", presentPrice: 109.2, upsidePct: 8.13 },
-        { case: "bull", presentPrice: 267.6975, upsidePct: 22.59 },
+        { case: "bear", presentPrice: 60, upsidePct: -40 },
+        { case: "base", presentPrice: 120, upsidePct: 20 },
+        { case: "bull", presentPrice: 150, upsidePct: 50 },
       ],
       skew: {
         label: "illustrative",
-        note: "Illustrative skew: bear -85.87%, base 8.13%, bull 22.59%. The datasets carry no scenario probabilities, so no probability-weighted upside is computed.",
+        note: "Illustrative skew: bear -40%, base 20%, bull 50%. This agent does not read scenario probabilities, so no weighted figure is given.",
         probabilityWeightedUpsidePct: null,
       },
       status: "evaluated",
     });
+    expect(close).toBeGreaterThan(sma);
+    // The top LangAlpha posture is not part of the Vertex ladder.
+    expect(JSON.stringify(result)).not.toContain("decision-grade");
   });
 
-  it("is blocked when an input cannot be obtained, and names each one", () => {
+  it("is blocked when a needed dataset is missing, and names each one", () => {
     const missing = pitchFor({ fundamentals: null });
     expect(missing).toMatchObject({
       direction: "unknown",
+      exits: { reUnderwrite: [] },
       posture: "blocked",
       postureReasons: [
         "Fundamentals unavailable: Fundamentals dataset is missing.",
       ],
       status: "evaluated",
     });
+    // A missing dataset is not an excluded one.
+    expect(missing.gaps).toHaveLength(3);
     expect(pitchFor({ fundamentals: null, history: [] })).toMatchObject({
-      exits: { priceStop: null },
+      exits: { smaExitReference: null },
       posture: "blocked",
       postureReasons: [
         "Fundamentals unavailable: Fundamentals dataset is missing.",
@@ -182,7 +217,7 @@ describe("pitchAgent posture", () => {
     ]);
   });
 
-  it("is not-ready when a load-bearing input is stale or unsupported", () => {
+  it("is not-ready when an input is too old or too weak", () => {
     // Bars are fresh; the only earnings evidence is 150 days old.
     const oldDate = later(-150);
     const stale = pitchFor({
@@ -221,7 +256,7 @@ describe("pitchAgent posture", () => {
     const short = pitchFor({ history: rising.slice(-100) });
     expect(short).toMatchObject({
       direction: "unknown",
-      exits: { priceStop: null },
+      exits: { reUnderwrite: [], smaExitReference: null },
       posture: "not-ready",
       postureReasons: [
         "Technical insufficient data: Rule needs 220 completed bars; 100 observed.",
@@ -234,11 +269,11 @@ describe("pitchAgent posture", () => {
     expect(oldBars.postureReasons).toEqual([
       `Technical stale: latest bar ${lastDate} is 10 days old.`,
     ]);
-    // Posture describes the inputs, not conviction: the view itself is unchanged.
+    // Posture grades the evidence; the direction read from it is unchanged.
     expect(oldBars.direction).toBe("long-supported");
   });
 
-  it("is screen-grade when coverage is thin", () => {
+  it("is screen-grade when scenario or catalyst coverage has holes", () => {
     const twoCases = pitchFor({
       fundamentals: fullFundamentals(threeCases.slice(0, 2)),
     });
@@ -252,7 +287,7 @@ describe("pitchAgent posture", () => {
     expect(
       pitchFor({ fundamentals: fullFundamentals([]), news: fullNews([]) })
     ).toMatchObject({
-      exits: { timeStop: null },
+      exits: { nextCatalyst: null },
       monitoring: [],
       posture: "screen-grade",
       postureReasons: [
@@ -262,7 +297,34 @@ describe("pitchAgent posture", () => {
     });
   });
 
-  it("is review-ready when one check is still open", () => {
+  it("names a fundamentals dataset dated after the run date as the cause", () => {
+    // Bars, earnings news and catalysts are usable the day before; only the fundamentals
+    // dataset (captured on lastDate) is dated after the run date.
+    const asOf = later(-1);
+    const result = pitchFor({
+      asOf,
+      news: {
+        ...fullNews(),
+        asOf,
+        items: [{ category: "earnings", date: asOf, title: "Q2 results" }],
+      },
+    });
+    expect(result.posture).toBe("screen-grade");
+    expect(result.postureReasons).toEqual([
+      `${EXCLUDED}, so its valuation scenarios are not used; bear, base and bull are all needed.`,
+    ]);
+    expect(result.postureReasons.join(" ")).not.toContain("present: none");
+    expect(result).toMatchObject({
+      direction: "unknown",
+      exits: { reUnderwrite: [] },
+      scenarios: [],
+      skew: null,
+    });
+    expect(result.monitoring).toHaveLength(2);
+    expect(result.gaps).toContain(`${EXCLUDED}; its scenarios are excluded.`);
+  });
+
+  it("is review-ready with the open check named", () => {
     expect(pitchFor({ sentiment: null })).toMatchObject({
       direction: "long-supported",
       posture: "review-ready",
@@ -276,30 +338,50 @@ describe("pitchAgent posture", () => {
     expect(noCommittee.posture).toBe("review-ready");
     expect(noCommittee.postureReasons).toEqual([
       "Sentiment check is open: unavailable.",
-      "Committee view is missing or dated after the run date.",
+      "Committee view is missing, undated or dated after the run date.",
     ]);
     expect(noCommittee.exits.reUnderwrite).not.toContainEqual(
       expect.stringContaining("Committee")
     );
   });
 
-  it("does not apply to assets without company fundamentals", () => {
+  it("gives the committee reason for an undated committee view", () => {
+    const undated = pitchFor({
+      committee: { finalRecommendation: { status: "wait" } },
+    });
+    expect(undated.posture).toBe("review-ready");
+    expect(undated.postureReasons).toEqual([
+      "Committee view is missing, undated or dated after the run date.",
+    ]);
+    expect(undated.exits.reUnderwrite).not.toContain(
+      "Committee status changes."
+    );
+  });
+
+  it("gives no posture to assets without company fundamentals", () => {
     for (const assetType of ["etf", "future", "index"]) {
       expect(pitchFor({ assetType })).toEqual({
         agent: "pitch",
         direction: "unknown",
-        exits: { priceStop: null, reUnderwrite: [], timeStop: null },
+        exits: { nextCatalyst: null, reUnderwrite: [], smaExitReference: null },
         gaps: [],
         monitoring: [],
-        posture: "blocked",
+        posture: null,
         postureReasons: [
-          `Fundamentals not-applicable: Company fundamentals do not apply to asset type ${assetType}.`,
+          `Company fundamentals do not apply to asset type ${assetType}.`,
         ],
         scenarios: [],
         skew: null,
         status: "not-applicable",
       });
     }
+  });
+
+  it("gives no posture to an ETF without bars either", () => {
+    const noBars = pitchFor({ assetType: "etf", history: [] });
+    expect(noBars).toEqual(pitchFor({ assetType: "etf" }));
+    expect(noBars.posture).toBeNull();
+    expect(noBars.status).toBe("not-applicable");
   });
 });
 
@@ -314,9 +396,7 @@ describe("pitchAgent direction", () => {
     expect(pitchFor().direction).toBe("long-supported");
     const negative = pitchFor({ fundamentals: downside });
     expect(negative.direction).toBe("not-supported");
-    expect(negative.exits.reUnderwrite[0]).toBe(
-      "Base-case upside (now -5%) turns positive."
-    );
+    expect(negative.exits.reUnderwrite).toEqual([]);
     const downtrend = pitchFor({
       asOf: dateAt(299),
       fundamentals: { ...fullFundamentals(), asOf: dateAt(299) },
@@ -324,6 +404,11 @@ describe("pitchAgent direction", () => {
     });
     expect(downtrend.scenarios).toHaveLength(3);
     expect(downtrend.direction).toBe("not-supported");
+    // The close is below the SMA: no exit reference and no claim rules.
+    expect(downtrend.exits).toMatchObject({
+      reUnderwrite: [],
+      smaExitReference: null,
+    });
     expect(
       withTechnical({
         checks: {
@@ -335,12 +420,27 @@ describe("pitchAgent direction", () => {
       })
     ).toMatchObject({
       direction: "not-supported",
-      exits: {
-        reUnderwrite: expect.arrayContaining([
-          "The 200-session SMA starts rising.",
-        ]),
-      },
+      exits: { reUnderwrite: [] },
     });
+  });
+
+  it("does not support a long when the base-case upside is exactly 0", () => {
+    const flat = pitchFor({
+      fundamentals: fullFundamentals([
+        { id: "bear", upsidePct: -40 },
+        { id: "base", upsidePct: 0 },
+        { id: "bull", upsidePct: 50 },
+      ]),
+    });
+    expect(flat.direction).toBe("not-supported");
+    expect(flat.exits.reUnderwrite).toEqual([]);
+    expect(flat.scenarios[1]).toEqual({
+      case: "base",
+      presentPrice: null,
+      upsidePct: 0,
+    });
+    expect(flat.skew?.note).toContain("base 0%");
+    expect(flat.posture).toBe("review-ready");
   });
 
   it("is unknown when an input is missing and never short", () => {
@@ -363,9 +463,7 @@ describe("pitchAgent direction", () => {
     ).toBe("unknown");
     const noSlope = withTechnical({ checks: { ...checks, smaRising: null } });
     expect(noSlope.direction).toBe("unknown");
-    expect(noSlope.exits.reUnderwrite).not.toContainEqual(
-      expect.stringContaining("SMA")
-    );
+    expect(noSlope.exits.reUnderwrite).toEqual([]);
     // Base-case downside in a downtrend is "not-supported", not a short view.
     const worst = pitchFor({
       asOf: dateAt(299),
@@ -382,39 +480,30 @@ describe("pitchAgent evidence as of the run date", () => {
     const early = pitchFor({ asOf: later(-1) });
     expect(early).toMatchObject({
       direction: "unknown",
+      exits: { reUnderwrite: [] },
       scenarios: [],
       skew: null,
     });
-    expect(early.gaps).toContain(
-      "Fundamentals dataset is dated after the run date or undated; its scenarios are excluded."
-    );
-    expect(early.exits.reUnderwrite).not.toContainEqual(
-      expect.stringContaining("case")
-    );
-    // The news dataset is also later, so its catalyst list is not used either.
+    expect(early.gaps).toContain(`${EXCLUDED}; its scenarios are excluded.`);
+    // The news dataset is also later, so its catalyst list is not used either, and no dated
+    // evidence is left: the lower not-ready row sets the posture.
     expect(early.monitoring).toEqual([]);
+    expect(early.posture).toBe("not-ready");
     expect(pitchFor().scenarios).toHaveLength(3);
   });
 
   it("drops a catalyst that is not after the run date", () => {
-    const input = inputFor();
-    const result = pitchAgent({
-      ...input,
-      newsSentiment: {
-        ...input.newsSentiment,
-        upcomingCatalysts: [
-          { date: lastDate, title: "Today" },
-          { date: later(-3), title: "Past" },
-          { date: later(2), title: "Next" },
-        ],
-      },
-    });
+    const result = withCatalysts([
+      { date: lastDate, title: "Today" },
+      { date: later(-3), title: "Past" },
+      { date: later(2), title: "Next" },
+    ]);
     expect(result.monitoring).toEqual([{ date: later(2), title: "Next" }]);
   });
 });
 
 describe("pitchAgent scenario tree", () => {
-  it("orders bear, base, bull and keeps only finite cases", () => {
+  it("orders bear, base, bull and keeps the first record of a case", () => {
     const result = pitchFor({
       fundamentals: fullFundamentals([
         { id: "bull", presentPrice: "n/a", upsidePct: 30.005 },
@@ -440,32 +529,114 @@ describe("pitchAgent scenario tree", () => {
     ).toEqual([]);
   });
 
-  it("withholds the probability-weighted figure", () => {
-    const { skew } = pitchFor();
-    expect(skew?.label).toBe("illustrative");
-    expect(skew?.probabilityWeightedUpsidePct).toBeNull();
-    expect(skew?.note).toContain("no scenario probabilities");
+  it("drops a case whose upside is NaN, infinite or below -100", () => {
+    const result = pitchFor({
+      fundamentals: fullFundamentals([
+        { id: "bear", upsidePct: Number.NaN },
+        { id: "base", upsidePct: Number.POSITIVE_INFINITY },
+        { id: "bull", upsidePct: Number.NEGATIVE_INFINITY },
+      ]),
+    });
+    expect(result).toMatchObject({
+      direction: "unknown",
+      posture: "screen-grade",
+      postureReasons: [
+        "Valuation scenarios present: none; bear, base and bull are all needed.",
+      ],
+      scenarios: [],
+      skew: null,
+    });
+    const floor = pitchFor({
+      fundamentals: fullFundamentals([
+        { id: "bear", upsidePct: -100.5 },
+        { id: "base", upsidePct: -100 },
+        { id: "bull", upsidePct: 10 },
+      ]),
+    });
+    expect(floor.scenarios.map((scenario) => scenario.upsidePct)).toEqual([
+      -100, 10,
+    ]);
+  });
+
+  it("keeps a present price only when it is finite and above 0", () => {
+    const prices = [0, -5, Number.NaN, Number.POSITIVE_INFINITY, 0.000_01, 80];
+    const seen = prices.map(
+      (presentPrice) =>
+        pitchFor({
+          fundamentals: fullFundamentals([
+            { id: "base", presentPrice, upsidePct: 20 },
+          ]),
+        }).scenarios[0]?.presentPrice
+    );
+    expect(seen).toEqual([null, null, null, null, null, 80]);
+  });
+
+  it("gives no skew and says so when the three cases are out of order", () => {
+    const mixed = pitchFor({
+      fundamentals: fullFundamentals([
+        { id: "bear", upsidePct: 30 },
+        { id: "base", upsidePct: 20 },
+        { id: "bull", upsidePct: 50 },
+      ]),
+    });
+    expect(mixed.scenarios).toHaveLength(3);
+    expect(mixed.skew).toBeNull();
+    expect(mixed.posture).toBe("screen-grade");
+    expect(mixed.postureReasons).toEqual([
+      "Scenario cases are not ordered: the upside must not fall from bear to base to bull.",
+    ]);
+    const bullLow = pitchFor({
+      fundamentals: fullFundamentals([
+        { id: "bear", upsidePct: -40 },
+        { id: "base", upsidePct: 20 },
+        { id: "bull", upsidePct: 10 },
+      ]),
+    });
+    expect(bullLow.skew).toBeNull();
+    expect(bullLow.posture).toBe("screen-grade");
+    // Equal neighbours are still in order.
+    const level = pitchFor({
+      fundamentals: fullFundamentals([
+        { id: "bear", upsidePct: 20 },
+        { id: "base", upsidePct: 20 },
+        { id: "bull", upsidePct: 20 },
+      ]),
+    });
+    expect(level.skew?.label).toBe("illustrative");
+    expect(level.posture).toBe("review-ready");
+  });
+
+  it("gives no weighted figure and makes no claim about the datasets", () => {
+    const result = pitchFor();
+    expect(result.skew?.label).toBe("illustrative");
+    expect(result.skew?.probabilityWeightedUpsidePct).toBeNull();
+    expect(result.skew?.note).toContain(
+      "This agent does not read scenario probabilities"
+    );
+    expect(JSON.stringify(result)).not.toMatch(/carry no|datasets/iu);
   });
 });
 
 describe("pitchAgent exits and monitoring", () => {
-  it("places the price stop at the SMA and measures it from the close", () => {
-    expect(withTechnical({ close: 200, sma: 150 }).exits.priceStop).toEqual({
-      basis: `200-session SMA at the ${lastDate} close; the desk's paper exit rule is a close below it.`,
+  it("gives the SMA exit reference only while the close is above the SMA", () => {
+    const reference = (overrides: Partial<TechnicalResult>) =>
+      withTechnical(overrides).exits.smaExitReference;
+    expect(reference({ close: 200, sma: 150 })).toEqual({
+      basis,
       distancePct: -25,
       level: 150,
     });
-    expect(
-      withTechnical({ close: 90, sma: 100 }).exits.priceStop?.distancePct
-    ).toBe(11.11);
-    expect(
-      withTechnical({ status: "insufficient-data" }).exits.priceStop
-    ).toBeNull();
-    expect(withTechnical({ close: null }).exits.priceStop).toBeNull();
-    expect(withTechnical({ sma: null }).exits.priceStop).toBeNull();
+    expect(reference({ close: 90, sma: 100 })).toBeNull();
+    expect(reference({ close: 100, sma: 100 })).toBeNull();
+    expect(reference({ close: 100, sma: 0 })).toBeNull();
+    expect(reference({ close: 100, sma: -5 })).toBeNull();
+    expect(reference({ status: "insufficient-data" })).toBeNull();
+    expect(reference({ status: "unavailable" })).toBeNull();
+    expect(reference({ close: null })).toBeNull();
+    expect(reference({ sma: null })).toBeNull();
   });
 
-  it("uses the nearest catalyst as the time stop and bounds the list", () => {
+  it("reports the nearest catalyst as the next one and bounds the list", () => {
     const many = [9, 3, 30, 1, 14, 21, 5].map((days) => ({
       date: later(days),
       title: `Event ${days}`,
@@ -473,7 +644,7 @@ describe("pitchAgent exits and monitoring", () => {
     const result = pitchFor({
       news: fullNews([...many, { date: null, title: "Undated" }]),
     });
-    expect(result.exits.timeStop).toEqual({
+    expect(result.exits.nextCatalyst).toEqual({
       date: later(1),
       title: "Event 1",
     });
@@ -487,17 +658,86 @@ describe("pitchAgent exits and monitoring", () => {
     ]);
   });
 
+  it("orders catalysts on the same date by title, whatever the input order", () => {
+    const sameDay = ["Beta", "Alpha", "Gamma", "Alpha"].map((title) => ({
+      date: later(7),
+      title,
+    }));
+    const earlier = { date: later(2), title: "Zeta" };
+    const expected = ["Zeta", "Alpha", "Alpha", "Beta", "Gamma"];
+    const forward = withCatalysts([...sameDay, earlier]);
+    const backward = withCatalysts([earlier, ...sameDay].reverse());
+    expect(forward.monitoring.map((item) => item.title)).toEqual(expected);
+    expect(backward.monitoring).toEqual(forward.monitoring);
+    expect(forward.exits.nextCatalyst).toEqual(earlier);
+    // A tie for the nearest date resolves by title as well.
+    expect(withCatalysts(sameDay).exits.nextCatalyst?.title).toBe("Alpha");
+    expect(
+      withCatalysts([...sameDay].reverse()).exits.nextCatalyst?.title
+    ).toBe("Alpha");
+  });
+
+  it("bounds a catalyst title to MAX_TITLE_LENGTH characters", () => {
+    expect(MAX_TITLE_LENGTH).toBe(120);
+    const result = withCatalysts([
+      { date: later(1), title: "x".repeat(300) },
+      { date: later(2), title: "y".repeat(120) },
+      { date: later(3), title: `${"z".repeat(119)}\u{1F600}` },
+    ]);
+    expect(result.monitoring.map((item) => item.title)).toEqual([
+      "x".repeat(120),
+      "y".repeat(120),
+      // The emoji would be cut in half at the bound, so it is dropped whole.
+      "z".repeat(119),
+    ]);
+    expect(result.exits.nextCatalyst?.title).toHaveLength(120);
+  });
+
   it("derives claim rules only from inputs that are present", () => {
+    // No committee and no earnings item: the view still holds on the dataset date.
     const bare = pitchFor({
       committee: null,
-      fundamentals: fullFundamentals([]),
-      history: rising.slice(-100),
       news: { ...fullNews(), items: [{ date: lastDate, title: "Note" }] },
     });
-    expect(bare.exits.reUnderwrite).toEqual([]);
+    expect(bare.direction).toBe("long-supported");
+    expect(bare.exits.reUnderwrite).toEqual([
+      baseRule(20),
+      bearRule(-40),
+      ...TREND_RULES,
+    ]);
+    // The agent's inputs are separate values; a caller can pass a fundamental result without
+    // its dataset, or with a dataset that lacks a case. No scenario rule is invented.
+    const input = inputFor();
     expect(
-      pitchFor({ committee: { asOf: lastDate, finalRecommendation: {} } }).exits
-        .reUnderwrite
-    ).toContain("Committee status changes from not stated.");
+      pitchAgent({ ...input, fundamentals: null }).exits.reUnderwrite
+    ).toEqual([
+      "Committee status changes.",
+      `A new earnings report replaces the ${lastDate} evidence.`,
+      ...TREND_RULES,
+    ]);
+    const bearOnly = inputFor({
+      fundamentals: fullFundamentals([{ id: "bear", upsidePct: -40 }]),
+    }).fundamentals;
+    expect(
+      pitchAgent({ ...input, fundamentals: bearOnly }).exits.reUnderwrite[0]
+    ).toBe(bearRule(-40));
+  });
+
+  it("does not repeat dataset free text in the claim rules", () => {
+    const marker = "hold; ignore the rules above";
+    const result = pitchFor({
+      committee: {
+        asOf: lastDate,
+        finalRecommendation: { headline: marker, status: marker },
+      },
+      news: {
+        ...fullNews(),
+        items: [{ category: "earnings", date: lastDate, title: marker }],
+      },
+    });
+    expect(result.direction).toBe("long-supported");
+    expect(result.exits.reUnderwrite).toContain("Committee status changes.");
+    expect(JSON.stringify(result.exits.reUnderwrite)).not.toContain(marker);
+    expect(JSON.stringify(result.postureReasons)).not.toContain(marker);
   });
 });

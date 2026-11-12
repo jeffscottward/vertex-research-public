@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   assertWritable,
   type DeskInput,
@@ -449,9 +449,11 @@ describe("runDesk pitch agent", () => {
     });
     expect(pitches[1]).toMatchObject({
       direction: "long-supported",
-      exits: { timeStop: { date: dateAt(history.length + 20) } },
-      posture: "decision-grade",
-      postureReasons: [],
+      exits: { nextCatalyst: { date: dateAt(history.length + 20) } },
+      posture: "review-ready",
+      postureReasons: [
+        "Scenario probabilities and bear-case liquidity checks are not collected, so the posture stops at review-ready.",
+      ],
     });
     expect(pitches[1]?.scenarios.map((scenario) => scenario.case)).toEqual([
       "bear",
@@ -459,40 +461,116 @@ describe("runDesk pitch agent", () => {
       "bull",
     ]);
     expect(pitches[2]).toMatchObject({
-      posture: "blocked",
+      posture: null,
+      postureReasons: ["Company fundamentals do not apply to asset type etf."],
       status: "not-applicable",
     });
-    const stop = pitches[1]?.exits.priceStop;
+    const reference = pitches[1]?.exits.smaExitReference;
+    expect(reference?.distancePct).toBeLessThan(0);
     const lines = renderSummary(result.report).split("\n");
     expect(lines).toContain(
       "  Pitch (analysis only): screen-grade | long-supported | " +
-        `price stop ${stop?.level} (${stop?.distancePct}% from close) | next catalyst none dated`
+        `SMA exit reference ${reference?.level} (${reference?.distancePct}% from close) | next catalyst none dated`
     );
     expect(lines).toContain(
-      "  Pitch (analysis only): decision-grade | long-supported | " +
-        `price stop ${stop?.level} (${stop?.distancePct}% from close) | next catalyst ${dateAt(history.length + 20)} Dev day`
+      "  Pitch (analysis only): review-ready | long-supported | " +
+        `SMA exit reference ${reference?.level} (${reference?.distancePct}% from close) | next catalyst ${dateAt(history.length + 20)} Dev day`
     );
     expect(lines).toContain(
-      "  Pitch (analysis only): blocked | unknown | price stop n/a | next catalyst none dated"
+      "  Pitch (analysis only): not-applicable | unknown | SMA exit reference n/a | next catalyst none dated"
     );
   });
 
-  it("leaves the process decision and the paper book unchanged", () => {
+  it("changes only the pitch when only the inputs the pitch alone reads change", () => {
+    // Same frozen input twice; the second differs only in what no other agent reads: the bear
+    // and bull cases, the present prices and the catalyst titles.
+    const base = rich("AAA");
+    const varied: DeskInput = {
+      ...base,
+      fundamentals: {
+        ...base.fundamentals,
+        valuation: {
+          scenarios: [
+            { id: "bear", presentPrice: 10, upsidePct: 90 },
+            { id: "base", presentPrice: 20, upsidePct: 12 },
+            { id: "bull", presentPrice: 30, upsidePct: -90 },
+          ],
+        },
+      },
+      news: {
+        ...base.news,
+        catalysts: [{ date: dateAt(history.length + 20), title: "Other" }],
+      },
+    };
     const run = (report: DeskInput) =>
       runDesk({ asOf: signalDate, book: emptyBook(), reports: [report] });
-    const thin = run(deskInput("AAA", history));
-    const full = run(rich("AAA"));
-    // The two inputs differ only in what the pitch reads: bear and bull cases, a dated
-    // catalyst and sentiment labels. The pitch changes; the decision and the book do not.
-    expect(full.report.tickers[0]?.agents.pitch.posture).toBe("decision-grade");
-    expect(thin.report.tickers[0]?.agents.pitch.posture).toBe("screen-grade");
-    expect(processOf(full)).toEqual(processOf(thin));
-    expect(processOf(full)?.decision).toBe("paper-open");
-    expect(full.book).toEqual(thin.book);
-    expect(Object.keys(full.book).sort()).toEqual(
+    const first = run(base);
+    const second = run(varied);
+    const before = first.report.tickers[0]?.agents;
+    const after = second.report.tickers[0]?.agents;
+    expect(before?.pitch.posture).toBe("review-ready");
+    expect(after?.pitch.posture).toBe("screen-grade");
+    expect(after?.pitch.exits.nextCatalyst?.title).toBe("Other");
+    expect(before?.process.decision).toBe("paper-open");
+    expect({ ...after, newsSentiment: null, pitch: null }).toEqual({
+      ...before,
+      newsSentiment: null,
+      pitch: null,
+    });
+    expect(after?.newsSentiment.sentiment).toEqual(
+      before?.newsSentiment.sentiment
+    );
+    expect(second.book).toEqual(first.book);
+    expect(second.report.paperBook).toEqual(first.report.paperBook);
+  });
+
+  it("computes the same process results and book without the pitch agent", async () => {
+    // The desk module is loaded a second time with the pitch agent replaced by a stub that
+    // returns a marker. Every other agent result, the report and the book must be identical
+    // to the run with the real pitch, over three consecutive runs that open and carry a
+    // paper position.
+    const marker = { agent: "pitch", marker: "stub" };
+    vi.resetModules();
+    vi.doMock("./pitch.ts", () => ({ pitchAgent: () => marker }));
+    const stubbed = await import("./desk.ts");
+    vi.doUnmock("./pitch.ts");
+    expect(stubbed.runDesk).not.toBe(runDesk);
+
+    const dates = [
+      signalDate,
+      dateAt(history.length),
+      dateAt(history.length + 1),
+    ];
+    const withoutPitch = (run: DeskRun) => ({
+      book: run.book,
+      report: {
+        ...run.report,
+        tickers: run.report.tickers.map((ticker) => ({
+          ...ticker,
+          agents: { ...ticker.agents, pitch: null },
+        })),
+      },
+    });
+    let realBook = emptyBook();
+    let stubBook = emptyBook();
+    const decisions: string[] = [];
+    for (const asOf of dates) {
+      const reports = [rich("AAA"), deskInput("BBB", history)];
+      const real = runDesk({ asOf, book: realBook, reports });
+      const stub = stubbed.runDesk({ asOf, book: stubBook, reports });
+      expect(real.report.tickers[0]?.agents.pitch.agent).toBe("pitch");
+      expect(real.report.tickers[0]?.agents.pitch).not.toEqual(marker);
+      expect(stub.report.tickers[0]?.agents.pitch).toEqual(marker);
+      expect(withoutPitch(stub)).toEqual(withoutPitch(real));
+      decisions.push(real.report.tickers[0]?.agents.process.decision ?? "");
+      realBook = real.book;
+      stubBook = stub.book;
+    }
+    expect(decisions[0]).toBe("paper-open");
+    expect(realBook).toEqual(stubBook);
+    expect(Object.keys(realBook).sort()).toEqual(
       Object.keys(emptyBook()).sort()
     );
-    expect(full.report.paperBook).toEqual(thin.report.paperBook);
   });
 });
 

@@ -78,6 +78,14 @@ describe("agent framework catalog", () => {
       langalpha?.dataSources.every((source) => source.pointInTime === "yes")
     ).toBe(true);
     expect(langalpha?.summary).toContain("not integrated as a harness");
+    expect(langalpha?.summary).not.toContain("container");
+    expect(langalpha?.stages[0]?.summary).toContain(
+      "decision-grade, is deliberately not used"
+    );
+    expect(langalpha?.stages[2]?.summary).toContain("SMA exit reference");
+    expect(langalpha?.guards).toContain(
+      "The pitch agent does not read scenario probabilities, so no probability-weighted figure is given."
+    );
     expect(AGENT_FRAMEWORKS.map((framework) => framework.id)).toEqual([
       "tradingagents",
       "ai_hedge_fund",

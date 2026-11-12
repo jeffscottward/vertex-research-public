@@ -1,15 +1,19 @@
-// Pitch agent for the paper agent desk: one readiness posture, a scenario tree, exit levels and
-// a monitoring list for one ticker as of the run date.
+// Pitch agent for the paper agent desk: one readiness posture, a scenario tree, exit references
+// and a monitoring list for one ticker as of the run date.
 //
 // The structure adapts ideas of LangAlpha (https://github.com/ginlix-ai/LangAlpha, commit
 // e102a7838225157f7b3beca3fc274b26be852154, Apache License 2.0, Copyright 2025 Ginlix AI; see
 // NOTICE): the readiness posture ladder of
 // plugins/langalpha_research/skills/research-conventions/SKILL.md and the scenario tree, exit
 // levels and monitoring steps of plugins/langalpha_research/skills/trade-pitch/SKILL.md.
-// Modified: no LangAlpha code or text is copied. Those skills are instructions for a language
-// model; this file is a deterministic TypeScript function over the results of the other desk
-// agents and the accepted fundamentals dataset. It calls no model and no network, and it gives
-// no order, size, instrument or probability.
+// Modified: short terms of art (posture names) are kept; no code or passages are copied. Those
+// skills are instructions for a language model; this file is a deterministic TypeScript function
+// over the results of the other desk agents and the accepted fundamentals dataset. It calls no
+// model and no network, and it gives no order, size, instrument or probability.
+//
+// The Vertex ladder stops at `review-ready`. LangAlpha's top posture, `decision-grade`, is
+// deliberately not used: the desk does not collect scenario probabilities or bear-case
+// liquidity checks, so no state of its inputs can earn that name.
 //
 // The agent describes what the inputs support. It is not an instruction to trade, and the paper
 // book does not read it. Evidence dated after the run date is never used: the scenarios follow
@@ -22,14 +26,14 @@ import {
   parseAll,
   usableOn,
 } from "./research.ts";
-import { isFiniteNumber, roundTo, type TechnicalResult } from "./technical.ts";
+import {
+  dayOf,
+  isFiniteNumber,
+  roundTo,
+  type TechnicalResult,
+} from "./technical.ts";
 
-export type Posture =
-  | "decision-grade"
-  | "review-ready"
-  | "screen-grade"
-  | "not-ready"
-  | "blocked";
+export type Posture = "review-ready" | "screen-grade" | "not-ready" | "blocked";
 
 type ScenarioCase = "bear" | "base" | "bull";
 type DatedTitle = Readonly<{ date: string; title: string }>;
@@ -45,31 +49,37 @@ export type PitchResult = Readonly<{
   status: "not-applicable" | "evaluated";
   /** What the analysis supports. Never an instruction; the desk is long-only, so no short. */
   direction: "long-supported" | "not-supported" | "unknown";
-  /** One posture, read from the input state. It describes the inputs, not conviction. */
-  posture: Posture;
-  /** The inputs responsible for a posture below decision-grade; empty only for decision-grade. */
+  /** One posture for the evidence, not for the strength of the view. Null when not applicable. */
+  posture: Posture | null;
+  /** Why the posture is what it is, or why none is given. Never empty. */
   postureReasons: readonly string[];
-  /** Ordered bear, base, bull; only cases with a finite upsidePct. */
+  /** Ordered bear, base, bull; only cases with a finite upsidePct of -100 or more. */
   scenarios: readonly PitchScenario[];
-  /** Null when fewer than the three cases exist. The datasets carry no probabilities. */
+  /**
+   * Null unless bear, base and bull all exist with bear <= base <= bull by upsidePct. This
+   * agent does not read scenario probabilities, so the weighted figure is always null.
+   */
   skew: Readonly<{
     label: "illustrative";
     probabilityWeightedUpsidePct: null;
     note: string;
   }> | null;
   exits: Readonly<{
-    /** The rule's SMA at the latest bar; distancePct is (level / close - 1) * 100. */
-    priceStop: Readonly<{
+    /**
+     * The rule's SMA at the latest bar, only while the close is above it; distancePct is
+     * (level / close - 1) * 100, so it is negative. A reference level, not a stop order.
+     */
+    smaExitReference: Readonly<{
       level: number;
       basis: string;
       distancePct: number;
     }> | null;
-    /** Claim rules: the inputs whose change breaks the view. */
+    /** The changes that break a `long-supported` view; empty for any other direction. */
     reUnderwrite: readonly string[];
-    /** The nearest upcoming dated catalyst after the run date. */
-    timeStop: DatedTitle | null;
+    /** The nearest upcoming dated catalyst after the run date. An event, not a deadline. */
+    nextCatalyst: DatedTitle | null;
   }>;
-  /** Upcoming dated catalysts, ascending, at most MAX_MONITORING. */
+  /** Upcoming dated catalysts, ascending, at most MAX_MONITORING; titles are bounded. */
   monitoring: readonly DatedTitle[];
   gaps: readonly string[];
 }>;
@@ -84,6 +94,7 @@ export type PitchInput = Readonly<{
 }>;
 
 export const MAX_MONITORING = 5;
+export const MAX_TITLE_LENGTH = 120;
 
 const CASES = ["bear", "base", "bull"] as const;
 const ScenarioRecord = z.looseObject({
@@ -92,36 +103,66 @@ const ScenarioRecord = z.looseObject({
   upsidePct: z.unknown(),
 });
 
+const DATASET_EXCLUDED =
+  "Fundamentals dataset is dated after the run date or undated";
+const CEILING_REASON =
+  "Scenario probabilities and bear-case liquidity checks are not collected, so the posture stops at review-ready.";
 const PITCH_GAPS = Object.freeze([
-  "Scenario probabilities are not collected; the probability-weighted return is withheld.",
+  "This agent does not read scenario probabilities, so no probability-weighted return is given.",
   "Bear-case liquidity, covenant and maturity checks are not collected.",
   "Instrument, size and order levels are out of scope: the desk is paper only.",
 ]);
 
-/** The first record of each case, as captured at or before the run date. */
-const scenariosOn = (
+type ScenarioView = Readonly<{
+  capturedOn: string;
+  cases: readonly PitchScenario[];
+}>;
+
+/**
+ * The first record of each case from a dataset captured at or before the run date; null when
+ * the dataset is missing, undated or captured later. A case is dropped when its upside is not
+ * a finite number or is below -100 (a price cannot fall further); a present price that is not
+ * a finite positive number becomes null.
+ */
+const scenarioViewOn = (
   fundamentals: Fundamentals | null,
   asOf: string
-): PitchScenario[] => {
-  if (fundamentals === null || !usableOn(fundamentals.asOf, asOf)) return [];
+): ScenarioView | null => {
+  const capturedOn =
+    fundamentals !== null && usableOn(fundamentals.asOf, asOf)
+      ? dayOf(fundamentals.asOf)
+      : null;
+  if (fundamentals === null || capturedOn === null) return null;
   const records = parseAll(
     ScenarioRecord,
     fundamentals.valuation?.scenarios ?? []
   );
-  return CASES.flatMap((name) => {
+  const cases = CASES.flatMap((name) => {
     const record = records.find((entry) => entry.id === name);
-    return record !== undefined && isFiniteNumber(record.upsidePct)
-      ? [
-          {
-            case: name,
-            presentPrice: isFiniteNumber(record.presentPrice)
-              ? roundTo(record.presentPrice)
-              : null,
-            upsidePct: roundTo(record.upsidePct, 2) as number,
-          },
-        ]
-      : [];
+    if (
+      record === undefined ||
+      !isFiniteNumber(record.upsidePct) ||
+      record.upsidePct < -100
+    )
+      return [];
+    const price = isFiniteNumber(record.presentPrice)
+      ? roundTo(record.presentPrice)
+      : null;
+    return [
+      {
+        case: name,
+        presentPrice: price !== null && price > 0 ? price : null,
+        upsidePct: roundTo(record.upsidePct, 2) as number,
+      },
+    ];
   });
+  return { capturedOn, cases };
+};
+
+/** True when each upside is at least the one before it (bear, base, bull order). */
+const isOrdered = (scenarios: readonly PitchScenario[]): boolean => {
+  const values = scenarios.map((scenario) => scenario.upsidePct);
+  return values.every((value, index) => value >= (values[index - 1] ?? value));
 };
 
 type PostureState = Readonly<{
@@ -129,19 +170,22 @@ type PostureState = Readonly<{
   newsSentiment: NewsSentimentResult;
   technical: TechnicalResult;
   scenarios: readonly PitchScenario[];
+  /** A fundamentals dataset exists but its capture date rules it out for this run. */
+  datasetExcluded: boolean;
   monitoring: readonly DatedTitle[];
 }>;
 type PostureRule = Readonly<{
-  posture: Exclude<Posture, "decision-grade">;
+  posture: Posture;
   /** The reason this row holds for the state, or null when it does not. */
   when: (state: PostureState) => string | null;
 }>;
 
-// The one posture table, ordered from the floor upwards. The posture of the first row that
-// holds wins, and every row of that posture that holds contributes its reason. No row holds:
-// decision-grade. Posture is read from the current inputs only, never from an earlier run.
+// The one posture table, lowest posture first. The first row that holds sets the posture, and
+// every held row of that same posture adds its reason. No row holds: review-ready with
+// CEILING_REASON, the top of the Vertex ladder. Each run evaluates the table afresh; no earlier
+// result is consulted.
 const POSTURE_RULES: readonly PostureRule[] = [
-  // blocked: an input cannot be obtained at all.
+  // blocked: a dataset the pitch depends on is missing.
   {
     posture: "blocked",
     when: ({ fundamental }) =>
@@ -156,7 +200,7 @@ const POSTURE_RULES: readonly PostureRule[] = [
         ? `Technical unavailable: ${technical.reason}`
         : null,
   },
-  // not-ready: a load-bearing input is stale or unsupported.
+  // not-ready: an input the view rests on is too old or too weak.
   {
     posture: "not-ready",
     when: ({ fundamental }) => {
@@ -166,8 +210,8 @@ const POSTURE_RULES: readonly PostureRule[] = [
         : `Fundamentals stale: latest earnings evidence is ${fundamental.evidenceAgeDays} days old.`;
     },
   },
-  // Added to the suggested rows: without it a view the committee itself calls unsupported
-  // could read as decision-grade.
+  // A Vertex row: a view the committee itself marks insufficient-data must not pass as
+  // review-ready.
   {
     posture: "not-ready",
     when: ({ fundamental }) =>
@@ -189,12 +233,21 @@ const POSTURE_RULES: readonly PostureRule[] = [
         ? `Technical stale: latest bar ${technical.barDate} is ${technical.staleDays} days old.`
         : null,
   },
-  // screen-grade: coverage is thin.
+  // screen-grade: the scenario or catalyst coverage has holes.
+  {
+    posture: "screen-grade",
+    when: ({ scenarios, datasetExcluded }) => {
+      if (scenarios.length === CASES.length) return null;
+      return datasetExcluded
+        ? `${DATASET_EXCLUDED}, so its valuation scenarios are not used; bear, base and bull are all needed.`
+        : `Valuation scenarios present: ${scenarios.map((scenario) => scenario.case).join(", ") || "none"}; bear, base and bull are all needed.`;
+    },
+  },
   {
     posture: "screen-grade",
     when: ({ scenarios }) =>
-      scenarios.length < CASES.length
-        ? `Valuation scenarios present: ${scenarios.map((scenario) => scenario.case).join(", ") || "none"}; bear, base and bull are all needed.`
+      scenarios.length === CASES.length && !isOrdered(scenarios)
+        ? "Scenario cases are not ordered: the upside must not fall from bear to base to bull."
         : null,
   },
   {
@@ -204,7 +257,7 @@ const POSTURE_RULES: readonly PostureRule[] = [
         ? "No upcoming dated catalyst after the run date."
         : null,
   },
-  // review-ready: complete and fresh, with a check still open.
+  // review-ready: every input is usable and a named check remains.
   {
     posture: "review-ready",
     when: ({ newsSentiment }) =>
@@ -216,21 +269,21 @@ const POSTURE_RULES: readonly PostureRule[] = [
     posture: "review-ready",
     when: ({ fundamental }) =>
       fundamental.committee === null
-        ? "Committee view is missing or dated after the run date."
+        ? "Committee view is missing, undated or dated after the run date."
         : null,
   },
 ];
 
 const readPosture = (
   state: PostureState
-): Pick<PitchResult, "posture" | "postureReasons"> => {
+): Readonly<{ posture: Posture; postureReasons: readonly string[] }> => {
   const held = POSTURE_RULES.flatMap((rule) => {
     const reason = rule.when(state);
     return reason === null ? [] : [{ posture: rule.posture, reason }];
   });
   const first = held[0];
   if (first === undefined)
-    return { posture: "decision-grade", postureReasons: [] };
+    return { posture: "review-ready", postureReasons: [CEILING_REASON] };
   return {
     posture: first.posture,
     postureReasons: held
@@ -263,11 +316,18 @@ const directionOf = (
     : "not-supported";
 };
 
-const priceStopOf = (
+/** Null unless the technical agent evaluated the rule and the close is above a positive SMA. */
+const smaExitReferenceOf = (
   technical: TechnicalResult
-): PitchResult["exits"]["priceStop"] => {
+): PitchResult["exits"]["smaExitReference"] => {
   const { close, sma } = technical;
-  if (technical.status !== "evaluated" || close === null || sma === null)
+  if (
+    technical.status !== "evaluated" ||
+    close === null ||
+    sma === null ||
+    sma <= 0 ||
+    close <= sma
+  )
     return null;
   return {
     basis: `${technical.rule.smaPeriod}-session SMA at the ${technical.barDate} close; the desk's paper exit rule is a close below it.`,
@@ -276,43 +336,57 @@ const priceStopOf = (
   };
 };
 
-/** One claim rule for each input that is present; an absent input gives no rule. */
+const SCENARIO_CLAIMS = [
+  ["base", "Base-case upside turns negative or zero"],
+  ["bear", "Bear-case return is revised"],
+] as const;
+
+/**
+ * The changes that break a long-supported view; any other direction has no view to break, so
+ * the list is empty. The rules name inputs and dates only: no free text of a dataset is
+ * repeated, and a scenario figure is given with the capture date of its dataset.
+ */
 const reUnderwriteOf = (
+  direction: PitchResult["direction"],
   fundamental: FundamentalResult,
   technical: TechnicalResult,
-  scenarios: readonly PitchScenario[]
+  view: ScenarioView | null
 ): string[] => {
-  const rules: string[] = [];
-  const base = scenarios.find((scenario) => scenario.case === "base");
-  const bear = scenarios.find((scenario) => scenario.case === "bear");
-  if (base !== undefined)
-    rules.push(
-      `Base-case upside (now ${base.upsidePct}%) turns ${base.upsidePct > 0 ? "negative" : "positive"}.`
-    );
-  if (bear !== undefined)
-    rules.push(
-      `Bear-case return (now ${bear.upsidePct}%) is revised in the fundamentals dataset.`
-    );
-  if (fundamental.committee !== null)
-    rules.push(
-      `Committee status changes from ${fundamental.committee.status ?? "not stated"}.`
-    );
+  if (direction !== "long-supported") return [];
+  const period = technical.rule.smaPeriod;
+  const rules: string[] =
+    view === null
+      ? []
+      : SCENARIO_CLAIMS.flatMap(([name, claim]) => {
+          const found = view.cases.find((scenario) => scenario.case === name);
+          return found === undefined
+            ? []
+            : [
+                `${claim}; the fundamentals dataset captured ${view.capturedOn} gives ${found.upsidePct}%.`,
+              ];
+        });
+  if (fundamental.committee !== null) rules.push("Committee status changes.");
   if (fundamental.lastEarnings !== null)
     rules.push(
       `A new earnings report replaces the ${fundamental.lastEarnings.date} evidence.`
     );
-  if (
-    technical.status === "evaluated" &&
-    technical.checks !== null &&
-    technical.checks.smaRising !== null
-  )
-    rules.push(
-      `The ${technical.rule.smaPeriod}-session SMA ${technical.checks.smaRising ? "stops" : "starts"} rising.`
-    );
+  rules.push(
+    `The close falls below the ${period}-session SMA.`,
+    `The ${period}-session SMA stops rising.`
+  );
   return rules;
 };
 
-/** Pitch agent: posture, scenario tree, exit levels and monitoring for one ticker as of `asOf`. */
+const byText = (a: string, b: string): number => {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+};
+
+/** At most MAX_TITLE_LENGTH UTF-16 units, never ending on half of a surrogate pair. */
+const boundedTitle = (title: string): string =>
+  title.slice(0, MAX_TITLE_LENGTH).replace(/[\uD800-\uDBFF]$/u, "");
+
+/** Pitch agent: posture, scenario tree, exit references and monitoring for one ticker as of `asOf`. */
 export const pitchAgent = ({
   asOf,
   fundamental,
@@ -320,57 +394,57 @@ export const pitchAgent = ({
   technical,
   fundamentals,
 }: PitchInput): PitchResult => {
-  const applicable = fundamental.status !== "not-applicable";
-  const scenarios = applicable ? scenariosOn(fundamentals, asOf) : [];
-  const monitoring = applicable
-    ? newsSentiment.upcomingCatalysts
-        .filter((item) => item.date > asOf)
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .slice(0, MAX_MONITORING)
-        .map(({ date, title }) => ({ date, title }))
-    : [];
-  const posture = readPosture({
-    fundamental,
-    monitoring,
-    newsSentiment,
-    scenarios,
-    technical,
-  });
-  if (!applicable) {
+  if (fundamental.status === "not-applicable") {
     return {
       agent: "pitch",
       direction: "unknown",
-      exits: { priceStop: null, reUnderwrite: [], timeStop: null },
+      exits: { nextCatalyst: null, reUnderwrite: [], smaExitReference: null },
       gaps: [],
-      monitoring,
-      ...posture,
-      scenarios,
+      monitoring: [],
+      posture: null,
+      postureReasons: [...fundamental.reasons],
+      scenarios: [],
       skew: null,
       status: "not-applicable",
     };
   }
+  const view = scenarioViewOn(fundamentals, asOf);
+  const scenarios = view?.cases ?? [];
+  const datasetExcluded = fundamentals !== null && view === null;
+  // Same-date catalysts are ordered by title, so the list does not depend on dataset order.
+  const monitoring = newsSentiment.upcomingCatalysts
+    .filter((item) => item.date > asOf)
+    .sort((a, b) => byText(a.date, b.date) || byText(a.title, b.title))
+    .slice(0, MAX_MONITORING)
+    .map(({ date, title }) => ({ date, title: boundedTitle(title) }));
+  const direction = directionOf(fundamental, technical);
   const gaps = [...PITCH_GAPS];
-  if (fundamentals !== null && !usableOn(fundamentals.asOf, asOf))
-    gaps.push(
-      "Fundamentals dataset is dated after the run date or undated; its scenarios are excluded."
-    );
+  if (datasetExcluded)
+    gaps.push(`${DATASET_EXCLUDED}; its scenarios are excluded.`);
   return {
     agent: "pitch",
-    direction: directionOf(fundamental, technical),
+    direction,
     exits: {
-      priceStop: priceStopOf(technical),
-      reUnderwrite: reUnderwriteOf(fundamental, technical, scenarios),
-      timeStop: monitoring[0] ?? null,
+      nextCatalyst: monitoring[0] ?? null,
+      reUnderwrite: reUnderwriteOf(direction, fundamental, technical, view),
+      smaExitReference: smaExitReferenceOf(technical),
     },
     gaps,
     monitoring,
-    ...posture,
+    ...readPosture({
+      datasetExcluded,
+      fundamental,
+      monitoring,
+      newsSentiment,
+      scenarios,
+      technical,
+    }),
     scenarios,
     skew:
-      scenarios.length === CASES.length
+      scenarios.length === CASES.length && isOrdered(scenarios)
         ? {
             label: "illustrative",
-            note: `Illustrative skew: ${scenarios.map((scenario) => `${scenario.case} ${scenario.upsidePct}%`).join(", ")}. The datasets carry no scenario probabilities, so no probability-weighted upside is computed.`,
+            note: `Illustrative skew: ${scenarios.map((scenario) => `${scenario.case} ${scenario.upsidePct}%`).join(", ")}. This agent does not read scenario probabilities, so no weighted figure is given.`,
             probabilityWeightedUpsidePct: null,
           }
         : null,
