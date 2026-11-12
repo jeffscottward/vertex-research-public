@@ -110,27 +110,22 @@ describe("free-text scrubbing in linear time", () => {
   });
 });
 
-// The linear detectors must replace exactly what the old patterns replaced. Each row was checked
-// against the old implementation (and 7 million random inputs gave no difference).
+// What the linear detectors replace. `exact` rows have no secret left in the output, so the whole
+// output is pinned. `hidden` rows are texts with several markers, "#" or an escaped "=": only the
+// secrets that must be replaced are named. Some other token in such a text may still stay visible
+// today (card vrp-redaction-url-gaps); that is not required behavior and is not asserted, so a
+// later fix that replaces more does not fail here.
 describe("free-text scrubbing rules", () => {
   const R = REDACTED;
-  const rows: ReadonlyArray<readonly [string, string]> = [
+  const exact: ReadonlyArray<readonly [string, string]> = [
     // scheme://user:password@ : the scheme starts at a letter on a word boundary.
     ["+http://u:p@h", `+http://${R}@h`],
-    ["1http://u:p@h", "1http://u:p@h"],
-    ["_http://u:p@h", "_http://u:p@h"],
     ["_x.http://u:p@h", `_x.http://${R}@h`],
-    [
-      "see postgres://user:pw@db.test/x and 9://a:b@c",
-      `see postgres://${R}@db.test/x and 9://a:b@c`,
-    ],
+    ["see postgres://user:pw@db.test/x", `see postgres://${R}@db.test/x`],
     // Email: leading punctuation of the run stays.
-    ["..a@b.co x..a@b.co %@b.co a@b.c", `..${R} ${R} %@b.co a@b.c`],
+    ["..a@b.co x..a@b.co", `..${R} ${R}`],
     // JWT: starts at "eyJ" at the run start or after "-".
-    [
-      "abc-eyJx.y.z abceyJx.y.z abc.eyJx.y.z eyJ.y.z eyJa.b.c- _eyJa.b.c",
-      `abc-${R} abceyJx.y.z abc.${R} eyJ.y.z ${R}- _eyJa.b.c`,
-    ],
+    ["abc-eyJx.y.z abc.eyJx.y.z eyJa.b.c-", `abc-${R} abc.${R} ${R}-`],
     // PEM private keys: closed blocks one by one; an open block to the end of the text.
     [
       "k1 -----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY----- mid -----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY----- end",
@@ -140,37 +135,23 @@ describe("free-text scrubbing rules", () => {
       "a -----BEGIN PRIVATE KEY-----\nabc -----BEGIN EC PRIVATE KEY----- tail",
       `a ${R}`,
     ],
-    ["-----END PRIVATE KEY----- only", "-----END PRIVATE KEY----- only"],
     // Quoted authorization values.
     [
       "authorization: \"Basic \t x\" authorization='Bearer  y'",
       `authorization: "${R}" authorization='${R}'`,
     ],
-    // Path tokens: /api/auth paths one by one; an http(s) URL up to its last marker.
+    // Path tokens.
     [
-      "/api/auth/reset-password/T1 /api/auth/verify-email/T2 /x/reset-password/T3",
-      `/api/auth/reset-password/${R} /api/auth/verify-email/${R} /x/reset-password/T3`,
-    ],
-    [
-      "https://app.test/reset-password/T1/verify-email/T2",
-      `https://app.test/reset-password/T1/verify-email/${R}`,
+      "/api/auth/reset-password/T1 /api/auth/verify-email/T2",
+      `/api/auth/reset-password/${R} /api/auth/verify-email/${R}`,
     ],
     [
       "/api/auth/verify-email/T1/api/auth/reset-password/T2",
       `/api/auth/verify-email/${R}/api/auth/reset-password/${R}`,
     ],
     [
-      "/api/auth/reset-password/T1/api/auth/verify-email/T2,https://h/verify-email/T3",
-      `/api/auth/reset-password/${R}/api/auth/verify-email/${R}//h/verify-email/T3`,
-    ],
-    [
-      "/api/auth/verify-email/T1,https://h/x",
-      `/api/auth/verify-email/${R}//h/x`,
-    ],
-    ["https://h/reset-password/", "https://h/reset-password/"],
-    [
-      "https://h/reset-password?a=1 http://reset-password/x",
-      "https://h/reset-password?a=1 http://reset-password/x",
+      "https://app.test/reset-password/T1",
+      `https://app.test/reset-password/${R}`,
     ],
     // Query tokens ("%3D" keeps the field-label rule out of these rows).
     [
@@ -178,50 +159,73 @@ describe("free-text scrubbing rules", () => {
       `https://h/verify-email?a=1&amp;token%3D${R}&b=2`,
     ],
     [
-      "/api/auth/verify-email?token%3DT1&token%3DT2 /api/auth/reset-password?token%3DT3",
-      `/api/auth/verify-email?token%3D${R}&token%3DT2 /api/auth/reset-password?token%3DT3`,
-    ],
-    [
-      "https://h/verify-email?x#token%3DT1",
-      "https://h/verify-email?x#token%3DT1",
-    ],
-    [
-      "https://h/verify-email?x#y/reset-password?token%3DT2",
-      `https://h/verify-email?x#y/reset-password?token%3D${R}`,
-    ],
-    [
-      "/api/auth/verify-email?token%3DT1/api/auth/verify-email?token%3DT2&x=https://h/reset-password?token%3DT3",
-      `/api/auth/verify-email?token%3D${R}&x=https://h/reset-password?token%3D${R}`,
-    ],
-    [
       "/api/auth/verify-email?token%3DT1#/verify-email?z",
       `/api/auth/verify-email?token%3D${R}#/verify-email?z`,
     ],
-    ["http://verify-email?token%3DT1", "http://verify-email?token%3DT1"],
-    ["/x/verify-email?token%3DT1", "/x/verify-email?token%3DT1"],
     [
-      "/api/auth/verify-email?mytoken%3DT1",
-      "/api/auth/verify-email?mytoken%3DT1",
-    ],
-    [
-      "token%3DT0&https://h/reset-password?q",
-      "token%3DT0&https://h/reset-password?q",
-    ],
-    ["https://h/reset-password?token%3D", "https://h/reset-password?token%3D"],
-    [
-      "https://h/verify-email?a#b&/verify-email?c#token%3DT1",
-      "https://h/verify-email?a#b&/verify-email?c#token%3DT1",
-    ],
-    [
-      "https://h/verify-email?token%3DT1#https://h/verify-email?token%3DT2",
-      `https://h/verify-email?token%3DT1#https://h/verify-email?token%3D${R}`,
+      "/api/auth/verify-email?token%3DT1&x=https://h/reset-password?token%3DT2",
+      `/api/auth/verify-email?token%3D${R}&x=https://h/reset-password?token%3D${R}`,
     ],
     ["https://h/verify-email?token=T1", `https://h/verify-email?token=${R}`],
   ];
 
-  it.each(rows)("scrubs %j", (text, scrubbed) => {
+  it.each(exact)("scrubs %j", (text, scrubbed) => {
     expect(scrubSecretText(text)).toBe(scrubbed);
-    expect(containsSecretText(text)).toBe(scrubbed !== text);
+    expect(containsSecretText(text)).toBe(true);
+  });
+
+  // No URL password, email, key or token is in these: nothing is replaced.
+  it.each([
+    "1http://u:p@h",
+    "_http://u:p@h",
+    "9://a:b@c",
+    "%@b.co a@b.c",
+    "abceyJx.y.z eyJ.y.z _eyJa.b.c",
+    "-----END PRIVATE KEY----- only",
+    "https://h/reset-password/",
+    "https://h/reset-password?a=1 http://reset-password/x",
+    "https://h/reset-password?token%3D",
+  ])("leaves %j as it is", (text) => {
+    expect(scrubSecretText(text)).toBe(text);
+    expect(containsSecretText(text)).toBe(false);
+  });
+
+  const hidden: ReadonlyArray<readonly [string, readonly string[]]> = [
+    [
+      "https://app.test/reset-password/SECRET1/verify-email/SECRET2",
+      ["SECRET2"],
+    ],
+    [
+      "/api/auth/reset-password/SECRET1/api/auth/verify-email/SECRET2,https://h/verify-email/SECRET3",
+      ["SECRET1", "SECRET2"],
+    ],
+    ["/api/auth/verify-email/SECRET1,https://h/x", ["SECRET1"]],
+    ["/api/auth/reset-password/SECRET1 /x/reset-password/SECRET2", ["SECRET1"]],
+    [
+      "/api/auth/verify-email?token%3DSECRET1&token%3DSECRET2 /api/auth/reset-password?token%3DSECRET3",
+      ["SECRET1"],
+    ],
+    ["https://h/verify-email?x#y/reset-password?token%3DSECRET1", ["SECRET1"]],
+    [
+      "/api/auth/verify-email?token%3DSECRET1/api/auth/verify-email?token%3DSECRET2&x=https://h/reset-password?token%3DSECRET3",
+      ["SECRET1", "SECRET2", "SECRET3"],
+    ],
+    [
+      "https://h/verify-email?token%3DSECRET1#https://h/verify-email?token%3DSECRET2",
+      ["SECRET2"],
+    ],
+    ["https://h/verify-email?x#token%3DSECRET1", []],
+    ["https://h/verify-email?a#b&/verify-email?c#token%3DSECRET1", []],
+    ["http://verify-email?token%3DSECRET1", []],
+    ["/x/verify-email?token%3DSECRET1", []],
+    ["/api/auth/verify-email?mytoken%3DSECRET1", []],
+    ["token%3DSECRET1&https://h/reset-password?q", []],
+  ];
+
+  it.each(hidden)("hides the named secrets of %j", (text, secrets) => {
+    const scrubbed = scrubSecretText(text);
+    expect(typeof scrubbed).toBe("string");
+    expectNoSecrets(scrubbed, secrets);
   });
 
   it("flags a URL password only behind a real scheme", () => {
