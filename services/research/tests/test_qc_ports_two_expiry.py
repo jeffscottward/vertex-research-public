@@ -17,7 +17,9 @@ from strategies.qc_ports import forms_other as fo
 from strategies.qc_ports import options as om
 from strategies.qc_ports import portfolio as pf
 from strategies.qc_ports.data import Market
+from strategies.qc_ports.ledger import run_ledger
 from tests.qc_ports_synthetic import VIX_FOR_20, flat_model, trading_days
+from tests.qc_ports_synthetic import market as vertical_market
 
 CALENDAR = {"structure": "callCalendar", "dte": {"target": 30, "min": 21}, "farDte": {"target": 60, "min": 45},
             "maxLossPct": 2}
@@ -365,9 +367,6 @@ def test_a_100_200_calendar_prices_its_legs_on_the_vix6m_point_too():
 
 
 def test_ledger_records_name_the_far_expiry_of_a_calendar_only():
-    from strategies.qc_ports.ledger import run_ledger
-    from tests.qc_ports_synthetic import market as vertical_market
-
     calendar = run([100.0] * COUNT).trades
     record = run_ledger(calendar, 100_000.0).trades[0]
     assert (record["structure"], record["expiry"], record["farExpiry"]) == ("callCalendar", NEAR, FAR)

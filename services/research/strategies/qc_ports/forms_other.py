@@ -513,11 +513,11 @@ def calendar_form(config: str) -> Form:
     block = CALENDAR_CONFIGS[config]
     near, far, delta = block["dte"]["target"], block["farDte"]["target"], block["strikeDelta"]
     key = "lib/long-calendar-spread" + ("" if config == "A" else f"-{config.lower()}")
-    return Form(key, "long-calendar-spread", f"Long calendar spread, config {config} ({near}/{far} days, delta {delta:g})",
-                "time decay", ("SPY",), always_on_after(0), None,
-                f"Keeps config {config}: short the {near}-day call at delta {delta:g}, long that strike {far} days out, "
-                f"opened while far IV <= {block['maxTermRatio']:g} x near IV. The owner exit rule replaces the debit "
-                "target; the put calendar and other underlyings (no IV term) are dropped.",
+    name = f"Long calendar spread, config {config} ({near}/{far} days, delta {delta:g})"
+    return Form(key, "long-calendar-spread", name, "time decay", ("SPY",), always_on_after(0), None,
+                f"Keeps config {config}: short the {near}-day call at delta {delta:g}, long that strike {far} days "
+                f"out, opened while far IV <= {block['maxTermRatio']:g} x near IV. The owner exit rule replaces the "
+                "debit target; the put calendar and other underlyings (no IV term) are dropped.",
                 {1: (block,)}, True)
 
 

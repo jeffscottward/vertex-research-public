@@ -207,7 +207,8 @@ def main() -> None:
         term_ids = sorted({index_id for term in IV_TERM.values() for index_id in term} - set(dataset.series))
         missing = [index_id for index_id in term_ids if not (args.data / f"{index_id}.csv").is_file()]
         if missing:
-            raise SystemExit(f"No {', '.join(missing)} in {args.data}: run research/backtests/options-forms/fetch_data.py")
+            raise SystemExit(f"No {', '.join(missing)} in {args.data}: "
+                             "run research/backtests/options-forms/fetch_data.py")
         dataset = dataclasses.replace(dataset, series={**dataset.series, **{
             index_id: load_series(index_id, args.data) for index_id in term_ids}})
     traded = {symbol for form in forms for symbol in form.symbols}

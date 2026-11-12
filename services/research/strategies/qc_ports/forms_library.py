@@ -23,8 +23,8 @@ from .forms import (
     always_on,
 )
 from .forms_orders import FORMS as ORDER_FORMS
-from .forms_other import FORMS as OTHER_FORMS
 from .forms_other import CALENDAR_VARIANTS, LEADER_CALL, LEADERS_BASELINE, leader_forms
+from .forms_other import FORMS as OTHER_FORMS
 from .forms_weights import FORMS as WEIGHT_FORMS
 
 __all__ = ["BASELINE_UNIVERSES", "LEADERS_BASELINE", "LIBRARY_SLUGS", "NOT_RUN", "STRATEGY_FORMS", "baseline_form",
