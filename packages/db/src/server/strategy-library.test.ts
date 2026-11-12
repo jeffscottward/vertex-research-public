@@ -303,6 +303,16 @@ describe("strategy fields", () => {
   it("derives slugs from names", () => {
     expect(slugifyStrategyName("Jump model (v2)")).toBe("jump-model-v2");
     expect(slugifyStrategyName("  Zero--DTE  ")).toBe("zero-dte");
+    expect(slugifyStrategyName("--- a --- b ---")).toBe("a-b");
+    // The cut at the length limit can leave one "-" at the end; it is removed.
+    expect(slugifyStrategyName(`${"a".repeat(79)} b`)).toBe("a".repeat(79));
+    // CodeQL js/polynomial-redos (alert 22): a long run of "-" is trimmed in linear time.
+    const started = performance.now();
+    expect(slugifyStrategyName(`${"-".repeat(1_000_000)}a`)).toBe("a");
+    expect(() => slugifyStrategyName("-".repeat(1_000_000))).toThrow(
+      /derive a slug/
+    );
+    expect(performance.now() - started).toBeLessThan(2000);
     return expect(() => slugifyStrategyName("—")).toThrow(/derive a slug/);
   });
 

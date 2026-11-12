@@ -158,6 +158,35 @@ const batch = (
   events: ClickLogEventInput[] = [clickEvent()]
 ): ClickLogRecordInput => ({ buildSha: "abc1234", events, tabId: TAB });
 
+// CodeQL js/polynomial-redos (alert 21): a long run with no "@" or no digit made the old EMAIL and
+// TOKEN patterns scan it again from every position.
+describe("click-log redaction in linear time", () => {
+  it.each([
+    ["no @", "!".repeat(400_000)],
+    ["no digit", "a".repeat(400_000)],
+    ["many @", "a@".repeat(200_000)],
+    ["digits and separators", "1,".repeat(200_000)],
+    ["email with a long domain", `a@${"b.".repeat(200_000)}`],
+  ])("redacts a hostile label (%s) within the time limit", (_name, text) => {
+    const started = performance.now();
+    redactClickText(text);
+    redactClickRoute(text);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  it("matches emails and tokens from the start of their run, as before", () => {
+    expect(redactClickText("mail a@b@c.de now")).toBe("mail a@[email] now");
+    expect(redactClickText("x@y.z,w@v.u")).toBe("[email]@v.u");
+    expect(redactClickText(`id ${"a".repeat(23)}7 ok`)).toBe(
+      "id [redacted] ok"
+    );
+    expect(redactClickText(`id ${"a".repeat(30)} ok`)).toBe(
+      `id ${"a".repeat(30)} ok`
+    );
+    expect(redactClickText(`k.${"b".repeat(23)}9`)).toBe("k.[redacted]");
+  });
+});
+
 describe("click log redaction", () => {
   it("replaces numbers, money, percents, emails and tokens, and never keeps typed values", () => {
     expect(redactClickText("Buy 1,250 AAPL @ $187.42")).toBe("Buy # AAPL @ #");

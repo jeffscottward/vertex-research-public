@@ -170,10 +170,204 @@ const isBasicCredential = (token: string): boolean => {
   return buffer === 0 && hasColon;
 };
 
+// Every detector below runs in time linear in the input length. A log line or a stored model text
+// may be attacker-shaped, so no pattern may start the same scan again from each position of one
+// long run (that is quadratic: a denial of service on the log path). The rules that keep this:
+// - a repeated class is never followed by an overlapping repeated class;
+// - a pattern that starts with a repeated class is anchored by a lookbehind to the start of the
+//   run of that class, so each run is scanned once;
+// - a detector that needs "X somewhere earlier" (URL tokens, PEM blocks) is a single left-to-right
+//   pass with state instead of a pattern that scans ahead from each candidate.
+
+const AUTH_URL_HINT = /reset-password|verify-email/i;
+const URL_RUN = /[^\s"'<>]+/g;
+const URL_SCHEME = /https?:\/\//gi;
+const AUTH_API_PREFIX = "/api/auth";
+const VERIFY_EMAIL_PATH = "/verify-email";
+const AUTH_PATH_MARKER =
+  /\/(?:reset-password|verify-email)(?=\/[^/?#\s<>"'])/gi;
+const AUTH_PATH_TOKEN = /[^/?#\s<>"']+/y;
+const AUTH_QUERY_MARKER = /\/(?:reset-password|verify-email)(?=[?&])/gi;
+const AUTH_QUERY_TOKEN = /\btoken(?:=|%3D)(?=[^&#\s"'<>])/gi;
+const AUTH_QUERY_VALUE = /[^&#\s"'<>]+/y;
+
+type Span = Readonly<{ end: number; start: number }>;
+// `start`: where the URL or /api/auth path that carries the secret begins; `from`: where the
+// secret begins.
+type Cut = Readonly<{ from: number; start: number }>;
+
+const spansOf = (pattern: RegExp, text: string): Span[] =>
+  Array.from(text.matchAll(pattern), (match) => ({
+    end: match.index + match[0].length,
+    start: match.index,
+  }));
+
+const followsApiAuth = (run: string, at: number): boolean =>
+  at >= AUTH_API_PREFIX.length &&
+  run.slice(at - AUTH_API_PREFIX.length, at).toLowerCase() === AUTH_API_PREFIX;
+
+// Replaces secrets in one run (text without white space, quotes or angle brackets), left to
+// right. `direct` are the secrets of /api/auth paths, in order. `last` is the secret of the last
+// marker in the run: an http(s) URL reaches up to that marker, so it is the one secret a URL
+// yields (`start` is the marker there). `secret` matches a secret at its first character.
+const cutSecrets = (
+  run: string,
+  direct: readonly Cut[],
+  last: Cut | undefined,
+  secret: RegExp
+): string => {
+  const schemes = spansOf(URL_SCHEME, run);
+  let out = "";
+  let copied = 0;
+  let nextDirect = 0;
+  let nextScheme = 0;
+  for (;;) {
+    while ((direct[nextDirect]?.start ?? copied) < copied) nextDirect += 1;
+    while ((schemes[nextScheme]?.start ?? copied) < copied) nextScheme += 1;
+    const scheme = schemes[nextScheme];
+    // A URL needs at least one character between "://" and the marker.
+    const urlStart =
+      last !== undefined && scheme !== undefined && scheme.end < last.start
+        ? scheme.start
+        : Number.POSITIVE_INFINITY;
+    const directCut = direct[nextDirect];
+    const cut =
+      directCut !== undefined && directCut.start < urlStart ? directCut : last;
+    if (
+      cut === undefined ||
+      (cut === last && urlStart === Number.POSITIVE_INFINITY)
+    )
+      break;
+    secret.lastIndex = cut.from;
+    secret.exec(run);
+    out += `${run.slice(copied, cut.from)}${REDACTED}`;
+    copied = secret.lastIndex;
+    if (cut === last) break;
+  }
+  return copied === 0 ? run : out + run.slice(copied);
+};
+
+// ".../reset-password/<token>" and ".../verify-email/<token>": the path segment after the marker.
+const scrubAuthPathTokens = (run: string): string => {
+  const markers = spansOf(AUTH_PATH_MARKER, run);
+  const lastMarker = markers.at(-1);
+  if (lastMarker === undefined) return run;
+  return cutSecrets(
+    run,
+    markers
+      .filter((marker) => followsApiAuth(run, marker.start))
+      .map((marker) => ({
+        from: marker.end + 1,
+        start: marker.start - AUTH_API_PREFIX.length,
+      })),
+    { from: lastMarker.end + 1, start: lastMarker.start },
+    AUTH_PATH_TOKEN
+  );
+};
+
+// ".../verify-email?...token=<value>" and ".../reset-password?...token=<value>": the first token
+// value in the query after the marker. A "#" ends the query; a marker with no token value before
+// the next "#" yields nothing. /api/auth carries a query token only on verify-email.
+const scrubAuthQueryTokens = (run: string): string => {
+  const tokens = spansOf(AUTH_QUERY_TOKEN, run);
+  if (tokens.length === 0) return run;
+  const direct: Cut[] = [];
+  let last: Cut | undefined;
+  let nextToken = 0;
+  let hash = -1;
+  for (const marker of spansOf(AUTH_QUERY_MARKER, run)) {
+    while ((tokens[nextToken]?.start ?? marker.end) < marker.end)
+      nextToken += 1;
+    const token = tokens[nextToken];
+    if (token === undefined) break;
+    if (hash < marker.end) {
+      const found = run.indexOf("#", marker.end);
+      hash = found === -1 ? Number.POSITIVE_INFINITY : found;
+    }
+    if (hash < token.start) continue;
+    last = { from: token.end, start: marker.start };
+    if (
+      followsApiAuth(run, marker.start) &&
+      run.slice(marker.start, marker.end).toLowerCase() === VERIFY_EMAIL_PATH
+    ) {
+      direct.push({
+        from: token.end,
+        start: marker.start - AUTH_API_PREFIX.length,
+      });
+    }
+  }
+  return cutSecrets(run, direct, last, AUTH_QUERY_VALUE);
+};
+
+const scrubAuthUrls = (input: string): string =>
+  AUTH_URL_HINT.test(input)
+    ? input.replace(URL_RUN, (run: string) =>
+        AUTH_URL_HINT.test(run)
+          ? scrubAuthQueryTokens(scrubAuthPathTokens(run))
+          : run
+      )
+    : input;
+
+// "scheme://user:password@". The first group is the whole run of scheme characters before "://";
+// the lookbehind lets a run be tried once. isUrlScheme then decides whether a scheme (a letter at
+// a word boundary, then scheme characters) ends that run.
+const URL_USERINFO = /(?<![a-z0-9+.-])([a-z0-9+.-]+):\/\/[^\s/@:]+:[^\s/@]+@/gi;
+const SCHEME_AFTER_PUNCTUATION = /[+.-][a-z]/i;
+
+const isUrlScheme = (run: string, before: string): boolean =>
+  (before !== "_" && /^[a-z]/i.test(run)) || SCHEME_AFTER_PUNCTUATION.test(run);
+
+const scrubUrlUserinfo = (input: string): string =>
+  input.replace(URL_USERINFO, (match: string, run: string, at: number) =>
+    isUrlScheme(run, input.charAt(at - 1)) ? `${run}://${REDACTED}@` : match
+  );
+
+const hasUrlUserinfo = (input: string): boolean => {
+  for (const match of input.matchAll(URL_USERINFO)) {
+    if (isUrlScheme(String(match[1]), input.charAt(match.index - 1)))
+      return true;
+  }
+  return false;
+};
+
+const PRIVATE_KEY_BEGIN = /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/g;
+const PRIVATE_KEY_END = /-----END (?:[A-Z0-9]+ )*PRIVATE KEY-----/g;
+
+// A PEM private key block becomes [REDACTED]; a block with no END line is cut to the end of the
+// text. One pass: each search continues where the last one stopped.
+const scrubPrivateKeys = (input: string): string => {
+  let out = "";
+  let copied = 0;
+  PRIVATE_KEY_BEGIN.lastIndex = 0;
+  for (
+    let begin = PRIVATE_KEY_BEGIN.exec(input);
+    begin !== null;
+    begin = PRIVATE_KEY_BEGIN.exec(input)
+  ) {
+    out += `${input.slice(copied, begin.index)}${REDACTED}`;
+    PRIVATE_KEY_END.lastIndex = PRIVATE_KEY_BEGIN.lastIndex;
+    if (PRIVATE_KEY_END.exec(input) === null) return out;
+    copied = PRIVATE_KEY_END.lastIndex;
+    PRIVATE_KEY_BEGIN.lastIndex = copied;
+  }
+  return copied === 0 ? input : out + input.slice(copied);
+};
+
+// An email address. The local part starts at the first letter, digit or "_" of its run; leading
+// punctuation stays in the text (first group).
+const EMAIL_ADDRESS =
+  /(?<![A-Z0-9._%+-])([.%+-]*)[A-Z0-9_][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+
+// A JWT ("eyJ" + three dot-separated segments). It starts at the first "eyJ" of its run that is at
+// the run start or after a "-"; the lookahead finds that place once and keeps the text before it
+// (first group).
+const JWT =
+  /(?<![A-Za-z0-9_-])(?=((?:[A-Za-z0-9_-]*?-)??)eyJ[A-Za-z0-9_-])\1eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
+
 const scrubString = (input: string): string => {
-  return input
+  const credentials = input
     .replace(
-      /(?<![A-Za-z0-9])(authorization)(["']?\s*[:=]\s*)("(?:Basic|Bearer)\s+[^"]*"|'(?:Basic|Bearer)\s+[^']*'|(?:Basic|Bearer)\s+[^\s,;]+)/gi,
+      /(?<![A-Za-z0-9])(authorization)(["']?\s*[:=]\s*)("(?:Basic|Bearer)\s[^"]*"|'(?:Basic|Bearer)\s[^']*'|(?:Basic|Bearer)\s+[^\s,;]+)/gi,
       (_match, label: string, separator: string, value: string) => {
         const quote =
           value.startsWith('"') || value.startsWith("'") ? value[0] : "";
@@ -185,15 +379,8 @@ const scrubString = (input: string): string => {
       /\bBasic\s+([A-Za-z0-9+/_-]+={0,2})(?![A-Za-z0-9+/_=-])/gi,
       (match: string, token: string) =>
         isBasicCredential(token) ? `Basic ${REDACTED}` : match
-    )
-    .replace(
-      /((?:\/api\/auth\/(?:reset-password|verify-email)|https?:\/\/[^\s"'<>]+\/(?:reset-password|verify-email))\/)[^/?#\s<>"']+/gi,
-      (_match, prefix: string) => `${prefix}${REDACTED}`
-    )
-    .replace(
-      /((?:\/api\/auth\/verify-email|https?:\/\/[^\s"'<>]+\/(?:reset-password|verify-email))[?&](?:amp;)?[^#\s"'<>]*?\btoken(?:=|%3D))[^&#\s"'<>]+/gi,
-      (_match, prefix: string) => `${prefix}${REDACTED}`
-    )
+    );
+  const fields = scrubAuthUrls(credentials)
     .replace(
       /(?<![A-Za-z0-9_.-])(?=(?:[A-Za-z0-9_.-]{0,127}(?:token|secret|api[_.-]?key|access[_.-]?key|hmac[_.-]?key|password|passwd|passcode|passphrase|private[_.-]?key|address|birthdate|dateofbirth|postalcode|zipcode|providerpayload|providerrequest|providerresponse)[A-Za-z0-9_.-]*|authorization|body|cookie|dob|email(?:body|html|text)?|headers|phone|prompt|completion|requestbody|responsebody|reseturl|setcookie)["']?\s*[:=])([A-Za-z0-9_.-]{1,128})(["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;&]+)/gi,
       (_match: string, label: string, separator: string, value: string) => {
@@ -209,21 +396,10 @@ const scrubString = (input: string): string => {
           value.startsWith('"') || value.startsWith("'") ? value[0] : "";
         return `${label}${separator}${quote}${REDACTED}${quote}`;
       }
-    )
-    .replace(
-      /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi,
-      (_match, scheme: string) => `${scheme}${REDACTED}@`
-    )
-    .replace(
-      /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9]+ )*PRIVATE KEY-----/g,
-      REDACTED
-    )
-    .replace(/-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----[\s\S]*/g, REDACTED)
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, REDACTED)
-    .replace(
-      /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
-      REDACTED
     );
+  return scrubPrivateKeys(scrubUrlUserinfo(fields))
+    .replace(EMAIL_ADDRESS, `$1${REDACTED}`)
+    .replace(JWT, `$1${REDACTED}`);
 };
 
 // Free text (for example model output stored by a feature) with every detected secret or personal
@@ -235,7 +411,7 @@ export const scrubSecretText = (input: string): string => scrubString(input);
 export const containsCredential = (input: string): boolean =>
   /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/u.test(input) ||
   /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/iu.test(input) ||
-  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@:]+:[^\s/@]+@/iu.test(input) ||
+  hasUrlUserinfo(input) ||
   [
     ...input.matchAll(
       /\bBasic\s+([A-Za-z0-9+/_-]+={0,2})(?![A-Za-z0-9+/_=-])/giu

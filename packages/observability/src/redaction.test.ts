@@ -57,6 +57,181 @@ describe("free-text secret detection", () => {
   });
 });
 
+// CodeQL js/polynomial-redos (alert 23). Each input makes one detector of the old patterns scan
+// the same long run again from every position: from 2.5 seconds to minutes at these sizes. A
+// linear scan needs a few milliseconds, so the limit is far from both.
+describe("free-text scrubbing in linear time", () => {
+  const SIZE = 400_000;
+  const LIMIT_MS = 2000;
+  // The old URL patterns were the slowest (77 s at 60,000 characters), so those inputs are
+  // shorter: a regression fails in seconds instead of blocking the run for hours.
+  const URL_SIZE = 20_000;
+  const repeated = (unit: string, size = SIZE): string =>
+    unit.repeat(Math.ceil(size / unit.length));
+  const hostile: ReadonlyArray<readonly [string, string]> = [
+    ["quoted Basic value, tabs", `authorization:"Basic${repeated("\t")}`],
+    ["quoted Bearer value, tabs", `authorization='Bearer${repeated("\t")}`],
+    [
+      "URL starts before a path marker",
+      repeated("http://a/reset-password?", URL_SIZE),
+    ],
+    [
+      "URL starts before a query marker",
+      repeated("http://a/verify-email?x", URL_SIZE),
+    ],
+    ["query markers with no token", repeated("/api/auth/verify-email?")],
+    ["query markers and tokens", repeated("/verify-email?token%3D")],
+    ["path markers", repeated("/reset-password/x")],
+    ["scheme characters with no ://", repeated("a.")],
+    [
+      "private key headers with no END",
+      repeated("-----BEGIN PRIVATE KEY-----"),
+    ],
+    ["JWT starts", repeated("eyJ-")],
+    ["email local part with no @", repeated("a%")],
+    ["email domain with no top-level name", `a@${repeated("b.b9")}`],
+    ["one long field label", repeated("token")],
+    ["field label, spaces", `password${repeated(" ")}`],
+  ];
+
+  it.each(hostile)("scrubs %s within the time limit", (_name, text) => {
+    const started = performance.now();
+    scrubSecretText(text);
+    containsSecretText(text);
+    containsCredential(text);
+    expect(performance.now() - started).toBeLessThan(LIMIT_MS);
+  });
+
+  it("keeps the bounded log path fast for a hostile string value", () => {
+    const started = performance.now();
+    for (let index = 0; index < 200; index += 1)
+      redact({ note: `authorization:"Basic${"\t".repeat(2000)}` });
+    expect(performance.now() - started).toBeLessThan(LIMIT_MS);
+  });
+});
+
+// The linear detectors must replace exactly what the old patterns replaced. Each row was checked
+// against the old implementation (and 7 million random inputs gave no difference).
+describe("free-text scrubbing rules", () => {
+  const R = REDACTED;
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    // scheme://user:password@ : the scheme starts at a letter on a word boundary.
+    ["+http://u:p@h", `+http://${R}@h`],
+    ["1http://u:p@h", "1http://u:p@h"],
+    ["_http://u:p@h", "_http://u:p@h"],
+    ["_x.http://u:p@h", `_x.http://${R}@h`],
+    [
+      "see postgres://user:pw@db.test/x and 9://a:b@c",
+      `see postgres://${R}@db.test/x and 9://a:b@c`,
+    ],
+    // Email: leading punctuation of the run stays.
+    ["..a@b.co x..a@b.co %@b.co a@b.c", `..${R} ${R} %@b.co a@b.c`],
+    // JWT: starts at "eyJ" at the run start or after "-".
+    [
+      "abc-eyJx.y.z abceyJx.y.z abc.eyJx.y.z eyJ.y.z eyJa.b.c- _eyJa.b.c",
+      `abc-${R} abceyJx.y.z abc.${R} eyJ.y.z ${R}- _eyJa.b.c`,
+    ],
+    // PEM private keys: closed blocks one by one; an open block to the end of the text.
+    [
+      "k1 -----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY----- mid -----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY----- end",
+      `k1 ${R} mid ${R} end`,
+    ],
+    [
+      "a -----BEGIN PRIVATE KEY-----\nabc -----BEGIN EC PRIVATE KEY----- tail",
+      `a ${R}`,
+    ],
+    ["-----END PRIVATE KEY----- only", "-----END PRIVATE KEY----- only"],
+    // Quoted authorization values.
+    [
+      "authorization: \"Basic \t x\" authorization='Bearer  y'",
+      `authorization: "${R}" authorization='${R}'`,
+    ],
+    // Path tokens: /api/auth paths one by one; an http(s) URL up to its last marker.
+    [
+      "/api/auth/reset-password/T1 /api/auth/verify-email/T2 /x/reset-password/T3",
+      `/api/auth/reset-password/${R} /api/auth/verify-email/${R} /x/reset-password/T3`,
+    ],
+    [
+      "https://app.test/reset-password/T1/verify-email/T2",
+      `https://app.test/reset-password/T1/verify-email/${R}`,
+    ],
+    [
+      "/api/auth/verify-email/T1/api/auth/reset-password/T2",
+      `/api/auth/verify-email/${R}/api/auth/reset-password/${R}`,
+    ],
+    [
+      "/api/auth/reset-password/T1/api/auth/verify-email/T2,https://h/verify-email/T3",
+      `/api/auth/reset-password/${R}/api/auth/verify-email/${R}//h/verify-email/T3`,
+    ],
+    [
+      "/api/auth/verify-email/T1,https://h/x",
+      `/api/auth/verify-email/${R}//h/x`,
+    ],
+    ["https://h/reset-password/", "https://h/reset-password/"],
+    [
+      "https://h/reset-password?a=1 http://reset-password/x",
+      "https://h/reset-password?a=1 http://reset-password/x",
+    ],
+    // Query tokens ("%3D" keeps the field-label rule out of these rows).
+    [
+      "https://h/verify-email?a=1&amp;token%3DT1&b=2",
+      `https://h/verify-email?a=1&amp;token%3D${R}&b=2`,
+    ],
+    [
+      "/api/auth/verify-email?token%3DT1&token%3DT2 /api/auth/reset-password?token%3DT3",
+      `/api/auth/verify-email?token%3D${R}&token%3DT2 /api/auth/reset-password?token%3DT3`,
+    ],
+    [
+      "https://h/verify-email?x#token%3DT1",
+      "https://h/verify-email?x#token%3DT1",
+    ],
+    [
+      "https://h/verify-email?x#y/reset-password?token%3DT2",
+      `https://h/verify-email?x#y/reset-password?token%3D${R}`,
+    ],
+    [
+      "/api/auth/verify-email?token%3DT1/api/auth/verify-email?token%3DT2&x=https://h/reset-password?token%3DT3",
+      `/api/auth/verify-email?token%3D${R}&x=https://h/reset-password?token%3D${R}`,
+    ],
+    [
+      "/api/auth/verify-email?token%3DT1#/verify-email?z",
+      `/api/auth/verify-email?token%3D${R}#/verify-email?z`,
+    ],
+    ["http://verify-email?token%3DT1", "http://verify-email?token%3DT1"],
+    ["/x/verify-email?token%3DT1", "/x/verify-email?token%3DT1"],
+    [
+      "/api/auth/verify-email?mytoken%3DT1",
+      "/api/auth/verify-email?mytoken%3DT1",
+    ],
+    [
+      "token%3DT0&https://h/reset-password?q",
+      "token%3DT0&https://h/reset-password?q",
+    ],
+    ["https://h/reset-password?token%3D", "https://h/reset-password?token%3D"],
+    [
+      "https://h/verify-email?a#b&/verify-email?c#token%3DT1",
+      "https://h/verify-email?a#b&/verify-email?c#token%3DT1",
+    ],
+    [
+      "https://h/verify-email?token%3DT1#https://h/verify-email?token%3DT2",
+      `https://h/verify-email?token%3DT1#https://h/verify-email?token%3D${R}`,
+    ],
+    ["https://h/verify-email?token=T1", `https://h/verify-email?token=${R}`],
+  ];
+
+  it.each(rows)("scrubs %j", (text, scrubbed) => {
+    expect(scrubSecretText(text)).toBe(scrubbed);
+    expect(containsSecretText(text)).toBe(scrubbed !== text);
+  });
+
+  it("flags a URL password only behind a real scheme", () => {
+    expect(containsCredential("+http://u:p@h")).toBe(true);
+    expect(containsCredential("_x.http://u:p@h")).toBe(true);
+    expect(containsCredential("1http://u:p@h and _http://u:p@h")).toBe(false);
+    expect(containsCredential("9://a:b@c then ftp://u:p@h")).toBe(true);
+  });
+});
+
 describe("credential detection", () => {
   it("flags only high-precision credentials", () => {
     expect(
