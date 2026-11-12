@@ -14,6 +14,10 @@ Rules:
   on one close: expiry, stale-iv, exitDte, profit-take, signal, end of data.
 - Expiry: the standard monthly expiration whose calendar DTE is nearest
   dte.target among those with DTE >= dte.min (ties -> the earlier one).
+- Bar keys: a daily bar ("2024-03-15") stands for its close. An intraday bar
+  ("2024-03-15T10:35", the New York time it closes) is priced with the part of
+  the day left until the 16:00 close added to its calendar DTE, so expiry and
+  exitDte are reached at the 16:00 bar of their day (calendar.day_left).
 - Strikes on the grid (options.strike_step): the anchor leg is the strike whose
   |delta| is nearest the target (debit: long leg at longDelta, default 0.5;
   credit: short leg at shortDelta, default 0.25; ties -> nearer the spot, then
@@ -46,7 +50,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from . import options as om
-from .calendar import TradingCalendar, expirations_after, parse
+from .calendar import TradingCalendar, day_left, expirations_after, parse
 from .data import IV_INDEX, Market
 
 __all__ = [
@@ -305,7 +309,7 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
     expiry = choose_expiry(entry_day, spec.dte_target, spec.dte_min, calendar)
     if expiry is None:
         return "no expiry"
-    dte = (expiry - entry_day).days
+    dte = (expiry - entry_day).days + day_left(market.dates[entry])
     if spec.exit_dte is not None and dte <= spec.exit_dte:
         return "exitDte at entry"
     index_id = IV_INDEX[market.symbol]
@@ -333,7 +337,7 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
         level = market.iv_index[bar] if market.iv_index[bar] is not None else level
         rate = market.rate[bar] if market.rate[bar] is not None else rate
         stale += market.iv_index[bar] is None or market.rate[bar] is None
-        days_left = (expiry - day).days
+        days_left = (expiry - day).days + day_left(market.dates[bar])
         pricing = _Pricing(market.close[bar], max(0, days_left) / DAYS_PER_YEAR, rate, q, om.atm_iv(index_id, level), slope)
         long_mid, short_mid = spread_legs(pricing, right, long_strike, short_strike)
         value = instrument_value(kind, long_mid, short_mid, width)
