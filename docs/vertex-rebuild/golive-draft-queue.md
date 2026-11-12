@@ -8,8 +8,20 @@ The queue stores decisions. It sends nothing.
 
 - The API has four procedures: `goLiveDrafts.queue`, `goLiveDrafts.collect`, `goLiveDrafts.approve` and `goLiveDrafts.reject`. There is no send route.
 - The service (`packages/api/src/server/golive-drafts.ts`), its sizing rules (`golive-drafts-sizing.ts`) and the store (`packages/db/src/server/golive-drafts.ts`) import no order route, no order gateway and no confirm module. A test reads the three sources. It fails on such an import, on a dynamic `import(...)`, on a module name written as a template literal, and on a name of the order path (`vertexOrders`, `orderGateway`, `orderBridge`, `confirmToken`). The test reads these three files only, not the files they import.
-- An approval is a stored owner decision: the exact order that was approved (`approvedOrder`) and the node badge read at that moment. The owner places an approved order through the existing order screen: the "Vertex orders" tab of the Portfolio page (`/portfolio`).
+- An approval is a stored owner decision: the exact order that was approved (`approvedOrder`) and the node badge read at that moment. No Vertex screen can place it on the live account today (see "Placing an approved order").
 - Every queue answer carries `sendsOrders: false`.
+
+## Placing an approved order
+
+No Vertex screen can open a vertical spread on the live account today.
+
+- The order screen is the "Vertex orders" tab of the Portfolio page (`/portfolio`). Its vertical ticket is shown only in simulated mode (`apps/web/src/components/portal/vertex-orders.tsx`). In live mode the tab takes single option orders only (buy to open, sell to close).
+- The API behind that screen does accept a defined-risk opening vertical on the live gateway (`vertexOrders.comboPreview` and `comboSubmit` in `packages/api/src/server/vertex-orders.ts`): owner session, one-use confirm token, final order gate, kill switch, 2% max loss. No screen calls it in live mode, and the draft queue does not call it.
+- Production runs live mode. So an approved draft is not placed through Vertex. Placing a vertical by hand at IBKR is outside Vertex and its checks.
+
+The page says this in its notice. A test reads the source of the order screen and fails when the vertical ticket is offered in live mode, so the notice is rewritten in the same change.
+
+A send route for drafts is a later unit. It needs its own flag, the arm check named under "Node badge and the arm state", a live IBKR quote and the owner's approval of the exact order.
 
 ## Access
 
@@ -244,7 +256,7 @@ Limits:
 - Held positions are not read: the order is checked as a new position.
 - The kill switch and the OPTIONS_ONLY setting are not read here. The order screen checks them when an order is sent.
 
-The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so the real order review in the "Vertex orders" tab of the Portfolio page (`/portfolio`) can still refuse an order that the pre-check allowed.
+The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so a real order review can still refuse an order that the pre-check allowed. No screen sends a vertical on the live account today (see "Placing an approved order"). The pre-check is not a clearance to send.
 
 `preCheck.enginePolicy` is always `not_evaluated_not_in_web_order_path`: the engine policy (`arm_gate.py`) is not part of the web order path.
 

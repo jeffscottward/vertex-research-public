@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import {
   AGENT_OPS_API_ERRORS,
   GOLIVE_DRAFT_STATE_VALUES,
@@ -74,8 +74,6 @@ import {
   noLiveQuoteReason,
   noteText,
   notKnownText,
-  ORDER_TICKET_TAB_LABEL,
-  ORDER_TICKET_TAB_VALUE,
   OTHER_GROUP_TITLE,
   OWNER_ONLY_DECISION_TEXT,
   orderLegLines,
@@ -100,6 +98,8 @@ import {
   staleDialogReason,
   strikesText,
   structureText,
+  VERTEX_ORDERS_TAB_LABEL,
+  VERTEX_ORDERS_TAB_VALUE,
 } from "./golive-draft-queue-model.ts";
 
 // 2026-11-11 is in standard time: 15:30Z is 10:30 in New York.
@@ -322,28 +322,46 @@ describe("wording maps", () => {
         "Proposal to close: open winner, 15:45 ET on expiry day",
     });
     expect(NO_ORDERS_NOTICE).toBe(
-      "This page sends no orders. Approve records your decision and places nothing. To place an order yourself, open Portfolio and use the Vertex orders tab."
+      "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
+    // The notice never tells the owner to place an approved vertical on a Vertex screen.
+    expect(NO_ORDERS_NOTICE).not.toMatch(/to place|use the|yourself/iu);
     expect(NO_ORDERS_NOTICE_PARTS.link).toBe("Portfolio");
     expect(PORTFOLIO_HREF).toBe("/portfolio?tab=orders");
+    expect(APPROVAL_NOT_SENT_SENTENCE).toBe(
+      "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today."
+    );
   });
 
-  it("names the Portfolio tab that holds the order ticket, as portfolio-tabs.tsx defines it", () => {
-    // The tab list is not exported, so the source is read: a renamed tab fails here.
-    const source = readFileSync(
-      new URL("portfolio-tabs.tsx", import.meta.url),
-      "utf8"
+  it("pins the facts behind the notice: the vertical ticket is mounted in simulated mode only, on the Vertex orders tab", () => {
+    // Read from the sources. When someone lets a Vertex screen open a vertical on the live
+    // account, or renames the tab, this fails and the notice must be rewritten.
+    const portal = new URL("./", import.meta.url);
+    const read = (name: string): string =>
+      readFileSync(new URL(name, portal), "utf8");
+    const mounts = readdirSync(portal)
+      .filter((name) => /\.tsx$/u.test(name) && !/\.test\.tsx$/u.test(name))
+      .flatMap((name) =>
+        (read(name).match(/<VerticalTicket\b/gu) ?? []).map(() => name)
+      );
+    // (a) The one mount of the vertical ticket sits inside a `mode === "simulated"` condition.
+    expect(mounts).toEqual(["vertex-orders.tsx"]);
+    expect(read("vertex-orders.tsx")).toMatch(
+      /\{\s*status\?\.gates\.mode === "simulated" \? \(\s*<VerticalTicket\b[^>]*\/>\s*\) : null\s*\}/u
     );
+    // (b) The tab that holds that screen is still "orders" / "Vertex orders".
     const tab =
       /value: "([^"]+)",\s*label: "([^"]+)",\s*content: <VertexOrders\b/u.exec(
-        source
+        read("portfolio-tabs.tsx")
       );
-    expect(tab?.[1]).toBe(ORDER_TICKET_TAB_VALUE);
-    expect(tab?.[2]).toBe(ORDER_TICKET_TAB_LABEL);
-    expect(ORDER_TICKET_TAB_LABEL).toBe("Vertex orders");
-    expect(NO_ORDERS_NOTICE).toContain(`the ${ORDER_TICKET_TAB_LABEL} tab`);
+    expect(tab?.[1]).toBe(VERTEX_ORDERS_TAB_VALUE);
+    expect(tab?.[2]).toBe(VERTEX_ORDERS_TAB_LABEL);
+    expect(VERTEX_ORDERS_TAB_LABEL).toBe("Vertex orders");
+    expect(NO_ORDERS_NOTICE).toContain(
+      `(Portfolio, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket`
+    );
     expect(NO_ORDERS_NOTICE).not.toContain("Orders & stops");
-    expect(PORTFOLIO_HREF).toBe(`/portfolio?tab=${ORDER_TICKET_TAB_VALUE}`);
+    expect(PORTFOLIO_HREF).toBe(`/portfolio?tab=${VERTEX_ORDERS_TAB_VALUE}`);
     expect(MARKET_NOTES_WORDS).toEqual({
       attached: "Market notes: attached to the drafts",
       feature_not_deployed: "Market notes: the feature is not deployed",

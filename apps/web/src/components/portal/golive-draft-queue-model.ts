@@ -73,21 +73,24 @@ const wordsOf = <Key extends string>(
 
 // ---------- fixed sentences ----------
 
-// The order ticket is the "Vertex orders" tab of the Portfolio page (portfolio-tabs.tsx, tab value
-// "orders"); ?tab= opens it directly. "Orders & stops" is only the table of open orders.
-export const ORDER_TICKET_TAB_VALUE = "orders";
-export const ORDER_TICKET_TAB_LABEL = "Vertex orders";
-export const PORTFOLIO_HREF = `/portfolio?tab=${ORDER_TICKET_TAB_VALUE}`;
+// The live order screen is the "Vertex orders" tab of the Portfolio page (portfolio-tabs.tsx, tab
+// value "orders"); ?tab= opens it directly. That screen mounts the vertical ticket in simulated
+// mode only (vertex-orders.tsx), so on the live account no Vertex screen opens a vertical spread:
+// the notice must not point the owner there to place an approved draft. The model test reads both
+// sources and fails when either fact changes; the notice is then rewritten.
+export const VERTEX_ORDERS_TAB_VALUE = "orders";
+export const VERTEX_ORDERS_TAB_LABEL = "Vertex orders";
+export const PORTFOLIO_HREF = `/portfolio?tab=${VERTEX_ORDERS_TAB_VALUE}`;
 // The notice in three parts, so the page can make the page name a link to that tab.
 export const NO_ORDERS_NOTICE_PARTS = Object.freeze({
-  after: ` and use the ${ORDER_TICKET_TAB_LABEL} tab.`,
+  after: `, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks.`,
   before:
-    "This page sends no orders. Approve records your decision and places nothing. To place an order yourself, open ",
+    "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (",
   link: "Portfolio",
 });
 export const NO_ORDERS_NOTICE = `${NO_ORDERS_NOTICE_PARTS.before}${NO_ORDERS_NOTICE_PARTS.link}${NO_ORDERS_NOTICE_PARTS.after}`;
 export const APPROVAL_NOT_SENT_SENTENCE =
-  "This records your approval. It does not send the order.";
+  "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today.";
 export const REJECTION_RECORD_SENTENCE =
   "This records your rejection with the note. It changes no order.";
 export const NODE_DISARMED_NOTE =
@@ -793,7 +796,7 @@ export const approveBlockers = (
     : reasons;
 };
 
-/** One line per leg of the exact order, as the owner would place it. */
+/** One line per leg of the exact order, as the dialog repeats it and the approval stores it. */
 export const orderLegLines = (order: GoLiveOrder): readonly string[] =>
   order.legs.map(
     (leg) =>

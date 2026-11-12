@@ -504,7 +504,10 @@ describe("GoLiveDraftQueue", () => {
       2
     );
     expect(container.querySelectorAll("[data-golive-group]")).toHaveLength(2);
-    expect(container.textContent).not.toMatch(/\btoday\b/iu);
+    // The session day is never called "today" in the plan, the status row or the drafts. (The
+    // notice says "today" about the live order screen, which is about the present day.)
+    for (const part of container.querySelectorAll("section"))
+      expect(part.textContent).not.toMatch(/\btoday\b/iu);
   });
 
   it("shows a plan approved by delegation with both links, its limits and sleeves", async () => {
@@ -743,7 +746,7 @@ describe("GoLiveDraftQueue", () => {
     expect(order).toContain("Limit$2.35 debit per spread");
     expect(order).toContain("Max loss$470.00 (0.47% of account)");
     expect(one(dialog, "[data-golive-not-sent]").textContent).toBe(
-      APPROVAL_NOT_SENT_SENTENCE
+      "This records your approval. It does not send the order. No Vertex screen can open a vertical spread on the live account today."
     );
     expect(dialog.querySelector("textarea")).toBeNull();
     expect(gateway.approve).not.toHaveBeenCalled();
@@ -939,13 +942,16 @@ describe("GoLiveDraftQueue", () => {
     );
   });
 
-  it("links the notice to the Vertex orders tab of the Portfolio page", async () => {
+  it("says no Vertex screen can open a vertical on the live account, and links the live order screen", async () => {
     const container = await mount(gatewayOf(queue()));
     const notice = one(container, "[data-golive-notice]");
     expect(notice.textContent).toBe(NO_ORDERS_NOTICE);
-    expect(notice.textContent).toContain("use the Vertex orders tab");
+    expect(notice.textContent).toBe(
+      "This page sends no orders. Approve records your decision and places nothing. No Vertex screen can open a vertical spread on the live account today: the live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+    );
+    // The owner is not told to place an approved vertical on a Vertex screen.
+    expect(notice.textContent).not.toMatch(/to place|use the|yourself/iu);
     expect(notice.textContent).not.toContain("Orders & stops");
-    expect(notice.textContent).not.toContain("Portfolio > Orders");
     const link = one(notice, "a");
     expect(link.textContent).toBe("Portfolio");
     expect(link.getAttribute("href")).toBe("/portfolio?tab=orders");

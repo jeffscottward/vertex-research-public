@@ -87,8 +87,9 @@ import {
 // Go-live order draft queue (/drafts): the allocation plan in force, the state of the account,
 // node and generator, and the order drafts of the order session day. The owner approves or
 // rejects each draft. The page has no polling: it says when it was loaded and has a Reload button.
-// RECORDS ONLY: goLiveDrafts has no send route. An approval is a stored decision; the owner
-// places an order through the Vertex orders tab of /portfolio.
+// RECORDS ONLY: goLiveDrafts has no send route. An approval is a stored decision and nothing
+// more. No Vertex screen opens a vertical spread on the live account: the live order screen (the
+// Vertex orders tab of /portfolio) has no vertical ticket. The notice on the page says so.
 
 export interface GoLiveDraftsGateway {
   readonly approve: (
