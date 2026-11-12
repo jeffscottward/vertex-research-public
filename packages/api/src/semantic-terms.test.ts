@@ -1199,6 +1199,33 @@ describe("answerTerm", () => {
       });
     });
 
+    it("marks the failed grouping, not its position among the certified ones, when an uncertified grouping comes first", async () => {
+      const repository = repositoryMock();
+      repository.term.mockResolvedValue({
+        attributes: [
+          { ...perStrategy, ...certification(false) },
+          { ...perRunSpec, ...certification(true) },
+        ],
+        term: sharpeTerm,
+      });
+      repository.runAttribute.mockResolvedValueOnce({
+        failure: "timeout",
+        message: "The query ran past 5 s.",
+        query: "ran run-spec sql",
+        status: "failed",
+      });
+      const output = await answer({ term: "backtest_sharpe" }, repository);
+      // Only the certified run-spec SQL ran; it is the first result but the second grouping.
+      expect(repository.runAttribute).toHaveBeenCalledTimes(1);
+      expect(
+        output.groupings.map(({ grain, status }) => [grain, status])
+      ).toEqual([
+        ["strategy", "not_certified"],
+        ["run_spec", "unknown"],
+      ]);
+      expect(output).toMatchObject({ rows: [], status: "unknown" });
+    });
+
     it("caps the combined rows at the query limit and marks them truncated", async () => {
       const repository = sharpeRepository(true);
       const many = (count: number) =>
