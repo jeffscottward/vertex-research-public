@@ -129,7 +129,9 @@ Result (SPY, 2008-01-02 to 2026-11-10; Sharpe of the daily equity, not per cycle
 
 This agrees with the modeled verdict above for A (fails on SPY) and keeps config C as the one result that holds
 up: with a real IV term structure, listed expiries and the owner exit rule it still earns on SPY in this model,
-but it does not pass the study gate. It stays research. The model limits above still apply (no real quotes,
+but it does not pass the study gate. This run is SPY only (the only underlying with an IV term), so it cannot
+give the verdict of the pass rule above (one config on at least 3 of the 4 underlyings); that verdict stays FAIL.
+It stays research. The model limits above still apply (no real quotes,
 index-based IV, 2008-2026 mostly rising); a test on historical option chains would be the next step.
 
 ## The reel's numbers (SOXL, quotes at the 2026-11-06 close)
