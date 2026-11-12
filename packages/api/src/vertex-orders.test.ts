@@ -620,6 +620,136 @@ describe("vertexOrders procedures", () => {
     );
   });
 
+  it("covers the go-live gate's failure paths: store, node, intent read, audit release, second token", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>(async () => ({
+      message: "ok",
+      permId: 80,
+      state: "submitted",
+    }));
+    const spread: VertexComboInput = {
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    };
+    const draftRow = (id: string, state: string) => ({
+      approvedOrder: state === "approved" ? spread : null,
+      expiry: "20280121",
+      id,
+      kind: "entry",
+      longStrike: 100,
+      planId: "pie",
+      shortStrike: 105,
+      state,
+      structure: "callDebitVertical",
+      symbol: "MOCKS",
+      tradingDay: "2026-11-13",
+    });
+    const goLiveDrafts = {
+      listDrafts: async () => [
+        draftRow("d-2", "approved"),
+        draftRow("d-3", "proposed"),
+      ],
+      planInForce: async () => ({
+        id: "pie",
+        limits: {
+          maxPositions: 4,
+          nameRiskCapPct: 2,
+          openRiskCapPct: 4,
+          positionRiskPct: 1,
+        },
+        sleeves: [{ symbols: ["MOCKS"] }],
+        status: "approved",
+      }),
+    };
+    const base = {
+      goLiveSendEnabled: true,
+      mock: {
+        ...mock,
+        account: async () => ({
+          ...(await mock.account()),
+          openOrders: [],
+          positions: [],
+        }),
+        placeCombo,
+      },
+      now: () => clock,
+    };
+    const preview = (client: ReturnType<typeof clientFor>) =>
+      client.vertexOrders.comboPreview({ ...spread, goLiveDraftId: "d-2" });
+    const submit = (client: ReturnType<typeof clientFor>, token: string) =>
+      client.vertexOrders.comboSubmit({
+        confirm: true,
+        confirmToken: token,
+        goLiveDraftId: "d-2",
+        order: spread,
+      });
+
+    // The store cannot be read; the node reader is the default (no node answers here).
+    setVertexOrdersDependenciesForTesting(base);
+    const broken = clientFor({
+      goLiveDrafts: {
+        listDrafts: () => Promise.reject(new Error("db down")),
+        planInForce: async () => null,
+      },
+    });
+    expect((await preview(broken)).review.reasons).toContain(
+      "GO-LIVE STORE_UNAVAILABLE: the go-live drafts could not be read"
+    );
+    const noNode = clientFor({ goLiveDrafts });
+    expect((await preview(noNode)).review.reasons).toEqual([
+      expect.stringMatching(/^GO-LIVE ENGINE_DISARMED: /u),
+    ]);
+
+    setVertexOrdersDependenciesForTesting({
+      ...base,
+      goLiveNode: async () => ({
+        arm: null,
+        badge: "running-armed",
+        checkedAt: "T",
+      }),
+    });
+    // The intent store cannot answer: the draft counts as already sent.
+    const { store } = intentStore();
+    const unsure = clientFor({
+      goLiveDrafts,
+      intents: { ...store, hasIntent: () => Promise.reject(new Error("x")) },
+    });
+    expect((await preview(unsure)).review.reasons).toContain(
+      "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+    );
+
+    // The audit sink is down at submit: nothing is sent and the reservation is freed.
+    const first = await preview(clientFor({ goLiveDrafts, intents: store }));
+    await expectCode(
+      submit(
+        clientFor({ events: null, goLiveDrafts, intents: store }),
+        first.confirmToken ?? ""
+      ),
+      "AUDIT_UNAVAILABLE",
+      503
+    );
+    expect(placeCombo).not.toHaveBeenCalled();
+
+    // Two tokens for the same draft: the first sends, the second is refused at submit.
+    const client = clientFor({ goLiveDrafts, intents: store });
+    const a = await preview(client);
+    const b = await preview(client);
+    expect(await submit(client, a.confirmToken ?? "")).toMatchObject({
+      state: "submitted",
+    });
+    await expectCode(
+      submit(client, b.confirmToken ?? ""),
+      "ORDER_REJECTED",
+      422
+    );
+    expect(placeCombo).toHaveBeenCalledTimes(1);
+  });
+
   it("refuses every go-live send by name while sends are off (the default)", async () => {
     clock = new Date("2026-11-13T15:00:00.000Z");
     const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>();

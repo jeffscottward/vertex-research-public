@@ -651,8 +651,8 @@ const DecisionDialog = ({
   const order = decision.type === "approve" ? decision.order : null;
   const needsTick =
     decision.type === "approve" && decision.outsideTestedEntryRule;
+  // Record approval stays disabled until the tick: submit never runs without it.
   const submit = () => {
-    if (needsTick && !outsideTicked) return;
     if (type === "reject" && note.trim() === "") return setNoteMissing(true);
     return onSubmit(note.trim());
   };

@@ -80,6 +80,7 @@ export const setVertexOrdersDependenciesForTesting = (
 ): void => {
   dependencies = next;
   limits.clear();
+  goLiveSentRefs.clear();
   placingUntil = 0;
 };
 
@@ -860,15 +861,10 @@ const comboSubmit = api.vertexOrders.comboSubmit
       await auditFailure(review.reasons.join(" | "));
       throw failures.ORDER_REJECTED({ message: review.reasons.join(" ") });
     }
-    // Reserve the go-live ref in this process before the first await that follows, so a second
-    // submit of the same draft cannot pass the once-only check while this one is in flight.
-    if (goLiveRef !== null) {
-      if (goLiveSentRefs.has(goLiveRef)) {
-        await auditFailure(DRAFT_ALREADY_SENT);
-        throw failures.ORDER_REJECTED({ message: DRAFT_ALREADY_SENT });
-      }
-      goLiveSentRefs.add(goLiveRef);
-    }
+    // The review above refused a ref already sent. Reserve it now, with no await since that check
+    // (onePlacementAtATime runs one submit at a time in this process), so a later submit of the
+    // same draft is refused while this one is in flight.
+    if (goLiveRef !== null) goLiveSentRefs.add(goLiveRef);
     const orderRef = goLiveRef ?? `vertex-${claims.nonce}`;
     // Nothing is sent before the intent row exists: a failure until then frees the reservation.
     const release = () => {

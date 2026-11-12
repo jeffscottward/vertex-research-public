@@ -74,6 +74,13 @@ const usable = (
   leg.bid > 0 &&
   leg.ask >= leg.bid;
 
+// A spread's quote, read or being read: `miss` is set once the read gave no live quote.
+interface Entry {
+  at: number;
+  miss: boolean;
+  quote: Promise<GoLiveQuote | null>;
+}
+
 /**
  * The bridge reader. base: loopback http URL; token: the bridge token (>= 32 chars). Missing or
  * invalid configuration gives a reader that always answers null (no live quote), never an error.
@@ -95,7 +102,7 @@ export const createBridgeQuotesReader = (
   const fetchImpl: QuotesFetch =
     options.fetch ?? ((input, init) => fetch(input, init));
   const now = options.now ?? (() => new Date());
-  const cache = new Map<string, { at: number; quote: GoLiveQuote | null }>();
+  const cache = new Map<string, Entry>();
 
   const spreadQuote = (
     spread: GoLiveSpreadLegs,
@@ -120,8 +127,8 @@ export const createBridgeQuotesReader = (
   // One bridge run for up to 4 spreads (8 legs, in order: long, short of each).
   const read = async (
     spreads: readonly GoLiveSpreadLegs[]
-  ): Promise<(GoLiveQuote | null)[]> => {
-    const none = spreads.map(() => null);
+  ): Promise<ReadonlyMap<number, GoLiveQuote>> => {
+    const none = new Map<number, GoLiveQuote>();
     let response: Response;
     try {
       response = await fetchImpl(endpoint, {
@@ -147,32 +154,34 @@ export const createBridgeQuotesReader = (
     const asOf = new Date(parsed.data.asOf);
     if (Number.isNaN(asOf.getTime())) return none;
     const legs = parsed.data.legs;
-    return spreads.map((spread, index) =>
-      spreadQuote(spread, legs[index * 2], legs[index * 2 + 1], asOf)
-    );
+    const quotes = new Map<number, GoLiveQuote>();
+    for (const [index, spread] of spreads.entries()) {
+      const quote = spreadQuote(
+        spread,
+        legs[index * 2],
+        legs[index * 2 + 1],
+        asOf
+      );
+      if (quote !== null) quotes.set(index, quote);
+    }
+    return quotes;
   };
 
-  // One bridge run per missing spread at a time: a second caller waits for the run in flight.
-  const inFlight = new Map<string, Promise<GoLiveQuote | null>>();
-  const fresh = (key: string, time: number): boolean => {
-    const hit = cache.get(key);
-    if (hit === undefined) return false;
-    const ttl =
-      hit.quote === null ? GOLIVE_QUOTES_MISS_CACHE_MS : GOLIVE_QUOTES_CACHE_MS;
-    return time - hit.at < ttl;
-  };
+  // A read in flight counts as fresh: a second caller waits for it instead of a new bridge run.
+  const fresh = (entry: Entry | undefined, time: number): entry is Entry =>
+    entry !== undefined &&
+    time - entry.at <
+      (entry.miss ? GOLIVE_QUOTES_MISS_CACHE_MS : GOLIVE_QUOTES_CACHE_MS);
 
   return async (spreads) => {
     const time = now().getTime();
-    const keys = spreads.map((spread) =>
-      JSON.stringify([spread.long, spread.short])
+    for (const [key, entry] of cache)
+      if (!fresh(entry, time)) cache.delete(key);
+    const pairs = spreads.map(
+      (spread) => [JSON.stringify([spread.long, spread.short]), spread] as const
     );
     const missing = [
-      ...new Map(
-        spreads
-          .map((spread, index) => [keys[index] ?? "", spread] as const)
-          .filter(([key]) => !(fresh(key, time) || inFlight.has(key)))
-      ),
+      ...new Map(pairs.filter(([key]) => !cache.has(key))).entries(),
     ];
     for (
       let start = 0;
@@ -185,25 +194,21 @@ export const createBridgeQuotesReader = (
       );
       const run = read(chunk.map(([, spread]) => spread));
       for (const [index, [key]] of chunk.entries()) {
-        const one = run.then((batch) => {
-          const quote = batch[index] ?? null;
-          cache.set(key, { at: time, quote });
-          inFlight.delete(key);
-          return quote;
-        });
-        inFlight.set(key, one);
+        const entry: Entry = {
+          at: time,
+          miss: false,
+          quote: run.then((batch) => {
+            const quote = batch.get(index) ?? null;
+            entry.miss = quote === null;
+            return quote;
+          }),
+        };
+        cache.set(key, entry);
       }
     }
-    const quotes = await Promise.all(
-      keys.map(async (key) =>
-        fresh(key, time) && !inFlight.has(key)
-          ? (cache.get(key)?.quote ?? null)
-          : await (inFlight.get(key) ?? Promise.resolve(null))
-      )
+    return await Promise.all(
+      pairs.map(([key]) => (cache.get(key) as Entry).quote)
     );
-    for (const [k, v] of cache)
-      if (time - v.at >= GOLIVE_QUOTES_CACHE_MS) cache.delete(k);
-    return quotes;
   };
 };
 

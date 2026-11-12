@@ -194,6 +194,10 @@ describe("automation lab entries", () => {
     await expect(
       gateway.reject({ id: "nope", note: "No." })
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // The lab never sends: a send is refused as on a disarmed node.
+    await expect(
+      gateway.sendApproved({ draftId: draft.id, order })
+    ).resolves.toMatchObject({ sent: false });
 
     const rejected = await gateway.reject({ id: draft.id, note: "No." });
     expect(rejected).toMatchObject({

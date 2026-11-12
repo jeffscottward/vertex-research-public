@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  bridgeQuotesReaderFor,
   createBridgeQuotesReader,
   GOLIVE_QUOTES_CACHE_MS,
 } from "./server/golive-live-quotes.ts";
@@ -157,5 +158,37 @@ describe("createBridgeQuotesReader", () => {
     time += 10_000;
     await read([SPREAD]);
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives no quote for a body that is not JSON or a time that does not parse", async () => {
+    expect(
+      await createBridgeQuotesReader(URL_, TOKEN, {
+        fetch: async () => new Response("not json"),
+      })([SPREAD])
+    ).toEqual([null]);
+    expect(
+      await createBridgeQuotesReader(URL_, TOKEN, {
+        fetch: async () =>
+          Response.json({
+            asOf: "yesterday",
+            legs: [leg(600), leg(610)],
+            state: "complete",
+          }),
+      })([SPREAD])
+    ).toEqual([null]);
+  });
+
+  it("uses the global fetch by default and keeps one reader per bridge configuration", async () => {
+    const fetch = reply([leg(600), leg(610)]);
+    vi.stubGlobal("fetch", fetch);
+    try {
+      const reader = bridgeQuotesReaderFor(URL_, TOKEN);
+      expect(bridgeQuotesReaderFor(URL_, TOKEN)).toBe(reader);
+      expect(bridgeQuotesReaderFor(null, null)).not.toBe(reader);
+      expect((await reader([SPREAD]))[0]?.source).toBe("ibkr_live");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

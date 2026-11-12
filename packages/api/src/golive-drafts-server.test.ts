@@ -2004,6 +2004,54 @@ describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
     );
   });
 
+  it("quotes a put spread with put legs, and approves a late entry with the tick and no note", async () => {
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => null)
+    );
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-iwm", {
+          longStrike: 95,
+          shortStrike: 100,
+          sleeveKey: "income",
+          structure: "putCreditVertical",
+          symbol: "IWM",
+        }),
+      ],
+    });
+    await clientFor({ repository: memory.repository }).goLiveDrafts.queue({});
+    expect(reader).toHaveBeenCalledWith([
+      {
+        long: { expiry: EXPIRY, right: "P", strike: 95, symbol: "IWM" },
+        short: { expiry: EXPIRY, right: "P", strike: 100, symbol: "IWM" },
+      },
+    ]);
+    inject();
+    const late = createMemoryRepository({
+      drafts: [record("d-spy", { entryBasis: "model_holds_account_does_not" })],
+    });
+    await clientFor({ repository: late.repository }).goLiveDrafts.approve(
+      approval({ outsideTestedEntryRule: true })
+    );
+    expect(late.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        note: "[Approved outside the tested entry rule (late entry), owner tick box]",
+      })
+    );
+  });
+
+  it("keeps the stored quotes when the live quote reader fails", async () => {
+    inject({ liveQuotes: () => Promise.reject(new Error("bridge down")) });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    expect(queue.drafts[0]?.quote?.source).toBe("yahoo_delayed_snapshot");
+  });
+
   it("keeps the stored delayed quote when the reader has no live quote", async () => {
     inject({ liveQuotes: async (spreads) => spreads.map(() => null) });
     const memory = createMemoryRepository({

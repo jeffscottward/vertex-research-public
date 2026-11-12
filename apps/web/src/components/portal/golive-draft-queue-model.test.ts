@@ -1899,5 +1899,20 @@ describe("sendOutcomeText", () => {
     ).toContain(
       "Approved and sent to IBKR as one combo limit order (live, submitted, ref vertex-abc)"
     );
+    const result = {
+      message: "m",
+      mode: "live" as const,
+      orderRef: "vertex-abc",
+      permId: null,
+    };
+    expect(
+      sendOutcomeText({
+        result: { ...result, state: "unconfirmed" },
+        sent: true,
+      })
+    ).toContain("(live, unconfirmed, ref vertex-abc)");
+    expect(
+      sendOutcomeText({ result: { ...result, state: "aborted" }, sent: true })
+    ).toBe("Approved; IBKR did not take the order (aborted): m");
   });
 });

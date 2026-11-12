@@ -1262,10 +1262,9 @@ export type GoLiveSendResult =
   | Readonly<{ message: string; sent: "unknown" }>;
 
 const GO_LIVE_PREFIX = "GO-LIVE ";
+const GO_LIVE_REASON = /^GO-LIVE ([A-Z0-9_]+):/u;
 const reasonCode = (reason: string): string =>
-  reason.startsWith(GO_LIVE_PREFIX)
-    ? (reason.slice(GO_LIVE_PREFIX.length).split(":")[0] ?? "")
-    : "";
+  String(GO_LIVE_REASON.exec(reason)?.[1]);
 const reasonText = (reason: string): string =>
   reason.startsWith(GO_LIVE_PREFIX)
     ? reason.slice(reason.indexOf(":") + 1).trim()

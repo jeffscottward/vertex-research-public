@@ -31,6 +31,26 @@ describe("heldRiskCents", () => {
     ).toBe(100_000 + 200_000);
   });
 
+  it("pairs shorts with the nearest long, skips spent longs and empty rows, and counts shares at cost", () => {
+    // Shorts 610 x1 and 615 x1; longs 600 x1 and 605 x1 (paid 500 each). 610 takes 605 (width 5),
+    // 615 then finds 605 spent and takes 600 (width 15): 2,000 at risk, no premium left over.
+    expect(
+      heldRiskCents([
+        opt("SPY", 600, 1, 500),
+        opt("SPY", 605, 1, 500),
+        opt("SPY", 610, -1),
+        opt("SPY", 615, -1),
+        opt("SPY", 620, 0),
+        { ...opt("AAPL", 0, 10, 1500), right: "", secType: "STK" },
+      ])
+    ).toEqual(
+      new Map([
+        ["SPY", 50_000 + 150_000],
+        ["AAPL", 150_000],
+      ])
+    );
+  });
+
   it("marks a symbol with an uncovered short option as undefined risk", () => {
     expect(heldRiskCents([opt("QQQ", 500, -1, 0, "P")]).get("QQQ")).toBeNull();
     // Another right does not cover it.
@@ -72,6 +92,26 @@ describe("checkSendCaps", () => {
         working: [{ maxLoss: 600, symbol: "DIA" }],
       }).refusals
     ).toEqual(["OPEN_RISK_CAP"]);
+  });
+
+  it("keeps a name with undefined risk undefined when a working order adds to it", () => {
+    expect(
+      checkSendCaps({
+        ...base,
+        positions: [opt("SPY", 600, -1)],
+        working: [{ maxLoss: 100, symbol: "SPY" }],
+      }).refusals
+    ).toEqual(["UNDEFINED_RISK_HELD"]);
+  });
+
+  it("adds a working order to the risk already held on its name", () => {
+    expect(
+      checkSendCaps({
+        ...base,
+        positions: [opt("SPY", 600, 1, 800)],
+        working: [{ maxLoss: 400, symbol: "SPY" }],
+      })
+    ).toMatchObject({ heldByName: { SPY: 1200 }, refusals: ["NAME_CAP"] });
   });
 
   it("refuses without an account value, with undefined held risk or an unknown working order", () => {

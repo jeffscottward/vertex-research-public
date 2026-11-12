@@ -83,18 +83,13 @@ const WINNER_CLOSE_MINUTE_NY = 15 * 60 + 45;
 
 /** The UTC instant of hh:mm New York time on an ISO day (EST or EDT, whichever is in force). */
 const newYorkInstant = (isoDay: string, minuteOfDay: number): Date => {
+  // New York is UTC-4 (EDT) or UTC-5 (EST); a 15:45 close is never inside a clock change.
   const base = Date.parse(`${isoDay}T00:00:00Z`) + minuteOfDay * 60_000;
-  for (const offsetHours of [4, 5]) {
-    const at = new Date(base + offsetHours * 3_600_000);
-    const [hour, minute] = NY_CLOCK.format(at).split(":").map(Number);
-    if (
-      hour !== undefined &&
-      minute !== undefined &&
-      (hour % 24) * 60 + minute === minuteOfDay
-    )
-      return at;
-  }
-  throw new Error(`No New York time ${minuteOfDay} on ${isoDay}`);
+  const edt = new Date(base + 4 * 3_600_000);
+  return NY_CLOCK.format(edt) ===
+    `${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`
+    ? edt
+    : new Date(base + 5 * 3_600_000);
 };
 
 /**

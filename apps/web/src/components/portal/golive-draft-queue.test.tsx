@@ -43,6 +43,7 @@ import {
   CURRENT_SIZING_LABEL,
   ENGINE_POLICY_LINE,
   EXIT_RULE_WORDS,
+  type GoLiveSendResult,
   NO_ORDERS_NOTICE,
   NODE_DISARMED_NOTE,
   REJECT_NOTE_REQUIRED,
@@ -804,6 +805,63 @@ describe("GoLiveDraftQueue", () => {
     expect(
       one(container, "[data-golive-decision-notice]").textContent
     ).toContain("Approved, engine disarmed: nothing was sent");
+  });
+
+  it("shows the exit schedule of an approved entry, and drops a send answer after the page is left", async () => {
+    const approved = draft({
+      approvedOrder: ORDER,
+      decidedAt: AT,
+      exitSchedule: {
+        closeOrder: {
+          legs: ORDER.legs.map((leg) => ({
+            ...leg,
+            side: leg.side === "BUY" ? ("SELL" as const) : ("BUY" as const),
+          })),
+          quantity: ORDER.quantity,
+          symbol: ORDER.symbol,
+        },
+        loserCloseDay: "2026-12-15",
+        winnerCloseAt: new Date("2026-12-18T20:45:00.000Z"),
+      },
+      state: "approved",
+    });
+    const shown = await mount(gatewayOf(queue({ drafts: [approved] })));
+    expect(shown.textContent).toContain("Loser closes 2026-12-15");
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+
+    const sent = deferred<GoLiveSendResult>();
+    const gateway = gatewayOf(queue(), queue({ drafts: [approved] }));
+    gateway.approve.mockResolvedValueOnce(approved);
+    gateway.sendApproved.mockReturnValueOnce(sent.promise);
+    const container = await mount(gateway);
+    await click(button(container, "Approve SPY 2026-12-18"));
+    await click(button(one(document, "[role='dialog']"), "Record approval"));
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await act(async () => {
+      sent.resolve({ reasons: ["x"], sent: false });
+      await sent.promise;
+    });
+    expect(gateway.sendApproved).toHaveBeenCalledTimes(1);
+  });
+
+  it("says what failed when the send after an approval throws", async () => {
+    const approved = draft({
+      approvedOrder: ORDER,
+      decidedAt: AT,
+      state: "approved",
+    });
+    for (const failure of [new Error("preview failed"), "plain failure"]) {
+      const gateway = gatewayOf(queue(), queue({ drafts: [approved] }));
+      gateway.approve.mockResolvedValueOnce(approved);
+      gateway.sendApproved.mockRejectedValueOnce(failure);
+      const container = await mount(gateway);
+      await click(button(container, "Approve SPY 2026-12-18"));
+      await click(button(one(document, "[role='dialog']"), "Record approval"));
+      expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
+        `Approved, not sent: ${failure instanceof Error ? failure.message : failure}.`
+      );
+      for (const root of roots.splice(0)) await act(async () => root.unmount());
+    }
   });
 
   it("lets the owner approve a late entry only with the outside-the-tested-rule tick", async () => {
@@ -2183,6 +2241,58 @@ describe("createBrowserGoLiveDraftsGateway", () => {
     });
     expect(api.reject).toHaveBeenCalledWith(rejection);
     expect(runtime.origins).toEqual([window.location.origin]);
+  });
+
+  it("sends an approved order through combo preview and submit, and keeps refusals, sends and unknown outcomes apart", async () => {
+    const reasons = ["GO-LIVE V3_NOT_ON_LIVE_PATH: off"];
+    const result = {
+      message: "ok",
+      mode: "live" as const,
+      orderRef: "vertex-gl1",
+      permId: null,
+      state: "submitted",
+    };
+    const vertexOrders = {
+      comboPreview: vi
+        .fn()
+        .mockResolvedValueOnce({ confirmToken: null, review: { reasons } })
+        .mockResolvedValue({ confirmToken: "t", review: { reasons: [] } }),
+      comboSubmit: vi
+        .fn()
+        .mockResolvedValueOnce(result)
+        .mockRejectedValueOnce(new Error("Outcome unknown"))
+        .mockRejectedValueOnce("bridge"),
+    };
+    runtime.client = { goLiveDrafts: {}, vertexOrders };
+    const gateway = createBrowserGoLiveDraftsGateway();
+    const input = { draftId: "draft-spy", order: ORDER };
+    await expect(gateway.sendApproved(input)).resolves.toEqual({
+      reasons,
+      sent: false,
+    });
+    expect(vertexOrders.comboSubmit).not.toHaveBeenCalled();
+    await expect(gateway.sendApproved(input)).resolves.toEqual({
+      result,
+      sent: true,
+    });
+    expect(vertexOrders.comboPreview).toHaveBeenLastCalledWith({
+      ...ORDER,
+      goLiveDraftId: "draft-spy",
+    });
+    expect(vertexOrders.comboSubmit).toHaveBeenLastCalledWith({
+      confirm: true,
+      confirmToken: "t",
+      goLiveDraftId: "draft-spy",
+      order: ORDER,
+    });
+    await expect(gateway.sendApproved(input)).resolves.toEqual({
+      message: "Outcome unknown",
+      sent: "unknown",
+    });
+    await expect(gateway.sendApproved(input)).resolves.toEqual({
+      message: "bridge",
+      sent: "unknown",
+    });
   });
 
   it("is what the queue uses when no gateway is supplied", async () => {

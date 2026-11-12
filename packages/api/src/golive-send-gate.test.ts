@@ -154,6 +154,37 @@ describe("goLiveSendRefusals", () => {
     ).toEqual([]);
   });
 
+  it("counts working orders on the plan's names only", () => {
+    const working = (symbol: string) => ({
+      expiry: "20261218",
+      limitPrice: 30,
+      orderRef: `x-${symbol}`,
+      orderType: "LMT",
+      permId: 1,
+      quantity: 2,
+      right: "C",
+      secType: "OPT",
+      side: "BUY",
+      status: "Submitted",
+      strike: 500,
+      symbol,
+    });
+    // QQQ: 30 x 2 x 100 = 6,000 working on a plan name, over the 4,000 total; BE is not counted.
+    expect(
+      codes(
+        goLiveSendRefusals(
+          inputs({
+            account: {
+              netLiquidation: 100_000,
+              openOrders: [working("BE"), working("QQQ")],
+              positions: [],
+            },
+          })
+        )
+      )
+    ).toEqual(["GO-LIVE OPEN_RISK_CAP"]);
+  });
+
   it("applies the caps at send to open positions and working orders", () => {
     // Order max loss 4 x 125 = 500. 3,600 already open elsewhere: 4,100 > 4,000.
     const positions = [
@@ -238,10 +269,12 @@ describe("workingOrderRisks", () => {
           { ...order, limitPrice: 50, quantity: 10, secType: "STK" },
           { ...order, quantity: 10, secType: "STK", side: "SELL" },
           { ...order, orderRef: "vertex-glabc", secType: "BAG" },
+          { ...order, limitPrice: null, secType: "STK" },
+          { ...order, side: "SELL", strike: 200 },
         ] as never,
-        held,
+        [...held, { ...held[0], secType: "STK", strike: 0 }] as never,
         new Map([["vertex-glabc", 500]])
       ).map((r) => r.maxLoss)
-    ).toEqual([0, null, 500, 0, 500]);
+    ).toEqual([0, null, 500, 0, 500, null, null]);
   });
 });

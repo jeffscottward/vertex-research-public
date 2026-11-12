@@ -96,7 +96,10 @@ export const heldRiskCents = (
     const now = bySymbol.has(symbol) ? (bySymbol.get(symbol) ?? null) : 0;
     bySymbol.set(symbol, now === null || amount === null ? null : now + amount);
   };
-  const options = new Map<string, HeldPosition[]>();
+  const options = new Map<
+    string,
+    { positions: HeldPosition[]; symbol: string }
+  >();
   for (const position of positions) {
     if (position.quantity === 0) continue;
     if (position.secType !== "OPT") {
@@ -108,10 +111,14 @@ export const heldRiskCents = (
       position.expiry,
       position.right,
     ]);
-    options.set(key, [...(options.get(key) ?? []), position]);
+    const group = options.get(key) ?? {
+      positions: [],
+      symbol: position.symbol,
+    };
+    group.positions.push(position);
+    options.set(key, group);
   }
-  for (const group of options.values()) {
-    const symbol = group[0]?.symbol ?? "";
+  for (const { positions: group, symbol } of options.values()) {
     const longs: Cover[] = group
       .filter((p) => p.quantity > 0)
       .map((p) => ({ left: p.quantity, p }));
@@ -149,8 +156,9 @@ export const checkSendCaps = (
       refusals.push("WORKING_ORDER_RISK_UNKNOWN");
       continue;
     }
-    const now = held.get(order.symbol) ?? 0;
-    held.set(order.symbol, now === null ? null : now + cents(order.maxLoss));
+    // A name with undefined risk stays undefined (null), whatever works on it.
+    const now = held.get(order.symbol);
+    if (now !== null) held.set(order.symbol, (now ?? 0) + cents(order.maxLoss));
   }
   const heldByName: Record<string, number> = {};
   let total = 0;
