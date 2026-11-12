@@ -31,6 +31,7 @@ export * from "./openbb.ts";
 export * from "./semantic-layer.ts";
 export * from "./academy-content.ts";
 export * from "./golive.ts";
+export * from "./leveraged-etf.ts";
 
 import { sql } from "drizzle-orm";
 import {

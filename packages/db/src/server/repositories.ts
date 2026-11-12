@@ -246,6 +246,10 @@ import {
   type GoLiveDraftsRepository,
 } from "./golive-drafts.ts";
 import {
+  createLeveragedEtfUniverseRepository,
+  type LeveragedEtfUniverseRepository,
+} from "./leveraged-etf-universe.ts";
+import {
   createPickListRepository,
   type PickListRepository,
 } from "./pick-list-repository.ts";
@@ -4367,6 +4371,7 @@ export type Repositories = Readonly<{
   semanticLayer?: SemanticLayerRepository;
   breadth90?: Breadth90Repository;
   goLiveDrafts?: GoLiveDraftsRepository;
+  leveragedEtfUniverse?: LeveragedEtfUniverseRepository;
 }>;
 
 export const createRepositories = (
@@ -4470,4 +4475,5 @@ export const createRepositories = (
     database,
     resolveDependencies(dependencies)
   ),
+  leveragedEtfUniverse: createLeveragedEtfUniverseRepository(database),
 });
