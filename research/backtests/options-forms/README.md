@@ -10,8 +10,13 @@ Result on 2026-11-11 (data to 2026-11-10): **36 of the 42 strategies now have an
 NautilusTrader run. In the study model none of them passes the gate and none passes the owner's lower bar.**
 With the option model the allocation study measured for the Core 7, three forms pass the lower bar: one is
 below its always-on baseline, one equals it within 0.01, and the iron condor has no baseline. The other 6
-strategies are not run (reasons below). The report with
+strategies were not run then. The report with
 the tables is outside the repository (rig reports directory `vertex-options-forms`).
+
+Added on 2026-11-12: the option book now prices a two-expiry structure on an IV term structure, so the long
+calendar spread has its form and an own NautilusTrader run too (37 of the 42). **It fails the gate and the lower
+bar in all three option models** (section "Long calendar spread" below). The 5 intraday strategies are still not
+run (reasons below).
 
 ## Files
 
@@ -283,6 +288,33 @@ Trials counted in the deflated Sharpe: 108 (61 of the allocation study + 47 here
 
 `(= key)` marks a form with the trades of another form or of its baseline. The last four columns are the two
 diagnostic runs: the measured Core 7 model and commissions only.
+
+### Long calendar spread (run on 2026-11-12)
+
+Data to 2026-11-10 (the data directory of the 2026-11-11 run), same capital and engines. A partial run
+(`run.py --only lib/long-calendar-spread`, once per option model): the deflated Sharpe counts 62 trials (the 61
+of the allocation study and this form), not the 109 a full run would count; with more trials it can only be
+lower. Ledger and Nautilus agree in all three models (largest relative equity gap 3.4e-16). The form starts on
+2006-07-17, the first VIX3M value.
+
+| Option model | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Win rate | Gate checks failed | Lower bar |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Study model | -0.46 | -0.69 | 0.00 | 1% | -32.8% | -1.7% | 213 | 30% | 6 of 7 | fail |
+| Measured Core 7 model (diagnostic) | -0.10 | -0.43 | 0.00 | 27% | -18.8% | -0.4% | 213 | 35% | 4 of 7 | fail |
+| Commissions only (diagnostic) | +0.03 | -0.02 | 0.03 | 53% | -12.4% | +0.0% | 213 | 40% | 4 of 7 | fail |
+
+- Exits in the study model: 95 at the near expiry, 117 losers cut 3 days before it (owner rule), 1 open at the
+  end. The term check refused 371 entry days (far-leg IV above 1.1 x near-leg IV).
+- Per contract, the mean debit is $280. Before costs a spread earns $2.24 on average; the costs of both sides are
+  $27.68. The structure has almost no edge before costs in this model, and the bid/ask spread of four leg trades
+  per cycle removes it. Even without any bid/ask spread (commissions only) the Sharpe is +0.03.
+- The package cap on the closing cost (method above) decides the closing cost of 98 of the 213 spreads, mostly
+  when the far leg ends deep in the money. Without the cap the costs are $4.16 per spread higher, so the cap
+  makes the result better, not worse, and does not change the verdict.
+- Limits: both legs are priced from VIX and VIX3M with one fixed factor (0.9), so the model cannot see how real
+  near and far quotes differ from these indices; there is no early assignment of the short leg and no real
+  bid/ask quote. A test on historical option chains would be the next step only if the owner wants one (the
+  vendor is an owner decision).
 
 ### Always-on baselines
 

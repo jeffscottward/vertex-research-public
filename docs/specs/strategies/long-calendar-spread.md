@@ -58,6 +58,7 @@ The calendar spread passes as a Vertex strategy only if at least one config pass
 ## Code and tests
 
 - Payoff, Greeks, simulation, pass rule and report: `scripts/research/calendar-spread.ts`; tests: `scripts/research/calendar-spread.test.ts` (100% coverage).
+- Two-expiry structure on the qc-ports option book (Python, ledger and NautilusTrader): `services/research/strategies/qc_ports/book.py` (`parse_calendar`, `_price_calendar`), IV term `options.term_atm_iv`, form `forms_other.py` (`LONG_CALENDAR`); tests: `services/research/tests/test_qc_ports_two_expiry.py` and `test_synthetic_calendar_books_match` in `test_qc_ports_nautilus.py`.
 - Fetch: `research/backtests/calendar-spread/fetch_data.py`; run: `bun run research:calendar-spread -- backtest --data <dir> --out research/backtests/calendar-spread/results.md`; full table: `research/backtests/calendar-spread/results.md`.
 - Data: Yahoo SPY, QQQ, TQQQ, SOXL, ^VIX, ^VIX3M, ^VXN, ^IRX daily closes 2010-01-04 (TQQQ 2010-02-11, SOXL 2010-03-11) to 2026-11-06, plus split events, fetched 2026-11-08 on the rig. Not committed (Yahoo terms do not allow redistribution); `SHA256SUMS` sits next to the files. SHA-256 prefixes of the run's input: SPY.csv 13c60340f47eb014, QQQ.csv cad11a8add5faee0, TQQQ.csv 91116dda1c5313db, SOXL.csv b1838b78232803ca, VIX.csv c073dbae037cd307, VIX3M.csv 197a05e90cbad9af, VXN.csv 01ec4e5f1a332c88, IRX.csv ffaa93d2ee22a416, SPY.splits.csv d31f6770fe6f1d41, QQQ.splits.csv 8c193ab8763748ff, TQQQ.splits.csv 250ea72e8ca93cd1, SOXL.splits.csv 0719bbc7473022e6. The re-fetch for D1 (same source, same end date, plus split files) overwrote the first run's input files; the SPY and QQQ rows are identical in both runs.
 
@@ -96,6 +97,23 @@ Reading the table:
 ## Verdict: FAIL (modeled)
 
 Config C passes on 2 of 4 underlyings (SPY, QQQ); the rule needs 3 of 4. No config passes on TQQQ or SOXL at the pre-set 3% slippage (see the cost sensitivity above: at 2% it would pass). The long calendar spread stays in the catalog as a research strategy (status backtested, tag failed). Next step if wanted: rerun config C on real historical option chains (vendor is an owner decision, `research/backtests/151-strategies/harness-evaluation.md`).
+
+## Options forms study run (qc-ports option book and NautilusTrader, 2026-11-12)
+
+The options forms study (`research/backtests/options-forms/README.md`) left this strategy out on 2026-11-11: the
+qc-ports option book priced single-expiry verticals only. The book now prices the two-expiry structure
+(`services/research/strategies/qc_ports/book.py`, `callCalendar` and `putCalendar`): each leg at the ATM IV of
+its own days to expiry from the VIX (30 days) and VIX3M (93 days) term structure, linear in total variance, at
+least its exercise value. The form `lib/long-calendar-spread` (`forms_other.py`) is config A on SPY with rule 4 at
+entry and the study's owner exit rule instead of rule 5 (a winner is held to the near expiry, a loser closes 3
+days before it); monthly listed expiries and the study's cost model (method in the study README). It runs on the
+qc-ports reference ledger and on NautilusTrader 1.227.0; both agree (largest relative equity gap 3.4e-16).
+
+Result (SPY, 2006-07-17 to 2026-11-10, 213 spreads): Sharpe -0.46 in the study model, -0.10 with the measured
+SPY quotes model, +0.03 with commissions only. It fails the study gate and the owner's lower bar in all three.
+Before costs a spread earns $2.24 on a mean debit of $280; the costs are $27.68. This agrees with the verdict
+above: config A does not pass on SPY. Configs B and C are not run there (the data set has no IV index past 93
+days).
 
 ## The reel's numbers (SOXL, quotes at the 2026-11-06 close)
 
