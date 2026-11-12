@@ -119,9 +119,11 @@ def scale_spread_costs(scale: float) -> None:
         om.MIN_HALF_SPREAD = 0.0
 
 
-def first_iv_day(market) -> str:
-    """The first date with an IV index value (a date after every bar when there is none)."""
-    return next((day for day, value in zip(market.dates, market.iv_index) if value is not None), "9999-12-31")
+def first_iv_day(market, blocks) -> str:
+    """The first date the book can price `blocks` on (forms.first_priced: the IV index, and the IV term for a
+    calendar), a date after every bar when there is none."""
+    first = fm.first_priced(market, blocks)
+    return market.dates[first] if first < len(market.dates) else "9999-12-31"
 
 
 def lower_bar(stats: dict) -> bool:
@@ -223,7 +225,8 @@ def main() -> None:
             inputs = fm.Inputs({symbol: bars_of[symbol] for symbol in form.symbols},
                                {symbol: markets[symbol].iv_index for symbol in form.symbols})
             book = fm.form_book(form, inputs, markets, start=START, factors=factors)
-            first = min(first_iv_day(markets[symbol]) for symbol in form.symbols)
+            blocks = [block for side in form.structures.values() for block in side]
+            first = min(first_iv_day(markets[symbol], blocks) for symbol in form.symbols)
             dates = [day for day in dataset.calendar if day >= max(first, START)]
             run = {"priced": book.trades, "refused": book.refused, "result": None, "gap": None, "dates": dates,
                    "alwaysOn": fm.is_always_on(fm.stance_of(form, inputs), form.symbols), "phases": None}

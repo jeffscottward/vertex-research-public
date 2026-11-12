@@ -39,9 +39,6 @@ NOT_RUN: tuple[NotRun, ...] = (
     NotRun("quantjourney-w07-intraday-rsi-15m", INTRADAY.format(bars="15-minute")),
     NotRun("quantjourney-w08-intraday-1m-ema-scalp", INTRADAY.format(bars="1-minute")),
     NotRun("quantjourney-w09-intraday-1h-sma-trend", INTRADAY.format(bars="1-hour")),
-    NotRun("long-calendar-spread",
-           "The strategy is a defined-risk option structure already, but it holds two expiries. The option book "
-           "prices single-expiry verticals only, and the data set has no IV term structure per symbol."),
 )
 
 # The 42 tradable library strategies without an options form (allocation study, 2026-11-11).

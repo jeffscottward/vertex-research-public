@@ -435,14 +435,14 @@ def test_every_library_strategy_has_one_form_or_one_reason():
     with_form = [form.slug for form in fl.STRATEGY_FORMS]
     without = [item.slug for item in fl.NOT_RUN]
     assert sorted([*with_form, *without]) == sorted(fl.LIBRARY_SLUGS)
-    assert len(with_form) == 36 and len(without) == 6
+    assert len(with_form) == 37 and len(without) == 5
     assert all(item.reason.endswith(".") for item in fl.NOT_RUN)
 
 
 def test_study_forms_have_unique_keys_and_a_baseline_on_the_same_universe():
     forms = fl.study_forms(LEADERS)
     keys = [form.key for form in forms]
-    assert len(set(keys)) == len(keys) == 36 + 2 + len(fl.BASELINE_UNIVERSES) + 1
+    assert len(set(keys)) == len(keys) == 37 + 2 + len(fl.BASELINE_UNIVERSES) + 1
     by_key = {form.key: form for form in forms}
     for form in forms:
         assert form.keeps.endswith(".") and form.sleeve

@@ -26,7 +26,7 @@ from tests.test_alert_templates import bars_from, ramp
 
 START = "2024-01-02"
 KEYS = ("qj/W13", "qj/W14", "lib/pairs-divergence", "qj/O19", "qj/W23", "qj/W24", "qj/O20", "qj/W25",
-        "lib/zakamulin-sma", "lib/short-strangle")
+        "lib/zakamulin-sma", "lib/short-strangle", "lib/long-calendar-spread")
 LEADERS = ("AAA", "BBB", "CCC")
 BY_KEY = {form.key: form for form in (*fo.FORMS, *fo.leader_forms(LEADERS))}
 
@@ -69,7 +69,7 @@ def _uneven(values) -> list[float]:
 
 # --------------------------------------------------------------------------- registry
 
-def test_forms_are_the_ten_named_forms_on_their_universes():
+def test_forms_are_the_eleven_named_forms_on_their_universes():
     assert tuple(form.key for form in fo.FORMS) == KEYS
     rows = {
         "qj/W13": ("quantjourney-w13-pairs-ratio-zscore", "Pairs Trading (Ratio Z-Score)", "relative value",
@@ -92,14 +92,19 @@ def test_forms_are_the_ten_named_forms_on_their_universes():
                               "trend", ("SPY",), "base/spy"),
         "lib/short-strangle": ("bridgingcycles-short-strangle", "BridgingCycles short strangle", "vol premium",
                                ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"), None),
+        "lib/long-calendar-spread": ("long-calendar-spread", "Long calendar spread (call, at the money)", "time decay",
+                                     ("SPY",), None),
     }
+    own = {"lib/short-strangle": {1: (fo.CONDOR_PUT, fo.CONDOR_CALL)}, "lib/long-calendar-spread": {1: (fo.LONG_CALENDAR,)}}
     for form in fo.FORMS:
         assert (form.slug, form.name, form.sleeve, form.symbols, form.baseline) == rows[form.key], form.key
         assert form.keeps.endswith(".") and "  " not in form.keeps
-        if form.key != "lib/short-strangle":
+        if form.key in own:
+            assert form.structures == own[form.key]
+        else:
             assert form.structures is fm.LONG_SHORT
-        assert form.entry_only == (form.key == "lib/short-strangle")
-    assert len({form.slug for form in fo.FORMS}) == 10
+        assert form.entry_only == (form.key in own)
+    assert len({form.slug for form in fo.FORMS}) == 11
     assert fm.FX_TWINS == ("FXE", "FXB", "FXA") and fo.FUTURES4 == ("SPY", "QQQ", "USO", "GLD")
 
 
@@ -137,6 +142,9 @@ KEEPS_NUMBERS = {
     "qj/W25": (fo.TREND_FAST, fo.TREND_SLOW),
     "lib/zakamulin-sma": (fo.SMA_MONTHS,),
     "lib/short-strangle": (fo.RV_WINDOW, 0, fo.VRP_PERCENTILE, fo.VRP_LOOKBACK, fo.CONDOR_PUT["shortDelta"]),
+    # 100/200 days: the dropped configs B and C of the spec.
+    "lib/long-calendar-spread": (fo.LONG_CALENDAR["dte"]["target"], fo.LONG_CALENDAR["farDte"]["target"],
+                                 fo.LONG_CALENDAR["maxTermRatio"], 100, 200, fo.CALENDAR_TERM_DAYS),
     "leaders/reclaim": (fo.LEADER_CALL["maxLossPct"],),
     "leaders/dip": (fo.LEADER_CALL["maxLossPct"],),
 }
@@ -751,6 +759,8 @@ def _changed_after(inputs: fm.Inputs, last_day: str, seed: int) -> fm.Inputs:
 
 
 ALL_FORMS = tuple(BY_KEY.values())
+# Forms held at all times from the first IV value on: no price or later IV level changes their stance.
+ALWAYS_ON = {"lib/long-calendar-spread"}
 
 
 def test_the_random_bars_give_every_form_a_stance():
@@ -787,4 +797,7 @@ def test_no_rule_reads_a_later_price_or_iv_level(form):
             known = sum(1 for day in inputs.bars[symbol].dates if day <= DAYS[size - 1])
             assert sides[:known] == full[symbol][:known], f"{form.key} {symbol} reads a later value (after {size})"
         differs += changed != full
-    assert differs > 6, f"{form.key}: the later values must matter"
+    if form.key in ALWAYS_ON:
+        assert differs == 0, f"{form.key}: an always-on rule reads no later value"
+    else:
+        assert differs > 6, f"{form.key}: the later values must matter"

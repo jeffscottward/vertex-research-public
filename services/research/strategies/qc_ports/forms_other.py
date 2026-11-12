@@ -1,11 +1,11 @@
-"""Options forms of the pairs, the FX and futures twins, the 10-month SMA timing, the short strangle
-and the leader pullback (research only).
+"""Options forms of the pairs, the FX and futures twins, the 10-month SMA timing, the short strangle,
+the long calendar spread and the leader pullback (research only).
 
-`FORMS` holds the 10 forms on fixed universes. `leader_forms(symbols)` makes the 2 forms of the
+`FORMS` holds the 11 forms on fixed universes. `leader_forms(symbols)` makes the 2 forms of the
 library alert `leader-pullback-and-reclaim` on the stocks the study has bars for. Every rule gives
-the stance of forms.py (+1, -1 or 0 per symbol and bar, known at the close of that bar). The condor
-and the leader forms are entry only (`Form.entry_only`): their stance is +1 on the bars that may
-open a spread.
+the stance of forms.py (+1, -1 or 0 per symbol and bar, known at the close of that bar). The condor,
+the calendar and the leader forms are entry only (`Form.entry_only`): their stance is +1 on the bars
+that may open a spread.
 
 Sources and what the rules read:
 - QuantJourney examples (quantjourney-bt, `strategies/example_weights_13`, `_14`, `_23`, `_24`,
@@ -21,6 +21,9 @@ Sources and what the rules read:
   does not import gamma); tests/test_qc_ports_forms_other.py compares it with the engine.
 - Leader pullback: alert_templates.py, with the bars built as alert_templates_run.load builds them
   (unadjusted open, high, low and close).
+- Long calendar spread: docs/specs/strategies/long-calendar-spread.md (rules 1 to 4, config A). The
+  strategy is an option structure already: the form holds it on SPY at all times, one spread after the
+  other; the book refuses an entry that fails the term-structure check of rule 4.
 
 Decision days of the QuantJourney rules, from the source files:
 - Weights 13 and 14 (`RebalancePolicy(frequency="D")`) and orders 19 and 20 (`_compute_orders`
@@ -52,6 +55,7 @@ from .forms import (
     Inputs,
     Rule,
     adjusted,
+    always_on_after,
     from_panel,
     highest,
     lowest,
@@ -64,6 +68,7 @@ from .ideas import MONTHLY_CALL
 
 __all__ = [
     "ALERT_VOLUME",
+    "CALENDAR_TERM_DAYS",
     "CONDOR_CALL",
     "CONDOR_PUT",
     "DIVERGENCE_WINDOW",
@@ -72,6 +77,7 @@ __all__ = [
     "LEADERS_BASELINE",
     "LEADER_CALL",
     "LEADER_SLUG",
+    "LONG_CALENDAR",
     "band_sides",
     "daily_bars",
     "dip_sides",
@@ -486,6 +492,16 @@ PAIR_BANDS = (f"above {PAIR_ENTRY:g} short {{first}} and long {{second}}, under 
 PAIR_DROPS = "the dollar-neutral weights and the short borrow are dropped."
 NO_NZD = "NZDUSD (no ETF with options)"
 
+# --------------------------------------------------------------------------- long calendar spread
+
+# Spec config A (docs/specs/strategies/long-calendar-spread.md, rules 1 to 4): 30/60 days at the money and the
+# term-structure check of rule 4. Both tenors lie inside the VIX/VIX3M term. As for every form, the owner exit rule
+# replaces the spec exit (rule 5, the 1.5 x debit target): forms.form_book drops profitTakePct and exitDte.
+LONG_CALENDAR = {"structure": "callCalendar", "dte": {"target": 30, "min": 21}, "farDte": {"target": 60, "min": 45},
+                 "strikeDelta": 0.5, "maxTermRatio": 1.1, "maxLossPct": 2}
+# The longest tenor of the IV term structure in the data set (data.IV_TERM, VIX3M).
+CALENDAR_TERM_DAYS = max(qd.IV_TERM["SPY"].values())
+
 FORMS: tuple[Form, ...] = (
     Form("qj/W13", "quantjourney-w13-pairs-ratio-zscore", "Pairs Trading (Ratio Z-Score)", "relative value",
          ("KO", "PEP"), _pair_rule("KO", "PEP", ratio_z, band_sides), None,
@@ -535,4 +551,11 @@ FORMS: tuple[Form, ...] = (
          f"credit spread, opened together (an iron condor), with {CONDOR_PUT['shortDelta']:g}-delta short strikes "
          "replace the undefined-risk strangle and its expected-move strikes.",
          {1: (CONDOR_PUT, CONDOR_CALL)}, True),
+    Form("lib/long-calendar-spread", "long-calendar-spread", "Long calendar spread (call, at the money)", "time decay",
+         ("SPY",), always_on_after(0), None,
+         f"Keeps config A: short the {LONG_CALENDAR['dte']['target']}-day monthly call, long the same strike at the "
+         f"{LONG_CALENDAR['farDte']['target']}-day monthly, opened while far IV <= "
+         f"{LONG_CALENDAR['maxTermRatio']:g} x near IV. The owner exit rule replaces the debit target; 100/200-day "
+         f"configs (no IV index past {CALENDAR_TERM_DAYS} days) and other underlyings (no IV term) are dropped.",
+         {1: (LONG_CALENDAR,)}, True),
 )

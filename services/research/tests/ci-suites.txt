@@ -113,6 +113,7 @@ tests/test_qc_ports_forms.py
 tests/test_qc_ports_forms_orders.py
 tests/test_qc_ports_forms_weights.py
 tests/test_qc_ports_forms_other.py
+tests/test_qc_ports_two_expiry.py
 tests/test_volspike_study.py
 tests/test_noise_band.py
 tests/test_noise_band_0dte.py
