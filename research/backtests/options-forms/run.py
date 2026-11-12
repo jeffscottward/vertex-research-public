@@ -39,6 +39,7 @@ from strategies.qc_ports import ideas as qi  # noqa: E402
 from strategies.qc_ports import options as om  # noqa: E402
 from strategies.qc_ports import portfolio as pf  # noqa: E402
 from strategies.qc_ports import study  # noqa: E402
+from strategies.qc_ports.book import CALENDARS  # noqa: E402
 from strategies.qc_ports.data import IV_INDEX, IV_TERM, load_bars, load_series  # noqa: E402
 from strategies.qc_ports.ledger import run_ledger  # noqa: E402
 
@@ -187,13 +188,6 @@ def main() -> None:
 
     data = study.load_study_data(args.data)
     dataset = data.dataset
-    # The IV term indices the qc-ports data set does not hold (VIX6M) come from fetch_data.py of this study.
-    term_ids = sorted({index_id for term in IV_TERM.values() for index_id in term} - set(dataset.series))
-    missing = [index_id for index_id in term_ids if not (args.data / f"{index_id}.csv").is_file()]
-    if missing:
-        raise SystemExit(f"No {', '.join(missing)} in {args.data}: run research/backtests/options-forms/fetch_data.py")
-    dataset = dataclasses.replace(dataset, series={**dataset.series, **{
-        index_id: load_series(index_id, args.data) for index_id in term_ids}})
     stocks = load_extra(args.data, universe.SP100, required=False, log=log)
     if not stocks:
         raise SystemExit(f"No stock file in {args.data}: run research/backtests/options-forms/fetch_data.py")
@@ -207,6 +201,15 @@ def main() -> None:
         forms = tuple(form for form in forms if form.key in wanted)
     # Baselines first: a form with the trades of its baseline is then marked as a copy of the baseline.
     forms = (*(form for form in forms if form.rule is fm.always_on), *(form for form in forms if form.rule is not fm.always_on))
+    # The IV term indices the qc-ports data set does not hold (VIX6M) come from fetch_data.py of this study. Only a
+    # run with a calendar form needs them; a run of verticals alone reads the directory as before.
+    if any(block["structure"] in CALENDARS for form in forms for side in form.structures.values() for block in side):
+        term_ids = sorted({index_id for term in IV_TERM.values() for index_id in term} - set(dataset.series))
+        missing = [index_id for index_id in term_ids if not (args.data / f"{index_id}.csv").is_file()]
+        if missing:
+            raise SystemExit(f"No {', '.join(missing)} in {args.data}: run research/backtests/options-forms/fetch_data.py")
+        dataset = dataclasses.replace(dataset, series={**dataset.series, **{
+            index_id: load_series(index_id, args.data) for index_id in term_ids}})
     traded = {symbol for form in forms for symbol in form.symbols}
     loaded = {**load_extra(args.data, sorted(traded - set(qi.CORE7) - set(stocks)), required=True, log=log),
               **{symbol: bars for symbol, bars in stocks.items() if symbol in traded}}

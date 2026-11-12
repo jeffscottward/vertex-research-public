@@ -207,11 +207,11 @@ three configs of the spec (`docs/specs/strategies/long-calendar-spread.md`, B5) 
 - Each form is short one call at the near expiry and long one call of the same strike at the far expiry (after
   the near one). The strike is the grid strike whose near-leg delta is nearest the target.
 - IV term structure: each leg is priced at the ATM IV of its own days to expiry. SPY has three Cboe points: VIX
-  (30 days), VIX3M (93 days) and VIX6M (182 days; `fetch_data.py` of this study gets it, `run.py` stops without
-  it), each times 0.9 as for every index. Between two points the total variance ATM^2 x T is linear in T;
-  outside them the nearest point holds (in the run the far leg of B and C had 183 to 214 days at entry: VIX6M holds past 182). The skew of
-  SPY applies to each leg as for the verticals. A leg is worth at least its exercise value, so the spread is never
-  worth less than 0.
+  (30 days), VIX3M (93 days) and VIX6M (182 days; `fetch_data.py` of this study gets it, and `run.py` stops
+  without it when it runs a calendar form), each times 0.9 as for every index. Between two points the total
+  variance ATM^2 x T is linear in T; outside them the nearest point holds (in the run the far leg of B and C had
+  183 to 214 days at entry: VIX6M holds past 182). The skew of SPY applies to each leg as for the verticals. A
+  leg is worth at least its exercise value, so the spread is never worth less than 0.
 - Entry (spec rule 4): no spread while the far-leg ATM IV is above 1.1 x the near-leg ATM IV (refused bars:
   `term structure`). No spread before the first day with all three points (VIX6M starts 2008-01-02); the equity
   curve of a form starts there.
@@ -303,7 +303,8 @@ Data to 2026-11-10 (the data directory of the 2026-11-11 run plus VIX6M), same c
 (`run.py --only lib/long-calendar-spread,lib/long-calendar-spread-b,lib/long-calendar-spread-c`, once per option
 model): the deflated Sharpe counts 64 trials (the 61 of the allocation study and the three configs), not the 111 a
 full run would count; with more trials it can only be lower. Ledger and Nautilus agree on all 9 runs (largest
-relative equity gap 3.6e-16). The equity curves start on 2008-01-02, the first day with VIX6M; the first spreads open on 2008-01-03.
+relative equity gap 3.6e-16). The equity curves start on 2008-01-02, the first day with VIX6M; the first spreads
+open on 2008-01-03.
 
 | Form | Option model | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Win rate | Gate checks failed | Lower bar |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
