@@ -13,10 +13,11 @@ below its always-on baseline, one equals it within 0.01, and the iron condor has
 strategies were not run then. The report with
 the tables is outside the repository (rig reports directory `vertex-options-forms`).
 
-Added on 2026-11-12: the option book now prices a two-expiry structure on an IV term structure, so the long
-calendar spread has its form and an own NautilusTrader run too (37 of the 42). **It fails the gate and the lower
-bar in all three option models** (section "Long calendar spread" below). The 5 intraday strategies are still not
-run (reasons below).
+Added on 2026-11-12: the option book now prices a two-expiry structure on an IV term structure (VIX, VIX3M,
+VIX6M), so the long calendar spread has its forms and own NautilusTrader runs too (37 of the 42; three configs).
+**No config passes the gate. Config C (100/200 days, 0.30-delta strike) passes the owner's lower bar in all three
+option models, config B in the two diagnostic models** (section "Long calendar spread" below). The 5 intraday
+strategies are still not run (reasons below).
 
 ## Files
 
@@ -46,7 +47,9 @@ uv run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 --w
 ```
 
 The run fails when the reference ledger and NautilusTrader differ on a trade or on daily equity by more than
-`1e-6` (the parity rule of the qc-ports runner). One run takes about 55 minutes.
+`1e-6` (the parity rule of the qc-ports runner). One run takes about 55 minutes. The second fetch also gets the IV term index
+VIX6M; with `--etfs "" --stocks ""` it gets only that index (the calendar run of 2026-11-12 did so on a copy of
+the data directory of 2026-11-11). `run.py --only <form keys>` runs some forms (and their baselines) alone.
 
 ## Method (fixed on 2026-11-11 before the first run of a form)
 
@@ -192,33 +195,38 @@ The daily option-chain snapshots of card `vertex-option-model-calibration` will 
 
 The run of 2026-11-11 left `long-calendar-spread` out: it holds two expiries, and the option book priced
 single-expiry verticals only. The book now prices the two-expiry structure (`book.py`: `callCalendar`,
-`putCalendar`; the DSL `options` block and the go-live drafts still know verticals only). The form is config A of
-the spec (`docs/specs/strategies/long-calendar-spread.md`):
+`putCalendar`; the DSL `options` block and the go-live drafts still know verticals only). The study runs the
+three configs of the spec (`docs/specs/strategies/long-calendar-spread.md`, B5) as three forms of the strategy:
 
-- Short one call at the near monthly expiry, long one call of the same strike at the far monthly expiry. Near: the
-  monthly nearest 30 days to expiry (at least 21). Far: the monthly nearest 60 days (at least 45, after the near
-  one). Strike: the grid strike whose near-leg delta is nearest 0.5 (at the money).
-- IV term structure: each leg is priced at the ATM IV of its own days to expiry. SPY has two Cboe points in the
-  data set, VIX (30 days) and VIX3M (93 days), each times 0.9 as for every index. Between the two the total
-  variance ATM^2 x T is linear in T; outside them the nearest point holds. The skew of SPY applies to each leg as
-  for the verticals. A leg is worth at least its exercise value, so the spread is never worth less than 0.
+| Form | Config | Near leg | Far leg | Strike |
+| --- | --- | --- | --- | --- |
+| `lib/long-calendar-spread` | A | monthly nearest 30 days (at least 21) | monthly nearest 60 days (at least 45) | near-leg delta 0.5 (at the money) |
+| `lib/long-calendar-spread-b` | B (the reel's tenors) | monthly nearest 100 days (at least 80) | monthly nearest 200 days (at least 160) | near-leg delta 0.5 |
+| `lib/long-calendar-spread-c` | C (the reel's bullish use) | as B | as B | near-leg delta 0.30 |
+
+- Each form is short one call at the near expiry and long one call of the same strike at the far expiry (after
+  the near one). The strike is the grid strike whose near-leg delta is nearest the target.
+- IV term structure: each leg is priced at the ATM IV of its own days to expiry. SPY has three Cboe points: VIX
+  (30 days), VIX3M (93 days) and VIX6M (182 days; `fetch_data.py` of this study gets it, `run.py` stops without
+  it), each times 0.9 as for every index. Between two points the total variance ATM^2 x T is linear in T;
+  outside them the nearest point holds (in the run the far leg of B and C had 183 to 214 days at entry: VIX6M holds past 182). The skew of
+  SPY applies to each leg as for the verticals. A leg is worth at least its exercise value, so the spread is never
+  worth less than 0.
 - Entry (spec rule 4): no spread while the far-leg ATM IV is above 1.1 x the near-leg ATM IV (refused bars:
-  `term structure`). No spread before the first VIX3M value (2006-07-17); the equity curve of the form starts
-  there.
-- The form holds the spread on SPY at all times (entry only, as the iron condor): the next spread opens the day
+  `term structure`). No spread before the first day with all three points (VIX6M starts 2008-01-02); the equity
+  curve of a form starts there.
+- A form holds the spread on SPY at all times (entry only, as the iron condor): the next spread opens the day
   after the last one closed. The owner exit rule replaces the spec's 1.5 x debit target (rule 5): a winner is
   held to the near expiry, a loser closes 3 days before it. At the near expiry the near leg settles at its
   exercise value and the far leg is sold at its model value.
 - Costs: the cost per leg of the study (commission and half spread on the leg's mid; at the near expiry the far
   leg, and the near leg when it is in the money). A closing cost is at most two legs priced at the far leg's entry
-  mid (the calendar closes as a package). The max loss per contract is the debit, the entry costs and that cap;
-  sizing risks at most 2% of equity on it.
+  mid (the calendar closes as a package, as a vertical's closing cost is at most two legs worth its width). The
+  max loss per contract is the debit, the entry costs and that cap; sizing risks at most 2% of equity on it.
 - No baseline: no always-on vertical basket holds this structure, so check G7 does not apply (as for the iron
-  condor).
-- Not run: configs B and C of the spec (100 and 200 days: the data set has no IV index past 93 days, so both legs
-  would get the same flat IV and the check of rule 4 would always pass), the put calendar (under this model it
-  differs from the call calendar only by carry), and every other underlying (no IV term structure in the data
-  set).
+  condor). Each form counts as a trial.
+- Not run: the put calendar (under this model it differs from the call calendar only by carry) and every other
+  underlying (no IV term structure in the data set).
 
 ### Not run
 
@@ -291,29 +299,42 @@ diagnostic runs: the measured Core 7 model and commissions only.
 
 ### Long calendar spread (run on 2026-11-12)
 
-Data to 2026-11-10 (the data directory of the 2026-11-11 run), same capital and engines. A partial run
-(`run.py --only lib/long-calendar-spread`, once per option model): the deflated Sharpe counts 62 trials (the 61
-of the allocation study and this form), not the 109 a full run would count; with more trials it can only be
-lower. Ledger and Nautilus agree in all three models (largest relative equity gap 3.4e-16). The form starts on
-2006-07-17, the first VIX3M value.
+Data to 2026-11-10 (the data directory of the 2026-11-11 run plus VIX6M), same capital and engines. A partial run
+(`run.py --only lib/long-calendar-spread,lib/long-calendar-spread-b,lib/long-calendar-spread-c`, once per option
+model): the deflated Sharpe counts 64 trials (the 61 of the allocation study and the three configs), not the 111 a
+full run would count; with more trials it can only be lower. Ledger and Nautilus agree on all 9 runs (largest
+relative equity gap 3.6e-16). The equity curves start on 2008-01-02, the first day with VIX6M; the first spreads open on 2008-01-03.
 
-| Option model | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Win rate | Gate checks failed | Lower bar |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Study model | -0.46 | -0.69 | 0.00 | 1% | -32.8% | -1.7% | 213 | 30% | 6 of 7 | fail |
-| Measured Core 7 model (diagnostic) | -0.10 | -0.43 | 0.00 | 27% | -18.8% | -0.4% | 213 | 35% | 4 of 7 | fail |
-| Commissions only (diagnostic) | +0.03 | -0.02 | 0.03 | 53% | -12.4% | +0.0% | 213 | 40% | 4 of 7 | fail |
+| Form | Option model | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Win rate | Gate checks failed | Lower bar |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| A, 30/60 days, delta 0.5 | Study model | -0.45 | -0.53 | 0.00 | 0% | -30.4% | -1.6% | 195 | 30% | 6 of 7 | fail |
+| | Measured Core 7 model | -0.12 | -0.25 | 0.00 | 23% | -18.5% | -0.5% | 195 | 34% | 4 of 7 | fail |
+| | Commissions only | +0.03 | +0.16 | 0.03 | 50% | -12.4% | +0.0% | 195 | 40% | 4 of 7 | fail |
+| B, 100/200 days, delta 0.5 | Study model | +0.18 | +0.33 | 0.04 | 83% | -5.6% | +0.3% | 69 | 46% | 3 of 7 | fail |
+| | Measured Core 7 model | +0.34 | +0.48 | 0.11 | 96% | -4.1% | +0.7% | 69 | 48% | 3 of 7 | pass |
+| | Commissions only | +0.37 | +0.46 | 0.34 | 98% | -5.2% | +0.8% | 69 | 57% | 3 of 7 | pass |
+| C, 100/200 days, delta 0.30 | Study model | +0.41 | +1.09 | 0.22 | 98% | -7.6% | +0.9% | 71 | 61% | 2 of 7 | pass |
+| | Measured Core 7 model | +0.85 | +1.40 | 0.83 | 100% | -6.7% | +1.8% | 70 | 66% | 1 of 7 | pass |
+| | Commissions only | +0.52 | +1.20 | 0.59 | 99% | -7.7% | +1.3% | 71 | 62% | 1 of 7 | pass |
 
-- Exits in the study model: 95 at the near expiry, 117 losers cut 3 days before it (owner rule), 1 open at the
-  end. The term check refused 371 entry days (far-leg IV above 1.1 x near-leg IV).
-- Per contract, the mean debit is $280. Before costs a spread earns $2.24 on average; the costs of both sides are
-  $27.68. The structure has almost no edge before costs in this model, and the bid/ask spread of four leg trades
-  per cycle removes it. Even without any bid/ask spread (commissions only) the Sharpe is +0.03.
-- The package cap on the closing cost (method above) decides the closing cost of 98 of the 213 spreads, mostly
-  when the far leg ends deep in the money. Without the cap the costs are $4.16 per spread higher, so the cap
-  makes the result better, not worse, and does not change the verdict.
-- Limits: both legs are priced from VIX and VIX3M with one fixed factor (0.9), so the model cannot see how real
-  near and far quotes differ from these indices; there is no early assignment of the short leg and no real
-  bid/ask quote. A test on historical option chains would be the next step only if the owner wants one (the
+- No config passes the gate. C fails only the deflated Sharpe check in the measured model (0.83 with 64 trials;
+  the full count of 111 lowers it further) and in the study model also Sharpe 0.41 < 0.5. **C passes the owner's
+  lower bar in all three models, B in the two diagnostic models**, A in none.
+- Per contract in the study model (mean over the spreads): A debit $295, $2.29 before costs, costs $29.04;
+  B debit $644, +$113.85 before costs, costs $53.74; C debit $640, +$199.50 before costs, costs $30.32. The
+  short tenors earn nothing before costs; the long tenors earn mostly when the spot rises toward the strike
+  (C: the 0.30-delta strike is above the spot) and while the term check holds.
+- Exits in the study model: A 85 at the near expiry and 109 losers cut 3 days before it; B 38 and 30; C 43 and
+  27 (one open spread each at the end). The term check refused 362 (A), 147 (B) and 101 (C) entry days.
+- The CAGR stays small: one spread at a time, sized at 2% of equity at risk. 2008 to 2026 holds mostly rising
+  markets; the result leans on that drift, as the spec warns for config C.
+- The package cap on the closing cost (method above) decides the cost of 90 (A), 30 (B) and 17 (C) spreads.
+  Without it the costs per spread are $4.37 (A), $7.11 (B) and $4.16 (C) higher: about 0.6% to 1.1% of the
+  debit, so it does not change the verdicts.
+- Limits: both legs are priced from VIX, VIX3M and VIX6M with one fixed factor (0.9) and the linear SPY skew, so
+  the model cannot see how real near and far quotes differ from these indices; the far leg of B and C lies past
+  the last point (VIX6M, 182 days) and gets its IV; there is no early assignment of the short leg and no real
+  bid/ask quote. A test of config C on historical option chains is the next step if the owner wants one (the
   vendor is an owner decision).
 
 ### Always-on baselines
