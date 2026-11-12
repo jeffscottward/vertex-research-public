@@ -674,6 +674,20 @@ def test_a_day_missing_from_the_calendar_bars_refuses_the_run(tmp_path):
         refused.value).splitlines()
 
 
+def test_an_extra_bar_of_one_etf_on_a_closed_day_is_no_gap_of_the_others(tmp_path, mid_month):
+    # USO with a bar on Monday 2026-01-19 (Martin Luther King Jr. Day), when the other ETFs have none.
+    data = _dataset("2026-11-11")
+    bar = data.bars["USO"]
+    at = bar.dates.index("2026-01-20")
+    columns = [list(column) for column in (bar.dates, bar.open, bar.high, bar.low, bar.close, bar.adj_close)]
+    columns[0].insert(at, "2026-01-19")
+    for column in columns[1:]:
+        column.insert(at, column[at])
+    extra = pf.Dataset({**data.bars, "USO": type(bar)("USO", *(tuple(column) for column in columns))}, data.series)
+    assert gl.data_gaps(extra)["SPY bars"] == (FIRST_DAY, ())
+    assert _generate("2026-11-11", "2026-11-12", tmp_path, data=extra)["candidates"] == mid_month["candidates"]
+
+
 def test_a_refusal_names_five_holes_of_a_history_and_counts_the_rest(tmp_path):
     days = [day for day in _dataset("2026-11-11").calendar if "2026-03-01" <= day <= "2026-03-31"][::2][:8]
     data = _drop(_dataset("2026-11-11"), "VIX3M", *days)
@@ -739,6 +753,19 @@ def test_golive_pin_prints_the_module_of_a_data_directory(monkeypatch):
     assert namespace["PINNED_THROUGH"] == "2026-01-30"
     assert namespace["TESTED_GAPS"] == gl.data_gaps(data)
     assert namespace["TESTED_GAPS"]["VIX3M"] == (FIRST_DAY, (("2025-08-04", "2025-08-04"),))
+
+
+def test_golive_pin_reports_a_file_that_is_not_qc_ports_data(monkeypatch):
+    from golive import pin
+
+    def load(path):
+        raise KeyError("close")
+
+    monkeypatch.setattr(pin.study, "load_study_data", load)
+    stdout, stderr = io.StringIO(), io.StringIO()
+    assert pin.main(["--data", "/srv/qc-ports"], stdout=stdout, stderr=stderr) == 1
+    assert (stdout.getvalue(), stderr.getvalue()) == (
+        "", "golive.pin: the data directory /srv/qc-ports cannot be read: 'close'\n")
 
 
 def test_golive_pin_reports_a_data_directory_it_cannot_read(tmp_path):
@@ -1291,6 +1318,29 @@ def test_a_newer_run_whose_fetch_failed_does_not_hide_an_older_good_one(tmp_path
     assert len(fact) <= gl.FACT_MAX_CHARS and "\n" not in fact
 
 
+def test_the_longest_fact_of_a_failed_newer_run_fits_the_contract(tmp_path):
+    # A four-letter symbol, a report longer than any fact line, the longest stamp: at most FACT_MAX_CHARS.
+    _chain(_run(tmp_path, "2026-11-30", "173000", symbols=("ABCD",)), "ABCD", "2027-01-15", "calls", SPY_CALLS)
+    _run(tmp_path, "2026-11-30", "203000", symbols=("ABCD",), errors={"ABCD": "y" * 500})
+    facts = _priced(tmp_path, _trade(symbol="ABCD"))[3]
+    assert facts[0].startswith("Newest snapshot not read: the ABCD chain fetch failed in the snapshot of ")
+    assert max(len(fact) for fact in facts) <= gl.FACT_MAX_CHARS
+    # A run that has chains of the symbol, but a header-only file of the expiry, and the longest report.
+    (tmp_path / "2026-11-30" / "203000Z" / "ABCD-2027-01-15-calls.csv").write_text(HEADER + "\n")
+    facts = _priced(tmp_path, _trade(symbol="ABCD"))[3]
+    assert "without a strike" in facts[0] and max(len(fact) for fact in facts) <= gl.FACT_MAX_CHARS
+
+
+def test_a_run_with_an_earlier_time_added_later_becomes_the_oldest_one(tmp_path):
+    # The limit of the rule: the store is read as it is. A restore or a hand-made run stamped before the first one
+    # of the day is the oldest run from then on, and its listing sets the strikes.
+    _chain(_run(tmp_path, "2026-11-30", "203000"), "SPY", "2027-01-15", "calls", SPY_CALLS)
+    assert _priced(tmp_path)[:2] == (756.0, 807.0)
+    _chain(_run(tmp_path, "2026-11-30", "170000"), "SPY", "2027-01-15", "calls", {755.0: (18.0, 18.2), 810.0: (1.0, 1.1)})
+    long_strike, short_strike, quote, _facts = _priced(tmp_path)
+    assert (long_strike, short_strike, quote) == (755.0, 810.0, None)  # the newest run does not list 755/810
+
+
 def test_a_failed_fetch_without_an_older_good_run_refuses_the_run_and_is_named_as_a_failed_fetch(tmp_path):
     # The only good run is older than the freshness rule allows.
     _chain(_run(tmp_path, "2026-11-27", "203000"), "SPY", "2027-01-15", "calls", SPY_CALLS)
@@ -1379,14 +1429,29 @@ def test_a_spread_whose_expiry_no_readable_snapshot_holds_has_model_strikes_and_
     # The rule reads the dates only: a store that does hold the chain changes nothing.
     _chain(_run(tmp_path, "2026-11-19", "203000"), "SPY", "2026-12-18", "calls", {757.0: (17.0, 17.1), 808.0: (0.7, 0.8)})
     assert _priced(tmp_path, **near) == (756.0, 807.0, None, NOT_STORED)
-    # An entry further out than the store reaches: 2027-02-19 is 76 days after the trading day 2026-12-05.
+    # An entry further out than the store reaches: 2027-02-19 is 77 days after the trading day 2026-12-04.
     far = _trade(expiry="2027-02-19")
     (tmp_path / "empty").mkdir()
-    long_strike, short_strike, quote, facts = _priced(tmp_path / "empty", far, oldest_day="2026-12-04",
-                                                      trading_day="2026-12-05")
+    long_strike, short_strike, quote, facts = _priced(tmp_path / "empty", far, oldest_day="2026-12-03",
+                                                      trading_day="2026-12-04")
     assert (long_strike, short_strike, quote) == (756.0, 807.0, None)
     assert facts[0].startswith("Listed strikes not checked: the chain store keeps expiries 30 to 75 days out, and "
-                               "2027-02-19 is 76 days after the trading day;")
+                               "2027-02-19 is 77 days after the trading day;")
+
+
+@pytest.mark.parametrize(("expiry", "exempt"), [("2027-02-14", False), ("2027-02-15", True),
+                                                ("2026-12-30", False), ("2026-12-29", True)])
+def test_the_date_exemption_ends_at_the_bounds_of_the_store(tmp_path, expiry, exempt):
+    # Trading day Tuesday 2026-12-01, last data day Monday 2026-11-30: 2027-02-14 is 75 days after the trading day,
+    # 2026-12-30 is 30 days after the last data day (29 after the trading day), 2026-12-29 is 29 after it.
+    trade = _trade(expiry=expiry)
+    dates = {"oldest_day": "2026-11-30", "trading_day": "2026-12-01"}
+    (tmp_path / "empty").mkdir()
+    if exempt:
+        assert _priced(tmp_path / "empty", trade, **dates)[2:3] == (None,)
+    else:
+        assert _refused(tmp_path / "empty", trade, **dates) == _no_strikes(
+            "the chain store has no snapshot of SPY", f"{expiry} calls of SPY")
 
 
 def test_an_expiry_a_readable_snapshot_can_hold_names_listed_strikes_or_refuses_the_run(tmp_path):
@@ -1397,14 +1462,14 @@ def test_an_expiry_a_readable_snapshot_can_hold_names_listed_strikes_or_refuses_
                                                                                     808.0: (0.7, 0.8)})
     long_strike, short_strike, quote, _facts = _priced(tmp_path, **held)
     assert (long_strike, short_strike, quote["asOf"]) == (756.0, 808.0, "2026-11-18T20:30:00Z")
-    # 75 days after the trading day, 77 after the last data day: only a snapshot of the trading day keeps it. Until
-    # one is stored the run is refused; then every run of the day reads that one.
+    # A Monday roll: 74 days after the trading day 2026-12-07, 77 after the last data day, Friday 2026-12-04. Only a
+    # snapshot of the trading day keeps it. Until one is stored the run is refused; then every run of the day reads it.
     far, store = _trade(expiry="2027-02-19"), tmp_path / "far"
-    dates = {"oldest_day": "2026-12-04", "trading_day": "2026-12-06", "now": datetime(2026, 12, 6, 18, tzinfo=UTC)}
+    dates = {"oldest_day": "2026-12-04", "trading_day": "2026-12-07", "now": datetime(2026, 12, 7, 18, tzinfo=UTC)}
     _chain(_run(store, "2026-12-04", "203000"), "SPY", "2027-01-15", "calls", {756.0: (20.0, 20.2)})
     assert _refused(store, far, **dates) == _no_strikes(
         "the snapshot of 2026-12-04T20:30:00Z has no 2027-02-19 calls chain of SPY", chain="2027-02-19 calls of SPY")
-    _chain(_run(store, "2026-12-06", "173000"), "SPY", "2027-02-19", "calls", {755.0: (30.0, 30.4), 810.0: (5.0, 5.2)})
+    _chain(_run(store, "2026-12-07", "173000"), "SPY", "2027-02-19", "calls", {755.0: (30.0, 30.4), 810.0: (5.0, 5.2)})
     assert _priced(store, far, **dates)[:2] == (755.0, 810.0)
 
 

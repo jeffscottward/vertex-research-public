@@ -64,6 +64,7 @@ passed and the model wants nothing.
 """
 from __future__ import annotations
 
+import bisect
 import copy
 import csv
 import functools
@@ -71,6 +72,7 @@ import importlib.util
 import json
 import math
 import sys
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -403,12 +405,16 @@ def data_gaps(data: pf.Dataset, names: Sequence[str] | None = None, until: str |
 
     A series counts a day when it has a finite value of that day; its reference days are the
     trading days of the calendar (the bars of pf.CALENDAR_SYMBOL). The bars of an ETF count the days
-    it has a bar; their reference days are the days any ETF of the data has a bar, so a bar missing
-    from the calendar ETF itself shows too. A name is checked from its first day on. `names`: the
-    names to list (default: every series and every ETF; `<ETF>:TR` series are the bars' own).
-    `until`: holes only on days before it. A name without any value is left out.
+    it has a bar; their reference days are the days on which most of the ETFs that have started
+    (first bar on or before that day) have a bar. So a bar missing from the calendar ETF itself
+    shows, and one ETF with an extra bar on a closed day is no hole of the others. A name is checked
+    from its first day on. `names`: the names to list (default: every series and every ETF;
+    `<ETF>:TR` series are the bars' own). `until`: holes only on days before it. A name without any
+    value is left out.
     """
-    bar_days = sorted({day for bars in data.bars.values() for day in bars.dates})
+    started = sorted(bars.dates[0] for bars in data.bars.values() if bars.dates)
+    having = Counter(day for bars in data.bars.values() for day in bars.dates)
+    bar_days = sorted(day for day, count in having.items() if 2 * count > bisect.bisect_right(started, day))
     calendar = list(data.calendar)
     if until is not None:
         bar_days, calendar = [day for day in bar_days if day < until], [day for day in calendar if day < until]
@@ -457,7 +463,8 @@ def check_history(sleeves: Sequence[Mapping], made: Mapping[str, tuple[Mapping, 
     carry a missing value forward or drop an entry, so a strike moves or a spread disappears. So
     every series a sleeve reads, the bars of every ETF it trades and the calendar's bars must have
     a value on every day from their first day to the day before `last_day`, except the holes the
-    data had when the plan was tested (`pins`: golive/tested_gaps.py). A history that starts later
+    data had when the plan was tested (`pins`: golive/tested_gaps.py). A hole that ends before the
+    pinned first day is in days the test never read and does not count. A history that starts later
     than the pinned one has lost days too, and a history that is not pinned cannot be told apart
     from a gap. The last data day itself is the check of check_series (and of `generate` for bars).
     """
@@ -793,7 +800,8 @@ def price_candidate(trade: PricedTrade, runs: Sequence[Snapshot], oldest_day: st
 
     Strikes: each model strike moves to the nearest listed strike (the lower one on a tie) of the
     OLDEST usable chain. A stored chain does not change, so every run of a trading day names the same
-    strikes for a model trade: the strikes are part of the draft id on the server. The listed steps
+    strikes for a model trade (the strikes are part of the draft id on the server), as long as no run
+    with an earlier time is added to the store later. The listed steps
     are the exchange's (5 dollars on SPY away from the money), so a listed strike can be several model
     steps away; the leg facts name both. No usable chain, a model strike outside the listed strikes of
     that chain, or both legs on one listed strike, refuse the run (NoChainError): a draft names listed

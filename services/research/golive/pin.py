@@ -7,8 +7,8 @@ value for (generator.check_history). Every hole in the printed file is a gap the
 from then on. So pin only after checking the data, and read the diff of tested_gaps.py before
 committing it: a new hole there is a decision to trade on a history with that gap.
 
-Exit codes: 0 the module is printed; 1 the data directory cannot be read (the reason on stderr); 2
-usage (argparse).
+Exit codes: 0 the module is printed; 1 the data directory cannot be read or a file in it is not
+qc-ports data (the reason on stderr); 2 usage (argparse).
 """
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def main(argv=None, stdout=None, stderr=None) -> int:
         # stdout carries the module and nothing else: a print of the loader goes to stderr.
         with contextlib.redirect_stdout(stderr):
             dataset = study.load_study_data(args.data.expanduser()).dataset
-    except OSError as error:
+    except (OSError, KeyError, ValueError) as error:  # a directory or a file that is not qc-ports data
         print(f"golive.pin: the data directory {args.data} cannot be read: {error}", file=stderr)
         return 1
     stdout.write(module_text(data_gaps(dataset), dataset.calendar[-1]))
