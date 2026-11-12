@@ -392,6 +392,25 @@ describe("semantic layer (Postgres)", () => {
       rows: [{ read_only: "on", role: SEMANTIC_READER_ROLE, timeout: "5s" }],
     });
 
+    // A session advisory lock survives a rollback; DISCARD ALL after each text releases it. A custom
+    // setting's value is reset too. The texts share one backend, so this is the shared connection.
+    const session = await reader.runAll(
+      [
+        {
+          sql: "select pg_backend_pid() as pid, pg_advisory_lock(424242)::text as locked, set_config('probe.x', 'leaked', false) as probe",
+        },
+        {
+          sql: "select pg_backend_pid() as pid, (select count(*)::int from pg_locks where locktype = 'advisory' and pid = pg_backend_pid()) as held, coalesce(current_setting('probe.x', true), '') as probe",
+        },
+      ],
+      [],
+      RUN
+    );
+    expect(session.map(({ status }) => status)).toEqual(["ok", "ok"]);
+    expect(session[0]).toMatchObject({ rows: [{ probe: "leaked" }] });
+    expect(session[1]).toMatchObject({ rows: [{ held: 0, probe: "" }] });
+    expect(session[1]?.rows[0]?.["pid"]).toBe(session[0]?.rows[0]?.["pid"]);
+
     // A failed text ends the batch: nothing runs on the connection after it.
     const refused = await reader.runAll(
       [

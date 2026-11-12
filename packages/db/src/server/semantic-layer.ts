@@ -330,12 +330,16 @@ export const createSemanticReader = (
     query,
     status: "failed" as const,
   });
-  /** One certified text on the connection of its batch; the first text that needs it opens it. */
+  /**
+   * One certified text on the connection of its batch; the first text that needs it opens it.
+   * `textFollows`: another text of the batch may run on this connection after this one.
+   */
   const runOne = async (
     attribute: Pick<SemanticSqlAttributeRow, "sql">,
     params: readonly SemanticParamValue[],
     { rowLimit, timeoutMs }: SemanticAttributeRunOptions,
-    batch: { connection?: SemanticReaderConnection }
+    batch: { connection?: SemanticReaderConnection },
+    textFollows: boolean
   ): Promise<SemanticAttributeResult> => {
     let statement: CertifiedStatement;
     try {
@@ -375,6 +379,11 @@ export const createSemanticReader = (
         values: statement.values,
       });
       await client.query("rollback");
+      // The rollback undoes SET and set_config, but a session advisory lock survives it. Before
+      // another text uses this connection, DISCARD ALL (outside the transaction) releases those locks
+      // and resets every other session state. If it fails, this text fails and the batch ends. After
+      // the last text the connection is closed, which ends the session.
+      if (textFollows) await client.query("discard all");
       const rows = result.rows;
       return {
         query: statement.text,
@@ -408,8 +417,15 @@ export const createSemanticReader = (
     const batch: { connection?: SemanticReaderConnection } = {};
     const results: SemanticAttributeResult[] = [];
     try {
-      for (const attribute of attributes) {
-        const result = await runOne(attribute, params, options, batch);
+      for (const [index, attribute] of attributes.entries()) {
+        const textFollows = index < attributes.length - 1;
+        const result = await runOne(
+          attribute,
+          params,
+          options,
+          batch,
+          textFollows
+        );
         results.push(result);
         // A failed text may leave its transaction open: nothing more runs on this connection.
         if (result.status === "failed") break;

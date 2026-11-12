@@ -211,17 +211,18 @@ const runText: SemanticReader["run"] = (...args) =>
   (activeRun as unknown as SemanticReader["run"])(...args);
 // One runAll call stands for one reader connection. As in the real reader, each text runs in order
 // and a failed text ends the batch.
-const runAll = vi.fn<SemanticReader["runAll"]>(
+const runInOrder =
+  (run: SemanticReader["run"]): SemanticReader["runAll"] =>
   async (attributes, params, options) => {
     const results: Awaited<ReturnType<SemanticReader["run"]>>[] = [];
     for (const attribute of attributes) {
-      const result = await runText(attribute, params, options);
+      const result = await run(attribute, params, options);
       results.push(result);
       if (result.status === "failed") break;
     }
     return results;
-  }
-);
+  };
+const runAll = vi.fn<SemanticReader["runAll"]>(runInOrder(runText));
 const fakeReader = vi.fn(
   (_url: string | null): SemanticReader => ({ run: runText, runAll })
 );
@@ -377,15 +378,14 @@ const run = (
   }) as Promise<unknown>;
 };
 
+// The same reader stand-in as the handler's: runAll (a spy) runs the repository mock's runAttribute.
 const queryContext = (
   repository: RepositoryMock,
   readFeed: () => Promise<PortfolioMonitorOutput> = async () => snapshot()
-) => ({
-  now: NOW,
-  reader: { run: repository.runAttribute },
-  readFeed,
-  repository,
-});
+) => {
+  activeRun = repository.runAttribute;
+  return { now: NOW, reader: { run: runText, runAll }, readFeed, repository };
+};
 
 const answer = (
   input: SemanticTermQueryInput,

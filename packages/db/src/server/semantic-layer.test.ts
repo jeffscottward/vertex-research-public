@@ -389,6 +389,7 @@ describe("semantic layer persistence errors", () => {
   const createFakeOpen = (
     outcome: {
       closeError?: unknown;
+      discardError?: unknown;
       error?: unknown;
       identity?: Record<string, unknown> | null;
       openError?: unknown;
@@ -409,6 +410,9 @@ describe("semantic layer persistence errors", () => {
           return { rows: identity === null ? [] : [identity] };
         }
         calls.push(query);
+        if (query === "discard all" && outcome.discardError !== undefined) {
+          throw outcome.discardError;
+        }
         if (typeof query === "string") return { rows: [] };
         if (outcome.error !== undefined) throw outcome.error;
         return { rows: (outcome.rows ?? []) as Record<string, unknown>[] };
@@ -719,6 +723,7 @@ describe("semantic layer persistence errors", () => {
         expect(fake.calls).toEqual([
           ...checked(STATEMENT),
           "rollback",
+          "discard all",
           ...checked(SECOND),
           "rollback",
           "close",
@@ -777,6 +782,7 @@ describe("semantic layer persistence errors", () => {
         expect(calls).toEqual([
           ...checked(STATEMENT),
           "rollback",
+          "discard all",
           "identity",
           "close",
         ]);
@@ -796,6 +802,7 @@ describe("semantic layer persistence errors", () => {
         expect(fake.calls).toEqual([
           ...checked(STATEMENT),
           "rollback",
+          "discard all",
           "close",
         ]);
       });
@@ -817,6 +824,30 @@ describe("semantic layer persistence errors", () => {
         });
         // No rollback and no second text: the connection is closed with its transaction open.
         expect(fake.calls).toEqual([...checked(STATEMENT), "close"]);
+      });
+
+      it("fails the text and ends the batch when the session reset fails", async () => {
+        const fake = createFakeOpen({
+          discardError: Object.assign(new Error("terminated"), {
+            code: "57P01",
+          }),
+        });
+        const reader = createSemanticReader(READER_URL, fake.open);
+        const results = await reader.runAll(
+          [ATTRIBUTE, SECOND_ATTRIBUTE],
+          ["s1"],
+          OPTIONS
+        );
+        // Rows are returned only from a clean session: the text that could not reset fails.
+        expect(results).toEqual([
+          expect.objectContaining({ query: STATEMENT.text, status: "failed" }),
+        ]);
+        expect(fake.calls).toEqual([
+          ...checked(STATEMENT),
+          "rollback",
+          "discard all",
+          "close",
+        ]);
       });
 
       it("opens no connection for no texts", async () => {
