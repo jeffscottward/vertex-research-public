@@ -14,6 +14,7 @@ import { RotateCcw } from "lucide-react";
 import Link from "next/link";
 import {
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useId,
@@ -28,28 +29,35 @@ import {
 import {
   APPROVAL_NOT_SENT_SENTENCE,
   accountText,
-  apiErrorText,
   approveBlockers,
   approvedOrderView,
+  CURRENT_PRECHECK_LABEL,
+  CURRENT_QUOTE_LABEL,
   CURRENT_SIZING_LABEL,
   currentSizingText,
-  DRAFT_STATE_WORDS,
-  decisionErrorText,
+  decisionAftermathText,
+  decisionFailure,
   decisionText,
-  ENTRY_SIGNAL_GROUP_TITLE,
+  draftStateText,
+  draftsTitle,
   EXIT_GROUP_TITLE,
-  EXIT_REASON_WORDS,
-  EXIT_RULE_WORDS,
+  emptyGroupText,
+  entrySignalGroupTitle,
+  etDayClock,
+  exitReasonText,
+  exitRuleText,
   expiryDate,
+  type GoLiveDecisionFailure,
+  type GoLiveDraftContext,
   generatorText,
   groupDrafts,
-  isConflict,
   keyedLines,
   limitText,
-  MARKET_NOTES_WORDS,
+  loadErrorText,
+  loadedText,
   MODEL_HOLDS_GROUP_TITLE,
+  marketNotesText,
   maxLossText,
-  NO_ENTRY_SIGNAL_TEXT,
   NO_ORDERS_NOTICE_PARTS,
   NO_PLAN_TEXT,
   NODE_DISARMED_NOTE,
@@ -68,14 +76,15 @@ import {
   quoteText,
   REJECT_NOTE_REQUIRED,
   REJECTION_RECORD_SENTENCE,
-  STRUCTURE_WORDS,
   safeHttpsUrl,
   sleeveRow,
   strikesText,
+  structureText,
 } from "./golive-draft-queue-model.ts";
 
 // Go-live order draft queue (/drafts): the allocation plan in force, the state of the account,
-// node and generator, and today's order drafts. The owner approves or rejects each draft.
+// node and generator, and the order drafts of the order session day. The owner approves or
+// rejects each draft. The page has no polling: it says when it was loaded and has a Reload button.
 // RECORDS ONLY: goLiveDrafts has no send route. An approval is a stored decision; the owner
 // places an order through the Vertex orders tab of /portfolio.
 
@@ -83,7 +92,10 @@ export interface GoLiveDraftsGateway {
   readonly approve: (
     input: GoLiveDraftApproveInput
   ) => Promise<GoLiveDraftOutput>;
-  readonly queue: () => Promise<GoLiveQueueOutput>;
+  /** The signal abandons the request when a newer load starts or the page is left. */
+  readonly queue: (
+    options: Readonly<{ signal: AbortSignal }>
+  ) => Promise<GoLiveQueueOutput>;
   readonly reject: (
     input: GoLiveDraftRejectInput
   ) => Promise<GoLiveDraftOutput>;
@@ -94,7 +106,7 @@ const connectGoLiveDrafts = (): GoLiveDraftsGateway => {
   const api = createApiClient({ baseUrl: window.location.origin }).goLiveDrafts;
   return {
     approve: (input) => api.approve(input),
-    queue: () => api.queue({}),
+    queue: (options) => api.queue({}, options),
     reject: (input) => api.reject(input),
   };
 };
@@ -108,7 +120,8 @@ export const createBrowserGoLiveDraftsGateway = (): GoLiveDraftsGateway => {
   };
   return Object.freeze({
     approve: (input: GoLiveDraftApproveInput) => current().approve(input),
-    queue: () => current().queue(),
+    queue: (options: Readonly<{ signal: AbortSignal }>) =>
+      current().queue(options),
     reject: (input: GoLiveDraftRejectInput) => current().reject(input),
   });
 };
@@ -120,6 +133,8 @@ type State =
   | Readonly<{
       type: "ready";
       data: GoLiveQueueOutput;
+      /** When the queue on screen was loaded. The page does not refresh on its own. */
+      loadedAt: Date;
       /** A failed reload: the last loaded queue stays on screen. */
       reloadError?: string;
     }>;
@@ -154,11 +169,36 @@ const Notice = () => (
   </p>
 );
 
-const Frame = ({ children }: Readonly<{ children: ReactNode }>) => (
-  <div className="space-y-4" data-golive-draft-queue="">
+// Inert while the dialog is open: nothing behind it, the notice link included, can be clicked or
+// focused. The dialog itself is rendered outside this element (a portal on the document body).
+const Frame = ({
+  children,
+  inert = false,
+  rootRef,
+}: Readonly<{
+  children: ReactNode;
+  inert?: boolean;
+  rootRef?: RefObject<HTMLDivElement | null>;
+}>) => (
+  <div
+    className="space-y-4"
+    data-golive-draft-queue=""
+    inert={inert}
+    ref={rootRef}
+  >
     <Notice />
     {children}
   </div>
+);
+
+const LoadingMark = () => (
+  <span
+    className="text-muted-foreground text-sm"
+    data-golive-loading=""
+    role="status"
+  >
+    Loading…
+  </span>
 );
 
 const Field = ({
@@ -268,7 +308,7 @@ const StatusRow = ({ data }: Readonly<{ data: GoLiveQueueOutput }>) => (
       </li>
       <li data-golive-status="generator">{generatorText(data)}</li>
       <li data-golive-status="market-notes">
-        {MARKET_NOTES_WORDS[data.marketNotes]}
+        {marketNotesText(data.marketNotes)}
       </li>
     </ul>
   </section>
@@ -293,15 +333,17 @@ const draftName = (draft: GoLiveDraftOutput): string =>
 
 const DraftActions = ({
   busy,
+  context,
   draft,
   onDecide,
 }: Readonly<{
   busy: boolean;
+  context: GoLiveDraftContext;
   draft: GoLiveDraftOutput;
   onDecide: (decision: Decision) => void;
 }>) => {
   const reasonsId = useId();
-  const blockers = approveBlockers(draft);
+  const blockers = approveBlockers(draft, context);
   const blocked = blockers.length > 0;
   const { order } = draft;
   return (
@@ -313,7 +355,7 @@ const DraftActions = ({
           data-golive-action="approve"
           disabled={blocked || busy}
           onClick={
-            order === null
+            order === null || blocked
               ? undefined
               : () => onDecide({ draft, order, type: "approve" })
           }
@@ -347,17 +389,16 @@ const DraftActions = ({
 const DraftRow = ({
   busy,
   canDecide,
+  context,
   draft,
   onDecide,
-  ownerOnly,
 }: Readonly<{
   busy: boolean;
   /** False for an operator who is not the owner: the row then has no Approve and no Reject. */
   canDecide: boolean;
+  context: GoLiveDraftContext;
   draft: GoLiveDraftOutput;
   onDecide: (decision: Decision) => void;
-  /** The API refused this draft's decision: the session is an operator, not the owner. */
-  ownerOnly: boolean;
 }>) => {
   const titleId = useId();
   const preCheck = preCheckView(draft.preCheck);
@@ -376,14 +417,17 @@ const DraftRow = ({
         <h4 className="font-medium" id={titleId}>
           {draft.symbol}{" "}
           <span className="font-normal text-muted-foreground">
-            {STRUCTURE_WORDS[draft.structure]}
+            {structureText(draft.structure)}
           </span>
         </h4>
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="State">{DRAFT_STATE_WORDS[draft.state]}</Field>
+          <Field label="State">{draftStateText(draft.state)}</Field>
           <Field label="Expiry">{expiryDate(draft.expiry)}</Field>
           <Field label="Strikes">{strikesText(draft)}</Field>
-          <Field label="Quote">{quoteText(draft.quote)}</Field>
+          {/* On an approved row every live value is labelled as current, not as approved. */}
+          <Field label={approved === null ? "Quote" : CURRENT_QUOTE_LABEL}>
+            {quoteText(draft, context.readAt)}
+          </Field>
           {approved === null ? (
             <>
               <Field label="Limit">{limitText(draft.sizing.limitPrice)}</Field>
@@ -394,19 +438,20 @@ const DraftRow = ({
             <>
               <Field label={approved.label}>
                 {approved.missing === null ? (
-                  <span data-golive-approved-order="">
+                  <div data-golive-approved-order="">
                     <TextList empty="" items={approved.legs} />
                     {approved.rows.map((row) => (
-                      <span className="block" key={row.label}>
+                      <div key={row.label}>
                         {row.label}: {row.value}
-                      </span>
+                      </div>
                     ))}
-                  </span>
+                  </div>
                 ) : (
-                  <span data-golive-approved-order="missing">
+                  <div data-golive-approved-order="missing">
                     {approved.missing}
-                  </span>
+                  </div>
                 )}
+                <div data-golive-node-at-approval="">{approved.nodeBadge}</div>
               </Field>
               <Field label={CURRENT_SIZING_LABEL}>
                 <span data-golive-current-sizing="">
@@ -415,13 +460,15 @@ const DraftRow = ({
               </Field>
             </>
           )}
-          <Field label="Exit rule">{EXIT_RULE_WORDS[draft.exitRule]}</Field>
+          <Field label="Exit rule">{exitRuleText(draft.exitRule)}</Field>
           {draft.exitReason === null ? null : (
             <Field label="Exit reason">
-              {EXIT_REASON_WORDS[draft.exitReason]}
+              {exitReasonText(draft.exitReason)}
             </Field>
           )}
-          <Field label="Pre-check">
+          <Field
+            label={approved === null ? "Pre-check" : CURRENT_PRECHECK_LABEL}
+          >
             <span data-golive-precheck="">{preCheck.decision}</span>
             {preCheck.reasons.length === 0 ? null : (
               <TextList empty="" items={preCheck.reasons} />
@@ -447,16 +494,12 @@ const DraftRow = ({
           )}
         </dl>
         {draft.state === "proposed" && canDecide ? (
-          <DraftActions busy={busy} draft={draft} onDecide={onDecide} />
-        ) : null}
-        {ownerOnly ? (
-          <p
-            className="text-destructive text-sm"
-            data-golive-owner-only=""
-            role="alert"
-          >
-            {OWNER_ONLY_DECISION_TEXT}
-          </p>
+          <DraftActions
+            busy={busy}
+            context={context}
+            draft={draft}
+            onDecide={onDecide}
+          />
         ) : null}
       </article>
     </li>
@@ -466,23 +509,27 @@ const DraftRow = ({
 const DraftGroup = ({
   busy,
   canDecide,
+  context,
   drafts,
   empty,
   id,
   onDecide,
-  ownerOnlyId,
   title,
 }: Readonly<{
   busy: boolean;
   canDecide: boolean;
+  context: GoLiveDraftContext;
   drafts: readonly GoLiveDraftOutput[];
   empty: string;
   id: string;
   onDecide: (decision: Decision) => void;
-  ownerOnlyId: string | null;
   title: string;
 }>) => (
-  <section aria-labelledby={id} className={SECTION} data-golive-group={id}>
+  <section
+    aria-labelledby={id}
+    className="space-y-3 rounded-md border border-border p-3"
+    data-golive-group={id}
+  >
     <h3 className="font-heading font-semibold" id={id}>
       {title}
     </h3>
@@ -494,10 +541,10 @@ const DraftGroup = ({
           <DraftRow
             busy={busy}
             canDecide={canDecide}
+            context={context}
             draft={draft}
             key={draft.id}
             onDecide={onDecide}
-            ownerOnly={draft.id === ownerOnlyId}
           />
         ))}
       </ul>
@@ -523,6 +570,7 @@ const DecisionDialog = ({
 }>) => {
   const noteId = useId();
   const noteErrorId = useId();
+  const errorId = useId();
   const [note, setNote] = useState("");
   const [noteMissing, setNoteMissing] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -562,7 +610,7 @@ const DecisionDialog = ({
           event.preventDefault();
           (noteRef.current ?? cancelRef.current)?.focus();
         }}
-        title={`${type === "approve" ? "Approve" : "Reject"} ${draftName(draft)} ${STRUCTURE_WORDS[draft.structure]}`}
+        title={`${type === "approve" ? "Approve" : "Reject"} ${draftName(draft)} ${structureText(draft.structure)}`}
       >
         {order === null ? (
           <div className="space-y-1 text-sm">
@@ -570,7 +618,15 @@ const DecisionDialog = ({
               Note (required)
             </label>
             <Textarea
-              aria-describedby={noteMissing ? noteErrorId : undefined}
+              // Both the missing-note error and a server error describe the note.
+              aria-describedby={
+                [
+                  noteMissing ? noteErrorId : null,
+                  error === null ? null : errorId,
+                ]
+                  .filter((id) => id !== null)
+                  .join(" ") || undefined
+              }
               aria-invalid={noteMissing}
               id={noteId}
               maxLength={1000}
@@ -609,6 +665,7 @@ const DecisionDialog = ({
           <p
             className="text-destructive text-sm"
             data-golive-dialog-error=""
+            id={errorId}
             role="alert"
           >
             {error}
@@ -624,6 +681,7 @@ const DecisionDialog = ({
             Cancel
           </Button>
           <Button
+            aria-describedby={error === null ? undefined : errorId}
             data-golive-dialog-submit=""
             disabled={busy}
             onClick={submit}
@@ -638,43 +696,89 @@ const DecisionDialog = ({
 };
 
 export const GoLiveDraftQueue = ({
+  clock: suppliedClock,
   gateway: supplied,
-}: Readonly<{ gateway?: GoLiveDraftsGateway }>) => {
+}: Readonly<{
+  /** The page clock, for the "Loaded <time>" line. Tests supply a fixed one. */
+  clock?: () => Date;
+  gateway?: GoLiveDraftsGateway;
+}>) => {
   const [gateway] = useState(
     () => supplied ?? createBrowserGoLiveDraftsGateway()
   );
+  const [clock] = useState(() => suppliedClock ?? (() => new Date()));
   const [state, setState] = useState<State>({ type: "loading" });
+  const [loading, setLoading] = useState(true);
   const [decision, setDecision] = useState<Decision | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [ownerOnlyId, setOwnerOnlyId] = useState<string | null>(null);
-  /** A decision the server refused because the draft changed: said once, above the queue. */
-  const [conflict, setConflict] = useState<string | null>(null);
+  /** What a decision attempt came to when it closed the dialog: said once, above the queue. */
+  const [notice, setNotice] = useState<string | null>(null);
   // A second click on Record arrives before `busy` has rendered; the ref refuses it at once.
   const submitting = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const opener = useRef<{ draftId: string; element: Element | null } | null>(
     null
   );
+  // Loads are numbered. Only the answer of the newest load is used, so an older answer never
+  // overwrites a newer queue or a draft that a decision returned.
+  const loadNumber = useRef(0);
+  const loadAbort = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
 
-  const load = useCallback(async () => {
+  /** The queue that was loaded, or null when the load failed or a newer load replaced it. */
+  const load = useCallback(async (): Promise<GoLiveQueueOutput | null> => {
+    loadNumber.current += 1;
+    const mine = loadNumber.current;
+    const current = (): boolean =>
+      mounted.current && mine === loadNumber.current;
+    loadAbort.current?.abort();
+    const abort = new AbortController();
+    loadAbort.current = abort;
+    setLoading(true);
     try {
-      const data = await gateway.queue();
-      return setState({ data, type: "ready" });
+      const data = await gateway.queue({ signal: abort.signal });
+      if (!current()) return null;
+      setState({ data, loadedAt: clock(), type: "ready" });
+      return data;
     } catch (error) {
-      return setState((previous) => {
+      if (!current()) return null;
+      setState((previous) => {
         if (isOperatorAccessDenied(error)) return { type: "forbidden" };
-        const message = apiErrorText(error);
+        const message = loadErrorText(error);
         // A failed reload keeps the last loaded queue and reports the failure inline.
         return previous.type === "ready"
-          ? { data: previous.data, reloadError: message, type: "ready" }
+          ? { ...previous, reloadError: message }
           : { message, type: "error" };
       });
+      return null;
+    } finally {
+      if (current()) setLoading(false);
     }
-  }, [gateway]);
+  }, [clock, gateway]);
   useEffect(() => {
+    mounted.current = true;
     void load();
+    return () => {
+      // Leaving the page abandons the load; no state is set after this.
+      mounted.current = false;
+      loadAbort.current?.abort();
+    };
   }, [load]);
+
+  const cannotDecide = state.type === "ready" && !state.data.canDecide;
+  const lostQueue = state.type !== "ready";
+  useEffect(() => {
+    if (decision === null || busy) return;
+    // A queue answer behind the open dialog says this caller cannot decide, or the queue is gone
+    // (operator access lost): the dialog must not stay usable.
+    if (cannotDecide) {
+      setDecision(null);
+      setNotice(
+        `${OWNER_ONLY_DECISION_TEXT} The open dialog was closed and nothing was recorded.`
+      );
+    } else if (lostQueue) setDecision(null);
+  }, [busy, cannotDecide, decision, lostQueue]);
 
   const open = (next: Decision) => {
     opener.current = {
@@ -682,8 +786,7 @@ export const GoLiveDraftQueue = ({
       element: document.activeElement,
     };
     setDecisionError(null);
-    setOwnerOnlyId(null);
-    setConflict(null);
+    setNotice(null);
     setDecision(next);
   };
 
@@ -707,8 +810,12 @@ export const GoLiveDraftQueue = ({
     target?.focus();
   };
 
-  /** The draft the server returned replaces the listed one, so a failed reload still shows it. */
-  const keep = (decided: GoLiveDraftOutput) =>
+  /**
+   * The draft the server returned replaces the listed one, so a failed reload still shows it.
+   * Loads that started before the decision are dropped: their answer is older than this draft.
+   */
+  const keep = (decided: GoLiveDraftOutput) => {
+    loadNumber.current += 1;
     setState((previous) =>
       previous.type === "ready"
         ? {
@@ -722,41 +829,65 @@ export const GoLiveDraftQueue = ({
           }
         : previous
     );
+  };
 
-  const submit = async (current: Decision, note: string) => {
+  const send = (current: Decision, note: string): Promise<GoLiveDraftOutput> =>
+    current.type === "approve"
+      ? // The dialog repeated exactly this order; the server refuses when its own order differs.
+        gateway.approve({
+          confirm: true,
+          id: current.draft.id,
+          order: current.order,
+        })
+      : gateway.reject({ id: current.draft.id, note });
+
+  // The dialog may show a stale order, or the decision may already be recorded: the dialog
+  // closes, the queue is read again and the notice says what the reloaded row shows.
+  const closeAndReload = async (
+    failure: GoLiveDecisionFailure,
+    draft: GoLiveDraftOutput
+  ) => {
+    setDecision(null);
+    setNotice(failure.text);
+    const reloaded = await load();
+    if (!(mounted.current && failure.aftermath)) return;
+    const found =
+      reloaded === null
+        ? null
+        : reloaded.drafts.find((entry) => entry.id === draft.id);
+    setNotice(
+      `${failure.text} ${decisionAftermathText(found, reloaded?.tradingDay ?? draft.tradingDay)}`
+    );
+  };
+
+  const submit = async (
+    current: Decision,
+    note: string,
+    facts: GoLiveDraftContext
+  ) => {
     if (submitting.current) return;
     submitting.current = true;
-    const { draft } = current;
     setBusy(true);
     setDecisionError(null);
     try {
-      // The dialog repeated exactly this order; the server refuses when its own order differs.
-      const decided =
-        current.type === "approve"
-          ? await gateway.approve({
-              confirm: true,
-              id: draft.id,
-              order: current.order,
-            })
-          : await gateway.reject({ id: draft.id, note });
+      const decided = await send(current, note);
+      if (!mounted.current) return;
       keep(decided);
       setDecision(null);
       await load();
     } catch (error) {
-      // The queue loaded, so this session is an operator: FORBIDDEN here means "not the owner".
-      if (isOperatorAccessDenied(error)) {
-        setDecision(null);
-        setOwnerOnlyId(draft.id);
-      } else if (isConflict(error)) {
-        // The draft or its order changed since this page loaded it: the dialog shows a stale
-        // order, so it closes and the queue is read again.
-        setDecision(null);
-        setConflict(decisionErrorText(error, draft.quote));
-        await load();
-      } else setDecisionError(decisionErrorText(error, draft.quote));
+      if (!mounted.current) return;
+      const failure = decisionFailure(
+        error,
+        current.type,
+        current.draft,
+        facts
+      );
+      if (failure.action === "stay") setDecisionError(failure.text);
+      else await closeAndReload(failure, current.draft);
     } finally {
       submitting.current = false;
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
 
@@ -784,105 +915,114 @@ export const GoLiveDraftQueue = ({
         <p className="text-sm" role="alert">
           Order drafts unavailable. {state.message}
         </p>
-        <Button onClick={() => void load()} variant="outline">
-          <RotateCcw aria-hidden="true" className="size-4" />
-          Retry now
-        </Button>
-      </Frame>
-    );
-
-  const { data, reloadError } = state;
-  const groups = groupDrafts(data.drafts);
-  const dialogOpen = decision !== null;
-  return (
-    <Frame>
-      {/* Inert while the dialog is open: nothing behind it can be clicked, focused or reloaded. */}
-      <div
-        className="space-y-4"
-        data-golive-page=""
-        inert={dialogOpen}
-        ref={rootRef}
-      >
-        {conflict === null ? null : (
-          <p
-            className="text-destructive text-sm"
-            data-golive-conflict=""
-            role="alert"
-          >
-            The decision was not recorded. {conflict}
-          </p>
-        )}
-        {reloadError === undefined ? null : (
-          <p
-            className="text-destructive text-sm"
-            data-golive-reload-error=""
-            role="alert"
-          >
-            Reload failed; showing the last loaded queue. {reloadError}
-          </p>
-        )}
-        <PlanBlock plan={data.plan} />
-        <StatusRow data={data} />
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {data.canDecide ? null : (
-            <p className="mr-auto text-sm" data-golive-cannot-decide="">
-              {OWNER_ONLY_DECISION_TEXT}
-            </p>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
           <Button
-            disabled={busy || dialogOpen}
+            disabled={loading}
             onClick={() => void load()}
             variant="outline"
           >
             <RotateCcw aria-hidden="true" className="size-4" />
-            Reload queue
+            Retry now
           </Button>
+          {loading ? <LoadingMark /> : null}
         </div>
+      </Frame>
+    );
+
+  const { data, loadedAt, reloadError } = state;
+  const groups = groupDrafts(data.drafts);
+  const dialogOpen = decision !== null;
+  // The plan in force and the server's clock at this read: what every draft is judged against.
+  const context: GoLiveDraftContext = {
+    plan: data.plan,
+    readAt: data.node.checkedAt,
+  };
+  const group = { busy, canDecide: data.canDecide, context, onDecide: open };
+  return (
+    <Frame inert={dialogOpen} rootRef={rootRef}>
+      {notice === null ? null : (
+        <p
+          className="text-destructive text-sm"
+          data-golive-decision-notice=""
+          role="alert"
+        >
+          {notice}
+        </p>
+      )}
+      {reloadError === undefined ? null : (
+        <p
+          className="text-destructive text-sm"
+          data-golive-reload-error=""
+          role="alert"
+        >
+          Reload failed; showing the queue loaded {etDayClock(loadedAt)}.{" "}
+          {reloadError}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <p
+          className="mr-auto text-muted-foreground text-sm"
+          data-golive-loaded=""
+        >
+          {loadedText(loadedAt)}
+        </p>
+        {loading ? <LoadingMark /> : null}
+        <Button
+          disabled={busy || dialogOpen || loading}
+          onClick={() => void load()}
+          variant="outline"
+        >
+          <RotateCcw aria-hidden="true" className="size-4" />
+          Reload queue
+        </Button>
+      </div>
+      <PlanBlock plan={data.plan} />
+      <StatusRow data={data} />
+      <section aria-labelledby="golive-drafts-title" className={SECTION}>
+        <h2
+          className="font-heading font-semibold text-lg"
+          id="golive-drafts-title"
+        >
+          {draftsTitle(data.tradingDay)}
+        </h2>
+        {data.canDecide ? null : (
+          <p className="text-sm" data-golive-cannot-decide="">
+            {OWNER_ONLY_DECISION_TEXT}
+          </p>
+        )}
         <DraftGroup
-          busy={busy}
-          canDecide={data.canDecide}
+          {...group}
           drafts={groups.entrySignal}
-          empty={NO_ENTRY_SIGNAL_TEXT}
+          empty={emptyGroupText("entrySignal", data)}
           id="golive-group-entry-signal"
-          onDecide={open}
-          ownerOnlyId={ownerOnlyId}
-          title={ENTRY_SIGNAL_GROUP_TITLE}
+          title={entrySignalGroupTitle(data.tradingDay)}
         />
         <DraftGroup
-          busy={busy}
-          canDecide={data.canDecide}
+          {...group}
           drafts={groups.modelHolds}
-          empty="No draft in this group."
+          empty={emptyGroupText("modelHolds", data)}
           id="golive-group-model-holds"
-          onDecide={open}
-          ownerOnlyId={ownerOnlyId}
           title={MODEL_HOLDS_GROUP_TITLE}
         />
         {groups.exits.length === 0 ? null : (
           <DraftGroup
-            busy={busy}
-            canDecide={data.canDecide}
+            {...group}
             drafts={groups.exits}
             empty=""
             id="golive-group-exit"
-            onDecide={open}
-            ownerOnlyId={ownerOnlyId}
             title={EXIT_GROUP_TITLE}
           />
         )}
         {groups.other.length === 0 ? null : (
           <DraftGroup
-            busy={busy}
-            canDecide={data.canDecide}
+            {...group}
             drafts={groups.other}
             empty=""
             id="golive-group-other"
-            onDecide={open}
-            ownerOnlyId={ownerOnlyId}
             title={OTHER_GROUP_TITLE}
           />
         )}
-      </div>
+      </section>
       {decision === null ? null : (
         <DecisionDialog
           busy={busy}
@@ -891,7 +1031,7 @@ export const GoLiveDraftQueue = ({
           key={`${decision.type}:${decision.draft.id}`}
           onCancel={() => setDecision(null)}
           onClosed={restoreFocus}
-          onSubmit={(note) => void submit(decision, note)}
+          onSubmit={(note) => void submit(decision, note, context)}
         />
       )}
     </Frame>

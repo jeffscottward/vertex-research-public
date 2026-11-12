@@ -1,40 +1,49 @@
-import type {
-  GOLIVE_DRAFT_STATE_VALUES,
-  GOLIVE_EXIT_REASON_VALUES,
-  GOLIVE_NODE_BADGE_VALUES,
-  GOLIVE_NOT_APPROVABLE_VALUES,
-  GOLIVE_QUOTE_SOURCE_VALUES,
-  GOLIVE_SIZING_REASON_VALUES,
-  GOLIVE_STRUCTURE_VALUES,
-  GoLiveDraftOutput,
-  GoLivePlanLimits,
-  GoLivePlanOutput,
-  GoLivePlanSleeve,
-  GoLiveQueueOutput,
-  GoLiveQuote,
-  GoLiveSizing,
+import {
+  AGENT_OPS_API_ERRORS,
+  type GOLIVE_DRAFT_STATE_VALUES,
+  type GOLIVE_EXIT_REASON_VALUES,
+  type GOLIVE_NODE_BADGE_VALUES,
+  type GOLIVE_NOT_APPROVABLE_VALUES,
+  type GOLIVE_QUOTE_SOURCE_VALUES,
+  type GOLIVE_SIZING_REASON_VALUES,
+  type GOLIVE_STRUCTURE_VALUES,
+  type GoLiveDraftOutput,
+  type GoLivePlanLimits,
+  type GoLivePlanOutput,
+  type GoLivePlanSleeve,
+  type GoLiveQueueOutput,
+  type GoLiveQuote,
+  type GoLiveSizing,
 } from "@darkfactory/api";
 
 import { pct, price, usd } from "./portfolio-monitor-model.ts";
 
 // Pure wording and derivation for the go-live order draft queue (/drafts). No React, no I/O.
 // Every enum of the contract has one exhaustive Record here, typed from the contract array, so a
-// new enum value is a type error until it has words.
+// new enum value is a type error until it has words. The browser client does not validate an
+// answer, so a newer server's value can still arrive at run time: every lookup goes through
+// wordsOf, which names the raw value instead of printing "undefined" or a blank.
 
-export type GoLiveStructure = (typeof GOLIVE_STRUCTURE_VALUES)[number];
-export type GoLiveQuoteSource = (typeof GOLIVE_QUOTE_SOURCE_VALUES)[number];
-export type GoLiveSizingReason = (typeof GOLIVE_SIZING_REASON_VALUES)[number];
-export type GoLiveNotApprovable = (typeof GOLIVE_NOT_APPROVABLE_VALUES)[number];
-export type GoLiveNodeBadge = (typeof GOLIVE_NODE_BADGE_VALUES)[number];
-export type GoLiveDraftStateValue = (typeof GOLIVE_DRAFT_STATE_VALUES)[number];
-export type GoLiveExitReason = (typeof GOLIVE_EXIT_REASON_VALUES)[number];
-export type GoLiveMarketNotes = GoLiveQueueOutput["marketNotes"];
-export type GoLiveExitRule = GoLiveDraftOutput["exitRule"];
+type GoLiveStructure = (typeof GOLIVE_STRUCTURE_VALUES)[number];
+type GoLiveQuoteSource = (typeof GOLIVE_QUOTE_SOURCE_VALUES)[number];
+type GoLiveSizingReason = (typeof GOLIVE_SIZING_REASON_VALUES)[number];
+type GoLiveNotApprovable = (typeof GOLIVE_NOT_APPROVABLE_VALUES)[number];
+type GoLiveNodeBadge = (typeof GOLIVE_NODE_BADGE_VALUES)[number];
+type GoLiveDraftStateValue = (typeof GOLIVE_DRAFT_STATE_VALUES)[number];
+type GoLiveExitReason = (typeof GOLIVE_EXIT_REASON_VALUES)[number];
+type GoLiveMarketNotes = GoLiveQueueOutput["marketNotes"];
+type GoLiveExitRule = GoLiveDraftOutput["exitRule"];
 type GoLiveOrder = NonNullable<GoLiveDraftOutput["order"]>;
 type GoLiveGate = NonNullable<GoLiveDraftOutput["preCheck"]["webFinalGate"]>;
 type GoLiveGateDecision = GoLiveGate["decision"];
 type GoLiveJevStance = NonNullable<GoLiveGate["jevStance"]>;
 type GoLiveJevState = GoLiveGate["jevState"];
+type GoLiveOptionRight = GoLiveOrder["legs"][number]["right"];
+type GoLiveApiErrorCode = keyof typeof AGENT_OPS_API_ERRORS;
+
+/** A value this page version has no words for (a newer server), named with the raw value. */
+export const notKnownText = (raw: unknown): string =>
+  `not known to this page version (${String(raw)})`;
 
 /**
  * The `never` check of an exhaustive switch. A value this build does not know (a newer server)
@@ -42,6 +51,23 @@ type GoLiveJevState = GoLiveGate["jevState"];
  */
 const unhandled = <Fallback>(_value: never, fallback: Fallback): Fallback =>
   fallback;
+
+/** The raw text of a value that reached a `never` branch at run time. */
+const rawOf = (value: never): string => String(value);
+
+/** True when the map has words for the value. A property every object has is not a known value. */
+const isKnown = <Key extends string>(
+  words: Readonly<Record<Key, unknown>>,
+  value: unknown
+): value is Key => typeof value === "string" && Object.hasOwn(words, value);
+
+/** The words of a contract value, or the raw value named as not known. Never undefined. */
+const wordsOf = <Key extends string>(
+  words: Readonly<Record<Key, string>>,
+  value: Key,
+  prefix = ""
+): string =>
+  isKnown(words, value) ? words[value] : `${prefix}${notKnownText(value)}`;
 
 // ---------- fixed sentences ----------
 
@@ -71,10 +97,8 @@ export const EXIT_RULE_WORDS: Readonly<Record<GoLiveExitRule, string>> =
   });
 export const ENGINE_POLICY_LINE =
   "Engine policy (arm_gate): not part of the web order path; not evaluated here.";
-export const NO_PLAN_TEXT = "No plan record";
-export const NO_ENTRY_SIGNAL_TEXT =
-  "No entry signal today under the plan's entry rule.";
-export const ENTRY_SIGNAL_GROUP_TITLE = "Entry signal today";
+export const NO_PLAN_TEXT =
+  "No plan record: no proposed or approved plan is stored";
 export const MODEL_HOLDS_GROUP_TITLE =
   "Model holds, account does not (late entry not tested, cannot be approved)";
 export const EXIT_GROUP_TITLE =
@@ -86,12 +110,22 @@ export const SIGNED_OUT_TEXT =
   "You are signed out: the session has ended. Sign in again.";
 export const CURRENT_SIZING_LABEL =
   "Current indicative sizing (recomputed now; not the approved order)";
-export const APPROVED_ORDER_NOT_STORED =
-  "Not stored with this approval, so the approved order cannot be shown.";
+export const CURRENT_QUOTE_LABEL =
+  "Quote (current value, not the value at approval)";
+export const CURRENT_PRECHECK_LABEL =
+  "Pre-check (current value, not the value at approval)";
+// The server refuses the whole queue for a browser session when a stored approved order is
+// missing, and leaves the order out for an API key. So an approved draft without an order means
+// "left out of this answer", never "not stored".
+export const APPROVED_ORDER_NOT_SHOWN =
+  "This answer carries no approved order, so it cannot be shown here. The server withholds it from API key callers.";
 export const NO_SIZED_ORDER_REASON = "No sized order to approve";
 export const OWNER_ONLY_DECISION_TEXT =
   "Only the owner can approve or reject a draft.";
 export const REJECT_NOTE_REQUIRED = "A note is required to reject a draft.";
+// The server counts an IBKR quote as live for this long (GOLIVE_QUOTE_MAX_AGE_MS in
+// packages/api/src/server/golive-drafts-sizing.ts; the model test compares the two).
+export const LIVE_QUOTE_MAX_AGE_SECONDS = 120;
 
 // ---------- wording maps ----------
 
@@ -119,6 +153,8 @@ export const SIZING_REASON_WORDS: Readonly<Record<GoLiveSizingReason, string>> =
     nlv_unavailable: "the account value is not available",
     no_quote: "there is no quote",
     open_risk_cap_reached: "the open risk cap is reached",
+    quantity_above_order_limit:
+      "the budget buys more spreads than one order may hold, and the draft is not reduced",
     sized: "sized from the plan's risk per position",
     sleeve_budget_used: "the sleeve budget is used",
   });
@@ -132,6 +168,7 @@ export const NOT_APPROVABLE_WORDS: Readonly<
   NLV_UNAVAILABLE: "The account value is not available",
   // The cause depends on the quote: notApprovableText gives it.
   NO_LIVE_IBKR_QUOTE: "No live IBKR quote",
+  // The cause depends on the plan in force: notApprovableText gives it.
   PLAN_NOT_APPROVED: "The plan is not approved",
   PRECHECK_DENIED: "The dry pre-check (web final gate) denied the order",
   SIZED_TO_ZERO: "The quantity is 0",
@@ -139,10 +176,11 @@ export const NOT_APPROVABLE_WORDS: Readonly<
 
 export const NODE_BADGE_WORDS: Readonly<Record<GoLiveNodeBadge, string>> =
   Object.freeze({
-    down: "Node down",
+    down: "Node down: its container is stopped or missing",
     "running-armed": "Node running, armed",
     "running-disarmed": "Node running, disarmed",
-    unknown: "Node state unknown: the node status could not be read",
+    unknown:
+      "Node state unknown: the node status could not be read or was incomplete",
   });
 
 export const DRAFT_STATE_WORDS: Readonly<
@@ -189,6 +227,26 @@ export const JEV_STATE_WORDS: Readonly<Record<GoLiveJevState, string>> =
     unreachable: "JEV could not be reached",
   });
 
+const RIGHT_WORDS: Readonly<Record<GoLiveOptionRight, string>> = Object.freeze({
+  C: "call",
+  P: "put",
+});
+
+export const structureText = (value: GoLiveStructure): string =>
+  wordsOf(STRUCTURE_WORDS, value);
+export const draftStateText = (value: GoLiveDraftStateValue): string =>
+  wordsOf(DRAFT_STATE_WORDS, value);
+export const marketNotesText = (value: GoLiveMarketNotes): string =>
+  wordsOf(MARKET_NOTES_WORDS, value, "Market notes: status ");
+export const exitReasonText = (value: GoLiveExitReason): string =>
+  wordsOf(EXIT_REASON_WORDS, value);
+export const exitRuleText = (value: GoLiveExitRule): string =>
+  wordsOf(EXIT_RULE_WORDS, value);
+const sizingReasonText = (value: GoLiveSizingReason): string =>
+  wordsOf(SIZING_REASON_WORDS, value, "sizing reason ");
+const nodeBadgeText = (value: GoLiveNodeBadge): string =>
+  wordsOf(NODE_BADGE_WORDS, value, "Node state ");
+
 // ---------- time ----------
 
 const ET_CLOCK = new Intl.DateTimeFormat("en-GB", {
@@ -204,16 +262,17 @@ const ET_DAY = new Intl.DateTimeFormat("en-CA", {
   year: "numeric",
 });
 
-/** "HH:MM ET" (New York wall clock). */
-export const etClock = (value: Date): string => `${ET_CLOCK.format(value)} ET`;
-
-/** "YYYY-MM-DD HH:MM ET" for a decision, which may be read on a later day. */
+/** "YYYY-MM-DD HH:MM ET" (New York). Every time on the page carries its date. */
 export const etDayClock = (value: Date): string =>
-  `${ET_DAY.format(value)} ${etClock(value)}`;
+  `${ET_DAY.format(value)} ${ET_CLOCK.format(value)} ET`;
 
 /** An option expiry "YYYYMMDD" as "YYYY-MM-DD". Any other text is shown unchanged. */
 export const expiryDate = (expiry: string): string =>
   expiry.replace(/^(\d{4})(\d{2})(\d{2})$/u, "$1-$2-$3");
+
+/** The page has no polling: the line says so and when the queue on screen was loaded. */
+export const loadedText = (loadedAt: Date): string =>
+  `This page does not refresh on its own. Loaded ${etDayClock(loadedAt)}.`;
 
 // ---------- plan ----------
 
@@ -225,9 +284,10 @@ export const planStatusText = (
 ): string => {
   switch (plan.status) {
     case "proposed":
-      return "Plan not approved";
+      return "Plan proposed, not approved: no owner approval is recorded for it";
     case "retired":
-      return "Plan retired";
+      // The queue answers only a proposed or an approved plan; kept as the fallback.
+      return "Plan retired, so it is not in force and is not treated as approved";
     case "approved":
       switch (plan.approvalBasis) {
         case "owner_decision":
@@ -240,20 +300,24 @@ export const planStatusText = (
         default:
           return unhandled(
             plan.approvalBasis,
-            "Plan marked approved, approval basis not known to this page"
+            `Plan marked approved, approval basis ${notKnownText(rawOf(plan.approvalBasis))}`
           );
       }
     default:
       return unhandled(
         plan.status,
-        "Plan status not known to this page, so the plan is not treated as approved"
+        `Plan status ${notKnownText(rawOf(plan.status))}, so the plan is not treated as approved`
       );
   }
 };
 
-/** A link target only when it is an absolute https URL; anything else is not rendered as a link. */
+/**
+ * A link target only when it is an absolute https URL with a host; anything else is not rendered
+ * as a link. The URL parser alone accepts "https:example.com" and "https:/x", which a browser
+ * resolves on the app's own origin, so the text itself must start with "https://<host>".
+ */
 export const safeHttpsUrl = (value: string | null): string | null => {
-  if (value === null) return null;
+  if (value === null || !/^https:\/\/[^/\s]/u.test(value)) return null;
   try {
     return new URL(value).protocol === "https:" ? value : null;
   } catch {
@@ -289,7 +353,7 @@ export const sleeveRow = (sleeve: GoLivePlanSleeve): GoLiveSleeveRow => ({
   key: sleeve.key,
   name: sleeve.name,
   note: sleeve.definitionNote,
-  structure: STRUCTURE_WORDS[sleeve.structure],
+  structure: structureText(sleeve.structure),
   symbols: sleeve.symbols.join(", "),
 });
 
@@ -302,22 +366,32 @@ export const accountText = (account: GoLiveQueueOutput["account"]): string => {
   const value = usd(account.netLiquidation);
   return account.asOf === null
     ? `Account value: ${value} (time not reported)`
-    : `Account value: ${value} as of ${etClock(account.asOf)}`;
+    : `Account value: ${value} as of ${etDayClock(account.asOf)}`;
 };
 
 export const nodeText = (node: GoLiveQueueOutput["node"]): string =>
-  `${NODE_BADGE_WORDS[node.badge]} (checked ${etClock(node.checkedAt)})`;
+  `${nodeBadgeText(node.badge)} (checked ${etDayClock(node.checkedAt)})`;
 
+/**
+ * What the generator reported. A refused run posts nothing, so "has not reported" names both
+ * causes. The count is every draft listed for the day, and says so.
+ */
 export const generatorText = (
   queue: Pick<GoLiveQueueOutput, "drafts" | "generatedAt" | "tradingDay">
 ): string => {
   if (queue.generatedAt === null)
-    return `Generator has not reported for ${queue.tradingDay}`;
+    return `The generator has not reported for ${queue.tradingDay}: it has not run yet, or its run was refused (the journal of vertex-golive-drafts.service on the rig says which).`;
   const count = queue.drafts.length;
-  return `Generator ran at ${etClock(queue.generatedAt)}: ${count} ${count === 1 ? "draft" : "drafts"}`;
+  return `Generator ran at ${etDayClock(queue.generatedAt)}. ${count} ${count === 1 ? "draft is" : "drafts are"} listed for ${queue.tradingDay}, counting decided and expired drafts.`;
 };
 
 // ---------- drafts ----------
+
+/** The plan in force and the server's clock at the queue read (node.checkedAt). */
+export type GoLiveDraftContext = Readonly<{
+  plan: Pick<GoLivePlanOutput, "id" | "status" | "version"> | null;
+  readAt: Date;
+}>;
 
 export type GoLiveDraftGroupKey =
   | "entrySignal"
@@ -327,6 +401,49 @@ export type GoLiveDraftGroupKey =
 export type GoLiveDraftGroups = Readonly<
   Record<GoLiveDraftGroupKey, readonly GoLiveDraftOutput[]>
 >;
+
+/** The heading over all draft groups. The day is the order session day, not always today. */
+export const draftsTitle = (tradingDay: string): string =>
+  `Drafts for ${tradingDay} (the order session day)`;
+
+export const entrySignalGroupTitle = (tradingDay: string): string =>
+  `Entry signal for ${tradingDay}`;
+
+/**
+ * Why an entry group is empty. "No entry signal" is said only when the generator reported; with
+ * no report the signals are not known, and with no plan record there is nothing to draft from.
+ */
+export const emptyGroupText = (
+  group: "entrySignal" | "modelHolds",
+  queue: Readonly<{
+    generatedAt: Date | null;
+    plan: Pick<GoLivePlanOutput, "approvalBasis" | "status"> | null;
+    tradingDay: string;
+  }>
+): string => {
+  const { generatedAt, plan, tradingDay } = queue;
+  const entry = group === "entrySignal";
+  if (plan === null)
+    return entry
+      ? `No plan record is stored, so there is no entry rule to draft from for ${tradingDay}.`
+      : `No plan record is stored, so there is no model position to compare with the account for ${tradingDay}.`;
+  const notApproved =
+    plan.status === "approved"
+      ? ""
+      : ` ${planStatusText(plan)}, so no draft can be approved.`;
+  if (generatedAt === null)
+    return `${
+      entry
+        ? `The generator has not reported for ${tradingDay}, so entry signals are not known.`
+        : `The generator has not reported for ${tradingDay}, so it is not known whether the model holds a position the account does not.`
+    }${notApproved}`;
+  const ran = `the generator ran at ${etDayClock(generatedAt)}`;
+  return `${
+    entry
+      ? `No entry signal for ${tradingDay} under the plan's entry rule: ${ran} and reported no entry draft.`
+      : `No late entry for ${tradingDay}: ${ran} and reported no position that the model holds and the account does not.`
+  }${notApproved}`;
+};
 
 /**
  * The one group of a draft. The group heading and the Approve button both follow from it
@@ -368,19 +485,41 @@ export const groupDrafts = (
   };
 };
 
+/** A strike or a price per share in dollars. */
+const dollars = (value: number): string => `$${price(value)}`;
+
 export const strikesText = (
   draft: Pick<GoLiveDraftOutput, "longStrike" | "shortStrike">
 ): string =>
-  `long ${price(draft.longStrike)} / short ${price(draft.shortStrike)}`;
+  `long ${dollars(draft.longStrike)} / short ${dollars(draft.shortStrike)}`;
 
-/** The quote source with its date and time in New York, so an old quote is seen as old. */
-export const quoteText = (quote: GoLiveQuote | null): string =>
-  quote === null
-    ? "No quote: none was recorded for this draft"
-    : `${QUOTE_SOURCE_WORDS[quote.source]}, as of ${etDayClock(quote.asOf)}`;
+/**
+ * The quote source with its date and time in New York, so an old quote is seen as old. An IBKR
+ * quote is called live only when the server counted it as live (no NO_LIVE_IBKR_QUOTE blocker);
+ * otherwise the label says whether it is too old or dated after the server's clock.
+ */
+export const quoteText = (
+  draft: Pick<GoLiveDraftOutput, "notApprovable" | "quote">,
+  readAt: Date
+): string => {
+  const { quote } = draft;
+  if (quote === null) return "No quote: none was recorded for this draft";
+  const asOf = `as of ${etDayClock(quote.asOf)}`;
+  if (
+    quote.source !== "ibkr_live" ||
+    !draft.notApprovable.includes("NO_LIVE_IBKR_QUOTE")
+  )
+    return `${wordsOf(QUOTE_SOURCE_WORDS, quote.source, "quote source ")}, ${asOf}`;
+  return quote.asOf.getTime() > readAt.getTime()
+    ? `IBKR quote, not counted as live (its time is after the server's clock), ${asOf}`
+    : `IBKR quote, too old to count as live (older than ${LIVE_QUOTE_MAX_AGE_SECONDS} s when the server read the queue), ${asOf}`;
+};
 
 /** Why there is no live IBKR quote, from the quote the draft has. */
-export const noLiveQuoteReason = (quote: GoLiveQuote | null): string => {
+export const noLiveQuoteReason = (
+  quote: GoLiveQuote | null,
+  readAt: Date
+): string => {
   const lead = NOT_APPROVABLE_WORDS.NO_LIVE_IBKR_QUOTE;
   if (quote === null) return `${lead}: no quote was recorded for this draft`;
   switch (quote.source) {
@@ -389,34 +528,76 @@ export const noLiveQuoteReason = (quote: GoLiveQuote | null): string => {
     case "model":
       return `${lead}: the price shown is a model price, not a market quote`;
     case "ibkr_live":
-      return `${lead}: the IBKR quote shown is too old to count as live`;
+      return quote.asOf.getTime() > readAt.getTime()
+        ? `${lead}: the IBKR quote shown has a time after the server's clock, so it is not trusted`
+        : `${lead}: the IBKR quote shown is older than ${LIVE_QUOTE_MAX_AGE_SECONDS} s, so it does not count as live`;
     default:
       return unhandled(
         quote.source,
-        `${lead}: the quote source is not known to this page`
+        `${lead}: the quote source is ${notKnownText(rawOf(quote.source))}`
       );
   }
 };
 
-/** One blocker in words. The quote blocker names the cause for this draft's quote. */
-const notApprovableText = (
-  value: GoLiveNotApprovable,
-  quote: GoLiveQuote | null
-): string =>
-  value === "NO_LIVE_IBKR_QUOTE"
-    ? noLiveQuoteReason(quote)
-    : NOT_APPROVABLE_WORDS[value];
+type GoLivePlanRef = Pick<GoLiveDraftOutput, "planId" | "planVersion">;
 
-/** Net limit per spread: positive is a debit paid, negative is a credit received. */
-export const limitText = (limitPrice: number | null): string => {
-  if (limitPrice === null) return "no limit: no quote";
-  return `${limitPrice < 0 ? "credit" : "debit"} ${Math.abs(limitPrice).toFixed(2)}`;
+/**
+ * Why the plan does not let this draft be approved, or null when the plan in force is approved
+ * and is the plan the draft was made for. The same rule as the server's PLAN_NOT_APPROVED.
+ */
+const planProblem = (
+  draft: GoLivePlanRef,
+  plan: GoLiveDraftContext["plan"]
+): string | null => {
+  const lead = NOT_APPROVABLE_WORDS.PLAN_NOT_APPROVED;
+  if (plan === null) return `${lead}: there is no plan record`;
+  switch (plan.status) {
+    case "approved":
+      return plan.id === draft.planId && plan.version === draft.planVersion
+        ? null
+        : `${lead} for this draft: it was drafted for plan ${draft.planId} version ${draft.planVersion}, and the plan in force is ${plan.id} version ${plan.version}`;
+    case "proposed":
+      return `${lead}: it is proposed`;
+    case "retired":
+      return `${lead}: it is retired`;
+    default:
+      return unhandled(
+        plan.status,
+        `${lead}: its status is ${notKnownText(rawOf(plan.status))}`
+      );
+  }
 };
 
-/** The quantity with its sizing reason. 0 always shows why. */
+type GoLiveBlockerFacts = GoLivePlanRef & Pick<GoLiveDraftOutput, "quote">;
+
+/** One blocker in words. The quote and plan blockers name the cause for this draft. */
+const notApprovableText = (
+  value: GoLiveNotApprovable,
+  draft: GoLiveBlockerFacts,
+  context: GoLiveDraftContext
+): string => {
+  if (value === "NO_LIVE_IBKR_QUOTE")
+    return noLiveQuoteReason(draft.quote, context.readAt);
+  if (value === "PLAN_NOT_APPROVED")
+    return planProblem(draft, context.plan) ?? NOT_APPROVABLE_WORDS[value];
+  return wordsOf(NOT_APPROVABLE_WORDS, value, "Blocker ");
+};
+
+/** "1 spread", "2 spreads": a quantity always says what it counts. */
+const spreadsText = (quantity: number): string =>
+  `${quantity} ${quantity === 1 ? "spread" : "spreads"}`;
+
+/** Net limit per spread in dollars: positive is a debit paid, negative is a credit received. */
+export const limitText = (limitPrice: number | null): string => {
+  if (limitPrice === null) return "no limit: no quote";
+  return `$${Math.abs(limitPrice).toFixed(2)} ${limitPrice < 0 ? "credit" : "debit"} per spread`;
+};
+
+/** The quantity in spreads with its sizing reason. 0 always shows why. */
 export const quantityText = (
   sizing: Pick<GoLiveSizing, "quantity" | "reason">
-): string => `${sizing.quantity} (${SIZING_REASON_WORDS[sizing.reason]})`;
+): string =>
+  `${spreadsText(sizing.quantity)} (${sizingReasonText(sizing.reason)})`;
 
 export const maxLossText = (
   sizing: Pick<GoLiveSizing, "maxLoss" | "maxLossPctNlv" | "reason">
@@ -425,12 +606,12 @@ export const maxLossText = (
     return `not available: ${
       sizing.reason === "sized"
         ? "no max loss was computed"
-        : SIZING_REASON_WORDS[sizing.reason]
+        : sizingReasonText(sizing.reason)
     }`;
-  const dollars = usd(sizing.maxLoss, 2);
+  const amount = usd(sizing.maxLoss, 2);
   return sizing.maxLossPctNlv === null
-    ? `${dollars} (% of account not available: the account value is not available)`
-    : `${dollars} (${pct(sizing.maxLossPctNlv)} of account)`;
+    ? `${amount} (% of account not available: the account value is not available)`
+    : `${amount} (${pct(sizing.maxLossPctNlv)} of account)`;
 };
 
 /** The live numbers of a draft in one line, for a row whose approved order is shown separately. */
@@ -457,15 +638,17 @@ export const preCheckView = (
     decision:
       gate === null
         ? "Dry pre-check (web final gate): not run, because there is no sized order to check."
-        : `Dry pre-check (web final gate; positions, kill switch and options-only gate not included): ${PRECHECK_DECISION_WORDS[gate.decision]}. Not a clearance to send.`,
+        : `Dry pre-check (web final gate; positions, kill switch and options-only gate not included): ${wordsOf(PRECHECK_DECISION_WORDS, gate.decision)}. Not a clearance to send.`,
     enginePolicy: ENGINE_POLICY_LINE,
     reasons: gate === null ? [] : gate.reasons,
     stance:
       gate === null
         ? null
         : `JEV stance used by the check: ${
-            gate.jevStance === null ? "none" : JEV_STANCE_WORDS[gate.jevStance]
-          } (${JEV_STATE_WORDS[gate.jevState]})`,
+            gate.jevStance === null
+              ? "none"
+              : wordsOf(JEV_STANCE_WORDS, gate.jevStance)
+          } (${wordsOf(JEV_STATE_WORDS, gate.jevState, "JEV state ")})`,
   };
 };
 
@@ -481,55 +664,109 @@ export const decisionText = (
   return `Decided ${etDayClock(draft.decidedAt)}${who}`;
 };
 
-/** Why Approve is disabled, in words. Empty means the draft can be approved. */
-export const approveBlockers = (
-  draft: Pick<
+type GoLiveApproveFacts = GoLiveBlockerFacts &
+  Pick<
     GoLiveDraftOutput,
-    "entryBasis" | "kind" | "notApprovable" | "order" | "quote"
-  >
-): readonly string[] => {
-  const reasons = draft.notApprovable.map((value) =>
-    notApprovableText(value, draft.quote)
+    | "entryBasis"
+    | "exitReason"
+    | "exitRule"
+    | "kind"
+    | "notApprovable"
+    | "order"
+    | "preCheck"
+    | "sizing"
+    | "structure"
+  >;
+
+/**
+ * A value of the draft this page version has no words for. The page does not offer Approve on a
+ * draft it cannot describe in full.
+ */
+const unknownValueBlockers = (draft: GoLiveApproveFacts): readonly string[] => {
+  const reasons: string[] = [];
+  const check = <Key extends string>(
+    words: Readonly<Record<Key, string>>,
+    value: Key | null,
+    name: string
+  ): void => {
+    if (value !== null && !isKnown(words, value))
+      reasons.push(`The ${name} is ${notKnownText(value)}`);
+  };
+  check(STRUCTURE_WORDS, draft.structure, "structure");
+  check(SIZING_REASON_WORDS, draft.sizing.reason, "sizing reason");
+  check(EXIT_RULE_WORDS, draft.exitRule, "exit rule");
+  check(EXIT_REASON_WORDS, draft.exitReason, "exit reason");
+  check(QUOTE_SOURCE_WORDS, draft.quote?.source ?? null, "quote source");
+  check(
+    PRECHECK_DECISION_WORDS,
+    draft.preCheck.webFinalGate?.decision ?? null,
+    "pre-check decision"
   );
-  // The group heading says these cannot be approved, so the button is blocked here as well,
-  // whatever the server listed.
+  for (const leg of draft.order?.legs ?? [])
+    check(RIGHT_WORDS, leg.right, "option right");
+  return [...new Set(reasons)];
+};
+
+/**
+ * Why Approve is disabled, in words. Empty means the draft can be approved. The server decides
+ * (notApprovable); the page adds what it can see itself, so it never offers an Approve that
+ * contradicts its own text: the group heading, the plan status and the pre-check line.
+ */
+export const approveBlockers = (
+  draft: GoLiveApproveFacts,
+  context: GoLiveDraftContext
+): readonly string[] => {
+  const listed = (value: GoLiveNotApprovable): boolean =>
+    draft.notApprovable.includes(value);
+  const reasons = draft.notApprovable.map((value) =>
+    notApprovableText(value, draft, context)
+  );
+  const plan = planProblem(draft, context.plan);
+  if (plan !== null && !listed("PLAN_NOT_APPROVED")) reasons.push(plan);
   const group = draftGroupOf(draft);
-  if (
-    group === "modelHolds" &&
-    !draft.notApprovable.includes("LATE_ENTRY_NOT_TESTED")
-  )
+  if (group === "modelHolds" && !listed("LATE_ENTRY_NOT_TESTED"))
     reasons.push(NOT_APPROVABLE_WORDS.LATE_ENTRY_NOT_TESTED);
   if (group === "other") reasons.push(NO_ENTRY_BASIS_REASON);
+  if (
+    draft.preCheck.webFinalGate?.decision === "deny" &&
+    !listed("PRECHECK_DENIED")
+  )
+    reasons.push(NOT_APPROVABLE_WORDS.PRECHECK_DENIED);
+  reasons.push(...unknownValueBlockers(draft));
   // Approve repeats the exact order; without one there is nothing to confirm.
   return reasons.length === 0 && draft.order === null
     ? [NO_SIZED_ORDER_REASON]
     : reasons;
 };
 
-const RIGHT_WORDS = { C: "call", P: "put" } as const;
-
 /** One line per leg of the exact order, as the owner would place it. */
 export const orderLegLines = (order: GoLiveOrder): readonly string[] =>
   order.legs.map(
     (leg) =>
-      `${leg.side} ${leg.ratio} ${order.symbol} ${expiryDate(leg.expiry)} ${price(leg.strike)} ${RIGHT_WORDS[leg.right]}`
+      `${leg.side} ${leg.ratio} ${order.symbol} ${expiryDate(leg.expiry)} ${dollars(leg.strike)} ${wordsOf(RIGHT_WORDS, leg.right, "option right ")}`
   );
+
+const orderRows = (order: GoLiveOrder): readonly GoLiveLabelValue[] => [
+  { label: "Quantity", value: spreadsText(order.quantity) },
+  { label: "Limit", value: limitText(order.limitPrice) },
+];
 
 /** The rows of the confirm dialog: the exact order and its max loss. */
 export const orderSummaryRows = (
   order: GoLiveOrder,
   sizing: Pick<GoLiveSizing, "maxLoss" | "maxLossPctNlv" | "reason">
 ): readonly GoLiveLabelValue[] => [
-  { label: "Quantity", value: String(order.quantity) },
-  { label: "Limit", value: limitText(order.limitPrice) },
+  ...orderRows(order),
   { label: "Max loss", value: maxLossText(sizing) },
 ];
 
 export type GoLiveApprovedOrderView = Readonly<{
   label: string;
   legs: readonly string[];
-  /** Set when the approval has no stored order; legs and rows are then empty. */
+  /** Set when the answer carries no approved order; legs and rows are then empty. */
   missing: string | null;
+  /** The node badge the server read when the owner approved. */
+  nodeBadge: string;
   rows: readonly GoLiveLabelValue[];
 }>;
 
@@ -538,25 +775,32 @@ export type GoLiveApprovedOrderView = Readonly<{
  * row is recomputed at every read and can differ from this order.
  */
 export const approvedOrderView = (
-  draft: Pick<GoLiveDraftOutput, "approvedOrder" | "decidedAt" | "state">
+  draft: Pick<
+    GoLiveDraftOutput,
+    "approvedOrder" | "decidedAt" | "nodeBadgeAtDecision" | "state"
+  >
 ): GoLiveApprovedOrderView | null => {
   if (draft.state !== "approved") return null;
   const recorded =
     draft.decidedAt === null
       ? "time not recorded"
       : etDayClock(draft.decidedAt);
-  const label = `Approved order (recorded ${recorded})`;
+  const shared = {
+    label: `Approved order (recorded ${recorded})`,
+    nodeBadge: `Node badge read at approval: ${
+      draft.nodeBadgeAtDecision === null
+        ? "not recorded"
+        : nodeBadgeText(draft.nodeBadgeAtDecision)
+    }`,
+  };
   const order = draft.approvedOrder;
   return order === null
-    ? { label, legs: [], missing: APPROVED_ORDER_NOT_STORED, rows: [] }
+    ? { ...shared, legs: [], missing: APPROVED_ORDER_NOT_SHOWN, rows: [] }
     : {
-        label,
+        ...shared,
         legs: orderLegLines(order),
         missing: null,
-        rows: [
-          { label: "Quantity", value: String(order.quantity) },
-          { label: "Limit", value: limitText(order.limitPrice) },
-        ],
+        rows: orderRows(order),
       };
 };
 
@@ -582,15 +826,81 @@ const errorField = (error: unknown, key: string): string | null => {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 };
 
-/** True when the API answered CONFLICT: the draft or its order changed since the page loaded it. */
-export const isConflict = (error: unknown): boolean =>
-  errorField(error, "code") === "CONFLICT";
+// NO_ANSWER: the request failed without an answer of the API (network failure, timeout).
+// OTHER: the API answered with an error code this page version does not know.
+type GoLiveFailureCause = GoLiveApiErrorCode | "NO_ANSWER" | "OTHER";
 
-/** A signed-out session in plain words; else the API's own message; else a plain fallback. */
-export const apiErrorText = (error: unknown): string =>
-  errorField(error, "code") === "UNAUTHORIZED"
-    ? SIGNED_OUT_TEXT
-    : (errorField(error, "message") ?? "The request failed.");
+type GoLiveFailure = Readonly<{
+  cause: GoLiveFailureCause;
+  code: string | null;
+  message: string | null;
+}>;
+
+const failureOf = (error: unknown): GoLiveFailure => {
+  const code = errorField(error, "code");
+  const message = errorField(error, "message");
+  if (code === null) return { cause: "NO_ANSWER", code, message };
+  return {
+    cause: isKnown(AGENT_OPS_API_ERRORS, code) ? code : "OTHER",
+    code,
+    message,
+  };
+};
+
+/** Why the queue could not be loaded, in plain words for every cause. No raw code or browser text. */
+export const LOAD_ERROR_WORDS: Readonly<Record<GoLiveFailureCause, string>> =
+  Object.freeze({
+    BAD_REQUEST:
+      "The server refused the request as invalid. This page and the server may be different versions: reload the page.",
+    CONFLICT: "The server reported a conflict between its records.",
+    FORBIDDEN: "The server refused this session: operator access is required.",
+    NO_ANSWER:
+      "No answer came back from the server (network failure or timeout).",
+    NOT_CONFIGURED: "The server is not set up to answer this request.",
+    NOT_FOUND:
+      "The server did not find what this page asked for. This page and the server may be different versions: reload the page.",
+    OTHER: "The server failed with an error code",
+    STORAGE_ERROR: "The draft store could not be read.",
+    UNAUTHORIZED: SIGNED_OUT_TEXT,
+    UPSTREAM_ERROR: "A service the server depends on did not answer it.",
+    VALIDATION_ERROR: "The server found a record that fails its own checks.",
+  });
+
+// The causes whose server message is written for an operator and may follow the plain sentence.
+// BAD_REQUEST carries a validation text and NO_ANSWER a browser text: neither is shown.
+const DETAIL_CAUSES: Readonly<Partial<Record<GoLiveFailureCause, true>>> = {
+  CONFLICT: true,
+  NOT_CONFIGURED: true,
+  NOT_FOUND: true,
+  STORAGE_ERROR: true,
+  UPSTREAM_ERROR: true,
+  VALIDATION_ERROR: true,
+};
+
+/** " Server detail: <message>." when the server wrote more than the default text of its code. */
+const serverDetail = (failure: GoLiveFailure): string => {
+  const { cause, code, message } = failure;
+  if (message === null || DETAIL_CAUSES[cause] !== true || message === code)
+    return "";
+  if (
+    isKnown(AGENT_OPS_API_ERRORS, cause) &&
+    AGENT_OPS_API_ERRORS[cause].message === message
+  )
+    return "";
+  return ` Server detail: ${message}${/[.!?]$/u.test(message) ? "" : "."}`;
+};
+
+const NOTHING_RECORDED_BY_A_LOAD = "A load only reads: it recorded nothing.";
+
+/** A failed queue load in plain words, with the server detail of a storage error. */
+export const loadErrorText = (error: unknown): string => {
+  const failure = failureOf(error);
+  const words =
+    failure.cause === "OTHER"
+      ? `${LOAD_ERROR_WORDS.OTHER} ${notKnownText(failure.code)}.`
+      : LOAD_ERROR_WORDS[failure.cause];
+  return `${words}${serverDetail(failure)} ${NOTHING_RECORDED_BY_A_LOAD}`;
+};
 
 const NOT_APPROVABLE_CODES = Object.keys(
   NOT_APPROVABLE_WORDS
@@ -604,22 +914,163 @@ const isNotApprovableCode = (value: string): value is GoLiveNotApprovable =>
 const lowerFirst = (text: string): string =>
   `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
 
-/**
- * A failed approve or reject in words. Blocker codes in the API message (PRECHECK_DENIED, ...)
- * are replaced by the same words the row shows; a signed-out session is named as such.
- */
-export const decisionErrorText = (
-  error: unknown,
-  quote: GoLiveQuote | null
-): string => {
-  const text = apiErrorText(error);
-  if (text === SIGNED_OUT_TEXT) return `${text} Nothing was recorded.`;
+/** The blocker codes of a server message in the words of the row, or null when it has none. */
+const blockerWords = (
+  message: string | null,
+  draft: GoLiveBlockerFacts,
+  context: GoLiveDraftContext
+): string | null => {
   const matches: readonly string[] =
-    text.match(NOT_APPROVABLE_CODE_PATTERN) ?? [];
-  const codes = matches.filter(isNotApprovableCode);
-  if (codes.length === 0) return text;
-  const words = [...new Set(codes)].map((code) =>
-    lowerFirst(notApprovableText(code, quote))
-  );
-  return `The draft cannot be approved: ${words.join("; ")}.`;
+    message?.match(NOT_APPROVABLE_CODE_PATTERN) ?? [];
+  const codes = [...new Set(matches.filter(isNotApprovableCode))];
+  return codes.length === 0
+    ? null
+    : codes
+        .map((code) => lowerFirst(notApprovableText(code, draft, context)))
+        .join("; ");
+};
+
+// The FORBIDDEN messages of the server (packages/api/src/server/golive-drafts.ts and
+// operator-access.ts; the model test compares them with the source). They tell a caller who is
+// not the owner from a session that lost operator access. Any other text names both.
+const OWNER_REQUIRED_MESSAGES: readonly string[] = [
+  "Owner (admin) access required",
+  "A draft decision needs the owner's browser session",
+];
+const OPERATOR_REQUIRED_MESSAGE = "Operator access required";
+
+const forbiddenText = (message: string | null): string => {
+  if (message !== null && OWNER_REQUIRED_MESSAGES.includes(message))
+    return `${OWNER_ONLY_DECISION_TEXT} Nothing was recorded.`;
+  if (message === OPERATOR_REQUIRED_MESSAGE)
+    return "Operator access was lost for this session. Nothing was recorded.";
+  return "The server refused this session: either only the owner can approve or reject a draft, or operator access was lost. Nothing was recorded.";
+};
+
+export type GoLiveDecisionFailure = Readonly<{
+  /**
+   * stay: nothing was recorded and the owner can act in the dialog, which shows the text.
+   * close: the dialog closes, the queue is read again and the text is shown above it.
+   */
+  action: "close" | "stay";
+  /** True when the text is followed by what the reloaded queue shows for the draft. */
+  aftermath: boolean;
+  text: string;
+}>;
+
+/**
+ * A failed approve or reject in plain words. Every text says whether anything was recorded or
+ * that it is not known; none says "not recorded" about a draft that may already be decided.
+ */
+export const decisionFailure = (
+  error: unknown,
+  type: "approve" | "reject",
+  draft: GoLiveBlockerFacts,
+  context: GoLiveDraftContext
+): GoLiveDecisionFailure => {
+  const failure = failureOf(error);
+  const act = type === "approve" ? "approval" : "rejection";
+  const notKnown = "so it is not known whether it was recorded.";
+  const reload = (text: string): GoLiveDecisionFailure => ({
+    action: "close",
+    aftermath: true,
+    text: `${text}${serverDetail(failure)}`,
+  });
+  switch (failure.cause) {
+    case "UNAUTHORIZED":
+      return {
+        action: "stay",
+        aftermath: false,
+        text: `${SIGNED_OUT_TEXT} Nothing was recorded.`,
+      };
+    case "BAD_REQUEST":
+      // The request is checked before anything is stored. The validation text is not shown.
+      return {
+        action: "stay",
+        aftermath: false,
+        text: `The server refused this ${act} as an invalid request. Nothing was recorded.`,
+      };
+    case "FORBIDDEN":
+      return {
+        action: "close",
+        aftermath: false,
+        text: forbiddenText(failure.message),
+      };
+    case "NOT_FOUND":
+      return {
+        action: "close",
+        aftermath: true,
+        text: `The server did not find this draft in the queue of the order session day, so this ${act} recorded nothing.`,
+      };
+    case "CONFLICT": {
+      // The draft or its order changed since this page loaded it. An earlier attempt whose answer
+      // was lost may be what decided it, so only this attempt is said to have recorded nothing.
+      const blockers = blockerWords(failure.message, draft, context);
+      return {
+        action: "close",
+        aftermath: true,
+        text: `The server refused this ${act}: ${
+          blockers ??
+          "the draft was already decided or expired, or its order or plan changed after this page loaded it"
+        }. This attempt recorded nothing.`,
+      };
+    }
+    case "STORAGE_ERROR":
+      // The store can fail after the decision is written (the server then says so in its detail).
+      return reload(`The draft store failed during this ${act}, ${notKnown}`);
+    case "VALIDATION_ERROR":
+      return reload(
+        `The server found a record that fails its own checks during this ${act}, ${notKnown}`
+      );
+    case "UPSTREAM_ERROR":
+      return reload(
+        `A service the server depends on did not answer during this ${act}, ${notKnown}`
+      );
+    case "NOT_CONFIGURED":
+      return reload(
+        `The server answered that it is not set up for this ${act}, ${notKnown}`
+      );
+    case "NO_ANSWER":
+      return reload(
+        `No answer came back for this ${act} (network failure or timeout), ${notKnown}`
+      );
+    case "OTHER":
+      return reload(
+        `The server failed during this ${act} with an error code ${notKnownText(failure.code)}, ${notKnown}`
+      );
+    default:
+      return unhandled(
+        failure.cause,
+        reload(`This ${act} failed, ${notKnown}`)
+      );
+  }
+};
+
+/**
+ * What the queue shows for the draft after a failed decision was followed by a reload.
+ * null: the reload failed. undefined: the draft is not in the reloaded queue.
+ */
+export const decisionAftermathText = (
+  draft:
+    | Pick<GoLiveDraftOutput, "decidedAt" | "decidedBy" | "state">
+    | null
+    | undefined,
+  tradingDay: string
+): string => {
+  if (draft === null)
+    return "The queue could not be read again, so the rows below may be out of date. Reload the queue before you decide again.";
+  const lead = "The queue was read again:";
+  if (draft === undefined)
+    return `${lead} this draft is not in the queue of ${tradingDay}.`;
+  if (draft.state === "proposed")
+    return `${lead} the draft is still proposed, so no decision is recorded for it.`;
+  const state = draftStateText(draft.state);
+  const decided = decisionText(draft);
+  return `${lead} the draft is ${
+    draft.state === "approved" || draft.state === "rejected"
+      ? "already decided"
+      : "no longer proposed"
+  }. Its state is: ${state}${/[.!?]$/u.test(state) ? "" : "."}${
+    decided === null ? "" : ` ${decided}.`
+  }`;
 };

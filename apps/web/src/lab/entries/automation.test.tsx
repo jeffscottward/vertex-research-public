@@ -13,9 +13,10 @@ import {
   DeploymentRequestSchema,
   DeploymentStatusOutputSchema,
   EnginesStatusOutputSchema,
+  GoLiveQueueOutputSchema,
 } from "@darkfactory/api";
 import { act } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   LAB_AGENT_API_KEYS,
@@ -26,6 +27,7 @@ import {
   LAB_DEPLOYMENT_REQUESTS,
   LAB_DEPLOYMENT_STATUS,
   LAB_ENGINES_STATUS,
+  LAB_GOLIVE_QUEUE,
   LAB_MODEL_BENCHMARK,
   LAB_MODEL_RUN_BREAKDOWN,
   LAB_MODEL_RUN_FACETS,
@@ -40,6 +42,7 @@ import {
   labAgentOpsGateway,
   labDeploymentRequestsGateway,
   labDeploymentStrategies,
+  labGoLiveDraftsGateway,
   labModelRunsGateway,
 } from "./automation.tsx";
 
@@ -67,6 +70,7 @@ describe("automation lab entries", () => {
     ["deployments", "", "Deployments", "Demo momentum v1"],
     ["deployments", "tab=services", "Deployments", "demo-collector"],
     ["deployments", "view=requests", "Deployments", "Demo momentum v1"],
+    ["drafts", "", "Order drafts", "Demo go-live allocation"],
     ["engines", "", "Engines", "demo-signals"],
     ["assistant", "", "Assistant", "Demo momentum v1 review"],
     ["knowledge", "", "Knowledge chat", "VERTEX_KB_CHAT_URL"],
@@ -74,6 +78,67 @@ describe("automation lab entries", () => {
     const host = await mount(id, query);
     expect(host.querySelector("h1")?.textContent).toBe(title);
     expect(host.textContent).toContain(fake);
+  });
+
+  it("shows the order drafts page from a fake queue without calling the network", async () => {
+    const network = vi.fn(() =>
+      Promise.reject(new Error("no network in the lab"))
+    );
+    vi.stubGlobal("fetch", network);
+    try {
+      const host = await mount("drafts");
+      const text = host.textContent ?? "";
+      expect(text).toContain("This page sends no orders.");
+      expect(text).toContain(
+        "Plan approved by delegation (the owner delegated the allocation choice)"
+      );
+      expect(text).toContain("Account value: $250,000 as of 2026-10-30");
+      expect(text).toContain("Node running, disarmed");
+      expect(text).toContain("Yahoo, 15 min delayed, indicative");
+      expect(
+        [...host.querySelectorAll("[data-golive-plan] a")].map((link) =>
+          link.getAttribute("href")
+        )
+      ).toEqual([
+        "https://discord.com/channels/0/0/0",
+        "https://example.com/demo-golive-evidence",
+      ]);
+      // The one draft is a late entry the model holds: listed, never approvable.
+      const row = host.querySelector(
+        "[data-golive-group='golive-group-model-holds'] [data-golive-draft]"
+      );
+      const approve = row?.querySelector<HTMLButtonElement>(
+        "[data-golive-action='approve']"
+      );
+      expect(approve?.disabled).toBe(true);
+      expect(
+        row?.querySelector("[data-golive-action='reject']")
+      ).not.toBeNull();
+      expect(network).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("gives the order drafts page a gateway that only reads the fake queue", async () => {
+    const { signal } = new AbortController();
+    await expect(labGoLiveDraftsGateway.queue({ signal })).resolves.toBe(
+      LAB_GOLIVE_QUEUE
+    );
+    await expect(
+      labGoLiveDraftsGateway.reject({ id: "lab-draft-1", note: "No." })
+    ).rejects.toThrow("UI lab");
+    const [draft] = LAB_GOLIVE_QUEUE.drafts;
+    const order = draft?.order ?? null;
+    if (draft === undefined || order === null)
+      throw new Error("the fake draft has an order");
+    await expect(
+      labGoLiveDraftsGateway.approve({
+        confirm: true,
+        id: draft.id,
+        order,
+      })
+    ).rejects.toThrow("UI lab");
   });
 
   it("opens the fake assistant thread", async () => {
@@ -128,6 +193,15 @@ describe("automation lab entries", () => {
     for (const request of LAB_DEPLOYMENT_REQUESTS)
       DeploymentRequestSchema.parse(request);
     EnginesStatusOutputSchema.parse(LAB_ENGINES_STATUS);
+    // The queue is what the API would answer: dummy plan, one model-held draft, delayed quote.
+    const queue = GoLiveQueueOutputSchema.parse(LAB_GOLIVE_QUEUE);
+    expect(queue.canDecide).toBe(true);
+    expect(queue.sendsOrders).toBe(false);
+    expect(queue.node.badge).toBe("running-disarmed");
+    expect(queue.plan?.approvalBasis).toBe("owner_delegation");
+    expect(
+      queue.drafts.map((draft) => [draft.entryBasis, draft.quote?.source])
+    ).toEqual([["model_holds_account_does_not", "yahoo_delayed_snapshot"]]);
     AssistantThreadListOutputSchema.parse(LAB_ASSISTANT_THREADS);
     AssistantThreadGetOutputSchema.parse(LAB_ASSISTANT_THREAD_DETAIL);
   });

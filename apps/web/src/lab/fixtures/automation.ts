@@ -1,5 +1,6 @@
 // What: UI lab fixtures for Agents & Automation pages: agent tasks, model runs, benchmark, API keys,
-// deployments, engines and an assistant thread. All values are fictional and deterministic.
+// deployments, the order draft queue, engines and an assistant thread. All values are fictional
+// and deterministic.
 // Used by: apps/web/src/lab/entries/automation.tsx.
 import type {
   AgentApiKeyOutput,
@@ -20,6 +21,7 @@ import type {
   DeploymentRequestOutput,
   DeploymentStatusOutput,
   EnginesStatusOutput,
+  GoLiveQueueOutput,
 } from "@darkfactory/api";
 
 import {
@@ -599,4 +601,155 @@ export const LAB_ASSISTANT_THREAD_DETAIL: AssistantThreadGetOutput = {
     ),
   ],
   thread: LAB_ASSISTANT_THREAD,
+};
+
+// The order draft queue (/drafts): a plan approved by delegation and one late entry the model
+// holds, priced from a delayed snapshot, so the page shows a draft that cannot be approved.
+// The owner link has the form of a Discord message link with made-up ids.
+const LAB_GOLIVE_READ_AT = new Date(labMinutesAgo(1));
+const LAB_GOLIVE_RAN_AT = new Date(labMinutesAgo(30));
+const LAB_GOLIVE_DAY = LAB_NOW.toISOString().slice(0, 10);
+const LAB_GOLIVE_LIMIT = 4.8;
+const LAB_GOLIVE_QUANTITY = 10;
+const LAB_GOLIVE_MAX_LOSS = LAB_GOLIVE_LIMIT * 100 * LAB_GOLIVE_QUANTITY;
+
+export const LAB_GOLIVE_QUEUE: GoLiveQueueOutput = {
+  account: {
+    asOf: LAB_GOLIVE_READ_AT,
+    netLiquidation: LAB_ACCOUNT.netLiquidation,
+    unavailableReason: null,
+  },
+  canDecide: true,
+  drafts: [
+    {
+      approvedOrder: null,
+      createdAt: LAB_GOLIVE_RAN_AT,
+      decidedAt: null,
+      decidedBy: null,
+      decisionNote: null,
+      entryBasis: "model_holds_account_does_not",
+      exitReason: null,
+      exitRule: "owner_standing_rule_v1",
+      expiry: "20261218",
+      id: "lab-draft-1",
+      kind: "entry",
+      longStrike: 580,
+      nodeBadgeAtDecision: null,
+      notApprovable: ["LATE_ENTRY_NOT_TESTED", "NO_LIVE_IBKR_QUOTE"],
+      notes: [],
+      order: {
+        legs: [
+          {
+            expiry: "20261218",
+            ratio: 1,
+            right: "C",
+            side: "BUY",
+            strike: 580,
+          },
+          {
+            expiry: "20261218",
+            ratio: 1,
+            right: "C",
+            side: "SELL",
+            strike: 590,
+          },
+        ],
+        limitPrice: LAB_GOLIVE_LIMIT,
+        quantity: LAB_GOLIVE_QUANTITY,
+        symbol: "SPY",
+      },
+      parentDraftId: null,
+      planId: "lab-golive-plan",
+      planVersion: 1,
+      preCheck: {
+        enginePolicy: "not_evaluated_not_in_web_order_path",
+        webFinalGate: {
+          decision: "allow",
+          jevStance: "BULLISH",
+          jevState: "fresh",
+          maxLoss: LAB_GOLIVE_MAX_LOSS,
+          maxLossPct: roundTo(
+            (LAB_GOLIVE_MAX_LOSS / LAB_ACCOUNT.netLiquidation) * 100,
+            2
+          ),
+          reasons: ["Dummy check: max loss is within 2% of the account"],
+          structure: "debit-vertical",
+        },
+      },
+      quote: {
+        asOf: LAB_GOLIVE_RAN_AT,
+        longAsk: 12.3,
+        longBid: 12.1,
+        shortAsk: 7.5,
+        shortBid: 7.3,
+        source: "yahoo_delayed_snapshot",
+      },
+      shortStrike: 590,
+      signalFacts: ["Dummy model has held SPY since 2026-10-20"],
+      sizing: {
+        budget: (LAB_ACCOUNT.netLiquidation * 2) / 100,
+        limitPrice: LAB_GOLIVE_LIMIT,
+        maxLoss: LAB_GOLIVE_MAX_LOSS,
+        maxLossPctNlv: roundTo(
+          (LAB_GOLIVE_MAX_LOSS / LAB_ACCOUNT.netLiquidation) * 100,
+          2
+        ),
+        maxLossPerSpread: LAB_GOLIVE_LIMIT * 100,
+        quantity: LAB_GOLIVE_QUANTITY,
+        reason: "sized",
+      },
+      sleeveKey: "demo-trend",
+      state: "proposed",
+      structure: "callDebitVertical",
+      symbol: "SPY",
+      tradingDay: LAB_GOLIVE_DAY,
+      updatedAt: LAB_GOLIVE_RAN_AT,
+    },
+  ],
+  generatedAt: LAB_GOLIVE_RAN_AT,
+  marketNotes: "none_active",
+  node: {
+    armedAt: null,
+    badge: "running-disarmed",
+    checkedAt: LAB_GOLIVE_READ_AT,
+  },
+  plan: {
+    approvalBasis: "owner_delegation",
+    approvedAt: new Date(labMinutesAgo(2880)),
+    approvedBy: "demo-owner",
+    createdAt: new Date(labMinutesAgo(4320)),
+    evidenceUrl: "https://example.com/demo-golive-evidence",
+    exitRule: "owner_standing_rule_v1",
+    id: "lab-golive-plan",
+    limits: {
+      maxPositions: 6,
+      nameRiskCapPct: 2,
+      openRiskCapPct: 8,
+      positionRiskPct: 2,
+    },
+    name: "Demo go-live allocation",
+    ownerMessageUrl: "https://discord.com/channels/0/0/0",
+    retiredAt: null,
+    sleeves: [
+      {
+        anchorDelta: 0.5,
+        budgetPct: 4,
+        definitionNote: "Dummy sleeve: entry rule as studied.",
+        definitionVariant: "as_studied",
+        dteMin: 20,
+        dteTarget: 45,
+        key: "demo-trend",
+        name: "Demo trend verticals",
+        runKey: "demo-trend-v1",
+        structure: "callDebitVertical",
+        symbols: ["SPY", "QQQ"],
+        widthSigma: 1,
+      },
+    ],
+    status: "approved",
+    updatedAt: new Date(labMinutesAgo(2880)),
+    version: 1,
+  },
+  sendsOrders: false,
+  tradingDay: LAB_GOLIVE_DAY,
 };

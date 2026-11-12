@@ -1,4 +1,4 @@
-// What: UI lab entries for Agents & Automation (/agents, benchmark, run detail, /deployments, /engines)
+// What: UI lab entries for Agents & Automation (/agents, benchmark, run detail, /deployments, /drafts, /engines)
 // and the linked /assistant and /knowledge pages: the real workspaces with fake gateways.
 // The run detail reads ?id= (default: the first fake run).
 "use client";
@@ -29,6 +29,10 @@ import {
   EnginesWorkspace,
 } from "../../components/portal/engines-workspace.tsx";
 import {
+  GoLiveDraftQueue,
+  type GoLiveDraftsGateway,
+} from "../../components/portal/golive-draft-queue.tsx";
+import {
   LAB_AGENT_API_KEYS,
   LAB_AGENT_FRAMEWORKS,
   LAB_AGENT_TASKS,
@@ -37,6 +41,7 @@ import {
   LAB_DEPLOYMENT_REQUESTS,
   LAB_DEPLOYMENT_STATUS,
   LAB_ENGINES_STATUS,
+  LAB_GOLIVE_QUEUE,
   LAB_MODEL_BENCHMARK,
   LAB_MODEL_RUN_BREAKDOWN,
   LAB_MODEL_RUN_FACETS,
@@ -118,6 +123,13 @@ export const labDeploymentStrategies: StrategyLibraryGateway = {
   update: labReadOnly,
 };
 
+/** The order draft queue reads the fake queue; a decision is refused and nothing leaves the browser. */
+export const labGoLiveDraftsGateway: GoLiveDraftsGateway = {
+  approve: labReadOnly,
+  queue: () => Promise.resolve(LAB_GOLIVE_QUEUE),
+  reject: labReadOnly,
+};
+
 const labEnginesGateway: EnginesGateway = {
   status: () => Promise.resolve(LAB_ENGINES_STATUS),
 };
@@ -188,6 +200,18 @@ export const AUTOMATION_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/deployments",
     title: "Deployments",
+  },
+  {
+    group: "Agents & Automation",
+    id: "drafts",
+    render: () => (
+      <div className="space-y-8">
+        <PageHeader title="Order drafts" />
+        <GoLiveDraftQueue gateway={labGoLiveDraftsGateway} />
+      </div>
+    ),
+    route: "/drafts",
+    title: "Order drafts",
   },
   {
     group: "Agents & Automation",
