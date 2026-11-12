@@ -7,14 +7,14 @@ import { required } from "./required.ts";
 // rule 4, ADR-017; owner decision 2026-11-11). A file listed in
 // scripts/ci/coverage-baseline.json may be split into new files in its own
 // folder when this command prints "Result: PROVED". The base is the merge base
-// of HEAD and the target branch unless --base names another commit. The files
-// after the split are read from HEAD.
+// of HEAD and the target branch unless --base names another commit, and must
+// be an ancestor of HEAD. The files after the split are read from HEAD.
 //
 // 1. Diff: the commits since the base change only the original file, the new
-//    files and the baseline. The new files do not exist at the base and have
-//    plain names: no test, declaration or route file. So no other file
-//    imports a new file: the new files load through the original file, before
-//    its own statements run.
+//    files and the baseline. The new files are plain .ts or .tsx files (no
+//    test, declaration or route file) whose names no file or folder at the
+//    base has, even without the extension. So no other file imports a new
+//    file: the new files load through the original file.
 // 2. Statements: every top-level statement of the original file is in exactly
 //    one file after the split, token for token, with the same syntax tree and
 //    in its original order. Comments and layout are not tokens. An `export`
@@ -24,30 +24,36 @@ import { required } from "./required.ts";
 //    interfaces, type aliases, classes without decorators, static blocks,
 //    computed member names or static initializers that run code and whose
 //    `extends` is a name that is not imported from another file of the
-//    split, and `const` declarations whose initializers are literals,
-//    functions, or arrays and objects of those (`as const` and `satisfies`
-//    allowed). `let` and `var` stay: they may be reassigned. Moved code does
-//    not name its own file (`import.meta` other than `import.meta.dirname`,
-//    `__filename`); what depends only on the folder (`__dirname`, relative
-//    `require` and `import()`) keeps its meaning in the same folder. All
-//    declarations of one name stay together. A "use server" module does not
-//    split.
+//    split, and `const` declarations of one name each whose initializers are
+//    literals, functions, or arrays and objects of those (`as const` and
+//    `satisfies` allowed). `let` and `var` stay: they may be reassigned. Moved
+//    code does not name its own file (`import.meta` other than
+//    `import.meta.dirname`, `__filename`); what depends only on the folder
+//    (`__dirname`, relative `require` and `import()`) keeps its meaning in the
+//    same folder. All declarations of one name stay together. A "use server"
+//    module and a file with a JSX pragma do not split, and a new file does
+//    not add `@ts-nocheck`.
 // 3. Names: every identifier that named an import or a top-level declaration
 //    of the original file names the same import or declaration after the
-//    split, never a global. Code that calls `eval` does not split.
+//    split, never a global. Code that calls `eval` does not split. A
+//    type-only import is not used as a value, and an import is not assigned.
 // 4. Imports: every imported name is imported under the same name from the
 //    same module (relative specifiers resolved from each file's folder) as in
-//    the original file, or is a declaration of the original file imported
-//    under its name from the file after the split that declares it. No
-//    aliases, no default or namespace import of a file of the split, no value
-//    or deferred import of a name the original imported otherwise, and no
-//    module the original did not load.
+//    the original file, and not as a value or deferred import where the
+//    original imported it otherwise; or it is a declaration that the file of
+//    the split it is imported from declares and exports, imported under its
+//    name, with `type` when it is a type. No aliases and no default or
+//    namespace import of a file of the split. The modules other than the
+//    files of the split load in the same order as before, deferred ones
+//    deferred: the new files run nothing, so their place does not count.
 // 5. Exports: the original file exports the same names, and each resolves to
 //    the same declaration, import or re-export. Its re-exports of the new
-//    files do not rename, do not make a value type-only, and `export *` does
-//    not re-export a default.
-// 6. Coverage: the covered and total lines, branches, functions and statements
-//    of the original file equal the sums over the files after the split. The
+//    files do not rename, carry `type` exactly for types, and use `export *`
+//    only when no other module is re-exported with `export *`; `export *`
+//    does not re-export a default.
+// 6. Coverage: each percentage of a coverage summary matches its counts, and
+//    the covered and total lines, branches, functions and statements of the
+//    original file equal the sums over the files after the split. The
 //    baseline entries of the files after the split are the values the command
 //    prints, and every other part of the baseline is unchanged.
 //
@@ -107,8 +113,13 @@ type Module = Readonly<{
   /** The compared statements: all but imports and re-exports of new files. */
   statements: readonly Statement[];
   imports: readonly ImportBinding[];
-  /** Import statements other than `import type`, with their line. */
-  loads: ReadonlyMap<string, number>;
+  /**
+   * The modules the file loads, in order: imports and re-exports that are not
+   * type-only (`verbatimModuleSyntax` keeps the rest), deferred ones marked.
+   */
+  requests: readonly string[];
+  /** Type errors that a split can cause and the proof does not see. */
+  typeErrors: () => string[];
 }>;
 
 /** What each exported name resolves to. */
@@ -131,13 +142,21 @@ const NO_PARTS: ReadonlySet<string> = new Set();
 const SPECIAL_NAME =
   /(?:\.(?:test|spec|d)\.[cm]?[jt]sx?|^(?:page|layout|template|loading|error|global-error|not-found|forbidden|unauthorized|default|route|middleware|proxy|instrumentation|instrumentation-client|icon|apple-icon|opengraph-image|twitter-image|sitemap|robots|manifest)\.[cm]?[jt]sx?)$/u;
 
-// Only the syntax of one file is resolved: no library, no other file.
+// Only the names of one file are resolved: no library, no other file. The
+// module options are the repo's (tsconfig.base.json).
 const COMPILER_OPTIONS: ts.CompilerOptions = {
   noLib: true,
   noResolve: true,
   types: [],
   moduleDetection: ts.ModuleDetectionKind.Force,
+  module: ts.ModuleKind.ESNext,
+  isolatedModules: true,
+  verbatimModuleSyntax: true,
 };
+
+// A type-only import (1361) or export (1362) used as a value, and an
+// assignment to an import (2632): a moved `let` written by code that stays.
+const TYPE_ERRORS = new Set([1361, 1362, 2632]);
 
 const MOVABLE = new Set<ts.SyntaxKind>([
   ts.SyntaxKind.FunctionDeclaration,
@@ -290,6 +309,25 @@ const statementOf = (
   };
 };
 
+/** The module a top-level statement loads, if it loads one. */
+const requestOf = (
+  statement: ts.Statement,
+  path: string,
+  file: ts.SourceFile
+): string | undefined => {
+  if (ts.isImportDeclaration(statement)) {
+    const phase = statement.importClause?.phaseModifier;
+    if (phase === ts.SyntaxKind.TypeKeyword) return undefined;
+    const module = moduleOf(path, statement, file);
+    return phase === undefined ? module : `deferred ${module}`;
+  }
+  return ts.isExportDeclaration(statement) &&
+    statement.moduleSpecifier !== undefined &&
+    !statement.isTypeOnly
+    ? moduleOf(path, statement, file)
+    : undefined;
+};
+
 /**
  * Parses one file and binds its names. Imports with bindings and re-exports
  * of `parts` are not compared statements.
@@ -307,39 +345,52 @@ const parseModule = (
     path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
   );
   const host = ts.createCompilerHost(COMPILER_OPTIONS);
-  const checker = ts
-    .createProgram({
-      rootNames: [file.fileName],
-      options: COMPILER_OPTIONS,
-      host: { ...host, getSourceFile: () => file },
-    })
-    .getTypeChecker();
+  const program = ts.createProgram({
+    rootNames: [file.fileName],
+    options: COMPILER_OPTIONS,
+    host: { ...host, getSourceFile: () => file },
+  });
   const statements: Statement[] = [];
   const imports: ImportBinding[] = [];
-  const loads = new Map<string, number>();
+  const requests: string[] = [];
   for (const statement of file.statements) {
-    const line = lineOf(statement, file);
-    if (ts.isImportDeclaration(statement)) {
-      const module = moduleOf(path, statement, file);
-      const clause = statement.importClause;
-      if (clause?.phaseModifier !== ts.SyntaxKind.TypeKeyword) {
-        loads.set(module, line);
-      }
-      if (clause !== undefined) {
-        imports.push(...importBindings(clause, module, line));
-        continue;
-      }
-    }
-    if (
-      ts.isExportDeclaration(statement) &&
-      statement.moduleSpecifier !== undefined &&
-      parts.has(moduleOf(path, statement, file))
+    const request = requestOf(statement, path, file);
+    if (request !== undefined) requests.push(request);
+    if (ts.isImportDeclaration(statement) && statement.importClause) {
+      imports.push(
+        ...importBindings(
+          statement.importClause,
+          moduleOf(path, statement, file),
+          lineOf(statement, file)
+        )
+      );
+    } else if (
+      !(
+        ts.isExportDeclaration(statement) &&
+        statement.moduleSpecifier !== undefined &&
+        parts.has(moduleOf(path, statement, file))
+      )
     ) {
-      continue;
+      statements.push(statementOf(statement, file));
     }
-    statements.push(statementOf(statement, file));
   }
-  return { path, file, checker, statements, imports, loads };
+  const typeErrors = () =>
+    program
+      .getSemanticDiagnostics(file)
+      .filter(({ code }) => TYPE_ERRORS.has(code))
+      .map(
+        (diagnostic) =>
+          `${path}:${file.getLineAndCharacterOfPosition(diagnostic.start as number).line + 1}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`
+      );
+  return {
+    path,
+    file,
+    checker: program.getTypeChecker(),
+    statements,
+    imports,
+    requests,
+    typeErrors,
+  };
 };
 
 /**
@@ -554,13 +605,15 @@ const moveProblem = (
     (statement.declarationList.flags & ts.NodeFlags.BlockScoped) ===
       ts.NodeFlags.Const &&
     statement.declarationList.declarations.every(
-      ({ initializer }) =>
-        initializer !== undefined && sideEffectFree(initializer)
+      ({ name, initializer }) =>
+        ts.isIdentifier(name) &&
+        initializer !== undefined &&
+        sideEffectFree(initializer)
     )
   ) {
     return undefined;
   }
-  return "not a function, class, interface, type alias or side-effect-free const";
+  return "not a function, class, interface, type alias, or const of one name with a side-effect-free initializer";
 };
 
 const moveProblems = (pairs: readonly Pair[], split: Split): string[] =>
@@ -589,20 +642,47 @@ const placements = (split: Split): Map<string, string[]> => {
   return declared;
 };
 
+/** What the files after the split declare and export. */
+type Index = Readonly<{
+  /** The files that declare each top-level name. */
+  declared: ReadonlyMap<string, readonly string[]>;
+  exports: ReadonlyMap<string, Exports>;
+  /** Names declared only by interfaces and type aliases, per file. */
+  types: ReadonlyMap<string, ReadonlySet<string>>;
+}>;
+
+const splitImportProblem = (
+  binding: ImportBinding,
+  index: Index
+): string | undefined => {
+  const { imported, local, module } = binding;
+  if (imported !== local || index.declared.get(local)?.[0] !== module) {
+    return `imports ${imported} from ${module}, which is not a declaration of that file imported by its name`;
+  }
+  if (
+    (index.exports.get(module) as Exports).get(local) !== `declaration ${local}`
+  ) {
+    return `imports ${local} from ${module}, which does not export it`;
+  }
+  if (
+    binding.phase !== "type" &&
+    (index.types.get(module) as ReadonlySet<string>).has(local)
+  ) {
+    return `imports the type ${local} from ${module} without \`type\``;
+  }
+  return undefined;
+};
+
 const importProblem = (
   binding: ImportBinding,
   split: Split,
-  declared: ReadonlyMap<string, readonly string[]>
+  index: Index
 ): string | undefined => {
   const { imported, local, module } = binding;
   if (binding.renamed) {
     return `imports ${imported} as ${local}; aliases are not allowed`;
   }
-  if (split.paths.has(module)) {
-    return imported === local && declared.get(local)?.[0] === module
-      ? undefined
-      : `imports ${imported} from ${module}, which is not a declaration of that file imported by its name`;
-  }
+  if (split.paths.has(module)) return splitImportProblem(binding, index);
   const same = split.before.imports.some(
     (original) =>
       original.module === module &&
@@ -615,27 +695,45 @@ const importProblem = (
     : `imports ${imported} from ${module} (${binding.phase}), which the original file does not import that way`;
 };
 
-const importProblems = (
-  split: Split,
-  declared: ReadonlyMap<string, readonly string[]>
-): string[] =>
-  split.after.flatMap((module) => [
-    ...[...module.loads]
-      .filter(
-        ([loaded]) =>
-          !(split.paths.has(loaded) || split.before.loads.has(loaded))
-      )
-      .map(
-        ([loaded, line]) =>
-          `${module.path}:${line}: loads ${loaded}, which the original file does not load`
-      ),
-    ...module.imports.flatMap((binding) => {
-      const problem = importProblem(binding, split, declared);
+const importProblems = (split: Split, index: Index): string[] =>
+  split.after.flatMap((module) =>
+    module.imports.flatMap((binding) => {
+      const problem = importProblem(binding, split, index);
       return problem === undefined
         ? []
         : [`${module.path}:${binding.line}: ${problem}`];
-    }),
-  ]);
+    })
+  );
+
+/**
+ * The original file loads its modules in source order. After the split the
+ * original file and the new files it reaches load theirs depth first; the
+ * new files run nothing, so only the order of the other modules counts.
+ */
+const loadOrderProblems = (split: Split): string[] => {
+  const before = [...new Set(split.before.requests)];
+  const after: string[] = [];
+  const visited = new Set<string>();
+  const visit = (module: Module): void => {
+    visited.add(module.path);
+    for (const request of module.requests) {
+      const next = split.after.find(({ path }) => path === request);
+      if (next === undefined) {
+        if (!after.includes(request)) after.push(request);
+      } else if (!visited.has(next.path)) {
+        visit(next);
+      }
+    }
+  };
+  visit(split.after[0] as Module);
+  const list = (modules: readonly string[]): string =>
+    modules.length === 0 ? "no module" : modules.join(", ");
+  return list(before) === list(after)
+    ? []
+    : [
+        `${split.before.path}: loads ${list(before)} before the split and ${list(after)} after it; what loads and its order stay the same`,
+      ];
+};
 
 const describeBinding = (binding: string | undefined): string =>
   binding ?? "no import or top-level declaration";
@@ -663,10 +761,12 @@ const bindingProblems = (pairs: readonly Pair[], split: Split): string[] =>
   );
 
 /**
- * Every export of a "use server" module is a server action, and a re-export
- * may not be; such a module does not split.
+ * File-wide settings that do not follow moved code: a "use server" module
+ * (every export is a server action, a re-export may not be), JSX pragmas,
+ * and `@ts-nocheck`, which a new file may not add.
  */
-const directiveProblems = (before: Module): string[] => {
+const directiveProblems = (split: Split): string[] => {
+  const { before } = split;
   const problems: string[] = [];
   for (const statement of before.file.statements) {
     if (
@@ -681,6 +781,23 @@ const directiveProblems = (before: Module): string[] => {
       problems.push(
         `${before.path} is a "use server" module: its exports are server actions, so its code does not move`
       );
+    }
+  }
+  const pragmas = [before, ...split.after].filter(({ file }) =>
+    /@jsx\w*\s/u.test(file.text)
+  );
+  if (pragmas.length > 0) {
+    problems.push(
+      `${pragmas[0]?.path} has a JSX pragma, which applies only to its own file`
+    );
+  }
+  if (!before.file.text.includes("@ts-nocheck")) {
+    for (const module of split.after) {
+      if (module.file.text.includes("@ts-nocheck")) {
+        problems.push(
+          `${module.path} turns type checking off with @ts-nocheck`
+        );
+      }
     }
   }
   return problems;
@@ -702,6 +819,18 @@ const typeNames = (module: Module): Set<string> => {
 
 type Part = Readonly<{ exports: Exports; types: ReadonlySet<string> }>;
 
+/** Whether `module` re-exports, with `export *`, a module not in `parts`. */
+const hasOuterStar = (
+  module: Module,
+  parts: ReadonlyMap<string, Part>
+): boolean =>
+  module.file.statements.some(
+    (statement) =>
+      ts.isExportDeclaration(statement) &&
+      statement.exportClause === undefined &&
+      !parts.has(moduleOf(module.path, statement, module.file))
+  );
+
 /** One exported name, what it resolves to, and where. */
 type ExportEntry = readonly [name: string, target: string, node: ts.Node];
 
@@ -709,14 +838,20 @@ type ExportEntry = readonly [name: string, target: string, node: ts.Node];
 const partExports = (
   module: Module,
   statement: ts.ExportDeclaration,
-  part: Readonly<{ source: string } & Part>,
+  part: Readonly<{ source: string; outerStar: boolean } & Part>,
   problems: string[]
 ): ExportEntry[] => {
   const { source } = part;
   const clause = statement.exportClause;
+  const at = `${module.path}:${lineOf(statement, module.file)}`;
   if (clause !== undefined && ts.isNamespaceExport(clause)) {
+    problems.push(`${at}: re-exports ${source} as a namespace`);
+    return [];
+  }
+  if (clause === undefined && part.outerStar) {
+    // Two `export *` that export one name export neither.
     problems.push(
-      `${module.path}:${lineOf(statement, module.file)}: re-exports ${source} as a namespace`
+      `${at}: re-exports ${source} with export * beside export * of another module; name the re-exported names`
     );
     return [];
   }
@@ -730,23 +865,29 @@ const partExports = (
             node: statement as ts.Node,
             renamed: undefined,
             typeOnly: statement.isTypeOnly,
+            named: false,
           }))
       : clause.elements.map((element) => ({
           name: element.name.text,
           node: element as ts.Node,
           renamed: element.propertyName?.text,
           typeOnly: statement.isTypeOnly || element.isTypeOnly,
+          named: true,
         }));
   return requests.flatMap(
-    ({ name, node, renamed, typeOnly }): ExportEntry[] => {
+    ({ name, node, renamed, typeOnly, named }): ExportEntry[] => {
       const target = part.exports.get(name);
+      const type = part.types.has(name);
       let problem: string | undefined;
       if (renamed !== undefined) {
         problem = `renames ${renamed} of ${source} to ${name}`;
       } else if (target === undefined) {
         problem = `re-exports ${name}, which ${source} does not export`;
-      } else if (typeOnly && !part.types.has(name)) {
+      } else if (typeOnly && !type) {
         problem = `re-exports the value ${name} of ${source} as a type`;
+      } else if (named && !typeOnly && type) {
+        // A named re-export of a type fails at load time without `type`.
+        problem = `re-exports the type ${name} of ${source} without \`type\``;
       }
       if (problem === undefined) return [[name, target as string, node]];
       problems.push(`${module.path}:${lineOf(node, module.file)}: ${problem}`);
@@ -760,7 +901,8 @@ const declarationExports = (
   module: Module,
   statement: ts.ExportDeclaration,
   source: string | undefined,
-  paths: ReadonlySet<string>
+  paths: ReadonlySet<string>,
+  problems: string[]
 ): ExportEntry[] => {
   const clause = statement.exportClause;
   if (clause === undefined) {
@@ -771,6 +913,18 @@ const declarationExports = (
   }
   return clause.elements.map((element) => {
     const local = element.propertyName ?? element.name;
+    const binding = module.imports.find(
+      ({ local: name }) => name === local.text
+    );
+    if (
+      source === undefined &&
+      binding?.phase === "type" &&
+      !(statement.isTypeOnly || element.isTypeOnly)
+    ) {
+      problems.push(
+        `${module.path}:${lineOf(element, module.file)}: exports the type-only import ${local.text} without \`type\``
+      );
+    }
     const target =
       source === undefined
         ? required(
@@ -800,11 +954,15 @@ const statementExports = (
         : moduleOf(module.path, statement, module.file);
     const part = source === undefined ? undefined : parts.get(source);
     return part === undefined
-      ? declarationExports(module, statement, source, paths)
+      ? declarationExports(module, statement, source, paths, problems)
       : partExports(
           module,
           statement,
-          { ...part, source: source as string },
+          {
+            ...part,
+            source: source as string,
+            outerStar: hasOuterStar(module, parts),
+          },
           problems
         );
   }
@@ -841,7 +999,14 @@ const exportsOf = (
   return exports;
 };
 
-const compareExports = (split: Split, problems: string[]): Exports[] => {
+/**
+ * Compares the exports of the original file before and after the split, and
+ * indexes what the files after the split declare and export.
+ */
+const compareExports = (
+  split: Split,
+  problems: string[]
+): Readonly<{ before: Exports; after: Exports; index: Index }> => {
   const [original, ...newFiles] = split.after as [Module, ...Module[]];
   const parts = new Map<string, Part>(
     newFiles.map((module) => [
@@ -854,6 +1019,17 @@ const compareExports = (split: Split, problems: string[]): Exports[] => {
   );
   const before = exportsOf(split.before, new Map(), NO_PARTS, problems);
   const after = exportsOf(original, parts, split.paths, problems);
+  const index: Index = {
+    declared: placements(split),
+    exports: new Map([
+      [original.path, after],
+      ...[...parts].map(([path, part]) => [path, part.exports] as const),
+    ]),
+    types: new Map([
+      [original.path, typeNames(original)],
+      ...[...parts].map(([path, part]) => [path, part.types] as const),
+    ]),
+  };
   for (const [name, target] of before) {
     const now = after.get(name);
     if (now === undefined) {
@@ -871,8 +1047,12 @@ const compareExports = (split: Split, problems: string[]): Exports[] => {
       problems.push(`${original.path}: export ${name} is new after the split`);
     }
   }
-  return [before, after];
+  return { before, after, index };
 };
+
+/** The percentage of istanbul-lib-coverage: two decimals, rounded down. */
+const percent = (covered: number, total: number): number =>
+  total > 0 ? Math.floor((1000 * 100 * covered) / total / 10) / 100 : 100;
 
 /** The entry of a json-summary report: the exact path or its one suffix match. */
 const measured = (
@@ -880,18 +1060,27 @@ const measured = (
   path: string,
   when: "before" | "after"
 ): FileCoverage => {
-  const exact = summary[path];
-  if (exact !== undefined) return exact;
-  const keys = Object.keys(summary).filter((key) => key.endsWith(`/${path}`));
-  if (keys.length > 1) {
+  const keys = Object.keys(summary).filter((candidate) =>
+    candidate.endsWith(`/${path}`)
+  );
+  if (summary[path] === undefined && keys.length > 1) {
     throw new Error(
       `${path} matches ${keys.length} files in the coverage summary ${when} the split: ${keys.join(", ")}`
     );
   }
-  return required(
-    summary[keys[0] ?? ""],
-    `${path} in the coverage summary ${when} the split`
+  const key = summary[path] === undefined ? keys[0] : path;
+  const where = `${path} in the coverage summary ${when} the split`;
+  const coverage = required(
+    key === undefined ? undefined : summary[key],
+    where
   );
+  for (const metric of METRICS) {
+    const { covered, total, pct } = coverage[metric];
+    if (pct !== percent(covered, total)) {
+      throw new Error(`${where}: ${metric} ${covered}/${total} is not ${pct}%`);
+    }
+  }
+  return coverage;
 };
 
 /** The baseline entry a file gets, or undefined at 100% on all four. */
@@ -1000,14 +1189,24 @@ const treeProblems = async (
         `${path} is not in the folder of ${from}: moved code stays in its folder`
       );
     }
-    if (SPECIAL_NAME.test(posix.basename(path))) {
+    if (!/\.tsx?$/u.test(path) || SPECIAL_NAME.test(posix.basename(path))) {
       problems.push(
-        `${path} has a name that tools treat specially (a test, a declaration file, a route file): a new file has a plain name`
+        `${path} is not a plain .ts or .tsx file: tests, declaration files and route files are special to the tools`
       );
     }
-    if ((await git(["show", `${base}:${path}`])) !== undefined) {
+    // An extensionless import of `<stem>` would find a new `<stem>.ts`.
+    const folder = posix.dirname(path);
+    const listing = required(
+      await git(["ls-tree", "--name-only", base, "--", `${folder}/`]),
+      `the files in ${folder} at ${base}`
+    );
+    const stem = path.slice(0, path.length - posix.extname(path).length);
+    const taken = listing
+      .split("\n")
+      .filter((entry) => entry === stem || entry.startsWith(`${stem}.`));
+    if (taken.length > 0) {
       problems.push(
-        `${path} exists at ${base}: a split moves code into new files only`
+        `${path} takes the name of ${taken.join(", ")} at ${base}: a split moves code into new files with new names`
       );
     }
   }
@@ -1020,15 +1219,24 @@ const prove = async (
 ): Promise<number> => {
   const { from, to } = options;
   const { git, output, readText } = dependencies;
-  const show = async (ref: string, path: string): Promise<string> =>
-    required(await git(["show", `${ref}:${path}`]), `${path} at ${ref}`);
-  const base =
+  const show = async (commit: string, path: string): Promise<string> =>
+    required(await git(["show", `${commit}:${path}`]), `${path} at ${commit}`);
+  const ref =
     options.base ??
     required(
       await git(["merge-base", "HEAD", TARGET_BRANCH]),
       `the merge base of HEAD and ${TARGET_BRANCH}`
     ).trim();
+  const base = required(
+    await git(["rev-parse", "--verify", `${ref}^{commit}`]),
+    `the commit ${ref}`
+  ).trim();
   const problems = await treeProblems(options, base, git);
+  if (
+    (await git(["merge-base", "--is-ancestor", base, "HEAD"])) === undefined
+  ) {
+    problems.push(`${base} is not an ancestor of HEAD`);
+  }
   const paths = new Set([from, ...to]);
   const parts = new Set(to);
   const after: Module[] = [];
@@ -1049,16 +1257,16 @@ const prove = async (
 
   output(`Pure-move split of ${from} into ${to.join(", ")}`);
   output(
-    `Base: ${base} (${options.base === undefined ? `merge base of HEAD and ${TARGET_BRANCH}` : "--base"}); files after the split: HEAD`
+    `Base: ${base} (${options.base === undefined ? `merge base of HEAD and ${TARGET_BRANCH}` : `--base ${options.base}`}); files after the split: HEAD`
   );
   const matched = matchStatements(split);
-  const declared = placements(split);
   problems.push(
-    ...directiveProblems(split.before),
+    ...directiveProblems(split),
     ...matched.problems,
     ...moveProblems(matched.pairs, split)
   );
-  for (const [name, files] of declared) {
+  const exports = compareExports(split, problems);
+  for (const [name, files] of exports.index.declared) {
     if (files.length > 1) {
       problems.push(
         `${name} is declared in ${files.join(" and ")}: declarations of one name stay together`
@@ -1066,13 +1274,11 @@ const prove = async (
     }
   }
   problems.push(
-    ...importProblems(split, declared),
-    ...bindingProblems(matched.pairs, split)
+    ...importProblems(split, exports.index),
+    ...loadOrderProblems(split),
+    ...bindingProblems(matched.pairs, split),
+    ...after.flatMap((module) => module.typeErrors())
   );
-  const [exportsBefore, exportsAfter] = compareExports(split, problems) as [
-    Exports,
-    Exports,
-  ];
   const moved = matched.pairs.filter(
     ({ module }) => module !== after[0]
   ).length;
@@ -1080,7 +1286,7 @@ const prove = async (
     `Statements: ${split.before.statements.length} in the original file; ${moved} in the new files.`
   );
   output(
-    `Exports of ${from}: ${exportsBefore.size} before, ${exportsAfter.size} after.`
+    `Exports of ${from}: ${exports.before.size} before, ${exports.after.size} after.`
   );
 
   const summaryBefore = JSON.parse(
@@ -1113,8 +1319,8 @@ const prove = async (
   for (const [path, coverage] of coverageAfter) {
     output(printedEntry(path, coverage));
   }
-  const baseline = async (ref: string): Promise<Baseline> =>
-    JSON.parse(await show(ref, BASELINE)) as Baseline;
+  const baseline = async (commit: string): Promise<Baseline> =>
+    JSON.parse(await show(commit, BASELINE)) as Baseline;
   problems.push(
     ...baselineProblems(
       await baseline(base),
