@@ -191,7 +191,7 @@ does not make a form eligible.
 
 The daily option-chain snapshots of card `vertex-option-model-calibration` will replace the assumed spreads.
 
-### The long calendar spread (fixed on 2026-11-12, before its first run)
+### The long calendar spread (fixed on 2026-11-12; VIX6M and configs B and C added after the first run of config A, spec D2)
 
 The run of 2026-11-11 left `long-calendar-spread` out: it holds two expiries, and the option book priced
 single-expiry verticals only. The book now prices the two-expiry structure (`book.py`: `callCalendar`,
