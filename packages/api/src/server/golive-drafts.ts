@@ -21,6 +21,7 @@ import { evaluateFinalOrderGate } from "./final-order-gate.ts";
 import {
   approvedOrderFitsDraft,
   approvedRoomOf,
+  exitScheduleOf,
   GOLIVE_QUOTE_MAX_FUTURE_SKEW_MS,
   notApprovableReasons,
   orderFor,
@@ -28,6 +29,7 @@ import {
   sameCombo,
   sizeDrafts,
 } from "./golive-drafts-sizing.ts";
+import type { GoLiveQuotesPort } from "./golive-live-quotes.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -45,6 +47,8 @@ import {
 // IBKR option quote source exists (dependencies.liveQuoteSource, false by default), and so is a
 // quote dated more than 60 s after the server clock. A later run of the day refreshes the stored
 // drafts that have no decision; a trading day holds at most GOLIVE_DRAFT_LIST_MAX drafts.
+// Live quotes: queue and approve read each proposed draft's spread from the live quote reader
+// (context.goLiveQuotes, bridge POST /quotes, read only) and size it from that quote; never stored.
 // approve and reject: the owner (operator and admin role) in a browser session; API keys refused.
 // approve names the revision of the draft the owner read and is refused when the draft has
 // another one.
@@ -77,9 +81,12 @@ export type GoLiveDraftsDependencies = Readonly<{
   account?: (context: ApiContext, now: Date) => Promise<GoLiveAccountReading>;
   // Cached P5 JEV verdict for the dry final gate; defaults to the shared verdict store.
   jevVerdict?: (symbol: string) => JevVerdictOutput | null;
-  // true: a live IBKR option quote source exists, so collect accepts a quote labelled ibkr_live.
-  // None exists in this version, so the default refuses the label. Not an environment setting.
+  // true: collect accepts a quote labelled ibkr_live from the generator. Off by default: the
+  // generator reads delayed snapshots, and live quotes reach the queue only through the live
+  // quote reader below (read at queue and approve time, never stored). Not an environment setting.
   liveQuoteSource?: boolean;
+  // Live IBKR spread quotes; defaults to context.goLiveQuotes (the bridge POST /quotes reader).
+  liveQuotes?: GoLiveQuotesPort;
   marketNotes?: GoLiveMarketNotesPort;
   node?: (context: ApiContext) => Promise<GoLiveNodeReading>;
   now?: () => Date;
@@ -179,6 +186,10 @@ const repositoryFor = (
   return repository;
 };
 
+// Stored with the approval of a late entry, so the record says it was outside the tested rule.
+const OUTSIDE_TESTED_RULE_NOTE =
+  "[Approved outside the tested entry rule (late entry), owner tick box]";
+
 const DRAFT_CHANGED_MESSAGE =
   "The draft changed after the queue was read (a later generator run); reload the queue";
 const PLAN_MISMATCH_MESSAGE =
@@ -244,6 +255,42 @@ type Loaded = Readonly<{
   records: readonly GoLiveDraftRecord[];
 }>;
 
+/**
+ * Each proposed draft with the live IBKR quote of its two legs in place of its stored delayed
+ * quote, when the quote reader (context.goLiveQuotes) has one now; every other draft unchanged.
+ * Read only, never stored: approve sizes from the same overlay (the reader caches it 100 s), and
+ * the revision the owner approves stays the stored revision. A key caller is never quoted.
+ */
+const withLiveQuotes = async (
+  context: ApiContext,
+  records: readonly GoLiveDraftRecord[]
+): Promise<readonly GoLiveDraftRecord[]> => {
+  const reader = dependencies.liveQuotes ?? context.goLiveQuotes;
+  if (reader === undefined) return records;
+  const proposed = records.filter((record) => record.state === "proposed");
+  if (proposed.length === 0) return records;
+  const spreads = proposed.map((record) => {
+    const right = record.structure.startsWith("call") ? "C" : "P";
+    const leg = (strike: number) =>
+      ({
+        expiry: record.expiry,
+        right,
+        strike,
+        symbol: record.symbol,
+      }) as const;
+    return { long: leg(record.longStrike), short: leg(record.shortStrike) };
+  });
+  const quotes = await reader(spreads).catch(() => spreads.map(() => null));
+  const live = new Map(
+    proposed.map((record, index) => [record.id, quotes[index] ?? null])
+  );
+  return records.map((record) => {
+    const quote = live.get(record.id) ?? null;
+    return quote === null
+      ? record
+      : { ...record, quote: { ...quote, asOf: quote.asOf.toISOString() } };
+  });
+};
 const load = async (
   context: ApiContext,
   repository: GoLiveDraftsRepositoryPort,
@@ -251,9 +298,12 @@ const load = async (
   now: Date
 ): Promise<Loaded> => {
   const forKey = context.agentApiKeyPresented === true;
-  const [plan, records, run, account, node] = await Promise.all([
+  const listed = repository.listDrafts({ tradingDay });
+  // The live quotes are read while the account and the node are read.
+  const [plan, records, quoted, run, account, node] = await Promise.all([
     repository.planInForce(),
-    repository.listDrafts({ tradingDay }),
+    listed,
+    listed.then((rows) => (forKey ? rows : withLiveQuotes(context, rows))),
     repository.lastRun(tradingDay),
     forKey ? KEY_ACCOUNT : (dependencies.account ?? readAccount)(context, now),
     (dependencies.node ?? readNode)(context),
@@ -272,7 +322,7 @@ const load = async (
     notes,
     now,
     plan,
-    records,
+    records: quoted,
   };
 };
 
@@ -408,6 +458,7 @@ const viewsOf = (
       // What the approved order holds, whatever today's sizing below reads. Not for a key: the
       // amount comes from a quantity that was sized from the account value.
       approvedRoom: loaded.forKey ? null : approvedRoomOf(draft, nlv),
+      exitSchedule: loaded.forKey ? null : exitScheduleOf(draft),
       notApprovable: notApprovableReasons({
         draft,
         nlv,
@@ -626,9 +677,17 @@ const approve = api.goLiveDrafts.approve
       throw failures.NOT_FOUND({
         message: `Draft is not in the queue of trading day ${tradingDay}`,
       });
-    if (draft.notApprovable.length > 0)
+    // A late entry is approvable only with the owner's explicit outside-the-tested-rule tick
+    // (owner 2026-11-12); every other reason still refuses.
+    const lateAcknowledged =
+      input.outsideTestedEntryRule === true &&
+      draft.entryBasis === "model_holds_account_does_not";
+    const blocking = draft.notApprovable.filter(
+      (reason) => !(lateAcknowledged && reason === "LATE_ENTRY_NOT_TESTED")
+    );
+    if (blocking.length > 0)
       throw failures.CONFLICT({
-        message: `Draft cannot be approved: ${draft.notApprovable.join(", ")}`,
+        message: `Draft cannot be approved: ${blocking.join(", ")}`,
       });
     // The owner must have read this draft as it is now: a later run that replaced its quote, its
     // facts or its entry basis gave it another revision, also when the order is the same.
@@ -654,7 +713,12 @@ const approve = api.goLiveDrafts.approve
         expectedRevision: input.revision,
         id: input.id,
         nodeBadge: loaded.node.badge,
-        note: input.note ?? null,
+        note: lateAcknowledged
+          ? `${OUTSIDE_TESTED_RULE_NOTE}${input.note === undefined ? "" : ` ${input.note}`}`.slice(
+              0,
+              1000
+            )
+          : (input.note ?? null),
       })
     );
     return decidedView(loaded, record);

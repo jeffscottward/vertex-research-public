@@ -4,9 +4,9 @@ import { appContract } from "./contract.ts";
 import {
   GOLIVE_COLLECT_MAX,
   GOLIVE_DRAFT_LIST_MAX,
+  GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   GOLIVE_QUOTE_SPREAD_FLOOR,
-  GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_SIZING_REASON_VALUES,
   GOLIVE_STANDING_MAX_LOSS_PCT,
   GOLIVE_STANDING_NAME_CAP_PCT,
@@ -106,6 +106,7 @@ const draft = () => ({
   entryBasis: "signal_today",
   exitReason: null,
   exitRule: "owner_standing_rule_v1",
+  exitSchedule: null,
   expiry: "20261218",
   id: "d-spy",
   kind: "entry",
