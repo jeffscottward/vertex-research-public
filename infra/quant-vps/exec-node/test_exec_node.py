@@ -269,7 +269,7 @@ class OwnedRuntimeTests(unittest.TestCase):
     # key. arm_gate.py needs it to tell option classes apart. Test: test_order_policy.py.
     safety_fix = {
         "watchdog/watchdog.py": "215229586079adeb034d912f955d39770d6817dcff8acbb347b4fdb1fe96afe9",
-        "nautilus/arm_gate.py": "fc57cfacd7f5a5a2c6f6536fd6e684652c41394ea3634cf5331dda20da15755a",
+        "nautilus/arm_gate.py": "80de0658b33303c8f29f7c7fc60f308c6a557a038848a2be2504635791dd7f45",
         "scripts/ibkr_account_snapshot.py": "42265a912c610a676c604692437d68612642884f6d1e20f7de3d82a87d35d2f4",
         "scripts/position_close.py": "c4052f9678f89bf0304807897c4c656674a117fc2e86fbc768bd97af50ecad7c",
     }

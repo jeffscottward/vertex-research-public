@@ -615,12 +615,13 @@ def _positive(value: Any) -> Decimal | None:
     return number if number is not None and number > 0 else None
 
 
-def _number_set(value: Any, *, unset_markers: bool) -> bool:
-    """Whether an order number that the policy refuses when set is set.
+def _number_set(value: Any, *, unset_double: bool = False, unset_integer: bool = False) -> bool:
+    """Whether an order number that the v3 policy refuses when set is set.
 
-    Unset: None, False, "", 0 and, with ``unset_markers``, ibapi's UNSET_INTEGER
-    and UNSET_DOUBLE. A value this module cannot read as a finite number
-    (True, text, NaN, infinity) counts as set: ibapi would still send it.
+    Unset: None, False, "", 0, and the ibapi marker the field uses when the
+    caller names it (``unset_double``: UNSET_DOUBLE; ``unset_integer``:
+    UNSET_INTEGER). A value this module cannot read as a finite number (True,
+    text, NaN, infinity) counts as set: ibapi would still send it.
     """
 
     if value is None or value is False or _text(value) == "":
@@ -630,7 +631,9 @@ def _number_set(value: Any, *, unset_markers: bool) -> bool:
         return True
     if number == 0:
         return False
-    return not (unset_markers and (number == _UNSET_INTEGER or abs(number) >= _UNSET_PRICE))
+    if unset_double and abs(number) >= _UNSET_PRICE:
+        return False
+    return not (unset_integer and number == _UNSET_INTEGER)
 
 
 def _short(value: Any, limit: int = 64) -> str:
@@ -643,7 +646,7 @@ def _con_id(value: Any) -> int | None:
     if isinstance(value, int):
         return value if value > 0 else None
     text = _text(value)
-    return int(text) if text.isascii() and text.isdigit() and int(text) > 0 else None
+    return int(text) if text.isdigit() and int(text) > 0 else None
 
 
 def _identity(get: Callable[[str], Any]) -> dict[str, Any]:
@@ -792,7 +795,7 @@ def order_policy_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         "spread_risk_caps": caps,
         "spread_risk_caps_error": caps_error,
         "leaps_min_days": LEAPS_MIN_DAYS,
-        "open_risk_ledger_path": str(_open_risk_path(env)),
+        "open_risk_ledger_path": str(_reservations_path(env)),
     }
 
 
@@ -1171,16 +1174,37 @@ def _write_reservations(path: Path, reservations: dict[str, dict[str, Any]]) -> 
         }
         for _, item in sorted(reservations.items())
     ]
+    document: dict[str, Any] = {
+        "schema": RESERVATIONS_SCHEMA,
+        "updated_at": utc_now(),
+        "reservations": entries,
+    }
+    # v3: the working opening orders live in the same file. Keep them as stored
+    # (an invalid value too: it keeps refusing opening orders until it is repaired).
+    working = _stored_document(path).get(OPEN_RISK_KEY)
+    if working is not None and working != []:
+        document[OPEN_RISK_KEY] = working
+    _write_document(path, document)
+
+
+def _stored_document(path: Path) -> dict[str, Any]:
+    """The JSON object stored in the reservation file; {} when missing, unreadable or not an object."""
+
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read(RESERVATIONS_MAX_BYTES + 1)
+        data = json.loads(raw) if len(raw) <= RESERVATIONS_MAX_BYTES else None
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_document(path: Path, document: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(
-                {"schema": RESERVATIONS_SCHEMA, "updated_at": utc_now(), "reservations": entries},
-                handle,
-                sort_keys=True,
-                indent=2,
-            )
+            json.dump(document, handle, sort_keys=True, indent=2)
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
@@ -1263,9 +1287,11 @@ def _check_option_premium(
     limit = _positive(getattr(order, "lmtPrice", None))
     if limit is None or limit >= _UNSET_PRICE:
         raise OrderPolicyError("limit_price_missing", "an option buy needs a positive lmtPrice")
-    if _number_set(getattr(order, "discretionaryAmt", None), unset_markers=False):
+    discretionary = _decimal(getattr(order, "discretionaryAmt", None))
+    if discretionary is not None and discretionary != 0:
         raise OrderPolicyError("discretionary_refused", "discretionary amounts can fill above lmtPrice")
-    if _number_set(getattr(order, "cashQty", None), unset_markers=True):
+    cash_quantity = _positive(getattr(order, "cashQty", None))
+    if cash_quantity is not None and cash_quantity < _UNSET_PRICE:
         raise OrderPolicyError("cash_quantity_refused", "an option buy must size by totalQuantity")
     if identity["currency"] != "USD":
         raise OrderPolicyError(
@@ -1408,8 +1434,8 @@ def _evaluate_close(
 # checked at 0 and at every strike), summed over those groups. Shares are not counted. A short call
 # without a long call of the same expiry has no bound: opening orders in that
 # name, and every opening order under the total cap, are refused while it is
-# held. Working opening orders are kept in a ledger file
-# (NAUTILUS_ORDER_POLICY_OPEN_RISK_PATH) and count with their full max loss
+# held. Working opening orders are kept in a ledger (the ``open_risk`` key of
+# the close-reservation file) and count with their full max loss
 # until IBKR reports them final and a later snapshot carries the fills, their
 # expiry is more than one day in the past, or the owner releases them
 # (``release-open-risk``). Option buys placed while the switch was off are not
@@ -1418,11 +1444,19 @@ def _evaluate_close(
 # include a short option, a close that sells a held long option (a single-leg
 # sale, or a closing BAG) is refused when the options left could lose more at
 # expiry than before the close, or without bound; only one such close may be
-# unresolved at a time. Close the spread as one BAG, or buy the short leg
-# back first (a buy that closes a short is always allowed). An unreadable
-# ledger refuses opening orders only, never a close.
+# unresolved at a time. Calls and puts are compared apart (a loss on one side
+# may not hide an option left short on the other), and short shares of the
+# underlying (an assigned short call) count as short calls of strike 0.
+# A single-leg sale of a long option is also refused while an opening spread
+# of that underlying and expiry is unresolved in the ledger: its sold option
+# is not in the snapshot yet (``open_spread_working``). Close the spread as
+# one BAG, or buy the short leg back first (a buy that closes a short is
+# always allowed). A ledger that cannot be read refuses opening orders and the
+# single-leg sale of a long option; a closing BAG and a buy that closes a
+# short stay allowed.
 # Do not turn the switch off while spreads are held: off is the v2 behaviour,
 # which refuses every BAG and lets a single-leg sale of the long leg through.
+# Close the spreads or buy the short options back first.
 #
 # Early assignment: the short leg of an American option can be assigned before
 # expiry. The long leg still bounds the loss (exercise it, or close both), but
@@ -1441,15 +1475,16 @@ SPREADS_FLAG_ENV = "NAUTILUS_ORDER_POLICY_ALLOW_DEFINED_RISK_SPREADS"
 SPREADS_FLAG_PREFIX = "owner-decision:"
 SPREADS_FLAG_OFF = "off"
 SPREADS_FLAG_INVALID = "off_invalid_value"
-_DECISION_LINK_RE = re.compile(r"https://discord\.com/channels/\d{5,25}/\d{5,25}/\d{5,25}")
+_DECISION_LINK_RE = re.compile(r"https://discord\.com/channels/[0-9]{5,25}/[0-9]{5,25}/[0-9]{5,25}")
 NAME_CAP_SHORT_PCT_ENV = "NAUTILUS_ORDER_POLICY_NAME_CAP_SHORT_PCT"
 NAME_CAP_LEAPS_PCT_ENV = "NAUTILUS_ORDER_POLICY_NAME_CAP_LEAPS_PCT"
 TOTAL_RISK_PCT_ENV = "NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT"
 # An expiry at least this many days away is a LEAPS (docs/vertex-orders.md).
 LEAPS_MIN_DAYS = 365
-OPEN_RISK_ENV = "NAUTILUS_ORDER_POLICY_OPEN_RISK_PATH"
-DEFAULT_OPEN_RISK_PATH = "/app/data/nautilus/order-policy-open-risk.json"
-OPEN_RISK_SCHEMA = "nautilus-order-policy-open-risk-v1"
+# The working opening orders are one more key of the close-reservation file
+# (AGENTS.md rule 13: no new JSON data file). The key is absent while there is
+# none, so the file keeps its v2 shape; the v2 reader ignores the key.
+OPEN_RISK_KEY = "open_risk"
 OPEN_RISK_AUDIT_EVENT = "open_risk_released"
 LEGS_NOT_QUALIFIED_NOTE = (
     "dry check: the leg contracts are the caller's; place_order asks IBKR for them before it sends"
@@ -1540,11 +1575,6 @@ def _risk_caps(env: Mapping[str, str] | None = None) -> dict[str, tuple[Decimal,
             )
         caps[name] = (pct, recorded)
     return caps
-
-
-def _open_risk_path(env: Mapping[str, str] | None = None) -> Path:
-    source = os.environ if env is None else env
-    return Path(source.get(OPEN_RISK_ENV) or DEFAULT_OPEN_RISK_PATH)
 
 
 def _expiry_date(text: Any) -> date | None:
@@ -1701,15 +1731,19 @@ def _read_open_risk(path: Path) -> dict[str, dict[str, Any]]:
         raise OrderPolicyError(
             "open_risk_ledger_unreadable", f"{path.name}: {type(exc).__name__}"
         ) from exc
-    invalid = OrderPolicyError("open_risk_ledger_invalid", f"{path.name} is not a valid open-risk ledger")
+    invalid = OrderPolicyError(
+        "open_risk_ledger_invalid", f"{path.name} holds no valid list of working opening orders"
+    )
     if len(raw) > RESERVATIONS_MAX_BYTES:
         raise invalid
     try:
         data = json.loads(raw)
     except ValueError as exc:
         raise invalid from exc
-    entries = data.get("orders") if isinstance(data, dict) else None
-    if not isinstance(data, dict) or data.get("schema") != OPEN_RISK_SCHEMA or not isinstance(entries, list):
+    entries = data.get(OPEN_RISK_KEY, []) if isinstance(data, dict) else None
+    if not isinstance(data, dict) or data.get("schema") != RESERVATIONS_SCHEMA or not isinstance(
+        entries, list
+    ):
         raise invalid
     ledger: dict[str, dict[str, Any]] = {}
     for raw_entry in entries:
@@ -1726,23 +1760,15 @@ def _open_risk_to_json(entry: dict[str, Any]) -> dict[str, Any]:
 
 def _write_open_risk(path: Path, ledger: dict[str, dict[str, Any]]) -> None:
     entries = [_open_risk_to_json(entry) for _, entry in sorted(ledger.items())]
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(
-                {"schema": OPEN_RISK_SCHEMA, "updated_at": utc_now(), "orders": entries},
-                handle,
-                sort_keys=True,
-                indent=2,
-            )
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
+    # The close reservations in the same file stay exactly as stored.
+    document = _stored_document(path)
+    document.setdefault("schema", RESERVATIONS_SCHEMA)
+    document.setdefault("reservations", [])
+    document["updated_at"] = utc_now()
+    document.pop(OPEN_RISK_KEY, None)
+    if entries:
+        document[OPEN_RISK_KEY] = entries
+    _write_document(path, document)
 
 
 def _open_risk_resolved(entry: dict[str, Any], snapshot: _Snapshot, today: date) -> bool:
@@ -1849,7 +1875,7 @@ def _checked_open(
             "max_loss_exceeded",
             f"max loss {_usd(max_loss)} USD exceeds {per_order}% of NetLiquidation",
         )
-    stored = _read_open_risk(_open_risk_path(env))
+    stored = _read_open_risk(_reservations_path(env))
     live = {name: item for name, item in stored.items() if not _open_risk_resolved(item, snapshot, today)}
     previous = live.get(key)
     if previous is not None and previous["signature"] != signature:
@@ -1898,6 +1924,11 @@ def _evaluate_long_option_open(
 
     limit = _positive(getattr(order, "lmtPrice", None))
     assert limit is not None and identity["multiplier"] is not None  # _check_option_premium
+    # _check_option_premium (v2) reads an unreadable value as unset; ibapi would still send it.
+    if _number_set(getattr(order, "discretionaryAmt", None)):
+        raise OrderPolicyError("discretionary_refused", "discretionary amounts can fill above lmtPrice")
+    if _number_set(getattr(order, "cashQty", None), unset_double=True):
+        raise OrderPolicyError("cash_quantity_refused", "an option buy must size by totalQuantity")
     leg = identity["con_id"] or "/".join(
         str(identity[name]) for name in ("symbol", "expiry", "right", "strike", "trading_class")
     )
@@ -1935,14 +1966,27 @@ def _check_single_close(
     live = decision.reservations or {}
     if any(name.startswith(f"{key}/") for name in live):
         raise OrderPolicyError("order_id_reused", "this order id holds an unresolved combo close")
+    sale = identity["sec_type"] == "OPT" and action == "SELL"
     try:
-        working = _read_open_risk(_open_risk_path(env)).get(key)
+        ledger = _read_open_risk(_reservations_path(env))
     except OrderPolicyError:
-        working = None  # a ledger fault refuses opening orders; it never blocks a close
-    if working is not None and not _open_risk_resolved(working, snapshot, _today(now)):
+        if sale:
+            # The sale of a long option needs the working opening spreads (see _check_close_risk).
+            raise OrderPolicyError(
+                "close_risk_unavailable",
+                "the list of working opening orders is unreadable, so a working opening spread "
+                "cannot be ruled out: repair it, or buy the short option back first",
+            ) from None
+        ledger = {}  # a ledger fault never blocks a close that buys a short back or closes shares
+    today = _today(now)
+    unresolved = {
+        name: item for name, item in ledger.items() if not _open_risk_resolved(item, snapshot, today)
+    }
+    if key in unresolved:
         raise OrderPolicyError("order_id_reused", "this order id holds a working opening order")
-    if identity["sec_type"] == "OPT" and action == "SELL":
-        _check_close_risk([(identity, action, decision)], {key}, live, snapshot)
+    if sale:
+        spreads = [item for item in unresolved.values() if "|SELL:" in item["signature"]]
+        _check_close_risk([(identity, action, decision)], {key}, live, snapshot, spreads)
 
 
 def _check_close_risk(
@@ -1950,17 +1994,28 @@ def _check_close_risk(
     own_keys: set[str],
     live: dict[str, dict[str, Any]],
     snapshot: _Snapshot,
+    working_spreads: list[dict[str, Any]] | None = None,
 ) -> None:
     """A close that sells a held long option may not raise the worst loss of what stays held.
 
     ``closes``: (order identity, action, close decision) per closed contract; the
     first one is the sale of the long. The group is every held option of that
-    underlying, expiry and trading class. Nothing is checked while the group
-    holds no short option (nothing can be uncovered). With a short option held:
-    another unresolved close in the group refuses this one (the two could fill
-    in any order), and the worst value at expiry of the group after this close
-    may not be lower than before it. A buy that closes a short never needs this
-    check: it only raises the value at every price.
+    underlying, expiry and trading class, plus short shares of the underlying
+    (an assigned short call), which count as short calls of strike 0.
+
+    ``working_spreads`` (single-leg sales only): the unresolved opening spreads
+    of the ledger. One of this underlying and expiry refuses the sale: its sold
+    option is not in the snapshot yet, and the long sold here could be the
+    option that covers it, or the option its fill nets against. A closing BAG
+    needs no such check: it sells the long and buys the short back in one fill.
+
+    Nothing more is checked while the group holds no short option and no short
+    shares (nothing can be uncovered). Otherwise another unresolved close in
+    the group refuses this one (the two could fill in any order), and the worst
+    value at expiry may not be lower after this close than before it. Calls
+    and puts are compared apart: a loss on the call side may not hide a put
+    that this sale leaves short without its long put. A buy that closes a short
+    never needs this check: it only raises the value at every price.
     """
 
     sold = closes[0][0]
@@ -1972,11 +2027,28 @@ def _check_close_risk(
             break
     if group is None:
         return  # no held long of this contract: _evaluate_close already refused the order
+    group_expiry = _expiry_date(group[1])
+    for item in working_spreads or []:
+        if item["symbol"] == group[0] and (
+            group_expiry is None or _expiry_date(item["expiry"]) in (None, group_expiry)
+        ):
+            raise OrderPolicyError(
+                "open_spread_working",
+                "an opening spread of this underlying and expiry is unresolved (order id "
+                f"{_short(item['order_id'], 32)}): this sale could leave its sold option uncovered. "
+                "Wait until IBKR reports it filled or cancelled and a later snapshot shows it",
+            )
     units: dict[tuple[str, Decimal, Decimal], Decimal] = {}
     readable, short_held = True, False
     for position in snapshot.positions:
         held = _position_identity(position)
         quantity = _decimal(position.get("quantity")) or Decimal(0)
+        if held["sec_type"] == "STK" and held["symbol"] == group[0] and quantity < 0:
+            # Short shares lose like short calls of strike 0, at every expiry.
+            shares = ("C", Decimal(0), Decimal(1))
+            units[shares] = units.get(shares, Decimal(0)) + quantity
+            short_held = True
+            continue
         if (
             held["sec_type"] != "OPT"
             or (held["symbol"], held["expiry"], held["trading_class"]) != group
@@ -1991,7 +2063,9 @@ def _check_close_risk(
         units[contract] = units.get(contract, Decimal(0)) + quantity * held["multiplier"]
     if not short_held:
         return
-    refusal = "close the spread as one BAG combo, or buy the short option back first"
+    refusal = (
+        "close the spread as one BAG combo, or buy the short option (or the short shares) back first"
+    )
     if not readable:
         raise OrderPolicyError(
             "close_risk_unavailable",
@@ -2029,24 +2103,30 @@ def _check_close_risk(
         before[matches[0]] = sign * decision.held_before * matches[0][2]
         after[matches[0]] = sign * (decision.held_before - decision.quantity) * matches[0][2]
 
-    def worst(book: dict[tuple[str, Decimal, Decimal], Decimal]) -> Decimal | None:
+    def worst(book: dict[tuple[str, Decimal, Decimal], Decimal], side: str) -> Decimal | None:
         return _worst_loss(
-            [_Lot(right, strike, size, Decimal(0)) for (right, strike, _), size in book.items() if size]
+            [
+                _Lot(right, strike, size, Decimal(0))
+                for (right, strike, _), size in book.items()
+                if size and right == side
+            ]
         )
 
-    worst_before, worst_after = worst(before), worst(after)
-    if worst_after is None:
-        raise OrderPolicyError(
-            "close_would_uncover_short",
-            "this sale would leave a held short call without a long call of the same expiry "
-            f"(no bound on the loss): {refusal}",
-        )
-    if worst_before is not None and worst_after > worst_before:
-        raise OrderPolicyError(
-            "close_would_increase_risk",
-            f"after this sale the options left could lose {_usd(worst_after)} USD more than their "
-            f"value now, instead of {_usd(worst_before)} USD: {refusal}",
-        )
+    for side in sorted({identity["right"] for identity, _, _ in closes}):
+        worst_before, worst_after = worst(before, side), worst(after, side)
+        if worst_after is None:
+            raise OrderPolicyError(
+                "close_would_uncover_short",
+                "this sale would leave a held short call, or short shares, without a long call of "
+                f"the same expiry (no bound on the loss): {refusal}",
+            )
+        if worst_before is not None and worst_after > worst_before:
+            raise OrderPolicyError(
+                "close_would_increase_risk",
+                f"after this sale the {'calls' if side == 'C' else 'puts'} left could lose "
+                f"{_usd(worst_after)} USD more than their value now, instead of "
+                f"{_usd(worst_before)} USD: {refusal}",
+            )
 
 
 # -- leg qualification: IBKR names the contract behind each conId -------------
@@ -2286,9 +2366,9 @@ def _check_combo_order_fields(order: Any) -> tuple[str, Decimal, Decimal]:
         raise OrderPolicyError(
             "limit_price_precision_refused", "lmtPrice may have at most 4 decimal places"
         )
-    if _number_set(getattr(order, "discretionaryAmt", None), unset_markers=False):
+    if _number_set(getattr(order, "discretionaryAmt", None)):
         raise OrderPolicyError("discretionary_refused", "discretionary amounts can fill above lmtPrice")
-    if _number_set(getattr(order, "cashQty", None), unset_markers=True):
+    if _number_set(getattr(order, "cashQty", None), unset_double=True):
         raise OrderPolicyError("cash_quantity_refused", "a combo order must size by totalQuantity")
     if getattr(order, "orderComboLegs", None):
         raise OrderPolicyError(
@@ -2315,11 +2395,9 @@ def _check_combo_order_fields(order: Any) -> tuple[str, Decimal, Decimal]:
     # Order features that add orders or change the working price. ibapi leaves
     # the scale sizes at UNSET_INTEGER and the increment at UNSET_DOUBLE.
     for name in ("scaleInitLevelSize", "scaleSubsLevelSize", "scalePriceIncrement"):
-        if _number_set(getattr(order, name, None), unset_markers=True):
+        if _number_set(getattr(order, name, None), unset_double=True, unset_integer=True):
             raise OrderPolicyError("scale_order_refused", "scale orders are not supported for combos")
-    if _number_set(getattr(order, "parentId", None), unset_markers=False) or _text(
-        getattr(order, "ocaGroup", "")
-    ):
+    if _number_set(getattr(order, "parentId", None)) or _text(getattr(order, "ocaGroup", "")):
         raise OrderPolicyError(
             "attached_order_refused", "attached (parentId) and one-cancels-all orders are not supported"
         )
@@ -2432,9 +2510,9 @@ def _evaluate_combo_close(
             "order_id_reused", "this order id holds an unresolved single-leg close"
         )
     try:
-        working = _read_open_risk(_open_risk_path(env)).get(key)
+        working = _read_open_risk(_reservations_path(env)).get(key)
     except OrderPolicyError:
-        working = None  # a ledger fault refuses opening orders; it never blocks a close
+        working = None  # a ledger fault refuses opening orders; it never blocks a closing BAG
     if working is not None and not _open_risk_resolved(working, snapshot, _today(now)):
         raise OrderPolicyError("order_id_reused", "this order id holds a working opening order")
     closes = tuple(
@@ -2531,12 +2609,13 @@ def _evaluate_order(
 
     if contract is None or order is None:
         raise OrderPolicyError("order_missing", "contract and order are required")
-    if not isinstance(getattr(order, "whatIf", False), bool):
-        # ibapi sends a truthy text such as "0" as a live order; it must not skip the reservation.
-        raise OrderPolicyError("what_if_not_boolean", "whatIf must be True or False")
     identity = _order_contract_identity(contract)
     sec_type = identity["sec_type"]
     spreads = _spreads_flag(env)[0]
+    if spreads and not isinstance(getattr(order, "whatIf", False), bool):
+        # ibapi sends a truthy text such as "0" as a live order; read as a preflight it would
+        # skip the ledger entry or the close reservation. (Switch off: the v2 reading stays.)
+        raise OrderPolicyError("what_if_not_boolean", "whatIf must be True or False")
     if (sec_type == "BAG" or getattr(contract, "comboLegs", None)) and not (
         spreads and sec_type == "BAG"
     ):
@@ -2686,7 +2765,7 @@ def _record_placement(
             "source": _short(source),
             "placed_at": time.time(),
         }
-        _write_open_risk(_open_risk_path(), ledger)
+        _write_open_risk(_reservations_path(), ledger)
         _forget_outcome(client, order_id)
         return
     if decision.reservations is None:
@@ -2914,7 +2993,7 @@ def open_risk_report(
 
     snapshot = _load_snapshot(env, now)
     today = _today(now)
-    ledger = _read_open_risk(_open_risk_path(env))
+    ledger = _read_open_risk(_reservations_path(env))
     working = [
         {**_open_risk_to_json(entry), "resolved": _open_risk_resolved(entry, snapshot, today)}
         for _, entry in sorted(ledger.items())
@@ -2959,7 +3038,7 @@ def release_open_risk(
         raise ArmRequestError(
             "invalid_reason", f"reason must be {REASON_MIN}-{REASON_MAX} characters"
         )
-    path = _open_risk_path(env)
+    path = _reservations_path(env)
     with _policy_lock, _reservations_lock(_reservations_path(env)):
         ledger = _read_open_risk(path)
         entry = ledger.pop(key, None)

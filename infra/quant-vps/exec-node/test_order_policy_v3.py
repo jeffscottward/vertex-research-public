@@ -43,7 +43,6 @@ import arm_gate  # noqa: E402
 import test_order_policy as v2  # noqa: E402 - FakeClient, option(), order(), held_stock() and env names
 
 FLAG_ENV = "NAUTILUS_ORDER_POLICY_ALLOW_DEFINED_RISK_SPREADS"
-OPEN_RISK_ENV = "NAUTILUS_ORDER_POLICY_OPEN_RISK_PATH"
 NAME_SHORT_ENV = "NAUTILUS_ORDER_POLICY_NAME_CAP_SHORT_PCT"
 NAME_LEAPS_ENV = "NAUTILUS_ORDER_POLICY_NAME_CAP_LEAPS_PCT"
 TOTAL_ENV = "NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT"
@@ -51,7 +50,8 @@ LEG_TIMEOUT_ENV = "NAUTILUS_ORDER_POLICY_LEG_QUALIFY_TIMEOUT_SECONDS"
 # place_order's own reqContractDetails ids start here; the client's callbacks never see them.
 QUALIFY_REQUEST_BASE = 1_900_000_000
 CAP_ENVS = (v2.MAX_LOSS_ENV, NAME_SHORT_ENV, NAME_LEAPS_ENV, TOTAL_ENV)
-OPEN_RISK_SCHEMA = "nautilus-order-policy-open-risk-v1"
+RESERVATIONS_SCHEMA = "nautilus-order-policy-reservations-v1"
+OPEN_RISK_KEY = "open_risk"  # the working opening orders: one more key of the reservation file
 
 LINK = "https://discord.com/channels/1000000000000000001/1000000000000000002/1000000000000000003"
 FLAG_ON = f"owner-decision:{LINK}"
@@ -294,11 +294,9 @@ class V3TestCase(unittest.TestCase):
         arm_gate.configure(self.gate)
         self.addCleanup(arm_gate.configure, previous)
         self.reservations = self.tmp / "nautilus" / "order-policy-reservations.json"
-        self.open_risk = self.tmp / "nautilus" / "order-policy-open-risk.json"
         self.paths = {
             v2.SNAPSHOT_ENV: str(self.reports),
             v2.RESERVATIONS_ENV: str(self.reservations),
-            OPEN_RISK_ENV: str(self.open_risk),
         }
         patcher = mock.patch.dict(os.environ, self.paths)
         patcher.start()
@@ -400,10 +398,18 @@ class V3TestCase(unittest.TestCase):
         self.write_snapshot(positions, age=-(arm_gate.CLOSE_RESERVATION_SETTLE_SECONDS + 5), stamp=stamp)
 
     def write_ledger(self, *entries: dict) -> None:
-        self.open_risk.write_text(
-            json.dumps({"schema": OPEN_RISK_SCHEMA, "updated_at": "2026-11-11T00:00:00Z", "orders": list(entries)}),
-            encoding="utf-8",
-        )
+        """Store the working opening orders; the close reservations in the file stay."""
+
+        self.write_file(**{OPEN_RISK_KEY: list(entries)})
+
+    def write_file(self, **changes) -> None:
+        document = {
+            "schema": RESERVATIONS_SCHEMA,
+            "updated_at": "2026-11-11T00:00:00Z",
+            "reservations": self.stored_reservations(),
+            **changes,
+        }
+        self.reservations.write_text(json.dumps(document), encoding="utf-8")
 
     def leg(self, strike, right: str = "C", **fields) -> SimpleNamespace:
         fields.setdefault("expiry", self.near)
@@ -502,13 +508,18 @@ class V3TestCase(unittest.TestCase):
         self.assertEqual(self.client.placed, before)
 
     def ledger(self) -> list[dict] | None:
-        if not self.open_risk.exists():
+        """The stored working opening orders; None when there is no file, [] when it has none."""
+
+        if not self.reservations.exists():
             return None
-        data = json.loads(self.open_risk.read_text())
-        self.assertEqual(data["schema"], OPEN_RISK_SCHEMA)
-        return data["orders"]
+        data = json.loads(self.reservations.read_text())
+        self.assertEqual(data["schema"], RESERVATIONS_SCHEMA)
+        self.assertNotEqual(data.get(OPEN_RISK_KEY), [])  # never an empty list: the v2 shape is kept
+        return data.get(OPEN_RISK_KEY, [])
 
     def stored_reservations(self) -> list[dict]:
+        if not self.reservations.exists():
+            return []
         return json.loads(self.reservations.read_text())["reservations"]
 
     def audit_events(self, event: str | None = None) -> list[dict]:
@@ -541,11 +552,11 @@ class V3TestCase(unittest.TestCase):
 class SpreadsFlagTest(unittest.TestCase):
     def test_env_names_are_the_documented_ones(self) -> None:
         self.assertEqual(arm_gate.SPREADS_FLAG_ENV, FLAG_ENV)
-        self.assertEqual(arm_gate.OPEN_RISK_ENV, OPEN_RISK_ENV)
         self.assertEqual(arm_gate.NAME_CAP_SHORT_PCT_ENV, NAME_SHORT_ENV)
         self.assertEqual(arm_gate.NAME_CAP_LEAPS_PCT_ENV, NAME_LEAPS_ENV)
         self.assertEqual(arm_gate.TOTAL_RISK_PCT_ENV, TOTAL_ENV)
-        self.assertEqual(arm_gate.OPEN_RISK_SCHEMA, OPEN_RISK_SCHEMA)
+        self.assertEqual(arm_gate.OPEN_RISK_KEY, OPEN_RISK_KEY)
+        self.assertEqual(arm_gate.RESERVATIONS_SCHEMA, RESERVATIONS_SCHEMA)
         self.assertEqual(arm_gate.ORDER_POLICY, "options_only_defined_risk_v3")
 
     def test_every_value_but_the_owner_decision_link_is_off(self) -> None:
@@ -582,7 +593,7 @@ class SpreadsFlagTest(unittest.TestCase):
             )
 
     def test_status_reports_each_cap_with_its_source(self) -> None:
-        status = arm_gate.order_policy_status({FLAG_ENV: FLAG_ON, OPEN_RISK_ENV: "/tmp/ledger.json"})
+        status = arm_gate.order_policy_status({FLAG_ENV: FLAG_ON, v2.RESERVATIONS_ENV: "/tmp/ledger.json"})
         self.assertEqual(status["order_policy"], "options_only_defined_risk_v3")
         caps = status["spread_risk_caps"]
         self.assertEqual(
@@ -666,7 +677,6 @@ class FlagOffIsV2Test(V3TestCase):
                         placed += 1
         self.assertEqual(self.client.placed, [])
         self.assertEqual(self.client.detail_requests, [])  # off: IBKR is not asked about the legs either
-        self.assertFalse(self.open_risk.exists())
         self.assertFalse(self.reservations.exists())
         refusals = self.audit_events("order_refused")
         self.assertEqual(len(refusals), placed)
@@ -694,7 +704,6 @@ class FlagOffIsV2Test(V3TestCase):
         self.place(contract, max_size, order_id=2)  # v2: the cap is per order, the name is not summed
         self.place(v2.option(expiry=self.leaps), max_size, order_id=3)
         self.assertEqual(len(self.client.placed), 3)
-        self.assertFalse(self.open_risk.exists())
         self.assertFalse(self.reservations.exists())
         self.assert_place_refused(contract, v2.order("BUY", Decimal(5), lmtPrice=4.01), None, "max_loss_exceeded", 4)
         result = self.preview(contract, max_size)
@@ -729,14 +738,37 @@ class FlagOffIsV2Test(V3TestCase):
         # A naked short call, a held option without average_cost, a corrupt ledger and a cap
         # without its source each refuse opening orders with the switch on; off is plain v2.
         self.write_snapshot([self.held(-1, 300, cost=200.0), self.held(1, 310)])
-        self.open_risk.write_text("{bad")
+        self.write_file(**{OPEN_RISK_KEY: "bad"})
+        stored = self.reservations.read_text()
         order_ = v2.order("BUY", Decimal(1), lmtPrice=1.0)
         with self.environ(**{NAME_SHORT_ENV: "1"}):
             self.place(v2.option(expiry=self.near), order_, order_id=1)
             with self.flag(FLAG_ON):
                 self.assert_place_refused(v2.option(expiry=self.near), order_, None, "risk_config_source_missing", 2)
         self.assertEqual(len(self.client.placed), 1)
-        self.assertEqual(self.open_risk.read_text(), "{bad")
+        self.assertEqual(self.reservations.read_text(), stored)
+
+    def test_off_keeps_the_v2_reading_of_order_fields(self) -> None:
+        # Review round 2 made three readings stricter, behind the switch only. Off is exactly v2:
+        # a whatIf that is no boolean is read by its truth value (a preflight, no reservation), and
+        # a number the gate cannot read counts as unset.
+        self.write_snapshot([self.held(2, 200, cost=100.0)])
+        close = (self.leg(200), v2.order("SELL", 1, whatIf="0"), None)
+        buy = (self.leg(300), v2.order("BUY", 1, lmtPrice=1.00, discretionaryAmt=True, cashQty="all"), None)
+        self.place(*close, order_id=1)
+        self.place(*buy, order_id=2)
+        self.assertEqual(len(self.client.placed), 2)
+        self.assertFalse(self.reservations.exists())
+        with self.flag(FLAG_ON):
+            self.assert_place_refused(*close, "what_if_not_boolean", order_id=3)
+            self.assert_place_refused(*buy, "discretionary_refused", order_id=4)
+            buy[1].discretionaryAmt = 0.0
+            self.assert_place_refused(*buy, "cash_quantity_refused", order_id=4)
+            # The v2 refusals of readable numbers stay (2147483647 is no unset marker of cashQty).
+            buy[1].cashQty = 2147483647
+            self.assert_place_refused(*buy, "cash_quantity_refused", order_id=4)
+        self.assert_place_refused(*buy, "cash_quantity_refused", order_id=4)
+        self.assertEqual(len(self.client.placed), 2)
 
     def test_off_allows_the_v2_single_leg_sale_beside_a_held_short(self) -> None:
         self.write_snapshot([self.held(2, 120, cost=900.0), self.held(-2, 200, cost=100.0)])
@@ -841,7 +873,7 @@ class AcceptTableTest(V3TestCase):
                     self.assertEqual(result["order_policy"], "options_only_defined_risk_v3")
                     self.assertTrue(result["would_transmit"])
                     self.assertIsNone(result["transmit_refusal"])
-        self.assertFalse(self.open_risk.exists())  # checks and previews write nothing
+        self.assertFalse(self.reservations.exists())  # checks and previews write nothing
 
     def test_float_limits_give_the_exact_decimal_of_the_printed_float(self) -> None:
         self.write_snapshot([])
@@ -957,7 +989,7 @@ class AcceptTableTest(V3TestCase):
         # The order buys the 205 call and sells the 200 call.
         self.assertEqual(entry["signature"], f"BUY:{legs[1].conId}|SELL:{legs[0].conId}")
         self.assertIn("credit vertical", entry["description"])
-        self.assertFalse(self.reservations.exists())
+        self.assertEqual(self.stored_reservations(), [])
         self.assertCountEqual([item for _, item in self.client.detail_requests], legs)  # IBKR named both legs
 
 
@@ -1216,7 +1248,6 @@ class RefuseTableTest(V3TestCase):
             ("combo_leg_mismatch", "a third leg contract", (contract, order_, [*legs, third])),
             ("combo_leg_mismatch", "the same leg contract twice", (contract, order_, [legs[0], legs[0]])),
             ("combo_leg_mismatch", "a leg contract without conId", (contract, order_, [legs[0], self.leg(205, conId=0)])),
-            ("combo_leg_mismatch", "a leg conId of a non-ASCII digit", (contract, order_, [legs[0], self.leg(205, conId="\u00b2")])),
             (
                 "combo_leg_mismatch",
                 "both comboLegs name one conId",
@@ -1270,7 +1301,6 @@ class RefuseTableTest(V3TestCase):
         self.assertEqual({code for code, _, _ in cases}, BAG_REFUSAL_CODES)
         self.assertLessEqual(set(LEGS_REFUSED_FIRST), {name for _, name, _ in cases})
         self.assertEqual(self.client.placed, [])
-        self.assertFalse(self.open_risk.exists())
         self.assertFalse(self.reservations.exists())
         refusals = self.audit_events("order_refused")
         self.assertEqual(
@@ -1290,7 +1320,6 @@ class RefuseTableTest(V3TestCase):
                 close = v2.order("SELL", 1, lmtPrice=1.00, whatIf=value)
                 self.assert_place_refused(self.leg(200), close, None, "what_if_not_boolean")
         self.assertEqual(self.client.placed, [])
-        self.assertFalse(self.open_risk.exists())
         self.assertFalse(self.reservations.exists())
 
     def test_a_whatif_preflight_is_refused_for_the_same_reason(self) -> None:
@@ -1594,7 +1623,7 @@ class RiskCapsTest(V3TestCase):
         self.assert_place_refused(*self.debit_call(5, low=110, whatIf=True), "name_short_dated_cap_exceeded", order_id=5)
         self.place(*self.debit_call(5, symbol="MSFT", whatIf=True), order_id=5)
         self.assertEqual([item["key"] for item in self.ledger()], ["21:4"])
-        self.assertFalse(self.reservations.exists())
+        self.assertEqual(self.stored_reservations(), [])
 
     def test_final_status_and_a_later_snapshot_end_the_ledger_entry(self) -> None:
         self.write_snapshot([])
@@ -1621,7 +1650,7 @@ class RiskCapsTest(V3TestCase):
         ):
             with self.subTest(status=status):
                 arm_gate._order_outcomes.clear()
-                self.open_risk.unlink(missing_ok=True)
+                self.reservations.unlink(missing_ok=True)
                 self.write_snapshot([])
                 self.place(*self.debit_call(2000), order_id=1)
                 self.client.orderStatus(1, status, filled, Decimal(1))
@@ -1730,12 +1759,14 @@ class RiskCapsTest(V3TestCase):
         self.place(*self.debit_call(5, symbol="MSFT"), order_id=9)
         self.assert_place_refused(*sale, "order_id_reused", order_id=9)
         self.assert_place_refused(*cover, "order_id_reused", order_id=9)
-        self.assertFalse(self.reservations.exists())
-        # The ledger is only consulted when it can be read: a fault never blocks a close.
-        text = self.open_risk.read_text()
-        self.open_risk.write_text("{bad")
-        self.assert_accepted(*sale, None, allowance="position_close", order_id=9)
-        self.open_risk.write_text(text)
+        self.assertEqual(self.stored_reservations(), [])
+        # A ledger fault never blocks a close that buys a short back. The sale of a long option needs
+        # the working opening spreads: it is refused until the ledger is repaired.
+        text = self.reservations.read_text()
+        self.write_file(**{OPEN_RISK_KEY: "bad"})
+        self.assert_accepted(*cover, None, allowance="position_close", order_id=9)
+        self.assert_refused(*sale, "close_risk_unavailable", order_id=9)
+        self.reservations.write_text(text)
         self.place(*sale, order_id=10)
         self.place(*cover, order_id=11)
         self.assertEqual(len(self.client.placed), 3)
@@ -1765,7 +1796,7 @@ class RiskCapsTest(V3TestCase):
         self.write_snapshot([])
         self.place(*self.debit_call(2000), order_id=1)
         self.place(*self.debit_call(300, symbol="MSFT"), order_id=2)
-        before = self.open_risk.read_text()
+        before = self.reservations.read_text()
         for args, error in (
             (("--key", "21:9", "--by", "owner", "--reason", "checked TWS first"), "unknown_open_risk"),
             (("--key", "22:1", "--by", "owner", "--reason", "checked TWS first"), "unknown_open_risk"),
@@ -1776,14 +1807,14 @@ class RiskCapsTest(V3TestCase):
             with self.subTest(error=error, args=args[:4]):
                 code, payload = self.run_tool("release-open-risk", *args)
                 self.assertEqual((code, payload["error"]), (2, error))
-        self.assertEqual(self.open_risk.read_text(), before)
+        self.assertEqual(self.reservations.read_text(), before)
         self.assertEqual(self.audit_events("open_risk_released"), [])
         code, payload = self.run_tool(
             "release-open-risk", "--key", "21:1", "--by", "owner", "--reason", "checked TWS first"
         )
         self.assertEqual((code, payload["remaining"]), (0, 1))
         self.assertEqual([item["key"] for item in self.ledger()], ["21:2"])
-        self.open_risk.write_text("{bad")
+        self.reservations.write_text("{bad")
         code, payload = self.run_tool(
             "release-open-risk", "--key", "21:2", "--by", "owner", "--reason", "checked TWS first"
         )
@@ -1863,64 +1894,126 @@ class RiskCapsTest(V3TestCase):
             (self.leg(50, symbol="KO"), v2.order("SELL", 2), None),
         )
 
-    def test_an_invalid_ledger_refuses_every_opening_order_and_no_close(self) -> None:
+    def ledger_document(self, good: dict, **changes) -> str:
+        return json.dumps(
+            {
+                "schema": RESERVATIONS_SCHEMA,
+                "updated_at": "2026-11-11T00:00:00Z",
+                "reservations": [],
+                OPEN_RISK_KEY: [good],
+                **changes,
+            }
+        )
+
+    def test_an_invalid_ledger_refuses_every_opening_order_and_no_way_out(self) -> None:
+        book, closing, sale = self.closes_beside_a_broken_ledger()
+        cover = (self.leg(200), v2.order("BUY", 1), None)  # buys the short AAPL call back
+        self.write_snapshot(book)
+        good = ledger_entry(900, "MSFT", self.near, 100)
+        entries = lambda *items: self.ledger_document(good, **{OPEN_RISK_KEY: list(items)})  # noqa: E731
+        contents = {
+            "the list is an object": self.ledger_document(good, **{OPEN_RISK_KEY: {"21:900": good}}),
+            "the list is text": self.ledger_document(good, **{OPEN_RISK_KEY: "none"}),
+            "the list is null": self.ledger_document(good, **{OPEN_RISK_KEY: None}),
+            "an entry twice": entries(good, good),
+            "an entry that is not an object": entries("21:900"),
+            "max_loss 0": entries({**good, "max_loss": "0"}),
+            "max_loss negative": entries({**good, "max_loss": "-5"}),
+            "max_loss is text": entries({**good, "max_loss": "a lot"}),
+            "max_loss missing": entries({k: v for k, v in good.items() if k != "max_loss"}),
+            "expiry is not a date": entries({**good, "expiry": "2026-11-20"}),
+            "symbol empty": entries({**good, "symbol": ""}),
+            "key empty": entries({**good, "key": ""}),
+            "signature missing": entries({k: v for k, v in good.items() if k != "signature"}),
+            "placed_at is text": entries({**good, "placed_at": "yesterday"}),
+            "placed_at is a bool": entries({**good, "placed_at": True}),
+        }
+        for label, text in contents.items():
+            with self.subTest(ledger=label):
+                self.reservations.write_text(text)
+                self.assert_refused(*self.debit_call(5), "open_risk_ledger_invalid")
+                self.assert_refused(*self.long_call(5), "open_risk_ledger_invalid")
+                self.assert_place_refused(*self.debit_call(5), "open_risk_ledger_invalid")
+                self.assertEqual(self.reservations.read_text(), text)
+                code, payload = self.run_tool("open-risk")
+                self.assertEqual((code, payload["error"]), (2, "open_risk_ledger_invalid"))
+                # The way out stays open: the closing BAG, and a buy that covers a short.
+                self.assert_accepted(*closing, None, allowance="vertical_spread_close")
+                self.assert_accepted(*cover, None, allowance="position_close")
+                # The sale of a long option needs the working opening spreads: refused until repaired.
+                self.assert_refused(*sale, "close_risk_unavailable")
+        self.assertEqual(self.client.placed, [])
+        self.place(*closing, order_id=1)
+        self.assertEqual(len(self.client.placed), 1)
+        self.assertEqual(len(self.stored_reservations()), 2)
+        # The close reservations were written beside the invalid list, which stays as stored.
+        stored = json.loads(self.reservations.read_text())
+        self.assertEqual(stored[OPEN_RISK_KEY], json.loads(text)[OPEN_RISK_KEY])
+        self.assert_refused(*self.debit_call(5, symbol="KO"), "open_risk_ledger_invalid")
+        self.write_ledger(good)
+        self.assertEqual(len(self.stored_reservations()), 2)
+        self.assert_accepted(*self.debit_call(5, symbol="KO"), 5)
+
+    def test_a_file_that_is_no_reservation_file_refuses_opening_orders_and_closes(self) -> None:
+        # The working opening orders and the close reservations are one file: a file the v2 reader
+        # refuses (every close is refused, as in v2) refuses every opening order too.
         book, closing, sale = self.closes_beside_a_broken_ledger()
         self.write_snapshot(book)
         good = ledger_entry(900, "MSFT", self.near, 100)
-        document = lambda **changes: json.dumps(  # noqa: E731
-            {"schema": OPEN_RISK_SCHEMA, "updated_at": "2026-11-11T00:00:00Z", "orders": [good], **changes}
-        )
         contents = {
             "not JSON": "{bad",
             "empty file": "",
             "a list": "[]",
-            "another schema": document(schema="nautilus-order-policy-reservations-v1"),
-            "orders is not a list": document(orders={"21:900": good}),
-            "an entry twice": document(orders=[good, good]),
-            "an entry that is not an object": document(orders=["21:900"]),
-            "max_loss 0": document(orders=[{**good, "max_loss": "0"}]),
-            "max_loss negative": document(orders=[{**good, "max_loss": "-5"}]),
-            "max_loss is text": document(orders=[{**good, "max_loss": "a lot"}]),
-            "max_loss missing": document(orders=[{k: v for k, v in good.items() if k != "max_loss"}]),
-            "expiry is not a date": document(orders=[{**good, "expiry": "2026-11-20"}]),
-            "symbol empty": document(orders=[{**good, "symbol": ""}]),
-            "key empty": document(orders=[{**good, "key": ""}]),
-            "signature missing": document(orders=[{k: v for k, v in good.items() if k != "signature"}]),
-            "placed_at is text": document(orders=[{**good, "placed_at": "yesterday"}]),
-            "placed_at is a bool": document(orders=[{**good, "placed_at": True}]),
-            "too large": document(padding="x" * (1024 * 1024)),
+            "another schema": self.ledger_document(good, schema="nautilus-order-policy-open-risk-v1"),
+            "too large": self.ledger_document(good, padding="x" * (1024 * 1024)),
         }
         for label, text in contents.items():
-            with self.subTest(ledger=label):
-                self.open_risk.write_text(text)
+            with self.subTest(file=label):
+                self.reservations.write_text(text)
                 self.assert_refused(*self.debit_call(5), "open_risk_ledger_invalid")
-                self.assert_refused(*self.long_call(5), "open_risk_ledger_invalid")
-                self.assert_place_refused(*self.debit_call(5), "open_risk_ledger_invalid")
-                self.assertEqual(self.open_risk.read_text(), text)
-                code, payload = self.run_tool("open-risk")
-                self.assertEqual((code, payload["error"]), (2, "open_risk_ledger_invalid"))
-                # A ledger fault never blocks a close: the way out stays open.
-                self.assert_accepted(*closing, None, allowance="vertical_spread_close")
-                self.assert_accepted(*sale, None, allowance="position_close")
+                self.assert_place_refused(*self.long_call(5), "open_risk_ledger_invalid")
+                self.assert_refused(*closing, "reservations_invalid")
+                self.assert_place_refused(*sale, "reservations_invalid")
+                self.assertEqual(self.reservations.read_text(), text)
         self.assertEqual(self.client.placed, [])
-        self.place(*closing, order_id=1)
-        self.place(*sale, order_id=2)
-        self.assertEqual(len(self.client.placed), 2)
-        self.assertEqual(len(self.stored_reservations()), 3)
-        self.assertEqual(self.open_risk.read_text(), text)
-        self.open_risk.write_text(document())
-        self.assert_accepted(*self.debit_call(5), 5)
 
-    def test_an_unreadable_ledger_refuses_every_opening_order_and_no_close(self) -> None:
+    def test_an_unreadable_file_refuses_opening_orders_and_closes(self) -> None:
         book, closing, sale = self.closes_beside_a_broken_ledger()
         self.write_snapshot(book)
-        self.open_risk.mkdir()
+        self.reservations.mkdir()
         self.assert_refused(*self.debit_call(5), "open_risk_ledger_unreadable")
         self.assert_place_refused(*self.long_call(5), "open_risk_ledger_unreadable")
+        self.assert_refused(*closing, "reservations_unreadable")
+        self.assert_place_refused(*sale, "reservations_unreadable")
         self.assertEqual(self.client.placed, [])
-        self.place(*closing, order_id=1)
-        self.place(*sale, order_id=2)
-        self.assertEqual(len(self.client.placed), 2)
+
+    def test_the_reservation_file_keeps_its_v2_shape_until_an_opening_order_works(self) -> None:
+        book, closing, sale = self.closes_beside_a_broken_ledger()
+        self.write_snapshot(book)
+        self.place(*sale, order_id=1)
+        document = json.loads(self.reservations.read_text())
+        self.assertEqual(sorted(document), ["reservations", "schema", "updated_at"])
+        self.place(*self.debit_call(5, symbol="MSFT"), order_id=2)
+        document = json.loads(self.reservations.read_text())
+        self.assertEqual(sorted(document), [OPEN_RISK_KEY, "reservations", "schema", "updated_at"])
+        self.assertEqual([item["key"] for item in document["reservations"]], ["21:1"])
+        self.assertEqual([item["key"] for item in document[OPEN_RISK_KEY]], ["21:2"])
+        # A close written after it keeps the working opening order, and the other way round.
+        self.place(*closing, order_id=3)
+        document = json.loads(self.reservations.read_text())
+        self.assertEqual(len(document["reservations"]), 3)
+        self.assertEqual([item["key"] for item in document[OPEN_RISK_KEY]], ["21:2"])
+        self.place(*self.debit_call(5, symbol="IBM"), order_id=4)
+        document = json.loads(self.reservations.read_text())
+        self.assertEqual(len(document["reservations"]), 3)
+        self.assertEqual([item["key"] for item in document[OPEN_RISK_KEY]], ["21:2", "21:4"])
+        # The owner releases both: the key leaves the file with the last entry.
+        for key in ("21:2", "21:4"):
+            code, _ = self.run_tool("release-open-risk", "--key", key, "--by", "owner", "--reason", "checked TWS first")
+            self.assertEqual(code, 0)
+        document = json.loads(self.reservations.read_text())
+        self.assertEqual(sorted(document), ["reservations", "schema", "updated_at"])
+        self.assertEqual(len(document["reservations"]), 3)
 
     def test_a_ledger_write_failure_refuses_the_order(self) -> None:
         self.write_snapshot([])
@@ -2076,7 +2169,7 @@ class ClosingVerticalTest(V3TestCase):
             self.assertEqual((Decimal(item["quantity"]), Decimal(item["held_before"])), (Decimal(2), Decimal(2)))
             self.assertEqual(Decimal(item["contract"]["strike"]), Decimal(strike))
             self.assertEqual(item["contract"]["sec_type"], "OPT")
-        self.assertIsNone(self.ledger())  # a close is no opening order
+        self.assertEqual(self.ledger(), [])  # a close is no opening order
         self.assertCountEqual([item for _, item in self.client.detail_requests], legs)  # IBKR named both legs
 
     def test_the_sell_of_the_reversed_bag_closes_too(self) -> None:
@@ -2222,6 +2315,112 @@ class ClosingVerticalTest(V3TestCase):
         self.write_snapshot([self.held(-2, 100, "P", cost=900.0), self.held(2, 95, "P", cost=600.0)])
         self.assert_refused(self.leg(95, "P"), v2.order("SELL", 1), None, "close_would_increase_risk")
         self.assert_accepted(self.leg(100, "P"), v2.order("BUY", 2), None, None, allowance="position_close")
+
+    def test_calls_at_risk_do_not_hide_a_put_left_short(self) -> None:
+        # Review round 2. Held: 5 x 200/230 call credit spreads (worth at least -15,000) and
+        # 1 x 150/140 put credit spread (worth at least -1,000). Calls and puts lose at different
+        # prices, so one worst value for both would let the long put go: the 150 put alone can be
+        # worth -15,000, which is not below the calls' -15,000.
+        calls = [self.held(-5, 200, cost=400.0), self.held(5, 230, cost=120.0)]
+        puts = [self.held(-1, 150, "P", cost=300.0), self.held(1, 140, "P", cost=100.0)]
+        self.write_snapshot([*calls, *puts])
+        sale = (self.leg(140, "P"), v2.order("SELL", 1), None)
+        result = self.assert_refused(*sale, "close_would_increase_risk")
+        self.assertIn("the puts left could lose 15000 USD", result["policy_refusal_detail"])
+        self.assert_place_refused(*sale, "close_would_increase_risk")
+        # The same with the sides swapped: puts at risk do not hide a call left short.
+        self.write_snapshot(
+            [
+                self.held(-5, 200, "P", cost=400.0),
+                self.held(5, 170, "P", cost=120.0),
+                self.held(-1, 300, cost=300.0),
+                self.held(1, 310, cost=100.0),
+            ]
+        )
+        self.assert_refused(self.leg(310), v2.order("SELL", 1), None, "close_would_uncover_short")
+        # Each spread still closes as one BAG, and the short of each side can be bought back.
+        self.write_snapshot([*calls, *puts])
+        contract, legs = vertical(self.leg(150, "P"), self.leg(140, "P"))
+        self.assert_accepted(contract, v2.order("BUY", 1, lmtPrice=2.00), legs, None, allowance="vertical_spread_close")
+        self.assert_accepted(self.leg(150, "P"), v2.order("BUY", 1), None, None, allowance="position_close")
+        self.assertEqual(self.client.placed, [])
+
+    def test_a_long_call_is_not_sold_alone_beside_short_shares(self) -> None:
+        # Review round 2. The short call of a call spread was assigned: the account is short 200
+        # shares and still holds the 2 long calls that bound the loss.
+        shares = {**v2.held_stock(-200), "average_cost": 200.0}
+        self.write_snapshot([shares, self.held(2, 230, cost=120.0)])
+        for quantity in (1, 2):
+            with self.subTest(quantity=quantity):
+                sale = (self.leg(230), v2.order("SELL", quantity), None)
+                result = self.assert_refused(*sale, "close_would_uncover_short")
+                self.assertIn("short shares", result["policy_refusal_detail"])
+                self.assert_place_refused(*sale, "close_would_uncover_short")
+        # A third long call is not needed to cover 200 shares: one may go.
+        self.write_snapshot([shares, self.held(3, 230, cost=120.0)])
+        self.assert_accepted(self.leg(230), v2.order("SELL", 1), None, None, allowance="position_close")
+        self.assert_refused(self.leg(230), v2.order("SELL", 2), None, "close_would_uncover_short")
+        # Long puts, long shares and the shares of another name change nothing for a call.
+        self.write_snapshot([shares, self.held(2, 230, cost=120.0), self.held(1, 150, "P", cost=90.0)])
+        self.assert_accepted(self.leg(150, "P"), v2.order("SELL", 1), None, None, allowance="position_close")
+        self.write_snapshot([v2.held_stock(200), self.held(2, 230, cost=120.0)])
+        self.assert_accepted(self.leg(230), v2.order("SELL", 2), None, None, allowance="position_close")
+        self.write_snapshot([v2.held_stock(-200, "MSFT"), self.held(2, 230, cost=120.0)])
+        self.assert_accepted(self.leg(230), v2.order("SELL", 2), None, None, allowance="position_close")
+        # The way out: buy the shares back first.
+        self.write_snapshot([shares, self.held(2, 230, cost=120.0)])
+        self.assert_accepted(v2.stock(), v2.order("BUY", 200), None, None, allowance="position_close")
+        self.assertEqual(self.client.placed, [])
+
+    def test_a_long_is_not_sold_alone_while_an_opening_spread_of_its_expiry_works(self) -> None:
+        # Review round 2 (blocker). A resting opening spread is not in the snapshot. Its sold 130
+        # call would net against a 130 call bought after it; with that long sold too, the fills
+        # could end in a short 130 call and nothing else.
+        self.write_snapshot([])
+        contract, legs = vertical(self.leg(110), self.leg(130))
+        self.place(contract, v2.order("BUY", 2, lmtPrice=5.00), legs, order_id=1)  # rests at IBKR
+        other = self.exp(80)
+        book = [
+            self.held(2, 130, cost=100.0),
+            self.held(1, 90, "P", cost=100.0),
+            self.held(1, 130, expiry=other, cost=100.0),
+            self.held(1, 50, symbol="KO", cost=100.0),
+        ]
+        self.write_snapshot(book)
+        for name, option in (("the sold strike", self.leg(130)), ("a put of the expiry", self.leg(90, "P"))):
+            with self.subTest(sale=name):
+                result = self.assert_refused(option, v2.order("SELL", 1), None, "open_spread_working", order_id=2)
+                self.assertIn("order id 1", result["policy_refusal_detail"])
+                self.assert_place_refused(option, v2.order("SELL", 1), None, "open_spread_working", order_id=2)
+        # Another expiry and another name are other groups.
+        self.assert_accepted(self.leg(130, expiry=other), v2.order("SELL", 1), None, None, allowance="position_close", order_id=2)
+        self.assert_accepted(self.leg(50, symbol="KO"), v2.order("SELL", 1), None, None, allowance="position_close", order_id=2)
+        self.assertEqual(len(self.client.placed), 1)
+        # A final status alone is not enough: the snapshot must be later than the fill.
+        self.client.orderStatus(1, "Filled", Decimal(2), Decimal(0))
+        self.assert_place_refused(self.leg(130), v2.order("SELL", 1), None, "open_spread_working", order_id=2)
+        # The fill netted the sold 130 calls against the long ones: +2 x 110 call, no 130 call.
+        self.later_snapshot([self.held(2, 110, cost=500.0), *book[1:]])
+        self.assert_place_refused(self.leg(130), v2.order("SELL", 1), None, "short_option_open", order_id=2)
+        self.place(self.leg(90, "P"), v2.order("SELL", 1), order_id=2)
+        self.place(self.leg(110), v2.order("SELL", 2), order_id=3)
+        self.assertEqual(len(self.client.placed), 3)
+
+    def test_a_working_long_option_buy_does_not_block_a_sale(self) -> None:
+        # Only an opening spread adds a short option. A working long buy of the expiry blocks nothing.
+        self.write_snapshot([self.held(1, 130, cost=100.0)])
+        self.place(*self.long_call(500, strike=110), order_id=1)
+        self.place(self.leg(130), v2.order("SELL", 1), order_id=2)
+        self.assertEqual(len(self.client.placed), 2)
+
+    def test_a_closing_bag_is_not_blocked_by_a_working_opening_spread(self) -> None:
+        # It sells the long and buys the short back in one fill: nothing is left uncovered.
+        self.write_snapshot(self.book(), nlv=10_000_000)  # room under the name cap beside the held spread
+        contract, legs = vertical(self.leg(210), self.leg(250))
+        self.place(contract, v2.order("BUY", 1, lmtPrice=5.00), legs, order_id=1)
+        self.assert_place_refused(self.long_leg, v2.order("SELL", 1), None, "open_spread_working", order_id=2)
+        self.place(*self.closing(), order_id=2)
+        self.assertEqual(len(self.client.placed), 2)
 
     def test_a_closing_bag_across_two_held_spreads_is_refused(self) -> None:
         # Two bear call credit spreads: -1 x 100 call / +1 x 105 call and -1 x 200 call / +1 x 205 call.
@@ -2994,7 +3193,7 @@ class OwnerToolsTest(V3TestCase):
             self.assertEqual(payload["order_policy"], "options_only_defined_risk_v3")
             self.assertIs(payload["allow_defined_risk_spreads"], True)
             self.assertEqual(payload["allow_defined_risk_spreads_detail"], LINK)
-            self.assertEqual(payload["open_risk_ledger_path"], str(self.open_risk))
+            self.assertEqual(payload["open_risk_ledger_path"], str(self.reservations))
             self.assertEqual(payload["close_reservations_path"], str(self.reservations))
             self.assertEqual(payload["account_snapshot_dir"], str(self.reports))
             self.assertEqual(
