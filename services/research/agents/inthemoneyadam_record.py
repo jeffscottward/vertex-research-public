@@ -20,10 +20,22 @@ import urllib.request
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from agents.inthemoneyadam_desk import DESK_ID, DeskOutput, load_corpus, run_desk
 
 ALLOWED_PROCEDURES = ("record", "appendEvents", "update")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuses every redirect: urllib would resend the x-api-key header to the new location."""
+
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any,
+                         newurl: str) -> None:
+        raise urllib.error.HTTPError(req.full_url, code, "redirect refused", headers, fp)
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 def build_events(output: DeskOutput) -> list[dict[str, object]]:
@@ -64,7 +76,7 @@ def _call(origin: str, key: str, procedure: str, payload: dict[str, object]) -> 
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 - operator-supplied https origin
+        with _NO_REDIRECT_OPENER.open(request, timeout=30) as response:  # noqa: S310 - operator-supplied https origin
             body = json.loads(response.read())
     except urllib.error.HTTPError as error:
         detail = error.read()[:500].decode("utf-8", "replace").replace(key, "<key>")
