@@ -545,6 +545,7 @@ describe("goLiveDrafts.queue", () => {
     expect(spy).toEqual({
       ...record("d-spy"),
       approvedRoom: null,
+      exitSchedule: null,
       notApprovable: [],
       notes: [],
       order: ORDER,
@@ -1713,6 +1714,46 @@ describe("goLiveDrafts.approve", () => {
     );
   });
 
+  it("approves a late entry only with the owner's outside-the-tested-rule tick, and says so in the note", async () => {
+    const late = record("d-spy", {
+      entryBasis: "model_holds_account_does_not",
+    });
+    const memory = createMemoryRepository({ drafts: [late] });
+    const client = clientFor({ repository: memory.repository });
+    await expectCode(client.goLiveDrafts.approve(approval()), "CONFLICT", 409);
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+    await client.goLiveDrafts.approve(
+      approval({ note: "Starter", outsideTestedEntryRule: true })
+    );
+    expect(memory.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvedOrder: ORDER,
+        decision: "approved",
+        id: "d-spy",
+        note: "[Approved outside the tested entry rule (late entry), owner tick box] Starter",
+      })
+    );
+  });
+
+  it("does not lift any other reason with the tick", async () => {
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-spy", {
+          entryBasis: "model_holds_account_does_not",
+          quote: liveQuote({ source: "yahoo_delayed_snapshot" }),
+        }),
+      ],
+    });
+    await expectCode(
+      clientFor({ repository: memory.repository }).goLiveDrafts.approve(
+        approval({ outsideTestedEntryRule: true })
+      ),
+      "CONFLICT",
+      409
+    );
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+  });
+
   it("refuses a draft for each reason it cannot be approved", async () => {
     type Case = Readonly<{
       dependencies?: GoLiveDraftsDependencies;
@@ -1932,6 +1973,107 @@ describe("goLiveDrafts.approve", () => {
       "STORAGE_ERROR",
       503
     );
+  });
+});
+
+describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
+  const delayed = liveQuote({ source: "yahoo_delayed_snapshot" });
+
+  it("overlays the live spread quote on a proposed draft, so it becomes approvable", async () => {
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => ({ ...liveQuote(), asOf: new Date(LIVE_AS_OF) }))
+    );
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const client = clientFor({ repository: memory.repository });
+    const queue = await client.goLiveDrafts.queue({});
+    expect(reader).toHaveBeenCalledWith([
+      {
+        long: { expiry: EXPIRY, right: "C", strike: 100, symbol: "SPY" },
+        short: { expiry: EXPIRY, right: "C", strike: 105, symbol: "SPY" },
+      },
+    ]);
+    expect(queue.drafts[0]?.quote?.source).toBe("ibkr_live");
+    expect(queue.drafts[0]?.notApprovable).toEqual([]);
+    expect(queue.drafts[0]?.order).toEqual(ORDER);
+    await client.goLiveDrafts.approve(approval());
+    expect(memory.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({ approvedOrder: ORDER, id: "d-spy" })
+    );
+  });
+
+  it("quotes a put spread with put legs, and approves a late entry with the tick and no note", async () => {
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => null)
+    );
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-iwm", {
+          longStrike: 95,
+          shortStrike: 100,
+          sleeveKey: "income",
+          structure: "putCreditVertical",
+          symbol: "IWM",
+        }),
+      ],
+    });
+    await clientFor({ repository: memory.repository }).goLiveDrafts.queue({});
+    expect(reader).toHaveBeenCalledWith([
+      {
+        long: { expiry: EXPIRY, right: "P", strike: 95, symbol: "IWM" },
+        short: { expiry: EXPIRY, right: "P", strike: 100, symbol: "IWM" },
+      },
+    ]);
+    inject();
+    const late = createMemoryRepository({
+      drafts: [record("d-spy", { entryBasis: "model_holds_account_does_not" })],
+    });
+    await clientFor({ repository: late.repository }).goLiveDrafts.approve(
+      approval({ outsideTestedEntryRule: true })
+    );
+    expect(late.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        note: "[Approved outside the tested entry rule (late entry), owner tick box]",
+      })
+    );
+  });
+
+  it("keeps the stored quotes when the live quote reader fails", async () => {
+    inject({ liveQuotes: () => Promise.reject(new Error("bridge down")) });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    expect(queue.drafts[0]?.quote?.source).toBe("yahoo_delayed_snapshot");
+  });
+
+  it("keeps the stored delayed quote when the reader has no live quote", async () => {
+    inject({ liveQuotes: async (spreads) => spreads.map(() => null) });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    expect(queue.drafts[0]?.quote?.source).toBe("yahoo_delayed_snapshot");
+    expect(queue.drafts[0]?.notApprovable).toContain("NO_LIVE_IBKR_QUOTE");
+  });
+
+  it("never quotes a decided draft or an API key caller", async () => {
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => null)
+    );
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed, state: "rejected" })],
+    });
+    await clientFor({ repository: memory.repository }).goLiveDrafts.queue({});
+    expect(reader).not.toHaveBeenCalled();
   });
 });
 
@@ -2158,6 +2300,7 @@ describe("goLiveDrafts sizing rules at the API", () => {
     // count 125, and QQQ would fit.
     expect(qqq).toMatchObject({
       approvedRoom: null,
+      exitSchedule: null,
       notApprovable: ["SIZED_TO_ZERO"],
       order: null,
       sizing: { quantity: 0, reason: "sleeve_budget_used" },
@@ -2322,6 +2465,7 @@ describe("goLiveDrafts sizing rules at the API", () => {
     // The 882 are what blocks the next draft: 882 + 125 is above the open risk cap of 900.
     expect(qqq).toMatchObject({
       approvedRoom: null,
+      exitSchedule: null,
       sizing: { quantity: 0, reason: "open_risk_cap_reached" },
     });
     // Without an account value the amount is still shown, and its share is empty.

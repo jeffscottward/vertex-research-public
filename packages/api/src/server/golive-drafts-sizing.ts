@@ -47,6 +47,12 @@ const NY_HOUR = new Intl.DateTimeFormat("en-US", {
 });
 // The regular close. Known limit: a half-day (13:00 close) still counts as open until 16:00.
 const SESSION_CLOSE_HOUR = 16;
+const NY_CLOCK = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  hourCycle: "h23",
+  minute: "2-digit",
+  timeZone: "America/New_York",
+});
 
 /**
  * The trading day (YYYY-MM-DD) of the session in which an order would be placed: today's New
@@ -69,6 +75,57 @@ type QuotePrices = Pick<
   GoLiveQuote,
   "longAsk" | "longBid" | "shortAsk" | "shortBid"
 >;
+
+// Owner standing exit rule (owner_standing_rule_v1): a loser closes 3 NYSE trading days before
+// expiry; an open winner closes at 15:45 New York time on the expiry day.
+const LOSER_CLOSE_TRADING_DAYS = 3;
+const WINNER_CLOSE_MINUTE_NY = 15 * 60 + 45;
+
+/** The UTC instant of hh:mm New York time on an ISO day (EST or EDT, whichever is in force). */
+const newYorkInstant = (isoDay: string, minuteOfDay: number): Date => {
+  // New York is UTC-4 (EDT) or UTC-5 (EST); a 15:45 close is never inside a clock change.
+  const base = Date.parse(`${isoDay}T00:00:00Z`) + minuteOfDay * 60_000;
+  const edt = new Date(base + 4 * 3_600_000);
+  return NY_CLOCK.format(edt) ===
+    `${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`
+    ? edt
+    : new Date(base + 5 * 3_600_000);
+};
+
+/**
+ * The exit schedule of an approved entry: the close days of the standing rule and the combo that
+ * closes the stored order (every leg reversed, same quantity). null for any other draft.
+ */
+export const exitScheduleOf = (
+  draft: Readonly<{
+    approvedOrder: VertexComboInput | null;
+    expiry: string;
+    kind: GoLiveDraftOutput["kind"];
+    state: DraftState;
+  }>
+): GoLiveDraftOutput["exitSchedule"] => {
+  const order = draft.approvedOrder;
+  if (draft.kind !== "entry" || draft.state !== "approved" || order === null)
+    return null;
+  const expiry = `${draft.expiry.slice(0, 4)}-${draft.expiry.slice(4, 6)}-${draft.expiry.slice(6, 8)}`;
+  let day = parseDay(expiry);
+  for (let left = LOSER_CLOSE_TRADING_DAYS; left > 0; ) {
+    day -= 1;
+    if (isNyseTradingDay(day)) left -= 1;
+  }
+  return {
+    closeOrder: {
+      legs: order.legs.map((leg) => ({
+        ...leg,
+        side: leg.side === "BUY" ? "SELL" : "BUY",
+      })),
+      quantity: order.quantity,
+      symbol: order.symbol,
+    },
+    loserCloseDay: formatDay(day),
+    winnerCloseAt: newYorkInstant(expiry, WINNER_CLOSE_MINUTE_NY),
+  };
+};
 
 export type GoLiveSpread = Readonly<{
   expiry: string;

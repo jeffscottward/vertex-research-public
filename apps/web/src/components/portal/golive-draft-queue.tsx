@@ -7,6 +7,7 @@ import {
   type GoLiveDraftRejectInput,
   type GoLivePlanOutput,
   type GoLiveQueueOutput,
+  type VertexComboInput,
 } from "@darkfactory/api";
 import { Button, Textarea } from "@darkfactory/ui";
 import { Dialog, DialogContent } from "@darkfactory/ui/client/dialog";
@@ -46,12 +47,15 @@ import {
   etDayClock,
   exitReasonText,
   exitRuleText,
+  exitScheduleText,
   expiryDate,
   type GoLiveDecisionFailure,
   type GoLiveDraftContext,
+  type GoLiveSendResult,
   generatorText,
   groupDrafts,
   keyedLines,
+  lateEntryOnlyBlocker,
   limitText,
   loadErrorText,
   loadedText,
@@ -64,6 +68,7 @@ import {
   nodeText,
   noteText,
   OTHER_GROUP_TITLE,
+  OUTSIDE_TESTED_RULE_LABEL,
   OWNER_ONLY_DECISION_TEXT,
   orderLegLines,
   orderSummaryRows,
@@ -77,6 +82,7 @@ import {
   REJECT_NOTE_REQUIRED,
   REJECTION_RECORD_SENTENCE,
   safeHttpsUrl,
+  sendOutcomeText,
   sleeveRow,
   staleDialogNotice,
   staleDialogReason,
@@ -87,9 +93,10 @@ import {
 // Go-live order draft queue (/drafts): the allocation plan in force, the state of the account,
 // node and generator, and the order drafts of the order session day. The owner approves or
 // rejects each draft. The page has no polling: it says when it was loaded and has a Reload button.
-// RECORDS ONLY: goLiveDrafts has no send route. An approval is a stored decision and nothing
-// more. No Vertex screen opens a vertical spread on the live account: the live order screen (the
-// Vertex orders tab of /portfolio) has no vertical ticket. The notice on the page says so.
+// GO-LIVE 4 (owner 2026-11-12): after an approval is recorded, the page asks the owner order path
+// (vertexOrders combo preview and submit, bound to the draft id) to send the stored order. The
+// server sends only the exact approved order, only while the node is armed and only inside the plan
+// caps; otherwise it names why and the notice says so ("Approved, engine disarmed").
 
 export interface GoLiveDraftsGateway {
   readonly approve: (
@@ -102,15 +109,47 @@ export interface GoLiveDraftsGateway {
   readonly reject: (
     input: GoLiveDraftRejectInput
   ) => Promise<GoLiveDraftOutput>;
+  /**
+   * Sends the order stored with an approval through the owner order checks (combo preview and
+   * submit bound to the draft id). The server sends only the exact approved order, only while the
+   * owner has armed the execution node, and only inside the plan caps; otherwise it names why.
+   */
+  readonly sendApproved: (
+    input: Readonly<{ draftId: string; order: VertexComboInput }>
+  ) => Promise<GoLiveSendResult>;
 }
 
 // The one place that reads goLiveDrafts from the root API client.
 const connectGoLiveDrafts = (): GoLiveDraftsGateway => {
-  const api = createApiClient({ baseUrl: window.location.origin }).goLiveDrafts;
+  const client = createApiClient({ baseUrl: window.location.origin });
+  const api = client.goLiveDrafts;
   return {
     approve: (input) => api.approve(input),
     queue: (options) => api.queue({}, options),
     reject: (input) => api.reject(input),
+    sendApproved: async ({ draftId, order }) => {
+      const preview = await client.vertexOrders.comboPreview({
+        ...order,
+        goLiveDraftId: draftId,
+      });
+      if (preview.confirmToken === null)
+        return { reasons: preview.review.reasons, sent: false };
+      // An error after the preview may mean the order reached IBKR: never shown as "not sent".
+      try {
+        const result = await client.vertexOrders.comboSubmit({
+          confirm: true,
+          confirmToken: preview.confirmToken,
+          goLiveDraftId: draftId,
+          order,
+        });
+        return { result, sent: true };
+      } catch (error) {
+        return {
+          message: error instanceof Error ? error.message : String(error),
+          sent: "unknown",
+        };
+      }
+    },
   };
 };
 
@@ -126,6 +165,9 @@ export const createBrowserGoLiveDraftsGateway = (): GoLiveDraftsGateway => {
     queue: (options: Readonly<{ signal: AbortSignal }>) =>
       current().queue(options),
     reject: (input: GoLiveDraftRejectInput) => current().reject(input),
+    sendApproved: (
+      input: Readonly<{ draftId: string; order: VertexComboInput }>
+    ) => current().sendApproved(input),
   });
 };
 
@@ -147,6 +189,8 @@ type Decision =
   | Readonly<{
       draft: GoLiveDraftOutput;
       order: NonNullable<GoLiveDraftOutput["order"]>;
+      // A late entry approved with the owner's outside-the-tested-rule tick.
+      outsideTestedEntryRule: boolean;
       type: "approve";
     }>
   | Readonly<{ draft: GoLiveDraftOutput; type: "reject" }>;
@@ -346,8 +390,9 @@ const DraftActions = ({
   onDecide: (decision: Decision) => void;
 }>) => {
   const reasonsId = useId();
+  const lateOnly = lateEntryOnlyBlocker(draft, context);
   const blockers = approveBlockers(draft, context);
-  const blocked = blockers.length > 0;
+  const blocked = blockers.length > 0 && !lateOnly;
   const { order } = draft;
   return (
     <div className="space-y-2" data-golive-actions="">
@@ -360,10 +405,16 @@ const DraftActions = ({
           onClick={
             order === null || blocked
               ? undefined
-              : () => onDecide({ draft, order, type: "approve" })
+              : () =>
+                  onDecide({
+                    draft,
+                    order,
+                    outsideTestedEntryRule: lateOnly,
+                    type: "approve",
+                  })
           }
         >
-          Approve
+          {lateOnly ? "Approve outside tested rule" : "Approve"}
         </Button>
         <Button
           aria-label={`Reject ${draftName(draft)}`}
@@ -375,6 +426,15 @@ const DraftActions = ({
           Reject
         </Button>
       </div>
+      {lateOnly ? (
+        <p
+          className="text-sm text-warning-foreground"
+          data-golive-late-entry=""
+        >
+          Late entry: not in the backtest. Approve asks you to confirm it is
+          outside the tested entry rule.
+        </p>
+      ) : null}
       {blocked ? (
         <div
           className="text-sm text-warning-foreground"
@@ -427,6 +487,11 @@ const DraftRow = ({
           <Field label="State">{draftStateText(draft.state)}</Field>
           <Field label="Expiry">{expiryDate(draft.expiry)}</Field>
           <Field label="Strikes">{strikesText(draft)}</Field>
+          {draft.exitSchedule === null ? null : (
+            <Field label="Exit (standing rule)">
+              {exitScheduleText(draft.exitSchedule)}
+            </Field>
+          )}
           {/* On an approved row every live value is labelled as current, not as approved. */}
           <Field label={approved === null ? "Quote" : CURRENT_QUOTE_LABEL}>
             {quoteText(draft, context.readAt)}
@@ -577,11 +642,16 @@ const DecisionDialog = ({
   const errorId = useId();
   const [note, setNote] = useState("");
   const [noteMissing, setNoteMissing] = useState(false);
+  const [outsideTicked, setOutsideTicked] = useState(false);
+  const outsideId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const { draft, type } = decision;
   const order = decision.type === "approve" ? decision.order : null;
+  const needsTick =
+    decision.type === "approve" && decision.outsideTestedEntryRule;
+  // Record approval stays disabled until the tick: submit never runs without it.
   const submit = () => {
     if (type === "reject" && note.trim() === "") return setNoteMissing(true);
     return onSubmit(note.trim());
@@ -663,6 +733,18 @@ const DecisionDialog = ({
                 </Field>
               ))}
             </dl>
+            {needsTick ? (
+              <div className="flex items-start gap-2">
+                <input
+                  checked={outsideTicked}
+                  data-golive-outside-rule=""
+                  id={outsideId}
+                  onChange={(event) => setOutsideTicked(event.target.checked)}
+                  type="checkbox"
+                />
+                <label htmlFor={outsideId}>{OUTSIDE_TESTED_RULE_LABEL}</label>
+              </div>
+            ) : null}
           </div>
         )}
         {error === null ? null : (
@@ -687,7 +769,7 @@ const DecisionDialog = ({
           <Button
             aria-describedby={error === null ? undefined : errorId}
             data-golive-dialog-submit=""
-            disabled={busy}
+            disabled={busy || (needsTick && !outsideTicked)}
             onClick={submit}
             variant={type === "approve" ? "default" : "destructive"}
           >
@@ -859,6 +941,9 @@ export const GoLiveDraftQueue = ({
           order: current.order,
           // The revision of the draft the dialog shows: the server refuses another one.
           revision: current.draft.revision,
+          ...(current.outsideTestedEntryRule
+            ? { outsideTestedEntryRule: true }
+            : {}),
         })
       : gateway.reject({ id: current.draft.id, note });
 
@@ -899,6 +984,18 @@ export const GoLiveDraftQueue = ({
       if (!mounted.current) return;
       keep(decided);
       setDecision(null);
+      if (decided.state === "approved" && decided.approvedOrder !== null) {
+        const order = decided.approvedOrder;
+        const outcome = await gateway
+          .sendApproved({ draftId: decided.id, order })
+          .catch(
+            (error: unknown): GoLiveSendResult => ({
+              reasons: [error instanceof Error ? error.message : String(error)],
+              sent: false,
+            })
+          );
+        if (mounted.current) setNotice(sendOutcomeText(outcome));
+      }
       await load();
     } catch (error) {
       if (!mounted.current) return;

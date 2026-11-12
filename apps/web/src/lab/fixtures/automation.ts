@@ -631,6 +631,7 @@ export const LAB_GOLIVE_QUEUE: GoLiveQueueOutput = {
       entryBasis: "model_holds_account_does_not",
       exitReason: null,
       exitRule: "owner_standing_rule_v1",
+      exitSchedule: null,
       expiry: "20261218",
       id: "lab-draft-1",
       kind: "entry",
