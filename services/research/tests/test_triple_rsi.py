@@ -1,6 +1,7 @@
 """Triple RSI study (docs/specs/strategies/triple-rsi.md): rules, fills, share ledger, DSL definition, options
 stance, measures and the report markup. Hand-computed cases; no data files, no NautilusTrader
 (test_triple_rsi_nautilus.py)."""
+import dataclasses
 import math
 from html.parser import HTMLParser
 from unittest import mock
@@ -329,7 +330,7 @@ def _study_results(*, sensitivity=False):
                                     "result": _job_result(dates, curve(0.0004, 0.0005), [trade, loss] * 20)})
     stated_spy = dict(shares_runs[0], execution="close", cost=study.COSTS["base"])  # a duplicate key of the grid
     if sensitivity:
-        keys = {rules.Params(**{**rules.STATED.__dict__, field: value}).key()
+        keys = {dataclasses.replace(rules.STATED, **{field: value}).key()
                 for field, values in study.GRID.items() for value in values}
         grid = [{**stated_spy, "params": key} for key in sorted(keys)]
     else:
@@ -378,7 +379,6 @@ def test_assemble_counts_trials_once_and_decides_on_the_options_row():
     assert len(results["curves"]["statedSpy"]) >= 2
 
 
-
 # --------------------------------------------------------------------------- report markup
 
 
@@ -387,7 +387,7 @@ class _Page(HTMLParser):
 
     def __init__(self, page):
         super().__init__()
-        self.tables, self.tags, self._text = [], [], None
+        self.tables, self.tags, self._text, self._label = [], [], None, None
         self.feed(page)
 
     def handle_starttag(self, tag, attrs):
@@ -433,13 +433,18 @@ def test_report_cells_carry_their_column_head_for_the_phone_layout():
     page = _Page(text)
     assert {"name": "viewport", "content": "width=device-width,initial-scale=1"} in page.of("meta")
     assert "@media(max-width:640px)" in text and "content:attr(data-label)" in text
-    assert len(page.tables) == 13
+    from strategies.triple_rsi import study
+
+    assert len(page.tables) == 10 + len(study.COSTS)  # one Core 7 table per cost level
+    # explicit roles keep the table structure for screen readers when CSS stacks the cells
+    assert {attrs["role"] for attrs in page.of("td")} == {"cell"}
+    assert {attrs["role"] for attrs in page.of("tr")} == {"row"}
     for table in page.tables:
         assert table["rows"], table["head"]
         for row in table["rows"]:
             assert [label for label, _ in row] == table["head"]
         if table["class"] != "text":  # a wide table stacks as a grid on a phone, a narrow one as a list
-            assert table["class"] == ("grid" if len(table["head"]) >= 7 else "list")
+            assert table["class"] == ("grid" if len(table["head"]) >= report.GRID_COLUMNS else "list")
     claim = next(table for table in page.tables if table["head"][0] == "Measure")
     assert claim["class"] == "list"
     assert claim["rows"][2][:2] == [("Measure", "Win rate"), ("Claim", "90%")]
@@ -460,7 +465,9 @@ def test_report_chart_text_is_html_at_a_fixed_size():
     page = _Page(report._chart([("Strategy <a>", points), ("Buy-and-hold", half)], "value", title="Return & risk"))
     assert page.of("text") == []  # no text inside the scaled SVG: it would shrink with the screen
     (svg,) = page.of("svg")
-    assert svg["preserveaspectratio"] == "none" and svg["aria-label"] == "Return & risk"
+    assert svg["preserveaspectratio"] == "none"
+    (plot,) = [attrs for attrs in page.of("div") if attrs.get("class") == "plot"]
+    assert plot["aria-hidden"] == "true"  # screen readers get the figure caption, not the axis labels
     assert len(page.of("path")) == 2 and len(page.of("line")) == 5
     spans = page.of("span")
     assert [span["style"] for span in spans if span.get("class") == "key"] == ["color:#60a5fa", "color:#9aa3b2"]

@@ -44,8 +44,8 @@ td:empty{display:none}
 td::before{content:attr(data-label);display:block;color:#9aa3b2;font-size:12px;font-weight:400}
 td:first-child{font-weight:600}
 td:first-child::before{display:inline;margin-right:6px}
-table.list td:not(:first-child):not(:empty){display:flex;justify-content:space-between;gap:12px;text-align:right}
-table.list td::before{text-align:left}
+table.list td:not(:first-child){text-align:right}
+table.list td:not(:first-child)::before{float:left;margin-right:12px}
 table.grid tr{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:0 8px}
 table.grid td:first-child{grid-column:1/-1}
 .plot .xs span:nth-child(even){display:none}
@@ -58,21 +58,23 @@ def _e(text) -> str:
     return html.escape(str(text))
 
 
-GRID_COLUMNS = 7  # a table this wide stacks as a grid of label-over-value cells on a phone, a narrower one as a list
+# On a phone a table this wide stacks as a grid of label-over-value cells. A narrower one stacks as a list.
+GRID_COLUMNS = 7
 
 
 def _table(head: Sequence[str], rows: Sequence[Sequence], *, text: bool = False) -> str:
     """`head` is plain text (escaped here); `rows` hold HTML. `text`: every column left-aligned and wrapped.
 
     Every cell carries its column head as `data-label`: on a phone (STYLE, 640 px and narrower) the head row is
-    hidden and each row is a block of labelled values, so no table scrolls sideways."""
+    hidden and each row is a block of labelled values, so no table scrolls sideways. The explicit ARIA roles keep
+    the table structure for screen readers when CSS changes the display of the table elements."""
     labels = [_e(cell) for cell in head]
     klass = "text" if text else "grid" if len(head) >= GRID_COLUMNS else "list"
-    out = [f"<div class='wrap'><table class='{klass}'><thead><tr>", *(f"<th>{label}</th>" for label in labels),
-           "</tr></thead><tbody>"]
+    out = [f"<div class='wrap'><table class='{klass}' role='table'><thead><tr role='row'>",
+           *(f"<th role='columnheader' scope='col'>{label}</th>" for label in labels), "</tr></thead><tbody>"]
     for row in rows:
-        out.append("<tr>" + "".join(f"<td data-label='{label}'>{cell}</td>"
-                                    for label, cell in zip(labels, row, strict=True)) + "</tr>")
+        out.append("<tr role='row'>" + "".join(f"<td role='cell' data-label='{label}'>{cell}</td>"
+                                               for label, cell in zip(labels, row, strict=True)) + "</tr>")
     out.append("</tbody></table></div>")
     return "".join(out)
 
@@ -87,9 +89,10 @@ def _chart(series: Sequence[tuple[str, Sequence[Mapping]]], key: str, *, title: 
            percent: bool = True, height: int = 220) -> str:
     """Line chart of monthly points (`month`, `key`); every series on the same month axis.
 
-    The SVG holds the grid and the lines only and stretches to the plot box (`height` CSS px tall, any width). The
-    title, the legend and the axis labels are HTML at fixed font sizes, placed in percent of the plot box, so they
-    read the same on a phone and on a desktop."""
+    The SVG holds only the grid and the lines. It stretches to the plot box (`height` CSS px tall, any width). The
+    title, the legend and the axis labels are HTML. Their font size is fixed, so the screen width does not change
+    it. They are placed in percent of the plot box. Screen readers get the figure caption; the plot is hidden from
+    them (the tables give the numbers)."""
     months = sorted({point["month"] for _, points in series for point in points})
     if len(months) < 2:
         return ""
@@ -130,8 +133,8 @@ def _chart(series: Sequence[tuple[str, Sequence[Mapping]]], key: str, *, title: 
         marks.append(f"<path d='{path}' fill='none' stroke='{color}' stroke-width='1.6'/>")
         legend.append(f"<span class='key' style='color:{color}'>{_e(name)}</span>")
     return (f"<figure class='chart'><figcaption><span>{_e(title)}</span>{''.join(legend)}</figcaption>"
-            f"<div class='plot' style='height:{height}px'><svg viewBox='0 0 100 100' preserveAspectRatio='none' "
-            f"role='img' aria-label='{_e(title)}'>{''.join(marks)}</svg>{''.join(levels)}"
+            f"<div class='plot' style='height:{height}px' aria-hidden='true'><svg viewBox='0 0 100 100' "
+            f"preserveAspectRatio='none'>{''.join(marks)}</svg>{''.join(levels)}"
             f"<div class='xs'>{''.join(years)}</div></div></figure>")
 
 
