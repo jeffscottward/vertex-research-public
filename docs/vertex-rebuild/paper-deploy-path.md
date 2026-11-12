@@ -139,6 +139,29 @@ python research/backtests/allocation/paper_path_rehearsal.py --data DIR --capita
 `--spreads-decision` sets the spreads switch of policy v3 in the environment of that process only.
 Without it, or with policy v2, every combo stops at the policy with `combo_refused`.
 
+### Results (2026-11-12, base 325cd74e, policy `options_only_defined_risk_v3`)
+
+Run from `services/research` with `uv run`, data `~/Documents/reports/web/vertex-allocation/work/data`,
+capital 360000, windows strong, contrast and full-core7. Counts are out of 49 sized trades.
+
+| Stage | Old (`deploy_rehearsal.py`) | New, spreads OFF | New, spreads ON |
+| --- | --- | --- | --- |
+| Sized | 49 | 49 | 49 |
+| Request approved | n/a | 29 | 29 |
+| Reached the engine paper path | 0 | 49 | 49 |
+| Allowed by the policy | 0 | 0 (49 `combo_refused`) | 49 |
+| Paper fill | 0 | 0 | 49 |
+| Exited by the owner rule | 0 | 0 | 45 |
+| Open at data end | 0 | 0 | 4 (contrast window) |
+
+In the old rehearsal no engine strategy read a deployment request, so no trade reached the engine.
+With the switch OFF the policy refuses every combo, so the switch is what gates spreads. In the ON run the
+switch value is the owner decision link of 2026-11-11 and applies only to that process. The 4 open positions
+are still open when the contrast window's data ends. They were not refused. Both runs report
+`ordersToBroker: 0`, `rowsWritten: 0`, `armed: false`, `network: false`.
+Only 29 of the 49 requests pass the real approve step. The other 20 still reach the engine, because the
+rehearsal sends every sized trade down the path. A follow-up should check why those 20 fail approval.
+
 ## Limits
 
 - The exit rule runs when a caller evaluates it. No scheduler exists yet.
