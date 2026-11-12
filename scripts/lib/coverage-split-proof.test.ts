@@ -871,32 +871,43 @@ describe("runCoverageSplitProof", () => {
       expect(result.code).toBe(1);
     });
 
-    it("keeps new files in the folder of the original file", async () => {
+    it.each([
+      [
+        "src/sub/part.ts",
+        "src/sub/part.ts is not in the folder of src/a.ts: moved code stays in its folder",
+      ],
+      ...[
+        "src/part.test.ts",
+        "src/part.spec.tsx",
+        "src/part.d.ts",
+        "src/page.tsx",
+        "src/route.ts",
+        "src/layout.tsx",
+      ].map((path) => [
+        path,
+        `${path} has a name that tools treat specially (a test, a declaration file, a route file): a new file has a plain name`,
+      ]),
+    ])("refuses the new file %s", async (path, problem) => {
       const result = await prove({
         base: { "src/a.ts": "function f() {}\n", [BASELINE]: EMPTY_BASELINE },
         head: {
           "src/a.ts": "",
-          "src/sub/part.ts": "function f() {}\n",
+          [path]: "function f() {}\n",
           [BASELINE]: EMPTY_BASELINE,
         },
         files: {
-          "small.json": JSON.stringify({
-            "src/a.ts": FULL,
-            "src/sub/part.ts": FULL,
-          }),
+          "small.json": JSON.stringify({ "src/a.ts": FULL, [path]: FULL }),
         },
         arguments_: [
           "--from=src/a.ts",
-          "--to=src/sub/part.ts",
+          `--to=${path}`,
           "--coverage-before=small.json",
           "--coverage-after=small.json",
         ],
-        changed: ["src/a.ts", "src/sub/part.ts"],
+        changed: ["src/a.ts", path],
       });
 
-      expect(result.problems).toEqual([
-        "src/sub/part.ts is not in the folder of src/a.ts: moved code stays in its folder",
-      ]);
+      expect(result.problems).toEqual([problem]);
       expect(result.code).toBe(1);
     });
   });

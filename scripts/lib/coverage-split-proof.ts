@@ -11,9 +11,10 @@ import { required } from "./required.ts";
 // after the split are read from HEAD.
 //
 // 1. Diff: the commits since the base change only the original file, the new
-//    files and the baseline, and the new files do not exist at the base. So
-//    no other file imports a new file: the new files load through the
-//    original file, before its own statements run.
+//    files and the baseline. The new files do not exist at the base and have
+//    plain names: no test, declaration or route file. So no other file
+//    imports a new file: the new files load through the original file, before
+//    its own statements run.
 // 2. Statements: every top-level statement of the original file is in exactly
 //    one file after the split, token for token, with the same syntax tree and
 //    in its original order. Comments and layout are not tokens. An `export`
@@ -124,6 +125,11 @@ type Split = Readonly<{
 }>;
 
 const NO_PARTS: ReadonlySet<string> = new Set();
+
+// Names that the test runners, TypeScript or the app router act on: tests,
+// declaration files and Next.js / vinext route and metadata files.
+const SPECIAL_NAME =
+  /(?:\.(?:test|spec|d)\.[cm]?[jt]sx?|^(?:page|layout|template|loading|error|global-error|not-found|forbidden|unauthorized|default|route|middleware|proxy|instrumentation|instrumentation-client|icon|apple-icon|opengraph-image|twitter-image|sitemap|robots|manifest)\.[cm]?[jt]sx?)$/u;
 
 // Only the syntax of one file is resolved: no library, no other file.
 const COMPILER_OPTIONS: ts.CompilerOptions = {
@@ -992,6 +998,11 @@ const treeProblems = async (
     if (posix.dirname(path) !== posix.dirname(from)) {
       problems.push(
         `${path} is not in the folder of ${from}: moved code stays in its folder`
+      );
+    }
+    if (SPECIAL_NAME.test(posix.basename(path))) {
+      problems.push(
+        `${path} has a name that tools treat specially (a test, a declaration file, a route file): a new file has a plain name`
       );
     }
     if ((await git(["show", `${base}:${path}`])) !== undefined) {
