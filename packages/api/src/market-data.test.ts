@@ -305,6 +305,20 @@ describe("marketData fetch", () => {
       "ENTITLEMENT",
       "IBKR 162: No market data permissions for CME FUT [account]",
     ]);
+    // The same account codes as every other IBKR reader: DF codes and four digits too.
+    failure = await run(
+      jsonResponse(
+        {
+          error: "entitlement",
+          message: "No market data permissions for DF0000003 and U0001",
+          ibkr_code: 162,
+        },
+        { status: 502 }
+      )
+    );
+    expect(failure.message).toBe(
+      "IBKR 162: No market data permissions for [account] and [account]"
+    );
     failure = await run(
       jsonResponse(
         {
