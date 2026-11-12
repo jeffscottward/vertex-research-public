@@ -22,13 +22,16 @@ import { required } from "./required.ts";
 //    re-exports of the new files (rule 5) are checked on their own. The proof
 //    fails closed: it refuses, naming the statement, `export *`, destructuring
 //    declarations, exported expressions (`export default <expression>`,
-//    `export =`) and `import defer` in any file of the split. Only statements
+//    `export =`), `import defer` and a `var` declared inside a top-level
+//    block or loop (module-scoped, yet no top-level name) in any file of the
+//    split. Only statements
 //    that run no code at load time move: function declarations, interfaces,
 //    type aliases, and `const` or `let` declarations whose initializers are
 //    literals, functions, or arrays and objects of those (`as const` and
 //    `satisfies` allowed). Classes, `var`, enums, ambient (`declare`)
 //    declarations and all other statements stay. Moved code does not name its
-//    own file (`import.meta` other than `import.meta.dirname`, `__filename`, `module`);
+//    own file (`import.meta` other than `import.meta.dirname`, `__filename`, `module`,
+//    `exports`);
 //    what depends only on the folder (`__dirname`, relative `require` and
 //    `import()`) keeps its meaning in the same folder. All declarations of one
 //    name stay together. The directives (such as "use client") stay the first
@@ -40,7 +43,11 @@ import { required } from "./required.ts";
 //    split, never a global. Code that calls `eval` does not split. A
 //    type-only import is not used as a value or exported without `type`, and
 //    an import is not assigned; TypeScript comment directives (ts-ignore,
-//    ts-expect-error, ts-nocheck) do not hide these errors.
+//    ts-expect-error, ts-nocheck) do not hide these errors. Not checked: code
+//    that stays and reads a moved `const` or `let` at load time before its
+//    declaration. The original throws a ReferenceError at load (temporal dead
+//    zone); after the split the import is already initialized, so the split
+//    only turns a failing load into a successful one.
 // 4. Imports: every imported name is imported under the same name from the
 //    same module (relative specifiers resolved from each file's folder) as in
 //    the original file, and not as a value where the original imported it as
@@ -148,7 +155,7 @@ type Split = Readonly<{
 const NO_PARTS: ReadonlySet<string> = new Set();
 
 // Names that differ per file in CommonJS (`require.main === module`).
-const OWN_FILE_NAMES = new Set(["__filename", "module"]);
+const OWN_FILE_NAMES = new Set(["__filename", "module", "exports"]);
 
 // Names that the test runners, TypeScript or the app router act on: tests,
 // declaration files and Next.js / vinext route and metadata files.
@@ -205,10 +212,20 @@ const IMPORT_DECLARATIONS = new Set<ts.SyntaxKind>([
   ts.SyntaxKind.NamespaceImport,
 ]);
 
+// The committed text of each parsed file: the parser sees comment directives
+// renamed (parseModule), but tokens are compared as committed. The rename
+// keeps every position.
+const COMMITTED_TEXT = new WeakMap<ts.SourceFile, string>();
+
 const tokensOf = (node: ts.Node, file: ts.SourceFile): string[] => {
   const children = node.getChildren(file).filter((child) => !ts.isJSDoc(child));
   return children.length === 0
-    ? [node.getText(file)]
+    ? [
+        required(COMMITTED_TEXT.get(file), `text of ${file.fileName}`).slice(
+          node.getStart(file),
+          node.end
+        ),
+      ]
     : children.flatMap((child) => tokensOf(child, file));
 };
 
@@ -353,6 +370,7 @@ const parseModule = (
     true,
     path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
   );
+  COMMITTED_TEXT.set(file, text);
   const host = ts.createCompilerHost(COMPILER_OPTIONS);
   const program = ts.createProgram({
     rootNames: [file.fileName],
@@ -541,7 +559,10 @@ const sideEffectFree = (expression: ts.Expression): boolean => {
   return SIDE_EFFECT_FREE.has(expression.kind);
 };
 
-/** `import.meta` (but `import.meta.dirname`), `__filename` or `module`. */
+/**
+ * `import.meta` (but `import.meta.dirname`), `__filename`, `module` or
+ * `exports`.
+ */
 const namesOwnFile = (node: ts.Node): boolean => {
   if (
     ts.isMetaProperty(node) &&
@@ -561,7 +582,7 @@ const namesOwnFile = (node: ts.Node): boolean => {
 /** Why a statement may not move into a new file, if it may not. */
 const moveProblem = (statement: ts.Statement): string | undefined => {
   if (namesOwnFile(statement)) {
-    return "code that names its own file (import.meta, __filename, module)";
+    return "code that names its own file (import.meta, __filename, module, exports)";
   }
   if (hasModifier(statement, ts.SyntaxKind.DeclareKeyword)) {
     return "an ambient declaration (declare), which has no value at run time";
@@ -724,8 +745,36 @@ const bindingProblems = (pairs: readonly Pair[], split: Split): string[] =>
     })
   );
 
+/**
+ * True when `node` declares a `var` of its function scope: one that is not
+ * inside a nested function, class static block or namespace.
+ */
+const declaresVar = (node: ts.Node): boolean => {
+  if (
+    ts.isVariableDeclarationList(node) &&
+    (node.flags & ts.NodeFlags.BlockScoped) === 0
+  ) {
+    return true;
+  }
+  if (
+    ts.isFunctionLike(node) ||
+    ts.isClassStaticBlockDeclaration(node) ||
+    ts.isModuleBlock(node)
+  ) {
+    return false;
+  }
+  return (
+    ts.forEachChild(node, (child) => declaresVar(child) || undefined) === true
+  );
+};
+
 /** Statements the proof refuses in any file of the split. */
 const refusal = (statement: ts.Statement): string | undefined => {
+  // Such a `var` is module-scoped, but no name of the statement: code moved
+  // away from it would read a global.
+  if (!ts.isVariableStatement(statement) && declaresVar(statement)) {
+    return "a var declared inside a top-level block or loop";
+  }
   if (
     ts.isExportDeclaration(statement) &&
     (statement.exportClause === undefined ||

@@ -910,15 +910,23 @@ describe("runCoverageSplitProof", () => {
       ],
       [
         "const where = () => import.meta.url;",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module): const where = ( ) => import . meta . url ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module, exports): const where = ( ) => import . meta . url ;",
       ],
       [
         "function file() {\n  return __filename;\n}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module): function file ( ) { return __filename ; }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module, exports): function file ( ) { return __filename ; }",
       ],
       [
         "function isMain() {\n  return require.main === module;\n}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module): function isMain ( ) { return require . main === module ; }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module, exports): function isMain ( ) { return require . main === module ; }",
+      ],
+      [
+        "const alias = other;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: const alias = other ;",
+      ],
+      [
+        "function commonJs() {\n  return exports;\n}",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename, module, exports): function commonJs ( ) { return exports ; }",
       ],
       [
         "declare function native(): number;",
@@ -1176,6 +1184,113 @@ describe("runCoverageSplitProof", () => {
       "",
       "// @ts-nocheck\nfunction f() {}\n",
       ["src/part.ts turns type checking off with @ts-nocheck"],
+    ],
+    [
+      'a string changed from "@TS-ignore" to "@ts-ignore"',
+      'export const s = "@TS-ignore";\nfunction f() {}\n',
+      'export const s = "@ts-ignore";\n',
+      "function f() {}\n",
+      [
+        'src/a.ts:1: statement is not in the original file (new or changed code): const s = "@ts-ignore" ;',
+        'src/a.ts:1: statement of the original file is missing after the split: const s = "@TS-ignore" ;',
+      ],
+    ],
+    [
+      'a string changed from "@ts-ignore" to "@ts_ignore"',
+      'export const s = "@ts-ignore";\nfunction f() {}\n',
+      'export const s = "@ts_ignore";\n',
+      "function f() {}\n",
+      [
+        'src/a.ts:1: statement is not in the original file (new or changed code): const s = "@ts_ignore" ;',
+        'src/a.ts:1: statement of the original file is missing after the split: const s = "@ts-ignore" ;',
+      ],
+    ],
+    [
+      "a string changed from `@ts-nocheck` to `@ts_nocheck`",
+      "export const s = `@ts-nocheck`;\nfunction f() {}\n",
+      "export const s = `@ts_nocheck`;\n",
+      "function f() {}\n",
+      [
+        "src/a.ts:1: statement is not in the original file (new or changed code): const s = `@ts_nocheck` ;",
+        "src/a.ts:1: statement of the original file is missing after the split: const s = `@ts-nocheck` ;",
+      ],
+    ],
+    [
+      "a function moved away from the var of if",
+      "if (c) {\n  var v = 1;\n}\nfunction f() {\n  return v;\n}\n",
+      "if (c) {\n  var v = 1;\n}\n",
+      "function f() {\n  return v;\n}\n",
+      [
+        "src/a.ts:1: the proof refuses a var declared inside a top-level block or loop: if ( c ) { var v = 1 ; }",
+        "src/a.ts:1: the proof refuses a var declared inside a top-level block or loop: if ( c ) { var v = 1 ; }",
+      ],
+    ],
+    [
+      "a function moved away from the var of try",
+      "try {\n  var v = 1;\n} catch {}\nfunction f() {\n  return v;\n}\n",
+      "try {\n  var v = 1;\n} catch {}\n",
+      "function f() {\n  return v;\n}\n",
+      [
+        "src/a.ts:1: the proof refuses a var declared inside a top-level block or loop: try { var v = 1 ; } catch { }",
+        "src/a.ts:1: the proof refuses a var declared inside a top-level block or loop: try { var v = 1 ; } catch { }",
+      ],
+    ],
+    [
+      "a function moved away from the var of for",
+      "for (var v = 0; v < 1; v++) {}\nfunction f() {\n  return v;\n}\n",
+      "for (var v = 0; v < 1; v++) {}\n",
+      "function f() {\n  return v;\n}\n",
+      [
+        "src/a.ts:1: the proof refuses a var declared inside a top-level block or loop: for ( var v = 0 ; v < 1 ; v ++ ) { }",
+        "src/a.ts:1: the proof refuses a var declared inside a top-level block or loop: for ( var v = 0 ; v < 1 ; v ++ ) { }",
+      ],
+    ],
+    [
+      "a function moved away from the var of outer:",
+      "outer: {\n  var v = 1;\n}\nfunction f() {\n  return v;\n}\n",
+      "outer: {\n  var v = 1;\n}\n",
+      "function f() {\n  return v;\n}\n",
+      [
+        "src/a.ts:1: the proof refuses a var declared inside a top-level block or loop: outer : { var v = 1 ; }",
+        "src/a.ts:1: the proof refuses a var declared inside a top-level block or loop: outer : { var v = 1 ; }",
+      ],
+    ],
+    [
+      "a write of a moved let behind an upper-case @TS-NOCHECK",
+      "// @TS-NOCHECK\nexport let x = 1;\nx = 2;\n",
+      '// @TS-NOCHECK\nimport { x } from "./part.ts";\nexport { x } from "./part.ts";\nx = 2;\n',
+      "export let x = 1;\n",
+      ["src/a.ts:4: Cannot assign to 'x' because it is an import."],
+    ],
+    [
+      "code that stays and writes a moved let with x++;",
+      "export let x = 1;\nx++;\n",
+      'import { x } from "./part.ts";\nexport { x } from "./part.ts";\nx++;\n',
+      "export let x = 1;\n",
+      ["src/a.ts:3: Cannot assign to 'x' because it is an import."],
+    ],
+    [
+      "code that stays and writes a moved let with for (x of [2]) {}",
+      "export let x = 1;\nfor (x of [2]) {}\n",
+      'import { x } from "./part.ts";\nexport { x } from "./part.ts";\nfor (x of [2]) {}\n',
+      "export let x = 1;\n",
+      ["src/a.ts:3: Cannot assign to 'x' because it is an import."],
+    ],
+    [
+      "code that stays and writes a moved let with [x] = [2];",
+      "export let x = 1;\n[x] = [2];\n",
+      'import { x } from "./part.ts";\nexport { x } from "./part.ts";\n[x] = [2];\n',
+      "export let x = 1;\n",
+      ["src/a.ts:3: Cannot assign to 'x' because it is an import."],
+    ],
+    [
+      "an upper-case @JSX pragma",
+      "/** @JSX h */\nfunction f() {}\n",
+      "/** @JSX h */\n",
+      "function f() {}\n",
+      [
+        "src/a.ts has a JSX pragma or a triple-slash reference, which applies only to its own file",
+      ],
     ],
   ])("refuses %s", async (_case, original, kept, moved, problems) => {
     const result = await smallSplit(original, kept, moved);
