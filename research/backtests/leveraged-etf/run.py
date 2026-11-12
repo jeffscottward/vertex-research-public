@@ -11,7 +11,9 @@ Run (rig, in the venv with services/research/requirements-nautilus-linux-py312.l
   systemd-run --user --scope -p MemoryMax=14G \
     ~/.local/share/vertex/nautilus-venv/bin/python research/backtests/leveraged-etf/run.py \
       --data ~/Documents/reports/vertex-leveraged-etf/data \
-      --out ~/Documents/reports/vertex-leveraged-etf/results.json [--workers N] [--iv-ratio <chain file>]
+      --out ~/Documents/reports/vertex-leveraged-etf/results.json --iv-ratio <chain file> [--workers N]
+The study command (python -m strategies.leveraged_etf study) builds its document only from a run with
+--iv-ratio and from committed study code (`provenance.dirty` false in the JSON).
 Diagnostics. Each of these makes a PARTIAL run (runner.partial_reasons): the JSON has `complete` false
 and the reasons in `partial`, the tables start with a PARTIAL line, and the study command refuses it:
   --no-nautilus          ledger only, no NautilusTrader booking

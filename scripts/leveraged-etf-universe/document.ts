@@ -9,8 +9,11 @@
 // - `options` is null exactly when `optionsListed` is false;
 // - `bandOpenInterest` and `twoSidedQuotes` are null exactly when `windowExpiry` is null, and
 //   `halfSpreadPct` is null exactly when there is no two-sided quote;
-// - `quotedAt` is not after `generatedAt` (5 minutes of clock difference are allowed), and a chain
-//   of another New York day than `generatedAt` has session "closed";
+// - `quotedAt` is not after `generatedAt` (5 minutes of clock difference are allowed);
+// - session "regular" needs a chain of the New York day of `generatedAt` whose quotes (`quotedAt`
+//   minus the 15 minutes of the Cboe delay) are from Monday to Friday, 09:45 to before 16:00 in
+//   New York. The schema has no exchange calendar: a NYSE holiday and the 13:00 close of a half
+//   day stay with the fetcher (`session_of` in liquidity.py), which never writes "regular" then;
 // - `optionGate` and `optionGateReasons` are the result of the gate rule (`evaluateOptionGate`
 //   below) for the fund's `options`, the constants of the gate version and `generatedAt`.
 // See: docs/vertex-rebuild/leveraged-etf-universe.md. Research only: no order path.
@@ -81,6 +84,11 @@ const GATE_CONSTANT_KEYS = [
 const MAX_CHAIN_AGE_DAYS = 4;
 /** `quotedAt` may be this much after `generatedAt`: Cboe and the fetcher have two clocks. */
 const MAX_CLOCK_SKEW_MS = 300_000;
+/** The quotes of a chain are this much older than `quotedAt`. QUOTE_DELAY in liquidity.py. */
+const QUOTE_DELAY_MS = 900_000;
+/** 09:45 and 16:00 as minutes of the New York day. SESSION_START and SESSION_CLOSE in liquidity.py. */
+const SESSION_START_MINUTE = 585;
+const SESSION_CLOSE_MINUTE = 960;
 /** Largest value of a Postgres `integer` column. */
 const INT4_MAX = 2_147_483_647;
 const MS_PER_DAY = 86_400_000;
@@ -198,7 +206,9 @@ const spreadReason = (
  * Any fail reason gives "fail". With no fail reason, session "closed" gives "spread-not-measured"
  * (the quotes are stale and wide: the chain cannot pass and it does not prove a fail) and session
  * "regular" gives "pass". Session "regular" needs a chain of the New York day of `generatedAt`
- * (`optionsProblems` checks that), so a pass always has quotes of that day.
+ * with quotes from Monday to Friday, 09:45 to before 16:00 in New York (`timeProblems` checks
+ * both), so a pass always has quotes of that day and of those hours. The schema does not know a
+ * NYSE holiday or the 13:00 close of a half day; the fetcher does.
  */
 const evaluateOptionGate = (
   options: Options,
@@ -226,7 +236,35 @@ const evaluateOptionGate = (
     : { optionGate: "pass", reasons: [] };
 };
 
-/** Checks `quotedAt` and `session` against `generatedAt`. */
+const NEW_YORK_CLOCK = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  hourCycle: "h23",
+  minute: "2-digit",
+  timeZone: "America/New_York",
+  weekday: "short",
+});
+
+/**
+ * Why the quotes of a chain are not from the regular session of a weekday, or null when they are.
+ * The time of the quotes is `quotedAt` minus the Cboe delay, read on the New York clock (so summer
+ * time is right). The rule of `session_of` in liquidity.py without its exchange calendar.
+ */
+const outsideSession = (options: Options): string | null => {
+  const clock: Readonly<Record<string, string>> = Object.fromEntries(
+    NEW_YORK_CLOCK.formatToParts(
+      new Date(Date.parse(options.quotedAt) - QUOTE_DELAY_MS)
+    ).map(({ type, value }) => [type, value])
+  );
+  const minute = Number(clock["hour"]) * 60 + Number(clock["minute"]);
+  const weekend = clock["weekday"] === "Sat" || clock["weekday"] === "Sun";
+  return !weekend &&
+    minute >= SESSION_START_MINUTE &&
+    minute < SESSION_CLOSE_MINUTE
+    ? null
+    : `the quotes are of ${clock["weekday"]} ${clock["hour"]}:${clock["minute"]} in New York (quotedAt minus the 15 minutes of the Cboe delay), outside Monday to Friday from 09:45 to before 16:00`;
+};
+
+/** Checks `quotedAt` and `session` against `generatedAt` and against the New York clock. */
 const timeProblems = (options: Options, generatedAt: Date): Problem[] => {
   const problems: Problem[] = [];
   if (Date.parse(options.quotedAt) - generatedAt.getTime() > MAX_CLOCK_SKEW_MS)
@@ -234,10 +272,17 @@ const timeProblems = (options: Options, generatedAt: Date): Problem[] => {
       field: "options.quotedAt",
       message: `must not be more than 5 minutes after generatedAt ${generatedAt.toISOString()}`,
     });
-  if (options.session === "regular" && chainAgeDays(options, generatedAt) !== 0)
+  if (options.session !== "regular") return problems;
+  if (chainAgeDays(options, generatedAt) !== 0)
     problems.push({
       field: "options.session",
       message: `must be "closed": the chain is of ${newYorkDay(new Date(options.quotedAt))}, and generatedAt is on ${newYorkDay(generatedAt)} (New York days)`,
+    });
+  const outside = outsideSession(options);
+  if (outside !== null)
+    problems.push({
+      field: "options.session",
+      message: `must be "closed": ${outside}`,
     });
   return problems;
 };

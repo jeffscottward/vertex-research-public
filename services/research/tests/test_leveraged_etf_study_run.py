@@ -149,7 +149,7 @@ def run_study(nautilus_flag: bool = True, keys: tuple[str, ...] | None = None, n
         nautilus=nautilus_flag, capital=capital, gate=al.GATE, lower_bar=OWNER.LOWER_BAR,
         iv_ratio={"measured": "test", "pairs": {"QQQ": {"longFund": "TQQQ", "inverseFund": "SQQQ", "leverage": 3,
                                                         "rows": [["261120", 9, 0.25, 0.75, 0.99, None]]}}},
-        provenance={"commit": "e2606f93" + "0" * 32, "dirty": True, "dataHash": "sha256:" + "ab" * 32},
+        provenance={"commit": "e2606f93" + "0" * 32, "dirty": False, "dataHash": "sha256:" + "ab" * 32},
         wall_seconds=1.0)
 
 
@@ -527,6 +527,42 @@ class StudyDocument(unittest.TestCase):
                                         + reason):
                 study.document(results, "2026-11-11")
 
+    def test_a_run_from_uncommitted_code_gives_no_document(self):
+        clean = self.results["provenance"]
+        self.assertIs(clean["dirty"], False)
+        self.assertEqual(self.doc["provenance"]["commit"], clean["commit"])
+        dirty = {**self.results, "provenance": {**clean, "dirty": True}}
+        with self.assertRaisesRegex(ValueError, r"must name the commit that holds the code of the run\. This results file "
+                                                r"was written with uncommitted changes in the study code "
+                                                r"\(provenance\.dirty is true\), so commit e2606f930000 does not hold"):
+            study.document(dirty, "2026-11-11")
+        # A file that does not say it was clean is not taken as clean.
+        unknown = {**self.results, "provenance": {name: value for name, value in clean.items() if name != "dirty"}}
+        for results in (unknown, {**self.results, "provenance": {**clean, "dirty": None}},
+                        {**self.results, "provenance": {**clean, "dirty": "false"}}):
+            with self.assertRaisesRegex(ValueError, r"provenance\.dirty is not false"):
+                study.document(results, "2026-11-11")
+        # Without a commit there is nothing to name (git gave no answer: `dirty` is then false too).
+        for commit in ("", None):
+            with self.assertRaisesRegex(ValueError, r"names no commit \(provenance\.commit is empty\)"):
+                study.document({**self.results, "provenance": {**clean, "commit": commit}}, "2026-11-11")
+
+    def test_a_run_without_a_measured_iv_ratio_gives_no_document(self):
+        checks = [row["check"] for row in self.doc["robustness"]]
+        self.assertIn("Measured fund ATM IV / (leverage x ETF ATM IV), one chain read", checks)
+        self.assertTrue(any("measured chain ratio is reported" in gap["choice"] for gap in study.GAPS))
+        ratio = self.results["ivRatio"]
+        unmeasured = {**ratio, "pairs": {"QQQ": {**ratio["pairs"]["QQQ"], "rows": [["261120", 9, 0.25, None, None, None]]}}}
+        without = {name: value for name, value in self.results.items() if name != "ivRatio"}
+        for results in (without, {**self.results, "ivRatio": None}, {**self.results, "ivRatio": {}},
+                        {**self.results, "ivRatio": {**ratio, "pairs": {}}}, {**self.results, "ivRatio": unmeasured}):
+            with self.assertRaisesRegex(ValueError, r"needs a measured IV ratio.* This results file has none \(ivRatio\)\. "
+                                                    r"Run the study with --iv-ratio <chain file>\."):
+                study.document(results, "2026-11-11")
+        # The run itself stays complete and its tables are written: only the study document is refused.
+        self.assertTrue(without["complete"])
+        self.assertNotIn("Measured IV ratio", report.results_markdown(without))
+
     def test_a_complete_flag_alone_is_not_trusted(self):
         # A two-pair results document that claims to be complete (as run.py wrote it before the rule).
         forged = {**run_study(names=("QQQ", "SPY")), "complete": True, "partial": []}
@@ -569,6 +605,16 @@ class StudyDocument(unittest.TestCase):
                 code = cli.main(["study", "--results", str(path), "--ran", "2026-11-11"])
             self.assertEqual((code, out.getvalue()), (1, ""))
             self.assertIn("This run is partial: 2 of 7 pairs (QQQ, SPY)", err.getvalue())
+            for results, reason in (
+                    ({**self.results, "provenance": {**self.results["provenance"], "dirty": True}}, "provenance.dirty is true"),
+                    ({**self.results, "ivRatio": None}, "needs a measured IV ratio")):
+                path.write_text(json.dumps(results))
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    code = cli.main(["study", "--results", str(path), "--ran", "2026-11-11"])
+                self.assertEqual((code, out.getvalue()), (1, ""))
+                self.assertIn("No study document: The study document", err.getvalue())
+                self.assertIn(reason, err.getvalue())
 
     def test_the_tables_command_prints_the_results_tables(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -742,6 +742,134 @@ describe("leveraged ETF universe chain age", () => {
   });
 });
 
+describe("leveraged ETF universe session clock", () => {
+  /** A fund that the document labels "pass" with session "regular", and the same day for the document. */
+  const regularAt = (quotedAt: string, generatedAt: string, expiry: string) =>
+    problems(
+      documentOf(
+        [
+          gated(
+            { nearestExpiries: [expiry], quotedAt, windowExpiry: expiry },
+            "pass",
+            []
+          ),
+        ],
+        { generatedAt }
+      )
+    );
+  const refused = (weekday: string, time: string) =>
+    new RegExp(
+      `TQQQ: must be "closed": the quotes are of ${weekday} ${time} in New York \\(quotedAt minus the 15 minutes of the Cboe delay\\), outside Monday to Friday from 09:45 to before 16:00[\\s\\S]*funds\\[0\\]\\.options\\.session`,
+      "u"
+    );
+
+  it.each([
+    // Chain time in New York (EST, UTC-5), all on the New York day of the document.
+    [
+      "Saturday 02:00",
+      "2026-11-14T07:00:00Z",
+      "2026-11-14T07:05:00Z",
+      "Sat",
+      "01:45",
+    ],
+    [
+      "a weekday 20:00",
+      "2026-11-12T01:00:00Z",
+      "2026-11-12T01:05:00Z",
+      "Wed",
+      "19:45",
+    ],
+    [
+      "a weekday 09:30",
+      "2026-11-11T14:30:00Z",
+      "2026-11-11T14:35:00Z",
+      "Wed",
+      "09:15",
+    ],
+    [
+      "Sunday noon",
+      "2026-11-15T17:00:00Z",
+      "2026-11-15T17:05:00Z",
+      "Sun",
+      "11:45",
+    ],
+    [
+      "a weekday 00:10",
+      "2026-11-11T05:10:00Z",
+      "2026-11-11T05:15:00Z",
+      "Tue",
+      "23:55",
+    ],
+  ] as const)(
+    "refuses session regular for a chain of %s in New York",
+    (_name, quotedAt, generatedAt, weekday, time) => {
+      expect(regularAt(quotedAt, generatedAt, "2026-11-20")).toMatch(
+        refused(weekday, time)
+      );
+    }
+  );
+
+  it("accepts session regular from 09:45 to before 16:00 of the quotes, on the New York clock in winter and in summer", () => {
+    // Winter (UTC-5). The quotes are 15 minutes older than the chain.
+    const winter = (time: string) =>
+      regularAt(`2026-11-11T${time}Z`, "2026-11-11T21:30:00Z", "2026-11-20");
+    expect(winter("14:59:59")).toMatch(refused("Wed", "09:44"));
+    expect(winter("15:00:00")).toBe("");
+    expect(winter("21:14:59")).toBe("");
+    expect(winter("21:15:00")).toMatch(refused("Wed", "16:00"));
+    // Summer (UTC-4): the same New York times are one hour earlier in UTC.
+    const summer = (time: string) =>
+      regularAt(`2026-07-15T${time}Z`, "2026-07-15T20:30:00Z", "2026-07-24");
+    expect(summer("13:59:59")).toMatch(refused("Wed", "09:44"));
+    expect(summer("14:00:00")).toBe("");
+    expect(summer("20:14:59")).toBe("");
+    expect(summer("20:15:00")).toMatch(refused("Wed", "16:00"));
+  });
+
+  it("does not judge the time of a chain with session closed", () => {
+    expect(
+      problems(
+        documentOf(
+          [
+            gated(
+              {
+                nearestExpiries: ["2026-11-20"],
+                quotedAt: "2026-11-14T07:00:00Z",
+                session: "closed",
+              },
+              "spread-not-measured",
+              CLOSED
+            ),
+          ],
+          { generatedAt: "2026-11-14T07:05:00Z" }
+        )
+      )
+    ).toBe("");
+  });
+
+  it("has no exchange calendar: a holiday and a half day stay with the fetcher", () => {
+    // Thanksgiving 2026 at noon, and the Friday after it at 14:00 (the close was 13:00). The Python
+    // rule gives "closed" for both; this schema reads only the weekday and the hours.
+    expect(
+      regularAt("2026-11-26T17:00:00Z", "2026-11-26T17:05:00Z", "2026-12-04")
+    ).toBe("");
+    expect(
+      regularAt("2026-11-27T19:00:00Z", "2026-11-27T19:05:00Z", "2026-12-04")
+    ).toBe("");
+  });
+
+  it("reports the day and the hours when both are wrong", () => {
+    // The chain of yesterday 20:00 in New York.
+    const text = regularAt(
+      "2026-11-11T01:00:00Z",
+      "2026-11-11T15:30:00Z",
+      "2026-11-20"
+    );
+    expect(text).toMatch(/the chain is of 2026-11-10, and generatedAt is on/u);
+    expect(text).toMatch(refused("Tue", "19:45"));
+  });
+});
+
 describe("leveraged ETF universe document built by the Python fetcher", () => {
   // services/research/tests/test_leveraged_etf_universe.py builds this file with the Python gate
   // rule and fails when the file and the rule differ. So the two rules cannot drift apart.

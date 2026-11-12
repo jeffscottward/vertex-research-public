@@ -1,6 +1,6 @@
 import type * as DatabaseServer from "@darkfactory/db/server";
 import { InvalidRepositoryInputError } from "@darkfactory/db/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   type CliIo,
@@ -155,6 +155,17 @@ describe("parseUniverseDocument", () => {
 });
 
 describe("runLeveragedEtfUniverseImport", () => {
+  // The system clock of these tests: one minute after DOCUMENT was generated. A test that passes
+  // its own clock to the CLI does not read this one.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-11T15:31:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("prints the usage for --help", async () => {
     const run = cli(chunks());
     await expect(
@@ -300,6 +311,50 @@ describe("runLeveragedEtfUniverseImport", () => {
       )
     ).resolves.toBe(0);
     expect(store.replaceUniverse).toHaveBeenCalledTimes(1);
+  });
+
+  it("exits 2 for a document that is generated more than 24 hours before the current time", async () => {
+    const store = storeDouble();
+    // DOCUMENT is generated at 15:30:00 on 2026-11-11; the clock of the import says 15:30:01 on 2026-11-12.
+    for (const argv of [[], ["--dry-run"]]) {
+      const run = cli(chunks(TEXT));
+      await expect(
+        runLeveragedEtfUniverseImport(
+          argv,
+          run.io,
+          store.open,
+          () => new Date("2026-11-12T15:30:01Z")
+        )
+      ).resolves.toBe(2);
+      expect(run.err.join("")).toBe(
+        "The universe document is generated at 2026-11-11T15:30:00Z. That is more than 24 hours before the current time 2026-11-12T15:30:01.000Z, so it is refused.\n"
+      );
+      expect(run.out).toEqual([]);
+    }
+    expect(store.urls).toEqual([]);
+    // One second earlier the document is 24 hours old: it is stored.
+    const run = cli(chunks(TEXT));
+    await expect(
+      runLeveragedEtfUniverseImport(
+        [],
+        run.io,
+        store.open,
+        () => new Date("2026-11-12T15:30:00Z")
+      )
+    ).resolves.toBe(0);
+    expect(store.replaceUniverse).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the system clock when no clock is passed", async () => {
+    const store = storeDouble();
+    vi.setSystemTime(new Date("2026-11-13T15:31:00Z"));
+    const run = cli(chunks(TEXT), {});
+    await expect(
+      runLeveragedEtfUniverseImport(["--dry-run"], run.io, store.open)
+    ).resolves.toBe(2);
+    expect(run.err.join("")).toMatch(
+      /more than 24 hours before the current time 2026-11-13T15:31:00\.000Z/u
+    );
   });
 
   it("opens the store of DATABASE_URL by default, exits 1 when the database cannot be reached and closes the store", async () => {

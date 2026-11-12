@@ -4,8 +4,11 @@
 // read without a second table. The import replaces the whole table in one transaction: a fund that
 // is not in the newest document is deleted.
 // The checks keep the cheap invariants: no listed options means no option facts; `pass` means no
-// reasons and a chain read during the regular session; `spread-not-measured` means a chain read
-// after the close. The import CLI checks the full gate rule before it writes.
+// reasons and quote session `regular`; `spread-not-measured` means quote session `closed` and the
+// one reason `market-closed-at-quote`. Session `closed` is every chain whose quotes are not from
+// the regular session of the day of the document: a chain read after the close, a chain from
+// before 09:45 New York and a chain of an earlier day. The checks do not compare the facts with
+// the thresholds; the import CLI checks the full gate rule before it writes.
 // Research only: nothing here places, changes or cancels an order.
 // Used by: packages/db/src/server/leveraged-etf-universe.ts.
 // See: docs/vertex-rebuild/leveraged-etf-universe.md.

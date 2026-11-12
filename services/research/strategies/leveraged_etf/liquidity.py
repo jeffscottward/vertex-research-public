@@ -110,18 +110,21 @@ def _number(value) -> float:
 
 
 def contracts_of(chain: Mapping, symbol: str) -> list[Contract]:
-    """The standard contracts of the chain of `symbol` (OCC root = the symbol without the dot of a share class)."""
+    """The standard contracts of the chain of `symbol` (OCC root = the symbol without the dot of a share class).
+    Raises ValueError for a standard contract with a negative open interest: the chain cannot be read."""
     root = symbol.replace(".", "")
     out = []
     for row in chain["data"].get("options") or []:
         parsed = _OCC.match(str(row.get("option", "")))
         if not parsed or parsed.group(1) != root:
             continue
+        open_interest = _number(row.get("open_interest"))
+        if open_interest < 0:
+            raise ValueError(f"the contract {row['option']} has a negative open interest")
         year, month, day = (int(parsed.group(index)) for index in (2, 3, 4))
         out.append(Contract(
             expiry=date(2000 + year, month, day), strike=int(parsed.group(6)) / 1000, call=parsed.group(5) == "C",
-            bid=_number(row.get("bid")), ask=_number(row.get("ask")),
-            open_interest=int(_number(row.get("open_interest")))))
+            bid=_number(row.get("bid")), ask=_number(row.get("ask")), open_interest=int(open_interest)))
     return out
 
 
@@ -254,8 +257,9 @@ def _plain(number: float) -> int | float:
     return int(number) if float(number).is_integer() else float(number)
 
 
-def fund_entry(fund: ListedFund, measured: OptionsMeasure | NoOptions, generated_at: datetime) -> dict:
-    """One Fund object of the document. Raises ValueError when a value is outside the contract."""
+def check_fund(fund: ListedFund) -> None:
+    """Raises ValueError when a value of the fund is outside the document contract. The fetcher calls this
+    for every fund before it reads a chain, so a fund that the import would refuse costs no request."""
     if not _SYMBOL.match(fund.symbol):
         raise ValueError(f"symbol {fund.symbol!r} is outside the document contract")
     if not 1 <= len(fund.name) <= 200 or not 1 <= len(fund.listing_exchange) <= 20:
@@ -264,6 +268,11 @@ def fund_entry(fund: ListedFund, measured: OptionsMeasure | NoOptions, generated
         raise ValueError(f"{fund.symbol}: product type {fund.product_type!r}")
     if fund.leverage in (0, 1) or not -5 <= fund.leverage <= 5:
         raise ValueError(f"{fund.symbol}: leverage {fund.leverage} is outside the document contract")
+
+
+def fund_entry(fund: ListedFund, measured: OptionsMeasure | NoOptions, generated_at: datetime) -> dict:
+    """One Fund object of the document. Raises ValueError when a value is outside the contract."""
+    check_fund(fund)
     label, reasons = gate(measured, generated_at)
     options = None
     if isinstance(measured, OptionsMeasure):

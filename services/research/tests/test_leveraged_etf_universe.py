@@ -1043,10 +1043,10 @@ def all_chains() -> dict:
     return {symbol: body_of(symbol) for symbol in WITH_OPTIONS}
 
 
-def run(fetch, **options):
+def run(fetch, rows=None, **options):
     out, log = io.StringIO(), []
-    code = cli.collect(fetch, lambda: GENERATED, ROWS, out=out, log=lambda *parts: log.append(" ".join(map(str, parts))),
-                       delay=0, **options)
+    code = cli.collect(fetch, lambda: GENERATED, ROWS if rows is None else rows, out=out,
+                       log=lambda *parts: log.append(" ".join(map(str, parts))), delay=0, **options)
     return code, out.getvalue(), log
 
 
@@ -1130,6 +1130,39 @@ def test_collect_writes_nothing_when_a_chain_cannot_be_measured(body, failure):
     assert any(line.startswith(f"  TQQQ  {failure}") for line in log)
 
 
+def test_a_negative_open_interest_ends_the_run_at_that_fund():
+    # ETNG is the second fund. Its chain has one standard contract with a negative open interest.
+    negative = chain([*quotes(day(7), root="ETNG"), option(day(7), "C", 105, oi=-1, root="ETNG")], symbol="ETNG")
+    fetch = FakeCboe(all_chains() | {"ETNG": json.dumps(negative).encode()})
+    code, out, log = run(fetch, workers=1)
+    assert code == 1 and out == ""
+    assert fetch.calls == ["SPY", "AIQD", "ETNG"]  # not after all chains were fetched
+    assert f"  ETNG  ValueError: the contract ETNG{day(7):%y%m%d}C00105000 has a negative open interest" in log
+
+
+def test_measure_refuses_a_negative_open_interest_of_a_standard_contract_only():
+    with pytest.raises(ValueError, match="the contract TQQQ26111[0-9]P00099000 has a negative open interest"):
+        liquidity.measure(chain([*quotes(day(7)), option(day(7), "P", 99, oi=-3)]), "TQQQ")
+    with pytest.raises(ValueError, match="has a negative open interest"):
+        liquidity.measure(chain([*quotes(day(7)), option(day(7), "P", 99, oi=-0.5)]), "TQQQ")  # not rounded to 0
+    # an adjusted contract is not read at all
+    adjusted = liquidity.measure(chain([*quotes(day(7)), option(day(7), "P", 99, oi=-3, root="TQQQ1")]), "TQQQ")
+    assert adjusted.total_open_interest == 2400
+
+
+@pytest.mark.parametrize(("row", "message"), [
+    ("Y|TQQQ$|ProShares UltraPro QQQ|Q|G|Y|100|N|N||TQQQ$|N", "error: symbol 'TQQQ$' is outside the document contract"),
+    ("Y|TQQQ-A|ProShares UltraPro QQQ|Q|G|Y|100|N|N||TQQQ-A|N", "error: symbol 'TQQQ-A' is outside the document contract"),
+    (f"Y|LONG|ProShares UltraPro {'Q' * 200}|Q|G|Y|100|N|N||LONG|N", "error: LONG: name or listing exchange is outside"),
+])
+def test_a_fund_that_the_document_cannot_hold_ends_the_run_before_any_chain_is_read(row, message):
+    rows = rows_of(LISTING.replace("File Creation Time", f"{row}\nFile Creation Time"))
+    fetch = FakeCboe(all_chains())
+    code, out, log = run(fetch, rows=rows)
+    assert code == 1 and out == "" and fetch.calls == []  # not even the control chain
+    assert log[-1].startswith(message) and log[-1].endswith("; no chain was read")
+
+
 def test_collect_writes_nothing_when_a_number_of_the_document_is_not_finite():
     infinite = chain(quotes(day(7)))
     infinite["data"]["current_price"] = float("inf")
@@ -1189,22 +1222,39 @@ def test_collect_saves_the_raw_chains_of_the_funds_and_of_their_references(tmp_p
         "generatedAt": "2026-11-12T15:40:11Z", "funds": FUNDS, "noChainFile": ["AIQD", "FNGD", "SPYU"]}
 
 
-def test_collect_writes_nothing_when_the_record_of_the_run_cannot_be_saved(tmp_path, monkeypatch):
+@pytest.mark.parametrize("failing", ["_listing.txt", "_run.json"])
+def test_collect_writes_nothing_when_a_record_of_the_run_cannot_be_saved(tmp_path, monkeypatch, failing):
     def save(directory, name, body, real=cli.save):
-        if name == cli.RUN_FILE:
+        if name == failing:
             raise OSError("disk full")
         real(directory, name, body)
 
     monkeypatch.setattr(cli, "save", save)
-    code, out, log = run(FakeCboe(all_chains()), save_chains=tmp_path)
+    code, out, log = run(FakeCboe(all_chains()), save_chains=tmp_path, listing=LISTING)
     assert code == 1 and out == ""
-    assert log[-1] == f"error: {tmp_path / '_run.json'} could not be written: OSError: disk full"
+    assert log[-1] == f"error: {tmp_path / failing} could not be written: OSError: disk full"
+    assert not (tmp_path / "_run.json").exists()  # the folder is not the folder of a complete run
+
+
+def test_a_complete_run_keeps_the_listing_that_it_read_and_names_it_in_the_record(tmp_path):
+    code, _, _ = run(FakeCboe(all_chains()), save_chains=tmp_path, listing=LISTING)
+    assert code == 0
+    assert (tmp_path / "_listing.txt").read_text(encoding="utf-8") == LISTING
+    record = json.loads((tmp_path / "_run.json").read_text())
+    assert list(record) == ["generatedAt", "funds", "noChainFile", "listing"] and record["listing"] == "_listing.txt"
+    assert cli.saved_run(tmp_path)[3] == tmp_path / "_listing.txt"
+
+
+def test_a_failed_run_keeps_no_listing(tmp_path):
+    code, _, _ = run(FakeCboe(all_chains(), {"NVDL": TimeoutError("timed out")}), save_chains=tmp_path, listing=LISTING)
+    assert code == 1 and not (tmp_path / "_listing.txt").exists() and not (tmp_path / "_run.json").exists()
 
 
 # --- a saved run (--chains-from) -----------------------------------------------------------------------------
 
 def saved_run(tmp_path: Path) -> tuple[Path, str]:
-    """The --save-chains folder of one complete run and the document of that run."""
+    """The --save-chains folder of one complete run that kept no listing (as the runs before the listing was
+    kept) and the document of that run."""
     folder = tmp_path / "chains"
     code, out, _ = run(FakeCboe(all_chains() | {"SH": body_of("SH", oi=10)}), save_chains=folder)
     assert code == 0
@@ -1215,30 +1265,49 @@ def test_a_saved_run_gives_its_document_again_and_needs_no_control_chain(tmp_pat
     folder, document = saved_run(tmp_path)
     (folder / "SPY.json").unlink()  # the control chain is a question to Cboe; a saved run has its answers
     before = {path.name: path.read_bytes() for path in folder.iterdir()}
-    generated_at, funds, fetch = cli.saved_run(folder)
-    assert generated_at == GENERATED.replace(microsecond=0) and funds == frozenset(FUNDS)
+    generated_at, funds, fetch, listing = cli.saved_run(folder)
+    assert generated_at == GENERATED.replace(microsecond=0) and funds == frozenset(FUNDS) and listing is None
     out, log = io.StringIO(), []
     code = cli.collect(fetch, lambda: generated_at, ROWS, saved_funds=funds, out=out, log=log.append, delay=0)
     assert code == 0 and out.getvalue() == document
-    assert "funds that the saved run did not request (left out of the document): 0" in log
     assert {path.name: path.read_bytes() for path in folder.iterdir()} == before  # nothing is written there
 
 
-def test_a_fund_that_the_saved_run_did_not_request_is_left_out_and_named(tmp_path):
+def test_a_saved_run_that_did_not_request_a_fund_of_the_directory_gives_no_document(tmp_path):
+    # the import deletes every fund that is not in the document: a document without SPYU and TQQQ is partial
     folder, _ = saved_run(tmp_path)
-    _, funds, fetch = cli.saved_run(folder)
-    code, out, log = run(fetch, saved_funds=funds - {"SPYU", "TQQQ"})
-    assert code == 0 and [fund["symbol"] for fund in json.loads(out)["funds"]] == ["AIQD", "ETNG", "FNGD", "NVDL", "SH"]
-    assert "funds that the saved run did not request (left out of the document): 2" in log and "  SPYU TQQQ" in log
-    # with no fund of the saved run in the listing there is no document
-    code, out, log = run(fetch, saved_funds=frozenset())
-    assert code == 1 and out == "" and log[-1] == "error: the saved run requested none of the funds of this directory; nothing to write"
+    _, funds, fetch, _ = cli.saved_run(folder)
+    calls = []
+    code, out, log = run(lambda url: calls.append(url) or fetch(url), saved_funds=funds - {"SPYU", "TQQQ"})
+    assert code == 1 and out == "" and calls == []  # no chain is read for a document that cannot be written
+    assert log[-2:] == ["error: the saved run did not request the chains of 2 funds of this directory; "
+                        "the document is not written, because it would be partial", "  SPYU TQQQ"]
+
+
+def test_a_saved_run_may_hold_a_fund_that_the_directory_does_not_list_any_more(tmp_path):
+    folder, document = saved_run(tmp_path)
+    _, funds, fetch, _ = cli.saved_run(folder)
+    code, out, _ = run(fetch, saved_funds=funds | {"GONE"})
+    assert code == 0 and json.loads(out) == json.loads(document)  # every fund of the directory is in it
+
+
+def test_main_gives_no_document_when_the_listing_has_a_fund_that_the_saved_run_did_not_request(tmp_path, monkeypatch, capsys):
+    folder, _ = saved_run(tmp_path)
+    listing = tmp_path / "nasdaqtraded.txt"
+    newer = LISTING.replace("File Creation Time", "Y|SQQQ|ProShares UltraPro Short QQQ|Q|G|Y|100|N|N||SQQQ|N\nFile Creation Time")
+    listing.write_text(padded(newer), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["universe.py", "--listing", str(listing), "--chains-from", str(folder)])
+    assert cli.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "error: the saved run did not request the chains of 1 funds of this directory" in captured.err
+    assert captured.err.rstrip().endswith("\n  SQQQ")
 
 
 def test_a_saved_run_with_a_missing_chain_file_ends_without_a_document(tmp_path):
     folder, _ = saved_run(tmp_path)
     (folder / "NVDL.json").unlink()  # the saved run read this chain: "no file" now is not "no listed options"
-    _, funds, fetch = cli.saved_run(folder)
+    _, funds, fetch, _ = cli.saved_run(folder)
     code, out, log = run(fetch, saved_funds=funds)
     assert code == 1 and out == ""
     assert any(line.startswith("  NVDL  FileNotFoundError") for line in log)
@@ -1262,6 +1331,10 @@ def test_main_measures_a_saved_run_again_without_the_network(tmp_path, monkeypat
     ('{"generatedAt": "2026-11-12T15:40:11Z", "funds": []}', "KeyError: 'noChainFile'"),
     ('{"generatedAt": "2026-11-12 15:40", "funds": [], "noChainFile": []}', "ValueError"),
     ('{"generatedAt": "2026-11-12T15:40:11Z", "funds": 7, "noChainFile": []}', "TypeError"),
+    ('{"generatedAt": "2026-11-12T15:40:11Z", "funds": [], "noChainFile": [], "listing": "../nasdaqtraded.txt"}',
+     "ValueError: the listing '../nasdaqtraded.txt' is not the name of a file in the folder"),
+    ('{"generatedAt": "2026-11-12T15:40:11Z", "funds": [], "noChainFile": [], "listing": 7}',
+     "ValueError: the listing 7 is not the name of a file in the folder"),
 ])
 def test_main_refuses_a_folder_that_is_not_the_folder_of_a_complete_run(tmp_path, monkeypatch, capsys, record, failure):
     listing = tmp_path / "nasdaqtraded.txt"
@@ -1274,12 +1347,20 @@ def test_main_refuses_a_folder_that_is_not_the_folder_of_a_complete_run(tmp_path
     assert captured.out == "" and f"error: {tmp_path} is not the folder of a complete run: {failure}" in captured.err
 
 
-@pytest.mark.parametrize("arguments", [
-    ["--chains-from", "chains"],  # no --listing: this mode never reads the network
-    ["--listing", "nasdaqtraded.txt", "--chains-from", "chains", "--save-chains", "other"],  # read or write, not both
-])
-def test_main_refuses_arguments_that_do_not_fit(monkeypatch, capsys, arguments):
-    monkeypatch.setattr(sys, "argv", ["universe.py", *arguments])
+def test_main_needs_a_listing_for_a_saved_run_that_kept_none(tmp_path, monkeypatch, capsys):
+    folder, _ = saved_run(tmp_path)
+    monkeypatch.setattr(cli, "urlopen", lambda *args, **kwargs: pytest.fail("the network was used"))
+    monkeypatch.setattr(sys, "argv", ["universe.py", "--chains-from", str(folder)])
+    with pytest.raises(SystemExit) as stopped:
+        cli.main()
+    captured = capsys.readouterr()
+    assert stopped.value.code == 2 and captured.out == ""
+    assert f"--chains-from needs --listing: the run of {folder} kept no listing" in captured.err
+
+
+def test_main_refuses_to_read_and_to_write_a_chain_folder_in_one_run(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["universe.py", "--listing", "nasdaqtraded.txt", "--chains-from", "chains",
+                                      "--save-chains", "other"])
     with pytest.raises(SystemExit) as stopped:
         cli.main()
     assert stopped.value.code == 2 and capsys.readouterr().out == ""
@@ -1352,21 +1433,26 @@ def replying(monkeypatch, replies: list) -> None:
     monkeypatch.setattr(cli, "urlopen", urlopen)
 
 
-def test_main_reads_the_listing_and_the_chains_with_one_shared_pace(tmp_path, monkeypatch, capsys):
-    # chains of 10 days before any clock that can run this test: no test may depend on the time of day
+def fake_network(monkeypatch, listing: str) -> None:
+    """`urlopen` of the fetcher: the symbol directory and one chain per symbol of WITH_OPTIONS. The chains are
+    of 10 days before any clock that can run a test: no test may depend on the time of day."""
     bodies = {symbol: body_of(symbol, timestamp="2026-11-02 15:30:00") for symbol in WITH_OPTIONS}
 
     def urlopen(request, timeout):
         if request.full_url == universe.LISTING_URL:
-            return Reply(gzip.compress(padded(LISTING).encode()), "gzip")
+            return Reply(gzip.compress(listing.encode()), "gzip")
         symbol = request.full_url.rsplit("/", 1)[1].removesuffix(".json")
         if symbol not in bodies:
             raise http_error(403, b"<Error><Code>AccessDenied</Code></Error>")
         return Reply(bodies[symbol])
 
-    paces = []
     monkeypatch.setattr(cli, "urlopen", urlopen)
     monkeypatch.setattr(cli, "DELAY", 0)
+
+
+def test_main_reads_the_listing_and_the_chains_with_one_shared_pace(tmp_path, monkeypatch, capsys):
+    paces = []
+    fake_network(monkeypatch, padded(LISTING))
     monkeypatch.setattr(cli, "http_get", lambda url, pace, real=cli.http_get: paces.append(pace) or real(url, pace))
     monkeypatch.setattr(sys, "argv", ["universe.py", "--save-chains", str(tmp_path / "chains")])
     assert cli.main() == 0
@@ -1376,6 +1462,37 @@ def test_main_reads_the_listing_and_the_chains_with_one_shared_pace(tmp_path, mo
     assert json.loads((tmp_path / "chains" / "_run.json").read_text())["generatedAt"] == document["generatedAt"]
     # the listing, the two control reads, 7 funds and 4 references: every request waits on the same Pace
     assert len(paces) == 14 and len(set(map(id, paces))) == 1
+
+
+def test_main_measures_its_own_saved_run_again_from_the_folder_alone(tmp_path, monkeypatch, capsys):
+    folder = tmp_path / "chains"
+    fake_network(monkeypatch, padded(LISTING))
+    monkeypatch.setattr(sys, "argv", ["universe.py", "--save-chains", str(folder)])
+    assert cli.main() == 0
+    document = capsys.readouterr().out
+    assert (folder / "_listing.txt").read_text(encoding="utf-8") == padded(LISTING)  # the directory that the run read
+    before = {path.name: path.read_bytes() for path in folder.iterdir()}
+
+    # the same folder, no --listing and no network: the document of the run, with its generatedAt
+    monkeypatch.setattr(cli, "urlopen", lambda *args, **kwargs: pytest.fail("the network was used"))
+    monkeypatch.setattr(sys, "argv", ["universe.py", "--chains-from", str(folder)])
+    assert cli.main() == 0
+    assert capsys.readouterr().out == document
+    assert {path.name: path.read_bytes() for path in folder.iterdir()} == before  # nothing is written there
+
+    # --listing names another directory: that one is read, and its new fund makes the document partial
+    newer = tmp_path / "nasdaqtraded.txt"
+    newer.write_text(padded(LISTING.replace("File Creation Time", "Y|SQQQ|ProShares UltraPro Short QQQ|Q|G|Y|100|N|N||SQQQ|N\n"
+                                            "File Creation Time")), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["universe.py", "--listing", str(newer), "--chains-from", str(folder)])
+    assert cli.main() == 1
+    assert capsys.readouterr().err.rstrip().endswith("\n  SQQQ")
+
+    # the listing that the record names is gone: the run ends, it does not read the network
+    (folder / "_listing.txt").unlink()
+    monkeypatch.setattr(sys, "argv", ["universe.py", "--chains-from", str(folder)])
+    assert cli.main() == 1
+    assert "error: the symbol directory could not be read: FileNotFoundError" in capsys.readouterr().err
 
 
 def test_http_get_reads_access_denied_as_no_file_and_tries_other_errors_three_times(monkeypatch):

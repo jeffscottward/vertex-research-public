@@ -26,20 +26,24 @@ after the funds. If SPY is refused, a 403 does not mean "no listed options" at t
 stops.
 
 Exit 1 and nothing on stdout (never a partial document): the directory could not be read or is not the whole
-directory, the SPY chain could not be read, or the chain of a fund could not be read or measured after 3
+directory, a fund of the directory has a symbol or a name that the document cannot hold (no chain is read
+then), the SPY chain could not be read, or the chain of a fund could not be read or measured after 3
 attempts. The first fund that fails stops all workers: the run is lost, so no more requests go out.
 
 --listing <file> reads a saved nasdaqtraded.txt instead of the network. --save-chains <dir> keeps the chain
 JSON of every fund as Cboe sent it, and also the chain of every unleveraged reference (QQQ for TQQQ, NVDA
 for NVDL). A reference chain that cannot be read is named on stderr; it does not stop the run. A complete
-run also writes <dir>/_run.json: `generatedAt`, the funds of the run and the funds that had no chain file.
+run also writes two files there: _listing.txt, the symbol directory that the run read, and then _run.json
+with `generatedAt`, the funds of the run, the funds that had no chain file and the name of the listing file.
 The directory is local data; it is not committed.
 
---chains-from <dir> measures a saved run again and uses no network: it reads _run.json and the chain files
-of a --save-chains folder, and it writes nothing there. It needs --listing. `generatedAt` is the one of the
-saved run. A fund of the listing that the saved run did not request is left out and named on stderr (the
-name rules or the listing changed since that run). A fund of the saved run whose chain file is missing or
-cannot be measured ends the run.
+--chains-from <dir> measures a saved run again and uses no network: it reads _run.json, the listing and the
+chain files of a --save-chains folder, and it writes nothing there. Without --listing it reads the listing
+that the run kept in the folder; the folder of a run that kept no listing needs --listing. `generatedAt` is
+the one of the saved run. The run ends with exit 1 and no document when the listing has a fund whose chain
+the saved run did not request (the name rules changed since that run, or --listing names another
+directory): the document would be partial, and the import deletes every fund that is not in the document.
+A fund of the saved run whose chain file is missing or cannot be measured ends the run too.
 """
 from __future__ import annotations
 
@@ -71,6 +75,7 @@ TIMEOUT = 30
 RATE_LIMIT_WAIT = 30  # seconds after an HTTP 429 without a Retry-After header, times the attempt number
 MAX_RETRY_AFTER = 120
 RUN_FILE = "_run.json"  # in a --save-chains folder; no symbol has this name
+LISTING_FILE = "_listing.txt"  # the symbol directory that the run read, in the same folder
 
 
 class NoFile(Exception):
@@ -217,11 +222,15 @@ def counts(values) -> str:
 
 
 def saved_run(directory: Path) -> tuple:
-    """(generatedAt, the fund symbols, fetch) of the --save-chains folder of a complete run. `fetch(url)`
-    returns a saved chain, or raises NoFile for a fund that had no chain file in that run."""
+    """(generatedAt, the fund symbols, fetch, the listing file or None) of the --save-chains folder of a
+    complete run. `fetch(url)` returns a saved chain, or raises NoFile for a fund that had no chain file in
+    that run. The listing file is None for a run that kept no listing."""
     run = json.loads((directory / RUN_FILE).read_text(encoding="utf-8"))
     generated_at = datetime.strptime(run["generatedAt"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     funds, without = frozenset(run["funds"]), frozenset(run["noChainFile"])
+    name = run.get("listing")
+    if name is not None and (not isinstance(name, str) or Path(name).name != name):
+        raise ValueError(f"the listing {name!r} is not the name of a file in the folder")
 
     def fetch(url: str) -> bytes:
         symbol = url.rsplit("/", 1)[1].removesuffix(".json")
@@ -229,15 +238,16 @@ def saved_run(directory: Path) -> tuple:
             raise NoFile(url)
         return (directory / f"{symbol}.json").read_bytes()
 
-    return generated_at, funds, fetch
+    return generated_at, funds, fetch, directory / name if name is not None else None
 
 
 def collect(fetch, now, rows, save_chains: Path | None = None, saved_funds: frozenset | None = None,
             out=None, log=lambda *parts: print(*parts, file=sys.stderr), delay: float | None = None,
-            workers: int = WORKERS, pace: Pace | None = None) -> int:
+            workers: int = WORKERS, pace: Pace | None = None, listing: str | None = None) -> int:
     """One run. `fetch(url)` returns the body or raises NoFile, `now()` is the UTC time and `rows` are the
-    rows of the symbol directory. `saved_funds` are the funds of a saved run (--chains-from): only they are
-    measured, and the control chain is not read. `delay` None = DELAY. Returns the exit code."""
+    rows of the symbol directory. `saved_funds` are the funds of a saved run (--chains-from): every fund of
+    the directory must be one of them, and the control chain is not read. `delay` None = DELAY. `listing`
+    is the text of the symbol directory: a complete run keeps it in `save_chains`. Returns the exit code."""
     pace = pace or Pace()
     out = sys.stdout if out is None else out
     delay = DELAY if delay is None else delay
@@ -252,14 +262,18 @@ def collect(fetch, now, rows, save_chains: Path | None = None, saved_funds: froz
     if not funds:
         log("error: the directory lists no leveraged product; nothing to write")
         return 1
+    try:
+        for fund in funds:
+            liquidity.check_fund(fund)  # before any request: the import would refuse the whole document
+    except ValueError as error:
+        log(f"error: {error}; no chain was read")
+        return 1
     if saved_funds is not None:
-        left_out = [fund.symbol for fund in funds if fund.symbol not in saved_funds]
-        funds = [fund for fund in funds if fund.symbol in saved_funds]
-        log(f"funds that the saved run did not request (left out of the document): {len(left_out)}")
-        if left_out:
-            log(f"  {' '.join(left_out)}")
-        if not funds:
-            log("error: the saved run requested none of the funds of this directory; nothing to write")
+        not_requested = [fund.symbol for fund in funds if fund.symbol not in saved_funds]
+        if not_requested:
+            log(f"error: the saved run did not request the chains of {len(not_requested)} funds of this directory; "
+                "the document is not written, because it would be partial")
+            log(f"  {' '.join(not_requested)}")
             return 1
     live = saved_funds is None
     if live and not control_reads(fetch, log):
@@ -311,10 +325,15 @@ def collect(fetch, now, rows, save_chains: Path | None = None, saved_funds: froz
     if save_chains is not None:
         run = {"generatedAt": document["generatedAt"], "funds": [entry["symbol"] for entry in entries],
                "noChainFile": sorted(symbol for symbol, value in measures.items() if value is liquidity.NOT_LISTED)}
+        written = RUN_FILE
         try:
-            save(save_chains, RUN_FILE, (json.dumps(run, indent=1) + "\n").encode())
+            if listing is not None:
+                written = run["listing"] = LISTING_FILE
+                save(save_chains, LISTING_FILE, listing.encode())
+                written = RUN_FILE
+            save(save_chains, RUN_FILE, (json.dumps(run, indent=1) + "\n").encode())  # last: it marks a complete run
         except OSError as error:
-            log(f"error: {save_chains / RUN_FILE} could not be written: {type(error).__name__}: {error}")
+            log(f"error: {save_chains / written} could not be written: {type(error).__name__}: {error}")
             return 1
         saved = sum(kind == "saved" or (kind == "measure" and value is not liquidity.NOT_LISTED) for kind, value in results)
         log(f"chains saved: {saved} in {save_chains}")
@@ -327,14 +346,24 @@ def main() -> int:
     parser.add_argument("--listing", type=Path, metavar="FILE", help="a saved nasdaqtraded.txt (default: read it from Nasdaq Trader)")
     chains = parser.add_mutually_exclusive_group()
     chains.add_argument("--save-chains", type=Path, metavar="DIR", help="keep the raw chain JSON files here (local data, not committed)")
-    chains.add_argument("--chains-from", type=Path, metavar="DIR", help="measure the saved run of this --save-chains folder again (no network; needs --listing)")
+    chains.add_argument("--chains-from", type=Path, metavar="DIR", help="measure the saved run of this --save-chains folder again (no network; needs --listing when the folder holds no listing)")
     args = parser.parse_args()
-    if args.chains_from is not None and args.listing is None:
-        parser.error("--chains-from needs --listing: the symbol directory of the saved run")
     pace = Pace()
+    listing_file = args.listing.expanduser() if args.listing is not None else None
+    saved = None
+    if args.chains_from is not None:
+        directory = args.chains_from.expanduser()
+        try:
+            saved = saved_run(directory)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(f"error: {directory} is not the folder of a complete run: {type(error).__name__}: {error}", file=sys.stderr)
+            return 1
+        listing_file = listing_file or saved[3]
+        if listing_file is None:
+            parser.error(f"--chains-from needs --listing: the run of {directory} kept no listing")
     try:
-        if args.listing is not None:
-            listing = args.listing.expanduser().read_text(encoding="utf-8", errors="replace")
+        if listing_file is not None:
+            listing = listing_file.read_text(encoding="utf-8", errors="replace")
         else:
             listing = http_get(universe.LISTING_URL, pace).decode("utf-8", errors="replace")
     except Exception as error:  # noqa: BLE001 - urllib and http.client raise many types
@@ -345,15 +374,11 @@ def main() -> int:
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    if args.chains_from is None:
+    if saved is None:
         return collect(lambda url: http_get(url, pace), lambda: datetime.now(timezone.utc), rows,
-                       save_chains=args.save_chains.expanduser() if args.save_chains is not None else None, pace=pace)
-    directory = args.chains_from.expanduser()
-    try:
-        generated_at, saved_funds, fetch = saved_run(directory)
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        print(f"error: {directory} is not the folder of a complete run: {type(error).__name__}: {error}", file=sys.stderr)
-        return 1
+                       save_chains=args.save_chains.expanduser() if args.save_chains is not None else None, pace=pace,
+                       listing=listing)
+    generated_at, saved_funds, fetch, _ = saved
     return collect(fetch, lambda: generated_at, rows, saved_funds=saved_funds, delay=0)
 
 

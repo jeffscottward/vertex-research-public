@@ -19,6 +19,10 @@ Mapping (the contract knows two form keys):
   owner's lower bar has no pass value (it is not part of the verdict).
 - A partial run (runner.partial_reasons: not all 40 rows, not every pair, a dropped pair, another start
   capital, or no NautilusTrader booking) gives no document.
+- Two more results files give no document (they do not make a run partial; the tables stay as they
+  are): a file that names no commit or whose code had uncommitted changes (`provenance.dirty` is not
+  false), because the document must name a commit that holds the code of the run; and a file without
+  a measured IV ratio (run.py --iv-ratio), because GAPS says a measured ratio is reported.
 - Equity curve: the monthly points of the row runner.EQUITY_ROW (fixed before the first run).
 `validate(document)` checks it against the Python mirror of the contract (volspike.study.validate_document).
 """
@@ -189,6 +193,14 @@ def verdict_of(results: Mapping) -> tuple[str, str]:
     return ("edge" if passing else "no-edge"), reason[:1000].strip()
 
 
+def _measured_ratios(results: Mapping) -> list[tuple[float, str]]:
+    """(fund ATM IV / (leverage x ETF ATM IV) of the long fund, underlying) per measured chain row of the
+    results file; empty without a measured IV ratio."""
+    ratio = results.get("ivRatio") or {}
+    return [(row[4], name) for name, pair in (ratio.get("pairs") or {}).items() for row in pair["rows"]
+            if row[4] is not None]
+
+
 def _robustness(results: Mapping) -> list[dict]:
     rows = results["rows"]
     leveraged = [row for row in rows if row["verdict"]["leverageHelps"] is not None]
@@ -247,9 +259,8 @@ def _robustness(results: Mapping) -> list[dict]:
             result += (f" ETF ex-dividend days: median signed error up to {far['exDividend']['medianErrorNoDividendPct']:.2f}% "
                        f"({far['fund']}) without the dividend, at most {left:.2f}% in size with it (the formula used).")
         out.append({"check": "Synthetic fund entry price: error of the formula at the close", "pass": None, "result": result})
-    ratio = results.get("ivRatio")
-    if ratio:
-        found = [(row[4], name) for name, pair in ratio["pairs"].items() for row in pair["rows"] if row[4] is not None]
+    found = _measured_ratios(results)
+    if found:
         out.append({"check": "Measured fund ATM IV / (leverage x ETF ATM IV), one chain read", "pass": None,
                     "result": f"Long funds: {min(found)[0]:.2f} ({min(found)[1]}) to {max(found)[0]:.2f} "
                               f"({max(found)[1]}). The model uses 1.00. Not fitted."})
@@ -280,7 +291,8 @@ def _notes(results: Mapping) -> str:
 def document(results: Mapping, ran: str) -> dict:
     """The `strategy-backtest` study document of a complete run. A partial run is refused: the rule is
     runner.partial_reasons, applied again to what the results document holds (so a `complete` flag
-    alone is not trusted)."""
+    alone is not trusted). Also refused: a results file that names no commit or was written from
+    uncommitted study code, and a results file without a measured IV ratio."""
     rows = results.get("rows") or []
     reasons = runner.partial_reasons(
         [row["key"] for row in rows], [pair["underlying"] for pair in results.get("pairs") or []],
@@ -290,6 +302,21 @@ def document(results: Mapping, ran: str) -> dict:
     if reasons:
         raise ValueError("The study document needs the complete run (all 40 form rows, all 7 pairs, 100,000 USD, "
                          f"NautilusTrader booking). This run is partial: {'; '.join(reasons)}")
+    provenance = results.get("provenance") or {}
+    commit = str(provenance.get("commit") or "")
+    if not commit:
+        raise ValueError("The study document must name the commit that holds the code of the run. This results file "
+                         "names no commit (provenance.commit is empty).")
+    if provenance.get("dirty") is not False:
+        raise ValueError("The study document must name the commit that holds the code of the run. This results file "
+                         + ("was written with uncommitted changes in the study code (provenance.dirty is true)"
+                            if provenance.get("dirty") is True else
+                            "does not say that the study code was committed (provenance.dirty is not false)")
+                         + f", so commit {commit[:12]} does not hold that code. Commit the code and run the study again.")
+    if not _measured_ratios(results):
+        raise ValueError("The study document needs a measured IV ratio: its text says one measured chain ratio is "
+                         "reported next to the result. This results file has none (ivRatio). Run the study with "
+                         "--iv-ratio <chain file>.")
     by_key = {row["key"]: row for row in rows}
     option_rows = [row for row in rows if metrics.split_key(row["key"])[3] != SHARES_FORM]
     share_rows = [row for row in rows if metrics.split_key(row["key"])[3] == SHARES_FORM]
@@ -297,7 +324,6 @@ def document(results: Mapping, ran: str) -> dict:
     equity_row = by_key[results["equityRow"]]
     equity = [{"month": point["month"], "value": max(-1.0, point["value"]),
                "drawdown": min(0.0, max(-1.0, point["drawdown"]))} for point in equity_row["monthly"]][-400:]
-    commit = str(results["provenance"].get("commit") or "")
     return {
         "kind": "strategy-backtest", "id": SLUG, "title": TITLE, "ran": ran, "spec": SPEC_PATH, "source": dict(SOURCE),
         "verdict": verdict, "verdictReason": reason, "rules": [dict(rule) for rule in RULES],
@@ -323,7 +349,7 @@ def document(results: Mapping, ran: str) -> dict:
         "equity": equity,
         "equityLabel": f"Form row {_short(equity_row['key'])}: all pairs in one book, month-end equity (chosen before "
                        "the first run)",
-        "provenance": {"commit": commit[:40] if commit else "0000000", "dataHash": str(results["provenance"]["dataHash"])[:80],
+        "provenance": {"commit": commit[:40], "dataHash": str(provenance["dataHash"])[:80],
                        "engine": f"qc-ports ledger, cross-check {results['engine']}"[:80],
                        "runId": f"leveraged-etf-{ran}"},
         "notes": _notes(results),

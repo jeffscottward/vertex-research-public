@@ -34,7 +34,7 @@ snapshot rules, arming and the kill switch. A BUY of shares is allowed only when
 | 0 | Switch | `NAUTILUS_ORDER_POLICY_ALLOW_LEVERAGED_SHARES` is on only with the value `owner-decision:<link to the owner's message>`. Off is the default and equals today's behavior. No environment value arms the node. |
 | 1 | Allow-list | `NAUTILUS_ORDER_POLICY_LEVERAGED_SHARE_SYMBOLS`: explicit tickers, copied from `leveraged_etf_universe` rows with `option_gate = 'fail'` that the owner approved. An invalid entry refuses every leveraged share buy. |
 | 2 | Order form | Limit order, day order, USD, sized by share count. |
-| 3 | Size cap | Share count x limit price is at most 2% of the account value (the setting of the option cap, `NAUTILUS_ORDER_POLICY_MAX_LOSS_PCT`; it can only be lowered, and a value set in the environment needs its `_SOURCE` entry). |
+| 3 | Size cap | Share count x limit price is at most 2% of the account value (the setting of the option cap, `NAUTILUS_ORDER_POLICY_MAX_LOSS_PCT`; it can only be lowered; with the spread switch of policy v3 on, a value set in the environment also needs its `_SOURCE` entry). |
 | 4 | No adding | One open per fund. A second buy of a fund that has an open record or a held position is refused. Averaging down is not possible. |
 | 5 | Count cap | At most 3 funds at one time, so at most 6% of the account in share fallbacks. |
 | 6 | Time box | 48 hours from the first order. The gate keeps one record per fund with the open time. While any fund is held longer than 48 hours, every new leveraged share buy is refused. A held fund without a record counts as overdue. Closes are never blocked. |

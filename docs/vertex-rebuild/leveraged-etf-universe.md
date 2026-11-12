@@ -135,6 +135,7 @@ The gate constants belong to `gate.version`. `LEVERAGED_ETF_GATE_CONSTANTS` in `
 - `windowExpiry` is not in the gate window after the quote day, or `bandOpenInterest`, `halfSpreadPct` and `twoSidedQuotes` do not follow `windowExpiry`, or `halfSpreadPct` is null and `twoSidedQuotes` is not 0 (or the reverse);
 - `quotedAt` is more than 5 minutes after `generatedAt` (the two clocks may differ by 5 minutes);
 - `session` is `regular` and `quotedAt` is not on the New York day of `generatedAt`;
+- `session` is `regular` and the time of the quotes (`quotedAt` minus the 15 minutes of the Cboe delay) is not from Monday to Friday, 09:45 to before 16:00 on the New York clock (summer time included);
 - `windowExpiry` is before the New York day of `generatedAt` for a fund that is not `fail`;
 - a fund without option facts is not `fail` with exactly one of the reasons `no-listed-options` and `no-standard-contract` (only the fetcher knows which of the two is true);
 - `optionGate` or `optionGateReasons` is not what the gate rule gives for the fund's `options`, the constants of the gate version and `generatedAt`. The reasons may be in any order.
@@ -143,7 +144,9 @@ The last rule uses the constants of the version, not the numbers in the document
 
 Quote day: the document does not name a time zone for it. The fetcher uses the New York day of `quotedAt`. The import accepts a rule about the quote day when it holds for the New York day or for the UTC day of `quotedAt`; the two days differ only for a chain read in the New York evening. The rules about `generatedAt` use New York days only.
 
-The import does not check that `session` fits the exchange calendar (it has no calendar; it checks only the day), that `windowExpiry` is the nearest expiry in the window, or that the open interest and spread values are right: it has no chain. Those are the fetcher's job.
+Holidays and half days stay with the fetcher. The import has no exchange calendar: for `session` it checks the day of `generatedAt`, the weekday and the hours 09:45 to 16:00. It accepts `regular` for a chain of a NYSE holiday that is a weekday and for a chain between 13:00 and 16:00 on a half day. The fetcher never writes `regular` for these chains (`session_of` in `liquidity.py` has the calendar). The import also accepts `closed` for a chain inside the session hours: that can only turn a `pass` into `spread-not-measured`.
+
+The import does not check that `windowExpiry` is the nearest expiry in the window, or that the open interest and spread values are right: it has no chain. Those are the fetcher's job.
 
 ## Build a universe
 
@@ -156,17 +159,18 @@ The fetcher needs the Python standard library only. The document goes to stdout 
 Symbol directory:
 
 - The run stops when the directory is not whole: the last line must be the `File Creation Time` line, and there must be at least 10,000 rows (`MIN_LISTING_ROWS`; the directory of 2026-11-11 has 13,282). The import deletes every fund that is not in the document, so half a directory would delete half the table.
+- The run stops before any chain is read when a fund of the directory has a value that the document cannot hold: a symbol outside `^[A-Z][A-Z0-9.]{0,9}$`, a name of more than 200 characters or a multiple outside the range.
 - The multiple and the unleveraged reference come from the listed name. The Roundhill WeeklyPay funds have no multiple in the name; one family rule gives them `1.2`.
 - A fund that is leveraged by its name and has no single multiple of one reference is not in the document. The summary names it with the reason (`unclassified names`). The reasons: no rule reads a multiple; the fund stacks two exposures (`100% TSLA AND 100% SPCX`, the Return Stacked and STKd funds); the fund holds WeeklyPay funds (`TOPW`).
 - Limit: the rules read the name only. A fund that uses leverage and does not say so in its name (for example a capital-efficient or risk-parity fund) is not in the document and not in that report.
 
 Option chains:
 
-- The fetcher keeps apart two cases. "No listed options" is a row: Cboe answers HTTP 403 `AccessDenied` for the symbol while the chain of SPY can be read. "The chain could not be read" ends the run with no document: a network error after 3 attempts, a chain that is not JSON, the chain of another symbol, a chain without a price, or a number that is not finite. There is no option to leave such a fund out.
-- The first fund that fails stops all workers, so no more requests go out for a document that is lost.
+- The fetcher keeps apart two cases. "No listed options" is a row: Cboe answers HTTP 403 `AccessDenied` for the symbol while the chain of SPY can be read. "The chain could not be read" ends the run with no document: a network error after 3 attempts, a chain that is not JSON, the chain of another symbol, a chain without a price, a standard contract with a negative open interest, or a number that is not finite. There is no option to leave such a fund out.
+- The first fund that fails stops all workers, so no more requests go out for a document that is lost. A chain that cannot be measured counts at the moment it is read, not after all chains were fetched.
 - After an HTTP 429 every worker waits, not only the worker that got it.
-- `--save-chains <folder>` keeps the raw chain of every fund and of every unleveraged reference. A complete run also writes `_run.json` there: `generatedAt`, the funds of the run and the funds that had no chain file.
-- `--chains-from <folder> --listing <file>` measures a saved run again with no network. It reads `_run.json` and the chain files, and it writes nothing in the folder. `generatedAt` is the one of the saved run. A fund of the listing that the saved run did not request is left out and named in the summary. A fund of the saved run whose chain file is missing or cannot be measured ends the run.
+- `--save-chains <folder>` keeps the raw chain of every fund and of every unleveraged reference. A complete run also writes two files there: `_listing.txt`, the symbol directory that the run read, and `_run.json`, the record of the run (`generatedAt`, the funds of the run, the funds that had no chain file and the name of the listing file). So the folder alone is enough to measure the run again.
+- `--chains-from <folder>` measures a saved run again with no network. It reads `_run.json`, the listing and the chain files, and it writes nothing in the folder. `generatedAt` is the one of the saved run. Without `--listing` it reads the listing that the run kept in the folder. The folder of a run that kept no listing needs `--listing <file>` (the runs of 2026-11-12 kept none); with `--listing`, that file is read and not the one in the folder. The run ends with exit `1` and no document when the listing has a fund whose chain the saved run did not request: the document would be a partial universe, and the import deletes every fund that is not in the document. No option accepts such a document. This happens when the name rules changed since the saved run, or when `--listing` names the directory of another day. A fund of the saved run whose chain file is missing or cannot be measured ends the run too.
 
 ## Store a universe
 
@@ -180,6 +184,7 @@ DATABASE_URL=postgres://... bun run vertex:leveraged-etf-universe:import < unive
 - `--dry-run` checks the document and prints the counts. It needs no database and no `DATABASE_URL`.
 - Without `--dry-run`, `DATABASE_URL` is required. The script does not read `.env` (`bun --no-env-file`), like `vertex:research-studies:import`.
 - The CLI refuses a document whose `generatedAt` is more than 5 minutes after the current time, also with `--dry-run`. Such a document in the table would make every real document "older than the stored universe".
+- The CLI refuses a document whose `generatedAt` is more than 24 hours before the current time (`GENERATED_AT_MAX_AGE_MS` in `import.ts`), also with `--dry-run`. The labels describe the option market at `generatedAt`, and no reader of the table is forced to look at `generated_at`. So a run must be stored within 24 hours; an older run that was measured again with `--chains-from` cannot be stored.
 - Output: one JSON line. Example: `{"generatedAt":"2026-11-11T15:30:00Z","funds":3,"pass":1,"fail":1,"spread-not-measured":1,"upserted":3,"deleted":0}`. A dry run has `"dryRun":true` and no `upserted` or `deleted`.
 - Exit codes: `0` success; `2` usage or input problem (also when the database refuses the document); `1` any other failure.
 
@@ -212,7 +217,7 @@ The number `0068` was given by `pnpm db:renumber` when the go-live migration `00
 | What | File |
 | --- | --- |
 | Document schema, gate constants per version and gate rule; the document that Python builds | `scripts/leveraged-etf-universe/document.test.ts` |
-| CLI: arguments, stdin limits, a document from the future, output, exit codes | `scripts/leveraged-etf-universe/import.test.ts` |
+| CLI: arguments, stdin limits, a document from the future, a document of more than 24 hours ago, output, exit codes | `scripts/leveraged-etf-universe/import.test.ts` |
 | Repository: row mapping, guards, error mapping | `packages/db/src/server/leveraged-etf-universe.test.ts` |
 | Migration and rollback text | `packages/db/src/server/leveraged-etf-universe-migration.test.ts` |
 | Postgres: checks, replace and delete, stale document, two imports at once, CLI | `tests/integration/database/leveraged-etf-universe.test.ts` |

@@ -8,7 +8,9 @@
 // one database transaction: it upserts every fund and deletes every fund that is not in the
 // document. The database refuses a document that is older than the stored universe. The CLI
 // refuses a document whose `generatedAt` is more than 5 minutes after the current time: stored,
-// it would make every real document "older than the stored universe".
+// it would make every real document "older than the stored universe". It also refuses a document
+// whose `generatedAt` is more than 24 hours before the current time: the gate labels describe the
+// option market of that time, and no reader of the table is forced to look at `generated_at`.
 // Output: one JSON line with the fund count, the count of each option gate label and, after a
 // write, the rows upserted and deleted. --dry-run checks the document and prints the counts
 // without a database.
@@ -36,6 +38,8 @@ export const LEVERAGED_ETF_UNIVERSE_INPUT_MAX_BYTES = 2_097_152;
 
 /** `generatedAt` may be this much after the clock of the import: two machines, two clocks. */
 const GENERATED_AT_MAX_AHEAD_MS = 300_000;
+/** A document whose `generatedAt` is more than this before the clock of the import is refused. */
+const GENERATED_AT_MAX_AGE_MS = 86_400_000;
 
 export type CliIo = Readonly<{
   env: NodeJS.ProcessEnv;
@@ -133,12 +137,12 @@ const run = async (
   }
   const document = parseUniverseDocument(await readInput(io.stdin));
   const current = now();
-  if (
-    Date.parse(document.generatedAt) - current.getTime() >
-    GENERATED_AT_MAX_AHEAD_MS
-  ) {
+  const ahead = Date.parse(document.generatedAt) - current.getTime();
+  if (ahead > GENERATED_AT_MAX_AHEAD_MS || -ahead > GENERATED_AT_MAX_AGE_MS) {
+    const limit =
+      ahead > 0 ? "more than 5 minutes after" : "more than 24 hours before";
     throw new UsageError(
-      `The universe document is generated at ${document.generatedAt}. That is more than 5 minutes after the current time ${current.toISOString()}, so it is refused.`
+      `The universe document is generated at ${document.generatedAt}. That is ${limit} the current time ${current.toISOString()}, so it is refused.`
     );
   }
   const counts = {
