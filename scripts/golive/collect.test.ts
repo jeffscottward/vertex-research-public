@@ -11,6 +11,7 @@ import {
   type CollectIo,
   GOLIVE_COLLECT_USAGE,
   GOLIVE_EXIT_NOT_TRADING_DAY,
+  GOLIVE_GENERATOR_OUTPUT_MAX_BYTES,
   GOLIVE_GENERATOR_TIMEOUT_MS,
   GOLIVE_RESEARCH_DIR,
   GOLIVE_RIG_QUOTE_SOURCES,
@@ -160,6 +161,7 @@ const collectWith = async (setup: Setup = {}) => {
       }
       return Promise.resolve({
         code: 0,
+        overflow: null,
         signal: null,
         stderr: "",
         stdout: `${JSON.stringify(DOCUMENT)}\n`,
@@ -255,6 +257,7 @@ describe("golive collect: the run", () => {
         options: {
           cwd: GOLIVE_RESEARCH_DIR,
           env: { HOME: "/home/rig", PATH: "/usr/bin" },
+          maxOutputBytes: GOLIVE_GENERATOR_OUTPUT_MAX_BYTES,
           stdin: expect.any(String),
           timeoutMs: GOLIVE_GENERATOR_TIMEOUT_MS,
         },
@@ -450,6 +453,29 @@ describe("golive collect: refusals", () => {
     expect(result.code).toBe(1);
     expect(result.posts).toEqual([]);
   });
+
+  it.each(["stdout", "stderr"] as const)(
+    "a generator that writes more than the limit to %s posts nothing and exits 1 without printing what it wrote",
+    async (overflow) => {
+      const result = await collectWith({
+        python: {
+          code: 1,
+          overflow,
+          signal: "SIGKILL",
+          stderr: "runaway text\n",
+          // A whole document with zero candidates was read before the limit.
+          stdout: JSON.stringify({ ...DOCUMENT, candidates: [] }),
+        },
+      });
+      expect(GOLIVE_GENERATOR_OUTPUT_MAX_BYTES).toBe(5 * 1024 * 1024);
+      expect(result.code).toBe(1);
+      expect(result.posts).toEqual([]);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toBe(
+        `golive collect failed: the generator wrote more than 5242880 bytes to ${overflow} and was killed; nothing was posted\n`
+      );
+    }
+  );
 
   it("a generator that passes its time limit posts nothing and exits 1", async () => {
     const result = await collectWith({
@@ -856,6 +882,120 @@ describe("golive collect: the key", () => {
     expect(echoed.stderr + echoed.stdout).not.toContain(KEY);
   });
 
+  // A dummy of 32 characters, the length of a real key; no part of it is a word of a message. It
+  // is joined from pieces so that a secret scanner does not take this test value for a key.
+  const SECRET = ["Zq7Jx2Vb", "9Lm4Tn8R", "w3Yc6Hd1", "Kf5Pg0Sa"].join("");
+  const env = { VERTEX_AGENT_API_KEY: SECRET };
+  /** `filler` characters, then the key, then a tail: the key starts at offset `filler`. */
+  const echo = (filler: number, key = SECRET): string =>
+    `${"x".repeat(filler)}${key} tail`;
+  // The texts are cut at 300 characters: the key before the cut, ending exactly at it, across it
+  // (the reviewer's offset 280), one character before it, and after it.
+  const OFFSETS = [0, 150, 267, 268, 269, 280, 290, 299, 300, 400];
+  const SHORTENED: [string, (text: string) => Setup][] = [
+    [
+      "the plan read answers with an HTTP error",
+      (text) => ({ queue: () => new Response(text, { status: 500 }) }),
+    ],
+    [
+      "the plan read answers with text that is not JSON",
+      (text) => ({ queue: () => new Response(text) }),
+    ],
+    [
+      "the collect answers with an HTTP error",
+      (text) => ({ collect: () => new Response(text, { status: 403 }) }),
+    ],
+    [
+      "the collect answers with text that is not JSON",
+      (text) => ({ collect: () => new Response(text) }),
+    ],
+    [
+      "the collect answers with JSON that is not a collect result",
+      (text) => ({ collect: () => json({ json: { message: text } }) }),
+    ],
+    [
+      "the generator prints text that is not JSON",
+      (text) => ({ python: { stdout: text } }),
+    ],
+  ];
+  it.each(SHORTENED)(
+    "prints no part of the key when %s, wherever the key stands in the text",
+    async (_name, setup) => {
+      for (const offset of OFFSETS) {
+        const result = await collectWith({ env, ...setup(echo(offset)) });
+        const written = result.stderr + result.stdout;
+        expect(result.code).toBe(1);
+        // Not the key and not a piece of it: four characters of its start are enough to fail.
+        expect(written).not.toContain(SECRET.slice(0, 4));
+        expect(written).not.toContain(SECRET.slice(-4));
+        if (offset <= 150) {
+          expect(written).toContain("[key hidden]");
+        }
+      }
+    }
+  );
+
+  it("prints no part of a key that ends the text", async () => {
+    for (const filler of [0, 100, 268, 280, 299]) {
+      const result = await collectWith({
+        collect: () =>
+          new Response(`${"x".repeat(filler)}${SECRET}`, { status: 403 }),
+        env,
+      });
+      expect(result.stderr).not.toContain(SECRET.slice(0, 4));
+    }
+  });
+
+  it("replaces the URL-encoded and the JSON-escaped form of the key", async () => {
+    // Every part of this key changes in one of the two forms.
+    const key = 'a/b+c d&e=f?"g"\\h\u00e9';
+    const encoded = encodeURIComponent(key);
+    const escaped = JSON.stringify(key).slice(1, -1);
+    expect(new Set([key, encoded, escaped]).size).toBe(3);
+    for (const offset of [0, 150, 280, 299]) {
+      for (const form of [key, encoded, escaped]) {
+        const result = await collectWith({
+          collect: () => new Response(echo(offset, form), { status: 403 }),
+          env: { VERTEX_AGENT_API_KEY: key },
+        });
+        expect(result.code).toBe(1);
+        // The filler has no letter of the key, so any piece of a form would show here.
+        expect(result.stderr).not.toMatch(/a\/b|a%2Fb|%20d|c d|\\"g|"g"|%22g/u);
+        if (offset === 0) {
+          expect(result.stderr).toBe(
+            "golive collect failed: goLiveDrafts.collect returned HTTP 403: [key hidden] tail\n"
+          );
+        }
+      }
+    }
+    // The server repeats the key inside JSON: the escaped form is in the answer text.
+    const answered = await collectWith({
+      collect: () => json({ json: { code: "FORBIDDEN", key } }, 403),
+      env: { VERTEX_AGENT_API_KEY: key },
+    });
+    expect(answered.stderr).toBe(
+      'golive collect failed: goLiveDrafts.collect returned HTTP 403: {"json":{"code":"FORBIDDEN","key":"[key hidden]"}}\n'
+    );
+    // The key in a redirect address or a query, as an error text can carry it.
+    const failed = await collectWith({
+      env: { VERTEX_AGENT_API_KEY: key },
+      queue: () => Promise.reject(new Error(`GET /x?key=${encoded} failed`)),
+    });
+    expect(failed.stderr).toContain("GET /x?key=[key hidden] failed");
+  });
+
+  it("hides a key that has no URL-encoded form", async () => {
+    // Half a surrogate pair cannot be URL-encoded; the run must not fail on it.
+    const key = "lone-\ud800-surrogate-key";
+    const result = await collectWith({
+      env: { VERTEX_AGENT_API_KEY: key },
+      queue: () => Promise.reject(new Error(`bad key ${key}`)),
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("): bad key [key hidden]\n");
+    expect(result.stderr).not.toContain("surrogate");
+  });
+
   it("writes no key in any ordinary outcome", async () => {
     const outcomes = await Promise.all([
       collectWith(),
@@ -1107,6 +1247,67 @@ describe("golive collect: arguments and environment", () => {
       { VERTEX_ORIGIN: origin },
       "VERTEX_ORIGIN must be an https URL (http is accepted for 127.0.0.1, ::1 and localhost only); no request was made\n",
     ]),
+    ...[
+      "https://x@evil.example",
+      "https://vertex.example@evil.example",
+      "https://user:pw-0f-user@vertex.example",
+      "https://:pw-0f-user@vertex.example",
+      "http://user@127.0.0.1:3000",
+    ].map((origin): [Record<string, string>, string] => [
+      { VERTEX_ORIGIN: origin },
+      "VERTEX_ORIGIN must not carry a user name or a password; no request was made\n",
+    ]),
+    ...[
+      "https://vertex.example/drafts",
+      "https://vertex.example/drafts/",
+      "https://vertex.example//",
+      "https://vertex.example/api/orpc",
+      "https://vertex.example?x=1",
+      "https://vertex.example/?x=1",
+      "https://vertex.example#drafts",
+      "https://vertex.example/#drafts",
+      "http://localhost:3000/x",
+      "http://[::1]:3000/x",
+    ].map((origin): [Record<string, string>, string] => [
+      { VERTEX_ORIGIN: origin },
+      "VERTEX_ORIGIN must be an origin (scheme://host[:port]) without a path, a query or a fragment; no request was made\n",
+    ]),
+    // A text the URL parser rewrites: the request would go to another address than the one read.
+    ...(
+      [
+        ["http://127.1", "http://127.0.0.1"],
+        ["http://2130706433", "http://127.0.0.1"],
+        ["http://0x7f.1", "http://127.0.0.1"],
+        ["http://0177.0.0.1", "http://127.0.0.1"],
+        ["http://127.0.0.1.", "http://127.0.0.1"],
+        ["http://[0:0:0:0:0:0:0:1]", "http://[::1]"],
+        ["http://[::0001]:3000", "http://[::1]:3000"],
+        ["http://LOCALHOST:3000", "http://localhost:3000"],
+        ["http://localhost:80", "http://localhost"],
+        ["https://Vertex.Example", "https://vertex.example"],
+        ["HTTPS://vertex.example", "https://vertex.example"],
+        ["https://vertex.example:443", "https://vertex.example"],
+        ["https://%76ertex.example", "https://vertex.example"],
+        ["https://ver\ttex.example", "https://vertex.example"],
+        [" https://vertex.example", "https://vertex.example"],
+        ["https:vertex.example", "https://vertex.example"],
+        ["https:/vertex.example", "https://vertex.example"],
+        ["https://vertex.example/.", "https://vertex.example"],
+        ["https://vertex.example/?", "https://vertex.example"],
+        ["https://vertex.example/#", "https://vertex.example"],
+        ["https://@vertex.example", "https://vertex.example"],
+        ["https://:@vertex.example", "https://vertex.example"],
+      ] as const
+    ).map(([origin, read]): [Record<string, string>, string] => [
+      { VERTEX_ORIGIN: origin },
+      `VERTEX_ORIGIN is not written in its plain form: the URL parser reads it as ${read}. Write exactly that if it is the address you mean; no request was made\n`,
+    ]),
+    ...["http://localhost.", "http://localhost.:3000", "http://[::2]"].map(
+      (origin): [Record<string, string>, string] => [
+        { VERTEX_ORIGIN: origin },
+        "VERTEX_ORIGIN must be an https URL (http is accepted for 127.0.0.1, ::1 and localhost only); no request was made\n",
+      ]
+    ),
     ...["0", "-5", "1.5", "300s", "abc", "9999999999"].map(
       (timeout): [Record<string, string>, string] => [
         { GOLIVE_GENERATOR_TIMEOUT_MS: timeout },
@@ -1119,14 +1320,21 @@ describe("golive collect: arguments and environment", () => {
       const result = await collectWith({ env });
       expect(result.code).toBe(2);
       expect(result.stderr).toBe(message);
+      expect(result.stderr).not.toContain("pw-0f-user");
       expect(result.fetched).toEqual([]);
+      expect(result.ran).toEqual([]);
     }
   );
 
   it.each([
     ["http://127.0.0.1:3000", "http://127.0.0.1:3000"],
-    ["http://[::1]:3000/x", "http://[::1]:3000"],
+    ["http://127.0.0.1", "http://127.0.0.1"],
+    ["http://[::1]:3000", "http://[::1]:3000"],
+    ["http://[::1]:3000/", "http://[::1]:3000"],
     ["http://localhost:3000", "http://localhost:3000"],
+    ["http://localhost:3000/", "http://localhost:3000"],
+    ["https://vertex.example", "https://vertex.example"],
+    ["https://vertex.example/", "https://vertex.example"],
     ["https://vertex.example:8443", "https://vertex.example:8443"],
   ])("accepts the origin %s", async (origin, expected) => {
     const result = await collectWith({ env: { VERTEX_ORIGIN: origin } });
@@ -1144,7 +1352,7 @@ describe("golive collect: arguments and environment", () => {
 
   it("uses the origin of VERTEX_ORIGIN for the address and the origin header", async () => {
     const result = await collectWith({
-      env: { VERTEX_ORIGIN: `${ORIGIN}/drafts/` },
+      env: { VERTEX_ORIGIN: `${ORIGIN}/` },
     });
     expect(result.code).toBe(0);
     expect(result.fetched.map((call) => new URL(call.url).origin)).toEqual([
@@ -1189,12 +1397,14 @@ describe("golive collect: system access", () => {
       {
         cwd: root,
         env: { MARK: "é", PATH: process.env["PATH"] ?? "" },
+        maxOutputBytes: 1_000_000,
         stdin: "plan",
         timeoutMs: 30_000,
       }
     );
     expect(result).toEqual({
       code: 4,
+      overflow: null,
       signal: null,
       stderr: "warn\n",
       stdout: `${root}|é|no key|plan`,
@@ -1207,11 +1417,13 @@ describe("golive collect: system access", () => {
     const result = await runProcess("true", [], {
       cwd: tmpdir(),
       env: { PATH: process.env["PATH"] ?? "" },
+      maxOutputBytes: 1_000_000,
       stdin: "x".repeat(4 * 1024 * 1024),
       timeoutMs: 30_000,
     });
     expect(result).toEqual({
       code: 0,
+      overflow: null,
       signal: null,
       stderr: "",
       stdout: "",
@@ -1223,11 +1435,13 @@ describe("golive collect: system access", () => {
     const options = {
       cwd: tmpdir(),
       env: { PATH: process.env["PATH"] ?? "" },
+      maxOutputBytes: 1_000_000,
       stdin: "",
       timeoutMs: 30_000,
     };
     expect(await runProcess("sh", ["-c", "kill -9 $$"], options)).toEqual({
       code: 1,
+      overflow: null,
       signal: "SIGKILL",
       stderr: "",
       stdout: "",
@@ -1252,6 +1466,7 @@ describe("golive collect: system access", () => {
       {
         cwd: tmpdir(),
         env: { PATH: process.env["PATH"] ?? "" },
+        maxOutputBytes: 1_000_000,
         stdin: "",
         timeoutMs: 300,
       }
@@ -1260,6 +1475,79 @@ describe("golive collect: system access", () => {
     expect(result.signal).toBe("SIGKILL");
     expect(result.code).toBe(1);
     expect(Date.now() - started).toBeLessThan(10_000);
+  });
+
+  it.each([
+    ["stdout", "yes 0123456789"],
+    ["stderr", "yes 0123456789 >&2"],
+    // The command starts a second process that keeps writing after the kill.
+    ["stdout", "yes 0123456789 & yes 0123456789"],
+  ] as const)(
+    "kills a command that never stops writing to %s once it passes the output limit (%s)",
+    async (stream, script) => {
+      const started = Date.now();
+      const result = await runProcess("sh", ["-c", script], {
+        cwd: tmpdir(),
+        env: { PATH: process.env["PATH"] ?? "" },
+        maxOutputBytes: 200_000,
+        stdin: "",
+        timeoutMs: 30_000,
+      });
+      expect(result.overflow).toBe(stream);
+      expect(result.timedOut).toBe(false);
+      expect(result.signal).toBe("SIGKILL");
+      expect(result.code).toBe(1);
+      // What was kept is never more than the limit.
+      expect(Buffer.byteLength(result[stream])).toBeLessThanOrEqual(200_000);
+      expect(Date.now() - started).toBeLessThan(10_000);
+    }
+  );
+
+  it("stops a command that prints more than the limit of a real run and then exits", async () => {
+    const options = {
+      cwd: tmpdir(),
+      env: { PATH: process.env["PATH"] ?? "" },
+      maxOutputBytes: GOLIVE_GENERATOR_OUTPUT_MAX_BYTES,
+      stdin: "",
+      timeoutMs: 30_000,
+    };
+    const over = await runProcess(
+      "sh",
+      ["-c", `head -c ${GOLIVE_GENERATOR_OUTPUT_MAX_BYTES + 1} /dev/zero`],
+      options
+    );
+    expect(over.overflow).toBe("stdout");
+    expect(Buffer.byteLength(over.stdout)).toBeLessThanOrEqual(
+      GOLIVE_GENERATOR_OUTPUT_MAX_BYTES
+    );
+    // Exactly the limit is not over it.
+    const full = await runProcess(
+      "sh",
+      ["-c", `head -c ${GOLIVE_GENERATOR_OUTPUT_MAX_BYTES} /dev/zero`],
+      options
+    );
+    expect(full.overflow).toBeNull();
+    expect(full.code).toBe(0);
+    expect(full.stdout).toHaveLength(GOLIVE_GENERATOR_OUTPUT_MAX_BYTES);
+  });
+
+  it("counts the output limit in bytes, each stream by itself", async () => {
+    const run = (maxOutputBytes: number) =>
+      runProcess("sh", ["-c", "printf 'ééé'; printf 'abcdef' >&2"], {
+        cwd: tmpdir(),
+        env: { PATH: process.env["PATH"] ?? "" },
+        maxOutputBytes,
+        stdin: "",
+        timeoutMs: 30_000,
+      });
+    // Three letters of two bytes each on stdout, six bytes on stderr.
+    expect(await run(6)).toMatchObject({
+      code: 0,
+      overflow: null,
+      stderr: "abcdef",
+      stdout: "ééé",
+    });
+    expect((await run(5)).overflow).not.toBeNull();
   });
 
   it("gives the run the process arguments, streams, command runner and network", async () => {
