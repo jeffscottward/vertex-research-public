@@ -376,6 +376,31 @@ describe("sizeDrafts", () => {
     });
   });
 
+  it("gives no size and no legs to a draft whose strikes are the wrong way round", () => {
+    // The width has no sign, so each of the first four would be sized as the opposite position.
+    const wrong = [
+      ["callDebitVertical", 105, 100],
+      ["putCreditVertical", 100, 95],
+      ["putDebitVertical", 100, 105],
+      ["callCreditVertical", 100, 105],
+      // Two equal strikes are no vertical.
+      ["callDebitVertical", 100, 100],
+    ] as const;
+    for (const [structure, longStrike, shortStrike] of wrong) {
+      const bad = draft("bad", { longStrike, shortStrike, structure });
+      const message = `SPY ${structure}: long strike ${longStrike} and short strike ${shortStrike} are the wrong way round`;
+      // With and without an account value, and next to a draft that is in order: nothing is
+      // returned, so no draft of the call gets a size.
+      for (const nlv of [NLV, null])
+        expect(() => sizeDrafts(PLAN, [draft("d1"), bad], nlv)).toThrow(
+          message
+        );
+      expect(() => buildCombo({ ...bad, expiry: EXPIRY }, 1, 1.25)).toThrow(
+        message
+      );
+    }
+  });
+
   it("shows no money value, and never 0, when the account value is unavailable", () => {
     for (const nlv of [null, 0, -5]) {
       const sized = sizeDrafts(

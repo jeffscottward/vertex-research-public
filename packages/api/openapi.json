@@ -108588,6 +108588,86 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "approvedOrder": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "legs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expiry": {
+                                    "pattern": "^\\d{8}$",
+                                    "type": "string"
+                                  },
+                                  "ratio": {
+                                    "maximum": 10,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  },
+                                  "right": {
+                                    "enum": [
+                                      "C",
+                                      "P"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "side": {
+                                    "enum": [
+                                      "BUY",
+                                      "SELL"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "strike": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 100000,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "expiry",
+                                  "strike",
+                                  "right",
+                                  "side",
+                                  "ratio"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 6,
+                              "minItems": 2,
+                              "type": "array"
+                            },
+                            "limitPrice": {
+                              "maximum": 100000,
+                              "minimum": -100000,
+                              "type": "number"
+                            },
+                            "quantity": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 10000,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "symbol": {
+                              "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "symbol",
+                            "quantity",
+                            "limitPrice",
+                            "legs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "createdAt": {
                       "format": "date-time",
                       "type": "string",
@@ -109122,6 +109202,7 @@
                     "id",
                     "kind",
                     "longStrike",
+                    "approvedOrder",
                     "nodeBadgeAtDecision",
                     "notApprovable",
                     "notes",
@@ -109702,6 +109783,86 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "approvedOrder": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "legs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expiry": {
+                                    "pattern": "^\\d{8}$",
+                                    "type": "string"
+                                  },
+                                  "ratio": {
+                                    "maximum": 10,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  },
+                                  "right": {
+                                    "enum": [
+                                      "C",
+                                      "P"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "side": {
+                                    "enum": [
+                                      "BUY",
+                                      "SELL"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "strike": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 100000,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "expiry",
+                                  "strike",
+                                  "right",
+                                  "side",
+                                  "ratio"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 6,
+                              "minItems": 2,
+                              "type": "array"
+                            },
+                            "limitPrice": {
+                              "maximum": 100000,
+                              "minimum": -100000,
+                              "type": "number"
+                            },
+                            "quantity": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 10000,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "symbol": {
+                              "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "symbol",
+                            "quantity",
+                            "limitPrice",
+                            "legs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "createdAt": {
                       "format": "date-time",
                       "type": "string",
@@ -110236,6 +110397,7 @@
                     "id",
                     "kind",
                     "longStrike",
+                    "approvedOrder",
                     "nodeBadgeAtDecision",
                     "notApprovable",
                     "notes",
@@ -111547,10 +111709,93 @@
                       ],
                       "type": "object"
                     },
+                    "canDecide": {
+                      "type": "boolean"
+                    },
                     "drafts": {
                       "items": {
                         "additionalProperties": false,
                         "properties": {
+                          "approvedOrder": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "legs": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "expiry": {
+                                          "pattern": "^\\d{8}$",
+                                          "type": "string"
+                                        },
+                                        "ratio": {
+                                          "maximum": 10,
+                                          "minimum": 1,
+                                          "type": "integer"
+                                        },
+                                        "right": {
+                                          "enum": [
+                                            "C",
+                                            "P"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "side": {
+                                          "enum": [
+                                            "BUY",
+                                            "SELL"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "strike": {
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 100000,
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "expiry",
+                                        "strike",
+                                        "right",
+                                        "side",
+                                        "ratio"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "maxItems": 6,
+                                    "minItems": 2,
+                                    "type": "array"
+                                  },
+                                  "limitPrice": {
+                                    "maximum": 100000,
+                                    "minimum": -100000,
+                                    "type": "number"
+                                  },
+                                  "quantity": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 10000,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  "symbol": {
+                                    "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "symbol",
+                                  "quantity",
+                                  "limitPrice",
+                                  "legs"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "createdAt": {
                             "format": "date-time",
                             "type": "string",
@@ -112085,6 +112330,7 @@
                           "id",
                           "kind",
                           "longStrike",
+                          "approvedOrder",
                           "nodeBadgeAtDecision",
                           "notApprovable",
                           "notes",
@@ -112212,6 +112458,8 @@
                             "evidenceUrl": {
                               "anyOf": [
                                 {
+                                  "maxLength": 400,
+                                  "pattern": "^https:\\/\\/[^/\\s]",
                                   "type": "string"
                                 },
                                 {
@@ -112265,6 +112513,8 @@
                             "ownerMessageUrl": {
                               "anyOf": [
                                 {
+                                  "maxLength": 200,
+                                  "pattern": "^https:\\/\\/discord\\.com\\/channels\\/\\d+\\/\\d+\\/\\d+$",
                                   "type": "string"
                                 },
                                 {
@@ -112439,6 +112689,7 @@
                     "marketNotes",
                     "node",
                     "plan",
+                    "canDecide",
                     "sendsOrders",
                     "tradingDay"
                   ],

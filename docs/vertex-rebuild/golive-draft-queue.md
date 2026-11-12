@@ -1,6 +1,6 @@
 # Go-live draft queue
 
-Updated: 2026-11-11. The go-live draft queue lists the defined-risk vertical orders that the allocation plan in force wants for one trading day. Vertex computes each draft; the owner approves or rejects it.
+Updated: 2026-11-12. The go-live draft queue lists the defined-risk vertical orders that the allocation plan in force wants for one trading day. Vertex computes each draft; the owner approves or rejects it.
 
 ## Records only
 
@@ -8,7 +8,7 @@ The queue stores decisions. It sends nothing.
 
 - The API has four procedures: `goLiveDrafts.queue`, `goLiveDrafts.collect`, `goLiveDrafts.approve` and `goLiveDrafts.reject`. There is no send route.
 - The service (`packages/api/src/server/golive-drafts.ts`) imports no order route, no order gateway and no confirm module. A test reads the source and fails on such an import.
-- An approval is a stored owner decision with the node badge read at that moment. The owner places an approved order through the existing order screen (Portfolio > Orders).
+- An approval is a stored owner decision: the exact order that was approved (`approvedOrder`) and the node badge read at that moment. The owner places an approved order through the existing order screen: the "Vertex orders" tab of the Portfolio page (`/portfolio`).
 - Every queue answer carries `sendsOrders: false`.
 
 ## Access
@@ -19,9 +19,15 @@ The queue stores decisions. It sends nothing.
 | `collect` | An operator's agent API key with write access (the rig generator). A session is refused. |
 | `approve`, `reject` | The owner in a browser session: on the operator list and with the admin role. Agent API keys are refused. |
 
-An agent API key never learns the account value. For a key caller the queue does not read the account: `account.netLiquidation` is empty with the reason `account value is not shown to API keys`, every draft has the sizing reason `nlv_unavailable`, and no budget, limit, max loss or order is returned. Sessions (operator and agent viewer) see the full queue.
+An agent API key never learns the account value. For a key caller the queue does not read the account: `account.netLiquidation` is empty with the reason `account value is not shown to API keys`, every draft has the sizing reason `nlv_unavailable`, and no budget, limit, max loss or order is returned.
+
+A key caller also gets no approved order: `approvedOrder` is empty for a key, also on an approved draft. The quantity of an approved order was sized from the account value, and a key sees the plan's risk percentages, so quantity × limit would bound the account value. Sessions (owner, operator and agent viewer) see the full queue, with the approved order.
+
+`canDecide` in the queue answer tells the caller whether it may approve and reject. It is true only for the owner in a browser session. It is false for an operator without the admin role, for an agent viewer and for every agent API key. The value comes from the same check that `approve` and `reject` run. It is information for the page; `approve` and `reject` run the check again on every call.
 
 No procedure approves a plan. The plan record is written by the seed script.
+
+The plan's two links are checked again when the queue is read: the owner link must be a Discord message link and the evidence link must start with the text `https://`. The seed script checks this before it writes. If a stored plan still fails the check, `queue` answers `STORAGE_ERROR` and names the plan, its version and the failing fields, without the stored value. It does not return the plan, so a bad link never reaches the page. `approve` refuses in the same way and stores nothing. `reject` still works. To repair, write the plan again with the seed script (`scripts/golive/seed-plan.ts`).
 
 ## Trading day
 
@@ -44,6 +50,31 @@ proposed -> expired
 
 `collect` creates proposed drafts and expires proposed drafts that the generator no longer wants. `approve` and `reject` decide a proposed draft once. Approved, rejected and expired drafts never change.
 
+## Approved order
+
+`approve` stores the approved order with the decision, in the same database statement that moves the draft from proposed to approved. The stored order is the order the server sized at that moment: symbol, quantity, limit and legs. The order in the request is only compared with it (see Why a draft cannot be approved). `reject` stores no order. The table check `golive_drafts_approved_order_check` requires an order on an approved draft and allows none on any other draft.
+
+The queue returns the stored order as `approvedOrder`. It is empty for a proposed, rejected or expired draft, and for an agent API key caller (see Access). The page shows it as the approved order.
+
+`sizing` and `order` are still computed at every read, also for an approved draft. They are the current indicative sizing. They can differ from `approvedOrder` later, for example when the account value has changed. The approved order does not change.
+
+If an approved draft has no stored order, or a stored value that is not an order, `queue` answers `STORAGE_ERROR` and names the draft. `approve` refuses in the same way. The table check prevents this, so it can only follow a manual change of the row.
+
+## What a batch must hold
+
+`collect` refuses the whole batch when one candidate fails a check. Nothing is stored and nothing is expired.
+
+- The trading day is the order session day (see Trading day).
+- The plan id and version are those of the plan in force.
+- The sleeve is in the plan, the symbol belongs to the sleeve, and the structure is the sleeve's structure.
+- The strikes are the right way round for the structure. A call debit vertical and a put credit vertical buy the lower strike and sell the higher one. A put debit vertical and a call credit vertical buy the higher strike and sell the lower one.
+- The expiry is a real calendar day (`20261399` is refused) and is after the trading day.
+- No quote carries the label `ibkr_live` (see Live quotes do not exist yet).
+
+The strike rule exists because the limit and the max loss use the strike width without its sign. A call debit vertical with swapped strikes is really a call credit vertical with another max loss, and it would be sized as the position it is not.
+
+A stored draft with its strikes the wrong way round gets no size and no order. No sizing reason says "wrong strikes", so the sizing fails on it instead of giving a reason that is not true. `queue` and `approve` answer `STORAGE_ERROR` and name the draft. No draft of that trading day is listed until the row is corrected in the database, also when the draft is rejected or expired. `reject` stores the rejection and then answers the same error with the words "The rejection of draft ... was stored". The rule in `collect` prevents such a row, so it can only be older than the rule or changed by hand.
+
 ## Limit price
 
 The limit comes from the mid prices of the two legs of the stored quote.
@@ -54,7 +85,7 @@ The limit comes from the mid prices of the two legs of the stored quote.
 
 ## Sizing
 
-Quantity, limit and max loss are computed when the queue is read, from the account value (NLV) of the portfolio monitor. They are never stored.
+Quantity, limit and max loss are computed when the queue is read, from the account value (NLV) of the portfolio monitor. They are not stored. The one stored order is the order of an approval (see Approved order).
 
 ```text
 budget              = positionRiskPct% × NLV
@@ -114,6 +145,8 @@ Limits of this version:
 
 No code reads option quotes from IBKR. The rig generator sends delayed indicative quotes (`yahoo_delayed_snapshot`). Such a draft is listed with its indicative limit and size, and carries `NO_LIVE_IBKR_QUOTE`. So no draft can be approved until a live IBKR option quote source exists.
 
+`approve` trusts the label `ibkr_live` on a stored quote. In this version nothing can give that label truthfully, so `collect` refuses a batch in which a quote carries it (`BAD_REQUEST`). Nothing is stored and nothing is expired. The refusal is a default in the server code, not an environment setting. It is to be lifted in the same change that adds a live IBKR option quote source.
+
 ## Pre-check
 
 `preCheck.webFinalGate` is the web final order gate run dry on the sized order. It is empty when the quantity is 0.
@@ -123,7 +156,7 @@ No code reads option quotes from IBKR. The rig generator sends delayed indicativ
 - Held positions are not read: the order is checked as a new position.
 - The kill switch and the OPTIONS_ONLY setting are not read here. The order screen checks them when an order is sent.
 
-The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so the real order review in Portfolio > Orders can still refuse an order that the pre-check allowed.
+The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so the real order review in the "Vertex orders" tab of the Portfolio page (`/portfolio`) can still refuse an order that the pre-check allowed.
 
 `preCheck.enginePolicy` is always `not_evaluated_not_in_web_order_path`: the engine policy (`arm_gate.py`) is not part of the web order path.
 

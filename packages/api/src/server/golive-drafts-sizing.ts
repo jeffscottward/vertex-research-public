@@ -1,9 +1,10 @@
-import type {
-  GoLiveDraftOutput,
-  GoLivePlanLimits,
-  GoLivePlanStatus,
-  GoLiveQuote,
-  GoLiveSizing,
+import {
+  type GoLiveDraftOutput,
+  type GoLivePlanLimits,
+  type GoLivePlanStatus,
+  type GoLiveQuote,
+  type GoLiveSizing,
+  goLiveStrikesFitStructure,
 } from "../contracts/golive-drafts.ts";
 import type { VertexComboInput } from "../contracts/vertex-orders.ts";
 import { formatDay, parseDay } from "../options-engine/calendar.ts";
@@ -91,6 +92,31 @@ export const strikeWidth = (
 ): number => Math.abs(spread.longStrike - spread.shortStrike);
 
 /**
+ * Throws when the strikes are the wrong way round for the structure (goLiveStrikesFitStructure).
+ * The limit and the max loss use the width without its sign, so such a draft would get the
+ * size of another position: a call debit vertical with swapped strikes is a call credit
+ * vertical. collect refuses it; a stored row that has it gets no size and no legs. No sizing
+ * reason says "wrong strikes", so this fails instead of answering with a reason that is not true.
+ */
+const assertStrikesFitStructure = (
+  spread: Pick<
+    GoLiveSpread,
+    "longStrike" | "shortStrike" | "structure" | "symbol"
+  >
+): void => {
+  if (
+    !goLiveStrikesFitStructure(
+      spread.structure,
+      spread.longStrike,
+      spread.shortStrike
+    )
+  )
+    throw new Error(
+      `${spread.symbol} ${spread.structure}: long strike ${spread.longStrike} and short strike ${spread.shortStrike} are the wrong way round`
+    );
+};
+
+/**
  * The two-leg combo of one draft: ratio 1, one expiry. A debit vertical lists the bought leg
  * first, a credit vertical the sold leg. limitPrice: positive = debit, negative = credit.
  */
@@ -99,6 +125,7 @@ export const buildCombo = (
   quantity: number,
   limitPrice: number
 ): VertexComboInput => {
+  assertStrikesFitStructure(draft);
   const right =
     draft.structure === "callDebitVertical" ||
     draft.structure === "callCreditVertical"
@@ -233,6 +260,8 @@ export const sizeDrafts = <T extends GoLiveSizingDraft>(
   drafts: readonly T[],
   nlv: number | null
 ): Readonly<{ draft: T; sizing: GoLiveSizing }>[] => {
+  // Before anything else, also before the account value is looked at: see the function.
+  for (const draft of drafts) assertStrikesFitStructure(draft);
   if (nlv === null || !(nlv > 0))
     return drafts.map((draft) => ({
       draft,

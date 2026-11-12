@@ -1,5 +1,5 @@
 {
-  "id": "25da8aab-342f-4bb3-a459-dbcf3b9e01cb",
+  "id": "e5042968-c16e-4f1c-814b-f13bf586674c",
   "prevId": "8734f81a-3bbc-4c70-942b-8fc9f13cd0d0",
   "version": "7",
   "dialect": "postgresql",
@@ -5105,10 +5105,16 @@
       "name": "golive_draft_runs",
       "schema": "",
       "columns": {
-        "trading_day": {
-          "name": "trading_day",
-          "type": "date",
-          "primaryKey": true,
+        "candidate_count": {
+          "name": "candidate_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
           "notNull": true
         },
         "plan_id": {
@@ -5123,16 +5129,10 @@
           "primaryKey": false,
           "notNull": true
         },
-        "generated_at": {
-          "name": "generated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "candidate_count": {
-          "name": "candidate_count",
-          "type": "integer",
-          "primaryKey": false,
+        "trading_day": {
+          "name": "trading_day",
+          "type": "date",
+          "primaryKey": true,
           "notNull": true
         }
       },
@@ -5163,71 +5163,36 @@
       "name": "golive_drafts",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "plan_id": {
-          "name": "plan_id",
-          "type": "text",
+        "approved_order": {
+          "name": "approved_order",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "plan_version": {
-          "name": "plan_version",
-          "type": "integer",
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "now()"
         },
-        "trading_day": {
-          "name": "trading_day",
-          "type": "date",
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "kind": {
-          "name": "kind",
+        "decided_by": {
+          "name": "decided_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "sleeve_key": {
-          "name": "sleeve_key",
+        "decision_note": {
+          "name": "decision_note",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
-        },
-        "symbol": {
-          "name": "symbol",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "structure": {
-          "name": "structure",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expiry": {
-          "name": "expiry",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "long_strike": {
-          "name": "long_strike",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "short_strike": {
-          "name": "short_strike",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "entry_basis": {
           "name": "entry_basis",
@@ -5241,15 +5206,57 @@
           "primaryKey": false,
           "notNull": false
         },
+        "exit_rule": {
+          "name": "exit_rule",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiry": {
+          "name": "expiry",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "long_strike": {
+          "name": "long_strike",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "node_badge_at_decision": {
+          "name": "node_badge_at_decision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "parent_draft_id": {
           "name": "parent_draft_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "signal_facts": {
-          "name": "signal_facts",
-          "type": "jsonb",
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_version": {
+          "name": "plan_version",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -5259,8 +5266,20 @@
           "primaryKey": false,
           "notNull": false
         },
-        "exit_rule": {
-          "name": "exit_rule",
+        "short_strike": {
+          "name": "short_strike",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signal_facts": {
+          "name": "signal_facts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sleeve_key": {
+          "name": "sleeve_key",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -5271,36 +5290,23 @@
           "primaryKey": false,
           "notNull": true
         },
-        "decided_by": {
-          "name": "decided_by",
+        "structure": {
+          "name": "structure",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
-        "decided_at": {
-          "name": "decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decision_note": {
-          "name": "decision_note",
+        "symbol": {
+          "name": "symbol",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
-        "node_badge_at_decision": {
-          "name": "node_badge_at_decision",
-          "type": "text",
+        "trading_day": {
+          "name": "trading_day",
+          "type": "date",
           "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         },
         "updated_at": {
           "name": "updated_at",
@@ -5353,6 +5359,10 @@
         "golive_drafts_decision_check": {
           "name": "golive_drafts_decision_check",
           "value": "(\"golive_drafts\".\"state\" in ('approved', 'rejected')) = (\"golive_drafts\".\"decided_by\" is not null) and (\"golive_drafts\".\"state\" in ('approved', 'rejected')) = (\"golive_drafts\".\"decided_at\" is not null)"
+        },
+        "golive_drafts_approved_order_check": {
+          "name": "golive_drafts_approved_order_check",
+          "value": "(\"golive_drafts\".\"state\" = 'approved') = (\"golive_drafts\".\"approved_order\" is not null) and (\"golive_drafts\".\"approved_order\" is null or jsonb_typeof(\"golive_drafts\".\"approved_order\") = 'object')"
         }
       },
       "isRLSEnabled": false
@@ -5361,50 +5371,8 @@
       "name": "golive_plans",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "approval_basis": {
           "name": "approval_basis",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "owner_message_url": {
-          "name": "owner_message_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evidence_url": {
-          "name": "evidence_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approved_by": {
-          "name": "approved_by",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -5415,29 +5383,11 @@
           "primaryKey": false,
           "notNull": false
         },
-        "retired_at": {
-          "name": "retired_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "limits": {
-          "name": "limits",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sleeves": {
-          "name": "sleeves",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "exit_rule": {
-          "name": "exit_rule",
+        "approved_by": {
+          "name": "approved_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -5446,12 +5396,72 @@
           "notNull": true,
           "default": "now()"
         },
+        "evidence_url": {
+          "name": "evidence_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exit_rule": {
+          "name": "exit_rule",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "limits": {
+          "name": "limits",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_message_url": {
+          "name": "owner_message_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sleeves": {
+          "name": "sleeves",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {

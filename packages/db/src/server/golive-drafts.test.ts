@@ -7,6 +7,8 @@ import { goLiveDraftRuns, goLiveDrafts, goLivePlans } from "../schema/index.ts";
 import type { Database } from "./client.ts";
 import {
   createGoLiveDraftsRepository,
+  type GoLiveApprovedOrderInput,
+  type GoLiveDecideInput,
   type GoLiveDraftCandidateInput,
   GoLiveDraftConflictError,
   GoLiveDraftNotFoundError,
@@ -166,7 +168,19 @@ const candidate = (
   ...overrides,
 });
 
+// The order of the SPY draft below: 16 call debit spreads at 1.25.
+const ORDER = {
+  legs: [
+    { expiry: "20270115", ratio: 1, right: "C", side: "BUY", strike: 600 },
+    { expiry: "20270115", ratio: 1, right: "C", side: "SELL", strike: 620.5 },
+  ],
+  limitPrice: 1.25,
+  quantity: 16,
+  symbol: "SPY",
+} as const satisfies GoLiveApprovedOrderInput;
+
 const draftRow = (overrides: Record<string, unknown> = {}) => ({
+  approvedOrder: null,
   createdAt: NOW,
   decidedAt: null,
   decidedBy: null,
@@ -360,10 +374,20 @@ describe("createGoLiveDraftsRepository", () => {
         source: "ibkr_live",
       },
     });
-    const double = createDouble([[row]]);
-    await expect(
-      repositoryFor(double.database).listDrafts({ tradingDay: DAY })
-    ).resolves.toEqual([row]);
+    // An approved row comes back with the order that was stored with the approval.
+    const approved = draftRow({
+      approvedOrder: ORDER,
+      decidedAt: NOW,
+      decidedBy: "owner-1",
+      id: "draft-2",
+      state: "approved",
+    });
+    const double = createDouble([[row, approved]]);
+    const listed = await repositoryFor(double.database).listDrafts({
+      tradingDay: DAY,
+    });
+    expect(listed).toEqual([row, approved]);
+    expect(listed.map((draft) => draft.approvedOrder)).toEqual([null, ORDER]);
     const [select] = double.operations;
     expect(select?.table).toBe(goLiveDrafts);
     expect(query(select?.where)).toEqual({
@@ -616,8 +640,9 @@ describe("createGoLiveDraftsRepository", () => {
     );
   });
 
-  it("records a decision only on a draft that is still proposed", async () => {
+  it("stores the approved order in the statement that approves a proposed draft", async () => {
     const decided = draftRow({
+      approvedOrder: ORDER,
       decidedAt: NOW,
       decidedBy: "owner-1",
       decisionNote: "ok",
@@ -625,21 +650,27 @@ describe("createGoLiveDraftsRepository", () => {
       state: "approved",
     });
     const double = createDouble([[decided]]);
-    await expect(
-      repositoryFor(double.database).decide({
-        decidedBy: "owner-1",
-        decision: "approved",
-        id: "draft-1",
-        nodeBadge: "running-disarmed",
-        note: "ok",
-      })
-    ).resolves.toEqual(decided);
+    // A field that is not part of an order is not stored.
+    const sent = { ...ORDER, clientNote: "not an order field" };
+    const approved = await repositoryFor(double.database).decide({
+      approvedOrder: sent,
+      decidedBy: "owner-1",
+      decision: "approved",
+      id: "draft-1",
+      nodeBadge: "running-disarmed",
+      note: "ok",
+    });
+    expect(approved).toEqual(decided);
+    expect(approved.approvedOrder).toEqual(ORDER);
+    // One statement and no other: the order is never written apart from the state change.
     expect(double.operations).toHaveLength(1);
+    expect(double.transactions).toHaveLength(0);
     const [update] = double.operations;
     expect(update?.kind).toBe("update");
     expect(update?.table).toBe(goLiveDrafts);
     expect(update?.returning).toBe(true);
     expect(update?.set).toEqual({
+      approvedOrder: ORDER,
       decidedAt: NOW,
       decidedBy: "owner-1",
       decisionNote: "ok",
@@ -647,10 +678,79 @@ describe("createGoLiveDraftsRepository", () => {
       state: "approved",
       updatedAt: NOW,
     });
+    // A copy: changing the caller's object later cannot change what was stored. The double
+    // records set() as unknown; the toEqual above proved this shape.
+    const written = update?.set as { approvedOrder: GoLiveApprovedOrderInput };
+    expect(written.approvedOrder).not.toBe(sent);
+    expect(written.approvedOrder.legs).not.toBe(sent.legs);
+    expect(written.approvedOrder.legs[0]).not.toBe(sent.legs[0]);
+    // Decided once: only a draft that is still proposed is matched.
     expect(query(update?.where)).toEqual({
       params: ["draft-1", "proposed"],
       sql: '("golive_drafts"."id" = $1 and "golive_drafts"."state" = $2)',
     });
+  });
+
+  it("stores no order with a rejection", async () => {
+    const decided = draftRow({
+      decidedAt: NOW,
+      decidedBy: "owner-1",
+      decisionNote: "not now",
+      state: "rejected",
+    });
+    const double = createDouble([[decided]]);
+    const rejected = await repositoryFor(double.database).decide({
+      decidedBy: "owner-1",
+      decision: "rejected",
+      id: "draft-1",
+      nodeBadge: null,
+      note: "not now",
+    });
+    expect(rejected).toEqual(decided);
+    expect(rejected.approvedOrder).toBeNull();
+    expect(double.operations).toHaveLength(1);
+    expect(double.operations[0]?.set).toEqual({
+      approvedOrder: null,
+      decidedAt: NOW,
+      decidedBy: "owner-1",
+      decisionNote: "not now",
+      nodeBadgeAtDecision: null,
+      state: "rejected",
+      updatedAt: NOW,
+    });
+    expect(query(double.operations[0]?.where)).toEqual({
+      params: ["draft-1", "proposed"],
+      sql: '("golive_drafts"."id" = $1 and "golive_drafts"."state" = $2)',
+    });
+  });
+
+  it("has no input type for an approval without an order or a rejection with one", async () => {
+    const base = {
+      decidedBy: "owner-1",
+      id: "draft-1",
+      nodeBadge: null,
+      note: null,
+    };
+    // @ts-expect-error an approval needs approvedOrder
+    const withoutOrder: GoLiveDecideInput = { ...base, decision: "approved" };
+    // @ts-expect-error a rejection takes no approvedOrder
+    const withOrder: GoLiveDecideInput = {
+      ...base,
+      approvedOrder: ORDER,
+      decision: "rejected",
+    };
+    // A caller that gets past the types (plain JavaScript) writes nothing for an approval
+    // without an order; the table check golive_drafts_approved_order_check is the last guard.
+    const double = createDouble([[draftRow()]]);
+    await expect(
+      repositoryFor(double.database).decide(withoutOrder)
+    ).rejects.toThrow();
+    expect(double.operations).toHaveLength(0);
+    // A rejection that carries an order by mistake still stores none.
+    await repositoryFor(double.database).decide(withOrder);
+    expect(double.operations[0]?.set).toEqual(
+      expect.objectContaining({ approvedOrder: null, state: "rejected" })
+    );
   });
 
   it("reports an unknown draft and a draft that is no longer proposed differently", async () => {

@@ -19,8 +19,9 @@ import {
 //
 // Access: plan and draft reads need an operator. approve and reject need the owner in a browser
 // session (agent API keys are refused). collect is the rig generator's write (operator write key).
-// No procedure approves a plan: the plan record is written by scripts/golive/seed-plan.ts, which
-// needs the owner message link and the evidence link.
+// No procedure approves a plan: the plan record is written by scripts/golive/seed-plan.ts. An
+// approved plan always needs the owner message link; a plan approved by delegation also needs the
+// evidence link (for a plain owner decision the owner's message is the evidence).
 
 export const GOLIVE_PLAN_STATUS_VALUES = [
   "proposed",
@@ -114,7 +115,22 @@ const PctSchema = z.number().finite().positive().max(100);
 const SymbolSchema = z
   .string()
   .regex(/^[A-Z][A-Z0-9.]{0,9}$/u, "Symbol must be 1-10 letters");
-const ExpirySchema = z.string().regex(/^\d{8}$/u, "Expiry must be YYYYMMDD");
+/** True when YYYYMMDD names a real calendar day (20261399 and 20260230 do not). */
+const isCalendarDay = (yyyymmdd: string): boolean => {
+  const year = Number(yyyymmdd.slice(0, 4));
+  const month = Number(yyyymmdd.slice(4, 6));
+  const day = Number(yyyymmdd.slice(6, 8));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+const ExpirySchema = z
+  .string()
+  .regex(/^\d{8}$/u, "Expiry must be YYYYMMDD")
+  .refine(isCalendarDay, { message: "Expiry must be a real calendar day" });
 const StrikeSchema = z.number().finite().positive().max(100_000);
 // A message link, not a channel link: /channels/<guild>/<channel>/<message>.
 const OwnerMessageUrlSchema = z
@@ -124,7 +140,12 @@ const OwnerMessageUrlSchema = z
     /^https:\/\/discord\.com\/channels\/\d+\/\d+\/\d+$/u,
     "Owner link must be a Discord message link"
   );
-const EvidenceUrlSchema = z.url({ protocol: /^https$/u }).max(400);
+// The "https://" prefix is checked as text: the URL parser alone accepts "https:example.com",
+// which a browser resolves as a relative link on the app's own origin.
+const EvidenceUrlSchema = z
+  .url({ protocol: /^https$/u })
+  .max(400)
+  .regex(/^https:\/\/[^/\s]/u, "Evidence link must start with https://");
 
 export const GoLivePlanStatusSchema = z.enum(GOLIVE_PLAN_STATUS_VALUES);
 export const GoLiveStructureSchema = z.enum(GOLIVE_STRUCTURE_VALUES);
@@ -167,12 +188,12 @@ export const GoLivePlanSchema = z
     approvedAt: z.date().nullable(),
     approvedBy: z.string().nullable(),
     createdAt: z.date(),
-    evidenceUrl: z.string().nullable(),
+    evidenceUrl: EvidenceUrlSchema.nullable(),
     exitRule: z.literal(GOLIVE_EXIT_RULE),
     id: z.string().min(1),
     limits: GoLivePlanLimitsSchema,
     name: z.string(),
-    ownerMessageUrl: z.string().nullable(),
+    ownerMessageUrl: OwnerMessageUrlSchema.nullable(),
     retiredAt: z.date().nullable(),
     sleeves: z.array(GoLivePlanSleeveSchema).min(1).max(20),
     status: GoLivePlanStatusSchema,
@@ -233,6 +254,28 @@ export const GoLivePlanSeedSchema = z
     }
   });
 
+// Which strike the long leg holds. A bull vertical (call debit, put credit) buys the lower strike
+// and sells the higher one; a bear vertical (put debit, call credit) buys the higher strike and
+// sells the lower one. The max loss arithmetic is only right for this orientation: a call debit
+// vertical with the strikes swapped is a call credit vertical with another max loss.
+const LONG_STRIKE_IS_LOWER: Readonly<
+  Record<(typeof GOLIVE_STRUCTURE_VALUES)[number], boolean>
+> = {
+  callCreditVertical: false,
+  callDebitVertical: true,
+  putCreditVertical: true,
+  putDebitVertical: false,
+};
+/** True when the two strikes are different and the right way round for the structure. */
+export const goLiveStrikesFitStructure = (
+  structure: (typeof GOLIVE_STRUCTURE_VALUES)[number],
+  longStrike: number,
+  shortStrike: number
+): boolean =>
+  LONG_STRIKE_IS_LOWER[structure]
+    ? longStrike < shortStrike
+    : longStrike > shortStrike;
+
 export const GoLiveQuoteSchema = z
   .object({
     asOf: z.date(),
@@ -273,7 +316,19 @@ export const GoLiveDraftCandidateSchema = z
   .strict()
   .refine((draft) => draft.longStrike !== draft.shortStrike, {
     message: "A vertical needs two different strikes",
-  });
+  })
+  .refine(
+    (draft) =>
+      goLiveStrikesFitStructure(
+        draft.structure,
+        draft.longStrike,
+        draft.shortStrike
+      ),
+    {
+      message:
+        "The long and short strikes are the wrong way round for this structure",
+    }
+  );
 
 export const GoLiveSizingSchema = z
   .object({
@@ -311,6 +366,9 @@ export const GoLiveDraftSchema = z
     id: z.string().min(1),
     kind: z.enum(GOLIVE_DRAFT_KIND_VALUES),
     longStrike: z.number(),
+    // The exact order the owner approved, stored with the decision. null unless state is approved.
+    // sizing and order below are recomputed at every read and can differ from it later.
+    approvedOrder: VertexComboInputSchema.nullable(),
     // The node badge read when the owner approved. An approval never sends anything.
     nodeBadgeAtDecision: z.enum(GOLIVE_NODE_BADGE_VALUES).nullable(),
     notApprovable: z.array(z.enum(GOLIVE_NOT_APPROVABLE_VALUES)),
@@ -362,6 +420,8 @@ export const GoLiveQueueOutputSchema = z
     node: GoLiveNodeSchema,
     // null: no plan record exists.
     plan: GoLivePlanSchema.nullable(),
+    // True when this caller may approve and reject (owner in a browser session).
+    canDecide: z.boolean(),
     // Literal: this API cannot send an order.
     sendsOrders: z.literal(false),
     tradingDay: CalendarDateSchema,
@@ -380,7 +440,19 @@ export const GoLiveCollectInputSchema = z
     planVersion: z.number().int().positive(),
     tradingDay: CalendarDateSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    // An expiry on or before the trading day is not an order anyone can hold.
+    const day = input.tradingDay.replaceAll("-", "");
+    input.candidates.forEach((candidate, index) => {
+      if (candidate.expiry <= day)
+        context.addIssue({
+          code: "custom",
+          message: "The expiry must be after the trading day",
+          path: ["candidates", index, "expiry"],
+        });
+    });
+  });
 export const GoLiveCollectOutputSchema = z
   .object({
     created: z.number().int().min(0),

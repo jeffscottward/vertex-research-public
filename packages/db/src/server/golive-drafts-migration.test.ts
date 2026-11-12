@@ -137,6 +137,25 @@ describe(`${TAG} migration`, () => {
     );
   });
 
+  it("stores an approved order exactly when the draft is approved", () => {
+    const drafts = tableBody("golive_drafts");
+    // Nullable and without a default: only an approval writes it.
+    expect(drafts).toMatch(/^\s+"approved_order" jsonb,$/mu);
+    expect(drafts).toContain(
+      `CONSTRAINT "golive_drafts_approved_order_check" CHECK (("golive_drafts"."state" = 'approved') = ("golive_drafts"."approved_order" is not null) and ("golive_drafts"."approved_order" is null or jsonb_typeof("golive_drafts"."approved_order") = 'object'))`
+    );
+    const config = getTableConfig(goLiveDrafts);
+    const column = config.columns.find(
+      (entry) => entry.name === "approved_order"
+    );
+    expect(column?.getSQLType()).toBe("jsonb");
+    expect(column?.notNull).toBe(false);
+    expect(column?.hasDefault).toBe(false);
+    expect(config.checks.map((check) => check.name)).toContain(
+      "golive_drafts_approved_order_check"
+    );
+  });
+
   // migration-journal.test.ts owns the full order; this pins no neighbouring tag (CONVENTIONS.md#migration-numbers).
   it("is journaled once, newer than the entry before it", () => {
     expect(journal.entries.filter((entry) => entry.tag === TAG)).toHaveLength(
@@ -165,5 +184,8 @@ describe(`${TAG} migration`, () => {
     ).toBeGreaterThan(
       rollback.indexOf('DROP TABLE "public"."golive_draft_runs"')
     );
+    // The approved_order column and its check go with the table: no separate statement. Only an
+    // approved draft holds an order, and an approved draft blocks the rollback above.
+    expect(rollback).not.toMatch(/ALTER TABLE|approved_order/u);
   });
 });

@@ -6,10 +6,13 @@ import type {
 import { call, implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
-import type {
-  GoLiveDraftOutput,
-  GoLiveQueueOutput,
-  GoLiveQuote,
+import {
+  type GoLiveDraftOutput,
+  GoLiveDraftSchema,
+  GoLivePlanSchema,
+  type GoLiveQueueOutput,
+  type GoLiveQuote,
+  goLiveStrikesFitStructure,
 } from "../contracts/golive-drafts.ts";
 import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
 import type { ApiContext } from "./context.ts";
@@ -34,9 +37,12 @@ import {
 // this file and fails on such an import).
 // queue: operator session, agent viewer or a read key. A key caller never gets the account
 // value: the account is not read for it, so its drafts come back unsized (nlv_unavailable).
-// collect: the rig generator's write key.
+// collect: the rig generator's write key. A quote labelled ibkr_live is refused while no live
+// IBKR option quote source exists (dependencies.liveQuoteSource, false by default).
 // approve and reject: the owner (operator and admin role) in a browser session; API keys refused.
-// Quantity, limit, max loss and the pre-check are computed at read time and never stored.
+// queue.canDecide tells the caller whether it is that owner, by the same check (decisionRefusal).
+// Quantity, limit, max loss and the pre-check are computed at read time and never stored. The
+// one stored order is approvedOrder: the order this server sized, written with the approval.
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -63,6 +69,9 @@ export type GoLiveDraftsDependencies = Readonly<{
   account?: (context: ApiContext, now: Date) => Promise<GoLiveAccountReading>;
   // Cached P5 JEV verdict for the dry final gate; defaults to the shared verdict store.
   jevVerdict?: (symbol: string) => JevVerdictOutput | null;
+  // true: a live IBKR option quote source exists, so collect accepts a quote labelled ibkr_live.
+  // None exists in this version, so the default refuses the label. Not an environment setting.
+  liveQuoteSource?: boolean;
   marketNotes?: GoLiveMarketNotesPort;
   node?: (context: ApiContext) => Promise<GoLiveNodeReading>;
   now?: () => Date;
@@ -144,6 +153,7 @@ const readNode = async (context: ApiContext): Promise<GoLiveNodeReading> => {
 
 type Fail = (options?: { message?: string }) => Error;
 type Failures = Readonly<{
+  BAD_REQUEST: Fail;
   CONFLICT: Fail;
   FORBIDDEN: Fail;
   NOT_FOUND: Fail;
@@ -199,6 +209,8 @@ const storeCall = async <T>(
 
 type Loaded = Readonly<{
   account: GoLiveAccountReading;
+  // true: an API key asked. It gets no account value and no order that was sized from one.
+  forKey: boolean;
   generatedAt: Date | null;
   node: GoLiveQueueOutput["node"];
   // null: no market-notes reader is wired.
@@ -214,13 +226,12 @@ const load = async (
   tradingDay: string,
   now: Date
 ): Promise<Loaded> => {
+  const forKey = context.agentApiKeyPresented === true;
   const [plan, records, run, account, node] = await Promise.all([
     repository.planInForce(),
     repository.listDrafts({ tradingDay }),
     repository.lastRun(tradingDay),
-    context.agentApiKeyPresented === true
-      ? KEY_ACCOUNT
-      : (dependencies.account ?? readAccount)(context, now),
+    forKey ? KEY_ACCOUNT : (dependencies.account ?? readAccount)(context, now),
     (dependencies.node ?? readNode)(context),
   ]);
   const notes =
@@ -231,6 +242,7 @@ const load = async (
         ]);
   return {
     account,
+    forKey,
     generatedAt: run?.generatedAt ?? null,
     node: { ...node, checkedAt: now },
     notes,
@@ -248,7 +260,70 @@ const quoteOf = (stored: GoLiveDraftRecord["quote"]): GoLiveQuote | null => {
 };
 
 /**
+ * What is wrong with the stored plan, or null. The output schema accepts only an https evidence
+ * link and a Discord message link as the owner link. A stored plan that fails it is refused here
+ * by name, so it is never sent to the page as a link and never fails the answer as an
+ * unexplained 500. The message names the fields and never repeats a stored value.
+ */
+const planProblem = (plan: GoLivePlanRecord | null): string | null => {
+  if (plan === null) return null;
+  const parsed = GoLivePlanSchema.safeParse(plan);
+  if (parsed.success) return null;
+  const fields = [
+    ...new Set(parsed.error.issues.map((issue) => issue.path.join("."))),
+  ];
+  return `The stored plan ${plan.id} version ${plan.version} is not valid (${fields.join(", ")}). Write the plan again with scripts/golive/seed-plan.ts`;
+};
+
+const StoredOrderSchema = GoLiveDraftSchema.shape.approvedOrder.unwrap();
+
+/** The first approved draft whose stored order is missing or is not an order, or null. */
+const approvedOrderProblem = (
+  records: readonly GoLiveDraftRecord[]
+): string | null => {
+  const broken = records.find(
+    (record) =>
+      record.state === "approved" &&
+      !StoredOrderSchema.safeParse(record.approvedOrder).success
+  );
+  return broken === undefined
+    ? null
+    : `Draft ${broken.id} is approved and its stored approved order is missing or is not a valid order`;
+};
+
+/**
+ * The first draft whose strikes are the wrong way round for its structure, or null. collect
+ * refuses such a candidate, so this can only be a row stored before that rule or changed by
+ * hand. The sizing refuses it (it throws: no sizing reason says this), so it is named here first.
+ */
+const strikesProblem = (
+  records: readonly GoLiveDraftRecord[]
+): string | null => {
+  const broken = records.find(
+    (record) =>
+      !goLiveStrikesFitStructure(
+        record.structure,
+        record.longStrike,
+        record.shortStrike
+      )
+  );
+  return broken === undefined
+    ? null
+    : `Draft ${broken.id} has strikes that are the wrong way round for ${broken.structure} and cannot be sized`;
+};
+
+// What the store holds is checked before it is sized and returned: a problem is named, so it
+// never fails the answer as an unexplained 500 and never reaches the page.
+const storedProblem = (loaded: Loaded): string | null =>
+  planProblem(loaded.plan) ??
+  approvedOrderProblem(loaded.records) ??
+  strikesProblem(loaded.records);
+
+/**
  * Each record with its size, exact order, dry pre-check and the reasons it cannot be approved.
+ * approvedOrder is the stored order of an approved draft and null for every other state; sizing
+ * and order are computed now, also for an approved draft, so they can differ from it. An API key
+ * gets no approvedOrder: its quantity was sized from the account value, which a key never gets.
  * The web final gate runs dry: nothing is sent. Inputs this module does not read: held positions
  * ([]: the order is checked as a new position, never as a risk-reducing one) and the account
  * gates (kill switch, OPTIONS_ONLY: not evaluated here; the order screen checks them at send).
@@ -285,6 +360,10 @@ const viewsOf = (
           });
     return {
       ...draft,
+      approvedOrder:
+        draft.state === "approved" && !loaded.forKey
+          ? draft.approvedOrder
+          : null,
       notApprovable: notApprovableReasons({
         draft,
         nlv,
@@ -319,35 +398,67 @@ const decidedView = (
 
 const SESSION_REQUIRED_MESSAGE =
   "A draft decision needs the owner's browser session";
+const OWNER_REQUIRED_MESSAGE = "Owner (admin) access required";
 
-const refuseApiKeys = api.middleware(async ({ context, next, errors }) => {
-  if (context.agentApiKeyPresented === true)
-    throw (errors as unknown as Failures).FORBIDDEN({
-      message: SESSION_REQUIRED_MESSAGE,
-    });
-  return await next();
-});
+type DecisionCaller = Pick<
+  ApiContext,
+  "agentApiKeyPresented" | "callerCanWrite" | "requireRole"
+>;
 
-// Owner only: operator allow-list (requireOperator) AND the admin role. The same two-line rule
-// as requireOwner in vertex-orders.ts, repeated here because this module must not import it.
-const requireOwner = api.middleware(async ({ context, next, errors }) => {
+// An API key never decides, whoever owns it.
+const keyRefusal = (context: DecisionCaller): string | null =>
+  context.agentApiKeyPresented === true ? SESSION_REQUIRED_MESSAGE : null;
+
+/**
+ * Why this caller may not decide a draft, or null when it may. The one rule behind approve,
+ * reject and queue.canDecide: a browser session (no API key) of a caller on the operator list
+ * who has the admin role. callerCanWrite is set by requireOperator and is false for an agent
+ * viewer, who is admitted to the queue without being on the list. The same owner rule as
+ * requireOwner in vertex-orders.ts, repeated here because this module must not import it.
+ */
+const decisionRefusal = async (
+  context: DecisionCaller
+): Promise<string | null> => {
+  const key = keyRefusal(context);
+  if (key !== null) return key;
+  if (context.callerCanWrite !== true) return OWNER_REQUIRED_MESSAGE;
   try {
     await context.requireRole("admin");
   } catch {
-    throw (errors as unknown as Failures).FORBIDDEN({
-      message: "Owner (admin) access required",
-    });
+    return OWNER_REQUIRED_MESSAGE;
   }
+  return null;
+};
+
+// Before requireOperator, so a key is refused without being looked up.
+const refuseApiKeys = api.middleware(async ({ context, next, errors }) => {
+  const message = keyRefusal(context);
+  if (message !== null)
+    throw (errors as unknown as Failures).FORBIDDEN({ message });
+  return await next();
+});
+
+// After requireOperator, which sets callerCanWrite.
+const requireOwner = api.middleware(async ({ context, next, errors }) => {
+  const message = await decisionRefusal(context);
+  if (message !== null)
+    throw (errors as unknown as Failures).FORBIDDEN({ message });
   return await next();
 });
 
 const queue = api.goLiveDrafts.queue
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
-    const repository = repositoryFor(context, errors as unknown as Failures);
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
     const now = clock();
     const tradingDay = input.tradingDay ?? orderSessionDay(now);
-    const loaded = await load(context, repository, tradingDay, now);
+    const [loaded, refusal] = await Promise.all([
+      load(context, repository, tradingDay, now),
+      decisionRefusal(context),
+    ]);
+    const problem = storedProblem(loaded);
+    if (problem !== null) throw failures.STORAGE_ERROR({ message: problem });
     const drafts = viewsOf(loaded, loaded.records);
     let marketNotes: GoLiveQueueOutput["marketNotes"] = "feature_not_deployed";
     if (loaded.notes !== null)
@@ -356,6 +467,7 @@ const queue = api.goLiveDrafts.queue
         : "none_active";
     return {
       account: loaded.account,
+      canDecide: refusal === null,
       drafts,
       generatedAt: loaded.generatedAt,
       marketNotes,
@@ -374,6 +486,19 @@ const collect = api.goLiveDrafts.collect
     if (context.agentApiKeyPresented !== true)
       throw failures.FORBIDDEN({
         message: "goLiveDrafts.collect needs an agent API key",
+      });
+    // No live IBKR option quote source exists in this version, and the approval rule trusts the
+    // label ibkr_live. A batch that carries the label is refused whole, before anything is read
+    // or stored.
+    if (
+      dependencies.liveQuoteSource !== true &&
+      input.candidates.some(
+        (candidate) => candidate.quote?.source === "ibkr_live"
+      )
+    )
+      throw failures.BAD_REQUEST({
+        message:
+          "A quote labelled ibkr_live is not accepted: no live IBKR option quote source exists in this version",
       });
     const repository = repositoryFor(context, failures);
     // Only the session in which an order would be placed. A late run for a past day would
@@ -432,6 +557,9 @@ const approve = api.goLiveDrafts.approve
     const now = clock();
     const tradingDay = orderSessionDay(now);
     const loaded = await load(context, repository, tradingDay, now);
+    // Nothing is approved while a stored record of the day cannot be shown.
+    const problem = storedProblem(loaded);
+    if (problem !== null) throw failures.STORAGE_ERROR({ message: problem });
     const draft = viewsOf(loaded, loaded.records).find(
       (entry) => entry.id === input.id
     );
@@ -444,13 +572,16 @@ const approve = api.goLiveDrafts.approve
         message: `Draft cannot be approved: ${draft.notApprovable.join(", ")}`,
       });
     // The owner must have seen the exact order: one cent or one contract of difference refuses.
-    if (!sameCombo(input.order, draft.order))
+    const sized = draft.order;
+    if (sized === null || !sameCombo(input.order, sized))
       throw failures.CONFLICT({
         message:
           "The order is not the order the server sized; reload the queue",
       });
     const record = await storeCall(failures, () =>
       repository.decide({
+        // The order this server sized just now. The request body is only compared with it.
+        approvedOrder: sized,
         decidedBy: context.principal.userId,
         decision: "approved",
         id: input.id,
@@ -477,10 +608,15 @@ const reject = api.goLiveDrafts.reject
         note: input.note,
       })
     );
-    return decidedView(
-      await load(context, repository, record.tradingDay, clock()),
-      record
-    );
+    const loaded = await load(context, repository, record.tradingDay, clock());
+    // The rejection is stored. Its answer sizes the whole day, which a draft with wrong strikes
+    // would fail without a name.
+    const problem = strikesProblem(loaded.records);
+    if (problem !== null)
+      throw failures.STORAGE_ERROR({
+        message: `The rejection of draft ${record.id} was stored. ${problem}`,
+      });
+    return decidedView(loaded, record);
   });
 
 export const goLiveDraftsRouter = { approve, collect, queue, reject };

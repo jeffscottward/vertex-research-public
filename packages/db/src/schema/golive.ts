@@ -111,6 +111,26 @@ export interface GoLivePlanSleeveValue {
   widthSigma: number;
 }
 
+/** One leg of golive_drafts.approved_order. expiry is YYYYMMDD. */
+export interface GoLiveApprovedOrderLegValue {
+  expiry: string;
+  ratio: number;
+  right: "C" | "P";
+  side: "BUY" | "SELL";
+  strike: number;
+}
+
+/**
+ * golive_drafts.approved_order: the exact combo the owner approved (the shape of
+ * VertexComboInputSchema in packages/api). limitPrice is net per spread: positive = debit.
+ */
+export interface GoLiveApprovedOrderValue {
+  legs: GoLiveApprovedOrderLegValue[];
+  limitPrice: number;
+  quantity: number;
+  symbol: string;
+}
+
 /** golive_drafts.quote. asOf is an ISO-8601 instant (jsonb holds no timestamp type). */
 export interface GoLiveStoredQuoteValue {
   asOf: string;
@@ -198,6 +218,8 @@ export type GoLiveDraftRunRow = typeof goLiveDraftRuns.$inferSelect;
 export const goLiveDrafts = pgTable(
   "golive_drafts",
   {
+    /** The exact order the owner approved. Set exactly when state is approved. */
+    approvedOrder: jsonb("approved_order").$type<GoLiveApprovedOrderValue>(),
     createdAt: utcTimestamp("created_at").defaultNow().notNull(),
     decidedAt: utcTimestamp("decided_at"),
     decidedBy: text("decided_by"),
@@ -247,6 +269,11 @@ export const goLiveDrafts = pgTable(
     check(
       "golive_drafts_decision_check",
       sql`(${table.state} in ('approved', 'rejected')) = (${table.decidedBy} is not null) and (${table.state} in ('approved', 'rejected')) = (${table.decidedAt} is not null)`
+    ),
+    // An approval always stores the order that was approved; no other state carries one.
+    check(
+      "golive_drafts_approved_order_check",
+      sql`(${table.state} = 'approved') = (${table.approvedOrder} is not null) and (${table.approvedOrder} is null or jsonb_typeof(${table.approvedOrder}) = 'object')`
     ),
   ]
 );

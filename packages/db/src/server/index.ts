@@ -259,6 +259,9 @@ export {
 } from "./breadth-90.ts";
 export {
   createGoLiveDraftsRepository,
+  type GoLiveApprovedOrderInput,
+  type GoLiveApprovedOrderLegValue,
+  type GoLiveApprovedOrderValue,
   type GoLiveCollectRecord,
   type GoLiveCollectResult,
   type GoLiveDecideInput,

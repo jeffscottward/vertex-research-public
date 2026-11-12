@@ -11,9 +11,11 @@ import {
   GoLiveCollectOutputSchema,
   GoLiveDraftApproveInputSchema,
   GoLiveDraftRejectInputSchema,
+  GoLiveDraftSchema,
   GoLivePlanSeedSchema,
   GoLiveQueueInputSchema,
   GoLiveQueueOutputSchema,
+  goLiveStrikesFitStructure,
 } from "./contracts/golive-drafts.ts";
 
 const NOW = new Date("2026-11-13T21:30:00.000Z");
@@ -88,6 +90,62 @@ const order = () => ({
   limitPrice: 1.25,
   quantity: 16,
   symbol: "SPY",
+});
+
+// A proposed draft as the queue returns it, sized.
+const draft = () => ({
+  approvedOrder: null,
+  createdAt: NOW,
+  decidedAt: null,
+  decidedBy: null,
+  decisionNote: null,
+  entryBasis: "signal_today",
+  exitReason: null,
+  exitRule: "owner_standing_rule_v1",
+  expiry: "20261218",
+  id: "d-spy",
+  kind: "entry",
+  longStrike: 100,
+  nodeBadgeAtDecision: null,
+  notApprovable: [],
+  notes: [],
+  order: order(),
+  parentDraftId: null,
+  planId: "pie",
+  planVersion: 1,
+  preCheck: {
+    enginePolicy: "not_evaluated_not_in_web_order_path",
+    webFinalGate: null,
+  },
+  quote: null,
+  shortStrike: 105,
+  signalFacts: [],
+  sizing: {
+    budget: 2000,
+    limitPrice: 1.25,
+    maxLoss: 2000,
+    maxLossPctNlv: 2,
+    maxLossPerSpread: 125,
+    quantity: 16,
+    reason: "sized",
+  },
+  sleeveKey: "trend",
+  state: "proposed",
+  structure: "callDebitVertical",
+  symbol: "SPY",
+  tradingDay: "2026-11-16",
+  updatedAt: NOW,
+});
+
+// The plan record as the queue returns it.
+const planOutput = () => ({
+  ...seed(),
+  approvedAt: NOW,
+  createdAt: NOW,
+  exitRule: "owner_standing_rule_v1",
+  retiredAt: null,
+  updatedAt: NOW,
+  version: 1,
 });
 
 const issuesOf = (value: unknown): string[] =>
@@ -208,6 +266,77 @@ describe("goLiveDrafts contract", () => {
     ).toBe(false);
   });
 
+  const collectIssues = (value: unknown): string[] =>
+    (GoLiveCollectInputSchema.safeParse(value).error?.issues ?? []).map(
+      (issue) => `${issue.path.join(".")}: ${issue.message}`
+    );
+
+  it("accepts strikes only the right way round for the structure", () => {
+    // [structure, long strike, short strike]. A bull vertical (call debit, put credit) buys the
+    // lower strike; a bear vertical (put debit, call credit) buys the higher strike.
+    const right = [
+      ["callDebitVertical", 100, 105],
+      ["putCreditVertical", 95, 100],
+      ["putDebitVertical", 105, 100],
+      ["callCreditVertical", 105, 100],
+    ] as const;
+    for (const [structure, longStrike, shortStrike] of right) {
+      expect(
+        goLiveStrikesFitStructure(structure, longStrike, shortStrike)
+      ).toBe(true);
+      expect(
+        goLiveStrikesFitStructure(structure, shortStrike, longStrike)
+      ).toBe(false);
+      expect(goLiveStrikesFitStructure(structure, longStrike, longStrike)).toBe(
+        false
+      );
+      const withStrikes = (long: number, short: number) => ({
+        ...batch(),
+        candidates: [
+          { ...candidate(), longStrike: long, shortStrike: short, structure },
+        ],
+      });
+      expect(collectIssues(withStrikes(longStrike, shortStrike))).toEqual([]);
+      expect(collectIssues(withStrikes(shortStrike, longStrike))).toEqual([
+        "candidates.0: The long and short strikes are the wrong way round for this structure",
+      ]);
+    }
+  });
+
+  it("takes an expiry only when it is a real calendar day after the trading day", () => {
+    const withExpiry = (expiry: string) => ({
+      ...batch(),
+      candidates: [{ ...candidate(), expiry }],
+    });
+    // The day after the trading day, a later day, and 29 February of a leap year.
+    for (const expiry of ["20261117", "20261218", "20280229"])
+      expect(collectIssues(withExpiry(expiry))).toEqual([]);
+    for (const expiry of [
+      "20261399",
+      "20260230",
+      "20270229",
+      "20261200",
+      "20261131",
+    ])
+      expect(collectIssues(withExpiry(expiry))).toContain(
+        "candidates.0.expiry: Expiry must be a real calendar day"
+      );
+    // The trading day itself, the day before, and a day long past.
+    for (const expiry of ["20261116", "20261115", "20250117"])
+      expect(collectIssues(withExpiry(expiry))).toEqual([
+        "candidates.0.expiry: The expiry must be after the trading day",
+      ]);
+    // Each candidate is checked: the second one is named.
+    expect(
+      collectIssues({
+        ...batch(),
+        candidates: [candidate(), { ...candidate(), expiry: "20261116" }],
+      })
+    ).toEqual([
+      "candidates.1.expiry: The expiry must be after the trading day",
+    ]);
+  });
+
   it("needs the explicit confirmation and the exact order to approve", () => {
     const approval = { confirm: true, id: "d-spy", order: order() };
     expect(GoLiveDraftApproveInputSchema.parse(approval)).toEqual(approval);
@@ -248,6 +377,7 @@ describe("goLiveDrafts contract", () => {
         netLiquidation: null,
         unavailableReason: "Portfolio monitor did not answer",
       },
+      canDecide: false,
       drafts: [],
       generatedAt: null,
       marketNotes: "feature_not_deployed",
@@ -265,6 +395,90 @@ describe("goLiveDrafts contract", () => {
       { ...queue, submitted: [] },
     ])
       expect(GoLiveQueueOutputSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("always says whether the caller may decide", () => {
+    const queue = {
+      account: { asOf: null, netLiquidation: null, unavailableReason: null },
+      canDecide: true,
+      drafts: [],
+      generatedAt: null,
+      marketNotes: "none_active",
+      node: { armedAt: null, badge: "unknown", checkedAt: NOW },
+      plan: null,
+      sendsOrders: false,
+      tradingDay: "2026-11-16",
+    };
+    for (const canDecide of [true, false])
+      expect(
+        GoLiveQueueOutputSchema.parse({ ...queue, canDecide }).canDecide
+      ).toBe(canDecide);
+    // Required and a boolean: an answer without it, or with a guess, is refused.
+    const { canDecide: _canDecide, ...without } = queue;
+    for (const bad of [
+      without,
+      { ...queue, canDecide: null },
+      { ...queue, canDecide: "true" },
+      { ...queue, canDecide: 1 },
+    ])
+      expect(GoLiveQueueOutputSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("carries the approved order of a draft, or null, and never leaves it out", () => {
+    expect(GoLiveDraftSchema.parse(draft())).toEqual(draft());
+    const approved = { ...draft(), approvedOrder: order(), state: "approved" };
+    expect(GoLiveDraftSchema.parse(approved)).toEqual(approved);
+    // The approved order and today's order are separate fields: one can be null without the other.
+    const unsizedToday = { ...approved, order: null };
+    expect(GoLiveDraftSchema.parse(unsizedToday)).toEqual(unsizedToday);
+    const { approvedOrder: _approvedOrder, ...without } = draft();
+    for (const bad of [
+      without,
+      { ...draft(), approvedOrder: {} },
+      { ...draft(), approvedOrder: "16 x 1.25" },
+      { ...draft(), approvedOrder: { ...order(), quantity: 0 } },
+      { ...draft(), approvedOrder: { ...order(), limitPrice: 0 } },
+      { ...draft(), approvedOrder: { ...order(), legs: [] } },
+      { ...draft(), approvedOrder: { ...order(), sent: true } },
+    ])
+      expect(GoLiveDraftSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("returns a plan only with a Discord message link and an https evidence link, or without them", () => {
+    const queue = {
+      account: { asOf: null, netLiquidation: null, unavailableReason: null },
+      canDecide: false,
+      drafts: [],
+      generatedAt: null,
+      marketNotes: "none_active",
+      node: { armedAt: null, badge: "unknown", checkedAt: NOW },
+      plan: planOutput(),
+      sendsOrders: false,
+      tradingDay: "2026-11-16",
+    };
+    expect(GoLiveQueueOutputSchema.parse(queue)).toEqual(queue);
+    const withPlan = (links: Record<string, string | null>) => ({
+      ...queue,
+      plan: { ...planOutput(), ...links },
+    });
+    const withoutLinks = withPlan({ evidenceUrl: null, ownerMessageUrl: null });
+    expect(GoLiveQueueOutputSchema.parse(withoutLinks)).toEqual(withoutLinks);
+    for (const links of [
+      { ownerMessageUrl: "https://discord.com/channels/1/2" },
+      { ownerMessageUrl: "https://discord.com.evil.test/channels/1/2/3" },
+      { ownerMessageUrl: "javascript:alert(document.domain)" },
+      { ownerMessageUrl: "" },
+      { evidenceUrl: "http://evidence.domain.test/report" },
+      { evidenceUrl: "javascript:alert(document.domain)" },
+      { evidenceUrl: "evidence report" },
+      // The URL parser accepts these; a browser resolves them on the app's own origin.
+      { evidenceUrl: "https:example.com" },
+      { evidenceUrl: "https:/example.com/report" },
+      { evidenceUrl: "" },
+    ])
+      expect(GoLiveQueueOutputSchema.safeParse(withPlan(links)).success).toBe(
+        false
+      );
   });
 
   it("names a cause for every state: no unknown reason", () => {
@@ -342,6 +556,26 @@ describe("go-live plan seed", () => {
         evidenceUrl: "http://evidence.domain.test/report",
       }).success
     ).toBe(false);
+    // The evidence link starts with the text "https://". The URL parser alone accepts
+    // "https:example.com", which a browser resolves on the app's own origin.
+    for (const evidenceUrl of [
+      "https://example.com/report",
+      "https://evidence.domain.test/a?b=1#c",
+    ])
+      expect(issuesOf({ ...seed(), evidenceUrl })).toEqual([]);
+    for (const evidenceUrl of [
+      "https:example.com",
+      "https:/example.com/report",
+      "https:///example.com/report",
+      "//example.com/report",
+      "/report",
+    ])
+      expect(
+        GoLivePlanSeedSchema.safeParse({ ...seed(), evidenceUrl }).success
+      ).toBe(false);
+    expect(issuesOf({ ...seed(), evidenceUrl: "https:example.com" })).toContain(
+      "Evidence link must start with https://"
+    );
   });
 
   it("refuses sleeves that break the plan's own limits", () => {

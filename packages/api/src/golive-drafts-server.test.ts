@@ -140,6 +140,7 @@ const record = (
   id: string,
   overrides: Partial<GoLiveDraftRecord> = {}
 ): GoLiveDraftRecord => ({
+  approvedOrder: null,
   createdAt: NOW,
   decidedAt: null,
   decidedBy: null,
@@ -229,6 +230,14 @@ const createMemoryRepository = (seed: Seed = {}) => {
           throw new GoLiveDraftConflictError(input.id);
         const decided: GoLiveDraftRecord = {
           ...draft,
+          // As the Postgres store: an approval stores a copy of its order, a rejection none.
+          approvedOrder:
+            input.decision === "approved"
+              ? {
+                  ...input.approvedOrder,
+                  legs: input.approvedOrder.legs.map((leg) => ({ ...leg })),
+                }
+              : null,
           decidedAt: NOW,
           decidedBy: input.decidedBy,
           decisionNote: input.note,
@@ -425,6 +434,7 @@ describe("goLiveDrafts.queue", () => {
     }).goLiveDrafts.queue({});
     expect(queue).toEqual({
       account: ACCOUNT,
+      canDecide: true,
       drafts: [],
       generatedAt: null,
       marketNotes: "feature_not_deployed",
@@ -709,6 +719,247 @@ describe("goLiveDrafts.queue", () => {
     await expectCode(clientFor().goLiveDrafts.queue({}), "STORAGE_ERROR", 503);
   });
 
+  it("shows the stored approved order of an approved draft next to today's sizing", async () => {
+    // Approved at 10 spreads for 1.20. Today's quote sizes 16 at 1.25.
+    const approvedOrder = { ...ORDER, limitPrice: 1.2, quantity: 10 };
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-spy", {
+          approvedOrder,
+          decidedAt: NOW,
+          decidedBy: "owner",
+          state: "approved",
+        }),
+      ],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    expect(queue.drafts[0]).toMatchObject({
+      approvedOrder,
+      notApprovable: ["DRAFT_NOT_PROPOSED"],
+      order: ORDER,
+      sizing: SIZED,
+      state: "approved",
+    });
+  });
+
+  it.each(["proposed", "rejected", "expired"] as const)(
+    "shows no approved order for a %s draft",
+    async (state) => {
+      // The table check allows an order only on an approved row; the answer does not rely on it.
+      const memory = createMemoryRepository({
+        drafts: [record("d-spy", { approvedOrder: ORDER, state })],
+      });
+      const queue = await clientFor({
+        repository: memory.repository,
+      }).goLiveDrafts.queue({});
+      expect(queue.drafts[0]).toMatchObject({ approvedOrder: null, state });
+    }
+  );
+
+  it("does not show an approved order to an agent API key", async () => {
+    // The quantity of an approved order was sized from the account value, and a key also sees
+    // the plan's risk percentages: quantity x limit would bound the account value.
+    // Values that appear nowhere else in the answer, so a leak is found by searching for them.
+    const approvedOrder = { ...ORDER, limitPrice: 3.1337, quantity: 7919 };
+    const repository = createMemoryRepository({
+      drafts: [
+        record("d-spy", {
+          approvedOrder,
+          decidedAt: NOW,
+          decidedBy: "owner",
+          state: "approved",
+        }),
+      ],
+    }).repository;
+    for (const keyAccess of ["read", "write"] as const) {
+      const queue = await clientFor({
+        apiKey: PLAINTEXT,
+        keyAccess,
+        repository,
+      }).goLiveDrafts.queue({});
+      expect(queue.drafts[0]).toMatchObject({
+        approvedOrder: null,
+        order: null,
+        state: "approved",
+      });
+      const answer = JSON.stringify(queue);
+      for (const value of [
+        approvedOrder.quantity,
+        approvedOrder.limitPrice,
+        NLV,
+      ])
+        expect(answer).not.toContain(String(value));
+      expect(answer).not.toMatch(
+        /"(budget|limitPrice|maxLoss|maxLossPctNlv|maxLossPerSpread|netLiquidation)":(?!null)/u
+      );
+      expect(answer).not.toMatch(/"quantity":(?!0[,}])/u);
+    }
+    // Sessions are unchanged: the owner, an operator and the agent viewer get the stored order.
+    for (const options of [
+      { repository },
+      { admin: false, repository, sessionUser: "operator" },
+      {
+        agentViewerEmails: ["viewer@domain.test"],
+        repository,
+        sessionUser: "viewer",
+      },
+    ]) {
+      const queue = await clientFor(options).goLiveDrafts.queue({});
+      expect(queue.drafts[0]?.approvedOrder).toEqual(approvedOrder);
+      expect(JSON.stringify(queue)).toContain('"quantity":7919');
+    }
+  });
+
+  it("returns a plan whose links pass, and a plan without links", async () => {
+    const proposed = plan({
+      approvalBasis: null,
+      approvedAt: null,
+      approvedBy: null,
+      evidenceUrl: null,
+      ownerMessageUrl: null,
+      status: "proposed",
+    });
+    for (const stored of [plan(), proposed]) {
+      const queue = await clientFor({
+        repository: createMemoryRepository({ plan: stored }).repository,
+      }).goLiveDrafts.queue({});
+      expect(queue.plan).toEqual(stored);
+    }
+  });
+
+  it.each([
+    [
+      "ownerMessageUrl",
+      { ownerMessageUrl: "javascript:alert(document.domain)" },
+    ],
+    // A channel link, not a message link.
+    [
+      "ownerMessageUrl",
+      { ownerMessageUrl: "https://discord.com/channels/1/2" },
+    ],
+    [
+      "ownerMessageUrl",
+      { ownerMessageUrl: "https://discord.com.evil.test/channels/1/2/3" },
+    ],
+    ["evidenceUrl", { evidenceUrl: "http://evidence.domain.test/report" }],
+    ["evidenceUrl", { evidenceUrl: "javascript:alert(document.domain)" }],
+    ["evidenceUrl", { evidenceUrl: "evidence report" }],
+    [
+      "evidenceUrl, ownerMessageUrl",
+      { evidenceUrl: "ftp://evidence.domain.test", ownerMessageUrl: "" },
+    ],
+  ] as const)(
+    "refuses a stored plan by naming %s when a stored link does not pass (%j)",
+    async (fields, links) => {
+      const memory = createMemoryRepository({
+        drafts: [record("d-spy"), record("d-qqq", { symbol: "QQQ" })],
+        plan: plan(links),
+      });
+      const client = clientFor({ repository: memory.repository });
+      const error: unknown = await client.goLiveDrafts
+        .queue({})
+        .catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(ORPCError);
+      // A named error, not an unexplained 500 and not an answer that carries the link.
+      expect(error).toMatchObject({
+        code: "STORAGE_ERROR",
+        message: `The stored plan pie version 1 is not valid (${fields}). Write the plan again with scripts/golive/seed-plan.ts`,
+        status: 503,
+      });
+      // The stored value is not repeated anywhere in the error.
+      for (const value of Object.values(links))
+        if (value !== "") expect(JSON.stringify(error)).not.toContain(value);
+      // Nothing is approved under that plan record, and nothing is stored.
+      await expectCode(
+        client.goLiveDrafts.approve(approval()),
+        "STORAGE_ERROR",
+        503,
+        "The stored plan pie version 1 is not valid"
+      );
+      expect(memory.repository.decide).not.toHaveBeenCalled();
+      expect(memory.drafts.get("d-spy")).toEqual(record("d-spy"));
+      // A rejection does not depend on the plan record.
+      await expect(
+        client.goLiveDrafts.reject({ id: "d-qqq", note: "No" })
+      ).resolves.toMatchObject({ approvedOrder: null, state: "rejected" });
+    }
+  );
+
+  it.each([
+    ["no order", null],
+    ["a value that is not an order", { symbol: "SPY" }],
+    ["an order with a zero quantity", { ...ORDER, quantity: 0 }],
+  ] as const)(
+    "refuses an approved draft that holds %s by naming the draft",
+    async (_name, stored) => {
+      // The table check and the store prevent this; a row changed by hand is named, not hidden.
+      const memory = createMemoryRepository({
+        drafts: [
+          record("d-qqq", { symbol: "QQQ" }),
+          record("d-spy", {
+            approvedOrder: stored as GoLiveDraftRecord["approvedOrder"],
+            decidedAt: NOW,
+            decidedBy: "owner",
+            state: "approved",
+          }),
+        ],
+      });
+      await expectCode(
+        clientFor({ repository: memory.repository }).goLiveDrafts.queue({}),
+        "STORAGE_ERROR",
+        503,
+        "Draft d-spy is approved and its stored approved order is missing or is not a valid order"
+      );
+    }
+  );
+
+  it("names a stored draft whose strikes are the wrong way round and sizes nothing", async () => {
+    // collect refuses such a candidate; this is a row stored before that rule or changed by hand.
+    // A call debit vertical that buys the higher strike is really a call credit vertical.
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-qqq", { symbol: "QQQ" }),
+        record("d-spy", { longStrike: 105, shortStrike: 100 }),
+      ],
+    });
+    const repository = memory.repository;
+    const message =
+      "Draft d-spy has strikes that are the wrong way round for callDebitVertical and cannot be sized";
+    // For a session and for a key: no draft of the day is sized or returned.
+    for (const options of [{ repository }, { apiKey: PLAINTEXT, repository }])
+      await expectCode(
+        clientFor(options).goLiveDrafts.queue({}),
+        "STORAGE_ERROR",
+        503,
+        message
+      );
+    const client = clientFor({ repository });
+    // Nothing is approved on that day, also not the draft that is in order.
+    await expectCode(
+      client.goLiveDrafts.approve(
+        approval({ id: "d-qqq", order: { ...ORDER, symbol: "QQQ" } })
+      ),
+      "STORAGE_ERROR",
+      503,
+      message
+    );
+    expect(repository.decide).not.toHaveBeenCalled();
+    // A rejection is stored; its answer says so and names the draft.
+    await expectCode(
+      client.goLiveDrafts.reject({ id: "d-spy", note: "Wrong strikes" }),
+      "STORAGE_ERROR",
+      503,
+      `The rejection of draft d-spy was stored. ${message}`
+    );
+    expect(memory.drafts.get("d-spy")).toMatchObject({
+      approvedOrder: null,
+      decisionNote: "Wrong strikes",
+      state: "rejected",
+    });
+  });
+
   it("uses the system clock by default", async () => {
     setGoLiveDraftsDependenciesForTesting({
       account: async () => ACCOUNT,
@@ -928,13 +1179,18 @@ describe("goLiveDrafts.queue node badge", () => {
   });
 });
 
+// The quote is a delayed one, as the rig generator sends it: the server refuses the label
+// ibkr_live while no live IBKR option quote source exists.
 const candidate = (
   overrides: Partial<GoLiveCollectInput["candidates"][number]> = {}
 ): GoLiveCollectInput["candidates"][number] => ({
   entryBasis: "signal_today",
   expiry: EXPIRY,
   longStrike: 100,
-  quote: { ...liveQuote(), asOf: LIVE_AS_OF },
+  quote: {
+    ...liveQuote({ source: "yahoo_delayed_snapshot" }),
+    asOf: LIVE_AS_OF,
+  },
   shortStrike: 105,
   signalFacts: ["VIX 19.5 on 2026-11-11"],
   sleeveKey: "trend",
@@ -1044,8 +1300,9 @@ describe("goLiveDrafts.collect", () => {
       ],
       // IWM belongs to the income sleeve, not to trend.
       [{ symbol: "IWM" }, "IWM is not a symbol of sleeve trend"],
+      // A bear put spread with its strikes the right way round; the trend sleeve trades calls.
       [
-        { structure: "putDebitVertical" },
+        { longStrike: 105, shortStrike: 100, structure: "putDebitVertical" },
         "Sleeve trend trades callDebitVertical, not putDebitVertical",
       ],
     ];
@@ -1127,6 +1384,120 @@ describe("goLiveDrafts.collect", () => {
       503
     );
   });
+
+  // A stored proposed draft that the batches below do not name: a collect that ran would
+  // expire it in the Postgres store.
+  const withStoredDraft = () => {
+    const memory = createMemoryRepository({
+      drafts: [record("d-earlier", { symbol: "QQQ" })],
+    });
+    const untouched = async (): Promise<void> => {
+      // The call stopped before the store: no plan read, no collect, so no expiry and no run.
+      expect(memory.repository.planInForce).not.toHaveBeenCalled();
+      expect(memory.repository.collect).not.toHaveBeenCalled();
+      expect(memory.drafts.size).toBe(1);
+      expect(memory.drafts.get("d-earlier")).toEqual(
+        record("d-earlier", { symbol: "QQQ" })
+      );
+      const queue = await clientFor({
+        repository: memory.repository,
+      }).goLiveDrafts.queue({});
+      expect(queue.drafts.map((draft) => [draft.id, draft.state])).toEqual([
+        ["d-earlier", "proposed"],
+      ]);
+      expect(queue.generatedAt).toBeNull();
+    };
+    return { client: keyClient(memory.repository), memory, untouched };
+  };
+
+  it("refuses a quote labelled ibkr_live while no live quote source exists", async () => {
+    const { client, untouched } = withStoredDraft();
+    const labelled = batch({
+      candidates: [
+        candidate(),
+        candidate({
+          quote: { ...liveQuote(), asOf: LIVE_AS_OF },
+          symbol: "QQQ",
+        }),
+      ],
+    });
+    // The test dependencies say nothing about a live source, the service on its own (no
+    // dependencies at all) has none, and false says there is none: all three refuse.
+    for (const dependencies of [
+      defaults(),
+      {},
+      { ...defaults(), liveQuoteSource: false },
+    ]) {
+      setGoLiveDraftsDependenciesForTesting(dependencies);
+      await expectCode(
+        client.goLiveDrafts.collect(labelled),
+        "BAD_REQUEST",
+        400,
+        "A quote labelled ibkr_live is not accepted: no live IBKR option quote source exists in this version"
+      );
+    }
+    inject();
+    await untouched();
+  });
+
+  it("accepts the label only where a live quote source is declared", async () => {
+    inject({ liveQuoteSource: true });
+    const memory = createMemoryRepository();
+    await expect(
+      keyClient(memory.repository).goLiveDrafts.collect(
+        batch({
+          candidates: [
+            candidate({ quote: { ...liveQuote(), asOf: LIVE_AS_OF } }),
+          ],
+        })
+      )
+    ).resolves.toEqual({ created: 1, expired: 0, unchanged: 0 });
+    expect(
+      [...memory.drafts.values()].map((draft) => draft.quote?.source)
+    ).toEqual(["ibkr_live"]);
+  });
+
+  it.each([
+    ["callDebitVertical", 105, 100],
+    ["putCreditVertical", 100, 95],
+    ["putDebitVertical", 100, 105],
+    ["callCreditVertical", 100, 105],
+  ] as const)(
+    "refuses a %s that buys %d and sells %d: the strikes are the wrong way round",
+    async (structure, longStrike, shortStrike) => {
+      const { client, untouched } = withStoredDraft();
+      await expectCode(
+        client.goLiveDrafts.collect(
+          batch({
+            candidates: [
+              candidate(),
+              candidate({ longStrike, shortStrike, structure, symbol: "QQQ" }),
+            ],
+          })
+        ),
+        "BAD_REQUEST",
+        400
+      );
+      await untouched();
+    }
+  );
+
+  it.each([
+    ["is not a calendar day", "20261399"],
+    ["is not a calendar day", "20260230"],
+    ["is the trading day", TODAY.replaceAll("-", "")],
+    ["is before the trading day", "20261113"],
+  ])("refuses an expiry that %s (%s)", async (_name, expiry) => {
+    const { client, untouched } = withStoredDraft();
+    await expectCode(
+      client.goLiveDrafts.collect(
+        batch({ candidates: [candidate(), candidate({ expiry })] })
+      ),
+      "BAD_REQUEST",
+      400
+    );
+    await untouched();
+  });
 });
 
 const approval = (
@@ -1146,6 +1517,7 @@ describe("goLiveDrafts.approve", () => {
     }).goLiveDrafts.approve(approval({ note: "As shown" }));
     expect(memory.repository.decide).toHaveBeenCalledTimes(1);
     expect(memory.repository.decide).toHaveBeenCalledWith({
+      approvedOrder: ORDER,
       decidedBy: "owner",
       decision: "approved",
       id: "d-spy",
@@ -1154,6 +1526,7 @@ describe("goLiveDrafts.approve", () => {
     });
     expect(memory.repository.collect).not.toHaveBeenCalled();
     expect(approved).toMatchObject({
+      approvedOrder: ORDER,
       decidedAt: NOW,
       decidedBy: "owner",
       decisionNote: "As shown",
@@ -1162,6 +1535,67 @@ describe("goLiveDrafts.approve", () => {
       notApprovable: ["DRAFT_NOT_PROPOSED"],
       order: ORDER,
       sizing: SIZED,
+      state: "approved",
+    });
+  });
+
+  it("stores exactly the order the server sized", async () => {
+    // A wider spread on another quote: debit 2.00, 200 per spread, 10 spreads in the 2,000 budget.
+    const draft = record("d-qqq", {
+      longStrike: 480,
+      quote: liveQuote({
+        longAsk: 5.1,
+        longBid: 4.9,
+        shortAsk: 3.1,
+        shortBid: 2.9,
+      }),
+      shortStrike: 490,
+      symbol: "QQQ",
+    });
+    const memory = createMemoryRepository({ drafts: [draft] });
+    const client = clientFor({ repository: memory.repository });
+    const sized = {
+      legs: [
+        { expiry: EXPIRY, ratio: 1, right: "C", side: "BUY", strike: 480 },
+        { expiry: EXPIRY, ratio: 1, right: "C", side: "SELL", strike: 490 },
+      ],
+      limitPrice: 2,
+      quantity: 10,
+      symbol: "QQQ",
+    } satisfies GoLiveDraftApproveInput["order"];
+    // What the server sized from the stored draft, read before anything was approved.
+    const before = await client.goLiveDrafts.queue({});
+    expect(before.drafts[0]).toMatchObject({
+      approvedOrder: null,
+      order: sized,
+    });
+    const approved = await client.goLiveDrafts.approve(
+      approval({ id: "d-qqq", order: sized })
+    );
+    expect(approved.approvedOrder).toEqual(sized);
+    // The store got that order and holds it, field for field and with no other field.
+    const written = memory.repository.decide.mock.calls[0]?.[0];
+    expect(written).toEqual({
+      approvedOrder: sized,
+      decidedBy: "owner",
+      decision: "approved",
+      id: "d-qqq",
+      nodeBadge: "running-disarmed",
+      note: null,
+    });
+    expect(memory.drafts.get("d-qqq")).toEqual({
+      ...draft,
+      approvedOrder: sized,
+      decidedAt: NOW,
+      decidedBy: "owner",
+      decisionNote: null,
+      nodeBadgeAtDecision: "running-disarmed",
+      state: "approved",
+    });
+    // The next read shows the stored order as the approved order.
+    const after = await client.goLiveDrafts.queue({});
+    expect(after.drafts[0]).toMatchObject({
+      approvedOrder: sized,
       state: "approved",
     });
   });
@@ -1238,7 +1672,10 @@ describe("goLiveDrafts.approve", () => {
         dependencies: { jevVerdict: () => null },
         reasons: "PRECHECK_DENIED",
       },
-      { draft: { state: "approved" }, reasons: "DRAFT_NOT_PROPOSED" },
+      {
+        draft: { approvedOrder: ORDER, state: "approved" },
+        reasons: "DRAFT_NOT_PROPOSED",
+      },
       { draft: { state: "rejected" }, reasons: "DRAFT_NOT_PROPOSED" },
       {
         draft: { state: "expired" },
@@ -1285,7 +1722,9 @@ describe("goLiveDrafts.approve", () => {
         "not the order the server sized"
       );
     expect(memory.repository.decide).not.toHaveBeenCalled();
-    expect(memory.drafts.get("d-spy")?.state).toBe("proposed");
+    // Nothing was stored: the draft is as it was, proposed and without an order.
+    expect(memory.drafts.get("d-spy")).toEqual(record("d-spy"));
+    expect(memory.drafts.get("d-spy")?.approvedOrder).toBeNull();
   });
 
   it("refuses an agent API key, a non-admin operator and a non-operator", async () => {
@@ -1415,7 +1854,13 @@ describe("goLiveDrafts.reject", () => {
       nodeBadge: null,
       note: "Too close to the event",
     });
+    // A rejection sends no order to the store, and none is stored or returned.
+    expect(memory.repository.decide.mock.calls[0]?.[0]).not.toHaveProperty(
+      "approvedOrder"
+    );
+    expect(memory.drafts.get("d-spy")?.approvedOrder).toBeNull();
     expect(rejected).toMatchObject({
+      approvedOrder: null,
       decisionNote: "Too close to the event",
       id: "d-spy",
       nodeBadgeAtDecision: null,
@@ -1482,6 +1927,93 @@ describe("goLiveDrafts.reject", () => {
       "STORAGE_ERROR",
       503
     );
+  });
+});
+
+// queue.canDecide and the approve and reject procedures use one check (decisionRefusal).
+describe("goLiveDrafts.queue canDecide", () => {
+  const VIEWER = {
+    agentViewerEmails: ["viewer@domain.test"],
+    sessionUser: "viewer",
+  } as const;
+  type Caller = Readonly<{
+    canDecide: boolean;
+    name: string;
+    options: ClientOptions;
+  }>;
+  const CALLERS: readonly Caller[] = [
+    { canDecide: true, name: "the owner in a browser session", options: {} },
+    {
+      canDecide: false,
+      name: "an operator session without the admin role",
+      options: { admin: false, sessionUser: "operator" },
+    },
+    { canDecide: false, name: "an agent viewer session", options: VIEWER },
+    {
+      canDecide: false,
+      name: "an agent API key with read access",
+      options: { apiKey: PLAINTEXT, keyAccess: "read" },
+    },
+    {
+      canDecide: false,
+      name: "an agent API key with write access",
+      options: { apiKey: PLAINTEXT, keyAccess: "write" },
+    },
+  ];
+
+  it.each(CALLERS)(
+    "is $canDecide for $name, and approve and reject answer the same",
+    async ({ canDecide, options }) => {
+      const memory = createMemoryRepository({
+        drafts: [record("d-spy"), record("d-qqq", { symbol: "QQQ" })],
+      });
+      const client = clientFor({ ...options, repository: memory.repository });
+      const queue = await client.goLiveDrafts.queue({});
+      expect(queue.canDecide).toBe(canDecide);
+      const rejection = { id: "d-qqq", note: "No" };
+      if (canDecide) {
+        await expect(
+          client.goLiveDrafts.approve(approval())
+        ).resolves.toMatchObject({ state: "approved" });
+        await expect(
+          client.goLiveDrafts.reject(rejection)
+        ).resolves.toMatchObject({ state: "rejected" });
+        return;
+      }
+      await expectCode(
+        client.goLiveDrafts.approve(approval()),
+        "FORBIDDEN",
+        403
+      );
+      await expectCode(client.goLiveDrafts.reject(rejection), "FORBIDDEN", 403);
+      expect(memory.repository.decide).not.toHaveBeenCalled();
+    }
+  );
+
+  it("refuses an agent viewer by the operator list, even where the role check passes", async () => {
+    const memory = createMemoryRepository({ drafts: [record("d-spy")] });
+    const request = new Request("https://darkfactory.localhost/rpc");
+    // Called directly, so the viewer's read-only interceptor does not run, and with a role
+    // check that passes: what is left is the operator list.
+    const context = {
+      ...contextFor(request, { ...VIEWER, repository: memory.repository }),
+      requireRole: async () => session("viewer"),
+    };
+    const queue = await call(goLiveDraftsRouter.queue, {}, { context });
+    expect(queue.canDecide).toBe(false);
+    await expectCode(
+      call(goLiveDraftsRouter.approve, approval(), { context }),
+      "FORBIDDEN",
+      403,
+      "Owner (admin) access required"
+    );
+    await expectCode(
+      call(goLiveDraftsRouter.reject, { id: "d-spy", note: "No" }, { context }),
+      "FORBIDDEN",
+      403,
+      "Owner (admin) access required"
+    );
+    expect(memory.repository.decide).not.toHaveBeenCalled();
   });
 });
 

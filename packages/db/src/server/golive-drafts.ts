@@ -11,6 +11,8 @@ import {
 } from "drizzle-orm";
 
 import type {
+  GoLiveApprovedOrderLegValue,
+  GoLiveApprovedOrderValue,
   GoLiveDraftKindValue,
   GoLiveDraftRow,
   GoLiveDraftStateValue,
@@ -39,10 +41,13 @@ import { type DatabaseExecutor, withTransaction } from "./client.ts";
 // approved); writePlan retires it and inserts the next version. collect stores the generator's
 // entry candidates of one trading day under deterministic ids, so a rerun changes nothing, and
 // expires proposed drafts that are no longer wanted. decide records the owner's approval or
-// rejection of a proposed draft, once. Inputs are validated by the oRPC contract and the seed
-// script; the table checks enforce the same rules. RECORDS ONLY: no order path.
+// rejection of a proposed draft, once; an approval stores the approved order in the same
+// statement. Inputs are validated by the oRPC contract and the seed script; the table checks
+// enforce the same rules. RECORDS ONLY: no order path.
 
 export type {
+  GoLiveApprovedOrderLegValue,
+  GoLiveApprovedOrderValue,
   GoLiveDefinitionVariantValue,
   GoLiveDraftKindValue,
   GoLiveDraftStateValue,
@@ -104,6 +109,8 @@ export type GoLiveDraftRecord = Readonly<{
   decidedAt: Date | null;
   decisionNote: string | null;
   nodeBadgeAtDecision: GoLiveNodeBadgeValue | null;
+  /** The order the owner approved, as stored with the approval. null unless state is approved. */
+  approvedOrder: GoLiveApprovedOrderValue | null;
   createdAt: Date;
   updatedAt: Date;
 }>;
@@ -165,13 +172,31 @@ export type GoLiveDraftRunRecord = Readonly<{
   planVersion: number;
 }>;
 
-export type GoLiveDecideInput = Readonly<{
+/** The order of an approval, as VertexComboInputSchema (packages/api) describes it. */
+export type GoLiveApprovedOrderInput = Readonly<
+  Omit<GoLiveApprovedOrderValue, "legs"> & {
+    legs: readonly Readonly<GoLiveApprovedOrderLegValue>[];
+  }
+>;
+
+interface GoLiveDecisionFields {
   id: string;
-  decision: "approved" | "rejected";
   decidedBy: string;
   note: string | null;
   nodeBadge: GoLiveNodeBadgeValue | null;
-}>;
+}
+
+/** An approval always carries the approved order; a rejection never carries one. */
+export type GoLiveDecideInput =
+  | Readonly<
+      GoLiveDecisionFields & {
+        decision: "approved";
+        approvedOrder: GoLiveApprovedOrderInput;
+      }
+    >
+  | Readonly<
+      GoLiveDecisionFields & { decision: "rejected"; approvedOrder?: never }
+    >;
 
 export class GoLiveDraftNotFoundError extends Error {
   readonly draftId: string;
@@ -234,8 +259,10 @@ export type GoLiveDraftsRepository = Readonly<{
    */
   collect: (run: GoLiveCollectRecord) => Promise<GoLiveCollectResult>;
   /**
-   * Records the owner's decision on a proposed draft. Throws GoLiveDraftNotFoundError for an
-   * unknown id and GoLiveDraftConflictError when the draft is not proposed any more.
+   * Records the owner's decision on a proposed draft. An approval stores its order in the same
+   * statement that moves the draft from proposed to approved; a rejection stores no order. Throws
+   * GoLiveDraftNotFoundError for an unknown id and GoLiveDraftConflictError when the draft is not
+   * proposed any more.
    */
   decide: (input: GoLiveDecideInput) => Promise<GoLiveDraftRecord>;
 }>;
@@ -265,6 +292,7 @@ const planOf = (row: GoLivePlanRow): GoLivePlanRecord => ({
 });
 
 const draftOf = (row: GoLiveDraftRow): GoLiveDraftRecord => ({
+  approvedOrder: row.approvedOrder,
   createdAt: row.createdAt,
   decidedAt: row.decidedAt,
   decidedBy: row.decidedBy,
@@ -346,6 +374,22 @@ const storedQuote = (
         shortBid: quote.shortBid,
         source: quote.source,
       };
+
+/** The approved order as stored: a new object with the order fields and nothing else. */
+const storedOrder = (
+  order: GoLiveApprovedOrderInput
+): GoLiveApprovedOrderValue => ({
+  legs: order.legs.map((leg) => ({
+    expiry: leg.expiry,
+    ratio: leg.ratio,
+    right: leg.right,
+    side: leg.side,
+    strike: leg.strike,
+  })),
+  limitPrice: order.limitPrice,
+  quantity: order.quantity,
+  symbol: order.symbol,
+});
 
 /** The row of a new entry draft: state proposed, created and updated at the same time. */
 const draftValues = (
@@ -483,9 +527,16 @@ export const createGoLiveDraftsRepository = (
       }),
     decide: async (input) => {
       const at = now();
+      // Built before the statement, so an input without a usable order writes nothing.
+      const approvedOrder =
+        input.decision === "approved" ? storedOrder(input.approvedOrder) : null;
+      // One statement: the state, the decision fields and the approved order change together,
+      // and only while the draft is still proposed. The table check refuses an approved row
+      // without an order and an order on any other state.
       const decided = await database
         .update(goLiveDrafts)
         .set({
+          approvedOrder,
           decidedAt: at,
           decidedBy: input.decidedBy,
           decisionNote: input.note,
