@@ -1940,20 +1940,21 @@ describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
   const delayed = liveQuote({ source: "yahoo_delayed_snapshot" });
 
   it("overlays the live spread quote on a proposed draft, so it becomes approvable", async () => {
-    const reader = vi.fn(async () => ({
-      ...liveQuote(),
-      asOf: new Date(LIVE_AS_OF),
-    }));
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => ({ ...liveQuote(), asOf: new Date(LIVE_AS_OF) }))
+    );
     inject({ liveQuotes: reader });
     const memory = createMemoryRepository({
       drafts: [record("d-spy", { quote: delayed })],
     });
     const client = clientFor({ repository: memory.repository });
     const queue = await client.goLiveDrafts.queue({});
-    expect(reader).toHaveBeenCalledWith({
-      long: { expiry: EXPIRY, right: "C", strike: 100, symbol: "SPY" },
-      short: { expiry: EXPIRY, right: "C", strike: 105, symbol: "SPY" },
-    });
+    expect(reader).toHaveBeenCalledWith([
+      {
+        long: { expiry: EXPIRY, right: "C", strike: 100, symbol: "SPY" },
+        short: { expiry: EXPIRY, right: "C", strike: 105, symbol: "SPY" },
+      },
+    ]);
     expect(queue.drafts[0]?.quote?.source).toBe("ibkr_live");
     expect(queue.drafts[0]?.notApprovable).toEqual([]);
     expect(queue.drafts[0]?.order).toEqual(ORDER);
@@ -1964,7 +1965,7 @@ describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
   });
 
   it("keeps the stored delayed quote when the reader has no live quote", async () => {
-    inject({ liveQuotes: async () => null });
+    inject({ liveQuotes: async (spreads) => spreads.map(() => null) });
     const memory = createMemoryRepository({
       drafts: [record("d-spy", { quote: delayed })],
     });
@@ -1976,7 +1977,9 @@ describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
   });
 
   it("never quotes a decided draft or an API key caller", async () => {
-    const reader = vi.fn(async () => null);
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => null)
+    );
     inject({ liveQuotes: reader });
     const memory = createMemoryRepository({
       drafts: [record("d-spy", { quote: delayed, state: "rejected" })],

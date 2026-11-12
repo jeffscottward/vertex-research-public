@@ -262,28 +262,30 @@ const withLiveQuotes = async (
 ): Promise<readonly GoLiveDraftRecord[]> => {
   const reader = dependencies.liveQuotes ?? context.goLiveQuotes;
   if (reader === undefined) return records;
-  return await Promise.all(
-    records.map(async (record) => {
-      if (record.state !== "proposed") return record;
-      const right = record.structure.startsWith("call") ? "C" : "P";
-      const leg = (strike: number) =>
-        ({
-          expiry: record.expiry,
-          right,
-          strike,
-          symbol: record.symbol,
-        }) as const;
-      const live = await reader({
-        long: leg(record.longStrike),
-        short: leg(record.shortStrike),
-      }).catch(() => null);
-      return live === null
-        ? record
-        : { ...record, quote: { ...live, asOf: live.asOf.toISOString() } };
-    })
+  const proposed = records.filter((record) => record.state === "proposed");
+  if (proposed.length === 0) return records;
+  const spreads = proposed.map((record) => {
+    const right = record.structure.startsWith("call") ? "C" : "P";
+    const leg = (strike: number) =>
+      ({
+        expiry: record.expiry,
+        right,
+        strike,
+        symbol: record.symbol,
+      }) as const;
+    return { long: leg(record.longStrike), short: leg(record.shortStrike) };
+  });
+  const quotes = await reader(spreads).catch(() => spreads.map(() => null));
+  const live = new Map(
+    proposed.map((record, index) => [record.id, quotes[index] ?? null])
   );
+  return records.map((record) => {
+    const quote = live.get(record.id) ?? null;
+    return quote === null
+      ? record
+      : { ...record, quote: { ...quote, asOf: quote.asOf.toISOString() } };
+  });
 };
-
 const load = async (
   context: ApiContext,
   repository: GoLiveDraftsRepositoryPort,

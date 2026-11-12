@@ -114,6 +114,7 @@ type Options = Readonly<{
   sinkFailed?: boolean;
   span?: SpanHandle;
   intents?: OrderIntentRepository;
+  goLiveDrafts?: unknown;
 }>;
 
 const clientFor = ({
@@ -124,6 +125,7 @@ const clientFor = ({
   sinkFailed = false,
   span,
   intents,
+  goLiveDrafts,
 }: Options = {}) => {
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
@@ -136,9 +138,10 @@ const clientFor = ({
         telemetryExport: false,
       },
       operatorEmails: ["operator@domain.test", "member-op@domain.test"],
-      repositories: (intents === undefined
-        ? {}
-        : { orderIntents: intents }) as unknown as Repositories,
+      repositories: {
+        ...(intents === undefined ? {} : { orderIntents: intents }),
+        ...(goLiveDrafts === undefined ? {} : { goLiveDrafts }),
+      } as unknown as Repositories,
       requestId: "request-1",
       // Owner = operator allow-list AND admin role; "member-op" is an operator without admin.
       requireRole: async () => {
@@ -209,6 +212,8 @@ const intentStore = () => {
   const outcomes = new Map<string, string>();
   const rows: string[] = [];
   const store: OrderIntentRepository = {
+    hasIntent: async (orderRef) =>
+      intents.some((i) => i.orderRef === orderRef) || outcomes.has(orderRef),
     recordIntent: async ({ intent }) => {
       intents.push({ ...intent, createdAt: clock });
       rows.push(`intent ${intent.orderRef}`);
@@ -613,6 +618,98 @@ describe("vertexOrders procedures", () => {
       "NOT_CONFIGURED",
       503
     );
+  });
+
+  it("sends an approved go-live draft once, armed, and refuses a second send of it", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>(async () => ({
+      message: "ok",
+      permId: 79,
+      state: "submitted",
+    }));
+    const spread: VertexComboInput = {
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    };
+    const goLiveDrafts = {
+      listDrafts: async () => [
+        {
+          approvedOrder: spread,
+          expiry: "20280121",
+          id: "d-1",
+          kind: "entry",
+          longStrike: 100,
+          planId: "pie",
+          shortStrike: 105,
+          state: "approved",
+          structure: "callDebitVertical",
+          symbol: "MOCKS",
+          tradingDay: "2026-11-13",
+        },
+      ],
+      planInForce: async () => ({
+        id: "pie",
+        limits: {
+          maxPositions: 4,
+          nameRiskCapPct: 2,
+          openRiskCapPct: 4,
+          positionRiskPct: 1,
+        },
+        status: "approved",
+      }),
+    };
+    let badge: "running-armed" | "running-disarmed" = "running-disarmed";
+    setVertexOrdersDependenciesForTesting({
+      goLiveNode: async () => ({ arm: null, badge, checkedAt: "T" }),
+      mock: {
+        ...mock,
+        account: async () => ({
+          ...(await mock.account()),
+          openOrders: [],
+          positions: [],
+        }),
+        placeCombo,
+      },
+      now: () => clock,
+    });
+    const { store, rows } = intentStore();
+    const client = clientFor({ goLiveDrafts, intents: store });
+    const send = async () => {
+      const preview = await client.vertexOrders.comboPreview({
+        ...spread,
+        goLiveDraftId: "d-1",
+      });
+      if (preview.confirmToken === null) return preview.review.reasons;
+      return await client.vertexOrders.comboSubmit({
+        confirm: true,
+        confirmToken: preview.confirmToken,
+        goLiveDraftId: "d-1",
+        order: spread,
+      });
+    };
+    // Disarmed: nothing is sent and the reason is named.
+    expect(await send()).toEqual([
+      expect.stringMatching(
+        /^GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed/u
+      ),
+    ]);
+    badge = "running-armed";
+    const first = await send();
+    expect(first).toMatchObject({ permId: 79, state: "submitted" });
+    expect((first as { orderRef: string }).orderRef).toMatch(
+      /^vertex-gl[0-9a-f]{30}$/u
+    );
+    expect(rows[0]).toBe(`intent ${(first as { orderRef: string }).orderRef}`);
+    // Second send of the same draft: refused at preview, nothing reaches the gateway again.
+    expect(await send()).toContain(
+      "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+    );
+    expect(placeCombo).toHaveBeenCalledTimes(1);
   });
 
   it("binds a go-live draft id to the confirm token and refuses by name when the draft store is missing", async () => {

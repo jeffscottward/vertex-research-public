@@ -21,10 +21,14 @@ export type GoLiveSpreadLegs = Readonly<{
   short: GoLiveQuoteLeg;
 }>;
 
-/** The live quote of one vertical, or null when there is none now. Never throws. */
+/**
+ * The live quote of each vertical, in order, or null where there is none now. Never throws. One
+ * bridge run serves up to GOLIVE_QUOTES_SPREADS_PER_CALL spreads: the bridge shares the IBKR
+ * client (and its lock) with the order runs, so the reader asks as few times as it can.
+ */
 export type GoLiveQuotesPort = (
-  spread: GoLiveSpreadLegs
-) => Promise<GoLiveQuote | null>;
+  spreads: readonly GoLiveSpreadLegs[]
+) => Promise<(GoLiveQuote | null)[]>;
 
 type QuotesFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -33,8 +37,10 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const GOLIVE_QUOTES_TIMEOUT_MS = 45_000;
 // A spread quote is reused this long, so the queue the owner read and the approve that follows
 // size the same order (the approve compares the order to the cent). Under the 120 s live-quote
-// age limit of the sizing (GOLIVE_QUOTE_MAX_AGE_MS).
-export const GOLIVE_QUOTES_CACHE_MS = 60_000;
+// age limit of the sizing (GOLIVE_QUOTE_MAX_AGE_MS), so a cached quote is still live.
+export const GOLIVE_QUOTES_CACHE_MS = 100_000;
+// The bridge takes at most 8 legs per request.
+const GOLIVE_QUOTES_SPREADS_PER_CALL = 4;
 
 const BridgeLegSchema = z.object({
   ask: z.number().finite().nullable(),
@@ -47,7 +53,7 @@ const BridgeLegSchema = z.object({
 
 const BridgeQuotesSchema = z.object({
   asOf: z.string().max(40),
-  legs: z.array(BridgeLegSchema).length(2),
+  legs: z.array(BridgeLegSchema).min(2).max(8),
   state: z.literal("complete"),
 });
 
@@ -82,20 +88,44 @@ export const createBridgeQuotesReader = (
     LOOPBACK_HOSTS.has(url.hostname) &&
     token !== null &&
     token.length >= 32;
-  if (!configured) return async () => null;
+  if (!configured) return async (spreads) => spreads.map(() => null);
   const endpoint = `${url.origin}${url.pathname.replace(/\/+$/, "")}/quotes`;
   const fetchImpl: QuotesFetch =
     options.fetch ?? ((input, init) => fetch(input, init));
   const now = options.now ?? (() => new Date());
   const cache = new Map<string, { at: number; quote: GoLiveQuote | null }>();
 
+  const spreadQuote = (
+    spread: GoLiveSpreadLegs,
+    long: BridgeLeg | undefined,
+    short: BridgeLeg | undefined,
+    asOf: Date
+  ): GoLiveQuote | null =>
+    long === undefined ||
+    short === undefined ||
+    !usable(long, spread.long) ||
+    !usable(short, spread.short)
+      ? null
+      : {
+          asOf,
+          longAsk: long.ask,
+          longBid: long.bid,
+          shortAsk: short.ask,
+          shortBid: short.bid,
+          source: "ibkr_live",
+        };
+
+  // One bridge run for up to 4 spreads (8 legs, in order: long, short of each).
   const read = async (
-    spread: GoLiveSpreadLegs
-  ): Promise<GoLiveQuote | null> => {
+    spreads: readonly GoLiveSpreadLegs[]
+  ): Promise<(GoLiveQuote | null)[]> => {
+    const none = spreads.map(() => null);
     let response: Response;
     try {
       response = await fetchImpl(endpoint, {
-        body: JSON.stringify({ legs: [spread.long, spread.short] }),
+        body: JSON.stringify({
+          legs: spreads.flatMap((spread) => [spread.long, spread.short]),
+        }),
         headers: {
           "content-type": "application/json",
           "x-vertex-bridge-token": token,
@@ -104,44 +134,50 @@ export const createBridgeQuotesReader = (
         signal: AbortSignal.timeout(GOLIVE_QUOTES_TIMEOUT_MS),
       });
     } catch {
-      return null;
+      return none;
     }
-    if (!response.ok) return null;
+    if (!response.ok) return none;
     const parsed = BridgeQuotesSchema.safeParse(
       await response.json().catch(() => null)
     );
-    if (!parsed.success) return null;
-    const [long, short] = parsed.data.legs;
-    if (
-      long === undefined ||
-      short === undefined ||
-      !usable(long, spread.long) ||
-      !usable(short, spread.short)
-    )
-      return null;
+    if (!parsed.success || parsed.data.legs.length !== spreads.length * 2)
+      return none;
     const asOf = new Date(parsed.data.asOf);
-    if (Number.isNaN(asOf.getTime())) return null;
-    return {
-      asOf,
-      longAsk: long.ask,
-      longBid: long.bid,
-      shortAsk: short.ask,
-      shortBid: short.bid,
-      source: "ibkr_live",
-    };
+    if (Number.isNaN(asOf.getTime())) return none;
+    const legs = parsed.data.legs;
+    return spreads.map((spread, index) =>
+      spreadQuote(spread, legs[index * 2], legs[index * 2 + 1], asOf)
+    );
   };
 
-  return async (spread) => {
-    const key = JSON.stringify([spread.long, spread.short]);
+  return async (spreads) => {
     const time = now().getTime();
-    const hit = cache.get(key);
-    if (hit !== undefined && time - hit.at < GOLIVE_QUOTES_CACHE_MS)
-      return hit.quote;
-    const quote = await read(spread);
     for (const [k, v] of cache)
       if (time - v.at >= GOLIVE_QUOTES_CACHE_MS) cache.delete(k);
-    cache.set(key, { at: time, quote });
-    return quote;
+    const keys = spreads.map((spread) =>
+      JSON.stringify([spread.long, spread.short])
+    );
+    const missing = [
+      ...new Map(
+        spreads
+          .map((spread, index) => [keys[index] ?? "", spread] as const)
+          .filter(([key]) => !cache.has(key))
+      ),
+    ];
+    for (
+      let start = 0;
+      start < missing.length;
+      start += GOLIVE_QUOTES_SPREADS_PER_CALL
+    ) {
+      const chunk = missing.slice(
+        start,
+        start + GOLIVE_QUOTES_SPREADS_PER_CALL
+      );
+      const quotes = await read(chunk.map(([, spread]) => spread));
+      for (const [index, [key]] of chunk.entries())
+        cache.set(key, { at: time, quote: quotes[index] ?? null });
+    }
+    return keys.map((key) => cache.get(key)?.quote ?? null);
   };
 };
 
