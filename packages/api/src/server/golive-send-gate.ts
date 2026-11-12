@@ -29,7 +29,7 @@ import type { GatewayOpenOrder } from "./vertex-orders-rules.ts";
 //   (golive-send-caps.ts).
 // Each refusal is one named line; nothing here sends, arms or approves.
 
-export const GOLIVE_SEND_REFUSAL_PREFIX = "GO-LIVE";
+const GOLIVE_SEND_REFUSAL_PREFIX = "GO-LIVE";
 
 export type GoLiveSendInputs = Readonly<{
   account: Readonly<{

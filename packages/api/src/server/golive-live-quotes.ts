@@ -30,7 +30,7 @@ type QuotesFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 // One bridge run spawns an IBKR client and waits up to 30 s for snapshots.
-export const GOLIVE_QUOTES_TIMEOUT_MS = 45_000;
+const GOLIVE_QUOTES_TIMEOUT_MS = 45_000;
 // A spread quote is reused this long, so the queue the owner read and the approve that follows
 // size the same order (the approve compares the order to the cent). Under the 120 s live-quote
 // age limit of the sizing (GOLIVE_QUOTE_MAX_AGE_MS).
