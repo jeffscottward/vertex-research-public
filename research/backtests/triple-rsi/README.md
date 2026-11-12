@@ -27,7 +27,7 @@ Data: the flat directory of `research/backtests/options-forms/fetch_data.py` (Co
   --data ~/Documents/reports/vertex-options-forms/data --out ~/Documents/reports/web/vertex-triple-rsi --workers 8
 ```
 
-Any venv with `services/research/requirements-nautilus-linux-py312.lock` works. The run takes about 3 minutes with 8
+Any venv with `services/research/requirements-nautilus-linux-py312.lock` works. The run takes about a minute with 8
 workers. It writes `results.json`, `study.json` and `index.html` to `--out` (outside the repository; the data terms do not
 allow redistribution). `--render-only` rebuilds `study.json` and `index.html` from an existing `results.json`.
 

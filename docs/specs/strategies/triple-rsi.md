@@ -130,9 +130,10 @@ loss.
 
 ## Results (2026-11-12, rig)
 
-Run: `research/backtests/triple-rsi/run.py`, data to 2026-11-10, 360 strategy runs (N of the deflated Sharpe), 151 s with 8
-workers. Every share run matched NautilusTrader to 4.3e-16 relative; every options run matched to 1e-6. Report:
-`~/Documents/reports/web/vertex-triple-rsi/index.html` on the rig. Study document: `research_studies` id `triple-rsi`.
+Run: `research/backtests/triple-rsi/run.py`, data to 2026-11-10, 360 strategy runs (N of the deflated Sharpe), 70 s with 8
+workers, at commit `96906eef` (clean tree). Every share run matched NautilusTrader to 2.2e-16 relative; every options run to
+3.0e-16. Report: `~/Documents/reports/web/vertex-triple-rsi/index.html` on the rig. Study document: `research_studies` id
+`triple-rsi`.
 
 ### Claim vs ours (SPY, 1994-01-24 to 2026-11-10)
 
@@ -177,7 +178,7 @@ win rate.
 | SLV | 36 | 63.9% | 2.76% | -13.4% | 0.39 | 6.63% / 0.36 |
 | USO | 41 | 63.4% | 0.37% | -30.1% | 0.09 | -5.20% / 0.05 |
 
-The 90% win rate is a SPY result. On the other six ETFs it is 64% to 80%.
+The 90% win rate is a SPY result. On the other six ETFs it is 63% to 80%.
 
 ### Options form (Vertex: call debit vertical, 2% of equity at risk per spread)
 
@@ -191,9 +192,9 @@ The 90% win rate is a SPY result. On the other six ETFs it is 64% to 80%.
 Other ETFs (30 days, book rule): QQQ Sharpe 0.16, DIA -0.12, IWM 0.22, GLD -0.05, SLV -0.11 (13 trades, VXSLV from 2011),
 USO -0.43. The always-on form of the same spread has a Sharpe of -0.18 on SPY. A 2% risk per spread, held 5 days and in the
 market 5% of the time, moves the equity by +0.3% a year. The win rate of the spread falls to 64%, and the one-day delay of
-the book rule matters most: the same spread bought at the signal close has a Sharpe of 0.58. One of the 28 options rows
-passes the lower bar: DIA with the owner exit rule only (Sharpe 0.33, out-of-sample 0.14, 57 trades, deflated Sharpe 0.08);
-with 28 rows tried and the DIA share rule at a Sharpe of 0.22, that is most likely noise.
+the book rule matters most: the same spread bought at the signal close has a Sharpe of 0.58. Apart from the signal-close
+benchmark, one options row passes the lower bar: DIA with the owner exit rule only (Sharpe 0.33, out-of-sample 0.14, 57
+trades, deflated Sharpe 0.08); with 28 rows tried and the DIA share rule at a Sharpe of 0.22, that is most likely noise.
 
 ### Robustness
 
@@ -217,7 +218,7 @@ with 28 rows tried and the DIA share rule at a Sharpe of 0.22, that is most like
   above its always-on form (-0.18), the 2x cost stress of the share rule (Sharpe 0.63) and the neighbour share (100%).
 - Lower bar: fails (Sharpe 0.22 < 0.30, out-of-sample -0.07 <= 0).
 - "90% win rate": reproduces on SPY shares at the close (90.0% on 90 trades). It does not carry over: 80% at the next open,
-  64% in the options form, 64% to 80% on the other ETFs.
+  64% in the options form, 63% to 80% on the other ETFs.
 - The share rule on SPY has a small real edge at the close (Sharpe 0.68 after 5 bp, above buy-and-hold's 0.64, with a
   quarter of its drawdown, every one of 270 variants positive), but it fails the deflated Sharpe at N = 360 (0.61). At the
   next open, the fill an automated order gets, it falls to a Sharpe of 0.59 (below buy-and-hold) and a deflated Sharpe of

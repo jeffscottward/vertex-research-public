@@ -324,11 +324,13 @@ def test_assemble_counts_trials_once_and_decides_on_the_options_row():
     options = []
     for symbol in study.SYMBOLS:
         for variant in options_form.FORMS:
-            row_trades = [{"pnl": 10.0, "returnOnRisk": 0.1, "id": 1, "entryDate": dates[1], "exitDate": dates[3]}]
+            late = 20 if (symbol, variant.key) == ("SLV", "call60") else 0
+            row_trades = [{"pnl": 10.0, "returnOnRisk": 0.1, "id": 1, "entryDate": dates[late + 1],
+                           "exitDate": dates[late + 3]}]
             rows = [{**row_trades[0], "return": 0.1, "holdDays": 2}]
             options.append({"symbol": symbol, "variant": variant.key, "baselineDelay": None, "refused": {},
                             "nautilusGap": 0.0, "engine": "nautilus-trader-1.227.0",
-                            "result": _job_result(dates, curve(0.00001, 0.001), row_trades * 30),
+                            "result": _job_result(dates[late:], curve(0.00001, 0.001)[late:], row_trades * 30),
                             "tradeRows": rows * 30})
             for delay in (0, 21):
                 if symbol == "QQQ":
@@ -343,6 +345,11 @@ def test_assemble_counts_trials_once_and_decides_on_the_options_row():
     assert decision["row"] == {"symbol": "SPY", "variant": "call30"}
     assert any(check["check"] == metrics.BASELINE_CHECK for check in decision["checks"])
     assert decision["passesGate"] is False  # the options Sharpe is far below 0.5
+    slv = next(row for row in results["options"] if (row["symbol"], row["variant"]) == ("SLV", "call60"))
+    # SLV call60 starts 20 days after the buy-and-hold run: its buy-and-hold is bought at that close and rescaled.
+    assert slv["buyHold"]["start"] == dates[20]
+    hold_values = curve(0.0003, 0.002)
+    assert slv["buyHold"]["finalEquity"] == pytest.approx(100_000.0 * hold_values[-1] / hold_values[20])
     qqq = next(row for row in results["options"] if (row["symbol"], row["variant"]) == ("QQQ", "call30"))
     assert qqq["baselineSharpe"] is None
     assert [check["pass"] for check in qqq["checks"] if check["check"] == metrics.BASELINE_CHECK] == [False]
