@@ -33,12 +33,24 @@ const coverage = (
   statements: counts(statements, pct[3]),
 });
 
+const KEPT = `
+export const second = 2;
+export const first = 1;
+const local = 1;
+export { local as alias };
+const kept = 2;
+export { kept };
+register(helper);
+for (const item of pair) register(item);
+export { other as renamed } from "./other.ts";
+export default class Thing {}
+`;
+
 const ORIGINAL = `
 import { pair, register } from "./deps.ts";
 import Default, * as all from "lib";
 import { type Kind, read } from "lib/kinds";
 import type { Options } from "lib/options";
-import defer * as lazy from "./lazy.ts";
 import data from "./data.json" with { type: "json" };
 import "./side-effect.ts";
 
@@ -74,21 +86,9 @@ const LIMITS = {
   },
 } as const;
 const kinds = (["a", "b"] satisfies readonly string[]);
-class Plain implements Shape {
-  readonly side = 1;
-  static count?: number;
-  static size = 1;
-  static make() {
-    return new Plain();
-  }
-}
-class Sub extends Plain {}
-class Box extends Default {
-  static made = () => new Box();
-  value = read();
-  method(options: Options): number {
-    return all.x + data.y + lazy.z + options.w;
-  }
+let seen = 0;
+function build(options: Options): number {
+  return all.x + data.y + options.w + Default + read() + seen;
 }
 function folder(): string {
   return import.meta.dirname;
@@ -101,34 +101,7 @@ function assign(target: { a?: number }) {
   ({ a = second } = target);
   return { a, helper };
 }
-export const [, second] = pair;
-export const { first, nested: { deep } } = { first: 1, nested: { deep: 2 } };
-const local = 1;
-export { local as alias };
-const kept = 2;
-export { kept };
-register(helper);
-for (const item of pair) register(item);
-export { other as renamed } from "./other.ts";
-export * from "./third.ts";
-export * as space from "./space.ts";
-export default class Thing {}
-`;
-
-const KEPT = `
-export const [, second] = pair;
-export const { first, nested: { deep } } = { first: 1, nested: { deep: 2 } };
-const local = 1;
-export { local as alias };
-const kept = 2;
-export { kept };
-register(helper);
-for (const item of pair) register(item);
-export { other as renamed } from "./other.ts";
-export * from "./third.ts";
-export * as space from "./space.ts";
-export default class Thing {}
-`;
+${KEPT}`;
 
 const SPLIT_ORIGIN = `
 import { pair, register } from "./deps.ts";
@@ -144,7 +117,6 @@ const PART_IMPORTS = `
 import Default, * as all from "lib";
 import { type Kind, read } from "lib/kinds";
 import type { Options } from "lib/options";
-import defer * as lazy from "./lazy.ts";
 import data from "./data.json" with { type: "json" };
 import type { Shape } from "./shape.ts";
 import { second } from "./a.tsx";
@@ -177,21 +149,9 @@ const LIMITS = {
   },
 } as const;
 const kinds = (["a", "b"] satisfies readonly string[]);
-class Plain implements Shape {
-  readonly side = 1;
-  static count?: number;
-  static size = 1;
-  static make() {
-    return new Plain();
-  }
-}
-class Sub extends Plain {}
-class Box extends Default {
-  static made = () => new Box();
-  value = read();
-  method(options: Options): number {
-    return all.x + data.y + lazy.z + options.w;
-  }
+let seen = 0;
+function build(options: Options): number {
+  return all.x + data.y + options.w + Default + read() + seen;
 }
 function folder(): string {
   return import.meta.dirname;
@@ -451,8 +411,8 @@ describe("runCoverageSplitProof", () => {
     expect(result.output).toEqual([
       "Pure-move split of src/a.tsx into src/part.ts, src/shape.ts, src/view.tsx",
       `Base: main (merge base of HEAD and ${TARGET}); files after the split: HEAD`,
-      "Statements: 27 in the original file; 14 in the new files.",
-      "Exports of src/a.tsx: 13 before, 13 after.",
+      "Statements: 24 in the original file; 13 in the new files.",
+      "Exports of src/a.tsx: 10 before, 10 after.",
       "Coverage, covered/total before and after:",
       "  lines: 6/10 and 6/10",
       "  branches: 1/2 and 1/2",
@@ -525,8 +485,8 @@ describe("runCoverageSplitProof", () => {
         "src/a.tsx": edit(
           edit(
             SPLIT_ORIGIN,
-            "export const [, second] = pair;\nexport const { first, nested: { deep } } = { first: 1, nested: { deep: 2 } };",
-            "export const { first, nested: { deep } } = { first: 1, nested: { deep: 2 } };\nexport const [, second] = pair;"
+            "export const second = 2;\nexport const first = 1;",
+            "export const first = 1;\nexport const second = 2;"
           ),
           "export default class Thing {}\n",
           ""
@@ -540,11 +500,11 @@ describe("runCoverageSplitProof", () => {
     });
 
     expect(result.problems).toEqual([
-      "src/a.tsx:11: statement is out of its original order: const [ , second ] = pair ;",
-      "src/part.ts:14: statement is not in the original file (new or changed code): function area ( shape : Shape ) : number { return helper ( s...",
-      'src/part.ts:35: statement is not in the original file (new or changed code): const extra = "a new statement whose text is longer than the...',
-      "src/a.tsx:18: statement of the original file is missing after the split: function area ( shape : Shape ) : number { return helper ( s...",
-      "src/a.tsx:80: statement of the original file is missing after the split: default class Thing { }",
+      "src/a.tsx:11: statement is out of its original order: const second = 2 ;",
+      "src/part.ts:13: statement is not in the original file (new or changed code): function area ( shape : Shape ) : number { return helper ( s...",
+      'src/part.ts:34: statement is not in the original file (new or changed code): const extra = "a new statement whose text is longer than the...',
+      "src/a.tsx:17: statement of the original file is missing after the split: function area ( shape : Shape ) : number { return helper ( s...",
+      "src/a.tsx:66: statement of the original file is missing after the split: default class Thing { }",
       "src/a.tsx: export default is missing after the split",
     ]);
     expect(result.code).toBe(1);
@@ -559,8 +519,8 @@ describe("runCoverageSplitProof", () => {
           'import { pair as second } from "./deps.ts";'
         ),
         [
-          "src/part.ts:8: imports pair as second; aliases are not allowed",
-          "src/part.ts:58: second names declaration second in the original file and pair from src/deps.ts after the split",
+          "src/part.ts:7: imports pair as second; aliases are not allowed",
+          "src/part.ts:45: second names declaration second in the original file and pair from src/deps.ts after the split",
         ],
       ],
       [
@@ -569,9 +529,9 @@ describe("runCoverageSplitProof", () => {
         [
           "src/part.ts:3: imports Kind from lib/other-kinds (type), which the original file does not import that way",
           "src/part.ts:3: imports read from lib/other-kinds (value), which the original file does not import that way",
-          'src/a.tsx: loads src/deps.ts, lib, lib/kinds, deferred src/lazy.ts, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts, src/third.ts, src/space.ts before the split and src/deps.ts, lib, lib/other-kinds, deferred src/lazy.ts, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts, src/third.ts, src/space.ts after it; what loads and its order stay the same',
-          "src/part.ts:17: Kind names Kind from lib/kinds in the original file and Kind from lib/other-kinds after the split",
-          "src/part.ts:45: read names read from lib/kinds in the original file and read from lib/other-kinds after the split",
+          'src/a.tsx: loads src/deps.ts, lib, lib/kinds, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts before the split and src/deps.ts, lib, lib/other-kinds, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts after it; what loads and its order stay the same',
+          "src/part.ts:16: Kind names Kind from lib/kinds in the original file and Kind from lib/other-kinds after the split",
+          "src/part.ts:36: read names read from lib/kinds in the original file and read from lib/other-kinds after the split",
         ],
       ],
       [
@@ -581,7 +541,7 @@ describe("runCoverageSplitProof", () => {
           'import {} from "./evil.ts";\nimport { second }'
         ),
         [
-          'src/a.tsx: loads src/deps.ts, lib, lib/kinds, deferred src/lazy.ts, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts, src/third.ts, src/space.ts before the split and src/deps.ts, lib, lib/kinds, deferred src/lazy.ts, src/data.json with { type : "json" }, src/evil.ts, src/side-effect.ts, src/other.ts, src/third.ts, src/space.ts after it; what loads and its order stay the same',
+          'src/a.tsx: loads src/deps.ts, lib, lib/kinds, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts before the split and src/deps.ts, lib, lib/kinds, src/data.json with { type : "json" }, src/evil.ts, src/side-effect.ts, src/other.ts after it; what loads and its order stay the same',
         ],
       ],
       [
@@ -589,15 +549,7 @@ describe("runCoverageSplitProof", () => {
         part("import type { Options }", "import { Options }"),
         [
           "src/part.ts:4: imports Options from lib/options (value), which the original file does not import that way",
-          'src/a.tsx: loads src/deps.ts, lib, lib/kinds, deferred src/lazy.ts, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts, src/third.ts, src/space.ts before the split and src/deps.ts, lib, lib/kinds, lib/options, deferred src/lazy.ts, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts, src/third.ts, src/space.ts after it; what loads and its order stay the same',
-        ],
-      ],
-      [
-        "an eager import of a deferred module",
-        part("import defer * as lazy", "import * as lazy"),
-        [
-          "src/part.ts:5: imports * from src/lazy.ts (value), which the original file does not import that way",
-          'src/a.tsx: loads src/deps.ts, lib, lib/kinds, deferred src/lazy.ts, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts, src/third.ts, src/space.ts before the split and src/deps.ts, lib, lib/kinds, src/lazy.ts, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts, src/third.ts, src/space.ts after it; what loads and its order stay the same',
+          'src/a.tsx: loads src/deps.ts, lib, lib/kinds, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts before the split and src/deps.ts, lib, lib/kinds, lib/options, src/data.json with { type : "json" }, src/side-effect.ts, src/other.ts after it; what loads and its order stay the same',
         ],
       ],
       [
@@ -658,7 +610,8 @@ describe("runCoverageSplitProof", () => {
         'export { f } from "./part.ts";\n',
         'import defer * as lazy from "./lazy.ts";\nimport {} from "./lazy.ts";\nexport function f() {\n  return lazy.x;\n}\n',
         [
-          "src/a.ts: loads deferred src/lazy.ts before the split and deferred src/lazy.ts, src/lazy.ts after it; what loads and its order stay the same",
+          'src/a.ts:1: the proof refuses import defer: import defer * as lazy from "./lazy.ts" ;',
+          'src/part.ts:1: the proof refuses import defer: import defer * as lazy from "./lazy.ts" ;',
         ],
       ],
       [
@@ -773,7 +726,7 @@ describe("runCoverageSplitProof", () => {
           'export * as views from "./view.tsx";'
         ),
         [
-          "src/a.tsx:8: re-exports src/view.tsx as a namespace",
+          'src/a.tsx:8: the proof refuses export *: export * as views from "./view.tsx" ;',
           "src/a.tsx: export View is missing after the split",
         ],
       ],
@@ -797,6 +750,7 @@ describe("runCoverageSplitProof", () => {
       );
 
       expect(result.problems).toEqual([
+        'src/a.ts:1: the proof refuses export *: export * from "./part.ts" ;',
         "src/a.ts: export default is missing after the split",
       ]);
       expect(result.code).toBe(1);
@@ -809,7 +763,7 @@ describe("runCoverageSplitProof", () => {
         'export type * from "./part.ts";\n',
         "export const v = 1;\n",
         [
-          "src/a.ts:1: re-exports the value v of src/part.ts as a type",
+          'src/a.ts:1: the proof refuses export *: export type * from "./part.ts" ;',
           "src/a.ts: export v is missing after the split",
         ],
       ],
@@ -819,7 +773,9 @@ describe("runCoverageSplitProof", () => {
         'export * from "./other.ts";\nexport * from "./part.ts";\n',
         "export const v = 1;\n",
         [
-          "src/a.ts:2: re-exports src/part.ts with export * beside export * of another module; name the re-exported names",
+          'src/a.ts:1: the proof refuses export *: export * from "./other.ts" ;',
+          'src/a.ts:1: the proof refuses export *: export * from "./other.ts" ;',
+          'src/a.ts:2: the proof refuses export *: export * from "./part.ts" ;',
           "src/a.ts: export v is missing after the split",
         ],
       ],
@@ -855,11 +811,26 @@ describe("runCoverageSplitProof", () => {
       );
 
       expect(result.problems).toEqual([
-        "src/a.ts: export alias is exported more than once",
-        "src/a.ts: export alias was declaration local and is declaration alias after the split",
+        'src/a.ts:3: the proof refuses export *: export * from "./part.ts" ;',
       ]);
       expect(result.code).toBe(1);
     });
+  });
+
+  it("rejects an export that names another import", async () => {
+    const result = await smallSplit(
+      'import { x } from "./m.ts";\nexport { x };\n',
+      'import { x } from "./n.ts";\nexport { x };\n',
+      ""
+    );
+
+    expect(result.problems).toEqual([
+      "src/a.ts: export x was x from src/m.ts and is x from src/n.ts after the split",
+      "src/a.ts:1: imports x from src/n.ts (value), which the original file does not import that way",
+      "src/a.ts: loads src/m.ts before the split and src/n.ts after it; what loads and its order stay the same",
+      "src/a.ts:2: x names x from src/m.ts in the original file and x from src/n.ts after the split",
+    ]);
+    expect(result.code).toBe(1);
   });
 
   it("rejects a change to any file but the split files and the baseline", async () => {
@@ -875,15 +846,11 @@ describe("runCoverageSplitProof", () => {
     it.each([
       [
         "const started = Date.now();",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const started = Date . now ( ) ;",
-      ],
-      [
-        "let counter = 0;",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: let counter = 0 ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: const started = Date . now ( ) ;",
       ],
       [
         "var legacy = 0;",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: var legacy = 0 ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: var legacy = 0 ;",
       ],
       [
         "declare const ambient: number;",
@@ -891,55 +858,55 @@ describe("runCoverageSplitProof", () => {
       ],
       [
         "const flags = { ...defaults };",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const flags = { ... defaults } ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: const flags = { ... defaults } ;",
       ],
       [
         "const keyed = { [key]: 1 };",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const keyed = { [ key ] : 1 } ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: const keyed = { [ key ] : 1 } ;",
       ],
       [
         "const short = { value };",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const short = { value } ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: const short = { value } ;",
       ],
       [
         "const negated = !0;",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const negated = ! 0 ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: const negated = ! 0 ;",
       ],
       [
         "const negative = -offset;",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const negative = - offset ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: const negative = - offset ;",
       ],
       [
         "const tagged = `a${b}`;",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const tagged = `a${ b }` ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: const tagged = `a${ b }` ;",
       ],
       [
         "await using handle = open();",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: await using handle = open ( ) ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: await using handle = open ( ) ;",
       ],
       [
         "enum Color {\n  Red,\n}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: enum Color { Red , }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: enum Color { Red , }",
       ],
       [
         "class Decorated {\n  @observe value = 1;\n}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is a class with decorators: class Decorated { @ observe value = 1 ; }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: class Decorated { @ observe value = 1 ; }",
       ],
       [
         "class Blocked {\n  static {\n    start();\n  }\n}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is a class with a static block: class Blocked { static { start ( ) ; } }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: class Blocked { static { start ( ) ; } }",
       ],
       [
         "class Computed {\n  [key] = 1;\n}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is a class with a computed member name: class Computed { [ key ] = 1 ; }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: class Computed { [ key ] = 1 ; }",
       ],
       [
         "class Started {\n  static at = Date.now();\n}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is a class with a static initializer that runs code: class Started { static at = Date . now ( ) ; }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: class Started { static at = Date . now ( ) ; }",
       ],
       [
         "class Mixed extends mixin(Base) {}",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is a class that extends an expression: class Mixed extends mixin ( Base ) { }",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: class Mixed extends mixin ( Base ) { }",
       ],
       [
         "const where = () => import.meta.url;",
@@ -950,20 +917,8 @@ describe("runCoverageSplitProof", () => {
         "src/part.ts:1: only declarations that run nothing at load time may move; this is code that names its own file (import.meta, __filename): function file ( ) { return __filename ; }",
       ],
       [
-        "const { max = LIMIT } = {} as { max?: number };",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const { max = LIMIT } = { } as { max ? : number } ;",
-      ],
-      [
-        "const { v } = {\n  get v() {\n    return 1;\n  },\n};",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const { v } = { get v ( ) { return 1 ; } , } ;",
-      ],
-      [
         "declare function native(): number;",
         "src/part.ts:1: only declarations that run nothing at load time may move; this is an ambient declaration (declare), which has no value at run time: declare function native ( ) : number ;",
-      ],
-      [
-        "const { [key]: k } = {};",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const { [ key ] : k } = { } ;",
       ],
     ])("keeps %s in the original file", async (statement, problem) => {
       const result = await smallSplit(`${statement}\n`, "", `${statement}\n`);
@@ -971,6 +926,38 @@ describe("runCoverageSplitProof", () => {
       expect(result.problems).toEqual([problem]);
       expect(result.code).toBe(1);
     });
+
+    it.each([
+      [
+        "const { max = LIMIT } = {} as { max?: number };",
+        [
+          "src/a.ts:1: the proof refuses a destructuring declaration: const { max = LIMIT } = { } as { max ? : number } ;",
+          "src/part.ts:1: the proof refuses a destructuring declaration: const { max = LIMIT } = { } as { max ? : number } ;",
+        ],
+      ],
+      [
+        "const { v } = {\n  get v() {\n    return 1;\n  },\n};",
+        [
+          "src/a.ts:1: the proof refuses a destructuring declaration: const { v } = { get v ( ) { return 1 ; } , } ;",
+          "src/part.ts:1: the proof refuses a destructuring declaration: const { v } = { get v ( ) { return 1 ; } , } ;",
+        ],
+      ],
+      [
+        "const { [key]: k } = {};",
+        [
+          "src/a.ts:1: the proof refuses a destructuring declaration: const { [ key ] : k } = { } ;",
+          "src/part.ts:1: the proof refuses a destructuring declaration: const { [ key ] : k } = { } ;",
+        ],
+      ],
+    ])(
+      "refuses the destructuring declaration %s",
+      async (statement, problems) => {
+        const result = await smallSplit(`${statement}\n`, "", `${statement}\n`);
+
+        expect(result.problems).toEqual(problems);
+        expect(result.code).toBe(1);
+      }
+    );
 
     it("keeps a class whose base class is in another file of the split", async () => {
       const result = await smallSplit(
@@ -980,7 +967,7 @@ describe("runCoverageSplitProof", () => {
       );
 
       expect(result.problems).toEqual([
-        "src/part.ts:2: only declarations that run nothing at load time may move; this is a class that extends Plain of another file of the split, which may load after it: class Sub extends Plain { }",
+        "src/part.ts:2: only declarations that run nothing at load time may move; this is not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer: class Sub extends Plain { }",
       ]);
       expect(result.code).toBe(1);
     });
@@ -1010,6 +997,17 @@ describe("runCoverageSplitProof", () => {
         'src/a.ts is a "use server" module: its exports are server actions, so its code does not move',
       ]);
       expect(result.code).toBe(1);
+    });
+
+    it("moves a let with a side-effect-free initializer", async () => {
+      const result = await smallSplit(
+        "let seen = 0;\nexport function f() {\n  return seen;\n}\n",
+        'export { f } from "./part.ts";\n',
+        "let seen = 0;\nexport function f() {\n  return seen;\n}\n"
+      );
+
+      expect(result.problems).toEqual([]);
+      expect(result.code).toBe(0);
     });
 
     it("splits a use client module", async () => {
@@ -1281,23 +1279,18 @@ describe("runCoverageSplitProof", () => {
     });
   });
 
-  it("counts a default export assignment as the default export", async () => {
+  it("refuses an exported expression", async () => {
     const result = await smallSplit(
       "const value = 1;\nexport default value;\n",
       'import { value } from "./part.ts";\nexport default value;\n',
       "export const value = 1;\n"
     );
 
-    expect(result.output.slice(2, 4)).toEqual([
-      "Statements: 2 in the original file; 1 in the new files.",
-      "Exports of src/a.ts: 1 before, 1 after.",
+    expect(result.problems).toEqual([
+      "src/a.ts:2: the proof refuses an exported expression (export default of an expression, export =): export default value ;",
+      "src/a.ts:2: the proof refuses an exported expression (export default of an expression, export =): export default value ;",
     ]);
-    expect(result.output.slice(-3)).toEqual([
-      "  src/a.ts: 100% on all four measures, no entry",
-      "  src/part.ts: 100% on all four measures, no entry",
-      "Result: PROVED",
-    ]);
-    expect(result.code).toBe(0);
+    expect(result.code).toBe(1);
   });
 
   describe("stops", () => {

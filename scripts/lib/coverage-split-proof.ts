@@ -19,22 +19,22 @@ import { required } from "./required.ts";
 //    one file after the split, token for token, with the same syntax tree and
 //    in its original order. Comments and layout are not tokens. An `export`
 //    may be added to a declaration; imports (rule 4) and the original file's
-//    re-exports of the new files (rule 5) are checked on their own. Only
-//    statements that run no code at load time move: function declarations,
-//    interfaces, type aliases, classes without decorators, static blocks,
-//    computed member names or static initializers that run code and whose
-//    `extends` is a name that is not imported from another file of the
-//    split, and `const` declarations of one name each whose initializers are
+//    re-exports of the new files (rule 5) are checked on their own. The proof
+//    fails closed: it refuses, naming the statement, `export *`, destructuring
+//    declarations, exported expressions (`export default <expression>`,
+//    `export =`) and `import defer` in any file of the split. Only statements
+//    that run no code at load time move: function declarations, interfaces,
+//    type aliases, and `const` or `let` declarations whose initializers are
 //    literals, functions, or arrays and objects of those (`as const` and
-//    `satisfies` allowed). `let` and `var` stay: they may be reassigned. Moved
-//    code does not name its own file (`import.meta` other than
-//    `import.meta.dirname`, `__filename`); what depends only on the folder
-//    (`__dirname`, relative `require` and `import()`) keeps its meaning in the
-//    same folder. Ambient (`declare`) declarations stay. All declarations of
-//    one name stay together. The directives (such as "use client") stay the
-//    first statements of the original file. A "use server" module and a file
-//    with a JSX pragma or a triple-slash reference do not split, and a new
-//    file does not add `@ts-nocheck`.
+//    `satisfies` allowed). Classes, `var`, enums, ambient (`declare`)
+//    declarations and all other statements stay. Moved code does not name its
+//    own file (`import.meta` other than `import.meta.dirname`, `__filename`);
+//    what depends only on the folder (`__dirname`, relative `require` and
+//    `import()`) keeps its meaning in the same folder. All declarations of one
+//    name stay together. The directives (such as "use client") stay the first
+//    statements of the original file. A "use server" module and a file with a
+//    JSX pragma or a triple-slash reference do not split, and a new file does
+//    not add `@ts-nocheck`.
 // 3. Names: every identifier that named an import or a top-level declaration
 //    of the original file names the same import or declaration after the
 //    split, never a global. Code that calls `eval` does not split. A
@@ -43,20 +43,19 @@ import { required } from "./required.ts";
 //    ts-expect-error, ts-nocheck) do not hide these errors.
 // 4. Imports: every imported name is imported under the same name from the
 //    same module (relative specifiers resolved from each file's folder) as in
-//    the original file, and not as a value or deferred import where the
-//    original imported it otherwise; or it is a declaration that the file of
-//    the split it is imported from declares and exports, imported under its
-//    name, with `type` when it is a type. No aliases and no default or
-//    namespace import of a file of the split. The modules other than the
-//    files of the split load in the same order as before, deferred ones
-//    deferred: the new files run nothing, so their place does not count.
-//    The import of the automatic JSX runtime is not counted.
-// 5. Exports: the original file exports the same names, and each resolves to
-//    the same declaration, import or re-export, and exports each name once
-//    (merged declarations of one name aside). Its re-exports of the new
-//    files do not rename, carry `type` exactly for names without a value, and use `export *`
-//    only when no other module is re-exported with `export *`; `export *`
-//    does not re-export a default.
+//    the original file, and not as a value where the original imported it as
+//    a type; or it is a declaration that the file of the split it is imported
+//    from declares and exports, imported under its name, with `type` when it
+//    has no value. No aliases, no new module, and no default or namespace
+//    import of a file of the split. The modules other than the files of the
+//    split load in the same order as before: the new files run nothing, so
+//    their place does not count. The import of the automatic JSX runtime is
+//    not counted.
+// 5. Exports: the original file exports the same names, each resolves to the
+//    same declaration, import or re-export, and each name is exported once
+//    (merged declarations of one name aside). Its re-exports of the new files
+//    name each name, do not rename, and carry `type` exactly for names
+//    without a value.
 // 6. Coverage: each percentage of a coverage summary matches its counts, and
 //    the covered and total lines, branches, functions and statements of the
 //    original file equal the sums over the files after the split. The
@@ -110,7 +109,7 @@ type ImportBinding = Readonly<{
   local: string;
   /** The resolved specifier and the import attributes. */
   module: string;
-  phase: "type" | "defer" | "value";
+  phase: "type" | "value";
   renamed: boolean;
   line: number;
 }>;
@@ -175,6 +174,9 @@ const MOVABLE = new Set<ts.SyntaxKind>([
   ts.SyntaxKind.TypeAliasDeclaration,
 ]);
 
+// `const` and `let`; `var` and `using` stay.
+const BINDINGS = new Set<number>([ts.NodeFlags.Const, ts.NodeFlags.Let]);
+
 const SIDE_EFFECT_FREE = new Set<ts.SyntaxKind>([
   ts.SyntaxKind.StringLiteral,
   ts.SyntaxKind.NumericLiteral,
@@ -214,17 +216,11 @@ const hasModifier = (statement: ts.Node, kind: ts.SyntaxKind): boolean =>
 const lineOf = (node: ts.Node, file: ts.SourceFile): number =>
   file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
 
-const bindingNames = (name: ts.BindingName): string[] =>
-  ts.isIdentifier(name)
-    ? [name.text]
-    : name.elements.flatMap((element) =>
-        ts.isBindingElement(element) ? bindingNames(element.name) : []
-      );
-
+/** The top-level names a statement declares; destructuring is refused. */
 const declaredNames = (statement: ts.Statement): string[] => {
   if (ts.isVariableStatement(statement)) {
-    return statement.declarationList.declarations.flatMap((declaration) =>
-      bindingNames(declaration.name)
+    return statement.declarationList.declarations.map((declaration) =>
+      declaration.name.getText()
     );
   }
   const { name } = statement as ts.DeclarationStatement;
@@ -254,12 +250,6 @@ const importBindings = (
   module: string,
   line: number
 ): ImportBinding[] => {
-  const phase = (typeOnly: boolean): ImportBinding["phase"] => {
-    if (typeOnly || clause.phaseModifier === ts.SyntaxKind.TypeKeyword) {
-      return "type";
-    }
-    return clause.phaseModifier === undefined ? "value" : "defer";
-  };
   const binding = (
     imported: string,
     local: string,
@@ -268,7 +258,11 @@ const importBindings = (
     imported,
     local,
     module,
-    phase: phase(element?.isTypeOnly === true),
+    phase:
+      element?.isTypeOnly === true ||
+      clause.phaseModifier === ts.SyntaxKind.TypeKeyword
+        ? "type"
+        : "value",
     renamed: element?.propertyName !== undefined,
     line,
   });
@@ -327,10 +321,9 @@ const requestOf = (
   file: ts.SourceFile
 ): string | undefined => {
   if (ts.isImportDeclaration(statement)) {
-    const phase = statement.importClause?.phaseModifier;
-    if (phase === ts.SyntaxKind.TypeKeyword) return undefined;
-    const module = moduleOf(path, statement, file);
-    return phase === undefined ? module : `deferred ${module}`;
+    return statement.importClause?.phaseModifier === ts.SyntaxKind.TypeKeyword
+      ? undefined
+      : moduleOf(path, statement, file);
   }
   return ts.isExportDeclaration(statement) &&
     statement.moduleSpecifier !== undefined &&
@@ -442,12 +435,12 @@ const bindingOf = (
       ? `declaration ${binding.imported}`
       : `${binding.imported} from ${binding.module}`;
   }
-  let node: ts.Node = declaration;
-  while (ts.isBindingElement(node)) node = node.parent.parent;
-  const statement = ts.isVariableDeclaration(node) ? node.parent.parent : node;
+  const statement = ts.isVariableDeclaration(declaration)
+    ? declaration.parent.parent
+    : declaration;
   const topLevel =
     ts.isSourceFile(statement.parent) &&
-    (statement === node || ts.isVariableStatement(statement));
+    (statement === declaration || ts.isVariableStatement(statement));
   return topLevel ? `declaration ${identifier.text}` : undefined;
 };
 
@@ -562,51 +555,8 @@ const namesOwnFile = (node: ts.Node): boolean => {
   );
 };
 
-const hasDecorator = (node: ts.Node): boolean =>
-  ts.isDecorator(node) ||
-  ts.forEachChild(node, (child) => hasDecorator(child) || undefined) === true;
-
-const classProblem = (
-  node: ts.ClassDeclaration,
-  module: Module,
-  paths: ReadonlySet<string>
-): string | undefined => {
-  if (hasDecorator(node)) return "a class with decorators";
-  const heritage = node.heritageClauses?.find(
-    (clause) => clause.token === ts.SyntaxKind.ExtendsKeyword
-  )?.types[0]?.expression;
-  if (heritage !== undefined) {
-    if (!ts.isIdentifier(heritage)) return "a class that extends an expression";
-    const binding = module.imports.find(({ local }) => local === heritage.text);
-    if (binding !== undefined && paths.has(binding.module)) {
-      return `a class that extends ${heritage.text} of another file of the split, which may load after it`;
-    }
-  }
-  for (const member of node.members) {
-    if (ts.isClassStaticBlockDeclaration(member)) {
-      return "a class with a static block";
-    }
-    if (member.name !== undefined && ts.isComputedPropertyName(member.name)) {
-      return "a class with a computed member name";
-    }
-    if (
-      ts.isPropertyDeclaration(member) &&
-      hasModifier(member, ts.SyntaxKind.StaticKeyword) &&
-      member.initializer !== undefined &&
-      !sideEffectFree(member.initializer)
-    ) {
-      return "a class with a static initializer that runs code";
-    }
-  }
-  return undefined;
-};
-
 /** Why a statement may not move into a new file, if it may not. */
-const moveProblem = (
-  statement: ts.Statement,
-  module: Module,
-  paths: ReadonlySet<string>
-): string | undefined => {
+const moveProblem = (statement: ts.Statement): string | undefined => {
   if (namesOwnFile(statement)) {
     return "code that names its own file (import.meta, __filename)";
   }
@@ -614,29 +564,23 @@ const moveProblem = (
     return "an ambient declaration (declare), which has no value at run time";
   }
   if (MOVABLE.has(statement.kind)) return undefined;
-  if (ts.isClassDeclaration(statement)) {
-    return classProblem(statement, module, paths);
-  }
   if (
     ts.isVariableStatement(statement) &&
-    (statement.declarationList.flags & ts.NodeFlags.BlockScoped) ===
-      ts.NodeFlags.Const &&
+    BINDINGS.has(statement.declarationList.flags & ts.NodeFlags.BlockScoped) &&
     statement.declarationList.declarations.every(
-      ({ name, initializer }) =>
-        ts.isIdentifier(name) &&
-        initializer !== undefined &&
-        sideEffectFree(initializer)
+      ({ initializer }) =>
+        initializer !== undefined && sideEffectFree(initializer)
     )
   ) {
     return undefined;
   }
-  return "not a function, class, interface, type alias, or const of one name with a side-effect-free initializer";
+  return "not a function declaration, a type-only declaration, or a const or let with a side-effect-free initializer";
 };
 
 const moveProblems = (pairs: readonly Pair[], split: Split): string[] =>
   pairs.flatMap(({ after, module }) => {
     if (module === split.after[0]) return [];
-    const problem = moveProblem(after.node, module, split.paths);
+    const problem = moveProblem(after.node);
     return problem === undefined
       ? []
       : [
@@ -777,6 +721,44 @@ const bindingProblems = (pairs: readonly Pair[], split: Split): string[] =>
     })
   );
 
+/** Statements the proof refuses in any file of the split. */
+const refusal = (statement: ts.Statement): string | undefined => {
+  if (
+    ts.isExportDeclaration(statement) &&
+    (statement.exportClause === undefined ||
+      ts.isNamespaceExport(statement.exportClause))
+  ) {
+    return "export *";
+  }
+  if (ts.isExportAssignment(statement)) {
+    return "an exported expression (export default of an expression, export =)";
+  }
+  if (
+    ts.isVariableStatement(statement) &&
+    statement.declarationList.declarations.some(
+      ({ name }) => !ts.isIdentifier(name)
+    )
+  ) {
+    return "a destructuring declaration";
+  }
+  return ts.isImportDeclaration(statement) &&
+    statement.importClause?.phaseModifier === ts.SyntaxKind.DeferKeyword
+    ? "import defer"
+    : undefined;
+};
+
+const refusals = (split: Split): string[] =>
+  [split.before, ...split.after].flatMap(({ path, file }) =>
+    file.statements.flatMap((statement) => {
+      const refused = refusal(statement);
+      return refused === undefined
+        ? []
+        : [
+            `${path}:${lineOf(statement, file)}: the proof refuses ${refused}: ${preview(statementOf(statement, file))}`,
+          ];
+    })
+  );
+
 /** The directive prologue: the strings before any other statement. */
 const prologue = (module: Module): string => {
   const directives: string[] = [];
@@ -855,99 +837,50 @@ const typeNames = (module: Module): Set<string> => {
 
 type Part = Readonly<{ exports: Exports; types: ReadonlySet<string> }>;
 
-/** Whether `module` re-exports, with `export *`, a module not in `parts`. */
-const hasOuterStar = (
-  module: Module,
-  parts: ReadonlyMap<string, Part>
-): boolean =>
-  module.file.statements.some(
-    (statement) =>
-      ts.isExportDeclaration(statement) &&
-      statement.exportClause === undefined &&
-      !parts.has(moduleOf(module.path, statement, module.file))
-  );
-
 /** One exported name, what it resolves to, and where it is named. */
 type ExportEntry = readonly [name: string, target: string, node: ts.Node];
 
-/** The original file's re-export of a new file: no rename, no namespace. */
+/**
+ * The original file's re-export of a new file: by name, no rename, and with
+ * `type` exactly for names without a value.
+ */
 const partExports = (
   module: Module,
   statement: ts.ExportDeclaration,
-  part: Readonly<{ source: string; outerStar: boolean } & Part>,
+  clause: ts.NamedExports,
+  part: Readonly<{ source: string } & Part>,
   problems: string[]
-): ExportEntry[] => {
-  const { source } = part;
-  const clause = statement.exportClause;
-  const at = `${module.path}:${lineOf(statement, module.file)}`;
-  if (clause !== undefined && ts.isNamespaceExport(clause)) {
-    problems.push(`${at}: re-exports ${source} as a namespace`);
-    return [];
-  }
-  if (clause === undefined && part.outerStar) {
-    // Two `export *` that export one name export neither.
-    problems.push(
-      `${at}: re-exports ${source} with export * beside export * of another module; name the re-exported names`
-    );
-    return [];
-  }
-  // `export *` re-exports every name but `default`.
-  const requests =
-    clause === undefined
-      ? [...part.exports.keys()]
-          .filter((name) => name !== "default")
-          .map((name) => ({
-            name,
-            node: statement as ts.Node,
-            renamed: undefined,
-            typeOnly: statement.isTypeOnly,
-            named: false,
-          }))
-      : clause.elements.map((element) => ({
-          name: element.name.text,
-          node: element as ts.Node,
-          renamed: element.propertyName?.text,
-          typeOnly: statement.isTypeOnly || element.isTypeOnly,
-          named: true,
-        }));
-  return requests.flatMap(
-    ({ name, node, renamed, typeOnly, named }): ExportEntry[] => {
-      const target = part.exports.get(name);
-      const type = part.types.has(name);
-      let problem: string | undefined;
-      if (renamed !== undefined) {
-        problem = `renames ${renamed} of ${source} to ${name}`;
-      } else if (target === undefined) {
-        problem = `re-exports ${name}, which ${source} does not export`;
-      } else if (typeOnly && !type) {
-        problem = `re-exports the value ${name} of ${source} as a type`;
-      } else if (named && !typeOnly && type) {
-        // A named re-export of a type fails at load time without `type`.
-        problem = `re-exports ${name} of ${source}, which has no value at run time, without \`type\``;
-      }
-      if (problem === undefined) return [[name, target as string, node]];
-      problems.push(`${module.path}:${lineOf(node, module.file)}: ${problem}`);
-      return [];
+): ExportEntry[] =>
+  clause.elements.flatMap((element): ExportEntry[] => {
+    const { source } = part;
+    const name = element.name.text;
+    const target = part.exports.get(name);
+    const typeOnly = statement.isTypeOnly || element.isTypeOnly;
+    let problem: string | undefined;
+    if (element.propertyName !== undefined) {
+      problem = `renames ${element.propertyName.text} of ${source} to ${name}`;
+    } else if (target === undefined) {
+      problem = `re-exports ${name}, which ${source} does not export`;
+    } else if (typeOnly !== part.types.has(name)) {
+      problem = typeOnly
+        ? `re-exports the value ${name} of ${source} as a type`
+        : `re-exports ${name} of ${source}, which has no value at run time, without \`type\``;
     }
-  );
-};
+    if (problem === undefined) return [[name, target as string, element]];
+    problems.push(`${module.path}:${lineOf(element, module.file)}: ${problem}`);
+    return [];
+  });
 
 /** The exports of an export declaration that does not re-export a new file. */
 const declarationExports = (
   module: Module,
   statement: ts.ExportDeclaration,
+  clause: ts.NamedExports,
   source: string | undefined,
   paths: ReadonlySet<string>,
   problems: string[]
-): ExportEntry[] => {
-  const clause = statement.exportClause;
-  if (clause === undefined) {
-    return [[`* from ${source}`, `* from ${source}`, statement]];
-  }
-  if (ts.isNamespaceExport(clause)) {
-    return [[clause.name.text, `* from ${source}`, statement]];
-  }
-  return clause.elements.map((element) => {
+): ExportEntry[] =>
+  clause.elements.map((element) => {
     const local = element.propertyName ?? element.name;
     const binding = module.imports.find(
       ({ local: name }) => name === local.text
@@ -970,7 +903,6 @@ const declarationExports = (
         : `${local.text} from ${source}`;
     return [element.name.text, target, element];
   });
-};
 
 const statementExports = (
   module: Module,
@@ -979,26 +911,22 @@ const statementExports = (
   paths: ReadonlySet<string>,
   problems: string[]
 ): ExportEntry[] => {
-  if (ts.isExportAssignment(statement)) {
-    // The statement itself is compared; `export =` counts as a default.
-    return [["default", "the expression of export default", statement]];
-  }
   if (ts.isExportDeclaration(statement)) {
+    const clause = statement.exportClause;
+    // `export *` is refused (refusals) and exports nothing here.
+    if (clause === undefined || ts.isNamespaceExport(clause)) return [];
     const source =
       statement.moduleSpecifier === undefined
         ? undefined
         : moduleOf(module.path, statement, module.file);
     const part = source === undefined ? undefined : parts.get(source);
     return part === undefined
-      ? declarationExports(module, statement, source, paths, problems)
+      ? declarationExports(module, statement, clause, source, paths, problems)
       : partExports(
           module,
           statement,
-          {
-            ...part,
-            source: source as string,
-            outerStar: hasOuterStar(module, parts),
-          },
+          clause,
+          { ...part, source: source as string },
           problems
         );
   }
@@ -1302,6 +1230,7 @@ const prove = async (
   );
   const matched = matchStatements(split);
   problems.push(
+    ...refusals(split),
     ...directiveProblems(split),
     ...matched.problems,
     ...moveProblems(matched.pairs, split)
