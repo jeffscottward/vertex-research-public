@@ -392,8 +392,10 @@ describe("semantic layer (Postgres)", () => {
       rows: [{ read_only: "on", role: SEMANTIC_READER_ROLE, timeout: "5s" }],
     });
 
-    // A session advisory lock survives a rollback; DISCARD ALL after each text releases it. A custom
-    // setting's value is reset too. The texts share one backend, so this is the shared connection.
+    // A session advisory lock survives a rollback; DISCARD ALL before the next text releases it (the
+    // lock count is what tests the reset). A custom setting's value is already undone by the rollback;
+    // its name survives both, which only tells a later certified text of the same query that the name
+    // was set. The texts share one backend, so this is the shared connection.
     const session = await reader.runAll(
       [
         {
