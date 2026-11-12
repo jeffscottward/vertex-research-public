@@ -727,6 +727,39 @@ describe("deployment requests repository", () => {
     ).toBeNull();
   });
 
+  it("checks an options edit on update: the 2% ceiling holds and null clears the block", async () => {
+    const current = [
+      { status: "draft", strategyId: "s-1", symbol: "SPY", options: null },
+    ];
+    const over = repositoryFor([current, [{ params: schema }], []]);
+    await expect(
+      over.repository.update({
+        id: "dr-1",
+        options: { ...options, maxLossPctOfAccount: 2.5 },
+      })
+    ).rejects.toThrow(/at most 2/u);
+    expect(
+      over.operations.some((operation) => operation.kind === "update")
+    ).toBe(false);
+
+    const cleared = repositoryFor([
+      [{ ...current[0], options }],
+      [{ params: schema }],
+      [],
+      [stored()],
+    ]);
+    await cleared.repository.update({ id: "dr-1", options: null });
+    expect(
+      cleared.operations.find((operation) => operation.kind === "update")!.set
+    ).toMatchObject({ options: null });
+
+    const kept = repositoryFor([current, [{ params: schema }], [], [stored()]]);
+    await kept.repository.update({ id: "dr-1", options });
+    expect(
+      kept.operations.find((operation) => operation.kind === "update")!.set
+    ).toMatchObject({ options: { maxLossPctOfAccount: 2 } });
+  });
+
   it("submits with a requested timestamp and approves only with the matching slug", async () => {
     const submit = repositoryFor([
       [{ status: "draft", strategyId: "s-1", params: stored()["params"] }],
