@@ -15,6 +15,10 @@ Symbols (imported, not copied):
   keys except KO and PEP). An ETF that fails stops the script with an error.
 - --stocks, default: SP100 of research/backtests/freestockalerts/universe.py (KO and PEP are in it). A
   stock that fails is listed under `failed` in FORMS_SOURCES.json and the script goes on.
+- TERM_INDICES: the IV term indices of services/research/strategies/qc_ports/data.py IV_TERM that the
+  qc-ports fetch does not get (VIX6M, Cboe, about 182 days), with the qc-ports helper `_index` (IBKR,
+  Yahoo, the Cboe CSV). One that fails stops the script with an error. `--etfs "" --stocks ""` fetches
+  only them (the other files of the directory keep their provenance).
 
 Output (not committed: the Yahoo and IBKR terms do not allow redistribution), flat in --out:
 - <SYMBOL>.csv, header `date,open,high,low,close,adj_close`, same meaning as the qc-ports ETF files:
@@ -26,6 +30,7 @@ Output (not committed: the Yahoo and IBKR terms do not allow redistribution), fl
   price that traded on a day (raw close) = close x the product of the ratios of all splits after that
   day. Yahoo adjusts for every split up to the fetch day: a split on or after --end is not in the file
   but is in `close`, so the script prints a warning for it.
+- <INDEX>.csv, header `date,close`: a term index, same meaning as the qc-ports index files.
 - FORMS_SOURCES.json: `files` (per bar file the rows per source, failed sources and seams), `splits`
   (split rows per symbol), `failed` (the stocks without bars or without a split answer, reasons in
   `failed_reasons`) and `skipped` (symbols whose file is a qc-ports file).
@@ -55,6 +60,8 @@ HEADER = "date,open,high,low,close,adj_close"
 SPLITS_HEADER = "date,ratio"
 SPLITS_COLUMN = "Stock Splits"  # the name of the series when Yahoo answered (also with no split)
 NOT_ETFS = ("KO", "PEP")
+# IV term indices of data.IV_TERM that the qc-ports fetch does not get: file name -> Yahoo symbol.
+TERM_INDICES = {"VIX6M": "^VIX6M"}
 
 
 def load_qc_fetch():
@@ -167,6 +174,17 @@ def main() -> None:
     written: set[str] = set(sources) | {splits_name(symbol) for symbol in splits}
     failed: dict[str, str] = {}
     skipped: list[str] = []
+    for name, ticker in TERM_INDICES.items():
+        if not may_write(f"{name}.csv", protected):
+            skipped.append(name)
+            print(f"{name}: skipped, {name}.csv is a qc-ports file")
+            continue
+        qc.YAHOO_INDICES.setdefault(name, ticker)  # the helper looks the Yahoo symbol up there
+        rows, summary = qc._index(yf, name, args.end)
+        (out / f"{name}.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+        sources[f"{name}.csv"] = summary
+        written.add(f"{name}.csv")
+        print(f"{name}: {len(rows) - 1} rows {rows[1].split(',')[0]} .. {rows[-1].split(',')[0]}")
     for symbol in etfs + stocks:
         names = (f"{symbol}.csv", splits_name(symbol))
         if not all(may_write(name, protected) for name in names):

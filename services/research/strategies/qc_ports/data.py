@@ -38,8 +38,9 @@ SERIES_IDS = ETF_SYMBOLS + FUTURES + INDICES + DERIVED
 IV_INDEX = {"SPY": "VIX", "QQQ": "VXN", "DIA": "VXD", "IWM": "RVX", "GLD": "GVZ", "SLV": "VXSLV", "USO": "OVX"}
 INDEX_TENOR_DAYS = 30
 # IV term structure: longer-tenor IV indices of a traded symbol and their tenor in calendar days (Cboe VIX3M:
-# 93 days). Only SPY has one in the data set; the other symbols have their 30-day index alone.
-IV_TERM: dict[str, dict[str, int]] = {"SPY": {"VIX3M": 93}}
+# 93 days, from the qc-ports fetch; Cboe VIX6M: 182 days, from research/backtests/options-forms/fetch_data.py).
+# Only SPY has one in the data set; the other symbols have their 30-day index alone.
+IV_TERM: dict[str, dict[str, int]] = {"SPY": {"VIX3M": 93, "VIX6M": 182}}
 # Months between the Shiller month and its use (earnings are published late).
 EARNINGS_LAG_MONTHS = 6
 

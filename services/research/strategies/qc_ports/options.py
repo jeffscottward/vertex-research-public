@@ -4,12 +4,13 @@ Model (assumptions, not market data; there is no option chain in the public data
 - European Black-Scholes-Merton with continuous dividend yield q per symbol and
   the risk-free rate r from IRX (13-week T-bill, percent / 100). Time in
   calendar days / 365.
-- ATM implied vol = factor * IV index / 100: factor 0.9 for VIX, VIX3M, VXN, VXD
-  and RVX, 0.95 for GVZ, OVX and VXSLV (the indices sit above ATM vol by a
-  variance risk premium / convexity term).
+- ATM implied vol = factor * IV index / 100: factor 0.9 for VIX, VIX3M, VIX6M,
+  VXN, VXD and RVX, 0.95 for GVZ, OVX and VXSLV (the indices sit above ATM vol
+  by a variance risk premium / convexity term).
 - IV term structure (two-expiry structures): the ATM vol of each index at its
-  tenor (VIX 30 days, VIX3M 93 days); between two tenors the total variance
-  ATM^2 * T is linear in T, outside them the ATM vol of the nearest tenor holds.
+  tenor (VIX 30 days, VIX3M 93 days, VIX6M 182 days); between two tenors the
+  total variance ATM^2 * T is linear in T, outside them the ATM vol of the
+  nearest tenor holds.
 - Skew: IV(K) = ATM * max(SKEW_FLOOR, 1 + slope * x) with standardized
   moneyness x = ln(K/S) / (ATM * sqrt(T)), clamped to [-3, 3]. Negative slope =
   equity put skew, positive = commodity call skew.
@@ -32,7 +33,7 @@ __all__ = [
 MULTIPLIER = 100
 COMMISSION = 0.65
 MIN_HALF_SPREAD = 0.01
-ATM_FACTOR = {"VIX": 0.9, "VIX3M": 0.9, "VXN": 0.9, "VXD": 0.9, "RVX": 0.9, "GVZ": 0.95, "OVX": 0.95,
+ATM_FACTOR = {"VIX": 0.9, "VIX3M": 0.9, "VIX6M": 0.9, "VXN": 0.9, "VXD": 0.9, "RVX": 0.9, "GVZ": 0.95, "OVX": 0.95,
               "VXSLV": 0.95}
 HALF_SPREAD_PCT = {"SPY": 0.01, "QQQ": 0.015, "IWM": 0.02, "DIA": 0.03, "GLD": 0.025, "SLV": 0.04, "USO": 0.04}
 DIVIDEND_YIELD = {"SPY": 0.015, "QQQ": 0.007, "DIA": 0.018, "IWM": 0.012}

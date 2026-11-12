@@ -336,3 +336,23 @@ def test_the_calendar_form_rolls_one_spread_after_the_other_from_the_first_term_
     for before, after in zip(book.trades, book.trades[1:]):
         assert after.entry_index == before.exit_index + 1
     assert fm.is_always_on(fm.stance_of(form, inputs), form.symbols)
+
+
+def test_a_100_200_calendar_prices_its_legs_on_the_vix6m_point_too():
+    """Config B tenors: the near leg (107 days) between VIX3M and VIX6M, the far leg (198 days) past VIX6M."""
+    size = 80
+    base = calendar_market([100.0] * size)
+    market = Market("SPY", base.dates, base.close, base.iv_index, base.rate,
+                    (("VIX3M", (VIX3M_FOR_22,) * size), ("VIX6M", (24 / 0.9,) * size)))
+    block = {**CALENDAR, "dte": {"target": 100, "min": 80}, "farDte": {"target": 200, "min": 160}}
+    trade = bk.build_book([("SPY", 0, None)], block, {"SPY": market}).trades[0]
+    assert (trade.expiry, trade.far_expiry) == ("2024-04-19", "2024-07-19")
+    near_atm = math.sqrt((0.22 ** 2 * 93 + (0.24 ** 2 * 182 - 0.22 ** 2 * 93) * (107 - 93) / 89) / 107)
+    deltas = {strike: om.bs_delta("call", 100, strike, 107 / 365, 0, 0, near_atm) for strike in range(95, 106)}
+    strike = min(deltas, key=lambda value: (abs(deltas[value] - 0.5), abs(value - 100)))
+    assert trade.long_strike == strike
+    assert trade.entry_price == round((call(100, strike, 198, 0.24) - call(100, strike, 107, near_atm)) * 100, 2)
+    # Without the VIX6M value the calendar opens no trade.
+    gap = Market("SPY", base.dates, base.close, base.iv_index, base.rate,
+                 (("VIX3M", (VIX3M_FOR_22,) * size), ("VIX6M", (None,) * size)))
+    assert bk.build_book([("SPY", 0, None)], block, {"SPY": gap}).skipped[0].reason == "no IV term"
