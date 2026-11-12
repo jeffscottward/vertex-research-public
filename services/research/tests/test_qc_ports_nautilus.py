@@ -5,6 +5,7 @@ it the tests skip, unless VERTEX_REQUIRE_NAUTILUS=1 (the Nautilus CI run), where
 a missing engine is a failure. Synthetic books always run; the real-data case
 runs only where the qc-ports data folder exists (it is not in the repo).
 """
+import dataclasses
 import os
 import random
 
@@ -98,6 +99,29 @@ def test_synthetic_books_match(structure, extra):
     ledger, _ = assert_parity(book.trades, dates=markets["SPY"].dates)
     assert max(ledger.open_positions) > 2  # overlapping trades on two symbols
     assert {t["exitReason"] for t in ledger.trades} >= {"signal"}
+
+
+@needs_nautilus
+@pytest.mark.parametrize("structure", ["callCalendar", "putCalendar"])
+def test_synthetic_calendar_books_match(structure):
+    """Two-expiry trades (book.CALENDARS) are one instrument per spread like a vertical: both engines agree."""
+    size = 320
+    spy = market(_walk(5, size, 450.0), rate=0.03)
+    spy = dataclasses.replace(spy, iv_term=(("VIX3M", tuple(24.0 + (index % 7) for index in range(size))),
+                                            ("VIX6M", tuple(25.0 + (index % 5) for index in range(size)))))
+    rng = random.Random(9)
+    events, index = [], 0
+    while index < size - 2:
+        exit_index = index + rng.randint(3, 30) if rng.random() < 0.5 else None
+        events.append(SignalEvent("SPY", index, exit_index))
+        index += rng.randint(2, 9)
+    options = {"structure": structure, "dte": {"target": 30, "min": 21}, "farDte": {"target": 60, "min": 45},
+               "maxLossPct": 2, "profitTakePct": 25}
+    book = build_book(events, options, {"SPY": spy})
+    assert len(book.trades) > 20 and all(trade.far_expiry for trade in book.trades)
+    ledger, _ = assert_parity(book.trades, dates=spy.dates)
+    assert max(ledger.open_positions) > 2
+    assert {t["exitReason"] for t in ledger.trades} >= {"signal", "expiry"}
 
 
 @needs_nautilus
