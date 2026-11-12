@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Runs one go-live draft collection from the runner checkout. RECORDS ONLY: it reads the allocation
+# plan from Vertex, computes draft candidates from local research files (qc-ports data, option-chain
+# snapshots) and stores them in Vertex. No order, no broker call. The operator write key is read
+# from its 0600 file and is never printed. The generator (python -m golive) does not get the key:
+# scripts/golive/collect.ts starts it with HOME and PATH only.
+set -euo pipefail
+cd "${GOLIVE_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-ticks-runner}"
+# The bun version is the pin of the runner checkout (.bun-version), installed by mise.
+BUN="$HOME/.local/share/mise/installs/bun/$(tr -d '[:space:]' < .bun-version)/bin"
+if [[ ! -x "$BUN/bun" ]]; then
+  echo "vertex-golive-drafts-run: the pinned bun is not installed ($BUN/bun); run mise install in $PWD" >&2
+  exit 127
+fi
+export PATH="$BUN:/usr/local/bin:/usr/bin:/bin"
+# A Python with services/research/requirements-linux-py312.lock (the Nautilus venv has it).
+export GOLIVE_PYTHON="${GOLIVE_PYTHON:-$HOME/.local/share/vertex/nautilus-venv/bin/python}"
+if [[ ! -x "$GOLIVE_PYTHON" ]]; then
+  echo "vertex-golive-drafts-run: no Python at $GOLIVE_PYTHON; set GOLIVE_PYTHON" >&2
+  exit 127
+fi
+KEYF="${GOLIVE_KEY_FILE:-$HOME/.config/vertex/sector-rotation-key}"
+if [[ -z "${VERTEX_ORIGIN:-}" || ! -r "$KEYF" ]]; then
+  echo "vertex-golive-drafts-run: VERTEX_ORIGIN or the key file ($KEYF) is missing; nothing was run" >&2
+  exit 64
+fi
+if [[ "$(stat -c %a "$KEYF")" != "600" ]]; then
+  echo "vertex-golive-drafts-run: $KEYF must have mode 0600; nothing was run" >&2
+  exit 64
+fi
+export GOLIVE_DATA_DIR="${GOLIVE_DATA_DIR:-$HOME/Documents/reports/vertex-qc-ports/data}"
+export GOLIVE_CHAIN_STORE="${GOLIVE_CHAIN_STORE:-$HOME/.local/share/vertex/option-chain}"
+VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
+export VERTEX_AGENT_API_KEY
+exec "$BUN/bun" run vertex:golive:collect "$@"
