@@ -77,6 +77,7 @@
     "vertex:research-studies:import": "bun --no-env-file scripts/vertex-research-studies-import.ts",
     "vertex:academy:import": "bun --no-env-file scripts/vertex-academy-import.ts",
     "vertex:plays:upsert": "bun --no-env-file scripts/vertex-plays-upsert.ts",
+    "vertex:golive:seed-plan": "bun --no-env-file scripts/vertex-golive-seed-plan.ts",
     "vertex:clicks": "bun --no-env-file scripts/vertex-click-log.ts",
     "vertex:instant-backtest:bench": "bun --no-env-file scripts/vertex-instant-backtest-bench.ts",
     "vertex:golden-battery": "bun --no-env-file scripts/vertex-golden-battery.ts",
