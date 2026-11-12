@@ -1125,6 +1125,10 @@ def _always(**block: Any) -> dict[str, Any]:
     ({"entryFrom": "10:30", "entryTo": "10:30"}, [0, -1, 1, -1, -1, 0, -1, -1], [0, 1, 1, 1, 1, 0, 1, 1]),
     # 60 and 120 minutes after 09:30: the bars closing at 10:30 and 11:30.
     ({"decisionEvery": 60}, [0, 0, 1, 0, -1, 0, 0, -1], [0, 0, 1, 0, 1, 0, 0, 1]),
+    # Entries on the 60-minute grid, exits on every 30-minute regular bar.
+    ({"decisionEvery": 60, "exitEvery": 30}, [0, -1, 1, -1, -1, 0, -1, -1], [0, 1, 1, 1, 1, 0, 1, 1]),
+    # Entries on every regular bar but the last, exits 60 and 120 minutes after 09:30.
+    ({"exitEvery": 60}, [0, 1, 1, 1, -1, 0, 1, -1], [0, 0, 1, 0, 1, 0, 0, 1]),
 ])
 def test_intraday_gates_entry_window_decision_grid_and_close(block, signals, exits) -> None:
     compiled = sig.compile_strategy(_intraday_bars(GATE_ROWS), _always(**block))
@@ -1160,6 +1164,7 @@ GRID_TAIL = (
     ({"entryFrom": "10:15"}, "entryFrom 10:15"),
     ({"entryTo": "11:10"}, "entryTo 11:10"),
     ({"decisionEvery": 45}, "decisionEvery 45"),
+    ({"exitEvery": 45}, "exitEvery 45"),
 ])
 def test_intraday_block_off_the_bar_grid_is_refused(block, field) -> None:
     # 30-minute bars: every time and decisionEvery must be a whole number of 30 minutes.
@@ -1251,6 +1256,8 @@ def test_intraday_side_and_vol_target_normalize_without_defaults() -> None:
      "The entry window must be inside the session: open < entryFrom <= entryTo < close"),
     ({**MINIMAL, "intraday": {**INTRADAY, "decisionEvery": 391}},
      "intraday decisionEvery must be a whole number from 1 to 390"),
+    ({**MINIMAL, "intraday": {**INTRADAY, "exitEvery": 0}},
+     "intraday exitEvery must be a whole number from 1 to 390"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "targetPct": 0}}, "volTarget targetPct must be above 0 and at most 100"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "length": 1}}, "volTarget length must be a whole number from 2 to 252"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "maxLeverage": 51}}, "volTarget maxLeverage must be above 0 and at most 50"),

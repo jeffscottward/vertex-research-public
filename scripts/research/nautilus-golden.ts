@@ -478,6 +478,34 @@ const zab = (side: "long" | "short"): Json => {
   };
 };
 
+/** Chuk NQ noise band (session-open-momentum spec): entries on the 30-minute grid, exits every 5. */
+const CHUK_INTRADAY: Record<string, unknown> = {
+  ...NEW_YORK_SESSION,
+  decisionEvery: 30,
+  entryFrom: "10:00",
+  entryTo: "15:30",
+  exitEvery: 5,
+};
+const CHUK_LONG: Record<string, unknown> = {
+  entry: {
+    all: [
+      { left: closePrice, op: ">", right: noiseBand("upper") },
+      { left: closePrice, op: ">", right: vwap },
+    ],
+  },
+  exit: {
+    any: [
+      { left: closePrice, op: "<", right: noiseBand("upper") },
+      { left: closePrice, op: "<", right: vwap },
+    ],
+  },
+  intraday: CHUK_INTRADAY,
+  name: "Chuk noise band NQ long",
+  sizing: { mode: "allIn" },
+  stopLoss: { kind: "none" },
+  version: 1,
+};
+
 /** GHLZ r1 + r12: also the 15:00 to 15:30 return must have the same sign. */
 const GHLZ_R1_R12 = ghlz("long", {
   entry: {
@@ -529,10 +557,19 @@ const intradayDefinitions: { id: string; definition: Json; symbol: string }[] =
     { definition: GHLZ_R1_R12, id: "intraday:ghlz:r1r12", symbol: "session" },
     { definition: zab("long"), id: "intraday:zab:long", symbol: "session" },
     { definition: zab("short"), id: "intraday:zab:short", symbol: "session" },
+    { definition: CHUK_LONG, id: "intraday:chuk:long", symbol: "session" },
     { definition: SESSION_MIX, id: "intraday:mix", symbol: "session" },
     // Daily bars: refused (STRATEGY_INTRADAY_DAILY_UNSUPPORTED).
     { definition: ghlz("long"), id: "intraday:ghlz:long", symbol: "SPY" },
     // Off the 5-minute bar grid: refused (STRATEGY_INTRADAY_GRID_MISALIGNED).
+    {
+      definition: {
+        ...CHUK_LONG,
+        intraday: { ...CHUK_INTRADAY, exitEvery: 7 },
+      },
+      id: "intraday:grid:exitEvery",
+      symbol: "session",
+    },
     {
       definition: ghlz("long", {
         intraday: { ...NEW_YORK_SESSION, entryFrom: "15:32", entryTo: "15:32" },
@@ -1930,12 +1967,12 @@ const costProfiles: Record<string, CostProfile> = {
 interface Spec {
   costBps: number;
   costs: { profile: CostProfile; capital: number } | null;
+  /** DSL rules only: the time exit (setup replay). */
+  maxHoldBars?: number;
   rule: Json;
   sectorQuadrants: SectorQuadrantSeries | null;
   stopLossPct: number;
   takeProfitPct: number;
-  /** DSL rules only: the time exit (setup replay). */
-  maxHoldBars?: number;
 }
 
 const LENGTHS = [2, 5, 14, 20, 50, 200];
