@@ -18,6 +18,7 @@ import type {
   VertexScope,
 } from "./vertex-ports.ts";
 import { VertexStoreError } from "./vertex-ports.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 import {
   cachedTransactionRows,
   invalidateTransactionRows,
@@ -128,6 +129,7 @@ export const insert = async (
   };
   const entries = Object.entries(row);
   invalidateTransactionRows(tx, table);
+  forgetPredecessorWalkReads(tx);
   await tx.execute(
     sql`insert into ${sql.identifier(table)} (${sql.join(
       entries.map(([key]) => sql.identifier(key)),

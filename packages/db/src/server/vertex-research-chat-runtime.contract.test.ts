@@ -25,6 +25,10 @@ import {
   nativeEvidenceCopyKey,
   nativeEvidenceCopyPurposes,
 } from "./vertex-research-chat-native-phase-store.ts";
+import {
+  reusePredecessorRead,
+  withPredecessorWalk,
+} from "./vertex-research-chat-predecessor-walk.ts";
 import { createResearchChatOperations } from "./vertex-research-chat-store.ts";
 import { createResearchChatWorkerOperations } from "./vertex-research-chat-worker-store.ts";
 
@@ -52,6 +56,9 @@ const originalFunctions = {
   isNativeEvidencePlan,
   nativeEvidenceCopyKey,
   nativeEvidenceCopyPurposes,
+  // Predecessor walk scope (card vertex-debate-predecessor-query-blowup).
+  reusePredecessorRead,
+  withPredecessorWalk,
 };
 
 // Imports and reference comparisons only: no database, service or factory is started.
