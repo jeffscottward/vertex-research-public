@@ -21,7 +21,9 @@ export type OrderIntentOutcome =
   | "unknown"
   | "open"
   | "position-changed"
-  | "not-found";
+  | "not-found"
+  // The order bridge refused it before IBKR (engine policy v3 or the node ARM check): nothing was sent.
+  | "refused";
 
 export type OrderIntent = Readonly<{
   orderRef: string;
@@ -57,6 +59,8 @@ export type OrderIntentRepository = Readonly<{
   unresolved: (since: Date) => Promise<readonly OrderIntent[]>;
   /** Whether any row (intent, result or reconciliation) exists for this orderRef. */
   hasIntent: (orderRef: string) => Promise<boolean>;
+  /** Whether the last outcome written for this orderRef is "refused" (nothing reached IBKR). */
+  refused: (orderRef: string) => Promise<boolean>;
 }>;
 
 export const createOrderIntentRepository = (
@@ -96,6 +100,26 @@ export const createOrderIntentRepository = (
         )
         .limit(1);
       return rows.length > 0;
+    },
+    refused: async (orderRef) => {
+      const rows = await database
+        .select({
+          action: auditRecords.action,
+          createdAt: auditRecords.createdAt,
+          metadata: auditRecords.metadata,
+        })
+        .from(auditRecords)
+        .where(
+          and(
+            eq(auditRecords.entityType, "vertex_order"),
+            eq(auditRecords.entityId, orderRef)
+          )
+        );
+      const outcomes = [...rows]
+        .filter((row) => row.action !== "vertex.order.intent")
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      const last = outcomes.at(-1)?.metadata as Record<string, unknown> | null;
+      return last?.["outcome"] === "refused";
     },
     recordIntent: async ({ actorUserId, requestId, intent }) =>
       await insert(

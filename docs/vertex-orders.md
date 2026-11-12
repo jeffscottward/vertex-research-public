@@ -121,9 +121,9 @@ refuses otherwise, so a resting exit cannot later open a short.
 
 |Request|Body|Reply|
 |---|---|---|
-|`GET /account`|none|`{netLiquidation, positions[...], openOrders[...], gates{killSwitch, optionsOnly}, caps{...}}`|
+|`GET /account`|none|`{netLiquidation, positions[...], openOrders[...], gates{killSwitch, optionsOnly, orderPolicy}, caps{...}}` (`orderPolicy`: the engine order policy the bridge runs on every opening combo, `options_only_defined_risk_v3`, else `null`)|
 |`POST /orders`|single order fields plus `orderRef` (`vertex-<nonce>`)|`{state, permId, message}`|
 |`POST /combos`|combo fields (`symbol`, `quantity`, `limitPrice`, `legs[]`) plus `orderRef`|`{state, permId, message}`|
 |`POST /cancel`|`{permId}` (Vertex orders of client 211 only)|`{state, permId, message}`|
 
-`state` `unconfirmed` (sent, IBKR has not acknowledged) is stored as an unknown outcome.
+`state` `unconfirmed` (sent, IBKR has not acknowledged) is stored as an unknown outcome. `state` `engine_refused`: the bridge refused an opening combo before IBKR (engine policy v3 or the node ARM record, market-watch-bot `market_watch/vertex_v3.py`); it is stored as outcome `refused`, and a go-live draft refused this way may be sent again.

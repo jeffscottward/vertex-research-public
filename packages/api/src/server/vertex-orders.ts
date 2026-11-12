@@ -43,6 +43,7 @@ import {
   evaluateCombo,
   evaluateOpeningCombo,
   evaluateOrder,
+  GOLIVE_ENGINE_ORDER_POLICY,
   type GatewayOpenOrder,
   type OrderAccount,
   sameContract,
@@ -61,9 +62,6 @@ interface Dependencies {
   goLiveNode?: (
     context: ApiContext
   ) => Promise<Parameters<typeof goLiveSendRefusals>[0]["node"]>;
-  // Go-live sends: off (refused by name) until engine policy v3 checks the live path (owner
-  // 2026-11-12, card vertex-golive-exec-intake turns it on). Tests set it to reach the gate.
-  goLiveSendEnabled?: boolean;
   // Cached P5 JEV verdict for the final gate; defaults to the shared verdict store.
   jevVerdict?: (symbol: string) => JevVerdictOutput | null;
   mock: OrderGatewayPort;
@@ -177,12 +175,22 @@ const goLiveOrderRef = async (draftId: string): Promise<string> => {
 };
 const DRAFT_ALREADY_SENT =
   "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions";
+// A send the order bridge refused before IBKR (engine_refused: engine policy v3 or the node ARM check)
+// sent nothing, so the draft may be sent again; a store read that fails counts as sent.
 const goLiveAlreadySent = async (
   store: IntentStore | undefined,
   orderRef: string
-): Promise<boolean> =>
-  goLiveSentRefs.has(orderRef) ||
-  ((await store?.hasIntent(orderRef).catch(() => true)) ?? false);
+): Promise<boolean> => {
+  if (goLiveSentRefs.has(orderRef)) return true;
+  if (store === undefined) return false;
+  try {
+    return (
+      (await store.hasIntent(orderRef)) && !(await store.refused(orderRef))
+    );
+  } catch {
+    return true;
+  }
+};
 
 /**
  * The go-live send gate (golive-send-gate.ts) for an order sent for a go-live draft; no lines
@@ -228,17 +236,41 @@ const goLiveRefusals = async (
           draft.approvedOrder.quantity
         )
       );
-  return goLiveSendRefusals({
-    account,
-    draftId,
-    drafts,
-    goLiveRisk,
-    node,
-    now,
-    order,
-    plan,
-    sendEnabled: deps().goLiveSendEnabled === true,
-  });
+  // A go-live entry opens a new spread. One that touches a held contract would be read as a close by
+  // the order bridge, which runs engine policy v3 and the ARM check on openings only: refused here.
+  const held = order.legs.find((leg) =>
+    account.positions.some(
+      (p) =>
+        p.secType === "OPT" &&
+        p.quantity !== 0 &&
+        p.symbol === order.symbol &&
+        p.expiry === leg.expiry &&
+        p.strike === leg.strike &&
+        p.right === leg.right
+    )
+  );
+  const notOpening =
+    held === undefined
+      ? []
+      : [
+          `GO-LIVE NOT_AN_OPENING: ${order.symbol} ${held.expiry} ${held.strike}${held.right} is held; a go-live entry opens a new spread only`,
+        ];
+  return [
+    ...notOpening,
+    ...goLiveSendRefusals({
+      account,
+      draftId,
+      drafts,
+      goLiveRisk,
+      node,
+      now,
+      order,
+      plan,
+      // Only a bridge that reports engine policy v3 on every opening combo sends go-live drafts (owner
+      // 2026-11-12, card vertex-golive-exec-intake): never the mock gateway or an older bridge.
+      sendEnabled: account.gates.orderPolicy === GOLIVE_ENGINE_ORDER_POLICY,
+    }),
+  ];
 };
 
 type Failures = Readonly<
@@ -388,7 +420,7 @@ const intentStoreOf = (
 // Writes the result row of a submit. A failed write never hides the gateway result.
 const outcomeRecorder =
   (context: ApiContext, store: IntentStore | undefined, orderRef: string) =>
-  async (outcome: "placed" | "unknown") =>
+  async (outcome: "placed" | "unknown" | "refused") =>
     await store
       ?.recordOutcome({
         action: "vertex.order.result",
@@ -922,8 +954,17 @@ const comboSubmit = api.vertexOrders.comboSubmit
         });
       throw error;
     }
-    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
-    await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
+    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live. "engine_refused":
+    // the bridge refused it before IBKR, so a go-live draft is free to be sent again.
+    const engineRefused = result.state === "engine_refused";
+    await outcomeOf(
+      result.state === "unconfirmed"
+        ? "unknown"
+        : engineRefused
+          ? "refused"
+          : "placed"
+    );
+    if (engineRefused) release();
     // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
     // is a refusal and is audited as a failure.
     await audit(

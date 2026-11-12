@@ -11,12 +11,11 @@ import {
 // Go-live draft queue (card vertex-golive-draft-queue). Vertex computes what the allocation plan
 // wants today and drafts defined-risk vertical orders. The owner approves or rejects each draft.
 //
-// RECORDS ONLY. This contract has no send route and its service calls no order gateway: an
-// approval is a stored owner decision and nothing reaches a broker. This service never calls
-// vertexOrders.comboPreview / comboSubmit, and no screen offers a vertical ticket in live mode, so
-// an approved draft is not placed through Vertex today. A send route is a later change behind its
-// own flag; it must check the Nautilus arm state itself, because the order bridge checks only the
-// kill switch (docs/vertex-rebuild/golive-draft-queue.md).
+// This contract has no send route and its service calls no order gateway: an approval is a stored
+// owner decision. The draft page sends an approved entry through vertexOrders.comboPreview /
+// comboSubmit with goLiveDraftId (GO-LIVE 4), gated by golive-send-gate.ts (node armed, plan caps,
+// exact approved order) and only through an order bridge that runs engine policy v3 and the node
+// ARM record on every opening combo (docs/vertex-rebuild/golive-draft-queue.md).
 //
 // Access: plan and draft reads need an operator. approve and reject need the owner in a browser
 // session (agent API keys are refused). collect is the rig generator's write (operator write key).

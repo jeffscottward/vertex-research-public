@@ -177,6 +177,40 @@ describe("order intent repository", () => {
     ]);
   });
 
+  it("answers whether the last outcome of an orderRef is refused", async () => {
+    const rows = (outcomes: [number, string][]) =>
+      fakeDatabase([
+        {
+          action: "vertex.order.intent",
+          createdAt: at(0),
+          entityId: "vertex-gla",
+          metadata: {},
+        },
+        ...outcomes.map(([minute, outcome]) => ({
+          action: "vertex.order.result",
+          createdAt: at(minute),
+          entityId: "vertex-gla",
+          metadata: { outcome },
+        })),
+      ]).database;
+    const refused = (outcomes: [number, string][]) =>
+      createOrderIntentRepository(rows(outcomes), deps).refused("vertex-gla");
+    expect(await refused([[1, "refused"]])).toBe(true);
+    expect(
+      await refused([
+        [2, "placed"],
+        [1, "refused"],
+      ])
+    ).toBe(false);
+    expect(
+      await refused([
+        [1, "placed"],
+        [2, "refused"],
+      ])
+    ).toBe(true);
+    expect(await refused([])).toBe(false);
+  });
+
   it("answers whether any row exists for an orderRef", async () => {
     const limited = (rows: unknown[]) =>
       ({

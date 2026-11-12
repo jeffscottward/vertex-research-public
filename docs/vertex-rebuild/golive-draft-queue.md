@@ -2,26 +2,27 @@
 
 Updated: 2026-11-12. The go-live draft queue lists the defined-risk vertical orders that the allocation plan in force wants for one trading day. Vertex computes each draft; the owner approves or rejects it.
 
-## Records only
+## Records, and the send through the order route
 
-The queue stores decisions. It sends nothing.
+The queue stores decisions. Approve on an entry draft also sends that exact order, only through the checks in "Placing an approved order".
 
-- The API has four procedures: `goLiveDrafts.queue`, `goLiveDrafts.collect`, `goLiveDrafts.approve` and `goLiveDrafts.reject`. There is no send route.
+- The API has four procedures: `goLiveDrafts.queue`, `goLiveDrafts.collect`, `goLiveDrafts.approve` and `goLiveDrafts.reject`. The `goLiveDrafts` router has no send route: the draft page sends through `vertexOrders.comboPreview` and `comboSubmit` with `goLiveDraftId`.
 - The service (`packages/api/src/server/golive-drafts.ts`), its sizing rules (`golive-drafts-sizing.ts`) and the store (`packages/db/src/server/golive-drafts.ts`) import no order route, no order gateway and no confirm module. A test reads the three sources. It fails on such an import, on a dynamic `import(...)`, on a module name written as a template literal, and on a name of the order path (`vertexOrders`, `orderGateway`, `orderBridge`, `confirmToken`). The test reads these three files only, not the files they import.
-- An approval is a stored owner decision: the exact order that was approved (`approvedOrder`) and the node badge read at that moment. No Vertex screen can place it on the live account today (see "Placing an approved order").
+- An approval is a stored owner decision: the exact order that was approved (`approvedOrder`) and the node badge read at that moment. The draft page sends it through the order route with `goLiveDraftId` (see "Placing an approved order").
 - Every queue answer carries `sendsOrders: false`.
 
 ## Placing an approved order
 
-No Vertex screen can open a vertical spread on the live account today.
+Approve on an approved entry draft sends that exact order to IBKR as one combo limit order (GO-LIVE 4: `vertexOrders.comboPreview` and `comboSubmit` with `goLiveDraftId`; the gate is `packages/api/src/server/golive-send-gate.ts`). Each refusal is named:
 
-- The order screen is the "Vertex orders" tab of the Portfolio page (`/portfolio`). Its vertical ticket is shown only in simulated mode (`apps/web/src/components/portal/vertex-orders.tsx`). In live mode the tab takes single option orders only (buy to open, sell to close).
-- The API behind that screen does accept a defined-risk opening vertical on the live gateway (`vertexOrders.comboPreview` and `comboSubmit` in `packages/api/src/server/vertex-orders.ts`): owner session, one-use confirm token, final order gate, kill switch, 2% max loss. No screen calls it in live mode, and the draft queue does not call it.
-- Production runs live mode. So an approved draft is not placed through Vertex. Placing a vertical by hand at IBKR is outside Vertex and its checks.
+- `V3_NOT_ON_LIVE_PATH` unless the order gateway is the order bridge and its account reports `gates.orderPolicy: "options_only_defined_risk_v3"`. The simulated gateway and an older bridge never report it (owner 2026-11-12, card vertex-golive-exec-intake).
+- `ENGINE_DISARMED` unless the node badge is exactly `running-armed`; the order must be the exact approved order, inside the plan caps (4% total, 2% per name, 1% per position), and not sent before.
+
+The order bridge (market-watch-bot `market_watch/vertexbridge.py`) then runs the exec node's own `arm_gate` on the opening: engine order policy v3 (`preview_order`) on the node's account snapshot, close reservations and open-risk ledger, and the node ARM record (`ArmGate.status()`), once at the check and again right before the order run. A refusal returns `state: "engine_refused"` and nothing reaches IBKR.
+
+The "Vertex orders" tab of the Portfolio page (`/portfolio`) still takes single option orders only in live mode: its vertical ticket is shown only in simulated mode (`apps/web/src/components/portal/vertex-orders.tsx`). Placing a vertical by hand at IBKR is outside Vertex and its checks.
 
 The page says this in its notice. A test reads the source of the order screen and fails when the vertical ticket is offered in live mode, so the notice is rewritten in the same change.
-
-A send route for drafts is a later unit. It needs its own flag, the arm check named under "Node badge and the arm state", a live IBKR quote and the owner's approval of the exact order.
 
 ## Access
 
@@ -260,7 +261,7 @@ Limits:
 - Held positions are not read: the order is checked as a new position.
 - The kill switch and the OPTIONS_ONLY setting are not read here. The order screen checks them when an order is sent.
 
-The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so a real order review can still refuse an order that the pre-check allowed. No screen sends a vertical on the live account today (see "Placing an approved order"). The pre-check is not a clearance to send.
+The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so a real order review can still refuse an order that the pre-check allowed. Approve sends a vertical only through the checks in "Placing an approved order". The pre-check is not a clearance to send.
 
 `preCheck.enginePolicy` is always `not_evaluated_not_in_web_order_path`: the engine policy (`arm_gate.py`) is not part of the web order path.
 
@@ -268,7 +269,7 @@ The dry web gate is run without the account's positions and without the kill-swi
 
 The queue shows the Nautilus node badge (`running-disarmed`, `running-armed`, `down`, `unknown`) through the read-only `nautilusArm.status` procedure. Any failure gives `unknown`. That procedure refuses agent API keys, so a key caller always sees `unknown`.
 
-The badge is information only. The order bridge checks only the kill switch. It does not read the Nautilus arm record. A disarmed node therefore does not stop an order that is sent through the order screen. Any later send route for drafts must check the arm state itself and hold when the badge is not exactly `running-armed`.
+A go-live send needs the badge to be exactly `running-armed`, and the order bridge reads the Nautilus arm record itself on every opening combo. Single option orders on the order screen are checked against the kill switch only, so a disarmed node does not stop them.
 
 ## Exit rule
 
