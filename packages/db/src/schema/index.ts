@@ -33,6 +33,7 @@ export * from "./academy-content.ts";
 export * from "./golive.ts";
 export * from "./leveraged-etf.ts";
 
+import type { DeploymentRequestOptions } from "../server/deployment-requests.ts";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -1742,6 +1743,8 @@ export const deploymentRequests = pgTable(
       .default("paper")
       .notNull(),
     limits: jsonb("limits").$type<DeploymentRequestLimits>().notNull(),
+    // Optional options block (migration 0067); null on every request in the old format.
+    options: jsonb("options").$type<DeploymentRequestOptions>(),
     status: text("status")
       .$type<DeploymentRequestStatus>()
       .default("draft")
@@ -1784,6 +1787,10 @@ export const deploymentRequests = pgTable(
     check(
       "deployment_requests_limits_check",
       sql`jsonb_typeof(${table.limits}) = 'object' and ${table.limits} ?& array['maxOrderSize', 'maxPosition', 'maxOrdersPerMinute', 'dailyLossLimit'] and ${table.limits} - array['maxOrderSize', 'maxPosition', 'maxOrdersPerMinute', 'dailyLossLimit'] = '{}'::jsonb and (case when jsonb_typeof(${table.limits}->'maxOrderSize') = 'number' and jsonb_typeof(${table.limits}->'maxPosition') = 'number' and jsonb_typeof(${table.limits}->'maxOrdersPerMinute') = 'number' and jsonb_typeof(${table.limits}->'dailyLossLimit') = 'number' then (${table.limits}->>'maxOrderSize')::numeric > 0 and (${table.limits}->>'maxPosition')::numeric > 0 and (${table.limits}->>'maxOrderSize')::numeric <= (${table.limits}->>'maxPosition')::numeric and (${table.limits}->>'maxOrdersPerMinute')::numeric between 1 and 1000 and (${table.limits}->>'maxOrdersPerMinute')::numeric = trunc((${table.limits}->>'maxOrdersPerMinute')::numeric) and (${table.limits}->>'dailyLossLimit')::numeric > 0 else false end)`
+    ),
+    check(
+      "deployment_requests_options_check",
+      sql`${table.options} is null or (case when jsonb_typeof(${table.options}) = 'object' and jsonb_typeof(${table.options}->'structure') = 'string' and jsonb_typeof(${table.options}->'maxLossPctOfAccount') = 'number' then octet_length(${table.options}::text) <= 4096 and ${table.options}->>'structure' in ('callDebitVertical', 'putDebitVertical', 'putCreditVertical', 'callCreditVertical') and (${table.options}->>'maxLossPctOfAccount')::numeric > 0 and (${table.options}->>'maxLossPctOfAccount')::numeric <= 2 else false end)`
     ),
     check(
       "deployment_requests_lifecycle_check",
