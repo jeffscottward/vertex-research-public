@@ -33,7 +33,9 @@ https://{$VERTEX_TAILNET_HOST:unset-vertex-tailnet-host.invalid}:3451 {
     Strict-Transport-Security "max-age=31536000"
     X-Content-Type-Options "nosniff"
     X-Frame-Options "DENY"
-    Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    # "?" sets the fallback only when the app sent none: app pages carry a
+    # per-request script nonce that this static value must not replace.
+    ?Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
     Referrer-Policy "strict-origin-when-cross-origin"
     -Server
   }

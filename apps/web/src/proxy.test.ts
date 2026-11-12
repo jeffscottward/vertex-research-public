@@ -64,6 +64,22 @@ describe("proxy", () => {
     expect(response.headers.get("Strict-Transport-Security")).not.toBeNull();
   });
 
+  it("gives each page request its own script nonce, on request and response", () => {
+    const request = () =>
+      new NextRequest("http://app.test/dashboard", {
+        headers: { "content-security-policy": "script-src 'nonce-forged'" },
+      });
+    const first = proxy(request());
+    const second = proxy(request());
+    const csp = first.headers.get("Content-Security-Policy");
+    expect(csp).toMatch(/; script-src 'self' 'nonce-[A-Za-z0-9+/=]+'$/u);
+    expect(csp).not.toContain("forged");
+    expect(
+      first.headers.get("x-middleware-request-content-security-policy")
+    ).toBe(csp);
+    expect(second.headers.get("Content-Security-Policy")).not.toBe(csp);
+  });
+
   it("does not run for API, build asset or framework paths", () => {
     const [matcher] = config.matcher;
     const pattern = new RegExp(`^${matcher}$`, "u");
