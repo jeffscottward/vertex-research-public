@@ -1,4 +1,6 @@
-"""Dark HTML report of the Triple RSI study (research only; one self-contained file, inline SVG charts)."""
+"""Dark HTML report of the Triple RSI study (research only; one self-contained file, inline SVG charts).
+
+Phone layout (640 px and narrower): tables stack into labelled blocks, charts keep their text size (see STYLE)."""
 from __future__ import annotations
 
 import html
@@ -21,8 +23,33 @@ th,td{border-bottom:1px solid #232834;padding:4px 8px;text-align:right;white-spa
 th:first-child,td:first-child{text-align:left}th{color:#9aa3b2;font-weight:600}
 table.text th,table.text td{text-align:left;white-space:normal}
 .box{background:#161a22;border:1px solid #2a2f3a;border-radius:8px;padding:12px 16px;margin:12px 0}
-.wrap{overflow-x:auto}svg{background:#12151c;border:1px solid #232834;border-radius:6px}
+.wrap{overflow-x:auto}
 code{background:#1b2030;padding:1px 4px;border-radius:4px}
+.chart{background:#12151c;border:1px solid #232834;border-radius:6px;margin:8px 0;padding:8px 14px 28px 0}
+.chart figcaption{display:flex;flex-wrap:wrap;gap:2px 16px;margin:0 0 12px 12px;font-size:13px}
+.chart figcaption span:first-child{flex-basis:100%}.chart .key{font-size:12px}
+.plot{position:relative;margin-left:56px}
+.plot svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.plot path,.plot line{vector-effect:non-scaling-stroke}
+.plot span{position:absolute;color:#9aa3b2;font-size:11px;line-height:1;white-space:nowrap}
+.plot .y{right:100%;margin-right:6px;transform:translateY(-50%)}
+.plot .xs span{top:100%;margin-top:8px;transform:translateX(-50%)}
+@media(max-width:640px){
+main{padding:16px}
+thead{display:none}
+table,tbody,tr,td{display:block}
+tr{padding:8px 0;border-bottom:1px solid #2a2f3a}
+td,table.text td{border:0;padding:2px 0;text-align:left;white-space:normal;overflow-wrap:anywhere}
+td:empty{display:none}
+td::before{content:attr(data-label);display:block;color:#9aa3b2;font-size:12px;font-weight:400}
+td:first-child{font-weight:600}
+td:first-child::before{display:inline;margin-right:6px}
+table.list td:not(:first-child):not(:empty){display:flex;justify-content:space-between;gap:12px;text-align:right}
+table.list td::before{text-align:left}
+table.grid tr{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:0 8px}
+table.grid td:first-child{grid-column:1/-1}
+.plot .xs span:nth-child(even){display:none}
+}
 """
 COLORS = ("#60a5fa", "#9aa3b2", "#4ade80", "#f472b6")
 
@@ -31,14 +58,22 @@ def _e(text) -> str:
     return html.escape(str(text))
 
 
+GRID_COLUMNS = 7  # a table this wide stacks as a grid of label-over-value cells on a phone, a narrower one as a list
+
+
 def _table(head: Sequence[str], rows: Sequence[Sequence], *, text: bool = False) -> str:
-    """`head` is plain text (escaped here); `rows` hold HTML. `text`: every column left-aligned and wrapped."""
-    klass = " class='text'" if text else ""
-    out = [f"<div class='wrap'><table{klass}><tr>",
-           *(f"<th>{_e(cell)}</th>" for cell in head), "</tr>"]
+    """`head` is plain text (escaped here); `rows` hold HTML. `text`: every column left-aligned and wrapped.
+
+    Every cell carries its column head as `data-label`: on a phone (STYLE, 640 px and narrower) the head row is
+    hidden and each row is a block of labelled values, so no table scrolls sideways."""
+    labels = [_e(cell) for cell in head]
+    klass = "text" if text else "grid" if len(head) >= GRID_COLUMNS else "list"
+    out = [f"<div class='wrap'><table class='{klass}'><thead><tr>", *(f"<th>{label}</th>" for label in labels),
+           "</tr></thead><tbody>"]
     for row in rows:
-        out.append("<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>")
-    out.append("</table></div>")
+        out.append("<tr>" + "".join(f"<td data-label='{label}'>{cell}</td>"
+                                    for label, cell in zip(labels, row, strict=True)) + "</tr>")
+    out.append("</tbody></table></div>")
     return "".join(out)
 
 
@@ -49,9 +84,12 @@ def _mark(ok) -> str:
 
 
 def _chart(series: Sequence[tuple[str, Sequence[Mapping]]], key: str, *, title: str, log: bool = False,
-           percent: bool = True, height: int = 260) -> str:
-    """Line chart of monthly points (`month`, `key`); every series on the same month axis."""
-    width, left, right, top, bottom = 1120, 64, 16, 28, 28
+           percent: bool = True, height: int = 220) -> str:
+    """Line chart of monthly points (`month`, `key`); every series on the same month axis.
+
+    The SVG holds the grid and the lines only and stretches to the plot box (`height` CSS px tall, any width). The
+    title, the legend and the axis labels are HTML at fixed font sizes, placed in percent of the plot box, so they
+    read the same on a phone and on a desktop."""
     months = sorted({point["month"] for _, points in series for point in points})
     if len(months) < 2:
         return ""
@@ -64,38 +102,37 @@ def _chart(series: Sequence[tuple[str, Sequence[Mapping]]], key: str, *, title: 
     low, high = min(values), max(values)
     if high == low:
         high = low + 1
-    span_x = width - left - right
-    span_y = height - top - bottom
 
     def x(month: str) -> float:
-        return left + span_x * position[month] / (len(months) - 1)
+        """Percent of the plot width."""
+        return 100 * position[month] / (len(months) - 1)
 
     def y(value: float) -> float:
-        return top + span_y * (1 - (level(value) - low) / (high - low))
+        """Percent of the plot height, from the top."""
+        return 100 * (1 - (level(value) - low) / (high - low))
 
-    parts = [f"<svg viewBox='0 0 {width} {height}' width='100%' role='img' aria-label='{_e(title)}'>",
-             f"<text x='{left}' y='18' fill='#e7e7e7' font-size='13'>{_e(title)}</text>"]
+    marks, levels = [], []
     for step in range(5):
         raw = low + (high - low) * step / 4
         value = math.exp(raw) - 1 if log else raw
-        yy = top + span_y * (1 - step / 4)
+        top = 100 - 25 * step
         digits = 0 if not log and (high - low) >= 0.1 or log else 1
         label = (f"{value * 100:.{digits}f}%" if percent else f"{value:.2f}").replace("-0%", "0%").replace("-0.0%", "0.0%")
-        parts.append(f"<line x1='{left}' x2='{width - right}' y1='{yy:.1f}' y2='{yy:.1f}' stroke='#232834'/>"
-                     f"<text x='{left - 6}' y='{yy + 4:.1f}' fill='#9aa3b2' font-size='11' text-anchor='end'>"
-                     f"{_e(label)}</text>")
-    for month in months[:: max(1, len(months) // 10)]:
-        parts.append(f"<text x='{x(month):.1f}' y='{height - 8}' fill='#9aa3b2' font-size='11' "
-                     f"text-anchor='middle'>{_e(month[:4])}</text>")
+        marks.append(f"<line x1='0' x2='100' y1='{top}' y2='{top}' stroke='#232834'/>")
+        levels.append(f"<span class='y' style='top:{top}%'>{_e(label)}</span>")
+    years = [f"<span style='left:{x(month):.2f}%'>{_e(month[:4])}</span>"
+             for month in months[:: max(1, len(months) // 10)]]
+    legend = []
     for number, (name, points) in enumerate(series):
         color = COLORS[number % len(COLORS)]
-        path = " ".join(f"{'M' if index == 0 else 'L'}{x(point['month']):.1f},{y(point[key]):.1f}"
+        path = " ".join(f"{'M' if index == 0 else 'L'}{x(point['month']):.2f},{y(point[key]):.2f}"
                         for index, point in enumerate(points))
-        parts.append(f"<path d='{path}' fill='none' stroke='{color}' stroke-width='1.6'/>")
-        parts.append(f"<text x='{left + 8 + 260 * number}' y='{top + 14}' fill='{color}' font-size='12'>"
-                     f"{_e(name)}</text>")
-    parts.append("</svg>")
-    return "".join(parts)
+        marks.append(f"<path d='{path}' fill='none' stroke='{color}' stroke-width='1.6'/>")
+        legend.append(f"<span class='key' style='color:{color}'>{_e(name)}</span>")
+    return (f"<figure class='chart'><figcaption><span>{_e(title)}</span>{''.join(legend)}</figcaption>"
+            f"<div class='plot' style='height:{height}px'><svg viewBox='0 0 100 100' preserveAspectRatio='none' "
+            f"role='img' aria-label='{_e(title)}'>{''.join(marks)}</svg>{''.join(levels)}"
+            f"<div class='xs'>{''.join(years)}</div></div></figure>")
 
 
 def _share_rows(results: Mapping, symbol: str | None = None, execution: str | None = None,
@@ -163,11 +200,11 @@ def render(results: Mapping, doc: Mapping) -> str:
     body.append(_chart([("Triple RSI shares, as stated", curves["statedSpy"]), ("Buy-and-hold SPY", hold_curve)],
                        "value", title="Return since the start (log scale)", log=True))
     body.append(_chart([("Triple RSI shares, as stated", curves["statedSpy"]), ("Buy-and-hold SPY", hold_curve)],
-                       "drawdown", title="Drawdown from the high", height=200))
+                       "drawdown", title="Drawdown from the high", height=160))
     body.append(_chart([("Options form, SPY 30-day call vertical, 2% risk", curves["optionsSpy"])], "value",
-                       title="Vertex options form: return since the start", height=220))
+                       title="Vertex options form: return since the start", height=180))
     body.append(_chart([("Options form drawdown", curves["optionsSpy"])], "drawdown",
-                       title="Vertex options form: drawdown", height=180))
+                       title="Vertex options form: drawdown", height=140))
 
     body.append("<h2>Core 7 ETF twins, shares (signal close)</h2>")
     for cost in study.COSTS.values():
@@ -188,7 +225,7 @@ def render(results: Mapping, doc: Mapping) -> str:
     for row in results["options"]:
         label = _e(VARIANT_LABEL[row["variant"]])
         if row["stats"] is None:
-            rows.append([row["symbol"], label, "no trade", *[""] * 11])
+            rows.append([row["symbol"], label, "no trade", *[""] * 12])
             continue
         stats = row["stats"]
         carlo = stats["monteCarlo"] or {}

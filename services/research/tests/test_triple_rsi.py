@@ -1,12 +1,14 @@
 """Triple RSI study (docs/specs/strategies/triple-rsi.md): rules, fills, share ledger, DSL definition, options
-stance and measures. Hand-computed cases; no data files, no NautilusTrader (test_triple_rsi_nautilus.py)."""
+stance, measures and the report markup. Hand-computed cases; no data files, no NautilusTrader
+(test_triple_rsi_nautilus.py)."""
 import math
+from html.parser import HTMLParser
 from unittest import mock
 
 import pytest
 
 from strategies.qc_ports.data import Bars
-from strategies.triple_rsi import document, dsl, metrics, options_form, rules, shares
+from strategies.triple_rsi import document, dsl, metrics, options_form, report, rules, shares
 from strategies.triple_rsi.rules import Params, SignalTrade
 
 NAN = float("nan")
@@ -301,12 +303,20 @@ def _job_result(dates, values, trades=()):
             "capital": 100_000.0, "engine": "nautilus-trader-1.227.0"}
 
 
-def test_assemble_counts_trials_once_and_decides_on_the_options_row():
+STUDY_DATES = [f"2020-{1 + day // 28:02d}-{1 + day % 28:02d}" for day in range(120)]
+
+
+def _study_curve(step, wobble):
+    return [100_000.0 * (1 + step * day + wobble * ((day * 7) % 5 - 2)) for day in range(120)]
+
+
+def _study_results(*, sensitivity=False):
+    """A whole study from synthetic runs: SLV call60 starts 20 days late and QQQ has no always-on baseline.
+
+    `sensitivity`: the grid holds every one-at-a-time neighbour of the stated rule (the study document needs them)."""
     from strategies.triple_rsi import study
 
-    dates = [f"2020-{1 + day // 28:02d}-{1 + day % 28:02d}" for day in range(120)]
-    def curve(step, wobble):
-        return [100_000.0 * (1 + step * day + wobble * ((day * 7) % 5 - 2)) for day in range(120)]
+    dates, curve = STUDY_DATES, _study_curve
     trade = {"pnl": 10.0, "return": 0.01, "holdDays": 3}
     loss = {"pnl": -5.0, "return": -0.005, "holdDays": 2}
     shares_runs = []
@@ -318,8 +328,13 @@ def test_assemble_counts_trials_once_and_decides_on_the_options_row():
                                     "engine": "nautilus-trader-1.227.0",
                                     "result": _job_result(dates, curve(0.0004, 0.0005), [trade, loss] * 20)})
     stated_spy = dict(shares_runs[0], execution="close", cost=study.COSTS["base"])  # a duplicate key of the grid
-    grid = [{**stated_spy, "params": params.key()} for params in study.grid_params()[:3]]
-    grid.append({**stated_spy})
+    if sensitivity:
+        keys = {rules.Params(**{**rules.STATED.__dict__, field: value}).key()
+                for field, values in study.GRID.items() for value in values}
+        grid = [{**stated_spy, "params": key} for key in sorted(keys)]
+    else:
+        grid = [{**stated_spy, "params": params.key()} for params in study.grid_params()[:3]]
+        grid.append({**stated_spy})
     holds = [{"symbol": symbol, "result": _job_result(dates, curve(0.0003, 0.002))} for symbol in study.SYMBOLS]
     options = []
     for symbol in study.SYMBOLS:
@@ -337,8 +352,14 @@ def test_assemble_counts_trials_once_and_decides_on_the_options_row():
                     continue  # no baseline: G7 must fail on QQQ
                 options.append({"symbol": symbol, "variant": variant.key, "baselineDelay": delay, "refused": {},
                                 "nautilusGap": 0.0, "result": _job_result(dates, curve(-0.0001, 0.001))})
+    dsl_run = {"sameTrades": True, "from": dates[0], "to": dates[-1], "trades": 40, "equityGap": 0.0}
     with mock.patch.object(metrics, "MONTE_CARLO_PATHS", 50):
-        results = study.assemble(shares_runs, grid, options, holds, {"sameTrades": True})
+        return study.assemble(shares_runs, grid, options, holds, dsl_run)
+
+
+def test_assemble_counts_trials_once_and_decides_on_the_options_row():
+    dates, curve = STUDY_DATES, _study_curve
+    results = _study_results()
     # 63 share runs + 3 new grid variants (the 4th grid run repeats a share run) + 28 options rows
     assert results["trials"]["n"] == 63 + 3 + 28
     decision = results["decision"]
@@ -355,3 +376,107 @@ def test_assemble_counts_trials_once_and_decides_on_the_options_row():
     assert [check["pass"] for check in qqq["checks"] if check["check"] == metrics.BASELINE_CHECK] == [False]
     assert qqq["buyHold"]["start"] == dates[0]
     assert len(results["curves"]["statedSpy"]) >= 2
+
+
+
+# --------------------------------------------------------------------------- report markup
+
+
+class _Page(HTMLParser):
+    """The tables (class, head, rows of (data-label, text) cells) and every start tag of a report page."""
+
+    def __init__(self, page):
+        super().__init__()
+        self.tables, self.tags, self._text = [], [], None
+        self.feed(page)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        self.tags.append((tag, attrs))
+        if tag == "table":
+            self.tables.append({"class": attrs["class"], "head": [], "rows": []})
+        elif tag == "tr":
+            self.tables[-1]["rows"].append([])
+        elif tag in ("th", "td"):
+            self._text = []
+            self._label = attrs.get("data-label")
+
+    def handle_data(self, data):
+        if self._text is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        table = self.tables[-1] if self.tables else None
+        if tag == "th":
+            table["head"].append("".join(self._text))
+        elif tag == "td":
+            table["rows"][-1].append((self._label, "".join(self._text)))
+        elif tag == "thead":
+            table["rows"].clear()  # the head row holds no body cell
+        if tag in ("th", "td"):
+            self._text = None
+
+    def of(self, tag):
+        return [attrs for name, attrs in self.tags if name == tag]
+
+
+def _report_page(results):
+    results["provenance"] = {"commit": "0" * 40, "ran": "2026-11-12", "dataFiles": {"SPY.csv": "ab" * 32}}
+    return report.render(results, document.study_document(results))
+
+
+def test_report_cells_carry_their_column_head_for_the_phone_layout():
+    results = _study_results(sensitivity=True)
+    no_trade = next(row for row in results["options"] if (row["symbol"], row["variant"]) == ("SLV", "call60"))
+    no_trade["stats"] = None  # a form without a trade: the row still has one cell per column
+    text = _report_page(results)
+    page = _Page(text)
+    assert {"name": "viewport", "content": "width=device-width,initial-scale=1"} in page.of("meta")
+    assert "@media(max-width:640px)" in text and "content:attr(data-label)" in text
+    assert len(page.tables) == 13
+    for table in page.tables:
+        assert table["rows"], table["head"]
+        for row in table["rows"]:
+            assert [label for label, _ in row] == table["head"]
+        if table["class"] != "text":  # a wide table stacks as a grid on a phone, a narrow one as a list
+            assert table["class"] == ("grid" if len(table["head"]) >= 7 else "list")
+    claim = next(table for table in page.tables if table["head"][0] == "Measure")
+    assert claim["class"] == "list"
+    assert claim["rows"][2][:2] == [("Measure", "Win rate"), ("Claim", "90%")]
+    options = next(table for table in page.tables if "Form" in table["head"])
+    assert ("Trades", "no trade") in [row[2] for row in options["rows"] if row[0] == ("Symbol", "SLV")]
+
+
+def test_report_table_refuses_a_row_that_does_not_match_the_head():
+    with pytest.raises(ValueError):
+        report._table(["Check", "Result"], [["only one cell"]])
+    assert "data-label='B&amp;H &#x27;CAGR&#x27;'" in report._table(["Name", "B&H 'CAGR'"], [["SPY", "1%"]])
+
+
+def test_report_chart_text_is_html_at_a_fixed_size():
+    points = [{"month": f"2020-{month:02d}", "value": 0.01 * month, "drawdown": -0.02 * (month % 3)}
+              for month in range(1, 13)]
+    half = [{**point, "value": point["value"] / 2} for point in points[3:]]
+    page = _Page(report._chart([("Strategy <a>", points), ("Buy-and-hold", half)], "value", title="Return & risk"))
+    assert page.of("text") == []  # no text inside the scaled SVG: it would shrink with the screen
+    (svg,) = page.of("svg")
+    assert svg["preserveaspectratio"] == "none" and svg["aria-label"] == "Return & risk"
+    assert len(page.of("path")) == 2 and len(page.of("line")) == 5
+    spans = page.of("span")
+    assert [span["style"] for span in spans if span.get("class") == "key"] == ["color:#60a5fa", "color:#9aa3b2"]
+    assert [span["style"] for span in spans if span.get("class") == "y"] == [
+        "top:100%", "top:75%", "top:50%", "top:25%", "top:0%"]
+    years = [float(span["style"].removeprefix("left:").removesuffix("%")) for span in spans
+             if span.get("style", "").startswith("left:")]
+    assert years == sorted(years) and years[0] == 0.0 and years[-1] <= 100.0
+    first, second = (path["d"] for path in page.of("path"))
+    assert first.startswith("M0.00,") and first.endswith(",0.00")  # the highest point is the top of the plot
+    assert second.startswith("M27.27,")  # the later series starts at its own month (3 of 11 steps)
+    assert report._chart([("One month", points[:1])], "value", title="Too short") == ""
+
+
+def test_report_charts_of_the_page():
+    page = _Page(_report_page(_study_results(sensitivity=True)))
+    assert len(page.of("figure")) == 4 and len(page.of("svg")) == 4
+    assert page.of("text") == []
+    assert len(page.of("path")) == 6  # shares and buy-and-hold twice, the options form twice
