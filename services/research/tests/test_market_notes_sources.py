@@ -90,7 +90,7 @@ def test_the_ytdlp_command_never_reads_cookies_or_a_browser():
         with pytest.raises(NoteError, match="https only"):
             sources.ytdlp_argv("yt-dlp", link)
     with pytest.raises(NoteError, match="user name"):
-        sources.ytdlp_argv("yt-dlp", "https://user:pw@youtu.be/abc")
+        sources.ytdlp_argv("yt-dlp", "https://user:pw@example.com/abc")
 
 
 @pytest.mark.parametrize("option", ["--cookies", "--cookies=/tmp/c.txt", "--cookies-from-browser", "--cookies-from-browser=firefox",
@@ -278,7 +278,7 @@ def test_article_fetch_stops_at_two_megabytes():
     ("https://user:pw@example.com/a", FakeResponse(LONG_PAGE), "user name"),
     ("https://127.0.0.1/a", FakeResponse(LONG_PAGE), "local or private"),
     ("https://10.1.2.3/a", FakeResponse(LONG_PAGE), "local or private"),
-    ("https://100.100.1.2/a", FakeResponse(LONG_PAGE), "local or private"),
+    ("https://198.18.0.1/a", FakeResponse(LONG_PAGE), "local or private"),
     ("https://[::1]/a", FakeResponse(LONG_PAGE), "local or private"),
     ("https://localhost/a", FakeResponse(LONG_PAGE), "local or private"),
     ("https://rig.internal/a", FakeResponse(LONG_PAGE), "local or private"),

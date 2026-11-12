@@ -469,7 +469,7 @@ def test_a_past_review_date_is_stored_with_a_notice_that_the_note_is_expired(rig
     (["add", "text", "--review-by", "2101-01-01"], "--review-by must be from 2000-01-01 to 2100-12-31"),
     (["renew", "mn_1", "--review-by", "2027-11-13"], "--review-by 2027-11-13 is more than 366 days after today"),
     (["renew", "mn_1", "--review-by", "1999-01-01"], "--review-by must be from 2000-01-01 to 2100-12-31"),
-    (["add", "text", "--owner-message", "https://user:pw@chat.example.com/m/1"], "--owner-message must not carry a user name"),
+    (["add", "text", "--owner-message", "https://user:pw@example.com/m/1"], "--owner-message must not carry a user name"),
     (["add", "http://www.instagram.com/reel/abc/"], "a reel link must use https"),
     (["add", REEL, "--transcript-file", "/dev/zero"], "--transcript-file is larger than 2 MB"),
     (["check", "mn_1", "--claim", "c1", "--status", "supported", "--evidence", "nul\x00inside"], "evidence holds a NUL character"),

@@ -92,7 +92,7 @@ def test_reads_the_url_from_either_variable_and_needs_the_key():
 
 
 @pytest.mark.parametrize("url", ["http://vertex.example.com", "ftp://vertex.example.com", "vertex.example.com",
-                                 "https://user:pass@vertex.example.com", "https://vertex.example.com/?a=1"])
+                                 "https://user:pw@example.com", "https://vertex.example.com/?a=1"])
 def test_refuses_a_base_url_that_could_leak_the_key(url: str):
     with pytest.raises(ValueError):
         MarketNotesClient(url, KEY)
