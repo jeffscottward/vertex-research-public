@@ -123,6 +123,7 @@
     "research:academy-golden": "bun scripts/research-academy-golden.ts",
     "research:nautilus-golden": "bun scripts/research-nautilus-golden.ts",
     "research:qc-port-definitions": "bun --no-env-file scripts/research-qc-port-definitions.ts",
+    "research:deploy-rehearsal-requests": "bun --no-env-file scripts/research-deploy-rehearsal-requests.ts",
     "research:nautilus-parity": "bun scripts/research-nautilus-parity.ts",
     "academy:sources": "bun scripts/academy/build-sources.ts",
     "academy:lessons": "bun scripts/academy/build-lesson-index.ts",
