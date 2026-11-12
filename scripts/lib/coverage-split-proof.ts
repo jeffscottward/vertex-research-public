@@ -30,13 +30,17 @@ import { required } from "./required.ts";
 //    code does not name its own file (`import.meta` other than
 //    `import.meta.dirname`, `__filename`); what depends only on the folder
 //    (`__dirname`, relative `require` and `import()`) keeps its meaning in the
-//    same folder. All declarations of one name stay together. A "use server"
-//    module and a file with a JSX pragma do not split, and a new file does
-//    not add `@ts-nocheck`.
+//    same folder. Ambient (`declare`) declarations stay. All declarations of
+//    one name stay together. The directives (such as "use client") stay the
+//    first statements of the original file. A "use server" module and a file
+//    with a JSX pragma or a triple-slash reference do not split, and a new
+//    file does not add `@ts-nocheck`.
 // 3. Names: every identifier that named an import or a top-level declaration
 //    of the original file names the same import or declaration after the
 //    split, never a global. Code that calls `eval` does not split. A
-//    type-only import is not used as a value, and an import is not assigned.
+//    type-only import is not used as a value or exported without `type`, and
+//    an import is not assigned; TypeScript comment directives (ts-ignore,
+//    ts-expect-error, ts-nocheck) do not hide these errors.
 // 4. Imports: every imported name is imported under the same name from the
 //    same module (relative specifiers resolved from each file's folder) as in
 //    the original file, and not as a value or deferred import where the
@@ -46,9 +50,11 @@ import { required } from "./required.ts";
 //    namespace import of a file of the split. The modules other than the
 //    files of the split load in the same order as before, deferred ones
 //    deferred: the new files run nothing, so their place does not count.
+//    The import of the automatic JSX runtime is not counted.
 // 5. Exports: the original file exports the same names, and each resolves to
-//    the same declaration, import or re-export. Its re-exports of the new
-//    files do not rename, carry `type` exactly for types, and use `export *`
+//    the same declaration, import or re-export, and exports each name once
+//    (merged declarations of one name aside). Its re-exports of the new
+//    files do not rename, carry `type` exactly for names without a value, and use `export *`
 //    only when no other module is re-exported with `export *`; `export *`
 //    does not re-export a default.
 // 6. Coverage: each percentage of a coverage summary matches its counts, and
@@ -59,6 +65,9 @@ import { required } from "./required.ts";
 //
 // The coverage summaries are supplied by the caller; the reviewer reruns the
 // command with summaries from their own `bun run verify:coverage` runs.
+// Comments are not compared, so the reviewer also checks moved comments that
+// tools read (bundler hints such as `@vite-ignore`), and that no code finds a
+// new file by a name built at run time (a computed `import()`, a folder read).
 
 export type CoverageSplitProofDependencies = Readonly<{
   /** Output of `git <arguments>`, or undefined when git fails. */
@@ -108,6 +117,8 @@ type ImportBinding = Readonly<{
 
 type Module = Readonly<{
   path: string;
+  /** The text as committed; `file` hides comment directives from the checker. */
+  text: string;
   file: ts.SourceFile;
   checker: ts.TypeChecker;
   /** The compared statements: all but imports and re-exports of new files. */
@@ -337,9 +348,11 @@ const parseModule = (
   text: string,
   parts: ReadonlySet<string>
 ): Module => {
+  // Comment directives would hide the type errors the proof looks for; the
+  // same-length rename keeps every position.
   const file = ts.createSourceFile(
     `/${path}`,
-    text,
+    text.replace(/@ts-(?=ignore|expect-error|nocheck)/gu, "@ts_"),
     ts.ScriptTarget.Latest,
     true,
     path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
@@ -384,6 +397,7 @@ const parseModule = (
       );
   return {
     path,
+    text,
     file,
     checker: program.getTypeChecker(),
     statements,
@@ -596,6 +610,9 @@ const moveProblem = (
   if (namesOwnFile(statement)) {
     return "code that names its own file (import.meta, __filename)";
   }
+  if (hasModifier(statement, ts.SyntaxKind.DeclareKeyword)) {
+    return "an ambient declaration (declare), which has no value at run time";
+  }
   if (MOVABLE.has(statement.kind)) return undefined;
   if (ts.isClassDeclaration(statement)) {
     return classProblem(statement, module, paths);
@@ -668,7 +685,7 @@ const splitImportProblem = (
     binding.phase !== "type" &&
     (index.types.get(module) as ReadonlySet<string>).has(local)
   ) {
-    return `imports the type ${local} from ${module} without \`type\``;
+    return `imports ${local} from ${module}, which has no value at run time, without \`type\``;
   }
   return undefined;
 };
@@ -760,15 +777,10 @@ const bindingProblems = (pairs: readonly Pair[], split: Split): string[] =>
     })
   );
 
-/**
- * File-wide settings that do not follow moved code: a "use server" module
- * (every export is a server action, a re-export may not be), JSX pragmas,
- * and `@ts-nocheck`, which a new file may not add.
- */
-const directiveProblems = (split: Split): string[] => {
-  const { before } = split;
-  const problems: string[] = [];
-  for (const statement of before.file.statements) {
+/** The directive prologue: the strings before any other statement. */
+const prologue = (module: Module): string => {
+  const directives: string[] = [];
+  for (const statement of module.file.statements) {
     if (
       !(
         ts.isExpressionStatement(statement) &&
@@ -777,39 +789,63 @@ const directiveProblems = (split: Split): string[] => {
     ) {
       break;
     }
-    if (statement.expression.text === "use server") {
-      problems.push(
-        `${before.path} is a "use server" module: its exports are server actions, so its code does not move`
-      );
-    }
+    directives.push(JSON.stringify(statement.expression.text));
   }
-  const pragmas = [before, ...split.after].filter(({ file }) =>
-    /@jsx\w*\s/u.test(file.text)
-  );
-  if (pragmas.length > 0) {
+  return directives.length === 0 ? "none" : directives.join(", ");
+};
+
+/**
+ * File-wide settings that do not follow moved code. The directives (such as
+ * "use client") stay the first statements of the original file; a
+ * "use server" module does not split, because every export of it is a server
+ * action and a re-export may not be. JSX pragmas and triple-slash references
+ * apply to one file, and `@ts-nocheck` turns type checking off for one.
+ */
+const directiveProblems = (split: Split): string[] => {
+  const { before } = split;
+  const [original, ...newFiles] = split.after as [Module, ...Module[]];
+  const problems: string[] = [];
+  const directives = prologue(before);
+  if (directives.includes('"use server"')) {
     problems.push(
-      `${pragmas[0]?.path} has a JSX pragma, which applies only to its own file`
+      `${before.path} is a "use server" module: its exports are server actions, so its code does not move`
     );
   }
-  if (!before.file.text.includes("@ts-nocheck")) {
-    for (const module of split.after) {
-      if (module.file.text.includes("@ts-nocheck")) {
-        problems.push(
-          `${module.path} turns type checking off with @ts-nocheck`
-        );
-      }
-    }
+  if (prologue(original) !== directives) {
+    problems.push(
+      `${original.path}: its directives were ${directives} and are ${prologue(original)} after the split; they stay its first statements`
+    );
+  }
+  const fileWide = [before, ...split.after].find(({ text }) =>
+    /@jsx\w*\s|\/\/\/\s*<reference/u.test(text)
+  );
+  if (fileWide !== undefined) {
+    problems.push(
+      `${fileWide.path} has a JSX pragma or a triple-slash reference, which applies only to its own file`
+    );
+  }
+  const nocheck = [
+    ...newFiles,
+    ...(before.text.includes("@ts-nocheck") ? [] : [original]),
+  ].filter(({ text }) => text.includes("@ts-nocheck"));
+  for (const module of nocheck) {
+    problems.push(`${module.path} turns type checking off with @ts-nocheck`);
   }
   return problems;
 };
 
-/** Names declared only by interfaces and type aliases. */
+/**
+ * Names that have no value at run time: declared only by interfaces, type
+ * aliases and ambient (`declare`) declarations.
+ */
 const typeNames = (module: Module): Set<string> => {
   const types = new Set<string>();
   const values = new Set<string>();
   for (const { node, names } of module.statements) {
     const target =
-      ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)
+      ts.isInterfaceDeclaration(node) ||
+      ts.isTypeAliasDeclaration(node) ||
+      hasModifier(node, ts.SyntaxKind.DeclareKeyword)
         ? types
         : values;
     for (const name of names) target.add(name);
@@ -831,7 +867,7 @@ const hasOuterStar = (
       !parts.has(moduleOf(module.path, statement, module.file))
   );
 
-/** One exported name, what it resolves to, and where. */
+/** One exported name, what it resolves to, and where it is named. */
 type ExportEntry = readonly [name: string, target: string, node: ts.Node];
 
 /** The original file's re-export of a new file: no rename, no namespace. */
@@ -887,7 +923,7 @@ const partExports = (
         problem = `re-exports the value ${name} of ${source} as a type`;
       } else if (named && !typeOnly && type) {
         // A named re-export of a type fails at load time without `type`.
-        problem = `re-exports the type ${name} of ${source} without \`type\``;
+        problem = `re-exports ${name} of ${source}, which has no value at run time, without \`type\``;
       }
       if (problem === undefined) return [[name, target as string, node]];
       problems.push(`${module.path}:${lineOf(node, module.file)}: ${problem}`);
@@ -984,16 +1020,23 @@ const exportsOf = (
   problems: string[]
 ): Exports => {
   const exports = new Map<string, string>();
+  // Per name, whether each export of it is an exported declaration.
+  const declarations = new Map<string, boolean[]>();
   for (const statement of module.file.statements) {
+    const declaration = hasModifier(statement, ts.SyntaxKind.ExportKeyword);
     const entries = statementExports(module, statement, parts, paths, problems);
-    for (const [name, target, node] of entries) {
-      const known = exports.get(name);
-      if (known !== undefined && known !== target) {
-        problems.push(
-          `${module.path}:${lineOf(node, module.file)}: export ${name} is both ${known} and ${target}`
-        );
-      }
+    for (const [name, target] of entries) {
       exports.set(name, target);
+      declarations.set(name, [...(declarations.get(name) ?? []), declaration]);
+    }
+  }
+  // Declarations of one name merge (`type X` and `const X`). Any other second
+  // export of a name fails at load time or hides one of the two.
+  for (const [name, flags] of declarations) {
+    if (flags.length > 1 && flags.includes(false)) {
+      problems.push(
+        `${module.path}: export ${name} is exported more than once`
+      );
     }
   }
   return exports;
@@ -1221,12 +1264,10 @@ const prove = async (
   const { git, output, readText } = dependencies;
   const show = async (commit: string, path: string): Promise<string> =>
     required(await git(["show", `${commit}:${path}`]), `${path} at ${commit}`);
+  const mergeBase = (await git(["merge-base", "HEAD", TARGET_BRANCH]))?.trim();
   const ref =
     options.base ??
-    required(
-      await git(["merge-base", "HEAD", TARGET_BRANCH]),
-      `the merge base of HEAD and ${TARGET_BRANCH}`
-    ).trim();
+    required(mergeBase, `the merge base of HEAD and ${TARGET_BRANCH}`);
   const base = required(
     await git(["rev-parse", "--verify", `${ref}^{commit}`]),
     `the commit ${ref}`
@@ -1257,7 +1298,7 @@ const prove = async (
 
   output(`Pure-move split of ${from} into ${to.join(", ")}`);
   output(
-    `Base: ${base} (${options.base === undefined ? `merge base of HEAD and ${TARGET_BRANCH}` : `--base ${options.base}`}); files after the split: HEAD`
+    `Base: ${base} (${options.base === undefined ? `merge base of HEAD and ${TARGET_BRANCH}` : `--base ${options.base}; the merge base of HEAD and ${TARGET_BRANCH} is ${mergeBase ?? "unknown"}`}); files after the split: HEAD`
   );
   const matched = matchStatements(split);
   problems.push(

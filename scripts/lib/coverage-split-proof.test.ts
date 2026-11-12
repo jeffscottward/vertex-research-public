@@ -488,12 +488,25 @@ describe("runCoverageSplitProof", () => {
     const result = await prove({ arguments_: ["--base=main", ...ARGUMENTS] });
 
     expect(result.output[1]).toBe(
-      "Base: main (--base main); files after the split: HEAD"
+      `Base: main (--base main; the merge base of HEAD and ${TARGET} is main); files after the split: HEAD`
     );
-    expect(result.gitCalls.slice(0, 2)).toEqual([
+    expect(result.gitCalls.slice(0, 3)).toEqual([
+      ["merge-base", "HEAD", TARGET],
       ["rev-parse", "--verify", "main^{commit}"],
       ["diff", "--name-only", "--no-renames", "main..HEAD"],
     ]);
+    expect(result.code).toBe(0);
+  });
+
+  it("says when it does not know the merge base beside --base", async () => {
+    const result = await prove({
+      arguments_: ["--base=main", ...ARGUMENTS],
+      mergeBase: undefined,
+    });
+
+    expect(result.output[1]).toBe(
+      `Base: main (--base main; the merge base of HEAD and ${TARGET} is unknown); files after the split: HEAD`
+    );
     expect(result.code).toBe(0);
   });
 
@@ -662,7 +675,9 @@ describe("runCoverageSplitProof", () => {
         "interface T {}\nexport const v: T = {};\n",
         'import { T } from "./part.ts";\nexport const v: T = {};\n',
         "export interface T {}\n",
-        ["src/a.ts:1: imports the type T from src/part.ts without `type`"],
+        [
+          "src/a.ts:1: imports T from src/part.ts, which has no value at run time, without `type`",
+        ],
       ],
       [
         "uses a type-only import as a value",
@@ -814,7 +829,7 @@ describe("runCoverageSplitProof", () => {
         'export { T } from "./part.ts";\n',
         "export interface T {}\n",
         [
-          "src/a.ts:1: re-exports the type T of src/part.ts without `type`",
+          "src/a.ts:1: re-exports T of src/part.ts, which has no value at run time, without `type`",
           "src/a.ts: export T is missing after the split",
         ],
       ],
@@ -840,7 +855,7 @@ describe("runCoverageSplitProof", () => {
       );
 
       expect(result.problems).toEqual([
-        "src/a.ts:3: export alias is both declaration local and declaration alias",
+        "src/a.ts: export alias is exported more than once",
         "src/a.ts: export alias was declaration local and is declaration alias after the split",
       ]);
       expect(result.code).toBe(1);
@@ -872,7 +887,7 @@ describe("runCoverageSplitProof", () => {
       ],
       [
         "declare const ambient: number;",
-        "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: declare const ambient : number ;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is an ambient declaration (declare), which has no value at run time: declare const ambient : number ;",
       ],
       [
         "const flags = { ...defaults };",
@@ -943,6 +958,10 @@ describe("runCoverageSplitProof", () => {
         "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const { v } = { get v ( ) { return 1 ; } , } ;",
       ],
       [
+        "declare function native(): number;",
+        "src/part.ts:1: only declarations that run nothing at load time may move; this is an ambient declaration (declare), which has no value at run time: declare function native ( ) : number ;",
+      ],
+      [
         "const { [key]: k } = {};",
         "src/part.ts:1: only declarations that run nothing at load time may move; this is not a function, class, interface, type alias, or const of one name with a side-effect-free initializer: const { [ key ] : k } = { } ;",
       ],
@@ -974,6 +993,7 @@ describe("runCoverageSplitProof", () => {
       );
 
       expect(result.problems).toEqual([
+        "src/a.ts: export Unit is exported more than once",
         "Unit is declared in src/a.ts and src/part.ts: declarations of one name stay together",
       ]);
       expect(result.code).toBe(1);
@@ -1089,7 +1109,57 @@ describe("runCoverageSplitProof", () => {
       "/** @jsxImportSource preact */\nfunction f() {}\n",
       "/** @jsxImportSource preact */\n",
       "function f() {}\n",
-      ["src/a.ts has a JSX pragma, which applies only to its own file"],
+      [
+        "src/a.ts has a JSX pragma or a triple-slash reference, which applies only to its own file",
+      ],
+    ],
+    [
+      "a triple-slash reference",
+      '/// <reference types="vite/client" />\nfunction f() {}\n',
+      '/// <reference types="vite/client" />\n',
+      "function f() {}\n",
+      [
+        "src/a.ts has a JSX pragma or a triple-slash reference, which applies only to its own file",
+      ],
+    ],
+    [
+      "a @ts-nocheck in a new file",
+      "// @ts-nocheck\nfunction f() {}\n",
+      "// @ts-nocheck\n",
+      "// @ts-nocheck\nfunction f() {}\n",
+      ["src/part.ts turns type checking off with @ts-nocheck"],
+    ],
+    [
+      "a directive that is no longer the first statement",
+      '"use client";\nimport { useState } from "react";\nexport function Counter() {\n  return useState;\n}\nexport function helper() {\n  return 1;\n}\n',
+      'import { useState } from "react";\nexport { helper } from "./part.ts";\n"use client";\nexport function Counter() {\n  return useState;\n}\n',
+      "export function helper() {\n  return 1;\n}\n",
+      [
+        'src/a.ts: its directives were "use client" and are none after the split; they stay its first statements',
+      ],
+    ],
+    [
+      "an assignment to an import behind @ts-expect-error",
+      "export let count = 0;\nexport function bump() {\n  count += 1;\n  return count;\n}\n",
+      'export let count = 0;\nexport { bump } from "./part.ts";\n',
+      'import { count } from "./a.ts";\nexport function bump() {\n  // @ts-expect-error\n  count += 1;\n  return count;\n}\n',
+      ["src/part.ts:4: Cannot assign to 'count' because it is an import."],
+    ],
+    [
+      "a second export of a name",
+      "function keep() {\n  return 1;\n}\nexport { keep };\n",
+      "export function keep() {\n  return 1;\n}\nexport { keep };\n",
+      "",
+      ["src/a.ts: export keep is exported more than once"],
+    ],
+    [
+      "a value import of an ambient declaration",
+      "export declare function native(): number;\nexport function f() {\n  return native();\n}\n",
+      'export declare function native(): number;\nexport { f } from "./part.ts";\n',
+      'import { native } from "./a.ts";\nexport function f() {\n  return native();\n}\n',
+      [
+        "src/part.ts:1: imports native from src/a.ts, which has no value at run time, without `type`",
+      ],
     ],
     [
       "a new @ts-nocheck",
@@ -1105,11 +1175,11 @@ describe("runCoverageSplitProof", () => {
     expect(result.code).toBe(1);
   });
 
-  it("keeps a @ts-nocheck the original file had", async () => {
+  it("keeps a @ts-nocheck the original file had in the original file", async () => {
     const result = await smallSplit(
       "// @ts-nocheck\nfunction f() {}\n",
       "// @ts-nocheck\n",
-      "// @ts-nocheck\nfunction f() {}\n"
+      "function f() {}\n"
     );
 
     expect(result.problems).toEqual([]);
