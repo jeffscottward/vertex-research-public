@@ -121,6 +121,12 @@ tests/test_noise_band_futures.py
 tests/test_noise_band_futures_run.py
 tests/test_noise_band_retest.py
 tests/test_ibkr_history.py
+tests/test_deploy_rehearsal.py
+../execution/tests/test_paper_deploy_exit_rule.py
+../execution/tests/test_paper_deploy_runner.py
+../execution/tests/test_paper_deploy_strategy.py
+tests/test_idle_budget.py
+tests/test_paper_path_rehearsal.py
 tests/test_leveraged_etf_universe.py
 tests/test_leveraged_etf_study.py
 tests/test_leveraged_etf_study_forms.py
