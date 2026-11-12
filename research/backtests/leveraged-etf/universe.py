@@ -40,10 +40,15 @@ The directory is local data; it is not committed.
 --chains-from <dir> measures a saved run again and uses no network: it reads _run.json, the listing and the
 chain files of a --save-chains folder, and it writes nothing there. Without --listing it reads the listing
 that the run kept in the folder; the folder of a run that kept no listing needs --listing. `generatedAt` is
-the one of the saved run. The run ends with exit 1 and no document when the listing has a fund whose chain
-the saved run did not request (the name rules changed since that run, or --listing names another
-directory): the document would be partial, and the import deletes every fund that is not in the document.
-A fund of the saved run whose chain file is missing or cannot be measured ends the run too.
+the one of the saved run. A document of a saved run holds exactly the funds of that run: the run ends with
+exit 1 and no document when the listing has a fund whose chain the saved run did not request, or lacks a
+fund of the saved run (the name rules changed since that run, or --listing names another directory). Such a
+document would be partial, and the import deletes every fund that is not in the document. A fund of the
+saved run whose chain file is missing or cannot be measured ends the run too. The listing in the folder is
+read only as a regular file with the name _listing.txt, not through a symbolic link.
+
+--save-chains refuses a folder that already holds _run.json (exit 2, before any request): a failed run into
+the folder of a complete run would leave its record there, next to newer chain files.
 """
 from __future__ import annotations
 
@@ -229,8 +234,8 @@ def saved_run(directory: Path) -> tuple:
     generated_at = datetime.strptime(run["generatedAt"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     funds, without = frozenset(run["funds"]), frozenset(run["noChainFile"])
     name = run.get("listing")
-    if name is not None and (not isinstance(name, str) or Path(name).name != name):
-        raise ValueError(f"the listing {name!r} is not the name of a file in the folder")
+    if name is not None and name != LISTING_FILE:
+        raise ValueError(f"the listing {name!r} is not {LISTING_FILE!r}")
 
     def fetch(url: str) -> bytes:
         symbol = url.rsplit("/", 1)[1].removesuffix(".json")
@@ -238,15 +243,15 @@ def saved_run(directory: Path) -> tuple:
             raise NoFile(url)
         return (directory / f"{symbol}.json").read_bytes()
 
-    return generated_at, funds, fetch, directory / name if name is not None else None
+    return generated_at, funds, fetch, directory / LISTING_FILE if name is not None else None
 
 
 def collect(fetch, now, rows, save_chains: Path | None = None, saved_funds: frozenset | None = None,
             out=None, log=lambda *parts: print(*parts, file=sys.stderr), delay: float | None = None,
             workers: int = WORKERS, pace: Pace | None = None, listing: str | None = None) -> int:
     """One run. `fetch(url)` returns the body or raises NoFile, `now()` is the UTC time and `rows` are the
-    rows of the symbol directory. `saved_funds` are the funds of a saved run (--chains-from): every fund of
-    the directory must be one of them, and the control chain is not read. `delay` None = DELAY. `listing`
+    rows of the symbol directory. `saved_funds` are the funds of a saved run (--chains-from): the funds of
+    the directory must be exactly these, and the control chain is not read. `delay` None = DELAY. `listing`
     is the text of the symbol directory: a complete run keeps it in `save_chains`. Returns the exit code."""
     pace = pace or Pace()
     out = sys.stdout if out is None else out
@@ -269,11 +274,14 @@ def collect(fetch, now, rows, save_chains: Path | None = None, saved_funds: froz
         log(f"error: {error}; no chain was read")
         return 1
     if saved_funds is not None:
-        not_requested = [fund.symbol for fund in funds if fund.symbol not in saved_funds]
-        if not_requested:
-            log(f"error: the saved run did not request the chains of {len(not_requested)} funds of this directory; "
-                "the document is not written, because it would be partial")
-            log(f"  {' '.join(not_requested)}")
+        listed = {fund.symbol for fund in funds}
+        if listed != saved_funds:
+            log("error: the funds of this directory are not the funds of the saved run; the document is not "
+                "written, because it would not be the universe of that run")
+            for text, symbols in (("not requested by the saved run", listed - saved_funds),
+                                  ("not in this directory", saved_funds - listed)):
+                if symbols:
+                    log(f"  {text} ({len(symbols)}): {' '.join(sorted(symbols))}")
             return 1
     live = saved_funds is None
     if live and not control_reads(fetch, log):
@@ -349,6 +357,9 @@ def main() -> int:
     chains.add_argument("--chains-from", type=Path, metavar="DIR", help="measure the saved run of this --save-chains folder again (no network; needs --listing when the folder holds no listing)")
     args = parser.parse_args()
     pace = Pace()
+    if args.save_chains is not None and (args.save_chains.expanduser() / RUN_FILE).exists():
+        parser.error(f"--save-chains: {args.save_chains.expanduser() / RUN_FILE} exists; the folder holds a complete "
+                     "run. Use a new folder for each run.")
     listing_file = args.listing.expanduser() if args.listing is not None else None
     saved = None
     if args.chains_from is not None:
@@ -358,9 +369,14 @@ def main() -> int:
         except (OSError, ValueError, KeyError, TypeError) as error:
             print(f"error: {directory} is not the folder of a complete run: {type(error).__name__}: {error}", file=sys.stderr)
             return 1
-        listing_file = listing_file or saved[3]
         if listing_file is None:
-            parser.error(f"--chains-from needs --listing: the run of {directory} kept no listing")
+            listing_file = saved[3]
+            if listing_file is None:
+                parser.error(f"--chains-from needs --listing: the run of {directory} kept no listing")
+            if listing_file.is_symlink() or not listing_file.is_file():
+                print(f"error: {listing_file} is not a regular file; the listing of a saved run is read only from "
+                      "its folder", file=sys.stderr)
+                return 1
     try:
         if listing_file is not None:
             listing = listing_file.read_text(encoding="utf-8", errors="replace")

@@ -34,7 +34,7 @@ The full method, the model assumptions and the limits are in
 A form row passes only when it passes the allocation gate (`allocation.gate_checks`): at least 30 trades, Sharpe and
 out-of-sample Sharpe at least 0.5, deflated Sharpe at least 0.95 with 40 trials, Monte Carlo probability of profit at
 least 80%, Monte Carlo drawdown p5 not below -35%, maximum drawdown at most 25%, and a Sharpe above its baseline (the
-ETF long option row of the same signal, regime and window). The lower bar of the funded pie
+ETF long option row of the same signal, regime and window; 0 for the ETF long option row itself). The lower bar of the funded pie
 (Sharpe at least 0.3, positive out of sample, Monte Carlo profit at least 80%, maximum drawdown at most 25%, at least 30
 trades) is reported beside it. A fail is never rounded up.
 
@@ -50,8 +50,8 @@ on the order gate: [leveraged-etf-share-fallback-gate.md](../research/leveraged-
 
 ## Results
 
-Run of 2026-11-12 on the rig, code revision `fb919edf`, data to 2026-11-06 (QQQ from 2010; volume spike breakout from
-2018). The run is complete: 40 of 40 form rows, 7 of 7 pairs. The largest relative equity difference between
+Run of 2026-11-12 on the rig, code revision `fb919edf`, data to 2026-11-06 (session-open momentum from 2008-11 to
+2011-03 depending on the pair; volume spike breakout from 2018). The run is complete: 40 of 40 form rows, 7 of 7 pairs. The largest relative equity difference between
 NautilusTrader and the ledger is 4.3e-16.
 
 | Form | Rows | Pass the gate | Pass the lower bar | Median Sharpe | Best Sharpe | Worst 2-session loss |
