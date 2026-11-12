@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import math
 import os
+import tempfile
 import unittest
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -25,6 +27,7 @@ from strategies.leveraged_etf import forms, pairs, prices, signals  # noqa: E402
 from strategies.qc_ports import options as om  # noqa: E402
 from strategies.qc_ports.book import OptionsSpec, choose_strikes, contracts_for, worst_exit_cost  # noqa: E402
 from strategies.qc_ports.data import Market  # noqa: E402
+from strategies.qc_ports.ledger import LedgerResult, run_ledger  # noqa: E402
 from strategies.volspike import rules  # noqa: E402
 
 QQQ = pairs.BY_UNDERLYING["QQQ"]
@@ -282,6 +285,30 @@ class ExpiryRule(unittest.TestCase):
         for index, day in enumerate(days[:-2]):
             self.assertLess(days[index + 2], self.expiry(day), day)
 
+    def test_an_exit_session_on_or_after_the_expiry_is_not_priced(self):
+        # The exit session is a daily bar of U, the expiry a day of the NYSE calendar: with a hole in the
+        # bars they can meet. The days here are written out; they do not come from the calendar helper.
+        with forms.fund_models():
+            data = holed_pair_data()
+            self.assertEqual(self.expiry(MONDAY), "2024-03-08")
+            for form in forms.OPTION_FORMS:
+                on_expiry = forms.price_trade(signal(), "24h", form, data)   # exit bar 2024-03-08 = the expiry
+                after_expiry = forms.price_trade(signal(), "48h", form, data)  # exit bar 2024-03-11
+                self.assertEqual((on_expiry, after_expiry), (forms.EXIT_AT_EXPIRY, forms.EXIT_AT_EXPIRY), form)
+            self.assertEqual(forms.EXIT_AT_EXPIRY, "exit on or after the expiry day")
+            # Shares have no expiry: the same signal is priced.
+            shares = forms.price_trade(signal(), "24h", "lev-shares", data)
+            self.assertEqual((shares.exit_day, shares.exit_price), ("2024-03-08", 63.5))
+            # The reason is counted per form like every other one.
+            _, reasons = forms.price_trades([signal()], "48h", "etf-vertical", {"QQQ": data})
+            self.assertEqual(reasons, {forms.EXIT_AT_EXPIRY: 1})
+            # The session before the expiry is still an exit: entry Friday 2024-03-01, expiry 2024-03-08,
+            # the second bar after it is the expiry (refused), the first one is Monday (priced).
+            friday = signal(day="2024-03-01", price=440.5)
+            self.assertEqual(self.expiry("2024-03-01"), "2024-03-08")
+            self.assertIsInstance(forms.price_trade(friday, "24h", "etf-option", data), forms.WindowTrade)
+            self.assertEqual(forms.price_trade(friday, "48h", "etf-option", data), forms.EXIT_AT_EXPIRY)
+
 
 class FundIv(unittest.TestCase):
     def test_fund_iv_is_leverage_times_the_iv_of_the_etf_at_the_same_standardized_moneyness(self):
@@ -320,10 +347,21 @@ ENTRY_MS = idata.ms_at(MONDAY, 10 * 60 + 30)
 RATE = 0.05
 
 
-def pair_data(*, iv=VXN, long_splits=(), u_splits=None, long_dates=DATES, long_close=LONG_CLOSE) -> forms.PairData:
+def pair_data(*, iv=VXN, long_splits=(), u_splits=None, long_dates=DATES, long_close=LONG_CLOSE,
+              u_dividends=None) -> forms.PairData:
     market = Market("QQQ", DATES, U_CLOSE, tuple(iv), (RATE,) * len(DATES))
     return forms.PairData(QQQ, market, u_splits or {}, prices.FundBars("TQQQ", long_dates, long_close, long_splits),
-                          prices.FundBars("SQQQ", DATES, INVERSE_CLOSE))
+                          prices.FundBars("SQQQ", DATES, INVERSE_CLOSE), u_dividends or {})
+
+
+def holed_pair_data() -> forms.PairData:
+    """U's daily bars have a hole from Tuesday 2024-03-05 to Thursday 2024-03-07 (the file misses three
+    sessions the exchange had): the bar after Monday 2024-03-04 is Friday 2024-03-08, the expiry day
+    of a Monday entry by the NYSE calendar, and the second bar after it is Monday 2024-03-11."""
+    dates = ("2024-02-29", "2024-03-01", "2024-03-04", "2024-03-08", "2024-03-11", "2024-03-12")
+    market = Market("QQQ", dates, (439.0, 440.0, 441.0, 447.0, 448.0, 449.0), (20.0,) * 6, (RATE,) * 6)
+    return forms.PairData(QQQ, market, {}, prices.FundBars("TQQQ", dates, (59.5, 60.0, 61.0, 63.5, 64.0, 64.5)),
+                          prices.FundBars("SQQQ", dates, (10.2, 10.0, 9.9, 9.4, 9.3, 9.2)))
 
 
 def signal(side: int = 1, price: float = 442.0, day: str = MONDAY) -> signals.Signal:
@@ -412,6 +450,53 @@ class PriceForms(unittest.TestCase):
         exit_atm, t = 3 * om.atm_iv("VXN", 22.0), self.close_t("2024-03-05")
         exit_mid = om.bs_price("call", 62.5, strike, t, RATE, 0.0, om.smile_iv(exit_atm, 62.5, strike, t, slope))
         self.assertEqual((trade.exit_spot, trade.exit_price), (62.5, round(exit_mid * 100, 2)))
+
+    def test_on_the_ex_dividend_day_of_the_etf_the_fund_entry_price_adds_the_dividend_back(self):
+        # QQQ closed at 440 and goes ex 2.20 (0.5%) on Monday. At 442 its total return is 4.20 / 440.
+        data = pair_data(u_dividends={MONDAY: 2.2})
+        spot = 60.0 * (1 + 3 * ((442.0 + 2.2) / 440.0 - 1))
+        plain = 60.0 * (1 + 3 * (442.0 / 440.0 - 1))
+        self.assertAlmostEqual(spot / plain - 1, 3 * 0.005 / (1 + 3 * (442.0 / 440.0 - 1)), places=12)
+        option = forms.price_trade(signal(), "24h", "lev-option", data)
+        self.assertAlmostEqual(option.entry_spot, spot, places=12)
+        strike, _, _ = choose_strikes("call", "debit", spot, self.t_entry, RATE, 0.0, 3 * 0.18, om.SKEW["QQQ"], SPEC)
+        mid = om.bs_price("call", spot, strike, self.t_entry, RATE, 0.0,
+                          om.smile_iv(3 * 0.18, spot, strike, self.t_entry, om.SKEW["QQQ"]))
+        self.assertEqual((option.long_strike, option.entry_price), (strike, round(mid * 100, 2)))
+        self.assertAlmostEqual(forms.price_trade(signal(), "24h", "lev-vertical", data).entry_spot, spot, places=12)
+        self.assertEqual(forms.price_trade(signal(), "24h", "lev-shares", data).entry_price, round(spot, 2))
+        # The inverse fund moves the other way: it is LOWER with the dividend than without.
+        short = forms.price_trade(signal(-1, price=438.0), "24h", "lev-shares", data)
+        self.assertEqual(short.entry_price, round(10.0 * (1 - 3 * ((438.0 + 2.2) / 440.0 - 1)), 2))
+        self.assertLess(short.entry_price, round(10.0 * (1 - 3 * (438.0 / 440.0 - 1)), 2))
+        # The ETF forms trade U itself at its real price: nothing changes.
+        for form in forms.ETF_FORMS:
+            self.assertEqual(forms.price_trade(signal(), "24h", form, data),
+                             forms.price_trade(signal(), "24h", form, pair_data()))
+        # A dividend on another day (the exit day, the day before) does not touch the entry.
+        other = pair_data(u_dividends={"2024-03-01": 2.2, "2024-03-05": 2.2})
+        self.assertAlmostEqual(forms.price_trade(signal(), "24h", "lev-option", other).entry_spot, plain, places=12)
+
+    def test_load_pair_reads_the_dividends_of_the_etf_from_its_daily_file(self):
+        days = DATES[:4]
+        with tempfile.TemporaryDirectory() as qc, tempfile.TemporaryDirectory() as funds:
+            # QQQ goes ex 1.10 on 2024-02-28 after a close of 437: factor 1 - 1.10 / 437 on the days before.
+            factor = 1 - 1.1 / 437.0
+            adjusted = (436.0 * factor, 437.0 * factor, 438.0, 439.0)
+            (Path(qc) / "QQQ.csv").write_text("date,open,high,low,close,adj_close\n" + "".join(
+                f"{day},{close},{close},{close},{close:.6f},{adj:.6f}\n" for day, close, adj in zip(days, U_CLOSE, adjusted)))
+            (Path(qc) / "VXN.csv").write_text("date,close\n" + "".join(f"{day},20.0\n" for day in days))
+            (Path(qc) / "IRX.csv").write_text("date,close\n" + "".join(f"{day},5.0\n" for day in days))
+            (Path(funds) / "QQQ.splits.csv").write_text("date,ratio\n")
+            for fund, closes in (("TQQQ", LONG_CLOSE), ("SQQQ", INVERSE_CLOSE)):
+                (Path(funds) / f"{fund}.csv").write_text("date,open,high,low,close,adj_close\n" + "".join(
+                    f"{day},{close},{close},{close},{close},{close}\n" for day, close in zip(days, closes)))
+                (Path(funds) / f"{fund}.splits.csv").write_text("date,ratio\n")
+            data = forms.load_pair(QQQ, funds, qc)
+        self.assertEqual(list(data.u_dividends), ["2024-02-28"])
+        self.assertAlmostEqual(data.u_dividends["2024-02-28"], 1.1, places=4)
+        self.assertEqual((data.market.dates, data.long_fund.close), (days, LONG_CLOSE[:4]))
+        self.assertEqual(forms.PairData(QQQ, data.market, {}, data.long_fund, data.inverse_fund).u_dividends, {})
 
     def test_lev_option_of_a_short_signal_is_a_put_on_the_long_fund(self):
         trade = forms.price_trade(signal(-1), "24h", "lev-option", pair_data())
@@ -599,6 +684,46 @@ class SizingAndBooking(unittest.TestCase):
         self.assertEqual(len(booked["returns"]), 2)
         self.assertIsNone(booked["gap"])
 
+    def books(self, change=None) -> tuple[LedgerResult, LedgerResult]:
+        """The ledger result of two trades, and a second result that is the same book with `change`
+        applied to its fields (the place of the NautilusTrader result in the parity check)."""
+        priced, clock = forms.to_priced([self.priced("etf-option", "48h"), self.priced("lev-shares")], DATES[5:])
+        ledger = run_ledger(priced, 100_000.0, clock.keys())
+        fields = {"equity": ledger.equity, "trades": ledger.trades}
+        fields.update(change(ledger) if change else {})
+        other = LedgerResult(ledger.dates, tuple(fields["equity"]), ledger.open_positions, tuple(fields["trades"]),
+                             ledger.skipped, capital=ledger.capital, engine="other")
+        return ledger, other
+
+    def test_parity_holds_for_the_same_book_and_inside_the_tolerance(self):
+        self.assertEqual(forms.check_parity(*self.books()), 0.0)
+        inside = lambda ledger: {"equity": [value * (1 + 5e-7) for value in ledger.equity]}  # noqa: E731
+        self.assertAlmostEqual(forms.check_parity(*self.books(inside)), 5e-7, delta=1e-9)
+
+    def test_an_equity_gap_above_the_tolerance_is_a_booking_mismatch(self):
+        # One point of the second book is 2e-6 (relative) away: above the tolerance of 1e-6.
+        above = lambda ledger: {"equity": [*ledger.equity[:-1], ledger.equity[-1] * (1 + 2e-6)]}  # noqa: E731
+        with self.assertRaisesRegex(forms.BookingMismatch, "gap 2e-06"):
+            forms.check_parity(*self.books(above))
+        self.assertEqual(forms.PARITY_REL_TOL, 1e-6)
+
+    def test_a_nan_or_infinite_equity_value_is_a_booking_mismatch(self):
+        for bad in (float("nan"), float("inf"), -float("inf")):
+            poisoned = lambda ledger, bad=bad: {"equity": [ledger.equity[0], bad, *ledger.equity[2:]]}  # noqa: E731
+            ledger, other = self.books(poisoned)
+            with self.assertRaisesRegex(forms.BookingMismatch, "Nautilus equity"):
+                forms.check_parity(ledger, other)
+            with self.assertRaisesRegex(forms.BookingMismatch, "ledger equity"):  # the other way round
+                forms.check_parity(other, ledger)
+
+    def test_other_units_or_another_number_of_points_is_a_booking_mismatch(self):
+        fewer = lambda ledger: {"trades": [{**ledger.trades[0], "contracts": ledger.trades[0]["contracts"] + 1},  # noqa: E731
+                                           *ledger.trades[1:]]}
+        with self.assertRaisesRegex(forms.BookingMismatch, "units match False"):
+            forms.check_parity(*self.books(fewer))
+        with self.assertRaisesRegex(forms.BookingMismatch, "equity points"):
+            forms.check_parity(*self.books(lambda ledger: {"equity": ledger.equity[:-1]}))
+
     @unittest.skipUnless(_nautilus_installed(), "NautilusTrader is not installed")
     def test_nautilus_books_every_form_like_the_ledger(self):
         trades = [self.priced(form, window, side)
@@ -610,9 +735,36 @@ class SizingAndBooking(unittest.TestCase):
         self.assertLessEqual(booked["gap"], 1e-6)
         self.assertEqual(len(booked["daily"].trades), len(trades))
         self.assertIn("nautilus", booked["engine"])
-        ledger_only = forms.book(trades, DATES[5:], 100_000.0, nautilus=False)
-        self.assertEqual([round(value, 6) for value in booked["daily"].equity],
-                         [round(value, 6) for value in ledger_only["daily"].equity])
+        # The engine's own result, not the ledger's again: the same records booked by NautilusTrader alone.
+        from strategies.qc_ports.nautilus_runner import run_nautilus
+
+        priced, clock = forms.to_priced(trades, DATES[5:])
+        engine = forms.daily_result(run_nautilus(priced, 100_000.0, clock.keys()), clock)
+        self.assertIn("nautilus", engine.engine)
+        self.assertEqual(engine.dates, booked["daily"].dates)
+        self.assertEqual(len(engine.equity), len(booked["daily"].equity))
+        for mine, theirs in zip(booked["daily"].equity, engine.equity):
+            self.assertAlmostEqual(theirs / mine, 1.0, delta=1e-6)
+        self.assertEqual([(record["id"], record["contracts"]) for record in engine.trades],
+                         [(record["id"], record["contracts"]) for record in booked["daily"].trades])
+        self.assertNotEqual(engine.equity[-1], 100_000.0)  # the books moved: the comparison is not of flat lines
+
+    @unittest.skipUnless(_nautilus_installed(), "NautilusTrader is not installed")
+    def test_book_raises_when_the_engine_result_differs(self):
+        from unittest import mock
+
+        from strategies.qc_ports import nautilus_runner
+
+        trades = [self.priced("etf-option"), self.priced("lev-shares", "48h", -1)]
+        real = nautilus_runner.run_nautilus
+
+        def drifted(priced, capital, keys):
+            result = real(priced, capital, keys)
+            return LedgerResult(result.dates, (*result.equity[:-1], float("nan")), result.open_positions, result.trades,
+                                result.skipped, capital=result.capital, engine=result.engine)
+
+        with mock.patch.object(nautilus_runner, "run_nautilus", drifted), self.assertRaises(forms.BookingMismatch):
+            forms.book(trades, DATES[5:], 100_000.0)
 
 
 if __name__ == "__main__":

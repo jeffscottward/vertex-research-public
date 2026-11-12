@@ -14,13 +14,15 @@ Every order layer refuses a new share buy today:
 
 | Layer | Where | Today |
 | --- | --- | --- |
-| A, exec node | `infra/quant-vps/exec-node/runtime/nautilus/arm_gate.py`, policy `options_only_defined_risk_v2` | refuses with `new_share_buy` |
+| A, exec node | `infra/quant-vps/exec-node/runtime/nautilus/arm_gate.py`, policy `options_only_defined_risk_v3` | refuses with `new_share_buy` ("share buys may only cover a held short") |
 | B, Vertex order screen | `packages/api/src/server/vertex-orders-rules.ts`, `final-order-gate.ts` | shares can only be closed or reduced |
 | C, order bridge (repository market-watch-bot) | `ops/ibkr_reentry_gateway.py` (`OPTIONS_ONLY`), `ops/max_loss_gate.py` | every share entry aborts |
 
 Which fund needs the fallback is a fact in Postgres: table `leveraged_etf_universe`, column `option_gate`
-([leveraged-etf-universe.md](../../vertex-rebuild/leveraged-etf-universe.md)). `fail` = the options are too thin for the
-window. `pass` = trade options, no shares. `spread-not-measured` = undecided until a chain is read during the session.
+([leveraged-etf-universe.md](../../vertex-rebuild/leveraged-etf-universe.md)). `fail` = the fund has no usable option
+market for the window; the column `option_gate_reasons` says why (no listed options, open interest or quotes too thin,
+spread too wide, or no current chain). `pass` = trade options, no shares. `spread-not-measured` = undecided until a
+chain is read during the session.
 
 ## Proposed rules (exec node, layer A)
 
@@ -32,7 +34,7 @@ snapshot rules, arming and the kill switch. A BUY of shares is allowed only when
 | 0 | Switch | `NAUTILUS_ORDER_POLICY_ALLOW_LEVERAGED_SHARES` is on only with the value `owner-decision:<link to the owner's message>`. Off is the default and equals today's behavior. No environment value arms the node. |
 | 1 | Allow-list | `NAUTILUS_ORDER_POLICY_LEVERAGED_SHARE_SYMBOLS`: explicit tickers, copied from `leveraged_etf_universe` rows with `option_gate = 'fail'` that the owner approved. An invalid entry refuses every leveraged share buy. |
 | 2 | Order form | Limit order, day order, USD, sized by share count. |
-| 3 | Size cap | Share count x limit price is at most 2% of the account value (the setting of the option cap; it can only be lowered). |
+| 3 | Size cap | Share count x limit price is at most 2% of the account value (the setting of the option cap, `NAUTILUS_ORDER_POLICY_MAX_LOSS_PCT`; it can only be lowered, and a value set in the environment needs its `_SOURCE` entry). |
 | 4 | No adding | One open per fund. A second buy of a fund that has an open record or a held position is refused. Averaging down is not possible. |
 | 5 | Count cap | At most 3 funds at one time, so at most 6% of the account in share fallbacks. |
 | 6 | Time box | 48 hours from the first order. The gate keeps one record per fund with the open time. While any fund is held longer than 48 hours, every new leveraged share buy is refused. A held fund without a record counts as overdue. Closes are never blocked. |
@@ -44,20 +46,32 @@ reports the overdue funds; it does not close them. An automatic exit after 48 ho
 ## Proof that the rules can be built
 
 The rules were written as code and tested in a scratch copy of `infra/quant-vps/exec-node` on the rig, against policy v2
-(repository commit `342f20ef`). Nothing in the repository was changed.
+(repository commit `342f20ef`, 2026-11-11). Nothing in the repository was changed.
 
 - `test_order_policy.py`: 106 tests before, 155 after (49 new). No existing assertion was changed. The other four
-  exec-node suites pass unchanged.
-- With the switch off, every existing test passes unchanged: the default equals today's behavior.
-- The patch (1806 lines) and the full engineering report are in the rig reports directory `vertex-leveraged-etf/gate/`
-  (`leveraged-share-fallback.patch`, `gate-report.md`). `git apply --check` passes on commit `342f20ef`.
+  exec-node suites of that commit passed unchanged.
+- With the switch off, every test of that commit passed unchanged: the default was equal to the behavior of policy v2.
+- The patch (1806 lines) and the full engineering report are in the rig reports directory
+  `web/vertex-leveraged-etf/gate/` (`leveraged-share-fallback.patch`, `gate-report.md`).
+
+The proof is for policy v2 only. Policy v3 (defined-risk vertical spreads, card `vertex-golive-spread-gate`, merge
+`76f1c169` of 2026-11-12) is now the gate on the base branch:
+
+- The patch does not apply to v3: `git apply --check` fails on `arm_gate.py`, `README.md` and `test_exec_node.py`.
+- The patch was never run against the new suite `test_order_policy_v3.py` (134 tests).
+- So the proof shows that the rules can be built and tested. It is not a change that is ready to merge.
 
 ## What a real change needs after an owner approval
 
-1. Layer A: rebase the patch on policy v3 (defined-risk vertical spreads, card `vertex-golive-spread-gate`). v3 brings an
-   open-risk ledger, a per-name cap and a total risk cap. The share notional is the position's maximum loss, so it must
-   count in that ledger; the ledger then replaces the size bookkeeping of this patch. The open time, the overdue rule,
-   the count cap and the allow-list stay.
+1. Layer A: write the allowance again on policy v3 and prove it against all six exec-node suites. Facts of v3 that the
+   new code must respect:
+   - With the spread switch off, v3 is equal to v2: the 2% cap is per order, and nothing held is added.
+   - With the spread switch on, v3 has an open-risk ledger and these caps in percent of the account value: 2% per
+     order; per name 2% for expiries under 365 days and 6% over all expiries; 10% in total.
+   - That open risk counts options only. Shares are not counted.
+   - A share position can lose its whole value. Its notional must count as open risk under the per-name cap and the
+     total cap. The ledger then replaces the size bookkeeping of the patch.
+   - The open time, the overdue rule, the count cap and the allow-list stay as proposed.
 2. Layer A deploy: a changed `arm_gate.py` changes the image version. After the rebuild the node is disarmed until the
    owner arms it again.
 3. Layer B: `evaluateOrder` sends every share order to `evaluateShareClose`; `classifyStructure` refuses every leg that is

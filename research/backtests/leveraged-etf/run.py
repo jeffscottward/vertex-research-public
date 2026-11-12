@@ -12,11 +12,14 @@ Run (rig, in the venv with services/research/requirements-nautilus-linux-py312.l
     ~/.local/share/vertex/nautilus-venv/bin/python research/backtests/leveraged-etf/run.py \
       --data ~/Documents/reports/vertex-leveraged-etf/data \
       --out ~/Documents/reports/vertex-leveraged-etf/results.json [--workers N] [--iv-ratio <chain file>]
-Diagnostics (a partial run is marked as partial and is not the study result):
+Diagnostics. Each of these makes a PARTIAL run (runner.partial_reasons): the JSON has `complete` false
+and the reasons in `partial`, the tables start with a PARTIAL line, and the study command refuses it:
   --no-nautilus          ledger only, no NautilusTrader booking
   --pairs QQQ,SPY        only these pairs
   --only '<pattern>,..'  only the form rows whose key matches (fnmatch on signal/regime/window/form);
                          the rows a verdict compares with are added
+  --capital N            another start capital than 100,000 USD
+A pair that cannot be loaded is dropped and also makes the run partial.
 
 Method: research/backtests/leveraged-etf/README.md.
 """
@@ -36,6 +39,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "services" / "research"))
 
+from golive import generator as golive  # noqa: E402
 from strategies.imom import data as idata  # noqa: E402
 from strategies.leveraged_etf import forms, metrics, report, runner, signals  # noqa: E402
 from strategies.leveraged_etf.pairs import BY_UNDERLYING, PAIRS  # noqa: E402
@@ -97,6 +101,50 @@ def wanted_rows(patterns: list[str] | None) -> list[str]:
     return [key for key in keys if key in picked]
 
 
+def pair_names(text: str | None) -> list[str]:
+    """The underlyings of the run in table order: every pair, or the pairs of the `--pairs` list."""
+    names = [pair.underlying for pair in PAIRS]
+    if not text:
+        return names
+    asked = [name.strip().upper() for name in text.split(",") if name.strip()]
+    unknown = [name for name in asked if name not in BY_UNDERLYING]
+    if unknown:
+        raise SystemExit(f"Unknown pair: {', '.join(unknown)}")
+    if not asked:
+        raise SystemExit("--pairs names no pair")
+    return [name for name in names if name in asked]
+
+
+def arguments(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--data", required=True, type=Path, help="fund data directory of fetch_data.py")
+    parser.add_argument("--out", required=True, type=Path, help="results JSON to write (results.md goes next to it)")
+    parser.add_argument("--qc-data", type=Path, default=None, help="qc-ports data directory (default: its env or folder)")
+    parser.add_argument("--capital", type=float, default=runner.CAPITAL)
+    parser.add_argument("--workers", type=int, default=16)
+    parser.add_argument("--only", default=None, help="comma list of fnmatch patterns on the form row keys")
+    parser.add_argument("--pairs", default=None, help="comma list of underlyings (default: every pair)")
+    parser.add_argument("--no-nautilus", action="store_true", help="ledger only (diagnostic)")
+    parser.add_argument("--iv-ratio", type=Path, default=None, help="measured IV ratio file to copy into the report")
+    return parser.parse_args(argv)
+
+
+def planned(args: argparse.Namespace) -> tuple[list[str], list[str], bool, list[str]]:
+    """(form rows, underlyings, NautilusTrader booking, reasons the run is partial) from the flags alone.
+    The results document applies the same rule (runner.partial_reasons) to what really ran, so a pair
+    dropped later adds its reason there."""
+    keys = wanted_rows(args.only.split(",") if args.only else None)
+    names = pair_names(args.pairs)
+    nautilus = not args.no_nautilus
+    return keys, names, nautilus, runner.partial_reasons(keys, names, [], args.capital, nautilus)
+
+
+def owner_lower_bar():
+    """research/backtests/allocation/funded_pie.py (the owner's lower bar: `lower_bar` and `LOWER_BAR`),
+    loaded by the go-live loader, which leaves sys.path and the module table as they were."""
+    return golive.funded_pie()
+
+
 def provenance(fund_root: Path, qc_root: Path, underlyings: list[str]) -> dict:
     """Code revision and a hash of the inputs: the checksum files of the fund fetch and of the qc-ports
     fetch, and name, size and modification time of every intraday file (they are too large to hash each run)."""
@@ -122,29 +170,13 @@ def provenance(fund_root: Path, qc_root: Path, underlyings: list[str]) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--data", required=True, type=Path, help="fund data directory of fetch_data.py")
-    parser.add_argument("--out", required=True, type=Path, help="results JSON to write (results.md goes next to it)")
-    parser.add_argument("--qc-data", type=Path, default=None, help="qc-ports data directory (default: its env or folder)")
-    parser.add_argument("--capital", type=float, default=runner.CAPITAL)
-    parser.add_argument("--workers", type=int, default=16)
-    parser.add_argument("--only", default=None, help="comma list of fnmatch patterns on the form row keys")
-    parser.add_argument("--pairs", default=None, help="comma list of underlyings (default: every pair)")
-    parser.add_argument("--no-nautilus", action="store_true", help="ledger only (diagnostic)")
-    parser.add_argument("--iv-ratio", type=Path, default=None, help="measured IV ratio file to copy into the report")
-    args = parser.parse_args()
+    args = arguments()
     began = time.monotonic()
     fund_root, qc_root = args.data.expanduser(), qd.data_root(args.qc_data)
     out_path: Path = args.out.expanduser()
-    keys = wanted_rows(args.only.split(",") if args.only else None)
-    names = [pair.underlying for pair in PAIRS]
-    if args.pairs:
-        asked = [name.strip().upper() for name in args.pairs.split(",") if name.strip()]
-        unknown = [name for name in asked if name not in BY_UNDERLYING]
-        if unknown:
-            raise SystemExit(f"Unknown pair: {', '.join(unknown)}")
-        names = [name for name in names if name in asked]
-    nautilus = not args.no_nautilus
+    keys, names, nautilus, partial = planned(args)
+    if partial:
+        log(f"PARTIAL run ({'; '.join(partial)}): a diagnostic, not the study result")
 
     # Pairs whose daily files cannot be loaded are dropped and named.
     dropped: list[dict] = []
@@ -212,9 +244,7 @@ def main() -> None:
             tag, row_stats, monthly = future.result()
             stats[tag] = (row_stats, monthly)
 
-    sys.path.insert(0, str(ROOT / "research" / "backtests" / "allocation"))
-    import funded_pie  # noqa: E402  (research/backtests/allocation/funded_pie.py: the owner's lower bar)
-
+    funded_pie = owner_lower_bar()
     verdicts = metrics.verdicts({key: stats[(key, None)][0] for key in keys}, al.gate_checks, funded_pie.lower_bar)
     rows = []
     for key in keys:
@@ -226,15 +256,17 @@ def main() -> None:
                    perPair=[{"underlying": name, "priced": item["priced"], "start": plan[key]["_starts"][name],
                              "stats": stats[(key, name)][0]} for name, item in result["perPair"].items()])
         rows.append(row)
-    engines = sorted({done[key]["engine"] for key in keys})
     iv_ratio = json.loads(args.iv_ratio.expanduser().read_text()) if args.iv_ratio else None
     document = runner.document(
-        rows=rows, found=found, data=data, dropped_pairs=dropped, variance=variance, engine=" / ".join(engines),
+        rows=rows, found=found, data=data, dropped_pairs=dropped, variance=variance,
+        engine=runner.engine_name([done[key] for key in keys]),
         nautilus=nautilus, capital=args.capital, gate=al.GATE, lower_bar=funded_pie.LOWER_BAR, iv_ratio=iv_ratio,
         provenance=provenance(fund_root, qc_root, list(found)), wall_seconds=time.monotonic() - began)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(document, indent=1))
     out_path.with_suffix(".md").write_text(report.results_markdown(document) + "\n")
+    if not document["complete"]:
+        print(f"PARTIAL run ({'; '.join(document['partial'])}): a diagnostic, not the study result")
     print(f"{len(rows)} form rows on {len(found)} pairs to {document['generatedFor']}; "
           f"pass the gate: {len(document['passGate'])}; pass the lower bar: {len(document['passLowerBar'])}; "
           f"leverage helps: {len(document['leverageHelps'])}; wall time {document['wallSeconds']:.0f} s")

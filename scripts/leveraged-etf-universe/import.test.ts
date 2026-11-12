@@ -1,3 +1,4 @@
+import type * as DatabaseServer from "@darkfactory/db/server";
 import { InvalidRepositoryInputError } from "@darkfactory/db/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,10 +8,24 @@ import {
   LEVERAGED_ETF_UNIVERSE_INPUT_MAX_BYTES,
   type LeveragedEtfUniverseStore,
   type OpenLeveragedEtfUniverseStore,
-  openLeveragedEtfUniverseStore,
   parseUniverseDocument,
   runLeveragedEtfUniverseImport,
 } from "./import.ts";
+
+// The database that the default opener of the CLI gets: no test opens a TCP connection.
+const database = vi.hoisted(() => ({
+  close: vi.fn(async () => undefined),
+  connectionStrings: [] as string[],
+  transaction: vi.fn(),
+}));
+
+vi.mock("@darkfactory/db/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof DatabaseServer>()),
+  createNodeDatabase: ({ connectionString }: { connectionString: string }) => {
+    database.connectionStrings.push(connectionString);
+    return { close: database.close, db: { transaction: database.transaction } };
+  },
+}));
 
 const OPTIONS = {
   bandOpenInterest: 23_456,
@@ -20,6 +35,7 @@ const OPTIONS = {
   session: "regular",
   spot: 58.65,
   totalOpenInterest: 123_456,
+  twoSidedQuotes: 8,
   windowExpiry: "2026-11-20",
 };
 const fund = (symbol: string, overrides: Record<string, unknown> = {}) => ({
@@ -57,6 +73,7 @@ const DOCUMENT = {
     maxHalfSpreadPct: 4,
     maxWindowDays: 21,
     minBandOpenInterest: 1000,
+    minTwoSidedQuotes: 3,
     minWindowDays: 5,
     version: 1,
   },
@@ -253,13 +270,54 @@ describe("runLeveragedEtfUniverseImport", () => {
     );
   });
 
-  it("opens a real store lazily: the default opener connects only on use", async () => {
-    const store = openLeveragedEtfUniverseStore(
-      "postgresql://nobody:nothing@127.0.0.1:1/none"
-    );
+  it("exits 2 for a document that is generated more than 5 minutes after the current time", async () => {
+    const store = storeDouble();
+    // DOCUMENT is generated at 15:30:00; the clock of the import says 15:24:59.
+    for (const argv of [[], ["--dry-run"]]) {
+      const run = cli(chunks(TEXT));
+      await expect(
+        runLeveragedEtfUniverseImport(
+          argv,
+          run.io,
+          store.open,
+          () => new Date("2026-11-11T15:24:59Z")
+        )
+      ).resolves.toBe(2);
+      expect(run.err.join("")).toBe(
+        "The universe document is generated at 2026-11-11T15:30:00Z. That is more than 5 minutes after the current time 2026-11-11T15:24:59.000Z, so it is refused.\n"
+      );
+      expect(run.out).toEqual([]);
+    }
+    expect(store.urls).toEqual([]);
+    // One second later the document is 5 minutes ahead: two clocks may differ by that much.
+    const run = cli(chunks(TEXT));
     await expect(
-      store.replaceUniverse(parseUniverseDocument(TEXT))
-    ).rejects.toThrow();
-    await store.close();
+      runLeveragedEtfUniverseImport(
+        [],
+        run.io,
+        store.open,
+        () => new Date("2026-11-11T15:25:00Z")
+      )
+    ).resolves.toBe(0);
+    expect(store.replaceUniverse).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the store of DATABASE_URL by default, exits 1 when the database cannot be reached and closes the store", async () => {
+    database.transaction.mockRejectedValueOnce(
+      Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:5432"), {
+        code: "ECONNREFUSED",
+      })
+    );
+    const run = cli(chunks(TEXT));
+    // No opener is passed: the CLI builds the store from createNodeDatabase and the repository.
+    await expect(runLeveragedEtfUniverseImport([], run.io)).resolves.toBe(1);
+    expect(database.connectionStrings).toEqual(["postgres://universe.test/db"]);
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+    // The repository maps the connection failure; the address of the database is not printed.
+    expect(run.err.join("")).toBe(
+      "leveraged ETF universe import failed: Database operation failed: leveraged ETF universe replace\n"
+    );
+    expect(run.out).toEqual([]);
+    expect(database.close).toHaveBeenCalledTimes(1);
   });
 });

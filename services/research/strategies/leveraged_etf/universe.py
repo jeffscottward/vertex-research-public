@@ -6,9 +6,13 @@ when it is known, the ticker of the unleveraged reference (the stock of a single
 an index, sector or commodity fund).
 
 The multiple comes from the name only. A name that signals leverage but does not state a multiple that these
-rules can read is left out and returned by `unclassified`, so a person can extend the rules. No rule guesses.
-A product with multiple 1 and long direction is not leveraged and is not in the universe; an inverse product
-with multiple -1 is.
+rules can read is left out and returned by `unclassified` with the reason, so a person can extend the rules.
+No rule guesses. A fund that stacks two exposures ("100% TSLA AND 100% SPCX") is leveraged in total, but it
+is not a multiple of one reference: it is reported in the same way. A product with multiple 1 and long
+direction is not leveraged and is not in the universe; an inverse product with multiple -1 is.
+
+The multiple says nothing about the reset period. Most funds reset every day. The Roundhill WeeklyPay funds
+reset every week, and some notes reset every month or quarter; a ListedFund has no field for that.
 """
 from __future__ import annotations
 
@@ -18,6 +22,8 @@ from dataclasses import dataclass
 
 LISTING_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt"
 MAX_MULTIPLE = 5  # the document contract allows -5..5
+# The directory of 2026-11-11 has 13,282 rows. A listing with fewer rows than this is not the whole directory.
+MIN_LISTING_ROWS = 10_000
 
 # Listing Exchange codes of the directory.
 EXCHANGES = {"Q": "NASDAQ", "N": "NYSE", "A": "NYSE American", "P": "NYSE Arca", "Z": "Cboe BZX", "V": "IEX",
@@ -27,7 +33,7 @@ EXCHANGES = {"Q": "NASDAQ", "N": "NYSE", "A": "NYSE American", "P": "NYSE Arca",
 @dataclass(frozen=True)
 class Leverage:
     multiple: float  # signed target multiple, for example 3, -2, 1.5, -0.5
-    rule: str  # the rule that read it: "explicit", "word", "family" or "prospectus"
+    rule: str  # the rule that read it: "explicit", "word", "family", "weekly-pay" or "prospectus"
 
 
 @dataclass(frozen=True)
@@ -91,13 +97,29 @@ _PROSPECTUS = (
     (re.compile(r"^AdvisorShares MSOS Daily Leveraged ETF$"), 2.0),
 )
 _DB_SHORT = re.compile(r"^DB \w+ Short ETN\b")  # "DB Gold Short ETN": the -1x member of the DB family
-_SIGNAL = re.compile(r"\bLeveraged?\b|\bInverse\b|\bBull\b|\bBear\b|\b(?:Double|Triple)\b|\bDaily Target\b")
+_SIGNAL = re.compile(r"\bLeveraged?\b|\bInverse\b|\bBull\b|\bBear\b|\b(?:Double|Triple)\b|\bDaily Target\b"
+                     r"|\bWeeklyPay\b")
 # "Short" or "Long" alone is a signal too ("Example Short Tesla ETF"), but not in the name of a debt fund
 # ("VanEck Short Muni ETF"), where it is the maturity.
 _DIRECTION = re.compile(r"\b(?:Short|Long)\b")
 _DEBT = re.compile(r"\b(?:Bond|Muni|Municipal|Treasury|T-Bill|Credit|Corporate|Income|Loans?)\b", re.I)
 
-_UNREADABLE = "unreadable"  # the name signals leverage, no rule reads a multiple
+# Roundhill WeeklyPay funds: 1.2 times the total return of one stock or ETF over a calendar week (fact sheets
+# of AAPW, GLDW, GDXW and TSYW on roundhillinvestments.com, read on 2026-11-12). The name states no multiple.
+_WEEKLY_PAY = re.compile(r"^Roundhill .+ WeeklyPay ETF$")
+WEEKLY_PAY_MULTIPLE = 1.2
+# TOPW follows an index of the WeeklyPay funds of the 25 largest companies (fact sheet, same date).
+_WEEKLY_PAY_BASKET = re.compile(r"^Roundhill Top WeeklyPay ETF$")
+# Two exposures in one fund: "100% TSLA AND 100% SPCX", "1x Bitcoin & 1x Gold", the STKd funds and the Return
+# Stacked family.
+_AMOUNT = r"(?:\d{2,3}\s?%|\d(?:\.\d{1,2})?\s?[xX])"
+_STACKED = re.compile(rf"(?<![\w.]){_AMOUNT}\s.+?\s(?:&|[Aa][Nn][Dd])\s{_AMOUNT}\s|^Return Stacked\s"
+                      r"|\b(?:Income)?STKd\b")
+
+# Why a name is in the `unclassified` report and not in the universe.
+NO_READABLE_MULTIPLE = "the name signals leverage, no rule reads a multiple"
+STACKED_EXPOSURES = "the fund stacks two exposures, it is not a multiple of one reference"
+WEEKLY_PAY_BASKET = "a fund of WeeklyPay funds, it states no multiple of one reference"
 
 
 def _clean(name: str) -> str:
@@ -107,13 +129,19 @@ def _clean(name: str) -> str:
 
 
 def _read(name: str) -> Leverage | str | None:
-    """Leverage, None (not leveraged) or _UNREADABLE."""
-    text = _clean(name)
+    """Leverage, None (not leveraged) or the reason why the name is reported and not classified."""
+    text = _clean(name.strip())
     if _NEVER.search(text) or any(pattern.search(text) for pattern in _NO_FIXED_MULTIPLE):
         return None
+    if _STACKED.search(text):
+        return STACKED_EXPOSURES
     for pattern, multiple in _PROSPECTUS:
         if pattern.search(text):
             return Leverage(multiple, "prospectus")
+    if _WEEKLY_PAY_BASKET.match(text):
+        return WEEKLY_PAY_BASKET
+    if _WEEKLY_PAY.match(text):
+        return Leverage(WEEKLY_PAY_MULTIPLE, "weekly-pay")
     for pattern in _NOT_DIRECTION:
         text = pattern.sub(" ", text)
     family = _FAMILY.match(text)
@@ -127,10 +155,10 @@ def _read(name: str) -> Leverage | str | None:
         minus = any(sign for sign, _ in found)
         negative = minus or bool(_NEGATIVE.search(text))
         if len(sizes) != 1 or (negative and _POSITIVE.search(text)):
-            return _UNREADABLE  # two multiples, or two directions
+            return NO_READABLE_MULTIPLE  # two multiples, or two directions
         size = sizes.pop()
         if not 0 < size <= MAX_MULTIPLE:
-            return _UNREADABLE
+            return NO_READABLE_MULTIPLE
         if size == 1 and not negative:
             return None  # 1x long is not leveraged
         return Leverage(-size if negative else size, rule)
@@ -139,20 +167,27 @@ def _read(name: str) -> Leverage | str | None:
     if _DB_SHORT.match(text):
         return Leverage(-1.0, "family")
     if _SIGNAL.search(text) or (_DIRECTION.search(text) and not _DEBT.search(text)):
-        return _UNREADABLE
+        return NO_READABLE_MULTIPLE
     return None
 
 
 def classify(name: str) -> Leverage | None:
     """The signed multiple that the listed name states; None when the product is not leveraged or inverse,
-    or when the name does not state a multiple that the rules can read (see `signals_leverage`)."""
+    or when no rule reads one multiple of one reference from the name (see `unclassified_reason`)."""
     result = _read(name)
     return result if isinstance(result, Leverage) else None
 
 
+def unclassified_reason(name: str) -> str | None:
+    """Why a name that signals leverage is not classified: NO_READABLE_MULTIPLE, STACKED_EXPOSURES or
+    WEEKLY_PAY_BASKET. None for a classified name and for a name that does not signal leverage."""
+    result = _read(name)
+    return result if isinstance(result, str) else None
+
+
 def signals_leverage(name: str) -> bool:
-    """True when the name signals leverage or direction but no rule reads a multiple from it."""
-    return _read(name) is _UNREADABLE
+    """True when the name signals leverage or direction but no rule reads one multiple of one reference."""
+    return unclassified_reason(name) is not None
 
 
 # --- the unleveraged reference -----------------------------------------------------------------------------
@@ -165,7 +200,7 @@ _TAIL = re.compile(r"\s(?:due\s.*|Series [A-Z]\b.*)$")
 _PRODUCT_WORD = re.compile(r"(?:\sK-1 Free)?\s(?:ETF|ETNs?|Fund|Shares|Shrs)$")
 _BOILERPLATE = re.compile(
     r"(?<![\w.])-?\d(?:\.\d{1,2})?\s?[xX](?![a-z0-9])|\b(?:UltraPro Short|UltraPro|UltraShort|Ultra)\b"
-    r"|\b(?:Daily Target|Daily|Target|Monthly Pay|Quarterly Pay|Weekly|Monthly|Quarterly|Long|Short|Bull|Bear"
+    r"|\b(?:Daily Target|Daily|Target|Monthly Pay|Quarterly Pay|WeeklyPay|Weekly|Monthly|Quarterly|Long|Short|Bull|Bear"
     r"|Inverse|Leveraged|Double|Index|New)\b")
 
 # Company names that single-stock issuers write instead of the ticker.
@@ -218,6 +253,7 @@ _TWINS: tuple[tuple[str, str | None], ...] = (
     (r"Corn", "CORN"),
     (r"Wheat", "WEAT"),
     (r"(?:Lehman )?20\W*(?:Year|Yr) Treasury", "TLT"),
+    (r"Treasury Bond", "TLT"),  # Roundhill Treasury Bond WeeklyPay: the fact sheet names TLT
     (r"(?:Lehman )?7\W*10 Year Treasury|10-Yr Treasury", "IEF"),
     (r"High Yield", "HYG"),
     (r"Bitcoin", "IBIT"),
@@ -306,17 +342,26 @@ _NOTE = re.compile(r"\bETNs?\b|\bExchange[- ]Traded Notes?\b")
 _FUND_WORD = re.compile(r"\bETF\b")
 
 
-def parse_listing(text: str) -> list[dict[str, str]]:
-    """Rows of nasdaqtraded.txt (pipe-delimited, first line = header, last line = file creation time)."""
+_TRAILER = "File Creation Time"
+_LISTING_COLUMNS = ("Symbol", "Security Name", "Listing Exchange", "ETF", "Test Issue")
+
+
+def parse_listing(text: str, min_rows: int = MIN_LISTING_ROWS) -> list[dict[str, str]]:
+    """Rows of nasdaqtraded.txt (pipe-delimited, first line = header, last line = file creation time).
+
+    Raises ValueError for a listing that is not the whole directory: a column that the rules read is missing,
+    the last line is not the file creation time (the download was cut), or there are fewer than `min_rows`
+    rows. The import deletes every fund that is not in the document, so a short listing must stop the run."""
     lines = [line for line in text.splitlines() if line.strip()]
-    if not lines:
-        return []
-    header = lines[0].split("|")
-    rows = []
-    for line in lines[1:]:
-        cells = line.split("|")
-        if len(cells) == len(header) and not line.startswith("File Creation Time"):
-            rows.append(dict(zip(header, cells)))
+    header = lines[0].split("|") if lines else []
+    missing = [column for column in _LISTING_COLUMNS if column not in header]
+    if missing:
+        raise ValueError(f"the symbol directory has no column {', '.join(missing)}")
+    if not lines[-1].startswith(_TRAILER):
+        raise ValueError(f"the symbol directory does not end with the '{_TRAILER}' line: the download was cut")
+    rows = [dict(zip(header, cells)) for cells in (line.split("|") for line in lines[1:-1]) if len(cells) == len(header)]
+    if len(rows) < min_rows:
+        raise ValueError(f"the symbol directory has {len(rows)} rows; a whole directory has at least {min_rows}")
     return rows
 
 
@@ -349,7 +394,9 @@ def listed_funds(rows: Iterable[Mapping[str, str]]) -> list[ListedFund]:
     return [funds[symbol] for symbol in sorted(funds)]
 
 
-def unclassified(rows: Iterable[Mapping[str, str]]) -> list[tuple[str, str]]:
-    """(symbol, name) of the products whose name signals leverage without a readable multiple."""
-    return sorted((row["Symbol"], row["Security Name"].strip()) for row in _products(rows)
-                  if signals_leverage(row["Security Name"]))
+def unclassified(rows: Iterable[Mapping[str, str]]) -> list[tuple[str, str, str]]:
+    """(symbol, name, reason) of the products whose name signals leverage and that are not in the universe:
+    no rule reads one multiple of one reference from the name."""
+    named = ((row["Symbol"], row["Security Name"].strip()) for row in _products(rows))
+    return sorted((symbol, name, reason) for symbol, name in named
+                  if (reason := unclassified_reason(name)) is not None)

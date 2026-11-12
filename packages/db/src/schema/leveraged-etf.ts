@@ -24,14 +24,18 @@ import {
 } from "drizzle-orm/pg-core";
 
 export type LeveragedEtfProductType = "etf" | "etn";
-/** "regular" = the US option market was trading when the chain was read. */
+/** "regular" = the quotes of the chain are from the regular session (09:45 New York to the close) of the day the universe was generated. */
 export type LeveragedEtfQuoteSession = "regular" | "closed";
 export type LeveragedEtfOptionGate = "pass" | "fail" | "spread-not-measured";
+// The column is jsonb and no check reads the names, so a new reason needs no migration.
 export type LeveragedEtfOptionGateReason =
   | "no-listed-options"
+  | "no-standard-contract"
+  | "stale-chain"
   | "no-window-expiry"
   | "open-interest-below-minimum"
   | "no-two-sided-quote"
+  | "too-few-two-sided-quotes"
   | "spread-above-maximum"
   | "market-closed-at-quote";
 

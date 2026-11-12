@@ -1,12 +1,14 @@
 """Leveraged-ETF short-window study: the pure parts that need no numpy (pair table, as-traded prices,
-synthetic intraday fund price, tracking error). No network and no rig data file: every file is
-written to a temporary folder."""
+dividends of the unleveraged ETF, synthetic intraday fund price, tracking error, row statistics and
+verdicts). No network and no rig data file: every file is written to a temporary folder. The owner's
+lower bar is the real one (research/backtests/allocation/funded_pie.py, loaded by the go-live loader)."""
 from __future__ import annotations
 
 import tempfile
 import unittest
 from pathlib import Path
 
+from golive import generator as golive
 from strategies.leveraged_etf import metrics, pairs, prices
 from strategies.qc_ports import allocation as al
 from strategies.qc_ports.data import IV_INDEX
@@ -124,6 +126,56 @@ class SyntheticIntradayPrice(unittest.TestCase):
             prices.synthetic_price(0.0, 3, 100.0, 100.0)
         with self.assertRaises(ValueError):
             prices.synthetic_price(10.0, 3, float("nan"), 100.0)
+        with self.assertRaises(ValueError):
+            prices.synthetic_price(10.0, 3, 100.0, 100.0, -0.5)
+        with self.assertRaises(ValueError):
+            prices.synthetic_price(10.0, 3, 100.0, 100.0, float("nan"))
+
+    def test_on_the_ex_dividend_day_the_dividend_is_added_back_to_the_price_of_the_underlying(self):
+        # U closed at 400 and goes ex 2.00: at 398 its total return is 0, so the funds have not moved.
+        self.assertAlmostEqual(prices.synthetic_price(50.0, 3, 398.0, 400.0, 2.0), 50.0, places=12)
+        self.assertAlmostEqual(prices.synthetic_price(20.0, -3, 398.0, 400.0, 2.0), 20.0, places=12)
+        # Without the dividend the long fund is 3 x 0.5% too low and the inverse fund as much too high.
+        self.assertAlmostEqual(prices.synthetic_price(50.0, 3, 398.0, 400.0), 50.0 * 0.985, places=12)
+        self.assertAlmostEqual(prices.synthetic_price(20.0, -3, 398.0, 400.0), 20.0 * 1.015, places=12)
+        # U +1% in price on the ex-dividend day is +1.5% in total return.
+        self.assertAlmostEqual(prices.synthetic_price(50.0, 3, 404.0, 400.0, 2.0), 50.0 * 1.045, places=12)
+
+
+class Dividends(unittest.TestCase):
+    DATES = ("2024-03-13", "2024-03-14", "2024-03-15", "2024-03-18")
+
+    def test_the_dividend_is_read_from_the_step_of_adjusted_close_over_close(self):
+        # 2.00 goes ex on 2024-03-15 after a close of 400: the factor before it is (1 - 2 / 400) = 0.995.
+        closes = (398.0, 400.0, 399.0, 401.0)
+        adjusted = (398.0 * 0.995, 400.0 * 0.995, 399.0, 401.0)
+        found = prices.dividends(self.DATES, closes, adjusted)
+        self.assertEqual(list(found), ["2024-03-15"])
+        self.assertAlmostEqual(found["2024-03-15"], 2.0, places=9)
+
+    def test_two_dividends_and_an_older_factor(self):
+        closes = (100.0, 100.0, 100.0, 100.0)
+        adjusted = (100.0 * 0.99 * 0.98, 100.0 * 0.98, 100.0 * 0.98, 100.0)
+        found = prices.dividends(self.DATES, closes, adjusted)
+        self.assertEqual(list(found), ["2024-03-14", "2024-03-18"])
+        self.assertAlmostEqual(found["2024-03-14"], 1.0, places=9)
+        self.assertAlmostEqual(found["2024-03-18"], 2.0, places=9)
+
+    def test_a_symbol_without_dividends_and_the_rounding_of_the_file_give_none(self):
+        closes = (25.0, 25.5, 25.2, 25.9)
+        self.assertEqual(prices.dividends(self.DATES, closes, closes), {})
+        # 6 decimals in the file: a step of 2e-6 of the price is rounding, not a dividend.
+        rounded = (25.0 * (1 - 2e-6), 25.5, 25.2, 25.9)
+        self.assertEqual(prices.dividends(self.DATES, closes, rounded), {})
+        self.assertEqual(prices.dividends((), (), ()), {})
+
+    def test_bad_columns_are_refused(self):
+        with self.assertRaises(ValueError):
+            prices.dividends(self.DATES, (1.0, 2.0), (1.0, 2.0))
+        with self.assertRaises(ValueError):
+            prices.dividends(self.DATES[:2], (1.0, 0.0), (1.0, 1.0))
+        with self.assertRaises(ValueError):
+            prices.dividends(self.DATES[:2], (1.0, 1.0), (1.0, float("nan")))
 
 
 class TrackingError(unittest.TestCase):
@@ -148,6 +200,26 @@ class TrackingError(unittest.TestCase):
         self.assertEqual(out["days"], 2)
         self.assertAlmostEqual(out["medianAbsErrorPct"], (103 / 102 - 1 + 0.02) / 2 * 100, places=9)
         self.assertAlmostEqual(out["maxAbsErrorPct"], 2.0, places=9)
+
+    def test_ex_dividend_days_are_measured_with_and_without_the_dividend(self):
+        u_dates = ("2024-03-13", "2024-03-14", "2024-03-15", "2024-03-18")
+        # U goes ex 2.00 on 2024-03-15 and closes at 398: total return 0. The fund follows the total return.
+        u_closes = (396.0, 400.0, 398.0, 398.0)
+        fund = prices.FundBars("F", u_dates, (49.5, 51.0, 51.0, 51.0))
+        out = prices.tracking_error(fund, 3, u_dates, u_closes, None, {"2024-03-15": 2.0})
+        self.assertEqual(out["days"], 3)
+        self.assertEqual(out["exDividend"]["days"], 1)
+        self.assertAlmostEqual(out["exDividend"]["medianErrorPct"], 0.0, places=9)
+        self.assertAlmostEqual(out["exDividend"]["medianErrorNoDividendPct"], -1.5, places=9)  # 3 x 0.5% too low
+        self.assertAlmostEqual(out["maxAbsErrorPct"], 0.0, places=9)  # the table uses the corrected formula
+        # Without the dividends the same day is an error of the formula, and no ex-dividend day is known.
+        plain = prices.tracking_error(fund, 3, u_dates, u_closes)
+        self.assertIsNone(plain["exDividend"])
+        self.assertAlmostEqual(plain["maxAbsErrorPct"], 1.5, places=9)
+        inverse = prices.FundBars("I", u_dates, (20.6, 20.0, 20.0, 20.0))
+        out = prices.tracking_error(inverse, -3, u_dates, u_closes, None, {"2024-03-15": 2.0})
+        self.assertAlmostEqual(out["exDividend"]["medianErrorNoDividendPct"], 1.5, places=9)  # too high
+        self.assertAlmostEqual(out["exDividend"]["medianErrorPct"], 0.0, places=9)
 
     def test_split_days_and_days_without_the_underlying_are_left_out(self):
         u_dates = ("2024-01-02", "2024-01-03", "2024-01-05")
@@ -246,9 +318,9 @@ class RowStats(unittest.TestCase):
         self.assertEqual((stats["trades"], stats["maxDrawdown"], stats["worst48hLoss"]["pct"]), (0, 0.0, 0.0))
 
     def test_daily_sharpe_and_trial_variance(self):
-        result = ledger_result([100.0, 101.0, 100.5, 102.0], capital=100.0)
-        returns = al.daily_returns(result.equity)
-        self.assertAlmostEqual(metrics.daily_sharpe(result), al.sharpe(returns) / 252 ** 0.5, places=15)
+        # Daily returns +10% and +30%: mean 0.2, sample standard deviation sqrt(0.02); not annualized.
+        result = ledger_result([100.0, 110.0, 143.0], capital=100.0)
+        self.assertAlmostEqual(metrics.daily_sharpe(result), 0.2 / 0.02 ** 0.5, places=12)
         self.assertEqual(metrics.daily_sharpe(ledger_result([100.0, 100.0, 100.0], capital=100.0)), 0.0)
         self.assertAlmostEqual(metrics.trial_variance([0.01, 0.03]), 0.0002, places=15)
         self.assertIsNone(metrics.trial_variance([0.01]))
@@ -268,8 +340,7 @@ GOOD = {"trades": 200, "sharpe": 1.2, "oosSharpe": 0.9, "deflatedSharpe": 0.97, 
         "monteCarlo": {"probabilityOfProfit": 0.95, "drawdownP5": -0.20}}
 
 
-def lower_bar(stats) -> bool:
-    return stats["sharpe"] >= 0.3 and stats["trades"] >= 30
+lower_bar = golive.funded_pie().lower_bar  # the owner's lower bar itself, not a copy
 
 
 class Verdicts(unittest.TestCase):
@@ -334,17 +405,40 @@ class Verdicts(unittest.TestCase):
                                                          "trades": 0, "monteCarlo": None})
         self.assertFalse(verdict["passes"])
         self.assertFalse(verdict["lowerBar"]["pass"])
-        self.assertFalse(verdict["leverageHelps"]["helps"])
+        self.assertIs(verdict["leverageHelps"]["helps"], False)
         self.assertEqual(verdict["leverageHelps"]["text"], "no: Sharpe none against 0.80 of etf-option")
-        # A twin without a Sharpe counts as 0.
-        twin_missing = self.verdict("lev-vertical", etf_vertical={"sharpe": None})
-        self.assertTrue(twin_missing["leverageHelps"]["helps"])
+
+    def test_a_twin_row_without_a_trade_gives_no_verdict(self):
+        empty = {"sharpe": None, "oosSharpe": None, "deflatedSharpe": None, "trades": 0, "monteCarlo": None}
+        for own in ({}, {"sharpe": -0.4}, empty):  # a winning, a losing and an empty row: none is judged
+            helps = self.verdict("lev-vertical", etf_vertical=empty, lev_vertical=own)["leverageHelps"]
+            self.assertIsNone(helps["helps"])
+            self.assertEqual(helps["reason"], "the twin row etf-vertical has no booked trade")
+            self.assertEqual(helps["text"], "no verdict: the twin row etf-vertical has no booked trade")
+            self.assertIsNone(helps["twinSharpe"])
+        # The other twin is not touched: lev-option still compares with etf-option.
+        self.assertIs(self.verdict("lev-option", etf_vertical=empty)["leverageHelps"]["helps"], True)
+        self.assertIsNone(self.verdict("lev-option")["leverageHelps"]["reason"])
+
+    def test_leverage_helps_is_yes_for_a_losing_row_above_a_worse_twin(self):
+        helps = self.verdict("lev-option", lev_option={"sharpe": -0.2}, etf_option={"sharpe": -0.9})["leverageHelps"]
+        self.assertIs(helps["helps"], True)
+        self.assertEqual(helps["text"], "yes: Sharpe -0.20 against -0.90 of etf-option")
 
     def test_the_lower_bar_is_the_function_passed_in(self):
         self.assertTrue(self.verdict("etf-option")["lowerBar"]["pass"])
         low = self.verdict("etf-option", etf_option={"sharpe": 0.2})
         self.assertFalse(low["lowerBar"]["pass"])
         self.assertEqual(low["lowerBar"]["text"], "fail: the owner's lower bar does not hold")
+        calls = []
+        metrics.verdicts(self.rows(), al.gate_checks, lambda stats: calls.append(stats["sharpe"]) or False)
+        self.assertEqual(sorted(calls), [0.7, 0.8, 0.9, 1.0, 1.2])
+
+    def test_every_check_of_the_owners_lower_bar_counts(self):
+        # The real bar: Sharpe >= 0.3, out of sample above 0, Monte Carlo profit >= 80%, drawdown <= 25%, 30 trades.
+        for change in ({"sharpe": 0.29}, {"oosSharpe": 0.0}, {"monteCarlo": {"probabilityOfProfit": 0.79, "drawdownP5": -0.20}},
+                       {"maxDrawdown": -0.26}, {"trades": 29}):
+            self.assertFalse(self.verdict("etf-option", etf_option=change)["lowerBar"]["pass"], change)
 
     def test_a_missing_baseline_or_twin_row_is_an_error(self):
         rows = self.rows()

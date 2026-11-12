@@ -14,6 +14,11 @@ Steps (research/backtests/leveraged-etf/run.py runs them in a process pool):
 4. `metrics.row_stats` per booked result with n_trials = 40 and the variance of the per-day Sharpes of
    the 40 pooled rows; `metrics.verdicts`.
 5. `document`: the results document (JSON-ready).
+
+A run is COMPLETE (`partial_reasons` is empty) only when it is the whole study: all 40 form rows, every
+pair of the table with no pair dropped, the start capital of 100,000 USD and NautilusTrader booking on.
+Every other run is a diagnostic: its document has `complete` false and names the reasons in `partial`,
+its tables say PARTIAL, and study.document refuses it.
 """
 from __future__ import annotations
 
@@ -27,8 +32,9 @@ from strategies.imom import data as idata
 from . import forms, metrics, prices, signals
 from .pairs import PAIRS, Pair, signed_leverage
 
-__all__ = ["CAPITAL", "EQUITY_ROW", "N_TRIALS", "S2_FROM", "SCHEMA", "PairSignals", "document", "load_pair_signals",
-           "row_keys", "row_start", "run_row", "session_days", "taken_signals", "tracking_errors"]
+__all__ = ["CAPITAL", "EQUITY_ROW", "N_TRIALS", "S2_FROM", "SCHEMA", "PairSignals", "document", "engine_name",
+           "load_pair_signals", "partial_reasons", "row_keys", "row_start", "run_row", "session_days", "taken_signals",
+           "tracking_errors"]
 
 SCHEMA = "leveraged-etf-short-window-v1"
 CAPITAL = 100_000.0
@@ -57,6 +63,37 @@ def row_keys() -> list[str]:
     """The 40 form row keys in report order."""
     return [metrics.row_key(signal, regime, window, form) for signal in signals.SIGNALS for regime in signals.REGIMES
             for window in signals.WINDOWS for form in forms.FORM_KEYS]
+
+
+def partial_reasons(keys: Sequence[str], underlyings: Sequence[str], dropped_pairs: Sequence[Mapping],
+                    capital: float, nautilus: bool) -> list[str]:
+    """Why a run is not the study result (empty = the run is complete). `keys` = the form rows of the
+    run, `underlyings` = the pairs it ran, `dropped_pairs` = the pairs it could not load, `capital` =
+    its start capital, `nautilus` = it booked on NautilusTrader. The one rule of `complete`."""
+    reasons = []
+    wanted = row_keys()
+    if sorted(keys) != sorted(wanted):
+        reasons.append(f"{len(set(keys) & set(wanted))} of {len(wanted)} form rows")
+    if dropped_pairs:
+        reasons.append("dropped pairs: " + ", ".join(str(item["underlying"]) for item in dropped_pairs))
+    table = [pair.underlying for pair in PAIRS]
+    if sorted(underlyings) != sorted(table):
+        reasons.append(f"{len(set(underlyings) & set(table))} of {len(table)} pairs ({', '.join(underlyings) or 'none'})")
+    if not (isinstance(capital, (int, float)) and not isinstance(capital, bool) and capital == CAPITAL):
+        reasons.append(f"start capital {capital:,.0f} USD, not {CAPITAL:,.0f}" if isinstance(capital, (int, float))
+                       else "no start capital")
+    if nautilus is not True:
+        reasons.append("ledger only, no NautilusTrader booking")
+    return reasons
+
+
+def engine_name(booked: Sequence[Mapping]) -> str:
+    """The engine of a run from its booked rows (run_row): the NautilusTrader build that booked the rows
+    with a priced trade (`gap` is set). A row without a priced trade is booked in the ledger only (there
+    is nothing to book) and does not add the ledger to the name. Without any row on NautilusTrader: the
+    ledger."""
+    engines = sorted({row["engine"] for row in booked if row["gap"] is not None})
+    return " / ".join(engines or sorted({row["engine"] for row in booked}))
 
 
 def _next_day(day: str) -> str:
@@ -131,7 +168,7 @@ def tracking_errors(data: Mapping[str, forms.PairData]) -> list[dict]:
     for item in data.values():
         for fund in (item.long_fund, item.inverse_fund):
             row = prices.tracking_error(fund, signed_leverage(fund.symbol), item.market.dates, item.market.close,
-                                        item.u_splits)
+                                        item.u_splits, item.u_dividends)
             if row is not None:
                 out.append({"underlying": item.pair.underlying, **row})
     return out
@@ -142,7 +179,8 @@ def document(*, rows: Sequence[Mapping], found: Mapping[str, PairSignals], data:
              gate: Mapping, lower_bar: Mapping, iv_ratio: Mapping | None, provenance: Mapping,
              wall_seconds: float) -> dict:
     """The results document. `rows`: per form row a mapping with key, signals, taken, skipped, priced,
-    notPriced, stats, verdict, nautilusGap, monthly and perPair."""
+    notPriced, stats, verdict, nautilusGap, monthly and perPair. `complete` and `partial` come from
+    `partial_reasons`."""
     pairs_out = []
     for pair in PAIRS:
         if pair.underlying not in found:
@@ -157,9 +195,10 @@ def document(*, rows: Sequence[Mapping], found: Mapping[str, PairSignals], data:
             "firstSignal": {name: (regimes["all"][0].day if regimes["all"] else None)
                             for name, regimes in item.signals.items()}})
     keys = [row["key"] for row in rows]
+    partial = partial_reasons(keys, [item["underlying"] for item in pairs_out], dropped_pairs, capital, nautilus)
     return {
         "schema": SCHEMA, "generatedFor": max(item.last_day for item in found.values()),
-        "complete": sorted(keys) == sorted(row_keys()) and not dropped_pairs, "capital": capital,
+        "complete": not partial, "partial": partial, "capital": capital,
         "engine": engine, "nautilusParity": nautilus, "parityTolerance": forms.PARITY_REL_TOL,
         "gate": dict(gate), "lowerBar": dict(lower_bar),
         "trials": {"count": N_TRIALS, "dailySharpeVariance": variance, "rowsInVariance": len(keys)},

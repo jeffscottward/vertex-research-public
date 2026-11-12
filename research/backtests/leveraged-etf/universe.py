@@ -12,23 +12,34 @@ the only one with network I/O. It needs the Python standard library only.
       --save-chains ~/Documents/reports/vertex-leveraged-etf/chains/<UTC stamp> \
       > ~/Documents/reports/vertex-leveraged-etf/universe-<UTC stamp>.json
 
-The gate judges the bid/ask spread only on a chain that Cboe wrote during the option session (a weekday,
-09:45 to 16:00 New York). A run outside the session gives "fail" (a reason that does not need live quotes)
-or "spread-not-measured" for every fund; no fund can pass then.
+`generatedAt` of the document is the time after the last chain was read. The gate judges the bid/ask spread
+only when the quotes of a chain are from the regular session of that day: the chain time minus the 15
+minutes of the Cboe delay is on a NYSE trading day from 09:45 to the close in New York (13:00 on a half
+day), and the chain is of the New York day of `generatedAt`. Any other chain gives "fail" (a reason that
+does not need live quotes) or "spread-not-measured". A run after the close still judges the spread of a fund
+whose chain Cboe last wrote during the session of the same day.
 
 No listed options: Cboe answers HTTP 403 with an AccessDenied document for a symbol that has no chain file.
 Any other 403 and an HTTP 429 (too many requests) are failures: the request is tried again after a wait.
-The run reads the chain of SPY before and after the funds. If SPY is refused, a 403 does not mean "no listed
-options" at that moment and the run stops.
+After a 429 every worker waits, not only the worker that got it. The run reads the chain of SPY before and
+after the funds. If SPY is refused, a 403 does not mean "no listed options" at that moment and the run
+stops.
 
-Exit 1 and nothing on stdout (never a partial document): the directory or the SPY chain could not be read,
-or the chain of a fund could not be read or measured after 3 attempts. With --allow-missing such a fund is
-left out of the document and named on stderr, and the run exits 0.
+Exit 1 and nothing on stdout (never a partial document): the directory could not be read or is not the whole
+directory, the SPY chain could not be read, or the chain of a fund could not be read or measured after 3
+attempts. The first fund that fails stops all workers: the run is lost, so no more requests go out.
 
 --listing <file> reads a saved nasdaqtraded.txt instead of the network. --save-chains <dir> keeps the chain
 JSON of every fund as Cboe sent it, and also the chain of every unleveraged reference (QQQ for TQQQ, NVDA
-for NVDL). A reference chain that cannot be read is named on stderr; it does not stop the run. The
-directory is local data; it is not committed.
+for NVDL). A reference chain that cannot be read is named on stderr; it does not stop the run. A complete
+run also writes <dir>/_run.json: `generatedAt`, the funds of the run and the funds that had no chain file.
+The directory is local data; it is not committed.
+
+--chains-from <dir> measures a saved run again and uses no network: it reads _run.json and the chain files
+of a --save-chains folder, and it writes nothing there. It needs --listing. `generatedAt` is the one of the
+saved run. A fund of the listing that the saved run did not request is left out and named on stderr (the
+name rules or the listing changed since that run). A fund of the saved run whose chain file is missing or
+cannot be measured ends the run.
 """
 from __future__ import annotations
 
@@ -37,6 +48,7 @@ import gzip
 import http.client
 import json
 import sys
+import threading
 import time as clock
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -58,16 +70,54 @@ ATTEMPTS = 3
 TIMEOUT = 30
 RATE_LIMIT_WAIT = 30  # seconds after an HTTP 429 without a Retry-After header, times the attempt number
 MAX_RETRY_AFTER = 120
+RUN_FILE = "_run.json"  # in a --save-chains folder; no symbol has this name
 
 
 class NoFile(Exception):
     """The server has no file for this URL (Cboe: the symbol has no listed options)."""
 
 
-def http_get(url: str) -> bytes:
-    """Body of a GET, up to ATTEMPTS tries. NoFile for the 403 AccessDenied reply of the Cboe file store."""
+class Stopped(Exception):
+    """The run is lost, because the chain of a fund failed: this request is not sent again."""
+
+
+class Pace:
+    """What all workers share: one stop flag and one back-off. `now` and `sleep` are a clock for the tests."""
+
+    def __init__(self, now=clock.monotonic, sleep=None) -> None:
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._resume = 0.0  # on the `now` clock: no worker sends a request before this time
+        self._now = now
+        self._sleep = sleep or self._stop.wait  # Event.wait ends at once when the run is stopped
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def back_off(self, seconds: float) -> None:
+        """No worker sends a request in the next `seconds`."""
+        with self._lock:
+            self._resume = max(self._resume, self._now() + seconds)
+
+    def wait(self, seconds: float = 0.0) -> bool:
+        """Waits `seconds`, and longer while a back-off lasts. False when the run was stopped: send nothing."""
+        until = self._now() + seconds
+        while not self._stop.is_set():
+            with self._lock:
+                until = max(until, self._resume)
+            left = until - self._now()
+            if left <= 0:
+                return True
+            self._sleep(left)
+        return False
+
+
+def http_get(url: str, pace: Pace) -> bytes:
+    """Body of a GET, up to ATTEMPTS tries. NoFile for the 403 AccessDenied reply of the Cboe file store.
+    After an HTTP 429 every worker of `pace` waits. Stopped when the run was stopped between two tries."""
     request = Request(url, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"})
     for attempt in range(ATTEMPTS):
+        wait = 2 * (attempt + 1)
         try:
             with urlopen(request, timeout=TIMEOUT) as reply:
                 body = reply.read()
@@ -77,12 +127,13 @@ def http_get(url: str) -> bytes:
             if error.code == 403 and b"<Code>AccessDenied</Code>" in unpacked(error.read(), headers):
                 raise NoFile(url) from None
             failure: Exception = error
-            wait = rate_limit_wait(headers, attempt) if error.code == 429 else 2 * (attempt + 1)
+            if error.code == 429:
+                wait = rate_limit_wait(headers, attempt)
+                pace.back_off(wait)
         except (OSError, EOFError, http.client.HTTPException) as error:  # network, timeout, cut or bad gzip body
             failure = error
-            wait = 2 * (attempt + 1)
-        if attempt < ATTEMPTS - 1:
-            clock.sleep(wait)
+        if attempt < ATTEMPTS - 1 and not pace.wait(wait):
+            raise Stopped(url) from failure
     raise failure
 
 
@@ -122,27 +173,40 @@ def control_reads(fetch, log) -> bool:
     return False
 
 
-def save(directory: Path, symbol: str, body: bytes) -> None:
-    partial = directory / f"{symbol}.json.part"  # a killed run leaves no half file
+def save(directory: Path, name: str, body: bytes) -> None:
+    partial = directory / f"{name}.part"  # a killed run leaves no half file
     partial.write_bytes(body)
-    partial.replace(directory / f"{symbol}.json")
+    partial.replace(directory / name)
 
 
-def read_chain(fetch, symbol: str, directory: Path | None, measured: bool, delay: float) -> tuple:
-    """("measure", OptionsMeasure | None), ("saved", None) or ("failed", text) for one symbol."""
-    clock.sleep(delay)
+def answer(fetch, symbol: str, directory: Path | None, is_fund: bool) -> tuple:
+    """The chain of one symbol: ("measure", OptionsMeasure | NoOptions) for a fund, ("saved", None) for a
+    reference, ("failed", text), or ("skipped", None) when the run was stopped before the answer came."""
     try:
         body = fetch(CHAIN_URL.format(symbol=symbol))
     except NoFile:
-        return ("measure", None) if measured else ("failed", "no chain file (no listed options)")
+        return ("measure", liquidity.NOT_LISTED) if is_fund else ("failed", "no chain file (no listed options)")
+    except Stopped:
+        return "skipped", None
     except Exception as error:  # noqa: BLE001 - urllib and http.client raise many types
         return "failed", f"{type(error).__name__}: {error}"
     try:
         if directory is not None:
-            save(directory, symbol, body)  # the raw chain first: a failed measure must not lose it
-        return ("measure", liquidity.measure(json.loads(body))) if measured else ("saved", None)
-    except (ValueError, KeyError, TypeError, AttributeError, OSError) as error:
-        return "failed", f"{type(error).__name__}: {error}"
+            save(directory, f"{symbol}.json", body)  # the raw chain first: a failed measure must not lose it
+        return ("measure", liquidity.measure(json.loads(body), symbol)) if is_fund else ("saved", None)
+    except (ValueError, KeyError, TypeError, AttributeError, OverflowError, OSError) as error:
+        return "failed", f"{type(error).__name__}: {error}"  # OverflowError: an Infinity where a count is read
+
+
+def read_chain(fetch, symbol: str, directory: Path | None, is_fund: bool, delay: float, pace: Pace) -> tuple:
+    """`answer` after the wait of one worker. A fund that fails stops the run for every worker: the document
+    is lost then, and each further request would be sent for nothing."""
+    if not pace.wait(delay):
+        return "skipped", None
+    result = answer(fetch, symbol, directory, is_fund)
+    if is_fund and result[0] == "failed":
+        pace.stop()
+    return result
 
 
 def counts(values) -> str:
@@ -152,38 +216,67 @@ def counts(values) -> str:
                      for key in sorted(counted)) or "none"
 
 
-def collect(fetch, now: datetime, listing: str, save_chains: Path | None = None, allow_missing: bool = False,
-            out=sys.stdout, log=lambda *parts: print(*parts, file=sys.stderr), delay: float = DELAY) -> int:
-    """One run. `fetch(url)` returns the body or raises NoFile. Returns the exit code."""
-    rows = universe.parse_listing(listing)
+def saved_run(directory: Path) -> tuple:
+    """(generatedAt, the fund symbols, fetch) of the --save-chains folder of a complete run. `fetch(url)`
+    returns a saved chain, or raises NoFile for a fund that had no chain file in that run."""
+    run = json.loads((directory / RUN_FILE).read_text(encoding="utf-8"))
+    generated_at = datetime.strptime(run["generatedAt"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    funds, without = frozenset(run["funds"]), frozenset(run["noChainFile"])
+
+    def fetch(url: str) -> bytes:
+        symbol = url.rsplit("/", 1)[1].removesuffix(".json")
+        if symbol in without:
+            raise NoFile(url)
+        return (directory / f"{symbol}.json").read_bytes()
+
+    return generated_at, funds, fetch
+
+
+def collect(fetch, now, rows, save_chains: Path | None = None, saved_funds: frozenset | None = None,
+            out=None, log=lambda *parts: print(*parts, file=sys.stderr), delay: float | None = None,
+            workers: int = WORKERS, pace: Pace | None = None) -> int:
+    """One run. `fetch(url)` returns the body or raises NoFile, `now()` is the UTC time and `rows` are the
+    rows of the symbol directory. `saved_funds` are the funds of a saved run (--chains-from): only they are
+    measured, and the control chain is not read. `delay` None = DELAY. Returns the exit code."""
+    pace = pace or Pace()
+    out = sys.stdout if out is None else out
+    delay = DELAY if delay is None else delay
     funds = universe.listed_funds(rows)
     unreadable = universe.unclassified(rows)
     log(f"directory: {len(rows)} rows, {len(funds)} leveraged or inverse products "
         f"({counts(fund.product_type for fund in funds)})")
     log(f"by leverage: {counts(fund.leverage for fund in funds)}")
-    log(f"unclassified names (the name signals leverage, no rule reads a multiple): {len(unreadable)}")
-    for symbol, name in unreadable:
-        log(f"  {symbol}  {name}")
+    log(f"unclassified names (the name signals leverage, the fund is not in the document): {len(unreadable)}")
+    for symbol, name, reason in unreadable:
+        log(f"  {symbol}  {name}  ({reason})")
     if not funds:
         log("error: the directory lists no leveraged product; nothing to write")
         return 1
-    if not control_reads(fetch, log):
+    if saved_funds is not None:
+        left_out = [fund.symbol for fund in funds if fund.symbol not in saved_funds]
+        funds = [fund for fund in funds if fund.symbol in saved_funds]
+        log(f"funds that the saved run did not request (left out of the document): {len(left_out)}")
+        if left_out:
+            log(f"  {' '.join(left_out)}")
+        if not funds:
+            log("error: the saved run requested none of the funds of this directory; nothing to write")
+            return 1
+    live = saved_funds is None
+    if live and not control_reads(fetch, log):
         return 1
     if save_chains is not None:
         save_chains.mkdir(parents=True, exist_ok=True)
     own = {fund.symbol for fund in funds}
     references = sorted({fund.underlying for fund in funds if fund.underlying} - own) if save_chains is not None else []
     jobs = [(fund.symbol, True) for fund in funds] + [(symbol, False) for symbol in references]
-    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        results = list(pool.map(lambda job: read_chain(fetch, job[0], save_chains, job[1], delay), jobs))
-    if not control_reads(fetch, log):
-        return 1
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(lambda job: read_chain(fetch, job[0], save_chains, job[1], delay, pace), jobs))
 
     measures, failures, reference_failures = {}, [], []
     for (symbol, is_fund), (kind, value) in zip(jobs, results):
         if kind == "failed":
             (failures if is_fund else reference_failures).append((symbol, value))
-        elif is_fund:
+        elif kind == "measure":
             measures[symbol] = value
     log(f"fetch failures of funds: {len(failures)}")
     for symbol, reason in failures:
@@ -192,18 +285,22 @@ def collect(fetch, now: datetime, listing: str, save_chains: Path | None = None,
         log(f"reference chains not saved: {len(reference_failures)}")
         for symbol, reason in reference_failures:
             log(f"  {symbol}  {reason}")
-    if failures and not allow_missing:
-        log("error: the document is not written, because it would be partial (use --allow-missing to leave these funds out)")
+    if failures:
+        log(f"requests not sent after the first failure: {sum(kind == 'skipped' for kind, _ in results)}")
+        log("error: the document is not written, because it would be partial")
+        return 1
+    if live and not control_reads(fetch, log):
         return 1
     try:
-        document = liquidity.document(((fund, measures[fund.symbol]) for fund in funds if fund.symbol in measures), now)
+        document = liquidity.document(((fund, measures[fund.symbol]) for fund in funds), now())
+        text = json.dumps(document, indent=1, allow_nan=False)  # a NaN or an Infinity is not JSON
     except ValueError as error:
         log(f"error: {error}")
         return 1
 
     entries = document["funds"]
     listed = [entry for entry in entries if entry["optionsListed"]]
-    log(f"funds in the document: {len(entries)}" + (f" ({len(failures)} left out)" if failures else ""))
+    log(f"funds in the document: {len(entries)}")
     log(f"options listed: yes {len(listed)}, no {len(entries) - len(listed)}")
     log(f"by gate label: {counts(entry['optionGate'] for entry in entries)}")
     log(f"by gate reason: {counts(reason for entry in entries for reason in entry['optionGateReasons'])}")
@@ -212,30 +309,52 @@ def collect(fetch, now: datetime, listing: str, save_chains: Path | None = None,
     log(f"reference mapped: {sum(entry['underlying'] is not None for entry in entries)}, "
         f"not mapped: {sum(entry['underlying'] is None for entry in entries)}")
     if save_chains is not None:
-        saved = sum(kind == "saved" or (kind == "measure" and value is not None) for kind, value in results)
+        run = {"generatedAt": document["generatedAt"], "funds": [entry["symbol"] for entry in entries],
+               "noChainFile": sorted(symbol for symbol, value in measures.items() if value is liquidity.NOT_LISTED)}
+        try:
+            save(save_chains, RUN_FILE, (json.dumps(run, indent=1) + "\n").encode())
+        except OSError as error:
+            log(f"error: {save_chains / RUN_FILE} could not be written: {type(error).__name__}: {error}")
+            return 1
+        saved = sum(kind == "saved" or (kind == "measure" and value is not liquidity.NOT_LISTED) for kind, value in results)
         log(f"chains saved: {saved} in {save_chains}")
-    json.dump(document, out, indent=1)
-    out.write("\n")
+    out.write(f"{text}\n")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--listing", type=Path, metavar="FILE", help="a saved nasdaqtraded.txt (default: read it from Nasdaq Trader)")
-    parser.add_argument("--save-chains", type=Path, metavar="DIR", help="keep the raw chain JSON files here (local data, not committed)")
-    parser.add_argument("--allow-missing", action="store_true", help="leave a fund whose chain cannot be read out of the document")
+    chains = parser.add_mutually_exclusive_group()
+    chains.add_argument("--save-chains", type=Path, metavar="DIR", help="keep the raw chain JSON files here (local data, not committed)")
+    chains.add_argument("--chains-from", type=Path, metavar="DIR", help="measure the saved run of this --save-chains folder again (no network; needs --listing)")
     args = parser.parse_args()
+    if args.chains_from is not None and args.listing is None:
+        parser.error("--chains-from needs --listing: the symbol directory of the saved run")
+    pace = Pace()
     try:
         if args.listing is not None:
             listing = args.listing.expanduser().read_text(encoding="utf-8", errors="replace")
         else:
-            listing = http_get(universe.LISTING_URL).decode("utf-8", errors="replace")
+            listing = http_get(universe.LISTING_URL, pace).decode("utf-8", errors="replace")
     except Exception as error:  # noqa: BLE001 - urllib and http.client raise many types
         print(f"error: the symbol directory could not be read: {type(error).__name__}: {error}", file=sys.stderr)
         return 1
-    return collect(http_get, datetime.now(timezone.utc), listing,
-                   save_chains=args.save_chains.expanduser() if args.save_chains is not None else None,
-                   allow_missing=args.allow_missing)
+    try:
+        rows = universe.parse_listing(listing)
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    if args.chains_from is None:
+        return collect(lambda url: http_get(url, pace), lambda: datetime.now(timezone.utc), rows,
+                       save_chains=args.save_chains.expanduser() if args.save_chains is not None else None, pace=pace)
+    directory = args.chains_from.expanduser()
+    try:
+        generated_at, saved_funds, fetch = saved_run(directory)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"error: {directory} is not the folder of a complete run: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+    return collect(fetch, lambda: generated_at, rows, saved_funds=saved_funds, delay=0)
 
 
 if __name__ == "__main__":

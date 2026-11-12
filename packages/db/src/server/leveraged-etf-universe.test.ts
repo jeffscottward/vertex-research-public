@@ -1,4 +1,5 @@
-import { getTableColumns } from "drizzle-orm";
+import { getTableColumns, type SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { leveragedEtfUniverse } from "../schema/index.ts";
@@ -140,8 +141,14 @@ describe("leveraged ETF universe repository", () => {
     ).resolves.toEqual({ deleted: 1, upserted: 2 });
     expect(double.calls).toMatchObject({ locks: 1, transactions: 1 });
     expect(double.calls.inserts).toHaveLength(1);
+    // The delete keeps exactly the symbols of the document.
     expect(double.calls.deleteWhere).toHaveLength(1);
-    expect(double.calls.deleteWhere[0]).toBeDefined();
+    expect(
+      new PgDialect().sqlToQuery(double.calls.deleteWhere[0] as SQL)
+    ).toMatchObject({
+      params: ["AAAZ", "TQQQ"],
+      sql: '"leveraged_etf_universe"."symbol" not in ($1, $2)',
+    });
   });
 
   it("flattens a fund with options and the gate constants into one row", async () => {
@@ -196,6 +203,40 @@ describe("leveraged ETF universe repository", () => {
       underlying: null,
       windowExpiry: null,
     });
+  });
+
+  it("stores a reason that the gate rule got after the migration, and leaves out values without a column", async () => {
+    const double = createDouble();
+    // The document of the import CLI also carries the two values of the two-sided quote rule.
+    const carried = {
+      ...DOCUMENT,
+      funds: [
+        { ...WITHOUT_OPTIONS, optionGateReasons: ["no-standard-contract"] },
+        {
+          ...WITH_OPTIONS,
+          optionGate: "fail",
+          optionGateReasons: ["stale-chain", "too-few-two-sided-quotes"],
+          options: { ...OPTIONS, twoSidedQuotes: 2 },
+        },
+      ],
+      gate: { ...GATE, minTwoSidedQuotes: 3 },
+    } as const;
+    await createLeveragedEtfUniverseRepository(double.database).replaceUniverse(
+      carried
+    );
+    const [withoutOptions, withOptions] = double.calls.inserts[0] ?? [];
+    expect(withoutOptions?.["optionGateReasons"]).toEqual([
+      "no-standard-contract",
+    ]);
+    expect(withOptions?.["optionGateReasons"]).toEqual([
+      "stale-chain",
+      "too-few-two-sided-quotes",
+    ]);
+    expect(Object.keys(withOptions ?? {}).sort()).toEqual(
+      Object.keys(getTableColumns(leveragedEtfUniverse))
+        .filter((key) => key !== "updatedAt")
+        .sort()
+    );
   });
 
   it("replaces every column except the key on a symbol conflict", async () => {

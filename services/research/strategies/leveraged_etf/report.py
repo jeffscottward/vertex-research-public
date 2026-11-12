@@ -3,7 +3,8 @@
 `results_markdown(document)` gives the text of results.md: the 40 form rows with their verdicts, the
 data start per pair and signal, the tracking error of the synthetic fund price, the measured IV ratio
 (when a chain file was given) and every row per pair. `verdict_table` is the 40-row table alone (the
-README shows it). A value that does not exist is printed as `n/a`, never as 0.
+README shows it). A value that does not exist is printed as `n/a`, never as 0. A run that is not
+complete (runner.partial_reasons) gets a PARTIAL line with the reasons.
 """
 from __future__ import annotations
 
@@ -41,7 +42,8 @@ def _helps(verdict: Mapping) -> str:
     helps = verdict["leverageHelps"]
     if helps is None:
         return "-"
-    return f"{'yes' if helps['helps'] else 'no'} ({_num(helps['sharpe'])} vs {_num(helps['twinSharpe'])})"
+    word = "n/a" if helps["helps"] is None else ("yes" if helps["helps"] else "no")
+    return f"{word} ({_num(helps['sharpe'])} vs {_num(helps['twinSharpe'])})"
 
 
 def _row_cells(row: Mapping) -> list[str]:
@@ -88,7 +90,8 @@ def compact_table(rows: Sequence[Mapping]) -> str:
 def counts_table(rows: Sequence[Mapping]) -> str:
     """Per form row: what happened to the signals. Signals = signals of the regime over all pairs; taken =
     after the overlap rule; not priced = taken signals without a price, by reason; refused = priced trades
-    with 0 units; stale days = mark or exit closes priced with a carried IV index or rate."""
+    with 0 units; stale days = mark or exit closes priced with an IV index or rate carried by the study
+    (the daily data has none there; a value the daily loader carried, up to 5 bar dates, is not counted)."""
     lines = []
     for row in rows:
         reasons = "; ".join(f"{reason}: {count}" for reason, count in sorted(row["notPriced"].items())) or "none"
@@ -108,20 +111,49 @@ def _failed_checks(rows: Sequence[Mapping]) -> list[str]:
     return out
 
 
+def _booking(document: Mapping) -> str:
+    """What was booked where. The result of every row is the ledger's; NautilusTrader is the cross-check."""
+    rows = document["rows"]
+    if not document["nautilusParity"]:
+        return "Ledger only: this run did NOT book on NautilusTrader."
+    checked = sum(1 for row in rows if row["nautilusGap"] is not None)
+    text = (f"Every number is the qc-ports ledger's. {checked} of {len(rows)} form rows have a priced trade: each was "
+            f"also booked on NautilusTrader and matches the ledger (relative tolerance {document['parityTolerance']:g}).")
+    if checked < len(rows):
+        text += (f" {len(rows) - checked} form rows have no priced trade: there was nothing to book, so they were not "
+                 "run on NautilusTrader.")
+    return text
+
+
+def _partial(document: Mapping) -> str:
+    if document["complete"]:
+        return ""
+    reasons = "; ".join(document.get("partial") or ()) or "not the whole study"
+    return f"This is a PARTIAL run ({reasons}): a diagnostic, not the study result."
+
+
+def _tracking_cells(item: Mapping) -> list[str]:
+    paid = item.get("exDividend")
+    return [item["fund"], item["underlying"], str(item["leverage"]), str(item["days"]), item["from"],
+            _num(item["medianAbsErrorPct"], 3), _num(item["p95AbsErrorPct"], 3), _num(item["maxAbsErrorPct"], 1),
+            "0" if paid is None else str(paid["days"]),
+            _num(None if paid is None else round(paid["medianErrorNoDividendPct"], 3) + 0.0, 3),
+            _num(None if paid is None else round(paid["medianErrorPct"], 3) + 0.0, 3)]  # + 0.0: never "-0.000"
+
+
 def results_markdown(document: Mapping) -> str:
     rows = document["rows"]
+    leveraged = [row["verdict"]["leverageHelps"] for row in rows if row["verdict"]["leverageHelps"] is not None]
+    unjudged = sum(1 for helps in leveraged if helps["helps"] is None)
     lines = ["# Leveraged ETF short-window study: results", "",
              f"Data to {document['generatedFor']}. Start capital {document['capital']:,.0f} USD per book. "
-             f"Engine: {document['engine']}. "
-             + ("Every form row was booked on NautilusTrader and matches the ledger "
-                f"(relative tolerance {document['parityTolerance']:g})." if document["nautilusParity"]
-                else "Ledger only: this run did NOT book on NautilusTrader."),
-             "" if document["complete"] else ("This is a PARTIAL run (not all 40 rows or not all pairs): a diagnostic, "
-                                              "not the study result."),
+             f"Engine: {document['engine']}. " + _booking(document),
+             _partial(document),
              f"Rows that pass the gate: {len(document['passGate'])} of {len(rows)}. "
              f"Rows that pass the owner's lower bar: {len(document['passLowerBar'])} of {len(rows)}. "
-             f"`lev-*` rows where leverage helps: {len(document['leverageHelps'])} of "
-             f"{sum(1 for row in rows if row['verdict']['leverageHelps'] is not None)}.",
+             f"`lev-*` rows where leverage helps (Sharpe above the twin row, also when both lose): "
+             f"{len(document['leverageHelps'])} of {len(leveraged)}"
+             + (f" ({unjudged} without a verdict: the twin row has no booked trade)." if unjudged else "."),
              "", "## Form rows (all pairs pooled, one book per row)", "",
              "Row = signal/regime/window/form. S1 = session-open-momentum, S2 = volume-spike-breakout. Skipped = "
              "signals skipped because a position of the same pair and direction was open. Refused = trades with 0 "
@@ -143,11 +175,14 @@ def results_markdown(document: Mapping) -> str:
                                                 for item in document["droppedPairs"]) + ".", ""]
     lines += ["## Tracking error of the synthetic fund price", "",
               "Synthetic close (previous close x (1 + leverage x move of U)) against the real close, absolute error "
-              "in percent of the real close. This is how far the modeled intraday entry price of a fund can be off.",
-              "", *_table(["Fund", "U", "Leverage", "Days", "From", "Median %", "95th percentile %", "Max %"],
-                          [[item["fund"], item["underlying"], str(item["leverage"]), str(item["days"]), item["from"],
-                            _num(item["medianAbsErrorPct"], 3), _num(item["p95AbsErrorPct"], 3),
-                            _num(item["maxAbsErrorPct"], 1)] for item in document["trackingError"]]), ""]
+              "in percent of the real close. This is how far the modeled intraday entry price of a fund can be off. "
+              "The move of U is its total return: on U's ex-dividend day the dividend is added back to U's price. "
+              "The last three columns are U's ex-dividend days alone: their number and the median SIGNED error "
+              "(below 0 = synthetic price too low) of the formula without the dividend and of the formula the study "
+              "uses.",
+              "", *_table(["Fund", "U", "Leverage", "Days", "From", "Median %", "95th percentile %", "Max %",
+                           "Ex-dividend days", "Ex-dividend median, no dividend %", "Ex-dividend median, used %"],
+                          [_tracking_cells(item) for item in document["trackingError"]]), ""]
     ratio = document.get("ivRatio")
     if ratio:
         lines += ["## Measured IV ratio (not used by the model)", "",

@@ -32,9 +32,11 @@ Pricing rules (pre-registered, research/backtests/leveraged-etf/README.md):
 - Strikes: long leg nearest 0.50 delta on the strike grid; the short leg of a vertical 1 sigma of the
   remaining time further out of the money (qc_ports.book.choose_strikes). Calls for +1, puts for -1.
 - Prices: Black-Scholes with the qc_ports smile. U at the entry = the signal price; the fund at the entry
-  = prices.synthetic_price from the previous closes; at every later close the real daily close (the
-  fund's as-traded close). IV of U: ATM factor x its Cboe index, at the entry from the previous session's
-  close (volspike.options.iv_before, at most 5 calendar days old), at a close from that session's row; a
+  = prices.synthetic_price from the previous closes, with U's dividend added back to the signal price
+  when the entry session is U's ex-dividend date (`PairData.u_dividends`: the fund follows U's total
+  return); at every later close the real daily close (the fund's as-traded close). IV of U: ATM factor
+  x its Cboe index, at the entry from the previous session's close (volspike.options.iv_before: the
+  previous daily bar, at most 5 calendar days old), at a close from that session's row; a
   missing index or rate at a close carries the last value used (counted in `stale_days`). IV of the fund
   = |leverage| x the IV of U at the same standardized moneyness: ATM x |leverage| and the smile slope of
   U (`fund_iv`). Rate = IRX; dividend yield of U as the model, of the fund 0.
@@ -46,15 +48,23 @@ Pricing rules (pre-registered, research/backtests/leveraged-etf/README.md):
   costs (`max_loss`). Shares: 10 basis points of the price per side; `max_loss` = price + entry cost.
 - Not priced (reason counted per form): no daily bar or previous close, no exit session, no or stale IV,
   no fund close, a split of the instrument after the previous close and up to the exit session, no
-  strikes, no premium, a U entry price more than 30% from the previous close (a data error).
+  strikes, no premium, a U entry price more than 30% from the previous close (a data error), and for an
+  option form an exit session on or after the expiry day (`EXIT_AT_EXPIRY`: the exit session comes from
+  U's daily bars, the expiry from the NYSE calendar, so a hole in the bars could put them together).
+- The share form needs no IV: `lev-shares` also prices a signal that the option forms skip for "no IV".
+- `stale_days` counts the mark and exit closes whose IV index or rate is None in `PairData.market`.
+  qc_ports.data.load_market already carries a source value for up to 5 bar dates before it gives None;
+  a value carried there is not counted.
 """
 from __future__ import annotations
 
 import bisect
 import contextlib
+import math
 import os
 from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
 
 from strategies.imom import data as idata
 from strategies.imom.options import SyntheticClock, spread_returns, years_to_close
@@ -70,10 +80,10 @@ from . import prices
 from .pairs import PAIRS, Pair
 from .signals import WINDOWS, Signal
 
-__all__ = ["ETF_FORMS", "FORM_KEYS", "FUND_HALF_SPREAD_PCT", "LONG_DELTA", "MAX_ENTRY_GAP", "MAX_LOSS_PCT",
-           "MIN_EXPIRY_SESSIONS", "OPTION_FORMS", "SHARE_COST_RATE", "WIDTH_SIGMA", "BookingMismatch", "PairData",
-           "WindowTrade", "book", "close_ms", "daily_result", "first_day", "fund_iv", "fund_models", "load_pair",
-           "price_trade", "price_trades", "to_priced"]
+__all__ = ["ETF_FORMS", "EXIT_AT_EXPIRY", "FORM_KEYS", "FUND_HALF_SPREAD_PCT", "LONG_DELTA", "MAX_ENTRY_GAP",
+           "MAX_LOSS_PCT", "MIN_EXPIRY_SESSIONS", "OPTION_FORMS", "SHARE_COST_RATE", "WIDTH_SIGMA", "BookingMismatch",
+           "PairData", "WindowTrade", "book", "check_parity", "close_ms", "daily_result", "first_day", "fund_iv",
+           "fund_models", "load_pair", "price_trade", "price_trades", "to_priced"]
 
 FORM_KEYS = ("etf-option", "etf-vertical", "lev-option", "lev-vertical", "lev-shares")
 ETF_FORMS = ("etf-option", "etf-vertical")
@@ -86,6 +96,7 @@ FUND_HALF_SPREAD_PCT = 0.04
 SHARE_COST_RATE = 0.001
 MAX_ENTRY_GAP = 0.30
 SHARE_DECIMALS = 2
+EXIT_AT_EXPIRY = "exit on or after the expiry day"
 
 
 class BookingMismatch(RuntimeError):
@@ -94,13 +105,15 @@ class BookingMismatch(RuntimeError):
 
 @dataclass(frozen=True)
 class PairData:
-    """The loaded inputs of one pair: U's daily bars with IV index and rate, U's splits and both funds."""
+    """The loaded inputs of one pair: U's daily bars with IV index and rate, U's splits, both funds and
+    U's cash dividend per ex-dividend date (prices.dividends)."""
 
     pair: Pair
     market: qd.Market
     u_splits: Mapping[str, float]
     long_fund: prices.FundBars
     inverse_fund: prices.FundBars
+    u_dividends: Mapping[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -132,9 +145,12 @@ class WindowTrade:
 
 
 def load_pair(pair: Pair, fund_root: str | os.PathLike, qc_root: str | os.PathLike | None = None) -> PairData:
-    """Reads the inputs of a pair: the qc-ports daily files of U and the fetch files of the funds."""
+    """Reads the inputs of a pair: the qc-ports daily files of U and the fetch files of the funds. U's
+    dividends come from `close` and `adj_close` of U's daily file."""
+    bars = qd.load_bars(pair.underlying, qc_root)
     return PairData(pair, qd.load_market(pair.underlying, qc_root), prices.load_splits(pair.underlying, fund_root),
-                    prices.load_fund(pair.long_fund, fund_root), prices.load_fund(pair.inverse_fund, fund_root))
+                    prices.load_fund(pair.long_fund, fund_root), prices.load_fund(pair.inverse_fund, fund_root),
+                    prices.dividends(bars.dates, bars.close, bars.adj_close))
 
 
 def first_day(data: PairData) -> str:
@@ -217,7 +233,8 @@ def price_trade(signal: Signal, window: str, form: str, data: PairData) -> Windo
         closes = [fund.close_on(day) for day in days]
         if fund_previous is None or any(close is None for close in closes):
             return "no fund close"
-        spot = prices.synthetic_price(fund_previous, leverage, signal.price, u_previous)
+        spot = prices.synthetic_price(fund_previous, leverage, signal.price, u_previous,
+                                      data.u_dividends.get(signal.day, 0.0))
         q = 0.0
     if prices.split_between(splits, previous_day, days[-1]):
         return "split in the window"
@@ -234,6 +251,8 @@ def price_trade(signal: Signal, window: str, form: str, data: PairData) -> Windo
     multiple = abs(leverage)
     slope = om.SKEW[symbol]
     expiry = vopt.weekly_expiry(signal.day, MIN_EXPIRY_SESSIONS)
+    if date.fromisoformat(days[-1]) >= expiry:
+        return EXIT_AT_EXPIRY
     right = "call" if signal.side > 0 else "put"
     vertical = form.endswith("vertical")
     spread = "callDebitVertical" if right == "call" else "putDebitVertical"
@@ -342,9 +361,30 @@ def daily_result(result: LedgerResult, clock: SyntheticClock) -> LedgerResult:
                         engine=result.engine)
 
 
+def check_parity(ledger: LedgerResult, other: LedgerResult) -> float:
+    """The largest relative difference of the two equity series, when the books agree: the same number
+    of points, every equity value finite and above 0, a difference of at most PARITY_REL_TOL on every
+    point and the same units per trade. Else BookingMismatch. A NaN never passes: the test is
+    `not gap <= tolerance`, and both series are checked for finite values first."""
+    if len(ledger.equity) != len(other.equity):
+        raise BookingMismatch(f"Ledger and Nautilus disagree: {len(ledger.equity)} against {len(other.equity)} "
+                              "equity points")
+    for name, series in (("ledger", ledger.equity), ("Nautilus", other.equity)):
+        if not all(isinstance(value, (int, float)) and math.isfinite(value) and value > 0 for value in series):
+            raise BookingMismatch(f"The {name} equity has a value that is not a finite number above 0")
+    gap = max((abs(a - b) / max(abs(a), abs(b)) for a, b in zip(ledger.equity, other.equity, strict=True)),
+              default=0.0)
+    units = [(record["id"], record["contracts"]) for record in ledger.trades]
+    same = units == [(record["id"], record["contracts"]) for record in other.trades]
+    if not gap <= PARITY_REL_TOL or not same:
+        raise BookingMismatch(f"Ledger and Nautilus disagree (gap {gap:.3g}, units match {same})")
+    return gap
+
+
 def book(trades: Sequence[WindowTrade], session_days: Sequence[str], capital: float, *, nautilus: bool = True) -> dict:
-    """Books the trades in the qc_ports ledger and (by default) in NautilusTrader, which must agree: equity
-    within 1e-6 relative on every clock key and the same units per trade, else BookingMismatch.
+    """Books the trades in the qc_ports ledger and (by default) in NautilusTrader, which must agree
+    (`check_parity`): equity within 1e-6 relative on every clock key and the same units per trade, else
+    BookingMismatch.
 
     Returns `daily` (the result on New York days), `returns` (profit of each booked trade over the equity
     before its entry), `gap` (largest relative equity difference, None without Nautilus), `engine` and
@@ -357,12 +397,7 @@ def book(trades: Sequence[WindowTrade], session_days: Sequence[str], capital: fl
         from strategies.qc_ports.nautilus_runner import run_nautilus
 
         other = run_nautilus(priced, capital, keys)
-        gap = max((abs(a - b) / max(abs(a), abs(b)) for a, b in zip(ledger.equity, other.equity, strict=True)),
-                  default=0.0)
-        units = [(record["id"], record["contracts"]) for record in ledger.trades]
-        same = units == [(record["id"], record["contracts"]) for record in other.trades]
-        if gap > PARITY_REL_TOL or not same:
-            raise BookingMismatch(f"Ledger and Nautilus disagree (gap {gap:.3g}, units match {same})")
+        gap = check_parity(ledger, other)
         engine = other.engine
     return {"daily": daily_result(ledger, clock), "returns": spread_returns(ledger, capital), "gap": gap,
             "engine": engine, "priced": priced}

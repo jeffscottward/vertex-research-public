@@ -22,7 +22,11 @@ import {
   InvalidRepositoryInputError,
 } from "./repository-errors.ts";
 
-/** The parts of a `leveraged-etf-universe-v1` document that the table stores. */
+/**
+ * The parts of a `leveraged-etf-universe-v1` document that the table stores. The table has no
+ * column for `gate.minTwoSidedQuotes` (`gate.version` fixes it) and none for
+ * `options.twoSidedQuotes`; a document that carries them is stored without them.
+ */
 export type LeveragedEtfUniverseDocument = Readonly<{
   /** UTC ISO datetime of the document. Stored on every row as `generated_at`. */
   generatedAt: string;

@@ -10,9 +10,12 @@
   `gate` = allocation.gate_checks; its baseline check compares with the `etf-option` row of the same
   signal, regime and window (0 for that row itself). `lowerBar` = the owner's lower bar (the function
   is passed in: it lives in research/backtests/allocation/funded_pie.py). `leverageHelps` (only
-  `lev-*` rows) = the row's Sharpe is above the Sharpe of its unleveraged twin row. A row passes only
-  when `gate` passes. A Sharpe that does not exist (no booked trade) counts as 0 in a comparison and
-  fails every check that needs it.
+  `lev-*` rows) = the row's Sharpe is above the Sharpe of its unleveraged twin row. It compares two
+  Sharpes and nothing else: `yes` also when both rows lose (the less negative one is above). When the
+  twin row has no booked trade there is nothing to compare with: `helps` is None and `reason` says so
+  (no verdict). A row passes only when `gate` passes. A Sharpe that does not exist (no booked trade)
+  counts as 0 in the baseline check of the gate and fails every check that needs it; a `lev-*` row
+  without a booked trade does not help.
 """
 from __future__ import annotations
 
@@ -133,7 +136,8 @@ def _text(value) -> str:
 def verdicts(rows: Mapping[str, Mapping], gate_checks: Callable[[Mapping, float | None], list[dict]],
              lower_bar: Callable[[Mapping], bool]) -> dict[str, dict]:
     """Verdicts per form row key (row_key) from the row statistics: `gate`, `lowerBar`, `leverageHelps`
-    (None for an `etf-*` row) and `passes` (= gate passes). Each verdict has `text`, its words."""
+    (None for an `etf-*` row; its `helps` is None, with a `reason`, when the twin row has no booked
+    trade) and `passes` (= gate passes). Each verdict has `text`, its words."""
     out: dict[str, dict] = {}
     for key, stats in rows.items():
         signal, regime, window, form = split_key(key)
@@ -160,8 +164,14 @@ def verdicts(rows: Mapping[str, Mapping], gate_checks: Callable[[Mapping, float 
             if twin_key not in rows:
                 raise ValueError(f"{key}: its twin row {twin_key} is missing")
             twin = rows[twin_key].get("sharpe")
-            yes = sharpe is not None and sharpe > _number(twin)
-            helps = {"helps": yes, "sharpe": sharpe, "twin": TWIN_FORM[form], "twinSharpe": twin,
-                     "text": f"{'yes' if yes else 'no'}: Sharpe {_text(sharpe)} against {_text(twin)} of {TWIN_FORM[form]}"}
+            if twin is None or not rows[twin_key].get("trades"):
+                reason = f"the twin row {TWIN_FORM[form]} has no booked trade"
+                helps = {"helps": None, "sharpe": sharpe, "twin": TWIN_FORM[form], "twinSharpe": twin,
+                         "reason": reason, "text": f"no verdict: {reason}"}
+            else:
+                yes = sharpe is not None and sharpe > _number(twin)
+                helps = {"helps": yes, "sharpe": sharpe, "twin": TWIN_FORM[form], "twinSharpe": twin, "reason": None,
+                         "text": f"{'yes' if yes else 'no'}: Sharpe {_text(sharpe)} against {_text(twin)} of "
+                                 f"{TWIN_FORM[form]}"}
         out[key] = {"gate": gate, "lowerBar": bar, "leverageHelps": helps, "passes": gate["pass"]}
     return out
