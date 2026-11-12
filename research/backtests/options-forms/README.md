@@ -534,7 +534,11 @@ What the results say:
 - W07 (RSI 15 minutes) is the only rule with an edge before costs: +201% of the capital before costs, 231% in
   costs. With the measured half spreads of SPY, QQQ and IWM it passes the lower bar, and with commissions only
   it passes the gate. Both are diagnostics, not the study model: the half spreads of the data set are daily
-  values, and spreads at the open are wider (Method).
+  values, and spreads at the open are wider (Method). The P&L before costs over the costs of W07 is 0.87 in
+  the study model, 1.49 with the measured half spreads and 8.62 with commissions only (`base/intraday3`: 3.38,
+  9.75 and 25.64). So half spreads about 1.5 times the measured ones would take all of W07's gain, and its
+  lower-bar pass ends before that. The ratio is approximate: contracts are sized from the equity, so wider
+  spreads also shrink the later trades.
 - O15, O16, W08 and W09 lose before costs or gain little, and the costs take the rest. W08 (1-minute EMA
   cross, about 30,000 spreads in 13 years) is the worst under all three models.
 - The always-on hourly baselines have positive Sharpes (+0.35 and +0.51); a stance that changes every few bars
