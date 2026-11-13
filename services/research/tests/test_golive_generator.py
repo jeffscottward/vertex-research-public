@@ -7,7 +7,7 @@ import math
 import os
 import re
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -56,10 +56,15 @@ def _sleeve(key: str, **changes) -> dict:
     return {**copy.deepcopy(SLEEVES[key]), **changes}
 
 
-def _facts() -> qi.Facts:
-    first = {symbol: FIRST_DAY for symbol in qi.CORE7}
+# The day the sleeves of the test plan start. From this day on the data reaches back far enough for every look-back
+# (the 12-1 momentum needs 13 month ends, the trend gate 200 days); a sleeve that starts earlier is refused.
+SLEEVE_START = "2026-08-03"
+
+
+def _facts(start: str = SLEEVE_START) -> qi.Facts:
+    first = {symbol: start for symbol in qi.CORE7}
     return qi.Facts(iv_start=first, iv_rank_join=first, starts={idea: first for idea in qi.ELIGIBILITY},
-                    gold_last_input=FIRST_DAY)
+                    gold_last_input=start)
 
 
 def _dataset(last_day: str, short: str | None = None, last_vix: float = VIX) -> pf.Dataset:
@@ -90,8 +95,63 @@ def _gap(data: pf.Dataset, from_day: str, *series_ids: str) -> pf.Dataset:
     return pf.Dataset(data.bars, {**data.series, **cut})
 
 
-def _generate(last_day: str, trading_day: str, store, plan: dict | None = None, now: datetime = NOW) -> dict:
-    return gl.generate(plan or _plan(), _dataset(last_day), _facts(), store, trading_day, now)
+def _drop(data: pf.Dataset, series_id: str, *days: str) -> pf.Dataset:
+    """`data` where the series has no value on the named days (every other day and the bars stay)."""
+    kept = {day: value for day, value in data.series[series_id].items() if day not in days}
+    return pf.Dataset(data.bars, {**data.series, series_id: kept})
+
+
+# The holes of the synthetic data: none. Every history starts on FIRST_DAY (generator.check_history).
+SYNTHETIC_PINS = gl.data_gaps(_dataset("2027-12-31"))
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _pinned_synthetic_history():
+    """The tested data of these tests is the synthetic data: its histories are pinned in place of the rig's
+    (module scope, so the module fixtures roll_day and mid_month see it too)."""
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(gl, "TESTED_GAPS", SYNTHETIC_PINS)
+        yield
+
+
+def _at(trading_day: str) -> datetime:
+    """14:00 UTC of the trading day (09:00 or 10:00 New York): the time of a run before the open."""
+    return datetime.fromisoformat(f"{trading_day}T14:00:00+00:00")
+
+
+def _list_model_strikes(store, data: pf.Dataset, trading_day: str, plan: dict | None = None, facts=None,
+                        shift: float = 0.0, clock: str = "203000", day: str | None = None):
+    """One snapshot run of the last data day in `store` that lists, with a bid and an ask, the model strikes
+    (plus `shift`) of every spread the document of `trading_day` can hold. `day`: another day for the run.
+    Returns the run directory, or None when the store is not a directory or the run is there already."""
+    plan, facts, last_day = plan or _plan(), facts or _facts(), data.calendar[-1]
+    day = day or last_day
+    if not store.is_dir() or (store / day / f"{clock}Z").exists():
+        return None
+    made = {sleeve["key"]: gl.build_definition(sleeve, qi.family(facts), facts) for sleeve in plan["sleeves"]}
+    combined = gl.model_trades(made, gl.with_pending_days(data, gl.pending_days(data.calendar, trading_day)), plan)
+    chains: dict[tuple[str, str, str], dict] = {}
+    for trade in combined.trades:
+        wanted = trade.entry_date == trading_day or trade.entry_date <= last_day < trade.exit_date
+        if wanted and trade.expiry > trading_day:
+            side = "calls" if trade.structure.startswith("call") else "puts"
+            chains.setdefault((trade.symbol, trade.expiry, side), {}).update(
+                {trade.long_strike + shift: (2.0, 2.1), trade.short_strike + shift: (1.0, 1.2),
+                 1.0: (0.0, 0.05), 5000.0: (0.0, 0.05)})  # the wings of a listing
+    run = _run(store, day, clock, symbols=qi.CORE7)
+    for (symbol, expiry, side), quotes in chains.items():
+        _chain(run, symbol, expiry, side, quotes)
+    return run
+
+
+def _generate(last_day: str, trading_day: str, store, plan: dict | None = None, now: datetime | None = None,
+              data: pf.Dataset | None = None, facts=None, listed: bool = True) -> dict:
+    """The document of the synthetic data (or `data`) at 14:00 UTC of the trading day. `listed`: the store first
+    gets a snapshot run of the last data day that lists every model strike (_list_model_strikes)."""
+    data = data or _dataset(last_day)
+    if listed and last_day < trading_day:
+        _list_model_strikes(store, data, trading_day, plan, facts)
+    return gl.generate(plan or _plan(), data, facts or _facts(), store, trading_day, now or _at(trading_day))
 
 
 def _picked(document: dict, basis: str) -> list[tuple[str, str]]:
@@ -181,13 +241,13 @@ def test_as_studied_builds_any_run_of_the_family():
 
 def test_always_on_entry_is_the_long_index_sleeve_of_funded_pie():
     facts = _facts()
-    facts = qi.Facts(iv_start={**facts.iv_start, "QQQ": "2025-09-02"}, iv_rank_join=facts.iv_rank_join,
+    facts = qi.Facts(iv_start={**facts.iv_start, "QQQ": "2026-09-02"}, iv_rank_join=facts.iv_rank_join,
                      starts=facts.starts, gold_last_input=facts.gold_last_input)
     runs = qi.family(facts)
     definition, start = gl.build_definition(_sleeve("long-index"), runs, facts)
     assert (definition, start) == gl.funded_pie().sleeve_definitions(runs, facts)["oil-predicts-equity/B"]
     assert definition["entry"] == {"all": [qi.ALWAYS]} and definition["name"] == "Always-on SPY and QQQ"
-    assert start == "2025-09-02"  # the first day both members have an IV index, not the study start
+    assert start == "2026-09-02"  # the first day both members have an IV index, not the study start
     studied = runs["oil-predicts-equity/B"].definition
     assert studied["entry"] != definition["entry"]
     assert {key: value for key, value in definition.items() if key not in ("entry", "name")} == {
@@ -461,6 +521,288 @@ def test_an_etf_read_as_a_series_must_reach_the_last_data_day_too():
         gl.check_series(plan["sleeves"], _made(plan), _dataset("2026-11-30", short="USO"), "2026-11-30", "2026-12-01")
 
 
+# --------------------------------------------------------------------------- gaps on older days
+
+def _held(data: pf.Dataset, trading_day: str, plan: dict | None = None) -> list[tuple]:
+    """What the signal code makes of `data` without any check: (sleeve, symbol, long strike, short strike) of the
+    model trades open after the last data day."""
+    plan = plan or _plan()
+    last_day = data.calendar[-1]
+    combined = gl.model_trades(_made(plan), gl.with_pending_days(data, gl.pending_days(data.calendar, trading_day)), plan)
+    return sorted((combined.owner[trade.trade_id], trade.symbol, trade.long_strike, trade.short_strike)
+                  for trade in combined.trades if trade.entry_date <= last_day < trade.exit_date)
+
+
+def _history_line(name: str, shown: str, read_by: str, trading_day: str = "2026-11-12") -> str:
+    return (f"The {name} history has no value on {shown}: older days the tested data has values for. A gap on an "
+            "older day changes the model's trades or strikes without a word; it must be filled by a refresh, or "
+            f"checked and pinned (python -m golive.pin). Trading day {trading_day} is refused. Read by: {read_by}.")
+
+
+@pytest.mark.parametrize("series_id", ["VIX3M", "VIX"])
+def test_a_gate_series_without_the_value_of_an_older_signal_day_refuses_the_run(tmp_path, series_id):
+    # 2026-10-30 is the signal day of the put credit spread the model holds on 2026-11-12. The gate reads the
+    # value of that day itself: without it the spread is never entered, and nothing says so.
+    data = _dataset("2026-11-11")
+    gapped = _drop(data, series_id, "2026-10-30")
+    assert [item[:2] for item in _held(data, "2026-11-12")] == [
+        ("long-index", "QQQ"), ("long-index", "SPY"), ("rotation", "GLD"), ("vol-premium", "SPY")]
+    assert [item[:2] for item in _held(gapped, "2026-11-12")] == [
+        ("long-index", "QQQ"), ("long-index", "SPY"), ("rotation", "GLD")]
+    with pytest.raises(gl.StaleDataError) as refused:
+        gl.generate(_plan(), gapped, _facts(), tmp_path, "2026-11-12", NOW)
+    line, = [line for line in str(refused.value).splitlines() if line.startswith(f"The {series_id} history")]
+    assert line.startswith(f"The {series_id} history has no value on 2026-10-30: older days the tested data has values "
+                           "for.")
+    assert "vol-premium (gate" in line
+
+
+@pytest.mark.parametrize(("series_id", "sleeve", "symbol"), [("VXN", "long-index", "QQQ"), ("GVZ", "rotation", "GLD")])
+def test_a_volatility_index_without_the_value_of_an_entry_day_refuses_the_run(tmp_path, series_id, sleeve, symbol):
+    # 2026-11-02 is the entry day of the spreads the model holds. Without the print of that day the options book
+    # carries the one of 2026-10-30 (here a higher one) and the strikes move, with no error.
+    data = _dataset("2026-11-11")
+    series = {**data.series[series_id], "2026-10-30": 24.0}
+    gapped = _drop(pf.Dataset(data.bars, {**data.series, series_id: series}), series_id, "2026-11-02")
+    usual = next(item for item in _held(pf.Dataset(data.bars, {**data.series, series_id: series}), "2026-11-12")
+                 if item[:2] == (sleeve, symbol))
+    moved = next(item for item in _held(gapped, "2026-11-12") if item[:2] == (sleeve, symbol))
+    assert moved[3] > usual[3] and moved[2:] != usual[2:]  # other strikes, so another draft id
+    with pytest.raises(gl.StaleDataError, match=(
+            f"^The {series_id} history has no value on 2026-11-02: .* Read by: .*strike-width volatility of {symbol}")):
+        gl.generate(_plan(), gapped, _facts(), tmp_path, "2026-11-12", NOW)
+
+
+def test_a_rate_without_the_value_of_a_day_a_held_spread_is_marked_on_refuses_the_run(tmp_path):
+    # The book marks an open spread every day with the volatility index and the rate of that day; a carried
+    # value changes the mark, and the mark decides the profit-take exit.
+    data = _drop(_dataset("2026-11-11"), "IRX", "2026-11-05")
+    with pytest.raises(gl.StaleDataError) as refused:
+        gl.generate(_plan(), data, _facts(), tmp_path, "2026-11-12", NOW)
+    assert str(refused.value) == _history_line("IRX", "2026-11-05", "long-index (rate); rotation (rate); vol-premium "
+                                                                     "(rate)")
+
+
+def test_a_gap_on_any_older_day_refuses_the_run_also_before_the_open_positions(tmp_path, mid_month):
+    # The model account is one path: a sleeve that holds one spread at a time enters only after the last one
+    # closed, so a gap months back can change today's spread. Every older day counts, not only the days the
+    # open spreads were entered on.
+    data = _drop(_dataset("2026-11-11"), "VIX3M", "2025-08-13", "2025-08-14", "2025-09-02")
+    with pytest.raises(gl.StaleDataError) as refused:
+        _generate("2026-11-11", "2026-11-12", tmp_path, data=data)
+    assert str(refused.value) == _history_line("VIX3M", "2025-08-13 to 2025-08-14, 2025-09-02", "vol-premium (gate)")
+
+
+def test_a_hole_the_tested_data_had_is_read_as_the_backtest_read_it(tmp_path, monkeypatch, mid_month):
+    # The same hole, pinned: the data the plan was tested on had it, so it is no new gap.
+    data = _drop(_dataset("2026-11-11"), "VIX3M", "2025-08-13", "2025-08-14", "2025-09-02")
+    monkeypatch.setattr(gl, "TESTED_GAPS", {**SYNTHETIC_PINS, "VIX3M": (FIRST_DAY, (
+        ("2025-08-12", "2025-08-14"), ("2025-09-02", "2025-09-02")))})
+    assert _generate("2026-11-11", "2026-11-12", tmp_path, data=data)["candidates"] == mid_month["candidates"]
+    # A hole that only starts inside a pinned one, or runs past it, has new days: refused.
+    longer = _drop(data, "VIX3M", "2025-08-15")
+    with pytest.raises(gl.StaleDataError, match="^The VIX3M history has no value on 2025-08-13 to 2025-08-15: "):
+        gl.generate(_plan(), longer, _facts(), tmp_path, "2026-11-12", NOW)
+
+
+def test_a_history_that_starts_later_than_the_tested_one_refuses_the_run(tmp_path):
+    data = _dataset("2026-11-11")
+    last = sorted(data.series["VIX3M"])[-3:]
+    cut = pf.Dataset(data.bars, {**data.series, "VIX3M": {day: data.series["VIX3M"][day] for day in last}})
+    assert ("vol-premium", "SPY") not in [item[:2] for item in _held(cut, "2026-11-12")]  # the silent loss
+    with pytest.raises(gl.StaleDataError) as refused:
+        gl.generate(_plan(), cut, _facts(), tmp_path, "2026-11-12", NOW)
+    assert str(refused.value) == ("The VIX3M history starts on 2026-11-09; the tested data starts on 2025-07-01. "
+                                  "Trading day 2026-11-12 is refused. Read by: vol-premium (gate).")
+    # A history without any value (generate refuses it earlier, in check_series).
+    empty = pf.Dataset(data.bars, {**data.series, "VIX3M": {}})
+    with pytest.raises(gl.StaleDataError, match="^The VIX3M history has no value; the tested data starts on 2025-07-01. "):
+        gl.check_history(_plan()["sleeves"], _made(_plan()), empty, "2026-11-11", "2026-11-12", SYNTHETIC_PINS)
+
+
+def test_a_history_that_is_not_pinned_refuses_the_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(gl, "TESTED_GAPS", {name: pin for name, pin in SYNTHETIC_PINS.items() if name != "GVZ"})
+    with pytest.raises(gl.StaleDataError) as refused:
+        _generate("2026-11-11", "2026-11-12", tmp_path)
+    assert str(refused.value) == (
+        "The GVZ history is not pinned (golive/tested_gaps.py): a new gap cannot be told from one the plan was tested "
+        "with. Trading day 2026-11-12 is refused. Read by: rotation (gate of GLD, strike-width volatility of GLD).")
+
+
+def test_a_hole_that_ends_before_the_tested_history_starts_is_not_read(tmp_path, monkeypatch, mid_month):
+    # The refresh found older history than the tested data had, with a hole in it: the test never read those days.
+    data = _drop(_dataset("2026-11-11"), "VIX3M", "2025-07-03")
+    monkeypatch.setattr(gl, "TESTED_GAPS", {**SYNTHETIC_PINS, "VIX3M": ("2025-07-07", ())})
+    assert _generate("2026-11-11", "2026-11-12", tmp_path, data=data)["candidates"] == mid_month["candidates"]
+    # A hole that reaches the first tested day is a new gap.
+    with pytest.raises(gl.StaleDataError, match="^The VIX3M history has no value on 2025-07-03 to 2025-07-07: "):
+        gl.generate(_plan(), _drop(data, "VIX3M", "2025-07-07"), _facts(), tmp_path, "2026-11-12", NOW)
+
+
+def test_a_gap_inside_a_look_back_refuses_the_run(tmp_path):
+    # The 200-day average of the trend gate is a mean of the last 200 values there are: a missing close shifts it
+    # by a day without a word.
+    data = _drop(_dataset("2026-11-11"), "SPY", "2026-03-10")
+    with pytest.raises(gl.StaleDataError) as refused:
+        gl.generate(_plan(), data, _facts(), tmp_path, "2026-11-12", NOW)
+    assert str(refused.value) == _history_line("SPY", "2026-03-10", "vol-premium (gate)")
+
+
+def _without_bar(data: pf.Dataset, symbol: str, *days: str) -> pf.Dataset:
+    bar = data.bars[symbol]
+    keep = [index for index, day in enumerate(bar.dates) if day not in days]
+    holed = type(bar)(symbol, *(tuple(column[index] for index in keep) for column in (
+        bar.dates, bar.open, bar.high, bar.low, bar.close, bar.adj_close)))
+    return pf.Dataset({**data.bars, symbol: holed}, data.series)
+
+
+def test_bars_of_a_traded_etf_with_a_missing_day_refuse_the_run(tmp_path):
+    data = _without_bar(_dataset("2026-11-11"), "GLD", "2026-10-14")
+    with pytest.raises(gl.StaleDataError) as refused:
+        gl.generate(_plan(), data, _facts(), tmp_path, "2026-11-12", NOW)
+    assert str(refused.value) == _history_line("GLD bars", "2026-10-14", "rotation (traded)")
+
+
+def test_a_day_missing_from_the_calendar_bars_refuses_the_run(tmp_path):
+    # SPY sets the trading days (portfolio.CALENDAR_SYMBOL). A day the other ETFs have and SPY lacks is a gap of
+    # the calendar itself, even for a plan that does not trade SPY.
+    data = _without_bar(_dataset("2026-11-11"), "SPY", "2026-10-14")
+    plan = _plan(sleeves=[_sleeve("rotation", symbols=["QQQ", "DIA", "IWM", "GLD", "SLV", "USO", "SPY"])])
+    with pytest.raises(gl.StaleDataError) as refused:
+        gl.generate(plan, data, _facts(), tmp_path, "2026-11-12", NOW)
+    assert _history_line("SPY bars", "2026-10-14", "the trading calendar; rotation (traded)") in str(
+        refused.value).splitlines()
+
+
+def test_an_extra_bar_of_one_etf_on_a_closed_day_is_no_gap_of_the_others(tmp_path, mid_month):
+    # USO with a bar on Monday 2026-01-19 (Martin Luther King Jr. Day), when the other ETFs have none.
+    data = _dataset("2026-11-11")
+    bar = data.bars["USO"]
+    at = bar.dates.index("2026-01-20")
+    columns = [list(column) for column in (bar.dates, bar.open, bar.high, bar.low, bar.close, bar.adj_close)]
+    columns[0].insert(at, "2026-01-19")
+    for column in columns[1:]:
+        column.insert(at, column[at])
+    extra = pf.Dataset({**data.bars, "USO": type(bar)("USO", *(tuple(column) for column in columns))}, data.series)
+    assert gl.data_gaps(extra)["SPY bars"] == (FIRST_DAY, ())
+    assert _generate("2026-11-11", "2026-11-12", tmp_path, data=extra)["candidates"] == mid_month["candidates"]
+
+
+def test_bars_lost_by_one_of_two_etfs_or_by_most_etfs_on_one_day_are_holes():
+    data = _dataset("2026-01-30")
+    # Two ETFs only (the years before the others started): the one bar the other lacks still counts.
+    two = pf.Dataset({symbol: data.bars[symbol] for symbol in ("SPY", "DIA")}, data.series)
+    assert gl.data_gaps(_without_bar(two, "DIA", "2025-09-15"))["DIA bars"] == (FIRST_DAY, (("2025-09-15", "2025-09-15"),))
+    # Five of seven ETFs lose one calendar day at once.
+    many = data
+    for symbol in ("QQQ", "DIA", "IWM", "GLD", "USO"):
+        many = _without_bar(many, symbol, "2025-09-15")
+    gaps = gl.data_gaps(many)
+    assert all(gaps[f"{symbol} bars"][1] == (("2025-09-15", "2025-09-15"),) for symbol in ("QQQ", "DIA", "IWM", "GLD", "USO"))
+    assert gaps["SPY bars"] == gaps["SLV bars"] == (FIRST_DAY, ())
+
+
+def test_a_refusal_names_five_holes_of_a_history_and_counts_the_rest(tmp_path):
+    days = [day for day in _dataset("2026-11-11").calendar if "2026-03-01" <= day <= "2026-03-31"][::2][:8]
+    data = _drop(_dataset("2026-11-11"), "VIX3M", *days)
+    with pytest.raises(gl.StaleDataError) as refused:
+        gl.generate(_plan(), data, _facts(), tmp_path, "2026-11-12", NOW)
+    assert str(refused.value).startswith(f"The VIX3M history has no value on {', '.join(days[:5])} and 3 more: ")
+
+
+def test_data_gaps_lists_each_run_of_missing_days_from_the_first_value_on():
+    data = _without_bar(_drop(_dataset("2026-01-30"), "VIX3M", "2025-07-01", "2025-07-02", "2025-08-04", "2025-08-05",
+                              "2025-08-06", "2026-01-29"), "USO", "2025-12-01")
+    data = pf.Dataset(data.bars, {**data.series, "NAN": {"2025-07-01": math.nan}, "EMPTY": {}})
+    gaps = gl.data_gaps(data)
+    # A series counts from its first value on: the two days before it are no hole.
+    assert gaps["VIX3M"] == ("2025-07-03", (("2025-08-04", "2025-08-06"), ("2026-01-29", "2026-01-29")))
+    assert gaps["USO bars"] == (FIRST_DAY, (("2025-12-01", "2025-12-01"),))
+    assert gaps["SPY bars"] == (FIRST_DAY, ())
+    # Every ETF and every series but the total-return series of the bars; a series without a value is left out.
+    assert set(gaps) == {*(f"{symbol} bars" for symbol in qi.CORE7), *(name for name in data.series
+                                                                      if not name.endswith(":TR"))} - {"NAN", "EMPTY"}
+    # `until`: only days before it; `names`: those names only, a missing ETF left out.
+    assert gl.data_gaps(data, ["VIX3M", "TLT bars"], until="2026-01-29") == {"VIX3M": ("2025-07-03", (
+        ("2025-08-04", "2025-08-06"),))}
+
+
+def test_history_readers_are_the_bars_and_the_series_of_each_sleeve():
+    readers = gl.history_readers(_plan()["sleeves"], _made(_plan()))
+    assert readers["SPY bars"] == ["the trading calendar", "long-index (traded)", "rotation (traded)",
+                                   "vol-premium (traded)"]
+    assert readers["VIX3M"] == ["vol-premium (gate)"]
+    # A total-return series is the ETF's bars.
+    studied = _plan(sleeves=[_sleeve("long-index", definitionVariant="as_studied")])
+    readers = gl.history_readers(studied["sleeves"], _made(studied))
+    assert "USO:TR" not in readers and readers["USO bars"] == ["long-index (signal input)"]
+
+
+def test_the_pinned_holes_are_the_module_golive_pin_prints():
+    from golive import pin, tested_gaps
+    text = pin.module_text(tested_gaps.TESTED_GAPS, tested_gaps.PINNED_THROUGH)
+    assert (gl.Path(tested_gaps.__file__).read_text()) == text
+    # Every history the funded lower-bar pie reads is pinned, with the holes of the tested data.
+    assert set(gl.history_readers(_plan()["sleeves"], _made(_plan()))) <= set(tested_gaps.TESTED_GAPS)
+    assert tested_gaps.TESTED_GAPS["VIX3M"] == ("2006-07-17", ())
+    assert ("2016-11-11", "2016-11-11") in tested_gaps.TESTED_GAPS["IRX"][1]
+
+
+def test_golive_pin_prints_the_module_of_a_data_directory(monkeypatch):
+    from golive import pin
+    data = _drop(_dataset("2026-01-30"), "VIX3M", "2025-08-04")
+    loaded = []
+
+    def load(path):
+        loaded.append(path)
+        print("a loader note")  # goes to stderr, never into the module
+        return SimpleNamespace(dataset=data)
+
+    monkeypatch.setattr(pin.study, "load_study_data", load)
+    stdout, stderr = io.StringIO(), io.StringIO()
+    assert pin.main(["--data", "/srv/qc-ports"], stdout=stdout, stderr=stderr) == 0
+    assert stderr.getvalue() == "a loader note\n" and str(loaded[0]) == "/srv/qc-ports"
+    namespace = {}
+    exec(stdout.getvalue(), namespace)
+    assert namespace["PINNED_THROUGH"] == "2026-01-30"
+    assert namespace["TESTED_GAPS"] == gl.data_gaps(data)
+    assert namespace["TESTED_GAPS"]["VIX3M"] == (FIRST_DAY, (("2025-08-04", "2025-08-04"),))
+
+
+def test_golive_pin_writes_the_module_atomically_with_out(monkeypatch, tmp_path):
+    from golive import pin
+    data = _dataset("2026-01-30")
+    monkeypatch.setattr(pin.study, "load_study_data", lambda path: SimpleNamespace(dataset=data))
+    out = tmp_path / "tested_gaps.py"
+    out.write_text("TESTED_GAPS = {}\n")
+    stdout, stderr = io.StringIO(), io.StringIO()
+    assert pin.main(["--data", "/srv/qc-ports", "--out", str(out)], stdout=stdout, stderr=stderr) == 0
+    assert stdout.getvalue() == "" and stderr.getvalue() == f"golive.pin: wrote {out}\n"
+    assert out.read_text() == pin.module_text(gl.data_gaps(data), "2026-01-30")
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["tested_gaps.py"]  # no partial file left
+
+
+def test_golive_pin_reports_a_file_that_is_not_qc_ports_data(monkeypatch):
+    from golive import pin
+
+    def load(path):
+        raise KeyError("close")
+
+    monkeypatch.setattr(pin.study, "load_study_data", load)
+    stdout, stderr = io.StringIO(), io.StringIO()
+    assert pin.main(["--data", "/srv/qc-ports"], stdout=stdout, stderr=stderr) == 1
+    assert (stdout.getvalue(), stderr.getvalue()) == (
+        "", "golive.pin: the data directory /srv/qc-ports cannot be read: 'close'\n")
+
+
+def test_golive_pin_reports_a_data_directory_it_cannot_read(tmp_path):
+    from golive import pin
+    stdout, stderr = io.StringIO(), io.StringIO()
+    assert pin.main(["--data", str(tmp_path / "missing")], stdout=stdout, stderr=stderr) == 1
+    assert stdout.getvalue() == "" and stderr.getvalue().startswith(
+        f"golive.pin: the data directory {tmp_path / 'missing'} cannot be read: ")
+
+
 # --------------------------------------------------------------------------- candidates
 
 def test_a_model_entry_dated_on_the_trading_day_is_a_signal_today(roll_day):
@@ -471,7 +813,7 @@ def test_a_model_entry_dated_on_the_trading_day_is_a_signal_today(roll_day):
     # November spread (one spread at a time), so it has no entry today.
     assert _picked(roll_day, gl.SIGNAL_TODAY) == [("long-index", "QQQ"), ("long-index", "SPY"), ("rotation", "GLD")]
     spy = _one(roll_day, gl.SIGNAL_TODAY, "long-index", "SPY")
-    assert spy["structure"] == "callDebitVertical" and spy["quote"] is None
+    assert spy["structure"] == "callDebitVertical" and spy["quote"]["asOf"] == "2026-11-30T20:30:00Z"
     assert spy["expiry"] == choose_expiry("2026-12-01", 60, 45).strftime("%Y%m%d") == "20270115"
     assert spy["longStrike"] < spy["shortStrike"]
     close = _dataset("2026-11-30").bars["SPY"].close[-1]
@@ -511,7 +853,7 @@ def test_a_gated_entry_states_the_gate_values_of_its_signal_day(tmp_path):
 def test_a_gate_that_fails_on_the_signal_day_gives_no_draft(tmp_path):
     # The same day with VIX at 30 on the signal close (the gate allows 25 at most, and VIX/VIX3M 1.0).
     data = _dataset("2026-08-31", last_vix=30.0)
-    document = gl.generate(_plan(), data, _facts(), tmp_path, "2026-09-01", NOW)
+    document = _generate("2026-08-31", "2026-09-01", tmp_path, data=data)
     assert _picked(document, gl.SIGNAL_TODAY) == [("long-index", "QQQ"), ("long-index", "SPY"), ("rotation", "GLD")]
     assert ("vol-premium", "SPY") not in _picked(document, gl.MODEL_HOLDS)
 
@@ -619,17 +961,13 @@ def test_every_candidate_states_the_date_of_the_volatility_and_the_rate_that_set
     # A held spread: the values of its entry day, not of today.
     assert ("Strike inputs: VIX 18.00 of 2026-11-02 (implied volatility), IRX 4.00 of 2026-11-02 (rate)."
             in _one(mid_month, gl.MODEL_HOLDS, "vol-premium", "SPY")["signalFacts"])
-    # VXN had no print on the entry day 2026-11-02: the book carried the value of 2026-10-30, and the fact says so.
-    data = _dataset("2026-11-11")
-    vxn = {**{day: value for day, value in data.series["VXN"].items() if day != "2026-11-02"}, "2026-10-30": 19.5}
-    gapped = pf.Dataset(data.bars, {**data.series, "VXN": vxn})
-    carried = gl.generate(_plan(), gapped, _facts(), tmp_path, "2026-11-12", NOW)
-    held = _one(carried, gl.MODEL_HOLDS, "long-index", "QQQ")
-    assert ("Strike inputs: VXN 19.50 of 2026-10-30 (implied volatility), IRX 4.00 of 2026-11-02 (rate)."
-            in held["signalFacts"])
-    usual = _one(mid_month, gl.MODEL_HOLDS, "long-index", "QQQ")
-    # The higher volatility was used: one sigma is wider.
-    assert held["shortStrike"] - held["longStrike"] > usual["shortStrike"] - usual["longStrike"]
+    # The date is always the entry date (for an entry of today: the last data day): a run that would carry an
+    # older value is refused (test_a_volatility_index_without_the_value_of_an_entry_day_refuses_the_run).
+    for document in (roll_day, mid_month):
+        for item in document["candidates"]:
+            entered = re.search(r"Model entry date (\d{4}-\d{2}-\d{2})", item["signalFacts"][1]).group(1)
+            day = "2026-11-30" if item["entryBasis"] == gl.SIGNAL_TODAY else entered
+            assert sum(fact.count(f" of {day} ") for fact in item["signalFacts"] if fact.startswith("Strike inputs")) == 2
 
 
 def test_every_gate_value_in_the_facts_has_its_date(tmp_path, roll_day, mid_month):
@@ -657,7 +995,8 @@ def test_strike_inputs_that_are_not_the_ones_the_book_reads_are_refused():
 
 def test_the_plan_caps_decide_which_model_trades_exist(tmp_path):
     limits = {"maxPositions": 1, "nameRiskCapPct": 2, "openRiskCapPct": 4, "positionRiskPct": 1}
-    document = _generate("2026-11-11", "2026-11-12", tmp_path, _plan(limits=limits))
+    (tmp_path / "one").mkdir()
+    document = _generate("2026-11-11", "2026-11-12", tmp_path / "one", _plan(limits=limits))
     assert len(document["candidates"]) == 1
     # The sleeve budget is a cap too: 1% holds one index vertical, not two.
     small = _plan(sleeves=[_sleeve("long-index", budgetPct=1), _sleeve("rotation"), _sleeve("vol-premium")])
@@ -754,7 +1093,7 @@ def _chain(run, symbol: str, expiry: str, side: str, quotes: dict) -> None:
 
 
 def _trade(structure="callDebitVertical", long_strike=756.0, short_strike=807.0, symbol="SPY",
-           expiry="2026-12-18") -> al.PricedTrade:
+           expiry="2027-01-15") -> al.PricedTrade:
     return al.PricedTrade(
         trade_id=1, symbol=symbol, structure=structure, expiry=expiry, long_strike=long_strike,
         short_strike=short_strike, width=abs(short_strike - long_strike), entry_index=1, exit_index=2,
@@ -762,14 +1101,30 @@ def _trade(structure="callDebitVertical", long_strike=756.0, short_strike=807.0,
         exit_fee=2.0, max_loss=204.0, max_loss_pct=1.0, premium=2.0, exit_reason="end", marks=())
 
 
-def _priced(store, trade=None, now: datetime = NOW, oldest_day: str = "2026-11-27"):
-    return gl.price_candidate(trade or _trade(), gl.snapshots(store, now), oldest_day)
+def _priced(store, trade=None, now: datetime = NOW, oldest_day: str = "2026-11-27", trading_day: str = "2026-12-01"):
+    return gl.price_candidate(trade or _trade(), gl.snapshots(store, now), oldest_day, trading_day)
+
+
+def _no_strikes(why: str, chain: str = "2027-01-15 calls of SPY", model: str = "756/807") -> str:
+    return (f"No listed strikes for the {chain} (model strikes {model}): {why}. A draft names listed strikes only; "
+            "no document.")
+
+
+def _refused(store, trade=None, **options) -> str:
+    with pytest.raises(gl.NoChainError) as refused:
+        _priced(store, trade, **options)
+    return str(refused.value)
+
+
+SPY_CALLS = {756.0: (17.63, 17.78), 807.0: (0.76, 0.78)}
+NO_YAHOO = "RuntimeError: Yahoo listed no monthly expiry"
+needs_file_modes = pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file whatever its mode")
 
 
 def test_listed_strikes_get_the_bid_and_ask_of_the_snapshot_with_its_source_and_time(tmp_path):
     run = _run(tmp_path, "2026-11-30", "203000")
-    _chain(run, "SPY", "2026-12-18", "calls", {755.0: (18.4, 18.6), 756.0: (17.63, 17.78), 807.0: (0.76, 0.78)})
-    _chain(run, "SPY", "2026-12-18", "puts", {756.0: (9.0, 9.1), 807.0: (50.0, 50.5)})
+    _chain(run, "SPY", "2027-01-15", "calls", {755.0: (18.4, 18.6), 756.0: (17.63, 17.78), 807.0: (0.76, 0.78)})
+    _chain(run, "SPY", "2027-01-15", "puts", {756.0: (9.0, 9.1), 807.0: (50.0, 50.5)})
     assert _priced(tmp_path) == (756.0, 807.0, {
         "asOf": "2026-11-30T20:30:00Z", "longAsk": 17.78, "longBid": 17.63, "shortAsk": 0.78, "shortBid": 0.76,
         "source": "yahoo_delayed_snapshot"}, [
@@ -781,11 +1136,12 @@ def test_listed_strikes_get_the_bid_and_ask_of_the_snapshot_with_its_source_and_
     # A put structure reads the puts file of the same expiry.
     put = _priced(tmp_path, _trade("putCreditVertical", long_strike=756.0, short_strike=807.0))
     assert (put[2]["longBid"], put[2]["longAsk"], put[2]["shortBid"], put[2]["shortAsk"]) == (9.0, 9.1, 50.0, 50.5)
+    assert issubclass(gl.NoChainError, gl.GoLiveError)
 
 
-def test_a_model_strike_moves_to_the_nearest_listed_strike_within_one_step(tmp_path):
+def test_a_model_strike_moves_to_the_nearest_listed_strike(tmp_path):
     run = _run(tmp_path, "2026-11-30", "203000")
-    _chain(run, "SPY", "2026-12-18", "puts", {685.0: (1.9, 2.0), 690.0: (2.16, 2.17), 692.0: (2.3, 2.4),
+    _chain(run, "SPY", "2027-01-15", "puts", {685.0: (1.9, 2.0), 690.0: (2.16, 2.17), 692.0: (2.3, 2.4),
                                               716.0: (3.83, 3.86), 720.0: (4.2, 4.3)})
     long_strike, short_strike, quote, facts = _priced(tmp_path, _trade("putCreditVertical", 691.0, 716.0))
     # 690 and 692 are both one step from 691: the lower one.
@@ -794,49 +1150,67 @@ def test_a_model_strike_moves_to_the_nearest_listed_strike_within_one_step(tmp_p
     assert facts[:2] == ["Long leg: model strike 691 -> listed 690.", "Short leg: model strike 716 -> listed 716."]
 
 
-def test_a_strike_that_is_not_listed_within_one_step_keeps_the_model_strikes_without_a_quote(tmp_path):
-    run = _run(tmp_path, "2026-11-30", "203000")
-    _chain(run, "SPY", "2026-12-18", "calls", {755.0: (18.4, 18.6), 756.0: (17.63, 17.78), 805.0: (0.9, 1.0),
-                                               810.0: (0.6, 0.7)})
-    assert _priced(tmp_path) == (756.0, 807.0, None, [
-        "Long leg: model strike 756 -> listed 756.",
-        "Short leg: model strike 807 -> not listed within 1 (nearest listed 805).",
-        "Model strikes kept, no quote (chain snapshot of 2026-11-30T20:30:00Z).",
-    ])
-    # Below 25 the strike grid of the model is 0.5 wide.
-    low = _run(tmp_path, "2026-11-30", "204000", symbols=("SLV",))
-    _chain(low, "SLV", "2026-12-18", "calls", {20.0: (1.0, 1.1), 22.5: (0.4, 0.5), 23.0: (0.3, 0.4)})
-    assert _priced(tmp_path, _trade(long_strike=20.5, short_strike=23.0, symbol="SLV"))[:3] == (20.0, 23.0, {
-        "asOf": "2026-11-30T20:40:00Z", "longAsk": 1.1, "longBid": 1.0, "shortAsk": 0.4, "shortBid": 0.3,
-        "source": "yahoo_delayed_snapshot"})
-    assert _priced(tmp_path, _trade(long_strike=21.0, short_strike=23.0, symbol="SLV"))[:3] == (21.0, 23.0, None)
+# A real-shaped chain away from the money: the 2027-01-15 SPY calls of the 2026-11-11 snapshot are listed in 5-dollar
+# steps throughout, so about 40% of the whole-dollar strikes of the model are more than one dollar from a listed one.
+FIVE_DOLLAR_CALLS = {float(strike): (max(0.05, (900 - strike) / 10), max(0.06, (900 - strike) / 10 + 0.2))
+                     for strike in range(600, 901, 5)}
 
 
-def test_an_expiry_that_is_not_in_the_snapshot_keeps_the_model_strikes_without_a_quote(tmp_path):
+@pytest.mark.parametrize(("model", "listed"), [((756.0, 807.0), (755.0, 805.0)), ((758.0, 808.0), (760.0, 810.0)),
+                                               ((697.0, 762.0), (695.0, 760.0)), ((757.5, 812.5), (755.0, 810.0))])
+def test_a_chain_listed_in_five_dollar_steps_names_its_nearest_strikes(tmp_path, model, listed):
+    _chain(_run(tmp_path, "2026-11-30", "203000"), "SPY", "2027-01-15", "calls", FIVE_DOLLAR_CALLS)
+    long_strike, short_strike, quote, facts = _priced(tmp_path, _trade(long_strike=model[0], short_strike=model[1],
+                                                                       expiry="2027-01-15"))
+    assert (long_strike, short_strike) == listed and quote is not None
+    assert facts[:2] == [f"Long leg: model strike {model[0]:g} -> listed {listed[0]:g}.",
+                         f"Short leg: model strike {model[1]:g} -> listed {listed[1]:g}."]
+
+
+def test_a_model_strike_outside_the_listed_strikes_refuses_the_run(tmp_path):
     run = _run(tmp_path, "2026-11-30", "203000")
-    _chain(run, "SPY", "2026-12-18", "calls", {756.0: (17.63, 17.78), 807.0: (0.76, 0.78)})
-    assert _priced(tmp_path, _trade(expiry="2027-01-15")) == (756.0, 807.0, None, [
-        "Expiry 2027-01-15 of SPY is not in the chain snapshot of 2026-11-30T20:30:00Z: model strikes kept, no quote."])
+    _chain(run, "SPY", "2027-01-15", "calls", {755.0: (18.4, 18.6), 756.0: (17.63, 17.78), 800.0: (0.9, 1.0)})
+    assert _refused(tmp_path) == _no_strikes(
+        "the short leg 807 is outside the listed strikes 755 to 800 of the snapshot of 2026-11-30T20:30:00Z")
+    assert _refused(tmp_path, _trade(long_strike=750.0, short_strike=790.0)) == _no_strikes(
+        "the long leg 750 is outside the listed strikes 755 to 800 of the snapshot of 2026-11-30T20:30:00Z",
+        model="750/790")
+    # The ends of the listing are listed strikes.
+    assert _priced(tmp_path, _trade(long_strike=755.0, short_strike=800.0))[:2] == (755.0, 800.0)
+
+
+
+def test_an_expiry_or_a_side_that_is_not_in_any_snapshot_refuses_the_run(tmp_path):
+    run = _run(tmp_path, "2026-11-30", "203000")
+    _chain(run, "SPY", "2027-01-15", "calls", SPY_CALLS)
+    assert _refused(tmp_path, _trade(expiry="2027-01-08")) == _no_strikes(
+        "the snapshot of 2026-11-30T20:30:00Z has no 2027-01-08 calls chain of SPY", "2027-01-08 calls of SPY")
+    assert _refused(tmp_path, _trade("putCreditVertical", 756.0, 807.0)) == _no_strikes(
+        "the snapshot of 2026-11-30T20:30:00Z has no 2027-01-15 puts chain of SPY", "2027-01-15 puts of SPY")
     # A chain file without a row is no chain.
-    (run / "SPY-2027-01-15-calls.csv").write_text(HEADER + "\n")
-    assert _priced(tmp_path, _trade(expiry="2027-01-15"))[2] is None
+    (run / "SPY-2027-01-08-calls.csv").write_text(HEADER + "\n")
+    assert _refused(tmp_path, _trade(expiry="2027-01-08")) == _no_strikes(
+        "the snapshot of 2026-11-30T20:30:00Z has a 2027-01-08 calls chain of SPY without a strike",
+        "2027-01-08 calls of SPY")
+    # A symbol no run is done with, and a store without a snapshot.
+    assert _refused(tmp_path, _trade(symbol="QQQ")) == _no_strikes(
+        "the chain store has no snapshot of QQQ", "2027-01-15 calls of QQQ")
+    (tmp_path / "empty").mkdir()
+    assert _refused(tmp_path / "empty") == _no_strikes("the chain store has no snapshot of SPY")
 
 
-def test_two_legs_on_one_listed_strike_keep_the_model_strikes_without_a_quote(tmp_path):
+def test_two_legs_on_one_listed_strike_refuse_the_run(tmp_path):
     run = _run(tmp_path, "2026-11-30", "203000")
-    _chain(run, "SPY", "2026-12-18", "calls", {756.0: (17.63, 17.78), 800.0: (1.0, 1.1)})
-    assert _priced(tmp_path, _trade(long_strike=756.0, short_strike=757.0)) == (756.0, 757.0, None, [
-        "Long leg: model strike 756 -> listed 756.",
-        "Short leg: model strike 757 -> listed 756.",
-        "Model strikes kept, no quote (chain snapshot of 2026-11-30T20:30:00Z).",
-    ])
+    _chain(run, "SPY", "2027-01-15", "calls", {756.0: (17.63, 17.78), 800.0: (1.0, 1.1)})
+    assert _refused(tmp_path, _trade(long_strike=756.0, short_strike=757.0)) == _no_strikes(
+        "both legs meet on the listed strike 756 in the snapshot of 2026-11-30T20:30:00Z", model="756/757")
 
 
 @pytest.mark.parametrize("short_quote", [("", ""), ("0.0", "0.0"), ("0.8", "0.7"), ("-0.1", "0.2"), ("nan", "0.5"),
                                          ("0.5", "inf"), ("x", "0.5")])
 def test_a_listed_leg_without_a_usable_bid_and_ask_gives_no_quote(tmp_path, short_quote):
     run = _run(tmp_path, "2026-11-30", "203000")
-    _chain(run, "SPY", "2026-12-18", "calls", {756.0: (17.63, 17.78), 807.0: short_quote})
+    _chain(run, "SPY", "2027-01-15", "calls", {756.0: (17.63, 17.78), 807.0: short_quote})
     assert _priced(tmp_path) == (756.0, 807.0, None, [
         "Long leg: model strike 756 -> listed 756.",
         "Short leg: model strike 807 -> listed 807.",
@@ -846,33 +1220,74 @@ def test_a_listed_leg_without_a_usable_bid_and_ask_gives_no_quote(tmp_path, shor
 
 def test_a_zero_bid_with_an_ask_is_a_quote(tmp_path):
     run = _run(tmp_path, "2026-11-30", "203000")
-    _chain(run, "SPY", "2026-12-18", "calls", {756.0: (17.63, 17.78), 807.0: (0.0, 0.01), 0.0: (1.0, 2.0)})
+    _chain(run, "SPY", "2027-01-15", "calls", {756.0: (17.63, 17.78), 807.0: (0.0, 0.01), 0.0: (1.0, 2.0)})
     quote = _priced(tmp_path)[2]
     assert (quote["shortBid"], quote["shortAsk"]) == (0.0, 0.01)
-    assert 0.0 not in gl.chain_quotes(gl.snapshots(tmp_path, NOW)[0], "SPY", "2026-12-18", "call")
+    assert 0.0 not in gl.chain_quotes(gl.snapshots(tmp_path, NOW)[0], "SPY", "2027-01-15", "call")
 
 
-def test_the_quote_comes_from_the_newest_snapshot_at_or_before_now(tmp_path):
-    for day, clock, bid in (("2026-11-27", "173000", 15.0), ("2026-11-30", "173000", 16.0),
-                            ("2026-11-30", "203000", 17.0), ("2026-12-01", "173000", 18.0)):
-        _chain(_run(tmp_path, day, clock), "SPY", "2026-12-18", "calls", {756.0: (bid, bid + 0.1), 807.0: (0.7, 0.8)})
+def _day_of_snapshots(store) -> None:
+    """Four runs with different listings. The model short strike 806 is between 805 and 807 in the first run of
+    2026-11-30; the later runs also list 806."""
+    for day, clock, bid, strikes in (("2026-11-27", "173000", 15.0, (800.0, 806.0)),
+                                     ("2026-11-30", "173000", 16.0, (805.0, 807.0)),
+                                     ("2026-11-30", "203000", 17.0, (805.0, 806.0, 807.0)),
+                                     ("2026-12-01", "173000", 18.0, (806.0, 807.0))):
+        _chain(_run(store, day, clock), "SPY", "2027-01-15", "calls",
+               {756.0: (bid, bid + 0.1), **{strike: (0.7, 0.8) for strike in strikes}})
+
+
+def test_the_strikes_come_from_the_oldest_usable_snapshot_and_the_quote_from_the_newest(tmp_path):
+    _day_of_snapshots(tmp_path)
+    trade = _trade(short_strike=806.0)
     assert [run.stamp for run in gl.snapshots(tmp_path, NOW)] == [
         "2026-11-30T20:30:00Z", "2026-11-30T17:30:00Z", "2026-11-27T17:30:00Z"]
-    assert _priced(tmp_path)[2]["asOf"] == "2026-11-30T20:30:00Z" and _priced(tmp_path)[2]["longBid"] == 17.0
-    # The run of exactly `now` counts; one second earlier it does not.
-    at = datetime(2026, 12, 1, 17, 30, tzinfo=UTC)
-    assert _priced(tmp_path, now=at)[2]["longBid"] == 18.0
-    assert _priced(tmp_path, now=datetime(2026, 12, 1, 17, 29, 59, tzinfo=UTC))[2]["longBid"] == 17.0
-    assert _priced(tmp_path, now=datetime(2026, 11, 27, 17, 0, tzinfo=UTC)) == (756.0, 807.0, None, [
-        "No chain snapshot of SPY to read: model strikes kept, no quote."])
+    # 2026-11-30 is the oldest day allowed: the run of 2026-11-27 is not read. 805 and 807 are both one step
+    # from 806: the lower one. The newest run lists 806 itself, and that changes nothing.
+    long_strike, short_strike, quote, facts = _priced(tmp_path, trade, oldest_day="2026-11-30")
+    assert (long_strike, short_strike, quote["asOf"], quote["longBid"]) == (756.0, 805.0, "2026-11-30T20:30:00Z", 17.0)
+    assert facts == [
+        "Long leg: model strike 756 -> listed 756.",
+        "Short leg: model strike 806 -> listed 805.",
+        "Quote: Yahoo chain snapshot of 2026-11-30T20:30:00Z, delayed, not a live quote.",
+    ]
+    # The run of exactly `now` counts for the quote; one second earlier it does not.
+    at = datetime(2026, 11, 30, 20, 30, tzinfo=UTC)
+    assert _priced(tmp_path, trade, now=at, oldest_day="2026-11-30")[2]["longBid"] == 17.0
+    early = _priced(tmp_path, trade, now=datetime(2026, 11, 30, 20, 29, 59, tzinfo=UTC), oldest_day="2026-11-30")
+    assert early[:2] == (756.0, 805.0) and early[2]["longBid"] == 16.0
+    # A newest run that does not list both strikes gives no quote; the strikes stay.
+    late = _priced(tmp_path, trade, now=datetime(2026, 12, 1, 17, 30, tzinfo=UTC), oldest_day="2026-11-30")
+    assert late[:3] == (756.0, 805.0, None)
+    assert late[3][-1] == "No quote: the chain snapshot of 2026-12-01T17:30:00Z does not list both strikes."
+    # Before the first run of the oldest day there are no strikes to name.
+    assert _refused(tmp_path, trade, now=datetime(2026, 11, 30, 17, 0, tzinfo=UTC), oldest_day="2026-11-30") == (
+        _no_strikes("the newest chain snapshot of SPY is of 2026-11-27 (2026-11-27T17:30:00Z), older than "
+                    "2026-11-30, the oldest day strikes may come from", model="756/806"))
+
+
+def test_two_runs_of_one_day_never_name_different_strikes_for_one_model_trade(tmp_path):
+    _day_of_snapshots(tmp_path)
+    trade, named, refusals = _trade(short_strike=806.0), set(), 0
+    for hour in range(48):  # every hour of 2026-11-30 and 2026-12-01, with one, two and three usable runs
+        now = datetime(2026, 11, 30, tzinfo=UTC) + timedelta(hours=hour, minutes=45)
+        try:
+            named.add(_priced(tmp_path, trade, now=now, oldest_day="2026-11-30")[:2])
+        except gl.NoChainError:
+            refusals += 1
+            assert not named  # a refusal comes only before the first usable run, never after strikes were named
+    assert named == {(756.0, 805.0)} and refusals == 17
+    # The newest listing alone would have named 806 from 20:30 on.
+    newest = gl.snapshots(tmp_path, NOW)[0]
+    assert 806.0 in gl.chain_quotes(newest, "SPY", "2027-01-15", "call")
 
 
 def test_runs_that_cannot_be_read_or_have_not_reached_the_symbol_are_passed_over(tmp_path):
     good = _run(tmp_path, "2026-11-30", "173000", symbols=("SPY", "QQQ"))
-    _chain(good, "SPY", "2026-12-18", "calls", {756.0: (16.0, 16.1), 807.0: (0.7, 0.8)})
+    _chain(good, "SPY", "2027-01-15", "calls", {756.0: (16.0, 16.1), 807.0: (0.7, 0.8)})
     # A later run that is still writing: it has finished QQQ only. Its SPY file is not complete yet.
     running = _run(tmp_path, "2026-11-30", "203000", symbols=("QQQ",))
-    _chain(running, "SPY", "2026-12-18", "calls", {756.0: (99.0, 99.1)})
+    _chain(running, "SPY", "2027-01-15", "calls", {756.0: (99.0, 99.1)})
     _run(tmp_path, "2026-11-30", "203100", summary="{not json")
     _run(tmp_path, "2026-11-30", "203200", summary=json.dumps({"schema": 2, "symbols": {"SPY": []}}))
     _run(tmp_path, "2026-11-30", "203300", summary=json.dumps({"fetchedAt": "yesterday", "symbols": {"SPY": []}}))
@@ -884,52 +1299,32 @@ def test_runs_that_cannot_be_read_or_have_not_reached_the_symbol_are_passed_over
 
 def test_a_fetch_time_without_an_offset_is_utc_and_the_new_york_day_folder_is_not_the_clock(tmp_path):
     run = _run(tmp_path, "2026-11-30", "203000", fetched="2026-11-30T15:30:00-05:00")
-    _chain(run, "SPY", "2026-12-18", "calls", {756.0: (17.0, 17.1), 807.0: (0.7, 0.8)})
+    _chain(run, "SPY", "2027-01-15", "calls", {756.0: (17.0, 17.1), 807.0: (0.7, 0.8)})
     assert _priced(tmp_path)[2]["asOf"] == "2026-11-30T20:30:00Z"
     _run(tmp_path, "2026-11-30", "210000", fetched="2026-11-30T21:00:00")
     assert gl.snapshots(tmp_path, NOW)[0].stamp == "2026-11-30T21:00:00Z"
 
 
-SPY_CALLS = {756.0: (17.63, 17.78), 807.0: (0.76, 0.78)}
-NO_YAHOO = "RuntimeError: Yahoo listed no monthly expiry"
-needs_file_modes = pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file whatever its mode")
-
-
-def test_a_snapshot_older_than_the_trading_day_before_the_trading_day_gives_no_quote(tmp_path):
+def test_a_snapshot_older_than_the_trading_day_before_the_trading_day_gives_no_strikes(tmp_path):
     assert gl.MAX_AGE_TRADING_DAYS == 1  # the same rule as the bars: nothing older than the trading day before
-    _chain(_run(tmp_path, "2026-11-27", "203000"), "SPY", "2026-12-18", "calls", SPY_CALLS)
+    _chain(_run(tmp_path, "2026-11-27", "203000"), "SPY", "2027-01-15", "calls", SPY_CALLS)
     assert gl.snapshots(tmp_path, NOW)[0].day == "2026-11-27"
-    assert _priced(tmp_path, oldest_day="2026-11-30") == (756.0, 807.0, None, [
-        "The newest chain snapshot of SPY is of 2026-11-27 (2026-11-27T20:30:00Z), older than 2026-11-30, the oldest "
-        "day a quote may come from: model strikes kept, no quote."])
+    assert _refused(tmp_path, oldest_day="2026-11-30") == _no_strikes(
+        "the newest chain snapshot of SPY is of 2026-11-27 (2026-11-27T20:30:00Z), older than 2026-11-30, the oldest "
+        "day strikes may come from")
     assert _priced(tmp_path, oldest_day="2026-11-27")[2]["asOf"] == "2026-11-27T20:30:00Z"
     # The day of a snapshot is the New York day of its fetch: 01:00 UTC on Monday is Sunday evening there.
-    _chain(_run(tmp_path, "2026-11-29", "010000", fetched="2026-11-30T01:00:00+00:00"), "SPY", "2026-12-18", "calls",
+    _chain(_run(tmp_path, "2026-11-29", "010000", fetched="2026-11-30T01:00:00+00:00"), "SPY", "2027-01-15", "calls",
            SPY_CALLS)
     assert gl.snapshots(tmp_path, NOW)[0].day == "2026-11-29"
-    assert _priced(tmp_path, oldest_day="2026-11-30")[2] is None
+    assert "is of 2026-11-29 (2026-11-30T01:00:00Z), older than 2026-11-30" in _refused(tmp_path, oldest_day="2026-11-30")
     # A snapshot of the day itself, whatever its hour.
-    _chain(_run(tmp_path, "2026-11-30", "144500"), "SPY", "2026-12-18", "calls", SPY_CALLS)
+    _chain(_run(tmp_path, "2026-11-30", "144500"), "SPY", "2027-01-15", "calls", SPY_CALLS)
     assert _priced(tmp_path, oldest_day="2026-11-30")[2]["asOf"] == "2026-11-30T14:45:00Z"
 
 
-def test_the_run_reads_no_snapshot_older_than_its_last_data_day(tmp_path, roll_day):
-    model = _one(roll_day, gl.MODEL_HOLDS, "vol-premium", "SPY")
-    listed = {model["longStrike"] + 1: (2.0, 2.1), model["shortStrike"] + 1: (1.0, 1.2)}
-    # Tuesday 2026-12-01 from data through Monday: the snapshot of Friday 2026-11-27 is one trading day too old.
-    _chain(_run(tmp_path, "2026-11-27", "203000"), "SPY", "2026-12-18", "puts", listed)
-    old = _one(_generate("2026-11-30", "2026-12-01", tmp_path), gl.MODEL_HOLDS, "vol-premium", "SPY")
-    assert (old["quote"], old["longStrike"], old["shortStrike"]) == (None, model["longStrike"], model["shortStrike"])
-    assert old["signalFacts"][-1] == (
-        "The newest chain snapshot of SPY is of 2026-11-27 (2026-11-27T20:30:00Z), older than 2026-11-30, the oldest "
-        "day a quote may come from: model strikes kept, no quote.")
-    _chain(_run(tmp_path, "2026-11-30", "203000"), "SPY", "2026-12-18", "puts", listed)
-    fresh = _one(_generate("2026-11-30", "2026-12-01", tmp_path), gl.MODEL_HOLDS, "vol-premium", "SPY")
-    assert fresh["quote"]["asOf"] == "2026-11-30T20:30:00Z" and fresh["longStrike"] == model["longStrike"] + 1
-
-
 def test_a_newer_run_whose_fetch_failed_does_not_hide_an_older_good_one(tmp_path):
-    _chain(_run(tmp_path, "2026-11-30", "173000"), "SPY", "2026-12-18", "calls", SPY_CALLS)
+    _chain(_run(tmp_path, "2026-11-30", "173000"), "SPY", "2027-01-15", "calls", SPY_CALLS)
     failed = _run(tmp_path, "2026-11-30", "203000", errors={"SPY": NO_YAHOO})  # SPY is in `symbols`, no chain file
     newest = gl.snapshots(tmp_path, NOW)[0]
     assert (newest.path, "SPY" in newest.symbols, newest.errors, gl.has_chains(newest, "SPY")) == (
@@ -937,43 +1332,173 @@ def test_a_newer_run_whose_fetch_failed_does_not_hide_an_older_good_one(tmp_path
     long_strike, short_strike, quote, facts = _priced(tmp_path)
     assert (long_strike, short_strike, quote["asOf"], quote["longBid"]) == (756.0, 807.0, "2026-11-30T17:30:00Z", 17.63)
     assert facts == [
-        f"The SPY chain fetch failed in the newest snapshot of 2026-11-30T20:30:00Z ({NO_YAHOO}); the snapshot of "
-        "2026-11-30T17:30:00Z is read instead.",
+        f"Newest snapshot not read: the SPY chain fetch failed in the snapshot of 2026-11-30T20:30:00Z ({NO_YAHOO}).",
         "Long leg: model strike 756 -> listed 756.",
         "Short leg: model strike 807 -> listed 807.",
         "Quote: Yahoo chain snapshot of 2026-11-30T17:30:00Z, delayed, not a live quote.",
     ]
-
-
-def test_a_failed_fetch_is_named_as_a_failed_fetch(tmp_path):
-    # The only good run is older than the freshness rule allows, so there is no quote: the fact says the fetch
-    # failed, not that the expiry is missing from the chain.
-    _chain(_run(tmp_path, "2026-11-27", "203000"), "SPY", "2026-12-18", "calls", SPY_CALLS)
-    _run(tmp_path, "2026-11-30", "173000", errors={"SPY": NO_YAHOO})
-    assert _priced(tmp_path, oldest_day="2026-11-30") == (756.0, 807.0, None, [
-        f"The SPY chain fetch failed in the newest snapshot of 2026-11-30T17:30:00Z ({NO_YAHOO}): model strikes kept, "
-        "no quote."])
-    # A run that lists the symbol without a chain file and without a report, and a report too long for a fact line.
-    _run(tmp_path, "2026-11-30", "203000")
-    assert _priced(tmp_path, oldest_day="2026-11-30")[3] == [
-        "The SPY chain fetch failed in the newest snapshot of 2026-11-30T20:30:00Z: model strikes kept, no quote."]
+    # A report too long for a fact line is cut.
     _run(tmp_path, "2026-11-30", "204500", errors={"SPY": "HTTPError: 429\n" + "x" * 500})
-    fact, = _priced(tmp_path, oldest_day="2026-11-30")[3]
-    assert fact.startswith("The SPY chain fetch failed in the newest snapshot of 2026-11-30T20:45:00Z (HTTPError: 429 x")
+    fact = _priced(tmp_path)[3][0]
+    assert fact.startswith("Newest snapshot not read: the SPY chain fetch failed in the snapshot of 2026-11-30T20:45:00Z "
+                           "(HTTPError: 429 x")
     assert len(fact) <= gl.FACT_MAX_CHARS and "\n" not in fact
+
+
+def test_the_longest_fact_of_a_failed_newer_run_fits_the_contract(tmp_path):
+    # A four-letter symbol, a report longer than any fact line, the longest stamp: at most FACT_MAX_CHARS.
+    _chain(_run(tmp_path, "2026-11-30", "173000", symbols=("ABCD",)), "ABCD", "2027-01-15", "calls", SPY_CALLS)
+    _run(tmp_path, "2026-11-30", "203000", symbols=("ABCD",), errors={"ABCD": "y" * 500})
+    facts = _priced(tmp_path, _trade(symbol="ABCD"))[3]
+    assert facts[0].startswith("Newest snapshot not read: the ABCD chain fetch failed in the snapshot of ")
+    assert max(len(fact) for fact in facts) <= gl.FACT_MAX_CHARS
+    # A run that has chains of the symbol, but a header-only file of the expiry, and the longest report.
+    (tmp_path / "2026-11-30" / "203000Z" / "ABCD-2027-01-15-calls.csv").write_text(HEADER + "\n")
+    facts = _priced(tmp_path, _trade(symbol="ABCD"))[3]
+    assert "without a strike" in facts[0] and max(len(fact) for fact in facts) <= gl.FACT_MAX_CHARS
+
+
+def test_a_run_with_an_earlier_time_added_later_becomes_the_oldest_one(tmp_path):
+    # The limit of the rule: the store is read as it is. A restore or a hand-made run stamped before the first one
+    # of the day is the oldest run from then on, and its listing sets the strikes.
+    _chain(_run(tmp_path, "2026-11-30", "203000"), "SPY", "2027-01-15", "calls", SPY_CALLS)
+    assert _priced(tmp_path)[:2] == (756.0, 807.0)
+    _chain(_run(tmp_path, "2026-11-30", "170000"), "SPY", "2027-01-15", "calls", {755.0: (18.0, 18.2), 810.0: (1.0, 1.1)})
+    long_strike, short_strike, quote, _facts = _priced(tmp_path)
+    assert (long_strike, short_strike, quote) == (755.0, 810.0, None)  # the newest run does not list 755/810
+
+
+def test_a_failed_fetch_without_an_older_good_run_refuses_the_run_and_is_named_as_a_failed_fetch(tmp_path):
+    # The only good run is older than the freshness rule allows.
+    _chain(_run(tmp_path, "2026-11-27", "203000"), "SPY", "2027-01-15", "calls", SPY_CALLS)
+    _run(tmp_path, "2026-11-30", "173000", errors={"SPY": NO_YAHOO})
+    assert _refused(tmp_path, oldest_day="2026-11-30") == _no_strikes(
+        f"the SPY chain fetch failed in the snapshot of 2026-11-30T17:30:00Z ({NO_YAHOO})")
+    # A run that lists the symbol without a chain file and without a report.
+    _run(tmp_path, "2026-11-30", "203000")
+    assert _refused(tmp_path, oldest_day="2026-11-30") == _no_strikes(
+        "the SPY chain fetch failed in the snapshot of 2026-11-30T20:30:00Z, and none of the 1 older ones since "
+        "2026-11-30 has it")
+
+
+@pytest.mark.parametrize("newer", ["another expiry only", "a file without a row"])
+def test_a_newer_run_that_lacks_one_expiry_does_not_hide_an_older_run_that_has_it(tmp_path, newer):
+    _chain(_run(tmp_path, "2026-11-30", "173000"), "SPY", "2027-01-15", "calls", SPY_CALLS)
+    run = _run(tmp_path, "2026-11-30", "203000")
+    _chain(run, "SPY", "2027-01-08", "calls", {756.0: (30.0, 30.2), 807.0: (5.0, 5.1)})
+    _chain(run, "SPY", "2027-01-15", "puts", {756.0: (9.0, 9.1), 807.0: (50.0, 50.5)})
+    if newer == "a file without a row":
+        (run / "SPY-2027-01-15-calls.csv").write_text(HEADER + "\n")
+    newest, older = gl.snapshots(tmp_path, NOW)
+    # The run has chains of the symbol, but not this expiry and side.
+    assert gl.has_chains(newest, "SPY") and not gl.chain_quotes(newest, "SPY", "2027-01-15", "call")
+    long_strike, short_strike, quote, facts = _priced(tmp_path)
+    assert (long_strike, short_strike, quote["asOf"], quote["longBid"]) == (756.0, 807.0, "2026-11-30T17:30:00Z", 17.63)
+    lacks = {"another expiry only": "has no 2027-01-15 calls chain of SPY",
+             "a file without a row": "has a 2027-01-15 calls chain of SPY without a strike"}[newer]
+    assert facts == [
+        f"Newest snapshot not read: the snapshot of 2026-11-30T20:30:00Z {lacks}.",
+        "Long leg: model strike 756 -> listed 756.",
+        "Short leg: model strike 807 -> listed 807.",
+        "Quote: Yahoo chain snapshot of 2026-11-30T17:30:00Z, delayed, not a live quote.",
+    ]
+    # The other expiry is read from the newer run, the only one that has it.
+    assert _priced(tmp_path, _trade(expiry="2027-01-08"))[2]["asOf"] == "2026-11-30T20:30:00Z"
+    # Without the older run inside the age rule there is nothing to name.
+    (tmp_path / "2026-11-30" / "173000Z" / "SPY-2027-01-15-calls.csv").unlink()
+    assert _refused(tmp_path) == _no_strikes(
+        f"the snapshot of 2026-11-30T20:30:00Z {lacks}, and none of the 1 older ones since 2026-11-27 has it")
+
 
 
 def test_a_run_that_reports_a_problem_but_stored_the_chains_is_read(tmp_path):
     report = "1 of 2 expiries without usable quotes"
-    _chain(_run(tmp_path, "2026-11-30", "203000", errors={"SPY": report}), "SPY", "2026-12-18", "calls", SPY_CALLS)
+    _chain(_run(tmp_path, "2026-11-30", "203000", errors={"SPY": report}), "SPY", "2027-01-15", "calls", SPY_CALLS)
     assert _priced(tmp_path)[2]["asOf"] == "2026-11-30T20:30:00Z"
-    assert _priced(tmp_path, _trade(expiry="2027-01-15")) == (756.0, 807.0, None, [
-        f"Expiry 2027-01-15 of SPY is not in the chain snapshot of 2026-11-30T20:30:00Z ({report}): model strikes "
-        "kept, no quote."])
-    (tmp_path / "2026-11-30" / "203000Z" / "SPY-2027-01-15-calls.csv").write_text(HEADER + "\n")
-    assert _priced(tmp_path, _trade(expiry="2027-01-15"))[3] == [
-        f"Expiry 2027-01-15 of SPY has no strike in the chain snapshot of 2026-11-30T20:30:00Z ({report}): model "
-        "strikes kept, no quote."]
+    assert _refused(tmp_path, _trade(expiry="2027-01-08")) == _no_strikes(
+        f"the snapshot of 2026-11-30T20:30:00Z has no 2027-01-08 calls chain of SPY ({report})",
+        "2027-01-08 calls of SPY")
+
+
+# 2026-12-18 is 30 days after 2026-11-18, 29 days after 2026-11-19 and 28 days after 2026-11-20.
+DECEMBER = _trade(expiry="2026-12-18")
+NOT_STORED = ["Listed strikes not checked: the chain store keeps expiries 30 to 75 days out, and 2026-12-18 is 28 days "
+              "after the trading day; no snapshot holds it. These are the model's strikes.",
+              "No quote: the chain is not stored."]
+
+
+def test_the_stored_range_is_the_range_of_the_snapshot_script():
+    text = gl.SNAPSHOT_SCRIPT.read_text()
+    low, high = re.search(r"^DTE_RANGE = \((\d+), (\d+)\)", text, re.MULTILINE).groups()
+    assert gl.stored_dte_range() == (int(low), int(high)) == (30, 75)
+    # The script keeps an expiry when DTE_RANGE[0] <= days <= DTE_RANGE[1], counted from the day of the snapshot.
+    assert "DTE_RANGE[0] <= (day - today).days <= DTE_RANGE[1]" in text
+
+
+def test_a_range_of_days_that_is_not_one_is_refused(tmp_path, monkeypatch):
+    script = tmp_path / "snapshot.py"
+    script.write_text("DTE_RANGE = (75, 30)\n")
+    monkeypatch.setattr(gl, "SNAPSHOT_SCRIPT", script)
+    gl.stored_dte_range.cache_clear()
+    try:
+        with pytest.raises(gl.GoLiveError, match=r"DTE_RANGE of .*snapshot.py is not a range of days: \(75, 30\)"):
+            gl.stored_dte_range()
+    finally:
+        gl.stored_dte_range.cache_clear()
+
+
+def test_a_spread_whose_expiry_no_readable_snapshot_holds_has_model_strikes_and_no_quote(tmp_path):
+    near = {"trade": DECEMBER, "oldest_day": "2026-11-19", "now": _at("2026-11-20"), "trading_day": "2026-11-20"}
+    # 29 days after the last data day: no snapshot the run may read keeps it. No error, the model strikes, two
+    # plain fact lines.
+    assert _priced(tmp_path, **near) == (756.0, 807.0, None, NOT_STORED)
+    assert all(len(fact) <= gl.FACT_MAX_CHARS for fact in NOT_STORED)
+    # The rule reads the dates only: a store that does hold the chain changes nothing.
+    _chain(_run(tmp_path, "2026-11-19", "203000"), "SPY", "2026-12-18", "calls", {757.0: (17.0, 17.1), 808.0: (0.7, 0.8)})
+    assert _priced(tmp_path, **near) == (756.0, 807.0, None, NOT_STORED)
+    # An entry further out than the store reaches: 2027-02-19 is 77 days after the trading day 2026-12-04.
+    far = _trade(expiry="2027-02-19")
+    (tmp_path / "empty").mkdir()
+    long_strike, short_strike, quote, facts = _priced(tmp_path / "empty", far, oldest_day="2026-12-03",
+                                                      trading_day="2026-12-04")
+    assert (long_strike, short_strike, quote) == (756.0, 807.0, None)
+    assert facts[0].startswith("Listed strikes not checked: the chain store keeps expiries 30 to 75 days out, and "
+                               "2027-02-19 is 77 days after the trading day;")
+
+
+@pytest.mark.parametrize(("expiry", "exempt"), [("2027-02-14", False), ("2027-02-15", True),
+                                                ("2026-12-30", False), ("2026-12-29", True)])
+def test_the_date_exemption_ends_at_the_bounds_of_the_store(tmp_path, expiry, exempt):
+    # Trading day Tuesday 2026-12-01, last data day Monday 2026-11-30: 2027-02-14 is 75 days after the trading day,
+    # 2026-12-30 is 30 days after the last data day (29 after the trading day), 2026-12-29 is 29 after it.
+    trade = _trade(expiry=expiry)
+    dates = {"oldest_day": "2026-11-30", "trading_day": "2026-12-01"}
+    (tmp_path / "empty").mkdir()
+    if exempt:
+        assert _priced(tmp_path / "empty", trade, **dates)[2:3] == (None,)
+    else:
+        assert _refused(tmp_path / "empty", trade, **dates) == _no_strikes(
+            "the chain store has no snapshot of SPY", f"{expiry} calls of SPY")
+
+
+def test_an_expiry_a_readable_snapshot_can_hold_names_listed_strikes_or_refuses_the_run(tmp_path):
+    # 30 days after the last data day: the snapshots of that day keep this expiry, so a missing chain is a fault.
+    held = {"trade": DECEMBER, "oldest_day": "2026-11-18", "now": _at("2026-11-19"), "trading_day": "2026-11-19"}
+    assert _refused(tmp_path, **held) == _no_strikes("the chain store has no snapshot of SPY", "2026-12-18 calls of SPY")
+    _chain(_run(tmp_path, "2026-11-18", "203000"), "SPY", "2026-12-18", "calls", {756.0: (17.5, 17.6), 757.0: (17.0, 17.1),
+                                                                                    808.0: (0.7, 0.8)})
+    long_strike, short_strike, quote, _facts = _priced(tmp_path, **held)
+    assert (long_strike, short_strike, quote["asOf"]) == (756.0, 808.0, "2026-11-18T20:30:00Z")
+    # A Monday roll: 74 days after the trading day 2026-12-07, 77 after the last data day, Friday 2026-12-04. Only a
+    # snapshot of the trading day keeps it. Until one is stored the run is refused; then every run of the day reads it.
+    far, store = _trade(expiry="2027-02-19"), tmp_path / "far"
+    dates = {"oldest_day": "2026-12-04", "trading_day": "2026-12-07", "now": datetime(2026, 12, 7, 18, tzinfo=UTC)}
+    _chain(_run(store, "2026-12-04", "203000"), "SPY", "2027-01-15", "calls", {756.0: (20.0, 20.2)})
+    assert _refused(store, far, **dates) == _no_strikes(
+        "the snapshot of 2026-12-04T20:30:00Z has no 2027-02-19 calls chain of SPY", chain="2027-02-19 calls of SPY")
+    _chain(_run(store, "2026-12-07", "173000"), "SPY", "2027-02-19", "calls", {755.0: (30.0, 30.4), 810.0: (5.0, 5.2)})
+    assert _priced(store, far, **dates)[:2] == (755.0, 810.0)
+
 
 
 def test_a_chain_store_that_does_not_exist_refuses_the_run(tmp_path):
@@ -991,78 +1516,139 @@ def test_a_chain_store_that_does_not_exist_refuses_the_run(tmp_path):
     assert gl.snapshots(tmp_path, NOW) == []  # an empty store is a store: no snapshot yet
 
 
+def test_a_chain_file_that_is_not_text_refuses_the_run(tmp_path):
+    run = _run(tmp_path, "2026-11-30", "203000")
+    (run / "SPY-2027-01-15-calls.csv").write_bytes(b"strike,bid,ask\n\xff\xfe,1,2\n")
+    with pytest.raises(gl.ChainStoreError, match="SPY-2027-01-15-calls.csv cannot be read"):
+        _priced(tmp_path)
+
+
+IDENTITY = ("sleeveKey", "symbol", "structure", "expiry", "longStrike", "shortStrike")  # the fields of the draft id
+
+
+def _identity(document: dict) -> list[tuple]:
+    return [tuple(item[field] for field in IDENTITY) for item in document["candidates"]]
+
+
+def test_a_store_without_a_chain_of_a_candidate_refuses_the_run(tmp_path):
+    # An empty store is no fault of its own on a day without a candidate ...
+    assert _generate(FIRST_DAY, "2025-07-02", tmp_path, listed=False)["candidates"] == []
+    # ... but a candidate without a listed chain is no order: no document, not model strikes.
+    with pytest.raises(gl.NoChainError, match=r"No listed strikes for the 2026-12-18 calls of QQQ \(model strikes "
+                                              r"\d+/\d+\): the chain store has no snapshot of QQQ\. A draft names "
+                                              r"listed strikes only; no document\.$"):
+        _generate("2026-11-11", "2026-11-12", tmp_path, listed=False)
+    # One chain missing among the others refuses the run too.
+    run = _list_model_strikes(tmp_path, _dataset("2026-11-11"), "2026-11-12")
+    (run / "SPY-2026-12-18-calls.csv").unlink()  # the puts of SPY are still there
+    with pytest.raises(gl.NoChainError, match="No listed strikes for the 2026-12-18 calls of SPY .*: the snapshot of "
+                                              "2026-11-11T20:30:00Z has no 2026-12-18 calls chain of SPY"):
+        _generate("2026-11-11", "2026-11-12", tmp_path)
+
+
+def test_the_run_takes_no_strikes_from_a_snapshot_older_than_its_last_data_day(tmp_path):
+    # Thursday 2026-11-12 from data through Wednesday: a snapshot of Tuesday is one trading day too old.
+    data = _dataset("2026-11-11")
+    _list_model_strikes(tmp_path, data, "2026-11-12", day="2026-11-10")
+    with pytest.raises(gl.NoChainError, match=r"the newest chain snapshot of QQQ is of 2026-11-10 "
+                                              r"\(2026-11-10T20:30:00Z\), older than 2026-11-11, the oldest day"):
+        _generate("2026-11-11", "2026-11-12", tmp_path, listed=False)
+    _list_model_strikes(tmp_path, data, "2026-11-12", shift=1.0)
+    document = _generate("2026-11-11", "2026-11-12", tmp_path, listed=False)
+    assert all(item["quote"]["asOf"] == "2026-11-11T20:30:00Z" for item in document["candidates"])
+
+
 @needs_file_modes
 @pytest.mark.parametrize("locked", ["store", "day", "run", "summary", "chain"])
-def test_a_chain_store_that_cannot_be_read_refuses_the_run(tmp_path, roll_day, locked):
-    # Strikes are part of the draft id: with a store that cannot be read the candidates would fall back to their
-    # model strikes, and the server would expire the proposed drafts and replace them.
+def test_a_chain_store_that_cannot_be_read_refuses_the_run(tmp_path, mid_month, locked):
     store = tmp_path / "store"
-    run = _run(store, "2026-11-30", "203000")
-    model = _one(roll_day, gl.MODEL_HOLDS, "long-index", "SPY")
-    _chain(run, "SPY", "2026-12-18", "calls", {model["longStrike"] + 1: (2.0, 2.1), model["shortStrike"] + 1: (1.0, 1.2)})
-    held = _one(_generate("2026-11-30", "2026-12-01", store), gl.MODEL_HOLDS, "long-index", "SPY")
-    assert (held["longStrike"], held["shortStrike"]) == (model["longStrike"] + 1, model["shortStrike"] + 1)
+    store.mkdir()
+    assert _identity(_generate("2026-11-11", "2026-11-12", store)) == _identity(mid_month)
+    run = store / "2026-11-11" / "203000Z"
     path = {"store": store, "day": run.parent, "run": run, "summary": run / "summary.json",
             "chain": run / "SPY-2026-12-18-calls.csv"}[locked]
     mode = path.stat().st_mode
     path.chmod(0)
     try:
         with pytest.raises(gl.ChainStoreError, match="cannot be read"):
-            _generate("2026-11-30", "2026-12-01", store)
+            _generate("2026-11-11", "2026-11-12", store, listed=False)
     finally:
         path.chmod(mode)
-    assert _generate("2026-11-30", "2026-12-01", store)["candidates"][3:] != []
+    assert _identity(_generate("2026-11-11", "2026-11-12", store)) == _identity(mid_month)
 
 
-def test_a_chain_file_that_is_not_text_refuses_the_run(tmp_path):
-    run = _run(tmp_path, "2026-11-30", "203000")
-    (run / "SPY-2026-12-18-calls.csv").write_bytes(b"strike,bid,ask\n\xff\xfe,1,2\n")
-    with pytest.raises(gl.ChainStoreError, match="SPY-2026-12-18-calls.csv cannot be read"):
-        _priced(tmp_path)
-
-
-def test_a_failed_fetch_in_a_newer_run_leaves_the_strikes_of_the_candidates_as_they_were(tmp_path, roll_day):
-    good = _run(tmp_path, "2026-11-30", "173000", symbols=qi.CORE7)
-    for item in roll_day["candidates"]:
-        side = "calls" if item["structure"].startswith("call") else "puts"
-        expiry = f"{item['expiry'][:4]}-{item['expiry'][4:6]}-{item['expiry'][6:]}"
-        _chain(good, item["symbol"], expiry, side,
-               {item["longStrike"] + 1: (2.0, 2.1), item["shortStrike"] + 1: (1.0, 1.2)})
-    before = _generate("2026-11-30", "2026-12-01", tmp_path)
-    _run(tmp_path, "2026-11-30", "203000", symbols=qi.CORE7, errors=dict.fromkeys(qi.CORE7, NO_YAHOO))
-    after = _generate("2026-11-30", "2026-12-01", tmp_path)
-    identity = [(item["sleeveKey"], item["symbol"], item["structure"], item["expiry"], item["longStrike"],
-                 item["shortStrike"]) for item in before["candidates"]]  # the fields of the draft id
-    assert identity == [(item["sleeveKey"], item["symbol"], item["structure"], item["expiry"], item["longStrike"],
-                         item["shortStrike"]) for item in after["candidates"]]
+def test_a_failed_fetch_in_a_newer_run_leaves_the_strikes_of_the_candidates_as_they_were(tmp_path, mid_month):
+    _list_model_strikes(tmp_path, _dataset("2026-11-11"), "2026-11-12", shift=1.0, clock="173000")
+    before = _generate("2026-11-11", "2026-11-12", tmp_path, listed=False)
+    _run(tmp_path, "2026-11-11", "203000", symbols=qi.CORE7, errors=dict.fromkeys(qi.CORE7, NO_YAHOO))
+    after = _generate("2026-11-11", "2026-11-12", tmp_path, listed=False)
+    assert _identity(before) == _identity(after) and len(after["candidates"]) == 4
     assert all(item["longStrike"] == model["longStrike"] + 1
-               for item, model in zip(after["candidates"], roll_day["candidates"]))
-    assert all(item["quote"]["asOf"] == "2026-11-30T17:30:00Z" for item in after["candidates"])
-    assert all(any(fact.startswith(f"The {item['symbol']} chain fetch failed in the newest snapshot of "
-                                   "2026-11-30T20:30:00Z") for fact in item["signalFacts"]) for item in after["candidates"])
+               for item, model in zip(after["candidates"], mid_month["candidates"]))
+    assert all(item["quote"]["asOf"] == "2026-11-11T17:30:00Z" for item in after["candidates"])
+    assert all(f"Newest snapshot not read: the {item['symbol']} chain fetch failed in the snapshot of "
+               f"2026-11-11T20:30:00Z ({NO_YAHOO})." in item["signalFacts"] for item in after["candidates"])
     assert_collect_input(after)
 
 
+def test_the_runs_of_one_trading_day_never_print_different_strikes(tmp_path, mid_month):
+    """The store as the runs of Thursday 2026-11-12 find it, hour by hour: nothing fresh, the first snapshot of
+    Wednesday, a second one with other listed strikes, a failed one, and one of Thursday without one expiry."""
+    data = _dataset("2026-11-11")
+    _list_model_strikes(tmp_path, data, "2026-11-12", shift=-1.0, day="2026-11-10")  # too old for this day
+    printed, refused = [], 0
+
+    def run_at(clock: str) -> None:
+        nonlocal refused
+        try:
+            printed.append(_identity(_generate("2026-11-11", "2026-11-12", tmp_path, listed=False,
+                                               now=datetime.fromisoformat(f"2026-11-12T{clock}+00:00"))))
+        except gl.NoChainError:
+            assert not printed  # a refusal comes only before the first usable snapshot
+            refused += 1
+
+    run_at("12:15:00")  # only the snapshot of Tuesday: no document
+    _list_model_strikes(tmp_path, data, "2026-11-12", clock="173000")  # the model strikes themselves
+    run_at("12:15:00")
+    _list_model_strikes(tmp_path, data, "2026-11-12", shift=1.0, clock="203000")  # one strike step higher
+    run_at("12:15:00")
+    _run(tmp_path, "2026-11-12", "150000", symbols=qi.CORE7, errors=dict.fromkeys(qi.CORE7, NO_YAHOO))
+    run_at("15:30:00")
+    late = _list_model_strikes(tmp_path, data, "2026-11-12", shift=2.0, day="2026-11-12", clock="170000")
+    (late / "SPY-2026-12-18-calls.csv").unlink()  # the run still has the puts of SPY
+    run_at("17:40:00")
+    assert refused == 1 and len(printed) == 4
+    assert all(identity == _identity(mid_month) for identity in printed)  # the strikes of the first usable snapshot
+    # The quote follows the newest usable chain: here it does not list the strikes of the first one.
+    last = _generate("2026-11-11", "2026-11-12", tmp_path, listed=False,
+                     now=datetime.fromisoformat("2026-11-12T17:40:00+00:00"))
+    qqq = _one(last, gl.MODEL_HOLDS, "long-index", "QQQ")
+    assert qqq["quote"] is None and qqq["signalFacts"][-1:] == [
+        "No quote: the chain snapshot of 2026-11-12T17:00:00Z does not list both strikes."]
+    spy = _one(last, gl.MODEL_HOLDS, "long-index", "SPY")
+    assert spy["quote"] is None and spy["signalFacts"][-4].startswith("Newest snapshot not read: ") and [
+        spy["signalFacts"][-4], spy["signalFacts"][-1]] == [
+        "Newest snapshot not read: the snapshot of 2026-11-12T17:00:00Z has no 2026-12-18 calls chain of SPY.",
+        "No quote: the chain snapshot of 2026-11-11T20:30:00Z does not list both strikes."]
+
+
 def test_the_candidates_carry_the_listed_strikes_and_the_snapshot_quote(tmp_path, roll_day):
-    run = _run(tmp_path, "2026-11-30", "203000", symbols=qi.CORE7)
-    for item in roll_day["candidates"]:
-        side = "calls" if item["structure"].startswith("call") else "puts"
-        expiry = f"{item['expiry'][:4]}-{item['expiry'][4:6]}-{item['expiry'][6:]}"
-        if (item["sleeveKey"], item["entryBasis"]) == ("rotation", gl.SIGNAL_TODAY):
-            continue  # this expiry is not stored
-        # Listed one dollar above each model strike, so every leg moves by one step.
-        _chain(run, item["symbol"], expiry, side, {item["longStrike"] + 1: (2.0, 2.1), item["shortStrike"] + 1: (1.0, 1.2)})
+    # Tuesday 2026-12-01. Listed one dollar above each model strike, so every leg moves by one step.
+    _list_model_strikes(tmp_path, _dataset("2026-11-30"), "2026-12-01", shift=1.0)
     document = _generate("2026-11-30", "2026-12-01", tmp_path)
     assert_collect_input(document)
     assert len(document["candidates"]) == len(roll_day["candidates"]) == 7
     for item, model in zip(document["candidates"], roll_day["candidates"]):
         assert (item["entryBasis"], item["sleeveKey"], item["symbol"], item["expiry"]) == (
             model["entryBasis"], model["sleeveKey"], model["symbol"], model["expiry"])
-        if (item["sleeveKey"], item["entryBasis"]) == ("rotation", gl.SIGNAL_TODAY):
-            assert item["quote"] is None
+        if item["entryBasis"] == gl.MODEL_HOLDS:
+            # Held since November, expiry 2026-12-18: 17 days out, which the chain store does not keep.
+            assert item["expiry"] == "20261218" and item["quote"] is None
             assert (item["longStrike"], item["shortStrike"]) == (model["longStrike"], model["shortStrike"])
-            assert item["signalFacts"][-1] == ("Expiry 2027-01-15 of GLD is not in the chain snapshot of "
-                                               "2026-11-30T20:30:00Z: model strikes kept, no quote.")
+            assert item["signalFacts"][-2:] == [
+                "Listed strikes not checked: the chain store keeps expiries 30 to 75 days out, and 2026-12-18 is 17 "
+                "days after the trading day; no snapshot holds it. These are the model's strikes.",
+                "No quote: the chain is not stored."]
             continue
         assert item["quote"] == {"asOf": "2026-11-30T20:30:00Z", "longAsk": 2.1, "longBid": 2.0, "shortAsk": 1.2,
                                  "shortBid": 1.0, "source": "yahoo_delayed_snapshot"}
@@ -1072,8 +1658,8 @@ def test_the_candidates_carry_the_listed_strikes_and_the_snapshot_quote(tmp_path
             f"Short leg: model strike {model['shortStrike']:g} -> listed {item['shortStrike']:g}.",
             "Quote: Yahoo chain snapshot of 2026-11-30T20:30:00Z, delayed, not a live quote.",
         ]
-    assert all(item["quote"] is None and item["signalFacts"][-1].startswith("No chain snapshot of")
-               for item in roll_day["candidates"])
+    # The fixture run listed the model strikes themselves.
+    assert all(item["quote"] is not None for item in roll_day["candidates"] if item["entryBasis"] == gl.SIGNAL_TODAY)
 
 
 def test_facts_over_the_contract_limit_are_an_error_not_a_cut(tmp_path, monkeypatch):
@@ -1147,7 +1733,7 @@ def test_a_candidate_that_breaks_an_output_rule_is_refused(changes, message):
     lambda trade: (trade.long_strike, trade.short_strike, _quote(source="ibkr_live"), ["a live label"]),
 ])
 def test_a_run_with_one_unsafe_candidate_gives_no_document(tmp_path, monkeypatch, priced):
-    monkeypatch.setattr(gl, "price_candidate", lambda trade, runs, oldest_day: priced(trade))
+    monkeypatch.setattr(gl, "price_candidate", lambda trade, runs, oldest_day, trading_day: priced(trade))
     with pytest.raises(gl.UnsafeOutputError, match="Unsafe candidate long-index QQQ: .*; no document"):
         _generate("2026-11-11", "2026-11-12", tmp_path)
     code, out, err = _main(monkeypatch, tmp_path, "2026-11-11", "2026-11-12", chains=tmp_path)
@@ -1166,8 +1752,8 @@ def test_every_document_of_the_generator_passes_the_output_rules(roll_day, mid_m
 
 def _main(monkeypatch, tmp_path, last_day: str, trading_day: str, stdin: str | None = None, load=None, data=None,
           chains=None):
-    """python -m golive on the synthetic data (`data`: another data set). `chains`: the chain store, by default
-    <tmp_path>/chains, which a test makes or leaves missing."""
+    """python -m golive on the synthetic data (`data`: another data set) at 14:00 UTC of the trading day.
+    `chains`: the chain store, by default <tmp_path>/chains, which a test makes or leaves missing."""
     def study_data(root):
         assert root == tmp_path / "data"
         return SimpleNamespace(dataset=data or _dataset(last_day), facts=_facts())
@@ -1175,24 +1761,26 @@ def _main(monkeypatch, tmp_path, last_day: str, trading_day: str, stdin: str | N
     monkeypatch.setattr(cli.study, "load_study_data", load or study_data)
     out, err = io.StringIO(), io.StringIO()
     code = cli.main(["--data", str(tmp_path / "data"), "--chain-store", str(chains or tmp_path / "chains"),
-                     "--trading-day", trading_day, "--now", "2026-12-01T14:00:00"],
+                     "--trading-day", trading_day, "--now", f"{trading_day}T14:00:00"],
                     stdin=io.StringIO(json.dumps(_plan()) if stdin is None else stdin), stdout=out, stderr=err)
     return code, out.getvalue(), err.getvalue()
 
 
 def test_main_prints_one_json_document_and_nothing_else(monkeypatch, tmp_path):
-    run = _run(tmp_path / "chains", "2026-11-11", "203000")
-    _chain(run, "SPY", "2026-12-18", "calls", {strike: (2.0, 2.1) for strike in range(400, 900)})
+    (tmp_path / "chains").mkdir()
+    run = _list_model_strikes(tmp_path / "chains", _dataset("2026-11-11"), "2026-11-12")
+    (run / "SPY-2026-12-18-puts.csv").write_text(
+        (run / "SPY-2026-12-18-puts.csv").read_text().replace(",1.0,1.2,", ",,,"))  # the short put has no bid and ask
     code, out, err = _main(monkeypatch, tmp_path, "2026-11-11", "2026-11-12")
     assert (code, err) == (0, "") and out.endswith("\n") and out.count("\n") == 1
     document = json.loads(out)
     assert_collect_input(document)
-    assert document["generatedAt"] == "2026-12-01T14:00:00Z"  # --now without an offset is UTC
+    assert document["generatedAt"] == "2026-11-12T14:00:00Z"  # --now without an offset is UTC
     assert _picked(document, gl.MODEL_HOLDS) == [
         ("long-index", "QQQ"), ("long-index", "SPY"), ("rotation", "GLD"), ("vol-premium", "SPY")]
     spy = _one(document, gl.MODEL_HOLDS, "long-index", "SPY")
     assert spy["quote"]["source"] == "yahoo_delayed_snapshot" and spy["quote"]["asOf"] == "2026-11-11T20:30:00Z"
-    assert _one(document, gl.MODEL_HOLDS, "vol-premium", "SPY")["quote"] is None  # no puts file in the run
+    assert _one(document, gl.MODEL_HOLDS, "vol-premium", "SPY")["quote"] is None
 
 
 def test_main_refuses_stale_data_with_the_named_day_and_prints_nothing(monkeypatch, tmp_path):
@@ -1299,6 +1887,52 @@ def test_main_keeps_stdout_for_the_document(monkeypatch, tmp_path):
         cli.main(["--data", str(tmp_path / "data"), "--chain-store", str(tmp_path), "--trading-day", "2026-11-12"],
                  stdin=io.StringIO(json.dumps(_plan())), stdout=out, stderr=err)
     assert out.getvalue() == ""
+
+
+@pytest.mark.parametrize(("series_id", "day"), [("VIX3M", "2026-10-30"), ("VXN", "2026-11-02")])
+def test_main_refuses_a_series_without_the_value_of_an_older_day_a_spread_rests_on(monkeypatch, tmp_path, series_id,
+                                                                                   day):
+    (tmp_path / "chains").mkdir()
+    data = _dataset("2026-11-11")
+    _list_model_strikes(tmp_path / "chains", data, "2026-11-12")
+    code, out, err = _main(monkeypatch, tmp_path, "2026-11-11", "2026-11-12")
+    assert (code, err) == (0, "") and len(json.loads(out)["candidates"]) == 4
+    code, out, err = _main(monkeypatch, tmp_path, "2026-11-11", "2026-11-12", data=_drop(data, series_id, day))
+    assert (code, out) == (1, "") and err.count("\n") == 1
+    assert err.startswith(f"golive: The {series_id} history has no value on {day}: older days the tested data has "
+                          "values for. ")
+
+
+def test_main_refuses_a_candidate_without_listed_strikes(monkeypatch, tmp_path):
+    (tmp_path / "chains").mkdir()  # a store without a snapshot
+    code, out, err = _main(monkeypatch, tmp_path, "2026-11-11", "2026-11-12")
+    assert (code, out) == (1, "")
+    assert re.fullmatch(r"golive: No listed strikes for the 2026-12-18 calls of QQQ \(model strikes \d+/\d+\): the "
+                        r"chain store has no snapshot of QQQ\. A draft names listed strikes only; no document\.\n", err)
+
+
+def test_main_keeps_the_model_strikes_of_a_held_spread_only_below_the_range_the_store_keeps(monkeypatch, tmp_path):
+    (tmp_path / "chains").mkdir()  # a store without a snapshot
+    # Thursday 2026-11-19: the spreads held expire on 2026-12-18, 30 days after the last data day. The snapshots of
+    # that day keep the expiry, so a store without them is a fault.
+    code, out, err = _main(monkeypatch, tmp_path, "2026-11-18", "2026-11-19")
+    assert (code, out) == (1, "") and err.startswith("golive: No listed strikes for the 2026-12-18 calls of QQQ")
+    # Friday 2026-11-20: 29 days after the last data day. Not stored by design: the model strikes, no quote, no error.
+    code, out, err = _main(monkeypatch, tmp_path, "2026-11-19", "2026-11-20")
+    assert (code, err) == (0, "")
+    document = json.loads(out)
+    assert_collect_input(document)
+    assert _picked(document, gl.MODEL_HOLDS) == [
+        ("long-index", "QQQ"), ("long-index", "SPY"), ("rotation", "GLD"), ("vol-premium", "SPY")]
+    assert all(item["quote"] is None and item["signalFacts"][-2:] == NOT_STORED for item in document["candidates"])
+    plan, data = _plan(), _dataset("2026-11-19")
+    model = {(key, symbol): (long_strike, short_strike) for key, symbol, long_strike, short_strike
+             in _held(data, "2026-11-20", plan)}
+    assert all((item["longStrike"], item["shortStrike"]) == model[item["sleeveKey"], item["symbol"]]
+               for item in document["candidates"])
+    # Tuesday 2026-12-01: the held spreads are exempt, the entries of the day are not.
+    code, out, err = _main(monkeypatch, tmp_path, "2026-11-30", "2026-12-01")
+    assert (code, out) == (1, "") and err.startswith("golive: No listed strikes for the 2027-01-15 calls of QQQ")
 
 
 def test_main_needs_its_arguments(capsys):
