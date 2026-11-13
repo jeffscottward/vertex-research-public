@@ -25,6 +25,7 @@ import {
   executionsNewestFirst,
   groupOrders,
   ibkrTimeKey,
+  accountDataWithheld,
   isGatewayLive,
   isOptionPosition,
   ladderScale,
@@ -331,6 +332,36 @@ describe("portfolio monitor health rule", () => {
         NOW
       )
     ).toBeNull();
+  });
+
+  it("says why account data is withheld, or null for a live book", () => {
+    expect(accountDataWithheld(fixtureSnapshot({}, NOW))).toBeNull();
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot({ status: { gateway: "starting" } }, NOW)
+      )
+    ).toContain("connecting");
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot({ status: { connected: false } }, NOW)
+      )
+    ).toContain("disconnected");
+    return expect(
+      accountDataWithheld(
+        fixtureSnapshot(
+          {
+            account: {
+              mode: null,
+              modeSource: null,
+              modeConfirmedAt: null,
+              modeError: "mismatch",
+              count: 0,
+            },
+          },
+          NOW
+        )
+      )
+    ).toContain("does not match its configured mode");
   });
 
   it("treats a mode mismatch as withheld data, whatever the connection says", () => {

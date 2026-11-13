@@ -965,6 +965,21 @@ export const donutArc = (
   return `M${f(x0)} ${f(y0)}A${outer} ${outer} 0 ${large} 1 ${f(x1)} ${f(y1)}L${f(x2)} ${f(y2)}A${inner} ${inner} 0 ${large} 0 ${f(x3)} ${f(y3)}Z`;
 };
 
+// One sentence that says why the account data of this snapshot is not shown, or null when the book
+// is complete and current. For every surface that reads positions, orders or fills: an empty list
+// in a withheld snapshot is not "none".
+export const accountDataWithheld = (
+  snapshot: Pick<PortfolioMonitorOutput, "account" | "status">
+): string | null => {
+  if (snapshot.account.modeError === "mismatch")
+    return "Account data is withheld: the IBKR gateway's account list does not match its configured mode (live or paper). The Portfolio page shows the fix.";
+  if (snapshot.status.gateway === "starting")
+    return "The IBKR gateway is connecting, so account data is not received yet. The reader retries on its own.";
+  if (snapshot.status.gateway !== "live" || !snapshot.status.connected)
+    return "The IBKR gateway is disconnected, so account data is withheld until it reconnects. The reader retries on its own.";
+  return null;
+};
+
 // True when the tables hold a complete, current book. Not on a mode mismatch: then the lists are
 // withheld, and an empty list must not read as "no positions".
 export const isGatewayLive = (snapshot: PortfolioMonitorOutput): boolean => {
