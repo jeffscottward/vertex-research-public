@@ -220,6 +220,12 @@ describe("JournalReport status and contracts", () => {
     expect(text(mismatch)).toContain("Fills withheld");
     expect(text(mismatch)).toContain("does not match its configured mode");
     expect(text(mismatch)).not.toContain("disconnected");
+    const noTime = await render(
+      <JournalReport executions={[]} status={status({ dataAsOf: null })} />
+    );
+    expect(noTime.querySelector("[data-journal-connected]")?.textContent).toBe(
+      "Gateway connected · IBKR has sent no data time yet"
+    );
     const online = await render(
       <JournalReport executions={[]} status={status()} />
     );
