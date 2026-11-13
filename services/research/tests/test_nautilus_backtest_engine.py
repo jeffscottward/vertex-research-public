@@ -24,7 +24,7 @@ from nautilus_backtest.signals import Compiled, RunOptions
 
 RESEARCH = Path(__file__).resolve().parents[1]
 GOLDEN = json.loads((RESEARCH / "tests/fixtures/nautilus_backtest/golden.json").read_text())
-# Fees are booked in whole cents and Nautilus prices and quantities have 9 decimals.
+# The ledger (USDX), prices and quantities have 9 decimals.
 EQUITY_REL_TOL = 1e-5
 PRICE_REL_TOL = 1e-9
 SHARPE_ABS_TOL = 1e-3
@@ -331,4 +331,16 @@ def test_vol_target_short_exits_market_on_close_on_an_early_close_day():
     leverage = 0.1 / math.sqrt(0.02)
     assert math.isclose(trade["pnl"], leverage * 0.02, rel_tol=EQUITY_REL_TOL)
     assert math.isclose(result.equity[14], 1 + leverage * 0.02, rel_tol=EQUITY_REL_TOL)
-    assert result.to_json()["modelVersion"] == engine.MODEL_VERSION == 3
+    assert result.to_json()["modelVersion"] == engine.MODEL_VERSION == 4
+
+
+@needs_nautilus
+def test_small_capital_ledger_is_not_rounded_to_cents():
+    # Without fixed fees unit equity does not depend on the capital. A whole-cent ledger rounded
+    # every fill and fee to 1e-6 of a 10,000 capital and drifted past the 1e-5 totalReturn tolerance.
+    case = next(case for case in GOLDEN["engine"] if len(case["trades"]) >= 5 and "costs" not in case["trades"][0])
+    large = engine.run_spec(BARS[case["symbol"]], case["spec"])
+    small = engine.run_spec(BARS[case["symbol"]], {**case["spec"], "initialCapital": 10_000})
+    assert small.capital == 10_000
+    assert max(abs(a - b) for a, b in zip(large.equity, small.equity)) <= 1e-9
+    assert abs(large.stats["totalReturn"] - small.stats["totalReturn"]) <= 1e-9
