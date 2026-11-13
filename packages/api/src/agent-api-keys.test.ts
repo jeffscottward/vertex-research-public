@@ -280,6 +280,11 @@ describe("agent API key scope", () => {
       "goLiveDrafts.collect",
       "goLiveDrafts.queue",
       "instantBacktest.run",
+      "marketNotes.add",
+      "marketNotes.get",
+      "marketNotes.list",
+      "marketNotes.recordChecks",
+      "marketNotes.review",
     ]);
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(

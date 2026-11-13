@@ -280,6 +280,8 @@ const REVIEWED_READS: readonly string[] = [
   "marketData.depth",
   "marketData.ticks",
   "marketNews.watchlist",
+  "marketNotes.get",
+  "marketNotes.list",
   "masterRules.search",
   "nautilusArm.status",
   "openbb.cot",

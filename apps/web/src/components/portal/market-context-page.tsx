@@ -1,7 +1,7 @@
 "use client";
 
 // What: the /markets page body: header (status chip from both feeds, Refresh), an optional slot under
-// the header (the breadth-90 signal card), then volatility
+// the header (owner market notes and the breadth-90 signal card), then volatility
 // (ibkr-monitor) and GEX, macro and macro news (market-watch-bot). Read-only public market data.
 // Used by: apps/web/src/app/(portal)/markets/page.tsx.
 // See: market-context-workspace.tsx, market-feeds-workspace.tsx, market-source-status.ts.
@@ -23,7 +23,7 @@ import {
 } from "./market-source-status.ts";
 
 export interface MarketContextPageProps {
-  /** Rendered directly under the header, above both workspaces (the breadth-90 signal card). */
+  /** Rendered directly under the header, above both workspaces (owner market notes, breadth-90). */
   readonly belowHeader?: ReactNode;
   readonly contextGateway?: MarketContextGateway;
   readonly feedsGateway?: MarketFeedsGateway;

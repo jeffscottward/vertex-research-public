@@ -96,12 +96,14 @@ const isForbidden = (tool: CatalogueTool): boolean => {
 };
 
 /**
- * MCP tools the in-app assistant does not get yet. The OpenBB read tools (card vertex-openbb) reach
- * research agents over /api/mcp; the assistant catalogue gains them when the semantic-layer eval
- * (tests/integration/semantic-layer) is re-recorded with them, since every recorded call is keyed
- * by the exact tool list.
+ * MCP tools the in-app assistant does not get yet. The OpenBB read tools (card vertex-openbb) and
+ * the owner market notes tool (market_notes_list) reach research agents over /api/mcp; the
+ * assistant catalogue gains them when the semantic-layer eval (tests/integration/semantic-layer)
+ * is re-recorded with them, since every recorded call is keyed by the exact tool list and message
+ * list. The assistant reads active market notes from its system prompt instead (marketNotes on
+ * the turn input).
  */
-export const ASSISTANT_DEFERRED_TOOL_PATTERN = /^openbb_/u;
+export const ASSISTANT_DEFERRED_TOOL_PATTERN = /^(?:openbb_|market_notes_)/u;
 
 const isConfirmTool = (name: string): boolean =>
   ASSISTANT_CONFIRM_TOOLS.includes(name);
@@ -873,6 +875,9 @@ export type AssistantTurnInput = Readonly<{
   }>;
   // Teach mode: step-by-step explanations, with a teach_steps walkthrough when it helps.
   teach?: boolean;
+  // The labelled owner market notes block (marketNoteContextLines), added to the system prompt as
+  // research context. Absent or empty leaves the prompt exactly as it is without notes.
+  marketNotes?: readonly string[];
   // Names this turn's chart drawings (quant-<short id>-<n>); the service passes the user message id.
   turnId?: string;
   client: AssistantModelClient;
@@ -999,7 +1004,8 @@ const assistantSystemPrompt = (
   mode: AssistantMode,
   today: string,
   page?: AssistantTurnInput["page"],
-  teach = false
+  teach = false,
+  marketNotes: readonly string[] = []
 ): string => {
   return [
     "You are the Vertex Research assistant for a quantitative research operator. You work only through the provided tools, which read and record entries in the Vertex research ledger: agent tasks, papers, backtests, optimizer runs, the strategy library, read-only deployment status and IBKR historical bars.",
@@ -1017,6 +1023,7 @@ const assistantSystemPrompt = (
     ...pageContextLine(page),
     ...chartContextLine(page),
     ...(teach ? [TEACH_LINE] : []),
+    ...marketNotes,
     `Today is ${today} (UTC).`,
   ].join("\n");
 };
@@ -1138,7 +1145,8 @@ export const runAssistantTurn = async (
         input.mode,
         today,
         input.page,
-        input.teach === true
+        input.teach === true,
+        input.marketNotes
       ),
       role: "system",
     },
