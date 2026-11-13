@@ -783,8 +783,10 @@ const submit = api.vertexOrders.submit
     }
     // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
     await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
-    // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
-    // is a refusal and is audited as a failure.
+    // Only "submitted" and "unconfirmed" reached IBKR. A bridge "unknown" may have reached it
+    // (stored as an unknown outcome, reconciled and never resent); the audit outcome is binary,
+    // so it is audited as a failure with result "unknown" in the details. Any other state (for
+    // example "aborted") is a refusal and is audited as a failure.
     await audit(
       context,
       "submit",
@@ -985,8 +987,10 @@ const comboSubmit = api.vertexOrders.comboSubmit
     const engineRefused = result.state === "engine_refused";
     await outcomeOf(comboOutcome(result.state));
     if (engineRefused) release();
-    // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
-    // is a refusal and is audited as a failure.
+    // Only "submitted" and "unconfirmed" reached IBKR. A bridge "unknown" may have reached it
+    // (stored as an unknown outcome, reconciled and never resent); the audit outcome is binary,
+    // so it is audited as a failure with result "unknown" in the details. Any other state (for
+    // example "aborted") is a refusal and is audited as a failure.
     await audit(
       context,
       "comboSubmit",

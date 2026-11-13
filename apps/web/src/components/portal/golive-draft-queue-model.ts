@@ -1329,6 +1329,10 @@ export const sendOutcomeText = (
     return `${lead("Approved; the send outcome is unknown", "The send outcome is unknown")} (${outcome.message}). Check open orders at IBKR before doing anything else.`;
   if (outcome.sent) {
     const { result } = outcome;
+    // A bridge reply of state "unknown" means the bridge could not tell whether IBKR took it:
+    // the same as an unknown send, never "did not take" (it is reconciled, not resent).
+    if (result.state === "unknown")
+      return `${lead("Approved; the send outcome is unknown", "The send outcome is unknown")} (${result.message}). Check open orders at IBKR before doing anything else.`;
     const reached =
       result.state === "submitted" || result.state === "unconfirmed";
     if (reached)
@@ -1337,7 +1341,7 @@ export const sendOutcomeText = (
     // says no (market-watch-bot vertexbridge state engine_refused, card vertex-golive-exec-intake).
     return result.state === "engine_refused"
       ? `${lead("Approved; nothing was sent", "Nothing was sent")}: the order bridge refused it before IBKR (${result.message.replace(/^Engine refused the opening(?: at send time)?: /u, "")}). Its row shows whether it can be sent again.`
-      : `${lead("Approved; IBKR did not take the order", "IBKR did not take the order")} (${result.state}): ${result.message}`;
+      : `${lead("Approved; IBKR did not take the order", "IBKR did not take the order")} (${result.state}): ${result.message.replace(/\.$/u, "")}. It is not sent again here; check open orders at IBKR.`;
   }
   const codes = outcome.reasons.map(reasonCode);
   const others = outcome.reasons

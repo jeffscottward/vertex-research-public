@@ -1962,7 +1962,9 @@ describe("send of an approved entry", () => {
         { result: { ...result, state: "rejected" }, sent: true },
         true
       )
-    ).toBe("IBKR did not take the order (rejected): ok");
+    ).toBe(
+      "IBKR did not take the order (rejected): ok. It is not sent again here; check open orders at IBKR."
+    );
     expect(sendOutcomeText({ message: "timeout", sent: "unknown" }, true)).toBe(
       "The send outcome is unknown (timeout). Check open orders at IBKR before doing anything else."
     );
@@ -2117,7 +2119,38 @@ describe("sendOutcomeText", () => {
     ).toContain("(live, unconfirmed, ref vertex-abc)");
     expect(
       sendOutcomeText({ result: { ...result, state: "aborted" }, sent: true })
-    ).toBe("Approved; IBKR did not take the order (aborted): m");
+    ).toBe(
+      "Approved; IBKR did not take the order (aborted): m. It is not sent again here; check open orders at IBKR."
+    );
+    expect(
+      sendOutcomeText({
+        result: { ...result, message: "Gateway error.", state: "error" },
+        sent: true,
+      })
+    ).toBe(
+      "Approved; IBKR did not take the order (error): Gateway error. It is not sent again here; check open orders at IBKR."
+    );
+    // A bridge HTTP 200 with state "unknown" is an unknown outcome, not "did not take".
+    expect(
+      sendOutcomeText({
+        result: {
+          ...result,
+          message: "gateway refused the order",
+          state: "unknown",
+        },
+        sent: true,
+      })
+    ).toBe(
+      "Approved; the send outcome is unknown (gateway refused the order). Check open orders at IBKR before doing anything else."
+    );
+    expect(
+      sendOutcomeText(
+        { result: { ...result, state: "unknown" }, sent: true },
+        true
+      )
+    ).toBe(
+      "The send outcome is unknown (m). Check open orders at IBKR before doing anything else."
+    );
     const refused = (message: string) =>
       sendOutcomeText({
         result: { ...result, message, state: "engine_refused" },

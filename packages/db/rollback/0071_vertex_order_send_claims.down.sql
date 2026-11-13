@@ -3,8 +3,10 @@
 -- with a claim and refuses to send while this table is missing. Refuses while any claim has no
 -- result or reconciliation row in audit_records written at or after it (a send in flight, or one
 -- whose outcome was never written), so a claim that still blocks a second send is never silently
--- dropped. Such a claim clears by itself: the next order preview after the settle window reconciles
--- the intent and writes a vertex.order.reconciled row. The intent and outcome rows stay in
+-- dropped. Within 7 days of the intent (the reconciliation lookback) such a claim clears by itself:
+-- the next order preview after the settle window reconciles the intent and writes a
+-- vertex.order.reconciled row. After 7 days nothing reconciles it; write a vertex.order.reconciled
+-- row for its orderRef by hand. The intent and outcome rows stay in
 -- audit_records. Drops the table only (the primary key and the check go with it). No cascading
 -- drops, truncation or conditional drops. Drizzle ledger reconciliation is deliberately not
 -- automated: after this rollback the 0071 row stays in drizzle.__drizzle_migrations, so
