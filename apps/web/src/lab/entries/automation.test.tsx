@@ -88,7 +88,7 @@ describe("automation lab entries", () => {
     try {
       const host = await mount("drafts");
       const text = host.textContent ?? "";
-      expect(text).toContain("It sends nothing today");
+      expect(text).toContain("only if engine policy v3 accepts it");
       expect(text).toContain(
         "Plan approved by delegation (the owner delegated the allocation choice)"
       );
