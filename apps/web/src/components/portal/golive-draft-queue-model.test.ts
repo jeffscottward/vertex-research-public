@@ -326,14 +326,14 @@ describe("wording maps", () => {
         "Proposal to close: open winner, 15:45 ET on expiry day",
     });
     expect(NO_ORDERS_NOTICE).toBe(
-      "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The notice never tells the owner to place an approved vertical on a Vertex screen.
     expect(NO_ORDERS_NOTICE).not.toMatch(/to place|use the|yourself/iu);
     expect(NO_ORDERS_NOTICE_PARTS.link).toBe("Portfolio");
     expect(PORTFOLIO_HREF).toBe("/portfolio?tab=orders");
     expect(APPROVAL_NOT_SENT_SENTENCE).toBe(
-      "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it."
+      "This records your approval and sends this exact order as one combo limit order, only if the execution node is armed, engine policy v3 accepts it and the plan caps allow it."
     );
   });
 
@@ -1855,13 +1855,13 @@ describe("sendOutcomeText", () => {
     expect(
       sendOutcomeText({
         reasons: [
-          "GO-LIVE V3_NOT_ON_LIVE_PATH: go-live sends wait until engine policy v3 checks the live path (owner 2026-11-12); the approval is recorded",
+          "GO-LIVE V3_NOT_ON_LIVE_PATH: the order gateway does not report engine policy v3 on the live path (simulated gateway or an older bridge), so go-live sends are off; the approval is recorded",
           "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked T); the owner arms the node",
         ],
         sent: false,
       })
     ).toBe(
-      "Approved and recorded; nothing was sent: go-live sends wait until engine policy v3 checks the live path."
+      "Approved and recorded; nothing was sent: go-live sends are off because the order gateway does not report engine policy v3 (simulated gateway or an older bridge)."
     );
     expect(
       sendOutcomeText({
@@ -1914,5 +1914,24 @@ describe("sendOutcomeText", () => {
     expect(
       sendOutcomeText({ result: { ...result, state: "aborted" }, sent: true })
     ).toBe("Approved; IBKR did not take the order (aborted): m");
+    const refused = (message: string) =>
+      sendOutcomeText({
+        result: { ...result, message, state: "engine_refused" },
+        sent: true,
+      });
+    expect(
+      refused(
+        "Engine refused the opening: ENGINE_DISARMED: no_arm_record (the owner arms the node)"
+      )
+    ).toBe(
+      "Approved; nothing was sent: the order bridge refused it before IBKR (ENGINE_DISARMED: no_arm_record (the owner arms the node)). You can send it again."
+    );
+    expect(
+      refused(
+        "Engine refused the opening at send time: V3_REFUSED snapshot_stale: old"
+      )
+    ).toBe(
+      "Approved; nothing was sent: the order bridge refused it before IBKR (V3_REFUSED snapshot_stale: old). You can send it again."
+    );
   });
 });

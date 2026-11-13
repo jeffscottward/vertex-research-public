@@ -41,8 +41,9 @@ export type GoLiveSendInputs = Readonly<{
   drafts: readonly GoLiveDraftRecord[];
   // orderRef -> max loss of the approved order, for the go-live combos of the day.
   goLiveRisk?: ReadonlyMap<string, number>;
-  // false until engine policy v3 checks the live path (owner 2026-11-12, card
-  // vertex-golive-exec-intake): every go-live send is then refused by name.
+  // true only when the order gateway is a bridge that reports engine policy v3 + the node ARM check on
+  // every opening combo (account gates.orderPolicy; owner 2026-11-12, card vertex-golive-exec-intake);
+  // false refuses every go-live send by name (V3_NOT_ON_LIVE_PATH): mock gateway, older bridge.
   sendEnabled: boolean;
   node: Pick<NautilusArmStatusOutput, "arm" | "badge" | "checkedAt"> | null;
   now: Date;
@@ -132,7 +133,7 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
     : [
         line(
           "V3_NOT_ON_LIVE_PATH",
-          "go-live sends wait until engine policy v3 checks the live path (owner 2026-11-12); the approval is recorded"
+          "the order gateway does not report engine policy v3 on the live path (simulated gateway or an older bridge), so go-live sends are off; the approval is recorded"
         ),
       ];
   if (draft === undefined)

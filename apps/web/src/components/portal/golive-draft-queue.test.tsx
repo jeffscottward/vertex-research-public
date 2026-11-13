@@ -763,7 +763,7 @@ describe("GoLiveDraftQueue", () => {
     expect(order).toContain("Limit$2.35 debit per spread");
     expect(order).toContain("Max loss$470.00 (0.47% of account)");
     expect(one(dialog, "[data-golive-not-sent]").textContent).toBe(
-      "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it."
+      "This records your approval and sends this exact order as one combo limit order, only if the execution node is armed, engine policy v3 accepts it and the plan caps allow it."
     );
     expect(dialog.querySelector("textarea")).toBeNull();
     expect(gateway.approve).not.toHaveBeenCalled();
@@ -1071,7 +1071,7 @@ describe("GoLiveDraftQueue", () => {
     const notice = one(container, "[data-golive-notice]");
     expect(notice.textContent).toBe(NO_ORDERS_NOTICE);
     expect(notice.textContent).toBe(
-      "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The owner is not told to place an approved vertical on a Vertex screen.
     expect(notice.textContent).not.toMatch(/to place|use the|yourself/iu);

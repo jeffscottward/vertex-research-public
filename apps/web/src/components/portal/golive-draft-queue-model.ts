@@ -86,12 +86,12 @@ export const PORTFOLIO_HREF = `/portfolio?tab=${VERTEX_ORDERS_TAB_VALUE}`;
 export const NO_ORDERS_NOTICE_PARTS = Object.freeze({
   after: `, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks.`,
   before:
-    "Approve records your decision. It sends nothing today: sending waits until engine policy v3 checks the live path (owner 2026-11-12). Then Approve will send that exact order to IBKR as one combo limit order, only while you have ARMED the execution node and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (",
+    "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (",
   link: "Portfolio",
 });
 export const NO_ORDERS_NOTICE = `${NO_ORDERS_NOTICE_PARTS.before}${NO_ORDERS_NOTICE_PARTS.link}${NO_ORDERS_NOTICE_PARTS.after}`;
 export const APPROVAL_NOT_SENT_SENTENCE =
-  "This records your approval. It sends nothing until engine policy v3 checks the live path; then it sends this exact order as one combo limit order, only if the execution node is armed and the plan caps allow it.";
+  "This records your approval and sends this exact order as one combo limit order, only if the execution node is armed, engine policy v3 accepts it and the plan caps allow it.";
 export const REJECTION_RECORD_SENTENCE =
   "This records your rejection with the note. It changes no order.";
 export const NODE_DISARMED_NOTE =
@@ -1281,8 +1281,12 @@ export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
     const { result } = outcome;
     const reached =
       result.state === "submitted" || result.state === "unconfirmed";
-    return reached
-      ? `Approved and sent to IBKR as one combo limit order (${result.mode}, ${result.state}, ref ${result.orderRef}). ${result.message}`
+    if (reached)
+      return `Approved and sent to IBKR as one combo limit order (${result.mode}, ${result.state}, ref ${result.orderRef}). ${result.message}`;
+    // The order bridge refuses an opening before IBKR when engine policy v3 or the node ARM check
+    // says no (market-watch-bot vertexbridge state engine_refused, card vertex-golive-exec-intake).
+    return result.state === "engine_refused"
+      ? `Approved; nothing was sent: the order bridge refused it before IBKR (${result.message.replace(/^Engine refused the opening(?: at send time)?: /u, "")}). You can send it again.`
       : `Approved; IBKR did not take the order (${result.state}): ${result.message}`;
   }
   const codes = outcome.reasons.map(reasonCode);
@@ -1294,7 +1298,7 @@ export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
     .map(reasonText);
   const rest = others.length === 0 ? "" : ` Also: ${others.join("; ")}.`;
   if (codes.includes("V3_NOT_ON_LIVE_PATH"))
-    return `Approved and recorded; nothing was sent: go-live sends wait until engine policy v3 checks the live path.${rest}`;
+    return `Approved and recorded; nothing was sent: go-live sends are off because the order gateway does not report engine policy v3 (simulated gateway or an older bridge).${rest}`;
   const disarmed = outcome.reasons.find(
     (reason) => reasonCode(reason) === "ENGINE_DISARMED"
   );
