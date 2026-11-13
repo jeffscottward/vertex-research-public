@@ -414,7 +414,7 @@ const intentStoreOf = (
 // Writes the result row of a submit. A failed write never hides the gateway result.
 const outcomeRecorder =
   (context: ApiContext, store: IntentStore | undefined, orderRef: string) =>
-  async (outcome: "placed" | "unknown" | "refused") =>
+  async (outcome: "placed" | "unknown" | "refused" | "not-taken") =>
     await store
       ?.recordOutcome({
         action: "vertex.order.result",
@@ -437,6 +437,19 @@ const writeIntent = async (
   if (goLive) return await store.recordIntentOnce(input);
   await store.recordIntent(input);
   return true;
+};
+
+// The outcome row of a combo submit, from the bridge state. "submitted": placed. "unconfirmed" (IBKR
+// has not acknowledged it yet) and "unknown" (the bridge could not tell): it may still be live, so
+// reconciliation checks it. "engine_refused": the bridge refused it before IBKR, so a go-live draft
+// is free to be sent again. Any other state (for example "aborted") did not place the order but is
+// no proof that nothing reached IBKR: "not-taken", never sent again.
+const comboOutcome = (
+  state: string
+): "placed" | "unknown" | "refused" | "not-taken" => {
+  if (state === "submitted") return "placed";
+  if (state === "unconfirmed" || state === "unknown") return "unknown";
+  return state === "engine_refused" ? "refused" : "not-taken";
 };
 
 const heldIn = (
@@ -969,16 +982,8 @@ const comboSubmit = api.vertexOrders.comboSubmit
         });
       throw error;
     }
-    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live. "engine_refused":
-    // the bridge refused it before IBKR, so a go-live draft is free to be sent again.
     const engineRefused = result.state === "engine_refused";
-    await outcomeOf(
-      result.state === "unconfirmed"
-        ? "unknown"
-        : engineRefused
-          ? "refused"
-          : "placed"
-    );
+    await outcomeOf(comboOutcome(result.state));
     if (engineRefused) release();
     // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
     // is a refusal and is audited as a failure.

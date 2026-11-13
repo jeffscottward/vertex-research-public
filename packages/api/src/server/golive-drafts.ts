@@ -256,8 +256,8 @@ type Loaded = Readonly<{
   now: Date;
   plan: GoLivePlanRecord | null;
   records: readonly GoLiveDraftRecord[];
-  // draft id -> where its send stands, for every entry draft of the day; empty for an API key.
-  sends: ReadonlyMap<string, GoLiveSendState>;
+  // Where the send of each entry draft of the day stands; never read for an API key.
+  sends: SendOf;
 }>;
 
 /**
@@ -301,6 +301,7 @@ const withLiveQuotes = async (
 const SEND_STATE_OF: Readonly<Record<OrderSendState, GoLiveSendState>> = {
   none: "not_sent",
   "not-found": "not_found",
+  "not-taken": "not_taken",
   open: "sent",
   pending: "unknown",
   placed: "sent",
@@ -308,10 +309,21 @@ const SEND_STATE_OF: Readonly<Record<OrderSendState, GoLiveSendState>> = {
   refused: "refused",
   unknown: "unknown",
 };
+// Where a draft's send stands, by draft id. No answer from the store (no store, a failed read, or no
+// state for the draft's ref) is "unavailable".
+type SendOf = (draftId: string) => GoLiveSendState;
+const sendLookup =
+  (states: ReadonlyMap<string, OrderSendState | undefined>): SendOf =>
+  (draftId) => {
+    const state = states.get(draftId);
+    return state === undefined ? "unavailable" : SEND_STATE_OF[state];
+  };
+// An agent API key reads no send.
+const NO_SENDS = sendLookup(new Map());
 const readSends = async (
   context: ApiContext,
   records: readonly GoLiveDraftRecord[]
-): Promise<ReadonlyMap<string, GoLiveSendState>> => {
+): Promise<SendOf> => {
   const refs = await Promise.all(
     records
       .filter((record) => record.kind === "entry")
@@ -324,12 +336,7 @@ const readSends = async (
     store === undefined
       ? null
       : await store.sendStates(refs.map(([, ref]) => ref)).catch(() => null);
-  return new Map(
-    refs.map(([id, ref]) => {
-      const state = states?.get(ref);
-      return [id, state === undefined ? "unavailable" : SEND_STATE_OF[state]];
-    })
-  );
+  return sendLookup(new Map(refs.map(([id, ref]) => [id, states?.get(ref)])));
 };
 
 const load = async (
@@ -345,9 +352,7 @@ const load = async (
     repository.planInForce(),
     listed,
     listed.then((rows) => (forKey ? rows : withLiveQuotes(context, rows))),
-    listed.then((rows) =>
-      forKey ? new Map<string, GoLiveSendState>() : readSends(context, rows)
-    ),
+    listed.then((rows) => (forKey ? NO_SENDS : readSends(context, rows))),
     repository.lastRun(tradingDay),
     forKey ? KEY_ACCOUNT : (dependencies.account ?? readAccount)(context, now),
     (dependencies.node ?? readNode)(context),
@@ -522,7 +527,7 @@ const viewsOf = (
       // Only an approved entry has a send; read before the decision for a draft just approved.
       send:
         draft.state === "approved" && draft.kind === "entry" && !loaded.forKey
-          ? (loaded.sends.get(draft.id) ?? "unavailable")
+          ? loaded.sends(draft.id)
           : null,
       sizing,
     };

@@ -24,6 +24,10 @@ export const ORDER_INTENT_OUTCOMES = [
   "not-found",
   // The order bridge refused it before IBKR (engine policy v3 or the node ARM check): nothing was sent.
   "refused",
+  // The bridge answered with a state that is neither placed nor refused before IBKR (for example
+  // "aborted": IBKR or the gateway did not take it, or the orderRef is already in use there). Not
+  // proof that nothing reached IBKR, so the ref is never sent again.
+  "not-taken",
 ] as const;
 export type OrderIntentOutcome = (typeof ORDER_INTENT_OUTCOMES)[number];
 

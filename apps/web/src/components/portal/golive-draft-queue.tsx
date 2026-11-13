@@ -38,6 +38,7 @@ import {
   canSendApproved,
   currentSizingText,
   decisionAftermathText,
+  dialogClosedText,
   decisionFailure,
   decisionText,
   draftStateText,
@@ -938,7 +939,7 @@ export const GoLiveDraftQueue = ({
     setNotice(
       data.canDecide && reason !== null
         ? staleDialogNotice(reason, decision.type === "send")
-        : `${OWNER_ONLY_DECISION_TEXT} The open dialog was closed and nothing was recorded.`
+        : `${OWNER_ONLY_DECISION_TEXT} ${dialogClosedText(decision.type === "send")}`
     );
   }, [busy, decision, state]);
 

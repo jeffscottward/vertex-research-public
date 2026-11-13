@@ -82,18 +82,20 @@ export const GOLIVE_NOT_APPROVABLE_VALUES = [
 ] as const;
 // The send of an approved entry draft, read from the order intent store: not_sent (no send has
 // run), refused (the order bridge refused the last send before IBKR: nothing was sent), sent
-// (placed, or found at IBKR), unknown (in flight or outcome unknown: it may still reach IBKR),
-// not_found (an unknown outcome checked later and not found at IBKR; not sent again here),
-// unavailable (the store is missing or did not answer).
+// (submitted at IBKR, or found there later), not_taken (the bridge answered with another state, for
+// example aborted: not placed, but no proof that nothing reached IBKR; not sent again here), unknown
+// (in flight or outcome unknown: it may still reach IBKR), not_found (an unknown outcome checked
+// later and not found at IBKR; not sent again here), unavailable (the store is missing or did not
+// answer).
 export const GOLIVE_SEND_STATE_VALUES = [
   "not_sent",
   "refused",
   "sent",
+  "not_taken",
   "unknown",
   "not_found",
   "unavailable",
 ] as const;
-// The send states "Send approved order" offers a send for (the server checks again at send).
 export const GOLIVE_SENDABLE_STATES = ["not_sent", "refused"] as const;
 export const GOLIVE_QUOTE_SOURCE_VALUES = [
   "ibkr_live",

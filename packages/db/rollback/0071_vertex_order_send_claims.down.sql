@@ -3,11 +3,14 @@
 -- with a claim and refuses to send while this table is missing. Refuses while any claim has no
 -- result or reconciliation row in audit_records written at or after it (a send in flight, or one
 -- whose outcome was never written), so a claim that still blocks a second send is never silently
--- dropped. The intent and outcome rows stay in audit_records. Drops the table only (the primary key
--- and the check go with it). No cascading drops, truncation or conditional drops. Drizzle ledger
--- reconciliation is deliberately not automated: after this rollback the 0071 row stays in
--- drizzle.__drizzle_migrations, so `db:migrate` skips 0071 and the table stays missing. To re-apply,
--- delete that ledger row (match its hash) first. Outside discoverable migrations.
+-- dropped. Such a claim clears by itself: the next order preview after the settle window reconciles
+-- the intent and writes a vertex.order.reconciled row. The intent and outcome rows stay in
+-- audit_records. Drops the table only (the primary key and the check go with it). No cascading
+-- drops, truncation or conditional drops. Drizzle ledger reconciliation is deliberately not
+-- automated: after this rollback the 0071 row stays in drizzle.__drizzle_migrations, so
+-- `db:migrate` skips 0071 and the table stays missing. To re-apply, delete that ledger row (match
+-- its hash) first; where the migration was applied by hand with psql (QuantVPS) there is no ledger
+-- row, so run the migration file again. Outside discoverable migrations.
 -- Run with `psql -v ON_ERROR_STOP=1` WITHOUT `--single-transaction` (the file has its own BEGIN/COMMIT).
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;

@@ -97,7 +97,7 @@ export const noticeCapsText = (
   if (plan === null || plan.status !== "approved")
     return "only under an approved plan (no approved plan is in force now, so nothing is sent)";
   const { nameRiskCapPct, openRiskCapPct, positionRiskPct } = plan.limits;
-  return `only inside the caps of the plan in force (${capPct(openRiskCapPct)} total, ${capPct(nameRiskCapPct)} per name, ${capPct(positionRiskPct)} per position)`;
+  return `only inside the caps of the plan in force (${capPct(openRiskCapPct)} open risk on the plan's names, ${capPct(nameRiskCapPct)} per name, ${capPct(positionRiskPct)} per position)`;
 };
 // The notice in three parts, so the page can make the page name a link to that tab.
 export const noOrdersNoticeParts = (
@@ -105,7 +105,7 @@ export const noOrdersNoticeParts = (
 ): Readonly<{ after: string; before: string; link: string }> =>
   Object.freeze({
     after: `, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks.`,
-    before: `Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and ${noticeCapsText(plan)}. An approved order that was not sent, or that the order bridge refused, has a Send approved order button. The live order screen (`,
+    before: `Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and ${noticeCapsText(plan)}. For the owner, an approved order whose send never reached the order bridge, or that the bridge refused, has a Send approved order button. The live order screen (`,
     link: "Portfolio",
   });
 export const noOrdersNotice = (
@@ -1276,8 +1276,12 @@ export const staleDialogReason = (
     : "the order of the draft changed and is no longer the order the dialog showed";
 };
 
+/** What a closed dialog left behind: a send dialog sent nothing, a decision dialog recorded nothing. */
+export const dialogClosedText = (sending: boolean): string =>
+  `The open dialog was closed and nothing was ${sending ? "sent" : "recorded"}.`;
+
 export const staleDialogNotice = (reason: string, sending = false): string =>
-  `A newer read of the queue shows that ${reason}. The open dialog was closed and nothing was ${sending ? "sent" : "recorded"}.`;
+  `A newer read of the queue shows that ${reason}. ${dialogClosedText(sending)}`;
 
 /**
  * The owner's standing exit rule for an approved entry, in words: the day a loser closes and the
@@ -1332,7 +1336,7 @@ export const sendOutcomeText = (
     // The order bridge refuses an opening before IBKR when engine policy v3 or the node ARM check
     // says no (market-watch-bot vertexbridge state engine_refused, card vertex-golive-exec-intake).
     return result.state === "engine_refused"
-      ? `${lead("Approved; nothing was sent", "Nothing was sent")}: the order bridge refused it before IBKR (${result.message.replace(/^Engine refused the opening(?: at send time)?: /u, "")}). You can send it again.`
+      ? `${lead("Approved; nothing was sent", "Nothing was sent")}: the order bridge refused it before IBKR (${result.message.replace(/^Engine refused the opening(?: at send time)?: /u, "")}). Its row shows whether it can be sent again.`
       : `${lead("Approved; IBKR did not take the order", "IBKR did not take the order")} (${result.state}): ${result.message}`;
   }
   const codes = outcome.reasons.map(reasonCode);
@@ -1363,9 +1367,11 @@ export const SEND_STATE_WORDS: Readonly<Record<GoLiveSendStateValue, string>> =
       "Not found at IBKR: the outcome was unknown and a later check did not find the order. Not sent again here; check the IBKR order history.",
     not_sent:
       "Not sent: no send of this order reached the order bridge (a send the checks here refused records nothing).",
+    not_taken:
+      "Not placed: the order bridge answered that the last send was not taken (for example aborted). Not sent again here, since it may still be at IBKR under this ref; check open orders at IBKR.",
     refused:
       "Not sent: the order bridge refused the last send before IBKR. It can be sent again.",
-    sent: "Sent to IBKR: the last send went past the order bridge (placed, or found there later).",
+    sent: "Sent to IBKR: IBKR took the last send (submitted, or found there later).",
     unavailable:
       "Not known: the order records could not be read. Reload the queue; the send button needs a known state.",
     unknown:

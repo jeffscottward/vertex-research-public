@@ -841,6 +841,7 @@ describe("GoLiveDraftQueue", () => {
     it("is not offered once the order may have reached IBKR, when the state is not known, without the stored order, or to anyone but the owner", async () => {
       for (const send of [
         "sent",
+        "not_taken",
         "unknown",
         "not_found",
         "unavailable",
@@ -912,12 +913,34 @@ describe("GoLiveDraftQueue", () => {
       expect(gateway.approve).not.toHaveBeenCalled();
       expect(gateway.queue).toHaveBeenCalledTimes(2);
       expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
-        "Nothing was sent: the order bridge refused it before IBKR (V3_REFUSED snapshot_stale). You can send it again."
+        "Nothing was sent: the order bridge refused it before IBKR (V3_REFUSED snapshot_stale). Its row shows whether it can be sent again."
       );
       expect(one(container, "[data-golive-send-state]").textContent).toBe(
         sendStateText("unknown")
       );
       expect(buttons(container)).toBe(0);
+    });
+
+    it("sets no state and reads nothing when the page is left while a send is in flight", async () => {
+      const slow = deferred<GoLiveSendResult>();
+      const gateway = gatewayOf(queue({ drafts: [approvedWith("not_sent")] }));
+      gateway.sendApproved.mockReturnValueOnce(slow.promise);
+      const container = await mount(gateway);
+      await click(button(container, NAME));
+      await click(button(one(document, "[role='dialog']"), "Send order"));
+      expect(gateway.sendApproved).toHaveBeenCalledTimes(1);
+      const errors = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      try {
+        for (const root of roots.splice(0))
+          await act(async () => root.unmount());
+        await act(async () => slow.resolve({ reasons: ["late"], sent: false }));
+        expect(errors).not.toHaveBeenCalled();
+        expect(gateway.queue).toHaveBeenCalledTimes(1);
+      } finally {
+        errors.mockRestore();
+      }
     });
 
     it("names a send that failed before the order path answered as not sent", async () => {
@@ -945,7 +968,7 @@ describe("GoLiveDraftQueue", () => {
       expect(document.querySelector("[role='dialog']")).toBeNull();
       expect(gateway.sendApproved).not.toHaveBeenCalled();
       expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
-        "A newer read of the queue shows that the approved order can no longer be sent here (sent to IBKR: the last send went past the order bridge (placed, or found there later)). The open dialog was closed and nothing was sent."
+        "A newer read of the queue shows that the approved order can no longer be sent here (sent to IBKR: IBKR took the last send (submitted, or found there later)). The open dialog was closed and nothing was sent."
       );
     });
   });
@@ -1213,9 +1236,9 @@ describe("GoLiveDraftQueue", () => {
     const container = await mount(gatewayOf(queue()));
     const notice = one(container, "[data-golive-notice]");
     expect(notice.textContent).toBe(noOrdersNotice(queue().plan));
-    // The caps are the plan's own (8% total in this plan), not fixed numbers.
+    // The caps are the plan's own (8% open risk in this plan), not fixed numbers.
     expect(notice.textContent).toBe(
-      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the caps of the plan in force (8% total, 2% per name, 2% per position). An approved order that was not sent, or that the order bridge refused, has a Send approved order button. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the caps of the plan in force (8% open risk on the plan's names, 2% per name, 2% per position). For the owner, an approved order whose send never reached the order bridge, or that the bridge refused, has a Send approved order button. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The owner is not told to place an approved vertical on a Vertex screen.
     expect(notice.textContent).not.toMatch(/to place|use the|yourself/iu);

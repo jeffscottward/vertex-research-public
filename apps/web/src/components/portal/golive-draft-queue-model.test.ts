@@ -332,7 +332,7 @@ describe("wording maps", () => {
         "Proposal to close: open winner, 15:45 ET on expiry day",
     });
     expect(noOrdersNotice(plan())).toBe(
-      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the caps of the plan in force (7.5% total, 2% per name, 1.25% per position). An approved order that was not sent, or that the order bridge refused, has a Send approved order button. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the caps of the plan in force (7.5% open risk on the plan's names, 2% per name, 1.25% per position). For the owner, an approved order whose send never reached the order bridge, or that the bridge refused, has a Send approved order button. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The notice never tells the owner to place an approved vertical on a Vertex screen.
     for (const shown of [plan(), null, undefined])
@@ -391,7 +391,7 @@ describe("wording maps", () => {
       positionRiskPct: 0.75,
     };
     expect(noticeCapsText(plan({ limits }))).toBe(
-      "only inside the caps of the plan in force (3% total, 1.5% per name, 0.75% per position)"
+      "only inside the caps of the plan in force (3% open risk on the plan's names, 1.5% per name, 0.75% per position)"
     );
     // A plan that is not approved, or no plan: the send gate sends nothing.
     for (const none of [
@@ -1885,7 +1885,9 @@ describe("send of an approved entry", () => {
         "Not sent: no send of this order reached the order bridge (a send the checks here refused records nothing).",
       refused:
         "Not sent: the order bridge refused the last send before IBKR. It can be sent again.",
-      sent: "Sent to IBKR: the last send went past the order bridge (placed, or found there later).",
+      not_taken:
+        "Not placed: the order bridge answered that the last send was not taken (for example aborted). Not sent again here, since it may still be at IBKR under this ref; check open orders at IBKR.",
+      sent: "Sent to IBKR: IBKR took the last send (submitted, or found there later).",
       unavailable:
         "Not known: the order records could not be read. Reload the queue; the send button needs a known state.",
       unknown:
@@ -1953,7 +1955,7 @@ describe("send of an approved entry", () => {
         true
       )
     ).toBe(
-      "Nothing was sent: the order bridge refused it before IBKR (ENGINE_DISARMED: no_arm_record). You can send it again."
+      "Nothing was sent: the order bridge refused it before IBKR (ENGINE_DISARMED: no_arm_record). Its row shows whether it can be sent again."
     );
     expect(
       sendOutcomeText(
@@ -2126,14 +2128,14 @@ describe("sendOutcomeText", () => {
         "Engine refused the opening: ENGINE_DISARMED: no_arm_record (the owner arms the node)"
       )
     ).toBe(
-      "Approved; nothing was sent: the order bridge refused it before IBKR (ENGINE_DISARMED: no_arm_record (the owner arms the node)). You can send it again."
+      "Approved; nothing was sent: the order bridge refused it before IBKR (ENGINE_DISARMED: no_arm_record (the owner arms the node)). Its row shows whether it can be sent again."
     );
     expect(
       refused(
         "Engine refused the opening at send time: V3_REFUSED snapshot_stale: old"
       )
     ).toBe(
-      "Approved; nothing was sent: the order bridge refused it before IBKR (V3_REFUSED snapshot_stale: old). You can send it again."
+      "Approved; nothing was sent: the order bridge refused it before IBKR (V3_REFUSED snapshot_stale: old). Its row shows whether it can be sent again."
     );
   });
 });

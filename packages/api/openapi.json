@@ -111931,6 +111931,7 @@
                             "not_sent",
                             "refused",
                             "sent",
+                            "not_taken",
                             "unknown",
                             "not_found",
                             "unavailable"
@@ -113278,6 +113279,7 @@
                             "not_sent",
                             "refused",
                             "sent",
+                            "not_taken",
                             "unknown",
                             "not_found",
                             "unavailable"
@@ -115367,6 +115369,7 @@
                                   "not_sent",
                                   "refused",
                                   "sent",
+                                  "not_taken",
                                   "unknown",
                                   "not_found",
                                   "unavailable"
