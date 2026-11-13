@@ -379,7 +379,7 @@ describe("wording maps", () => {
       none_active: "Market notes: none active",
     });
     expect(ENGINE_POLICY_LINE).toBe(
-      "Engine policy v3 (arm_gate): not run in this dry pre-check; for an approved order the order bridge runs the node's own check, with the ARM state, before IBKR."
+      "Engine policy v3 (arm_gate): not run in this dry pre-check; when the order bridge reports policy v3, it runs the node's own check, with the ARM state, on an approved order before IBKR."
     );
   });
 
