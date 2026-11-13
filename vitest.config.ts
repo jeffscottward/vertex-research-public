@@ -32,7 +32,7 @@ const FULL_COVERAGE = {
   statements: 100,
 } as const;
 const escapeGlob = (path: string): string =>
-  path.replace(/[()[\]{}*?!+@,|]/gu, "\\$&");
+  path.replace(/[\\()[\]{}*?!+@,|]/gu, "\\$&");
 const legacyFiles = Object.keys(coverageBaseline.files);
 export const coverageThresholds = {
   [`!(${legacyFiles.map(escapeGlob).join("|")})`]: FULL_COVERAGE,

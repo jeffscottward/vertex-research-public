@@ -103,16 +103,16 @@ Ruin rule (both engines, every definition): when equity marked at a bar's close 
 { "timezone": "America/New_York", "open": "09:30", "close": "16:00", "entryFrom": "10:00", "entryTo": "15:30", "decisionEvery": 30 }
 ```
 
-All times are New York `HH:MM`; `timezone` must be `"America/New_York"`. `decisionEvery` (1 to 390 minutes) is optional with no default. The schema needs `open` < `close` and `open` < `entryFrom` <= `entryTo` < `close`.
+All times are New York `HH:MM`; `timezone` must be `"America/New_York"`. `decisionEvery` and `exitEvery` (each 1 to 390 minutes) are optional with no default. The schema needs `open` < `close` and `open` < `entryFrom` <= `entryTo` < `close`.
 
 - Bar duration: the most common gap between bars of one New York date (a tie takes the smaller gap). A bar closes at its time + the duration.
 - Regular bars open at or after `open` and close at or before `close` (the close time uses the New York offset at the bar's open). Other bars (pre-market, after hours) never take an entry, never hold a position (the market-on-close exit closes it first) and are not available in the session indicators. A session day is the New York date of its regular bars.
 - Entries: only on regular bars closing in [`entryFrom`, `entryTo`], on the decision grid when `decisionEvery` is set (the bar close is a whole number of `decisionEvery` minutes after `open`), and never on the last regular bar of a session day.
-- Exit conditions count only on regular bars on the decision grid (every regular bar without `decisionEvery`). Stops and targets stay live on every bar.
+- Exit conditions count only on regular bars on the exit grid: every `exitEvery` minutes after `open` when it is set, else the decision grid (every regular bar without `decisionEvery`). For example `decisionEvery: 30` with `exitEvery: 5` decides entries every half hour and checks exits on every 5-minute bar. Stops and targets stay live on every bar.
 - Market on close (MOC): a position still open at the close of the last regular bar of its session day exits at that bar's close (exit reason `sessionClose`); that bar is held, so the API counts it when it recomputes a Nautilus result's exposure from the trades. On an early-close day (a day whose bars stop before `close`) the last regular bar present is the MOC bar, so the position exits at the early close. The session-last bar comes from the bars present in the data: there is no exchange calendar of early closes, so a day missing its final bars (a data gap) also exits at its last bar present, and an early close is only detected when the data stops early.
 - `filters` may not hold a `calendarWindow` filter, and `options` may not be set, with an `intraday` block.
 - The block needs intraday bars: a run whose bars have no two bars on one New York date (daily or weekly bars) is refused with `STRATEGY_INTRADAY_DAILY_UNSUPPORTED` (see [Where definitions run](#where-definitions-run)).
-- Times must sit on the bar grid: `open`, `close`, `entryFrom`, `entryTo` and every `HH:MM` time of a `sessionReturn` (minutes since midnight New York) and `decisionEvery` must each be a whole multiple of the bar duration (so the times are on the grid anchored at `open`). Otherwise compiling refuses with `STRATEGY_INTRADAY_GRID_MISALIGNED`; for example 60-minute bars refuse `open` 09:30.
+- Times must sit on the bar grid: `open`, `close`, `entryFrom`, `entryTo` and every `HH:MM` time of a `sessionReturn` (minutes since midnight New York) and `decisionEvery` and `exitEvery` must each be a whole multiple of the bar duration (so the times are on the grid anchored at `open`). Otherwise compiling refuses with `STRATEGY_INTRADAY_GRID_MISALIGNED`; for example 60-minute bars refuse `open` 09:30.
 
 ### Session indicators
 
@@ -280,7 +280,7 @@ The 11 QuantConnect idea ports are portfolio definitions ([qc ports](../specs/st
 | `STRATEGY_SERIES_FILTERS_UNSUPPORTED` | An `ivRank`, `vixTermStructure`, `volRegime` or `series` filter or a series expression (in `entry.all`, `entry.any`, `exit.any`, a portfolio leg or the portfolio selection), on a path without the series loader. `sectorQuadrant` and `calendarWindow` filters are allowed everywhere. |
 | `STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED` | A `calendarWindow` filter on an intraday timeframe (every timeframe except `1d` and `1w`). |
 | `STRATEGY_INTRADAY_DAILY_UNSUPPORTED` | An `intraday` block on a daily timeframe (`1d`, `1w`). Without a known timeframe `compileStrategy` / `compile_strategy` refuse it when the bars have no two bars on one New York date. |
-| `STRATEGY_INTRADAY_GRID_MISALIGNED` | An `intraday` block time (`open`, `close`, `entryFrom`, `entryTo`, a `sessionReturn` `HH:MM` time) or `decisionEvery` that is not a whole multiple of the bar duration. |
+| `STRATEGY_INTRADAY_GRID_MISALIGNED` | An `intraday` block time (`open`, `close`, `entryFrom`, `entryTo`, a `sessionReturn` `HH:MM` time) or `decisionEvery` / `exitEvery` that is not a whole multiple of the bar duration. |
 
 Backtest runs and Autopilot load daily series from the series store (`market_daily_series`, loader `packages/api/src/server/strategy-series.ts`): the refs the definition reads, resolved for the run symbol (`<ETF>:TR` is the adjusted close of the ETF row), up to the run's `to` with the whole history before `from`. A missing series fails the run with `Series data is not available for <id>` (an Autopilot tick retries instead); a server without the series store fails it with `The daily series store is not available on this server (needed for <ids>)`. Options runs load what the options runner reads (`optionsDefinitionSeriesIds`: each symbol's row and IV index, IRX and SPY, plus the definition's refs).
 

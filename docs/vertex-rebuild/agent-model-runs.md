@@ -146,7 +146,7 @@ Rules:
 
 `benchmark` (MCP `model_runs_benchmark`, page `/agents/benchmark`) groups up to 5000 filtered runs into arms (`armBy`: `model`, `servedModel`, `provider_model`, `framework` or `variant`) and compares them on shared (ticker, decision date) cells: coverage, rating mix, rerun agreement, agreement with `baselineArm`, a pairwise agreement matrix of the 12 largest arms and, with `pair: { control, treatment }`, directional hits on the 5-day forward return with an exact sign test. [agent-benchmark.md](../agent-benchmark.md) defines each measure and describes the bench command that records the runs.
 
-`frameworks` returns the static reference sheets of the frameworks Vertex benchmarks (TradingAgents desks, AI Hedge Fund event study, Vibe-Trading): status, version, stages, data with point-in-time notes, allowed and excluded tools, guards, code paths, licence and links. The page shows them in its Frameworks section.
+`frameworks` returns the static reference sheets of the frameworks Vertex benchmarks or adapts (TradingAgents desks, AI Hedge Fund event study, Vibe-Trading, and the LangAlpha trade-pitch structure, which is adapted and not benchmarked): status, version, stages, data with point-in-time notes, allowed and excluded tools, guards, code paths, licence and links. The page shows them in its Frameworks section.
 
 ## In The Money Adam desk
 

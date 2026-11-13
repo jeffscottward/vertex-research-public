@@ -16,7 +16,11 @@ import { ORPCError } from "@orpc/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
-import type { VertexOrderInput } from "./contracts/vertex-orders.ts";
+import type { JevVerdictOutput } from "./contracts/jev-verdict.ts";
+import type {
+  VertexComboInput,
+  VertexOrderInput,
+} from "./contracts/vertex-orders.ts";
 import { createApiContext } from "./server/context.ts";
 import {
   AGENT_API_KEY_PROCEDURE_ROOTS,
@@ -24,17 +28,15 @@ import {
 } from "./server/handler.ts";
 import { MCP_TOOLS } from "./server/mcp.ts";
 import {
+  setVertexOrdersDependenciesForTesting as setOrdersDependencies,
+  type VertexOrdersConfig,
+} from "./server/vertex-orders.ts";
+import {
+  createMockOrderGateway,
   OrderGatewayError,
   type OrderGatewayPort,
-  createMockOrderGateway,
 } from "./server/vertex-orders-gateway.ts";
 import type { OrderAccount } from "./server/vertex-orders-rules.ts";
-import type { VertexComboInput } from "./contracts/vertex-orders.ts";
-import {
-  type VertexOrdersConfig,
-  setVertexOrdersDependenciesForTesting as setOrdersDependencies,
-} from "./server/vertex-orders.ts";
-import type { JevVerdictOutput } from "./contracts/jev-verdict.ts";
 
 // The final JEV order gate runs on the mock gateway. These tests cover the order rules, so they
 // see a fresh NEUTRAL verdict (never opposes); final-order-gate tests cover the JEV rules.
@@ -72,35 +74,35 @@ const setVertexOrdersDependenciesForTesting = (
 const at = new Date("2026-10-22T15:00:00.000Z");
 const SECRET = "t".repeat(40);
 const OFF: VertexOrdersConfig = {
+  bridgeToken: "b".repeat(40),
+  bridgeUrl: "http://127.0.0.1:3470",
+  confirmSecret: SECRET,
   enabled: false,
   submission: "disabled",
-  bridgeUrl: "http://127.0.0.1:3470",
-  bridgeToken: "b".repeat(40),
-  confirmSecret: SECRET,
 };
 
 const session = (userId: string): SafeAuthSession => ({
+  principal: { role: "member", status: "active", userId },
+  session: {
+    createdAt: at,
+    expiresAt: new Date("2026-10-23T12:00:00.000Z"),
+    id: `session-${userId}`,
+    ipAddress: null,
+    updatedAt: at,
+    userAgent: null,
+    userId,
+  },
   user: {
-    id: userId,
-    name: userId,
+    createdAt: at,
     email: `${userId}@domain.test`,
     emailVerified: true,
+    id: userId,
     image: null,
-    createdAt: at,
-    updatedAt: at,
+    name: userId,
     role: "member",
     status: "active",
-  },
-  session: {
-    id: `session-${userId}`,
-    userId,
-    expiresAt: new Date("2026-10-23T12:00:00.000Z"),
-    createdAt: at,
     updatedAt: at,
-    ipAddress: null,
-    userAgent: null,
   },
-  principal: { userId, role: "member", status: "active" },
 });
 
 type Options = Readonly<{
@@ -112,6 +114,7 @@ type Options = Readonly<{
   sinkFailed?: boolean;
   span?: SpanHandle;
   intents?: OrderIntentRepository;
+  goLiveDrafts?: unknown;
 }>;
 
 const clientFor = ({
@@ -122,31 +125,33 @@ const clientFor = ({
   sinkFailed = false,
   span,
   intents,
+  goLiveDrafts,
 }: Options = {}) => {
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
     const context = createApiContext(request, {
-      repositories: (intents === undefined
-        ? {}
-        : { orderIntents: intents }) as unknown as Repositories,
-      requestId: "request-1",
       capabilities: {
         ai: false,
-        emailDelivery: false,
         analytics: false,
+        emailDelivery: false,
         telemetryExport: false,
       },
-      requireSession: async () => {
-        if (user === null) throw denied();
-        return session(user);
-      },
+      operatorEmails: ["operator@domain.test", "member-op@domain.test"],
+      repositories: {
+        ...(intents === undefined ? {} : { orderIntents: intents }),
+        ...(goLiveDrafts === undefined ? {} : { goLiveDrafts }),
+      } as unknown as Repositories,
+      requestId: "request-1",
       // Owner = operator allow-list AND admin role; "member-op" is an operator without admin.
       requireRole: async () => {
         if (user !== "operator") throw denied();
         return session(user);
       },
-      operatorEmails: ["operator@domain.test", "member-op@domain.test"],
+      requireSession: async () => {
+        if (user === null) throw denied();
+        return session(user);
+      },
       vertexOrders: config,
       ...(span === undefined ? {} : { span }),
       ...(events === null
@@ -157,11 +162,11 @@ const clientFor = ({
                 events.push(event);
                 if (emitFails) throw new Error("sink down");
                 return {
+                  analytics: "skipped" as const,
+                  span: "skipped" as const,
                   structuredEvent: sinkFailed
                     ? ("failed" as const)
                     : ("emitted" as const),
-                  span: "skipped" as const,
-                  analytics: "skipped" as const,
                 };
               },
             },
@@ -189,15 +194,15 @@ const expectCode = async (
 const order = (
   overrides: Partial<VertexOrderInput> = {}
 ): VertexOrderInput => ({
-  symbol: "MOCKD",
-  secType: "OPT",
   expiry: "20280121",
-  strike: 100,
-  right: "C",
-  side: "BUY",
-  quantity: 2,
-  orderType: "LMT",
   limitPrice: 10,
+  orderType: "LMT",
+  quantity: 2,
+  right: "C",
+  secType: "OPT",
+  side: "BUY",
+  strike: 100,
+  symbol: "MOCKD",
   ...overrides,
 });
 
@@ -207,6 +212,8 @@ const intentStore = () => {
   const outcomes = new Map<string, string>();
   const rows: string[] = [];
   const store: OrderIntentRepository = {
+    hasIntent: async (orderRef) =>
+      intents.some((i) => i.orderRef === orderRef) || outcomes.has(orderRef),
     recordIntent: async ({ intent }) => {
       intents.push({ ...intent, createdAt: clock });
       rows.push(`intent ${intent.orderRef}`);
@@ -221,7 +228,7 @@ const intentStore = () => {
         return outcome === undefined || outcome === "unknown";
       }),
   };
-  return { store, intents, rows };
+  return { intents, rows, store };
 };
 
 // A promise the test settles by hand (the tsconfig lib has no Promise.withResolvers).
@@ -245,17 +252,17 @@ beforeEach(() => {
     Response.json(
       input.endsWith("/account")
         ? {
-            netLiquidation: 200_000,
-            positions: [],
-            openOrders: [],
-            gates: { killSwitch: false, optionsOnly: true },
             caps: { leapsMinDays: 365, leapsPct: 2, shortPct: 2 },
+            gates: { killSwitch: false, optionsOnly: true },
+            netLiquidation: 200_000,
+            openOrders: [],
+            positions: [],
           }
-        : { state: "submitted", permId: 42, message: "bridge" }
+        : { message: "bridge", permId: 42, state: "submitted" }
     )
   );
   mock = createMockOrderGateway(() => at);
-  setVertexOrdersDependenciesForTesting({ mock, bridgeFetch, now: () => at });
+  setVertexOrdersDependenciesForTesting({ bridgeFetch, mock, now: () => at });
 });
 
 afterEach(() => setVertexOrdersDependenciesForTesting(undefined));
@@ -282,10 +289,10 @@ describe("vertexOrders procedures", () => {
     const client = clientFor();
     const status = await client.vertexOrders.status({});
     expect(status.gates).toEqual({
-      ordersEnabled: false,
-      mode: "simulated",
       killSwitch: false,
+      mode: "simulated",
       optionsOnly: true,
+      ordersEnabled: false,
     });
     expect(status.openOrders.map((o) => o.cancellable)).toEqual([
       true,
@@ -295,9 +302,9 @@ describe("vertexOrders procedures", () => {
     const preview = await client.vertexOrders.preview(order());
     expect(preview.review.accepted).toBe(true);
     const result = await client.vertexOrders.submit({
-      order: order(),
-      confirmToken: preview.confirmToken ?? "",
       confirm: true,
+      confirmToken: preview.confirmToken ?? "",
+      order: order(),
     });
     expect(result).toMatchObject({ mode: "simulated", state: "submitted" });
     expect(result.orderRef).toMatch(/^vertex-/);
@@ -309,9 +316,9 @@ describe("vertexOrders procedures", () => {
     const client = clientFor({ events });
     await expectCode(
       client.vertexOrders.submit({
-        order: order(),
-        confirmToken: "x".repeat(20),
         confirm: true,
+        confirmToken: "x".repeat(20),
+        order: order(),
       }),
       "CONFIRM_INVALID",
       409
@@ -320,33 +327,33 @@ describe("vertexOrders procedures", () => {
     const token = preview.confirmToken ?? "";
     await expectCode(
       client.vertexOrders.submit({
-        order: order({ quantity: 3 }),
-        confirmToken: token,
         confirm: true,
+        confirmToken: token,
+        order: order({ quantity: 3 }),
       }),
       "CONFIRM_INVALID",
       409
     );
     // The mismatched attempt above did not consume the token.
     await client.vertexOrders.submit({
-      order: order(),
-      confirmToken: token,
       confirm: true,
+      confirmToken: token,
+      order: order(),
     });
     await expectCode(
       client.vertexOrders.submit({
-        order: order(),
-        confirmToken: token,
         confirm: true,
+        confirmToken: token,
+        order: order(),
       }),
       "CONFIRM_INVALID",
       409
     );
     await expect(
       client.vertexOrders.submit({
-        order: order(),
-        confirmToken: token,
         confirm: false as true,
+        confirmToken: token,
+        order: order(),
       })
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(events.map((e) => `${e.name}:${e.outcome}`)).toEqual([
@@ -358,8 +365,8 @@ describe("vertexOrders procedures", () => {
       "vertex.orders.submit:failure",
     ]);
     expect(events[4]?.attributes).toMatchObject({
-      userId: "operator",
       contract: "MOCKD 20280121 100 call",
+      userId: "operator",
     });
   });
 
@@ -386,7 +393,7 @@ describe("vertexOrders procedures", () => {
     });
     const client = clientFor();
     const orders = [100, 105, 110, 115].map((strike) =>
-      order({ strike, quantity: 1, limitPrice: 35 })
+      order({ limitPrice: 35, quantity: 1, strike })
     );
     const tokens: string[] = [];
     for (const candidate of orders) {
@@ -396,9 +403,9 @@ describe("vertexOrders procedures", () => {
     }
     const submitAt = (index: number) =>
       client.vertexOrders.submit({
-        order: orders[index] ?? order(),
-        confirmToken: tokens[index] ?? "",
         confirm: true,
+        confirmToken: tokens[index] ?? "",
+        order: orders[index] ?? order(),
       });
 
     const first = submitAt(0);
@@ -409,8 +416,8 @@ describe("vertexOrders procedures", () => {
 
     for (const refused of parallel)
       expect(refused).toMatchObject({
-        status: "rejected",
         reason: { code: "RATE_LIMITED" },
+        status: "rejected",
       });
     // A refused submit did not use its confirm token: one at a time, the
     // per-name cap admits two more and refuses the fourth.
@@ -447,13 +454,13 @@ describe("vertexOrders procedures", () => {
         (await client.vertexOrders.preview(second)).confirmToken ?? "";
       const submitSecond = () =>
         client.vertexOrders.submit({
-          order: second,
-          confirmToken: secondToken,
           confirm: true,
+          confirmToken: secondToken,
+          order: second,
         });
 
       void client.vertexOrders
-        .submit({ order: first, confirmToken: firstToken, confirm: true })
+        .submit({ confirm: true, confirmToken: firstToken, order: first })
         .catch(() => undefined);
       await entered.promise;
 
@@ -499,9 +506,9 @@ describe("vertexOrders procedures", () => {
         );
       const submitAt = (index: number) =>
         client.vertexOrders.submit({
-          order: orders[index] ?? order(),
-          confirmToken: tokens[index] ?? "",
           confirm: true,
+          confirmToken: tokens[index] ?? "",
+          order: orders[index] ?? order(),
         });
 
       const first = submitAt(0);
@@ -550,9 +557,9 @@ describe("vertexOrders procedures", () => {
     killSwitch = true;
     await expectCode(
       client.vertexOrders.submit({
-        order: order(),
-        confirmToken: preview.confirmToken ?? "",
         confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order: order(),
       }),
       "ORDER_REJECTED",
       422
@@ -563,14 +570,14 @@ describe("vertexOrders procedures", () => {
     const client = clientFor({ config: { ...OFF, enabled: true } });
     const status = await client.vertexOrders.status({});
     expect(status.gates).toMatchObject({
-      ordersEnabled: false,
       mode: "simulated",
+      ordersEnabled: false,
     });
     const preview = await client.vertexOrders.preview(order());
     await client.vertexOrders.submit({
-      order: order(),
-      confirmToken: preview.confirmToken ?? "",
       confirm: true,
+      confirmToken: preview.confirmToken ?? "",
+      order: order(),
     });
     expect(bridgeFetch).not.toHaveBeenCalled();
   });
@@ -582,9 +589,9 @@ describe("vertexOrders procedures", () => {
     expect((await client.vertexOrders.status({})).gates.mode).toBe("live");
     const preview = await client.vertexOrders.preview(order());
     const result = await client.vertexOrders.submit({
-      order: order(),
-      confirmToken: preview.confirmToken ?? "",
       confirm: true,
+      confirmToken: preview.confirmToken ?? "",
+      order: order(),
     });
     expect(result).toMatchObject({ mode: "live", permId: 42 });
     expect(bridgeFetch.mock.calls.map(([url]) => url)).toContain(
@@ -613,46 +620,356 @@ describe("vertexOrders procedures", () => {
     );
   });
 
+  it("covers the go-live gate's failure paths: store, node, intent read, audit release, second token", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>(async () => ({
+      message: "ok",
+      permId: 80,
+      state: "submitted",
+    }));
+    const spread: VertexComboInput = {
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    };
+    const draftRow = (id: string, state: string) => ({
+      approvedOrder: state === "approved" ? spread : null,
+      expiry: "20280121",
+      id,
+      kind: "entry",
+      longStrike: 100,
+      planId: "pie",
+      shortStrike: 105,
+      state,
+      structure: "callDebitVertical",
+      symbol: "MOCKS",
+      tradingDay: "2026-11-13",
+    });
+    const goLiveDrafts = {
+      listDrafts: async () => [
+        draftRow("d-2", "approved"),
+        draftRow("d-3", "proposed"),
+      ],
+      planInForce: async () => ({
+        id: "pie",
+        limits: {
+          maxPositions: 4,
+          nameRiskCapPct: 2,
+          openRiskCapPct: 4,
+          positionRiskPct: 1,
+        },
+        sleeves: [{ symbols: ["MOCKS"] }],
+        status: "approved",
+      }),
+    };
+    const base = {
+      goLiveSendEnabled: true,
+      mock: {
+        ...mock,
+        account: async () => ({
+          ...(await mock.account()),
+          openOrders: [],
+          positions: [],
+        }),
+        placeCombo,
+      },
+      now: () => clock,
+    };
+    const preview = (client: ReturnType<typeof clientFor>) =>
+      client.vertexOrders.comboPreview({ ...spread, goLiveDraftId: "d-2" });
+    const submit = (client: ReturnType<typeof clientFor>, token: string) =>
+      client.vertexOrders.comboSubmit({
+        confirm: true,
+        confirmToken: token,
+        goLiveDraftId: "d-2",
+        order: spread,
+      });
+
+    // The store cannot be read; the node reader is the default (no node answers here).
+    setVertexOrdersDependenciesForTesting(base);
+    const broken = clientFor({
+      goLiveDrafts: {
+        listDrafts: () => Promise.reject(new Error("db down")),
+        planInForce: async () => null,
+      },
+    });
+    expect((await preview(broken)).review.reasons).toContain(
+      "GO-LIVE STORE_UNAVAILABLE: the go-live drafts could not be read"
+    );
+    const noNode = clientFor({ goLiveDrafts });
+    expect((await preview(noNode)).review.reasons).toEqual([
+      expect.stringMatching(/^GO-LIVE ENGINE_DISARMED: /u),
+    ]);
+
+    setVertexOrdersDependenciesForTesting({
+      ...base,
+      goLiveNode: async () => ({
+        arm: null,
+        badge: "running-armed",
+        checkedAt: "T",
+      }),
+    });
+    // The intent store cannot answer: the draft counts as already sent.
+    const { store } = intentStore();
+    const unsure = clientFor({
+      goLiveDrafts,
+      intents: { ...store, hasIntent: () => Promise.reject(new Error("x")) },
+    });
+    expect((await preview(unsure)).review.reasons).toContain(
+      "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+    );
+
+    // The audit sink is down at submit: nothing is sent and the reservation is freed.
+    const first = await preview(clientFor({ goLiveDrafts, intents: store }));
+    await expectCode(
+      submit(
+        clientFor({ events: null, goLiveDrafts, intents: store }),
+        first.confirmToken ?? ""
+      ),
+      "AUDIT_UNAVAILABLE",
+      503
+    );
+    expect(placeCombo).not.toHaveBeenCalled();
+
+    // Two tokens for the same draft: the first sends, the second is refused at submit.
+    const client = clientFor({ goLiveDrafts, intents: store });
+    const a = await preview(client);
+    const b = await preview(client);
+    expect(await submit(client, a.confirmToken ?? "")).toMatchObject({
+      state: "submitted",
+    });
+    await expectCode(
+      submit(client, b.confirmToken ?? ""),
+      "ORDER_REJECTED",
+      422
+    );
+    expect(placeCombo).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses every go-live send by name while sends are off (the default)", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>();
+    setVertexOrdersDependenciesForTesting({
+      goLiveNode: async () => ({
+        arm: null,
+        badge: "running-armed",
+        checkedAt: "T",
+      }),
+      mock: { ...mock, placeCombo },
+      now: () => clock,
+    });
+    const client = clientFor({
+      goLiveDrafts: {
+        listDrafts: async () => [],
+        planInForce: async () => null,
+      },
+      intents: intentStore().store,
+    });
+    const preview = await client.vertexOrders.comboPreview({
+      goLiveDraftId: "d-9",
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    });
+    expect(preview.confirmToken).toBeNull();
+    expect(preview.review.reasons).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /^GO-LIVE (?:V3_NOT_ON_LIVE_PATH|DRAFT_NOT_FOUND)/u
+        ),
+      ])
+    );
+    expect(placeCombo).not.toHaveBeenCalled();
+  });
+
+  it("sends an approved go-live draft once, armed, and refuses a second send of it", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>(async () => ({
+      message: "ok",
+      permId: 79,
+      state: "submitted",
+    }));
+    const spread: VertexComboInput = {
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    };
+    const goLiveDrafts = {
+      listDrafts: async () => [
+        {
+          approvedOrder: spread,
+          expiry: "20280121",
+          id: "d-1",
+          kind: "entry",
+          longStrike: 100,
+          planId: "pie",
+          shortStrike: 105,
+          state: "approved",
+          structure: "callDebitVertical",
+          symbol: "MOCKS",
+          tradingDay: "2026-11-13",
+        },
+      ],
+      planInForce: async () => ({
+        id: "pie",
+        limits: {
+          maxPositions: 4,
+          nameRiskCapPct: 2,
+          openRiskCapPct: 4,
+          positionRiskPct: 1,
+        },
+        sleeves: [{ symbols: ["MOCKS"] }],
+        status: "approved",
+      }),
+    };
+    let badge: "running-armed" | "running-disarmed" = "running-disarmed";
+    setVertexOrdersDependenciesForTesting({
+      goLiveNode: async () => ({ arm: null, badge, checkedAt: "T" }),
+      goLiveSendEnabled: true,
+      mock: {
+        ...mock,
+        account: async () => ({
+          ...(await mock.account()),
+          openOrders: [],
+          positions: [],
+        }),
+        placeCombo,
+      },
+      now: () => clock,
+    });
+    const { store, rows } = intentStore();
+    const client = clientFor({ goLiveDrafts, intents: store });
+    const send = async () => {
+      const preview = await client.vertexOrders.comboPreview({
+        ...spread,
+        goLiveDraftId: "d-1",
+      });
+      if (preview.confirmToken === null) return preview.review.reasons;
+      return await client.vertexOrders.comboSubmit({
+        confirm: true,
+        confirmToken: preview.confirmToken,
+        goLiveDraftId: "d-1",
+        order: spread,
+      });
+    };
+    // Disarmed: nothing is sent and the reason is named.
+    expect(await send()).toEqual([
+      expect.stringMatching(
+        /^GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed/u
+      ),
+    ]);
+    badge = "running-armed";
+    const first = await send();
+    expect(first).toMatchObject({ permId: 79, state: "submitted" });
+    expect((first as { orderRef: string }).orderRef).toMatch(
+      /^vertex-gl[0-9a-f]{30}$/u
+    );
+    expect(rows[0]).toBe(`intent ${(first as { orderRef: string }).orderRef}`);
+    // Second send of the same draft: refused at preview, nothing reaches the gateway again.
+    expect(await send()).toContain(
+      "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+    );
+    expect(placeCombo).toHaveBeenCalledTimes(1);
+  });
+
+  it("binds a go-live draft id to the confirm token and refuses by name when the draft store is missing", async () => {
+    clock = new Date(at);
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>(async () => ({
+      message: "ok",
+      permId: 78,
+      state: "submitted",
+    }));
+    setVertexOrdersDependenciesForTesting({
+      mock: { ...mock, placeCombo },
+      now: () => clock,
+    });
+    const client = clientFor({ intents: intentStore().store });
+    const spread: VertexComboInput = {
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    };
+    const preview = await client.vertexOrders.comboPreview({
+      ...spread,
+      goLiveDraftId: "d-1",
+    });
+    expect(preview.review.accepted).toBe(false);
+    expect(preview.review.reasons).toContain(
+      "GO-LIVE STORE_UNAVAILABLE: the go-live draft store is not configured"
+    );
+    expect(preview.confirmToken).toBeNull();
+    // A token issued for the plain order does not send it as a go-live draft, and the reverse.
+    const plain = await client.vertexOrders.comboPreview(spread);
+    if (plain.confirmToken !== null)
+      await expectCode(
+        client.vertexOrders.comboSubmit({
+          confirm: true,
+          confirmToken: plain.confirmToken,
+          goLiveDraftId: "d-1",
+          order: spread,
+        }),
+        "CONFIRM_INVALID",
+        409
+      );
+    expect(placeCombo).not.toHaveBeenCalled();
+  });
+
   it("closes a spread as one combo: preview, confirm, submit, refusals and unknown outcome", async () => {
     clock = new Date(at);
     const spreadAccount = async (): Promise<OrderAccount> => ({
       ...(await mock.account()),
+      openOrders: [],
       positions: [
         {
-          symbol: "MOCKS",
-          secType: "OPT",
           expiry: "20280121",
-          strike: 100,
-          right: "C",
-          quantity: 2,
           premium: 2000,
+          quantity: 2,
+          right: "C",
+          secType: "OPT",
+          strike: 100,
+          symbol: "MOCKS",
         },
         {
-          symbol: "MOCKS",
-          secType: "OPT",
           expiry: "20280121",
-          strike: 120,
-          right: "C",
-          quantity: -2,
           premium: 0,
+          quantity: -2,
+          right: "C",
+          secType: "OPT",
+          strike: 120,
+          symbol: "MOCKS",
         },
       ],
-      openOrders: [],
     });
     const combo = (over: Partial<VertexComboInput> = {}): VertexComboInput => ({
-      symbol: "MOCKS",
-      quantity: 2,
-      limitPrice: -3.5,
       legs: [
-        { expiry: "20280121", strike: 100, right: "C", side: "SELL", ratio: 1 },
-        { expiry: "20280121", strike: 120, right: "C", side: "BUY", ratio: 1 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 120 },
       ],
+      limitPrice: -3.5,
+      quantity: 2,
+      symbol: "MOCKS",
       ...over,
     });
     let placeCombo: OrderGatewayPort["placeCombo"] = async () => ({
-      state: "submitted",
-      permId: 77,
       message: "ok",
+      permId: 77,
+      state: "submitted",
     });
     setVertexOrdersDependenciesForTesting({
       mock: {
@@ -664,23 +981,23 @@ describe("vertexOrders procedures", () => {
     });
     const { store, rows } = intentStore();
     const events: SemanticEvent[] = [];
-    const client = clientFor({ intents: store, events });
+    const client = clientFor({ events, intents: store });
     const send = async (input = combo()) => {
       const preview = await client.vertexOrders.comboPreview(input);
       return await client.vertexOrders.comboSubmit({
-        order: input,
-        confirmToken: preview.confirmToken ?? "",
         confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order: input,
       });
     };
 
     const preview = await client.vertexOrders.comboPreview(combo());
     expect(preview.review).toMatchObject({
       accepted: true,
-      netAmount: -700,
       label: "MOCKS combo x2: SELL 20280121 100C / BUY 20280121 120C",
+      netAmount: -700,
     });
-    expect(await send()).toMatchObject({ state: "submitted", permId: 77 });
+    expect(await send()).toMatchObject({ permId: 77, state: "submitted" });
     expect(rows.slice(-2)).toEqual([
       expect.stringMatching(/^intent vertex-/u),
       "vertex.order.result placed",
@@ -693,18 +1010,18 @@ describe("vertexOrders procedures", () => {
     // A token for another combo is refused.
     await expectCode(
       client.vertexOrders.comboSubmit({
-        order: combo({ limitPrice: -1 }),
-        confirmToken: preview.confirmToken ?? "",
         confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order: combo({ limitPrice: -1 }),
       }),
       "CONFIRM_INVALID",
       409
     );
     // Unconfirmed by IBKR: kept as unknown.
     placeCombo = async () => ({
-      state: "unconfirmed",
-      permId: null,
       message: "pending",
+      permId: null,
+      state: "unconfirmed",
     });
     await send(combo({ limitPrice: -3.4 }));
     expect(rows.at(-1)).toBe("vertex.order.result unknown");
@@ -733,52 +1050,52 @@ describe("vertexOrders procedures", () => {
     let held = 2;
     const account = async (): Promise<OrderAccount> => ({
       ...(await mock.account()),
+      openOrders: [],
       positions: [
         {
-          symbol: "MOCKS",
-          secType: "OPT",
           expiry: "20280121",
-          strike: 100,
-          right: "C",
-          quantity: held,
           premium: 2000,
+          quantity: held,
+          right: "C",
+          secType: "OPT",
+          strike: 100,
+          symbol: "MOCKS",
         },
         {
-          symbol: "MOCKS",
-          secType: "OPT",
           expiry: "20280121",
-          strike: 120,
-          right: "C",
-          quantity: -held,
           premium: 0,
+          quantity: -held,
+          right: "C",
+          secType: "OPT",
+          strike: 120,
+          symbol: "MOCKS",
         },
       ],
-      openOrders: [],
     });
     setVertexOrdersDependenciesForTesting({
       mock: { ...mock, account },
       now: () => clock,
     });
     const order = {
-      symbol: "MOCKS",
-      quantity: 2,
-      limitPrice: 1.25,
       legs: [
         {
           expiry: "20280121",
-          strike: 100,
+          ratio: 1,
           right: "C" as const,
           side: "SELL" as const,
-          ratio: 1,
+          strike: 100,
         },
         {
           expiry: "20280121",
-          strike: 120,
+          ratio: 1,
           right: "C" as const,
           side: "BUY" as const,
-          ratio: 1,
+          strike: 120,
         },
       ],
+      limitPrice: 1.25,
+      quantity: 2,
+      symbol: "MOCKS",
     };
     const client = clientFor({
       intents: {
@@ -789,9 +1106,9 @@ describe("vertexOrders procedures", () => {
     const first = await client.vertexOrders.comboPreview(order);
     await expectCode(
       client.vertexOrders.comboSubmit({
-        order,
-        confirmToken: first.confirmToken ?? "",
         confirm: true,
+        confirmToken: first.confirmToken ?? "",
+        order,
       }),
       "AUDIT_UNAVAILABLE",
       503
@@ -800,9 +1117,9 @@ describe("vertexOrders procedures", () => {
     held = 1;
     await expectCode(
       client.vertexOrders.comboSubmit({
-        order,
-        confirmToken: second.confirmToken ?? "",
         confirm: true,
+        confirmToken: second.confirmToken ?? "",
+        order,
       }),
       "ORDER_REJECTED",
       422
@@ -826,22 +1143,22 @@ describe("vertexOrders procedures", () => {
       Response.json(
         input.endsWith("/account")
           ? {
-              netLiquidation: 200_000,
-              positions: [],
-              openOrders: [],
-              gates: { killSwitch: false, optionsOnly: true },
               caps: { leapsMinDays: 365, leapsPct: 6, shortPct: 2 },
+              gates: { killSwitch: false, optionsOnly: true },
+              netLiquidation: 200_000,
+              openOrders: [],
+              positions: [],
             }
-          : { state: "unconfirmed", permId: null, message: "pending" }
+          : { message: "pending", permId: null, state: "unconfirmed" }
       )
     );
     const { store, rows } = intentStore();
     const client = clientFor({ config: on, intents: store });
     const preview = await client.vertexOrders.preview(order({ quantity: 1 }));
     await client.vertexOrders.submit({
-      order: order({ quantity: 1 }),
-      confirmToken: preview.confirmToken ?? "",
       confirm: true,
+      confirmToken: preview.confirmToken ?? "",
+      order: order({ quantity: 1 }),
     });
     expect(rows.at(-1)).toBe("vertex.order.result unknown");
   });
@@ -852,64 +1169,64 @@ describe("vertexOrders procedures", () => {
       Response.json(
         input.endsWith("/account")
           ? {
+              caps: { leapsMinDays: 365, leapsPct: 2, shortPct: 2 },
+              gates: { killSwitch: false, optionsOnly: true },
               netLiquidation: 200_000,
+              openOrders: [],
               positions: [
                 {
-                  symbol: "MOCKS",
-                  secType: "OPT",
                   expiry: "20280121",
-                  strike: 100,
-                  right: "P",
-                  quantity: -1,
                   premium: 0,
+                  quantity: -1,
+                  right: "P",
+                  secType: "OPT",
+                  strike: 100,
+                  symbol: "MOCKS",
                 },
                 {
-                  symbol: "MOCKS",
-                  secType: "OPT",
                   expiry: "20280121",
-                  strike: 90,
-                  right: "P",
-                  quantity: 1,
                   premium: 500,
+                  quantity: 1,
+                  right: "P",
+                  secType: "OPT",
+                  strike: 90,
+                  symbol: "MOCKS",
                 },
               ],
-              openOrders: [],
-              gates: { killSwitch: false, optionsOnly: true },
-              caps: { leapsMinDays: 365, leapsPct: 2, shortPct: 2 },
             }
-          : { state: "submitted", permId: 44, message: "bridge" }
+          : { message: "bridge", permId: 44, state: "submitted" }
       )
     );
     const on = { ...OFF, enabled: true, submission: "enabled" };
     const client = clientFor({ config: on, intents: intentStore().store });
     const order = {
-      symbol: "MOCKS",
-      quantity: 1,
-      limitPrice: 0.8,
       legs: [
         {
           expiry: "20280121",
-          strike: 100,
+          ratio: 1,
           right: "P" as const,
           side: "BUY" as const,
-          ratio: 1,
+          strike: 100,
         },
         {
           expiry: "20280121",
-          strike: 90,
+          ratio: 1,
           right: "P" as const,
           side: "SELL" as const,
-          ratio: 1,
+          strike: 90,
         },
       ],
+      limitPrice: 0.8,
+      quantity: 1,
+      symbol: "MOCKS",
     };
     const preview = await client.vertexOrders.comboPreview(order);
     expect(preview.gates.mode).toBe("live");
     expect(
       await client.vertexOrders.comboSubmit({
-        order,
-        confirmToken: preview.confirmToken ?? "",
         confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order,
       })
     ).toMatchObject({ mode: "live", permId: 44 });
     expect(bridgeFetch.mock.calls.map(([url]) => url)).toContain(
@@ -923,16 +1240,16 @@ describe("vertexOrders procedures", () => {
       handleApiRequest(
         request,
         createApiContext(request, {
-          repositories: {} as unknown as Repositories,
           capabilities: {
             ai: false,
-            emailDelivery: false,
             analytics: false,
+            emailDelivery: false,
             telemetryExport: false,
           },
-          requireSession: async () => session("operator"),
-          requireRole: async () => session("operator"),
           operatorEmails: ["operator@domain.test"],
+          repositories: {} as unknown as Repositories,
+          requireRole: async () => session("operator"),
+          requireSession: async () => session("operator"),
         })
       );
     const client = createApiClient({
@@ -957,18 +1274,18 @@ describe("vertexOrders procedures", () => {
     for (let index = 0; index < 5; index++)
       await expectCode(
         client.vertexOrders.cancelSubmit({
-          permId: 1,
-          confirmToken: "x".repeat(20),
           confirm: true,
+          confirmToken: "x".repeat(20),
+          permId: 1,
         }),
         "CONFIRM_INVALID",
         409
       );
     await expectCode(
       client.vertexOrders.cancelSubmit({
-        permId: 1,
-        confirmToken: "x".repeat(20),
         confirm: true,
+        confirmToken: "x".repeat(20),
+        permId: 1,
       }),
       "RATE_LIMITED",
       429
@@ -978,7 +1295,7 @@ describe("vertexOrders procedures", () => {
   it("cancels one option order at a time after a confirm, never share stops", async () => {
     const events: SemanticEvent[] = [];
     const span = {
-      correlation: { traceId: "a".repeat(32), spanId: "b".repeat(16) },
+      correlation: { spanId: "b".repeat(16), traceId: "a".repeat(32) },
     } as unknown as SpanHandle;
     const client = clientFor({ events, span });
     const { openOrders } = await client.vertexOrders.status({});
@@ -999,22 +1316,22 @@ describe("vertexOrders procedures", () => {
     expect(preview.order.symbol).toBe("MOCKB");
     await expectCode(
       client.vertexOrders.cancelSubmit({
-        permId: (option?.permId ?? 0) + 1,
-        confirmToken: preview.confirmToken,
         confirm: true,
+        confirmToken: preview.confirmToken,
+        permId: (option?.permId ?? 0) + 1,
       }),
       "CONFIRM_INVALID",
       409
     );
     const done = await client.vertexOrders.cancelSubmit({
-      permId: option?.permId ?? 0,
-      confirmToken: preview.confirmToken,
       confirm: true,
+      confirmToken: preview.confirmToken,
+      permId: option?.permId ?? 0,
     });
     expect(done).toMatchObject({
-      state: "cancelled",
-      orderRef: "mock-seed",
       mode: "simulated",
+      orderRef: "mock-seed",
+      state: "cancelled",
     });
     expect((await client.vertexOrders.status({})).openOrders).toHaveLength(2);
     expect(events.at(-1)?.correlation).toMatchObject({
@@ -1053,18 +1370,18 @@ describe("vertexOrders procedures", () => {
     const events: SemanticEvent[] = [];
     const broken: OrderGatewayPort = {
       ...mock,
+      cancel: () => Promise.reject(new Error("bug")),
       place: () =>
         Promise.reject(new OrderGatewayError("UPSTREAM_ERROR", "bridge down")),
-      cancel: () => Promise.reject(new Error("bug")),
     };
     setVertexOrdersDependenciesForTesting({ mock: broken, now: () => at });
     const client = clientFor({ events });
     const preview = await client.vertexOrders.preview(order());
     await expectCode(
       client.vertexOrders.submit({
-        order: order(),
-        confirmToken: preview.confirmToken ?? "",
         confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order: order(),
       }),
       "UPSTREAM_ERROR",
       502
@@ -1075,9 +1392,9 @@ describe("vertexOrders procedures", () => {
     });
     await expectCode(
       client.vertexOrders.cancelSubmit({
-        permId: option?.permId ?? 0,
-        confirmToken: cancel.confirmToken,
         confirm: true,
+        confirmToken: cancel.confirmToken,
+        permId: option?.permId ?? 0,
       }),
       "INTERNAL_SERVER_ERROR",
       500
@@ -1093,8 +1410,8 @@ describe("vertexOrders procedures", () => {
     expect((await fresh.place(order(), "vertex-same")).state).toBe("submitted");
     await fresh.cancel((await fresh.account()).openOrders.at(-1)?.permId ?? 0);
     expect(await fresh.place(order(), "vertex-same")).toMatchObject({
-      state: "aborted",
       permId: null,
+      state: "aborted",
     });
   });
 
@@ -1121,13 +1438,13 @@ describe("vertexOrders procedures", () => {
     };
     const { store, rows } = intentStore();
     const events: SemanticEvent[] = [];
-    const client = clientFor({ intents: store, events });
+    const client = clientFor({ events, intents: store });
     const submit = async (input = order()) => {
       const preview = await client.vertexOrders.preview(input);
       return await client.vertexOrders.submit({
-        order: input,
-        confirmToken: preview.confirmToken ?? "",
         confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order: input,
       });
     };
 
@@ -1160,14 +1477,14 @@ describe("vertexOrders procedures", () => {
     const { store, intents, rows } = intentStore();
     const [held] = (await mock.account()).positions;
     intents.push({
-      orderRef: "leaps-vertex-x",
       contract: "MOCKA call",
-      symbol: held?.symbol ?? "",
-      expiry: held?.expiry ?? "",
-      strike: held?.strike ?? 0,
-      right: "C",
-      heldBefore: 0,
       createdAt: new Date(at.getTime() - 10 * 60_000),
+      expiry: held?.expiry ?? "",
+      heldBefore: 0,
+      orderRef: "leaps-vertex-x",
+      right: "C",
+      strike: held?.strike ?? 0,
+      symbol: held?.symbol ?? "",
     });
     const preview = await clientFor({ intents: store }).vertexOrders.preview(
       order()
@@ -1192,9 +1509,9 @@ describe("vertexOrders procedures", () => {
     const preview = await client.vertexOrders.preview(order());
     await expectCode(
       client.vertexOrders.submit({
-        order: order(),
-        confirmToken: preview.confirmToken ?? "",
         confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order: order(),
       }),
       "INTERNAL_SERVER_ERROR",
       500
@@ -1215,13 +1532,13 @@ describe("vertexOrders procedures", () => {
       },
       now: () => clock,
     });
-    const second = clientFor({ intents: intentStore().store, events });
+    const second = clientFor({ events, intents: intentStore().store });
     const again = await second.vertexOrders.preview(order({ strike: 140 }));
     await expectCode(
       second.vertexOrders.submit({
-        order: order({ strike: 140 }),
-        confirmToken: again.confirmToken ?? "",
         confirm: true,
+        confirmToken: again.confirmToken ?? "",
+        order: order({ strike: 140 }),
       }),
       "UPSTREAM_ERROR",
       502
@@ -1242,9 +1559,9 @@ describe("vertexOrders procedures", () => {
     const preview = await client.vertexOrders.preview(order());
     await expectCode(
       client.vertexOrders.submit({
-        order: order(),
-        confirmToken: preview.confirmToken ?? "",
         confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order: order(),
       }),
       "AUDIT_UNAVAILABLE",
       503
@@ -1257,14 +1574,14 @@ describe("vertexOrders procedures", () => {
       /intent store unavailable/u
     );
     intents.push({
-      orderRef: "leaps-vertex-y",
       contract: "OTHER",
-      symbol: "OTHER",
-      expiry: "20280121",
-      strike: 5,
-      right: "C",
-      heldBefore: 0,
       createdAt: new Date(at.getTime() - 60 * 60_000),
+      expiry: "20280121",
+      heldBefore: 0,
+      orderRef: "leaps-vertex-y",
+      right: "C",
+      strike: 5,
+      symbol: "OTHER",
     });
     const stuck = await clientFor({
       intents: {
@@ -1286,9 +1603,9 @@ describe("vertexOrders procedures", () => {
     await mock.cancel(option?.permId ?? 0);
     await expectCode(
       client.vertexOrders.cancelSubmit({
-        permId: option?.permId ?? 0,
-        confirmToken: cancel.confirmToken,
         confirm: true,
+        confirmToken: cancel.confirmToken,
+        permId: option?.permId ?? 0,
       }),
       "NOT_FOUND",
       404
@@ -1320,9 +1637,9 @@ describe("vertexOrders procedures", () => {
       const preview = await client.vertexOrders.preview(order());
       await expectCode(
         client.vertexOrders.submit({
-          order: order(),
-          confirmToken: preview.confirmToken ?? "",
           confirm: true,
+          confirmToken: preview.confirmToken ?? "",
+          order: order(),
         }),
         "AUDIT_UNAVAILABLE",
         503
@@ -1333,9 +1650,9 @@ describe("vertexOrders procedures", () => {
       });
       await expectCode(
         client.vertexOrders.cancelSubmit({
-          permId: option?.permId ?? 0,
-          confirmToken: cancel.confirmToken,
           confirm: true,
+          confirmToken: cancel.confirmToken,
+          permId: option?.permId ?? 0,
         }),
         "AUDIT_UNAVAILABLE",
         503
@@ -1350,13 +1667,13 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
   const vertical = (
     over: Partial<VertexComboInput> = {}
   ): VertexComboInput => ({
-    symbol: "MOCKV",
-    quantity: 2,
-    limitPrice: 4,
     legs: [
-      { expiry: "20280121", strike: 100, right: "C", side: "BUY", ratio: 1 },
-      { expiry: "20280121", strike: 110, right: "C", side: "SELL", ratio: 1 },
+      { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+      { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 110 },
     ],
+    limitPrice: 4,
+    quantity: 2,
+    symbol: "MOCKV",
     ...over,
   });
 
@@ -1375,14 +1692,14 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
 
   it("denies a long option that opposes the JEV stance", async () => {
     setOrdersDependencies({
-      mock,
-      now: () => at,
       jevVerdict: (symbol) => {
         const base = neutralJev(symbol);
         return base.verdict === null
           ? base
           : { ...base, verdict: { ...base.verdict, stance: "BEARISH" } };
       },
+      mock,
+      now: () => at,
     });
     const preview = await clientFor().vertexOrders.preview(order());
     expect(preview.review.finalGate?.reasons.join(" ")).toMatch(/opposes/);
@@ -1399,9 +1716,9 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
       structure: "debit-vertical",
     });
     const result = await client.vertexOrders.comboSubmit({
-      order: vertical(),
-      confirmToken: preview.confirmToken ?? "",
       confirm: true,
+      confirmToken: preview.confirmToken ?? "",
+      order: vertical(),
     });
     expect(result).toMatchObject({ mode: "simulated", state: "submitted" });
     expect(bridgeFetch).not.toHaveBeenCalled();
@@ -1419,17 +1736,17 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
         legs: [
           {
             expiry: "20280121",
-            strike: 100,
+            ratio: 1,
             right: "C",
             side: "BUY",
-            ratio: 1,
+            strike: 100,
           },
           {
             expiry: "20280121",
-            strike: 110,
+            ratio: 2,
             right: "C",
             side: "SELL",
-            ratio: 2,
+            strike: 110,
           },
         ],
       })
@@ -1446,32 +1763,32 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
         gates: { killSwitch: true, optionsOnly: false },
         openOrders: [
           {
-            permId: 5,
-            symbol: "MOCKV",
-            secType: "OPT",
             expiry: "20280121",
-            strike: 100,
-            right: "C",
-            side: "BUY",
-            quantity: 1,
-            orderType: "LMT",
             limitPrice: 1,
-            status: "Submitted",
             orderRef: "x",
+            orderType: "LMT",
+            permId: 5,
+            quantity: 1,
+            right: "C",
+            secType: "OPT",
+            side: "BUY",
+            status: "Submitted",
+            strike: 100,
+            symbol: "MOCKV",
           },
           {
-            permId: 6,
-            symbol: "MOCKV",
-            secType: "BAG",
             expiry: null,
-            strike: null,
-            right: null,
-            side: "BUY",
-            quantity: 1,
-            orderType: "LMT",
             limitPrice: 1,
-            status: "Submitted",
             orderRef: "y",
+            orderType: "LMT",
+            permId: 6,
+            quantity: 1,
+            right: null,
+            secType: "BAG",
+            side: "BUY",
+            status: "Submitted",
+            strike: null,
+            symbol: "MOCKV",
           },
         ],
       }),
@@ -1482,17 +1799,17 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
         legs: [
           {
             expiry: "20221021",
-            strike: 100,
+            ratio: 1,
             right: "C",
             side: "BUY",
-            ratio: 1,
+            strike: 100,
           },
           {
             expiry: "20221021",
-            strike: 110,
+            ratio: 1,
             right: "C",
             side: "SELL",
-            ratio: 1,
+            strike: 110,
           },
         ],
       })
@@ -1537,7 +1854,7 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
   it("on live, denies a new position without a JEV verdict or with the kill switch on, but lets a close through", async () => {
     const on = { ...OFF, enabled: true, submission: "enabled" };
     const { store } = intentStore();
-    setOrdersDependencies({ mock, bridgeFetch, now: () => at });
+    setOrdersDependencies({ bridgeFetch, mock, now: () => at });
     const client = clientFor({ config: on, intents: store });
     const nojev = await client.vertexOrders.preview(order());
     expect(nojev.review.finalGate).toMatchObject({
@@ -1549,23 +1866,23 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
       Response.json(
         url.endsWith("/account")
           ? {
+              caps: { leapsMinDays: 365, leapsPct: 6, shortPct: 2 },
+              gates: { killSwitch: true, optionsOnly: true },
               netLiquidation: 100_000,
+              openOrders: [],
               positions: [
                 {
-                  symbol: "MOCKD",
-                  secType: "OPT",
                   expiry: "20280121",
-                  strike: 100,
-                  right: "C",
-                  quantity: 2,
                   premium: 2000,
+                  quantity: 2,
+                  right: "C",
+                  secType: "OPT",
+                  strike: 100,
+                  symbol: "MOCKD",
                 },
               ],
-              openOrders: [],
-              gates: { killSwitch: true, optionsOnly: true },
-              caps: { leapsMinDays: 365, leapsPct: 6, shortPct: 2 },
             }
-          : { state: "submitted", permId: 42, message: "bridge" }
+          : { message: "bridge", permId: 42, state: "submitted" }
       )
     );
     const open = await client.vertexOrders.preview(order({ quantity: 1 }));
@@ -1573,8 +1890,8 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     const close = await client.vertexOrders.preview(order({ side: "SELL" }));
     expect(close.review.finalGate).toMatchObject({
       decision: "allow",
-      structure: "risk-reducing",
       jevState: "none",
+      structure: "risk-reducing",
     });
     expect(close.confirmToken).not.toBeNull();
   });
@@ -1586,9 +1903,9 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
       mock: {
         ...mock,
         place: async () => ({
-          state: "aborted",
-          permId: null,
           message: "refused",
+          permId: null,
+          state: "aborted",
         }),
       },
       now: () => at,
@@ -1596,9 +1913,9 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     const client = clientFor({ events });
     const preview = await client.vertexOrders.preview(order());
     const result = await client.vertexOrders.submit({
-      order: order(),
-      confirmToken: preview.confirmToken ?? "",
       confirm: true,
+      confirmToken: preview.confirmToken ?? "",
+      order: order(),
     });
     expect(result.state).toBe("aborted");
     const last = events.at(-1);
@@ -1608,18 +1925,18 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
       mock: {
         ...mock,
         placeCombo: async () => ({
-          state: "aborted",
-          permId: null,
           message: "refused",
+          permId: null,
+          state: "aborted",
         }),
       },
       now: () => at,
     });
     const combo = await client.vertexOrders.comboPreview(vertical());
     const comboResult = await client.vertexOrders.comboSubmit({
-      order: vertical(),
-      confirmToken: combo.confirmToken ?? "",
       confirm: true,
+      confirmToken: combo.confirmToken ?? "",
+      order: vertical(),
     });
     expect(comboResult.state).toBe("aborted");
     expect(JSON.stringify(events.at(-1))).toContain("failure");
@@ -1629,14 +1946,14 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     const events: SemanticEvent[] = [];
     const client = clientFor({ events });
     const close = order({
-      symbol: "MOCKA",
-      secType: "STK",
       expiry: "",
-      strike: 0,
-      right: "",
-      side: "SELL",
-      quantity: 100,
       limitPrice: 90,
+      quantity: 100,
+      right: "",
+      secType: "STK",
+      side: "SELL",
+      strike: 0,
+      symbol: "MOCKA",
     });
     const preview = await client.vertexOrders.preview(close);
     expect(preview.review.accepted).toBe(true);
@@ -1655,22 +1972,22 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
         ...(await mock.account()),
         positions: [
           {
-            symbol: "MOCKV",
-            secType: "OPT",
             expiry: "20280121",
-            strike: 90,
-            right: "C",
-            quantity: 1,
             premium: 11_000,
+            quantity: 1,
+            right: "C",
+            secType: "OPT",
+            strike: 90,
+            symbol: "MOCKV",
           },
           {
-            symbol: "MOCKS",
-            secType: "OPT",
             expiry: "20261218",
-            strike: 90,
-            right: "C",
-            quantity: 1,
             premium: 3000,
+            quantity: 1,
+            right: "C",
+            secType: "OPT",
+            strike: 90,
+            symbol: "MOCKS",
           },
         ],
       }),
@@ -1683,24 +2000,24 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     expect(leaps.review.reasons.join(" ")).toMatch(/per-name maximum is 6%/);
     const short = await client.vertexOrders.comboPreview(
       vertical({
-        symbol: "MOCKS",
-        limitPrice: 8,
         legs: [
           {
             expiry: "20261218",
-            strike: 100,
+            ratio: 1,
             right: "C",
             side: "BUY",
-            ratio: 1,
+            strike: 100,
           },
           {
             expiry: "20261218",
-            strike: 110,
+            ratio: 1,
             right: "C",
             side: "SELL",
-            ratio: 1,
+            strike: 110,
           },
         ],
+        limitPrice: 8,
+        symbol: "MOCKS",
       })
     );
     expect(short.review.reasons.join(" ")).toMatch(
@@ -1708,23 +2025,23 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     );
     const credit = await client.vertexOrders.comboPreview(
       vertical({
-        limitPrice: -3,
         legs: [
           {
             expiry: "20280121",
-            strike: 100,
+            ratio: 1,
             right: "C",
             side: "SELL",
-            ratio: 1,
+            strike: 100,
           },
           {
             expiry: "20280121",
-            strike: 110,
+            ratio: 1,
             right: "C",
             side: "BUY",
-            ratio: 1,
+            strike: 110,
           },
         ],
+        limitPrice: -3,
       })
     );
     expect(credit.review.reasons.join(" ")).not.toMatch(/Premium cap/);
@@ -1733,17 +2050,17 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
         legs: [
           {
             expiry: "20281399",
-            strike: 100,
+            ratio: 1,
             right: "C",
             side: "BUY",
-            ratio: 1,
+            strike: 100,
           },
           {
             expiry: "20281399",
-            strike: 110,
+            ratio: 1,
             right: "C",
             side: "SELL",
-            ratio: 1,
+            strike: 110,
           },
         ],
       })
