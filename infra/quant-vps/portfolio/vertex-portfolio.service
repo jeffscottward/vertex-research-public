@@ -6,6 +6,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 RuntimeDirectory=vertex-portfolio
+# Last confirmed account mode and outage start (account-mode.sqlite). No account codes.
+StateDirectory=vertex-portfolio
 ExecStartPre=+/opt/vertex-portfolio/resolve-gateway.sh
 ExecStart=/opt/vertex-portfolio/venv/bin/python -I -W ignore /opt/vertex-portfolio/vertex_portfolio.py
 EnvironmentFile=/opt/vertex-status/token.env

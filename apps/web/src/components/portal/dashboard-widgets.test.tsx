@@ -108,6 +108,8 @@ const snapshot = {
     { commission: 1, execId: "x-10", permId: null, realized: -10 },
     { commission: 1, execId: "x0", permId: null, realized: 0 },
   ],
+  account: { mode: "live", modeError: null },
+  status: { gateway: "live", connected: true },
 } as unknown as PortfolioMonitorOutput;
 
 const gatewayWith = (
@@ -390,6 +392,44 @@ describe("DashboardWidgets", () => {
     expect(widget(failing, "market")?.textContent).toContain(
       "No headline in the last rig push."
     );
+  });
+
+  it("does not show withheld fills as zero fills", async () => {
+    for (const [withheld, reason] of [
+      [
+        { account: { mode: null, modeError: "mismatch" } },
+        "does not match its configured mode",
+      ],
+      [
+        { status: { gateway: "disconnected", connected: false } },
+        "gateway is disconnected",
+      ],
+      [
+        { status: { gateway: "starting", connected: false } },
+        "gateway is connecting",
+      ],
+    ] as const) {
+      const container = await render(
+        <DashboardWidgets
+          gateway={gatewayWith({
+            journal: vi.fn(
+              async () =>
+                ({
+                  ...snapshot,
+                  executions: [],
+                  ...withheld,
+                }) as unknown as PortfolioMonitorOutput
+            ),
+          })}
+          journalSource="ibkr-monitor"
+          now={NOW}
+          operator
+        />
+      );
+      const journal = widget(container, "journal")?.textContent ?? "";
+      expect(journal).toContain(reason);
+      expect(journal).not.toContain("Fills0");
+    }
   });
 
   it("says not configured and sends nothing without a snapshot service", async () => {
