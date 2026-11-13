@@ -402,8 +402,61 @@ describe("PapersWorkspace layout", () => {
     expect(container.querySelector('[aria-label="Paper p2 notes"]')).toBeNull();
   });
 
+  it("ignores a list load that settles after the page is gone", async () => {
+    // Executor form: the web TypeScript lib has no Promise.withResolvers.
+    const settlers: (() => void)[] = [];
+    const lists = [
+      new Promise<ResearchPaperOutput[]>((resolve) => {
+        settlers.push(() => resolve([paper("p1")]));
+      }),
+      new Promise<ResearchPaperOutput[]>((_resolve, reject) => {
+        settlers.push(() => reject({ code: "STORAGE_ERROR" }));
+      }),
+    ];
+    for (const list of lists)
+      await render(
+        <PapersWorkspace
+          gateway={{ ...gatewayWith([]), list: vi.fn(() => list) }}
+        />
+      );
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+
+    // As after the jsdom teardown, there is no usable `window`. React reads it
+    // in every state update, so a late update rejects the load with nobody to
+    // catch it.
+    const unhandled: unknown[] = [];
+    const record = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", record);
+    vi.stubGlobal("window", undefined);
+    try {
+      for (const settler of settlers) settler();
+      // Node reports an unhandled rejection after the microtask queue drains.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      process.off("unhandledRejection", record);
+    }
+    expect(unhandled).toEqual([]);
+  });
+
   it("creates the browser gateway when none is supplied", async () => {
-    const container = await render(<PapersWorkspace />);
-    expect(container.querySelector("h1")?.textContent).toBe("Papers");
+    // No network in a unit test: the request is refused at once, so the load
+    // settles before the test ends. The browser client is built here and kept
+    // by its module, with this stub: a later test of this file cannot swap it.
+    const request = vi.fn(async () =>
+      Promise.reject(new TypeError("fetch failed"))
+    );
+    vi.stubGlobal("fetch", request);
+    try {
+      const container = await render(<PapersWorkspace />);
+      expect(request).toHaveBeenCalledOnce();
+      expect(status(container)).toBe("Unavailable");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
