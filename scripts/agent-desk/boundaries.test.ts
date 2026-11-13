@@ -45,6 +45,17 @@ describe("agent desk boundaries", () => {
     }
   );
 
+  it("covers every desk module, the pitch agent included", () => {
+    expect(sources.map((source) => source.name)).toEqual(
+      expect.arrayContaining([
+        "scripts/agent-desk/desk.ts",
+        "scripts/agent-desk/pitch.ts",
+        "scripts/agent-desk/research.ts",
+        "scripts/agent-desk/technical.ts",
+      ])
+    );
+  });
+
   it("detects side-effect and single-quoted imports", () => {
     const sample = "import \"node:net\";\nimport { x } from 'undici';\n";
     expect([...sample.matchAll(SPECIFIER)].map((match) => match[1])).toEqual([

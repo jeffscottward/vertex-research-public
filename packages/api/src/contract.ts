@@ -46,6 +46,7 @@ import { researchLensesContract } from "./contracts/research-lenses.ts";
 import { openbbContract } from "./contracts/openbb.ts";
 import { sectorRotationContract } from "./contracts/sector-rotation.ts";
 import { breadth90Contract } from "./contracts/breadth-90.ts";
+import { goLiveDraftsContract } from "./contracts/golive-drafts.ts";
 import { congressTradesContract } from "./contracts/congress-trades.ts";
 import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
 import { marketDataContract } from "./contracts/market-data.ts";
@@ -330,6 +331,7 @@ export const appContract = {
   openbb: openbbContract,
   sectorRotation: sectorRotationContract,
   breadth90: breadth90Contract,
+  goLiveDrafts: goLiveDraftsContract,
   congressTrades: congressTradesContract,
   riskAllocator: riskAllocatorContract,
   portfolioMonitor: portfolioMonitorContract,

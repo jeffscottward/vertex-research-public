@@ -80,6 +80,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "openbb.sec",
   "openbb.factors",
   "breadth90.get",
+  "goLiveDrafts.queue",
 ]);
 
 type OperatorErrorFactories = Readonly<{

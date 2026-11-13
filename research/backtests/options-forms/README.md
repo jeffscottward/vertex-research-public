@@ -1,0 +1,545 @@
+# Options forms study
+
+Research only. The allocation study of 2026-11-11 (`research/backtests/allocation/README.md`) found 42 tradable
+library strategies without a defined-risk options form. Check G2 of its gate refuses them for that reason
+alone. This study gives each of them an options form, runs the form on the qc-ports option book and on
+NautilusTrader, and applies the same gate. It creates no order, no deployment request, no preset and no row in
+Postgres.
+
+Result on 2026-11-11 (data to 2026-11-10): **36 of the 42 strategies now have an options form with an own
+NautilusTrader run. In the study model none of them passes the gate and none passes the owner's lower bar.**
+With the option model the allocation study measured for the Core 7, three forms pass the lower bar: one is
+below its always-on baseline, one equals it within 0.01, and the iron condor has no baseline. Of the other 6
+strategies, five trade intraday bars: they have a form in the intraday study of 2026-11-12 (section "Intraday
+forms" below). The sixth, the long calendar spread, was not run then; it runs since the two-expiry book of
+2026-11-12 (section "The long calendar spread" below). The report with
+the tables is outside the repository (rig reports directory `vertex-options-forms`).
+
+Added on 2026-11-12: the option book now prices a two-expiry structure on an IV term structure (VIX, VIX3M,
+VIX6M), so the long calendar spread has its forms and own NautilusTrader runs too (37 of the 42; three configs).
+**No config passes the gate. Config C (100/200 days, 0.30-delta strike) passes the owner's lower bar in all three
+option models, config B in the two diagnostic models** (section "Long calendar spread" below). The 5 intraday
+strategies are still not run (reasons below).
+
+## Files
+
+| File | What it does |
+| --- | --- |
+| `services/research/strategies/qc_ports/forms.py` | The form: stance per symbol and day, stance to spreads under the owner exit rule, proxy IV index and cost model for underlyings without a Cboe index, indicators |
+| `services/research/strategies/qc_ports/forms_orders.py` | Rules of the 9 QuantJourney order strategies (limit, stop, stop-limit, trailing stop, OCO) and the order machine of the 2 intraday order strategies |
+| `services/research/strategies/qc_ports/forms_weights.py` | Rules of the 16 QuantJourney weights and rotation strategies and of the 151 Strategies sector rotation |
+| `services/research/strategies/qc_ports/forms_other.py` | Rules of the pairs, the FX and futures twins, the 10-month SMA timing, the iron condor, the long calendar spread and the leader pullback |
+| `services/research/strategies/qc_ports/forms_intraday.py` | Rules of the 5 QuantJourney strategies that trade intraday bars, and their baselines |
+| `services/research/strategies/qc_ports/intraday.py` | Intraday bars for the option book: bars from minute sessions, daily IV on bar times, daily closes of a run on bar times |
+| `services/research/strategies/qc_ports/book.py` | The option book; the two-expiry structure of the long calendar spread (`callCalendar`, `putCalendar`) on the IV term structure of `options.term_atm_iv` |
+| `services/research/strategies/qc_ports/forms_library.py` | Registry: the 42 library slugs, each with its daily form, its intraday form or the reason it has none; the baselines |
+| `services/research/tests/test_qc_ports_forms*.py`, `test_qc_ports_intraday.py`, `test_qc_ports_two_expiry.py` | Synthetic tests (base Python lane) |
+| `research/backtests/options-forms/fetch_data.py` | Fetches the daily bars of the extra underlyings |
+| `research/backtests/options-forms/run.py` | The daily study: runs every daily form and writes one JSON document and a results table to `--out` |
+| `research/backtests/options-forms/run_intraday.py` | The intraday study: runs the 5 intraday forms on intraday bars and writes the same kind of document |
+
+`run.py` and `run_intraday.py` write their output to a report work directory. The app does not read it (AGENTS.md
+rule 13).
+
+## Run it (rig)
+
+```sh
+uv run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 \
+  python research/backtests/qc-ports/fetch_data.py --out <data dir> --end <tomorrow of the last complete session>
+uv run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 --with pydantic==2.13.4 \
+  python research/backtests/options-forms/fetch_data.py --out <data dir> --end <the same date>
+<venv with services/research/requirements-nautilus-linux-py312.lock>/bin/python \
+  research/backtests/options-forms/run.py --data <data dir> --capital <account value, rounded> --out <work dir>/results.json
+```
+
+The run fails when the reference ledger and NautilusTrader differ on a trade or on daily equity by more than
+`1e-6` (the parity rule of the qc-ports runner). One run takes about 55 minutes. The second fetch also gets the IV term index
+VIX6M; with `--etfs "" --stocks ""` it gets only that index (the calendar run of 2026-11-12 did so on a copy of
+the data directory of 2026-11-11). `run.py --only <form keys>` runs some forms (and their baselines) alone.
+
+## Method (fixed on 2026-11-11 before the first run of a form)
+
+### What a form keeps
+
+A form keeps the stance of the shares rule per traded symbol and day: +1 (the rule is long or has decided to be
+long), -1 (short) or 0 (flat), known at the close of that day. A rule reads daily bars up to that day only
+(a test truncates the bars and compares). Prices are total-return prices (open, high, low and close scaled by
+adjusted close over close), as Vertex's adapter gives them to the QuantJourney engine.
+
+- +1 holds the monthly call debit vertical of the qc study (`MONTHLY_CALL`: 60 days to expiry, long leg at 0.5
+  delta, 1 sigma wide, at most 2% of equity at risk). -1 holds the same put debit vertical (`MONTHLY_PUT`).
+  Two forms hold another structure: the iron condor (a put and a call credit vertical, 1% at risk each, opened
+  together or not at all) and the leader forms (the call vertical with 0.5% at risk).
+- One open spread per symbol and side. A stance on day `i` opens the spread at the close of day `i+1`. The
+  spread closes at the close of the day after the stance ends, or under the owner exit rule of 2026-11-03 (a
+  winner may run to expiry, a loser closes 3 days before expiry). While the stance lasts, the next spread opens
+  the day after the last one closed.
+- Different from the 8 QuantJourney forms of the allocation study: there the slot of a cut loser stays taken until
+  its expiry day, here the next spread opens the day after the cut. The Sharpe of the always-on Core 7 basket is
+  about 0.05 lower with the rule of this study.
+- No spread opens before 1993-01-29 or before the first IV value of its underlying. The equity curve of a form
+  starts on the first day one of its underlyings has an IV value. A form holds only the underlyings that have an
+  IV value on a day: a Core 7 form holds SPY alone until 2001 and all seven from 2011. A pair starts when both
+  legs have an IV value.
+- The iron condor and the leader forms are entry-only: their rule says when to open, and the spread then stays
+  open until the owner exit rule closes it.
+- A market-order rule changes its stance on the signal day. A resting order (limit, stop, stop-limit, trailing
+  stop) changes it on the day whose high or low fills the order. The option trade is one close later than the
+  shares fill.
+- The bars are split-adjusted. A spread on an underlying outside the Core 7 is priced at the prices of its entry
+  day: every close times the product of the split ratios after that day (`<SYMBOL>.splits.csv` of the fetch).
+  The strike grid, the commission per contract and the contract count are then those of the price the underlying
+  traded at (NVDA is under $1 before 2016 in split-adjusted prices). A split during a trade changes nothing, as
+  for a listed option. The Core 7 stay on split-adjusted closes, as in the qc study and the allocation study.
+- A one-day distribution the split history does not hold (a spin-off: the close falls, the adjusted close does
+  not, by a factor of 1.2 or more) is treated like a split. The results list them (`distributions`); some are
+  just above 1.2. A smaller special dividend stays in the prices as a fall.
+- A spread less than 2 strike steps wide, or with a premium per contract below the entry commission of its two
+  legs, is not opened. There the strike grid and the fee floors decide the result, not the rule. The results
+  count the refused signal days per form (`refusedBars`).
+- The weight of the shares rule is not kept. A rule that only sets weights (inverse volatility W05, risk parity
+  W19 and W20) becomes the always-on basket of its universe after its warm-up; the results mark it as a copy of
+  its baseline. A volatility target (W17, W18) changes sizes only, so W17 trades like the trend rule W02.
+
+Limits of the daily model are those of the allocation study: option prices are modeled (Black-Scholes with an
+IV index, a linear skew and a cost per leg), "3 trading days" is 3 calendar days, and the close stands for
+15:45 ET.
+
+### Underlyings and the proxy IV index
+
+The option book needs an implied-volatility index per underlying. The Core 7 ETFs have a Cboe index. The other
+underlyings of this study (sector ETFs, EFA, EEM, TLT, IEF, DBC, VNQ, GDX, EWA, EWC, the currency ETFs, CORN and
+single stocks) have none in the data set. They get a proxy index:
+
+`proxy = sqrt( VIX x clamp(RV60 / RV60_SPY, 0.5, 6) x 1.15 x RV60 )`
+
+`RV60` is the annualized volatility of the last 60 daily log returns of the adjusted close, in percent. The
+proxy is the geometric mean of two estimates: VIX scaled by the realized-volatility ratio to SPY, and 1.15
+times the symbol's own realized volatility. ATM IV is 0.9 times the proxy, as for VIX. The formula was chosen
+on 2026-11-11 by comparing three candidates with the Cboe indices of QQQ, DIA, IWM, GLD, SLV and USO, before
+any form ran. `run.py` writes that comparison to the results (`proxy.check`).
+
+The comparison covers the Core 7 only: no Cboe index of a single stock or of a sector ETF is in the data set.
+The proxy does not see an earnings date. A single stock's options cost more before earnings than the proxy
+says, so the single-stock forms are optimistic there.
+
+Cost model of a proxy underlying (model assumptions, in the range of the Core 7 table of `options.py`):
+
+| Class | Half spread per leg | Skew slope | Symbols |
+| --- | ---: | ---: | --- |
+| Liquid equity | 2% | -0.25 | EEM EFA XLE XLF XLK GDX and the S&P 100 stocks except KO and PEP |
+| Equity | 3% | -0.25 | XLB XLI XLP XLU XLV XLY XLRE XLC KO PEP (also as leaders) |
+| Thin equity | 4% | -0.25 | VNQ EWA EWC |
+| Liquid rates | 2% | 0 | TLT |
+| Thin rates, currencies, commodities | 4% | 0 | IEF DBC FXE FXB FXA CORN |
+
+The same half spread is used for every year back to 1993; spreads were wider before about 2010. The dividend
+yield of a proxy underlying is its mean yield in the data (total-return drift minus price drift per
+year, at most 6%).
+
+### Universes
+
+| Strategies | Traded underlyings | IV |
+| --- | --- | --- |
+| QuantJourney order strategies O03 to O14 | Core 7 ETF twins (as the 8 QuantJourney forms of the allocation study) | Cboe index |
+| QuantJourney multi-asset strategies | SPY EFA EEM TLT IEF GLD DBC VNQ | index (SPY, GLD), proxy (6) |
+| QuantJourney sector strategies | 9 Select Sector SPDRs | proxy |
+| 151 Strategies sector rotation | 11 Select Sector SPDRs | proxy |
+| Pairs | KO/PEP, EWA/EWC, GLD/GDX | proxy, GLD index |
+| QuantJourney FX strategies | FXE FXB FXA for EURUSD GBPUSD AUDUSD (NZDUSD has no ETF with options) | proxy |
+| QuantJourney futures strategies | W25: SPY QQQ IEF USO GLD CORN for MES MNQ ZN CL GC ZC; O20: SPY QQQ USO GLD for MES MNQ CL GC | index, proxy (IEF, CORN) |
+| 10-month SMA timing | SPY | Cboe index |
+| Short strangle | Core 7, as an iron condor | Cboe index |
+| Leader pullback | S&P 100 stocks of `research/backtests/freestockalerts/universe.py` | proxy |
+
+The FX and futures rules read the bars of the ETF twin, not of the currency pair or the future. The currency
+ETF options and CORN options are thin in the market; a pass there would still need live quotes.
+
+A leader spread risks 0.5% of equity, not 2%: up to 97 names can be open at once. A contract that costs more
+than that is not bought (`sizeSkips` in the results). The leader baseline holds the same spread.
+
+The leader list is today's S&P 100, written from memory and not point-in-time. Companies that failed are
+missing, so the absolute result of the leader forms is too good. The comparison with the always-on baseline of
+the same names (check G7) has the same list on both sides. The lower bar has no baseline check, so a leader form
+that passes the lower bar passes it with that bias.
+
+### Gate, baselines and trials
+
+The gate is `allocation.gate_checks` with the thresholds of `allocation.GATE`; this study adds none. Checks
+G1 and G2 (own NautilusTrader run, defined-risk options form) hold for every form here by construction.
+
+The baseline of check G7 is the always-on form of the same universe (a call spread on every symbol, the next
+one the day after the last one closed, same exit rule). Pairs and the iron condor have no long-only baseline.
+The spreads of a symbol follow each other on the monthly expiries, so the day of the first entry sets every later
+entry day: there are two chains, about a month apart, and the Sharpe of the basket differs between them (by 0.00
+to 0.18 in the table below). The baseline Sharpe is therefore the mean of two runs that start 0 and 21 days after
+the first IV value; the first runs on NautilusTrader, the second in the reference ledger only. A form has the
+same dependence on its entry days; read a Sharpe difference of that size as noise.
+
+The deflated Sharpe counts the 61 runs the allocation study counted (they run again here in the reference ledger,
+so the across-trial variance is exact) plus every form and baseline of this study that traded. Copies count too,
+as in the allocation study. Not counted: the second phase of a baseline, the diagnostic runs of this study, and
+the sensitivity scenarios and the funded-pie runs of the allocation study.
+
+The results table also shows the lower bar: Sharpe at least 0.3, out-of-sample Sharpe above 0, Monte Carlo 80%
+profitable, max drawdown at most 25%, at least 30 trades, no deflated Sharpe and no baseline check. The owner
+picked it on 2026-11-11 for the funded pie of the allocation study (`allocation/funded_pie.py`, `LOWER_BAR`). It
+is an owner decision, not a repository gate.
+
+Two diagnostics run everything again under another option model. They are not the study model, and a pass there
+does not make a form eligible.
+
+- `run.py --chain <chain summary>`: the Core 7 use the half spreads and the skew the allocation study measured
+  in its chain snapshot of 2026-11-11 (`allocation/sensitivity.py`). The other underlyings keep their class
+  model: no snapshot exists for them. The owner's funded pie was judged under this measured model too.
+- `run.py --cost-scale 0`: commissions only, no bid/ask spread. A form that fails there cannot be rescued by a
+  better cost model.
+
+The daily option-chain snapshots of card `vertex-option-model-calibration` will replace the assumed spreads.
+
+### The long calendar spread (fixed on 2026-11-12; VIX6M and configs B and C added after the first run of config A, spec D2)
+
+The run of 2026-11-11 left `long-calendar-spread` out: it holds two expiries, and the option book priced
+single-expiry verticals only. The book now prices the two-expiry structure (`book.py`: `callCalendar`,
+`putCalendar`; the DSL `options` block and the go-live drafts still know verticals only). The study runs the
+three configs of the spec (`docs/specs/strategies/long-calendar-spread.md`, B5) as three forms of the strategy:
+
+| Form | Config | Near leg | Far leg | Strike |
+| --- | --- | --- | --- | --- |
+| `lib/long-calendar-spread` | A | monthly nearest 30 days (at least 21) | monthly nearest 60 days (at least 45) | near-leg delta 0.5 (at the money) |
+| `lib/long-calendar-spread-b` | B (the reel's tenors) | monthly nearest 100 days (at least 80) | monthly nearest 200 days (at least 160) | near-leg delta 0.5 |
+| `lib/long-calendar-spread-c` | C (the reel's bullish use) | as B | as B | near-leg delta 0.30 |
+
+- Each form is short one call at the near expiry and long one call of the same strike at the far expiry (after
+  the near one). The strike is the grid strike whose near-leg delta is nearest the target.
+- IV term structure: each leg is priced at the ATM IV of its own days to expiry. SPY has three Cboe points: VIX
+  (30 days), VIX3M (93 days) and VIX6M (182 days; `fetch_data.py` of this study gets it from Yahoo, and `run.py`
+  stops without it when it runs a calendar form), each times 0.9 as for every index. Between two points the total
+  variance ATM^2 x T is linear in T; outside them the nearest point holds (in the run the far leg of B and C had
+  183 to 214 days at entry: VIX6M holds past 182). The skew of SPY applies to each leg as for the verticals. A
+  leg is worth at least its exercise value, and the spread value is floored at 0.
+- Entry (spec rule 4): no spread while the far-leg ATM IV is above 1.1 x the near-leg ATM IV (refused bars:
+  `term structure`). No spread before the first day with all three points (VIX6M starts 2008-01-02); the equity
+  curve of a form starts there.
+- A form holds the spread on SPY at all times (entry only, as the iron condor): the next spread opens the day
+  after the last one closed. The owner exit rule replaces the spec's 1.5 x debit target (rule 5): a winner is
+  held to the near expiry, a loser closes 3 days before it. At the near expiry the near leg settles at its
+  exercise value and the far leg is sold at its model value.
+- Costs: the cost per leg of the study (commission and half spread on the leg's mid; at the near expiry the far
+  leg, and the near leg when it is in the money). A closing cost is at most two legs priced at the far leg's entry
+  mid (the calendar closes as a package, as a vertical's closing cost is at most two legs worth its width). The
+  max loss per contract is the debit, the entry costs and that cap; sizing risks at most 2% of equity on it.
+- No baseline: no always-on vertical basket holds this structure, so check G7 does not apply (as for the iron
+  condor). Each form counts as a trial.
+- Not run: the put calendar (under this model it differs from the call calendar only by carry) and every other
+  underlying (no IV term structure in the data set).
+
+### Not run in this study
+
+| Library strategy | Why |
+| --- | --- |
+| `quantjourney-o15-intraday-5m-bracket-reversion`, `quantjourney-o16-intraday-30m-stop-breakout`, `quantjourney-w07-intraday-rsi-15m`, `quantjourney-w08-intraday-1m-ema-scalp`, `quantjourney-w09-intraday-1h-sma-trend` | The rule reads intraday bars. These five have a form in the intraday study (section "Intraday forms" below). On 2026-11-11 they were listed as not run: the option book priced daily closes only. |
+
+## Results
+
+Data to 2026-11-10, capital = the rounded account value (not stated here), engine qc-ports ledger +
+nautilus_trader 1.227.0. Ledger and Nautilus agree on all 141 runs (47 in each of the three option models;
+largest relative equity gap 4.3e-16). 97 of the 98 leader stocks have data (BK has none). The three runs take
+about 60 minutes side by side; the always-on leader basket alone has about 8,000 booked trades.
+
+| | Study model | Measured Core 7 model (diagnostic) | Commissions only (diagnostic) |
+| --- | ---: | ---: | ---: |
+| Forms with a positive Sharpe, of 35 distinct trade lists | 8 | 15 | 26 |
+| Pass the gate | 0 | 0 | 0 |
+| Pass the lower bar | 0 | 3 (`qj/O09`, `lib/zakamulin-sma`, `lib/short-strangle`) | 1 (`qj/W18`) |
+
+Trials counted in the deflated Sharpe: 108 (61 of the allocation study + 47 here).
+
+| Form | Underlyings, IV | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Baseline Sharpe | Gate checks failed | Lower bar | Sharpe, measured Core 7 | Lower bar, measured Core 7 | Sharpe, commissions only | Lower bar, commissions only |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: | --- |
+| `qj/W18` | 8, index and proxy | +0.18 | +0.16 | 0.00 | 83% | -23.2% | +1.2% | 561 | -0.08 | 4 of 8 | fail | +0.27 | fail | +0.42 | pass |
+| `lib/zakamulin-sma` | 1, index | +0.14 | +0.23 | 0.00 | 75% | -16.4% | +0.5% | 169 | +0.12 | 5 of 8 | fail | +0.33 | pass | +0.18 | fail |
+| `qj/W11` | 8, index and proxy | +0.10 | +0.24 | 0.00 | 66% | -39.7% | +0.5% | 536 | -0.08 | 6 of 8 | fail | +0.18 | fail | +0.29 | fail |
+| `leaders/dip` | 97, proxy | +0.06 | +0.08 | 0.00 | 42% | -61.6% | -0.1% | 4281 | -0.15 | 6 of 8 | fail | +0.06 | fail | +0.26 | fail |
+| `qj/O17` | 8, index and proxy | +0.05 | +0.03 | 0.00 | 51% | -32.2% | +0.0% | 572 | -0.08 | 6 of 8 | fail | +0.14 | fail | +0.28 | fail |
+| `qj/O09` | 7, index | +0.05 | +0.09 | 0.00 | 54% | -28.3% | +0.1% | 491 | +0.09 | 7 of 8 | fail | +0.31 | pass | +0.28 | fail |
+| `lib/pairs-divergence` | 2, index and proxy | +0.01 | +0.53 | 0.00 | 51% | -13.5% | +0.0% | 104 | none | 3 of 7 | fail | +0.14 | fail | +0.30 | fail |
+| `qj/O11` | 7, index | +0.01 | +0.04 | 0.00 | 37% | -30.5% | -0.2% | 478 | +0.09 | 7 of 8 | fail | +0.24 | fail | +0.23 | fail |
+| `lib/short-strangle` | 7, index | -0.01 | -0.04 | 0.00 | 49% | -8.5% | -0.0% | 952 | none | 4 of 7 | fail | +0.34 | pass | +0.19 | fail |
+| `leaders/reclaim` | 97, proxy | -0.01 | +0.14 | 0.00 | 30% | -44.4% | -0.3% | 1733 | -0.15 | 6 of 8 | fail | -0.01 | fail | +0.18 | fail |
+| `qj/W21` | 9, proxy | -0.03 | +0.29 | 0.00 | 10% | -63.4% | -1.0% | 1065 | -0.13 | 6 of 8 | fail | -0.03 | fail | +0.42 | fail |
+| `qj/O10` | 7, index | -0.03 | -0.06 | 0.00 | 26% | -36.8% | -0.6% | 608 | +0.09 | 7 of 8 | fail | +0.20 | fail | +0.20 | fail |
+| `qj/W04` | 8, index and proxy | -0.06 | -0.10 | 0.00 | 29% | -43.6% | -0.6% | 350 | -0.08 | 6 of 8 | fail | +0.04 | fail | +0.12 | fail |
+| `qj/O03` | 7, index | -0.09 | -0.05 | 0.00 | 9% | -51.8% | -1.2% | 619 | +0.09 | 7 of 8 | fail | +0.12 | fail | +0.13 | fail |
+| `qj/O08` | 7, index | -0.09 | -0.10 | 0.00 | 7% | -59.1% | -1.6% | 677 | +0.09 | 7 of 8 | fail | +0.19 | fail | +0.11 | fail |
+| `qj/W02` | 8, index and proxy | -0.09 | -0.35 | 0.00 | 18% | -62.7% | -1.9% | 816 | -0.08 | 7 of 8 | fail | -0.00 | fail | +0.15 | fail |
+| `qj/W17` | 8, index and proxy | -0.10 | -0.27 | 0.00 | 15% | -62.2% | -2.0% | 821 | -0.08 | 7 of 8 | fail | -0.01 | fail | +0.15 | fail |
+| `qj/W05` (= `base/multi8`) | 8, index and proxy | -0.11 | -0.19 | 0.00 | 9% | -66.7% | -2.7% | 1141 | -0.08 | 7 of 8 | fail | -0.01 | fail | +0.19 | fail |
+| `qj/W19` (= `qj/W05`) | 8, index and proxy | -0.11 | -0.19 | 0.00 | 9% | -66.7% | -2.7% | 1141 | -0.08 | 7 of 8 | fail | -0.01 | fail | +0.19 | fail |
+| `qj/W10` | 8, index and proxy | -0.12 | -0.31 | 0.00 | 14% | -64.4% | -2.2% | 818 | -0.08 | 7 of 8 | fail | -0.02 | fail | +0.14 | fail |
+| `qj/W20` (= `base/sector9`) | 9, proxy | -0.17 | +0.02 | 0.00 | 0% | -92.4% | -7.9% | 1438 | -0.13 | 7 of 8 | fail | -0.17 | fail | +0.09 | fail |
+| `qj/W25` | 6, index and proxy | -0.18 | -0.13 | 0.00 | 7% | -69.1% | -2.3% | 891 | -0.06 | 7 of 8 | fail | -0.01 | fail | +0.15 | fail |
+| `qj/W06` | 8, index and proxy | -0.19 | -0.35 | 0.00 | 3% | -77.0% | -3.3% | 1127 | -0.08 | 7 of 8 | fail | -0.09 | fail | +0.11 | fail |
+| `lib/151-4-1` | 11, proxy | -0.22 | -0.09 | 0.00 | 1% | -50.4% | -2.2% | 427 | -0.13 | 7 of 8 | fail | -0.22 | fail | +0.01 | fail |
+| `qj/W12` | 9, proxy | -0.28 | -0.19 | 0.00 | 0% | -93.4% | -8.9% | 1439 | -0.13 | 7 of 8 | fail | -0.28 | fail | +0.04 | fail |
+| `qj/O20` | 4, index | -0.31 | -0.21 | 0.00 | 0% | -70.7% | -3.5% | 712 | +0.18 | 7 of 8 | fail | -0.15 | fail | -0.12 | fail |
+| `qj/O07` | 7, index | -0.34 | -0.37 | 0.00 | 0% | -66.0% | -2.9% | 1351 | +0.09 | 7 of 8 | fail | +0.01 | fail | +0.18 | fail |
+| `qj/O05` | 7, index | -0.36 | -0.32 | 0.00 | 0% | -69.3% | -2.9% | 1550 | +0.09 | 7 of 8 | fail | +0.01 | fail | +0.26 | fail |
+| `qj/O04` | 7, index | -0.48 | -0.59 | 0.00 | 0% | -75.8% | -3.6% | 1351 | +0.09 | 7 of 8 | fail | -0.12 | fail | +0.14 | fail |
+| `qj/W14` | 2, proxy | -0.54 | -0.30 | 0.00 | 1% | -43.4% | -1.7% | 219 | none | 6 of 7 | fail | -0.54 | fail | +0.00 | fail |
+| `qj/O14` | 7, index | -0.67 | -0.57 | 0.00 | 0% | -85.5% | -5.3% | 1782 | +0.09 | 7 of 8 | fail | -0.30 | fail | -0.03 | fail |
+| `qj/W13` | 2, proxy | -0.68 | -1.11 | 0.00 | 0% | -54.4% | -2.3% | 364 | none | 6 of 7 | fail | -0.68 | fail | -0.20 | fail |
+| `qj/W23` | 3, proxy | -0.70 | -1.17 | 0.00 | 0% | -78.9% | -6.6% | 456 | -0.67 | 7 of 8 | fail | -0.70 | fail | -0.29 | fail |
+| `qj/O19` | 3, proxy | -0.84 | -1.09 | 0.00 | 0% | -83.8% | -8.0% | 736 | -0.67 | 7 of 8 | fail | -0.84 | fail | -0.16 | fail |
+| `qj/W24` | 3, proxy | -0.90 | -1.09 | 0.00 | 0% | -59.1% | -4.2% | 352 | -0.67 | 7 of 8 | fail | -0.90 | fail | -0.25 | fail |
+| `qj/W22` | 9, proxy | -1.00 | -0.44 | 0.00 | 0% | -98.1% | -13.1% | 1787 | -0.13 | 7 of 8 | fail | -1.00 | fail | -0.26 | fail |
+| `qj/W15` | 9, proxy | -1.08 | -1.08 | 0.00 | 0% | -95.9% | -10.6% | 1099 | -0.13 | 7 of 8 | fail | -1.08 | fail | -0.49 | fail |
+| `qj/W16` | 9, proxy | -2.16 | -1.11 | 0.00 | 0% | -98.8% | -14.5% | 1845 | -0.13 | 7 of 8 | fail | -2.16 | fail | -0.63 | fail |
+
+`(= key)` marks a form with the trades of another form or of its baseline. The last four columns are the two
+diagnostic runs: the measured Core 7 model and commissions only.
+
+### Long calendar spread (run on 2026-11-12)
+
+Data to 2026-11-10 (the data directory of the 2026-11-11 run plus VIX6M), same capital and engines. A partial run
+(`run.py --only lib/long-calendar-spread,lib/long-calendar-spread-b,lib/long-calendar-spread-c`, once per option
+model): the deflated Sharpe counts 64 trials (the 61 of the allocation study and the three configs), not the 111 a
+full run would count; with more trials it can only be lower. Ledger and Nautilus agree on all 9 runs (largest
+relative equity gap 3.6e-16). The equity curves start on 2008-01-02, the first day with VIX6M; the first spreads
+open on 2008-01-03.
+The verticals do not change: `run.py --only qj/O03,lib/zakamulin-sma,lib/short-strangle` on the 2026-11-11
+directory (no VIX6M) gives the same trades, Sharpe, drawdown and refused bars as the table above.
+
+| Form | Option model | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Win rate | Gate checks failed | Lower bar |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| A, 30/60 days, delta 0.5 | Study model | -0.45 | -0.53 | 0.00 | 0% | -30.4% | -1.6% | 195 | 30% | 6 of 7 | fail |
+| | Measured Core 7 model | -0.12 | -0.25 | 0.00 | 23% | -18.5% | -0.5% | 195 | 34% | 4 of 7 | fail |
+| | Commissions only | +0.03 | +0.16 | 0.03 | 50% | -12.4% | +0.0% | 195 | 40% | 4 of 7 | fail |
+| B, 100/200 days, delta 0.5 | Study model | +0.18 | +0.33 | 0.04 | 83% | -5.6% | +0.3% | 69 | 46% | 3 of 7 | fail |
+| | Measured Core 7 model | +0.34 | +0.48 | 0.11 | 96% | -4.1% | +0.7% | 69 | 48% | 3 of 7 | pass |
+| | Commissions only | +0.37 | +0.46 | 0.34 | 98% | -5.2% | +0.8% | 69 | 57% | 3 of 7 | pass |
+| C, 100/200 days, delta 0.30 | Study model | +0.41 | +1.09 | 0.22 | 98% | -7.6% | +0.9% | 71 | 61% | 2 of 7 | pass |
+| | Measured Core 7 model | +0.85 | +1.40 | 0.83 | 100% | -6.7% | +1.8% | 70 | 66% | 1 of 7 | pass |
+| | Commissions only | +0.52 | +1.20 | 0.59 | 99% | -7.7% | +1.3% | 71 | 62% | 1 of 7 | pass |
+
+- No config passes the gate. C fails only the deflated Sharpe check in the measured model (0.83 with 64 trials;
+  the full count of 111 lowers it further) and in the study model also Sharpe 0.41 < 0.5. **C passes the owner's
+  lower bar in all three models, B in the two diagnostic models**, A in none.
+- Per contract in the study model (mean over the spreads): A debit $295, $2.29 before costs, costs $29.04;
+  B debit $644, +$113.85 before costs, costs $53.74; C debit $640, +$199.50 before costs, costs $30.32. The
+  short tenors earn nothing before costs; the long tenors earn mostly when the spot rises toward the strike
+  (C: the 0.30-delta strike is above the spot) and while the term check holds.
+- Exits in the study model: A 85 at the near expiry and 109 losers cut 3 days before it; B 38 and 30; C 43 and
+  27 (one open spread each at the end). The term check refused 362 (A), 147 (B) and 101 (C) entry days.
+- The CAGR stays small: one spread at a time, sized at 2% of equity at risk. 2008 to 2026 holds mostly rising
+  markets; the result leans on that drift, as the spec warns for config C.
+- The package cap on the closing cost (method above) decides the cost of 90 (A), 30 (B) and 17 (C) spreads.
+  Without it the costs per spread are $4.37 (A), $7.11 (B) and $4.16 (C) higher: about 0.6% to 1.1% of the
+  debit, so it does not change the verdicts.
+- Limits: both legs are priced from VIX, VIX3M and VIX6M with one fixed factor (0.9) and the linear SPY skew, so
+  the model cannot see how real near and far quotes differ from these indices; the far leg of B and C lies past
+  the last point (VIX6M, 182 days) and gets its IV; there is no early assignment of the short leg and no real
+  bid/ask quote. A test of config C on historical option chains is the next step if the owner wants one (the
+  vendor is an owner decision).
+
+### Always-on baselines
+
+| Form | Underlyings, IV | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades | Sharpe of the 2 start phases | Lower bar | Sharpe, measured Core 7 | Lower bar, measured Core 7 | Sharpe, commissions only | Lower bar, commissions only |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: | --- | ---: | --- |
+| `base/futures4` | 4, index | +0.14 | +0.36 | 0.00 | 78% | -37.3% | +1.0% | 585 | +0.14 / +0.21 | fail | +0.37 | fail | +0.29 | fail |
+| `base/spy` | 1, index | +0.12 | +0.39 | 0.00 | 74% | -28.3% | +0.5% | 203 | +0.12 / +0.12 | fail | +0.32 | pass | +0.18 | fail |
+| `base/core7` | 7, index | +0.08 | +0.24 | 0.00 | 53% | -54.8% | +0.0% | 889 | +0.08 / +0.11 | fail | +0.33 | fail | +0.26 | fail |
+| `base/sector9` | 9, proxy | -0.08 | +0.02 | 0.00 | 0% | -88.6% | -6.0% | 1463 | -0.08 / -0.18 | fail | -0.08 | fail | +0.19 | fail |
+| `base/futures6` | 6, index and proxy | -0.08 | -0.03 | 0.00 | 17% | -50.8% | -1.4% | 826 | -0.08 / -0.04 | fail | +0.16 | fail | +0.19 | fail |
+| `base/multi8` | 8, index and proxy | -0.10 | -0.21 | 0.00 | 11% | -64.8% | -2.6% | 1142 | -0.10 / -0.07 | fail | -0.02 | fail | +0.19 | fail |
+| `base/sector11` | 11, proxy | -0.10 | -0.03 | 0.00 | 0% | -90.0% | -7.0% | 1573 | -0.10 / -0.17 | fail | -0.10 | fail | +0.17 | fail |
+| `base/leaders` | 97, proxy | -0.20 | -0.21 | 0.00 | 0% | -96.1% | -7.5% | 8059 | -0.20 / -0.10 | fail | -0.20 | fail | +0.12 | fail |
+| `base/fx3` | 3, proxy | -0.58 | -0.96 | 0.00 | 0% | -77.7% | -6.2% | 366 | -0.58 / -0.76 | fail | -0.58 | fail | -0.27 | fail |
+
+### Proxy IV index against the Cboe index
+
+| Symbol | Cboe index | Days | Median proxy / index | Mean absolute error |
+| --- | --- | ---: | ---: | ---: |
+| QQQ | VXN | 6489 | 1.01 | 10% |
+| DIA | VXD | 5269 | 0.96 | 11% |
+| IWM | RVX | 4310 | 1.02 | 9% |
+| GLD | GVZ | 4640 | 1.05 | 16% |
+| SLV | VXSLV | 3119 | 1.05 | 18% |
+| USO | OVX | 4908 | 1.02 | 15% |
+
+Reading:
+
+- The missing options form no longer blocks these 36 strategies. They fail on the Sharpe checks, like the 19
+  candidates of the allocation study.
+- Study model: the best form is the volatility-targeted momentum `qj/W18` (Sharpe +0.18, max drawdown -23%). It
+  passes the lower bar only without a bid/ask spread. It needs measured quotes of EFA, EEM, TLT, IEF, DBC and VNQ
+  before it can be judged.
+- Measured Core 7 model: the always-on Core 7 basket goes from +0.08 to +0.33. The 10-month SMA timing on SPY
+  (+0.33) passes the lower bar as the always-on SPY spread does (+0.32). The trailing-stop trend `qj/O09` (+0.31)
+  has a lower Sharpe than its baseline (+0.34); it passes with a max drawdown of -24.99% against the limit of
+  -25%, and the always-on Core 7 basket fails on its drawdown (-40%). Neither timing rule adds Sharpe to the
+  index call spread. This repeats the finding of the allocation study.
+- The short strangle as an iron condor passes the lower bar in the measured model: Sharpe +0.34, 84% winners, max
+  drawdown -6%, +0.5% a year at 1% risk per side. It is the only passer that is not a long index call spread. Its
+  Sharpe is -0.01 in the study model and +0.19 with commissions only, so the pass depends on the skew of one
+  chain snapshot.
+- Dip-buying leaders: buying the dip state has a Sharpe of +0.06 in the study model and +0.26 with commissions
+  only; the always-on spreads on the same names have -0.15 and +0.18. Buying the reclaim is weaker (-0.01 and
+  +0.18). The max drawdown is -44% to -62%: a single-form run has no account cap, and up to 36% of equity was at
+  risk at one time. The stock list has survivorship bias, and no single stock has measured quotes. The leader
+  forms are not validated.
+- A short side loses: its put debit spread pays a premium of its own. The pairs (`qj/W13` -0.68, `qj/W14` -0.54),
+  the long/short sector forms (`qj/W15` -1.08, `qj/W16` -2.16) and the FX forms (-0.70 to -0.90) are at the bottom
+  in every model.
+- The sector, multi-asset and FX baskets have a negative Sharpe in the study model. Their half spreads (2% to 4%
+  per leg) are assumptions; with commissions only the sector and multi-asset baskets are at +0.2.
+
+Not checked here: live option quotes of the underlyings outside the Core 7, account-level risk caps for a form
+with many names, intraday exits, interest on cash.
+
+## Intraday forms
+
+Five of the 42 strategies read intraday bars: O15 (5 minutes), O16 (30 minutes), W07 (15 minutes), W08 (1 minute)
+and W09 (1 hour). `run_intraday.py` runs their options forms on intraday bars, with the same option book, the
+same gate and an own NautilusTrader run per form. It creates no order, no deployment request, no preset and no
+row in Postgres.
+
+### Run it (rig)
+
+```sh
+<venv with services/research/requirements-nautilus-linux-py312.lock>/bin/python \
+  research/backtests/options-forms/run_intraday.py --data <data dir> --ib <5-minute bars dir> \
+  --spy-1min <SPY 1-minute csv> --prior <results.json of run.py> --capital <account value, rounded> \
+  --out <work dir>/intraday.json
+```
+
+`--prior` is the result of `run.py` under the same option model: the intraday runs are added to its trials.
+The diagnostics `--chain` and `--cost-scale 0` work as in `run.py`.
+
+### Method (fixed on 2026-11-12 before the first run of an intraday form)
+
+Bars:
+
+- 5-minute bars of SPY, QQQ and IWM, regular session: IBKR TRADES bars (`noise_band_ib_fetch.py`; QQQ and IWM
+  from 2008-02, SPY from 2020-03). SPY before 2020-03 is the 1-minute file of the noise-band study (2008-01 to
+  2021-05) in 5-minute bars, as the noise-band re-test reads SPY. The 15-minute, 30-minute and hourly bars are
+  made from the 5-minute bars. A bar starts a multiple of its length after 09:30; the hourly bars of a full
+  day close at 10:30, 11:30, 12:30, 13:30, 14:30, 15:30 and 16:00.
+- 1-minute bars exist for SPY only, 2008-01 to 2021-05. W08 therefore runs on SPY alone and ends in 2021.
+- A session without its 09:30 bar or without a regular last bar is left out; the results count these sessions.
+  The 1-minute file also needs every minute of a session (`noise_band_run.load_sessions`), so this rule holds
+  for W08 and for SPY's 5-minute bars before 2020-03. The IBKR 5-minute files fill a missing bar inside a session
+  with the close of the bar before (`noise_band_retest`); the results count these bars.
+  The prices are traded prices: not adjusted for dividends, and none of the three ETFs had a split in the period.
+- The option book takes its trading days from the bars, so a left-out expiry Friday would move the expiry to
+  the Thursday before. A run stops when a monthly expiry day has no session (none has one in these files).
+- The bars end on the last day that has the IV indices and the rate (the daily data set).
+
+What a form keeps: the stance of the shares rule per symbol and bar, +1 while the rule holds shares and 0 while
+it is flat. All five rules keep a position over night upstream; so does the form.
+
+| Form | Bars | Rule (upstream file `example_..._intraday_*.py`, commit `4f403d85`) |
+| --- | --- | --- |
+| `qj/O15` | 5 minutes | Flat and RSI(14) below 30: buy at market. Take profit at 1.006 and stop at 0.996 times the close of the signal bar, as one bracket. The bracket rests from the bar after the entry fill; a bar that reaches both prices fills the stop. |
+| `qj/O16` | 30 minutes | Flat: buy stop at 1.001 times the highest high of the 12 bars before, valid 3 bars, a new stop on every flat bar. Sell at market on the 8th bar after the bar of the last stop order. |
+| `qj/W07` | 15 minutes | Long from RSI(14) below 35 until RSI(14) above 55. |
+| `qj/W08` | 1 minute | Long while EMA(9) is above EMA(21). SPY only. |
+| `qj/W09` | 1 hour | Long while SMA(10) is above SMA(30). |
+
+The two order strategies run in the order machine of the daily order forms (`forms_orders.py`), with the fills of
+the upstream engine. The three weights strategies trade on every signal change, so their stance is the signal of
+the bar. Not kept: order sizes and weights (also the 25% and 34% caps), slippage and commission of the shares,
+and QQQ and IWM for W08.
+
+Stance to spreads, as in the daily study with "bar" for "day": +1 holds the monthly call debit vertical
+(`MONTHLY_CALL`: 60 days to expiry, long leg at 0.5 delta, 1 sigma wide, at most 2% of equity at risk). The spread
+opens at the close of the bar after the stance starts and closes at the close of the bar after it ends, or under
+the owner exit rule. One open spread per symbol. So the option trade is one bar later than the shares fill, and
+every round trip of the rule pays the option costs twice: per leg $0.65 and half the bid/ask spread, on entry
+and on exit.
+
+Option prices on intraday bars:
+
+- The option book prices every bar of the rule. The time to expiry is the calendar days to the expiry day plus
+  the part of the day left until 16:00. A spread expires at the 16:00 bar of its expiry day, and the loser cut
+  comes at the 16:00 bar 3 days before.
+- The data set has no intraday IV index. The last bar of a day uses the index value of that day, as the daily
+  study does (the index closes at 16:15; the daily study reads that close at its 16:00 bar too). Every earlier
+  bar uses the last index value before that day, filled for at most the daily study's number of days; so after
+  a gap in the index the earlier bars of a day can keep a value one day longer than its last bar. The implied
+  volatility does not move inside a day. In the market it moves against the price: a call spread gains less on
+  a rise and loses less on a fall than this model says.
+- The data set has no intraday option quotes. The half spreads are the daily model's (or the measured Core 7
+  model's); spreads at the open are wider than that.
+- A half day (13:00 close) is priced like a full day: its last bar still has 3 hours to 16:00.
+- The daily study lets the close stand for 15:45 ET, the time at which the owner closes an open winner on expiry
+  day. Here a spread expires, and the loser cut is made, at the bar that closes at 16:00. The move of the
+  underlying between 15:45 and 16:00 is in the result; the owner's earlier close is not modeled.
+
+Statistics, gate, baselines and trials:
+
+- The run is one equity value per bar. The statistics of the gate read the daily closes of it (the equity
+  after the last bar of each day). The largest open risk is taken over all bars.
+- The baseline of check G7 is the always-on call spread on the same symbols and the same days, on hourly bars
+  (`base/intraday3`: SPY, QQQ, IWM; `base/intraday-spy`: SPY 2008 to 2021). An always-on spread does not depend
+  on the bar length: the next one opens when the last one closed. As in the daily study the baseline Sharpe is
+  the mean of two runs that start 0 and 21 trading days after the first bar (21 days of full sessions in bars,
+  so a little longer when a half day falls in them).
+- The deflated Sharpe counts the trials of the daily study (`--prior`) plus every intraday form and baseline that
+  traded. The daily results of 2026-11-11 hold the count and the variance of their trials, not the values. With
+  such a `--prior` the across-trial variance is the daily one: the intraday runs raise the count only. The true
+  variance would be higher with runs far from the daily trials and lower with runs near their mean; with a few
+  runs beside 108 trials it moves little, so read the deflated Sharpe as an estimate, not a bound. `run.py` now
+  writes the trial values (`trials.dailySharpes`); with them the variance is exact. A `--prior` that is an
+  intraday result or a run of some forms only (`--only`) stops the run; `run.py` records `--only` from
+  2026-11-12 on, so an older `--only` result is not caught.
+
+### Results (2026-11-12)
+
+Data to 2026-11-10 (W08: SPY 1-minute bars 2008-01-22 to 2021-05-06), same capital as the daily study, engine
+qc-ports ledger + nautilus_trader 1.227.0. Ledger and Nautilus agree on all 21 runs (7 in each of the three
+option models; largest relative equity gap 4.3e-16). Sessions left out: SPY 1-minute 2, QQQ 5, IWM 1; no
+5-minute bar was filled. The three runs take 11 to 20 minutes side by side, at about 4.4 GB each.
+
+| | Study model | Measured Core 7 model (diagnostic) | Commissions only (diagnostic) |
+| --- | ---: | ---: | ---: |
+| Forms with a positive Sharpe, of 5 | 0 | 1 | 2 |
+| Pass the gate | 0 | 0 | 1 (`qj/W07`) |
+| Pass the lower bar | 0 | 1 (`qj/W07`) | 1 (`qj/W07`) |
+
+Trials counted in the deflated Sharpe: 115 (108 of the daily study + 7 here). The across-trial variance is
+the daily one (see Method).
+
+| Form | Bars | Underlyings | Sharpe | Out-of-sample | Deflated Sharpe | MC P(profit) | Max drawdown | CAGR | Trades of priced | P&L before costs | Costs | Baseline Sharpe | Gate checks failed | Lower bar | Sharpe, measured Core 7 | Lower bar | Sharpe, commissions only | Lower bar |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: | --- |
+| `base/intraday-spy` | 60 min | SPY | +0.51 | +1.04 | 0.09 | 98% | -10.8% | +2.4% | 80 of 80 | +42.6% | 6% | none | 1 of 7 | pass | +0.76 | pass | +0.58 | pass |
+| `base/intraday3` | 60 min | SPY QQQ IWM | +0.35 | +0.31 | 0.01 | 97% | -24.6% | +3.6% | 331 of 331 | +138.4% | 41% | none | 4 of 7 | pass | +0.63 | fail | +0.44 | fail |
+| `qj/W07` | 15 min | SPY QQQ IWM | -0.31 | -0.07 | 0.00 | 1% | -39.9% | -1.9% | 3737 of 3737 | +200.6% | 231% | +0.34 | 7 of 8 | fail | +0.79 | pass | +1.96 | pass |
+| `qj/W09` | 60 min | SPY QQQ IWM | -1.32 | -1.16 | 0.00 | 0% | -85.5% | -9.6% | 1633 of 1807 | -36.3% | 49% | +0.34 | 7 of 8 | fail | -0.52 | fail | -0.60 | fail |
+| `qj/O15` | 5 min | SPY QQQ IWM | -3.42 | -1.16 | 0.00 | 0% | -93.7% | -13.5% | 4120 of 7344 | +11.7% | 105% | +0.34 | 7 of 8 | fail | -2.27 | fail | +0.24 | fail |
+| `qj/O16` | 30 min | SPY QQQ IWM | -5.11 | +0.00 | 0.00 | 0% | -96.0% | -15.6% | 3394 of 7932 | -18.0% | 78% | +0.34 | 7 of 8 | fail | -4.12 | fail | -1.74 | fail |
+| `qj/W08` | 1 min | SPY | -6.83 | +0.00 | 0.00 | 0% | -96.6% | -22.4% | 5843 of 29847 | -7.5% | 89% | +0.42 | 7 of 8 | fail | -7.91 | fail | -7.76 | fail |
+
+"P&L before costs" and "Costs" are shares of the capital, summed over the run. "Trades of priced": the book
+prices every spread of the rule; the ledger books it only while 2% of the equity, and the cash, buy one contract.
+O15, O16, W08 and W09 lose most of the capital (drawdowns of 86% to 97%), so the later spreads get fewer
+contracts or none. O16 and W08 skip most of their spreads, and their runs end flat (an out-of-sample Sharpe of
++0.00).
+
+What the results say:
+
+- No intraday form passes the gate or the lower bar under the study model. Every form trades its spread many
+  more times than the always-on baseline (median hold 7 to 25 bars, against about 295 hourly bars), and every
+  round trip pays the option costs twice.
+- W07 (RSI 15 minutes) is the only rule with an edge before costs: +201% of the capital before costs, 231% in
+  costs. With the measured half spreads of SPY, QQQ and IWM it passes the lower bar, and with commissions only
+  it passes the gate. Both are diagnostics, not the study model: the half spreads of the data set are daily
+  values, and spreads at the open are wider (Method). The P&L before costs over the costs of W07 is 0.87 in
+  the study model, 1.49 with the measured half spreads and 8.62 with commissions only (`base/intraday3`: 3.38,
+  9.75 and 25.64). So half spreads about 1.5 times the measured ones would take all of W07's gain, and its
+  lower-bar pass ends before that. The ratio is approximate: contracts are sized from the equity, so wider
+  spreads also shrink the later trades.
+- O15, O16, W08 and W09 lose before costs or gain little, and the costs take the rest. W08 (1-minute EMA
+  cross, about 30,000 spreads in 13 years) is the worst under all three models.
+- The always-on hourly baselines have positive Sharpes (+0.35 and +0.51); a stance that changes every few bars
+  turns them negative.

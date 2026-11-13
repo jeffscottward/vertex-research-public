@@ -131,7 +131,7 @@ def test_a_spread_entered_inside_the_cut_window_keeps_its_hold_version():
     held = al.build_book([al.SignalEvent("SPY", signal)], options, {"SPY": market}).trades[0]
     assert (held.entry_date, held.expiry, held.exit_reason) == ("2024-01-17", "2024-01-19", "expiry")
     # The book refuses the second version (exitDte at entry), so the hold version stays, with its closing cost.
-    final = al._owner_exit(held, options, market)
+    final = al.owner_exit(held, options, market)
     assert (final.exit_date, final.exit_reason) == (held.exit_date, "expiry")
     assert final.exit_fee == al.expiry_close_fee(held, market.close[held.exit_index])
 
@@ -203,7 +203,7 @@ def test_owner_exit_refuses_a_trade_it_cannot_price_again():
     trade = pf.run_definition(_definition(options), data, start="2024-01-02").priced[0]
     moved = dataclasses.replace(trade, long_strike=trade.long_strike + 1)
     with pytest.raises(RuntimeError, match="Could not price SPY"):
-        al._owner_exit(moved, options, pf.market_of(data, "SPY"))
+        al.owner_exit(moved, options, pf.market_of(data, "SPY"))
 
 
 def test_combine_sets_the_risk_and_applies_the_caps_in_entry_order():

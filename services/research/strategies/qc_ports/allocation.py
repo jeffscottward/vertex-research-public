@@ -51,7 +51,8 @@ from .ledger import LedgerResult
 __all__ = [
     "GATE", "HOSTS", "IN_SAMPLE_FRACTION", "MONTE_CARLO_PATHS", "OVERLAY_IDEAS", "OWNER_LOSER_EXIT_DTE", "SLEEVES",
     "TRADING_DAYS", "Caps", "Combined", "combine", "correlation", "daily_returns", "equal_risk", "expiry_close_fee",
-    "gate_checks", "hold_options", "inverse_volatility", "monte_carlo", "out_of_sample_sharpe", "owner_rule_trades",
+    "gate_checks", "hold_options", "inverse_volatility", "monte_carlo", "out_of_sample_sharpe", "owner_exit",
+    "owner_rule_trades",
     "qc_candidates", "sharpe", "shrunk_sharpe", "trade_pnl", "window_metrics",
 ]
 
@@ -76,8 +77,9 @@ def trade_pnl(trade: PricedTrade) -> float:
 
 
 def _same_entry(a: PricedTrade, b: PricedTrade) -> bool:
-    return (a.symbol, a.entry_index, a.expiry, a.long_strike, a.short_strike, a.entry_price, a.entry_fee) == (
-        b.symbol, b.entry_index, b.expiry, b.long_strike, b.short_strike, b.entry_price, b.entry_fee)
+    return (a.symbol, a.entry_index, a.expiry, a.far_expiry, a.long_strike, a.short_strike, a.entry_price,
+            a.entry_fee) == (b.symbol, b.entry_index, b.expiry, b.far_expiry, b.long_strike, b.short_strike,
+                             b.entry_price, b.entry_fee)
 
 
 def expiry_close_fee(trade: PricedTrade, spot: float) -> float:
@@ -95,7 +97,7 @@ def expiry_close_fee(trade: PricedTrade, spot: float) -> float:
     return min(cost, worst_exit_cost(trade.symbol, trade.width))
 
 
-def _owner_exit(trade: PricedTrade, options: Mapping, market) -> PricedTrade:
+def owner_exit(trade: PricedTrade, options: Mapping, market) -> PricedTrade:
     """`trade` (priced without time exits) with its expiry closing cost, or its loser cut 3 days before expiry."""
     exit_signal = trade.exit_index - 1 if trade.exit_reason == "signal" else None
     event = SignalEvent(trade.symbol, trade.entry_index - 1, exit_signal)
@@ -106,7 +108,8 @@ def _owner_exit(trade: PricedTrade, options: Mapping, market) -> PricedTrade:
     cuts = build_book([event], {**options, "exitDte": OWNER_LOSER_EXIT_DTE}, {trade.symbol: market}).trades
     if cuts and cuts[0].exit_reason == "exitDte" and trade_pnl(cuts[0]) < 0:
         return dataclasses.replace(cuts[0], trade_id=trade.trade_id, exit_reason=OWNER_CUT_REASON)
-    if trade.exit_reason == "expiry":
+    # A calendar's book price at the near expiry already holds its closing cost (the far leg is sold there).
+    if trade.exit_reason == "expiry" and trade.far_expiry is None:
         return dataclasses.replace(trade, exit_fee=expiry_close_fee(trade, market.close[trade.exit_index]))
     return trade
 
@@ -124,7 +127,7 @@ def owner_rule_trades(definition: Mapping, data: pf.Dataset, *, start: str) -> t
                                                None if selected is None else selected[leg.order])
         market = pf.market_of(data, leg.symbol)
         for trade in trades:
-            final = _owner_exit(trade, options, market)
+            final = owner_exit(trade, options, market)
             collected.append((final.entry_date, leg.order, final.entry_index, final))
     collected.sort(key=lambda item: item[:3])
     return tuple(dataclasses.replace(item[3], trade_id=number) for number, item in enumerate(collected, start=1))

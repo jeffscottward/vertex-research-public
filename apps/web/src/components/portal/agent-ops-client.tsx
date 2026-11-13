@@ -372,6 +372,8 @@ export const OPERATOR_FEATURE_COPY = Object.freeze({
   backtests: "Backtest runs are limited to operators.",
   "deployment-requests": "Paper deployment requests are limited to operators.",
   deployments: "Deployment status is limited to operators.",
+  drafts:
+    "The go-live order draft queue (plan record and order drafts) is limited to operators.",
   engines: "Engine status is limited to operators.",
   flow: "Order flow, options flow and GEX on the Flow page are limited to operators.",
   "ibkr-monitor": "The IBKR monitor is limited to operators.",

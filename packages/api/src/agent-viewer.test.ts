@@ -267,6 +267,7 @@ const REVIEWED_READS: readonly string[] = [
   "featureItems.get",
   "featureItems.list",
   "flow.snapshot",
+  "goLiveDrafts.queue",
   "ibkrMonitor.roundHandles",
   "ibkrMonitor.snapshot",
   "ibkrMonitor.volatility",
