@@ -135351,9 +135351,24 @@
                       "maxItems": 400,
                       "type": "array"
                     },
+                    "expiriesSources": {
+                      "items": {
+                        "enum": [
+                          "quantdata",
+                          "ibkr",
+                          "yahoo"
+                        ],
+                        "type": "string"
+                      },
+                      "maxItems": 3,
+                      "type": "array"
+                    },
                     "expiry": {
                       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                       "type": "string"
+                    },
+                    "flowFirstPageOnly": {
+                      "type": "boolean"
                     },
                     "notes": {
                       "items": {
@@ -135422,6 +135437,39 @@
                                     "minLength": 1,
                                     "type": "string"
                                   },
+                                  "flow": {
+                                    "anyOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "premium": {
+                                            "minimum": 0,
+                                            "type": "number"
+                                          },
+                                          "trades": {
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "minimum": -9007199254740991,
+                                            "type": "integer"
+                                          },
+                                          "volume": {
+                                            "maximum": 9007199254740991,
+                                            "minimum": 0,
+                                            "type": "integer"
+                                          }
+                                        },
+                                        "required": [
+                                          "premium",
+                                          "trades",
+                                          "volume"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "greeks": {
                                     "anyOf": [
                                       {
@@ -135504,6 +135552,74 @@
                                       }
                                     ]
                                   },
+                                  "sources": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "delta": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "quantdata",
+                                              "model"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "iv": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "quantdata",
+                                              "yahoo"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "openInterest": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "quantdata",
+                                              "yahoo"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "quote": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "ibkr",
+                                              "yahoo"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "quote",
+                                      "iv",
+                                      "openInterest",
+                                      "delta"
+                                    ],
+                                    "type": "object"
+                                  },
                                   "volume": {
                                     "anyOf": [
                                       {
@@ -135528,7 +135644,9 @@
                                   "iv",
                                   "inTheMoney",
                                   "lastTradeAt",
-                                  "greeks"
+                                  "greeks",
+                                  "sources",
+                                  "flow"
                                 ],
                                 "type": "object"
                               },
@@ -135579,6 +135697,39 @@
                                     "minLength": 1,
                                     "type": "string"
                                   },
+                                  "flow": {
+                                    "anyOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "premium": {
+                                            "minimum": 0,
+                                            "type": "number"
+                                          },
+                                          "trades": {
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "minimum": -9007199254740991,
+                                            "type": "integer"
+                                          },
+                                          "volume": {
+                                            "maximum": 9007199254740991,
+                                            "minimum": 0,
+                                            "type": "integer"
+                                          }
+                                        },
+                                        "required": [
+                                          "premium",
+                                          "trades",
+                                          "volume"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "greeks": {
                                     "anyOf": [
                                       {
@@ -135661,6 +135812,74 @@
                                       }
                                     ]
                                   },
+                                  "sources": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "delta": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "quantdata",
+                                              "model"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "iv": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "quantdata",
+                                              "yahoo"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "openInterest": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "quantdata",
+                                              "yahoo"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "quote": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "ibkr",
+                                              "yahoo"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "quote",
+                                      "iv",
+                                      "openInterest",
+                                      "delta"
+                                    ],
+                                    "type": "object"
+                                  },
                                   "volume": {
                                     "anyOf": [
                                       {
@@ -135685,7 +135904,9 @@
                                   "iv",
                                   "inTheMoney",
                                   "lastTradeAt",
-                                  "greeks"
+                                  "greeks",
+                                  "sources",
+                                  "flow"
                                 ],
                                 "type": "object"
                               },
@@ -135709,8 +135930,112 @@
                       "maxItems": 2000,
                       "type": "array"
                     },
-                    "source": {
-                      "const": "yahoo"
+                    "sources": {
+                      "prefixItems": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "quantdata"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "status",
+                            "message"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "ibkr"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "status",
+                            "message"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "yahoo"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "status",
+                            "message"
+                          ],
+                          "type": "object"
+                        }
+                      ],
+                      "type": "array"
                     },
                     "spot": {
                       "anyOf": [
@@ -135723,21 +136048,39 @@
                         }
                       ]
                     },
+                    "spotSource": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "quantdata",
+                            "ibkr",
+                            "yahoo"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "symbol": {
                       "type": "string"
                     }
                   },
                   "required": [
                     "symbol",
-                    "source",
+                    "sources",
                     "currency",
                     "spot",
+                    "spotSource",
+                    "expiriesSources",
                     "quoteTime",
                     "receivedAt",
                     "expiries",
                     "expiry",
                     "dte",
                     "rows",
+                    "flowFirstPageOnly",
                     "assumptions",
                     "notes"
                   ],
@@ -136171,6 +136514,18 @@
                       "maxItems": 400,
                       "type": "array"
                     },
+                    "expiriesSources": {
+                      "items": {
+                        "enum": [
+                          "quantdata",
+                          "ibkr",
+                          "yahoo"
+                        ],
+                        "type": "string"
+                      },
+                      "maxItems": 3,
+                      "type": "array"
+                    },
                     "quoteTime": {
                       "anyOf": [
                         {
@@ -136184,8 +136539,112 @@
                     "receivedAt": {
                       "type": "string"
                     },
-                    "source": {
-                      "const": "yahoo"
+                    "sources": {
+                      "prefixItems": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "quantdata"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "status",
+                            "message"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "ibkr"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "status",
+                            "message"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "yahoo"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "status",
+                            "message"
+                          ],
+                          "type": "object"
+                        }
+                      ],
+                      "type": "array"
                     },
                     "spot": {
                       "anyOf": [
@@ -136198,15 +136657,32 @@
                         }
                       ]
                     },
+                    "spotSource": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "quantdata",
+                            "ibkr",
+                            "yahoo"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "symbol": {
                       "type": "string"
                     }
                   },
                   "required": [
                     "symbol",
-                    "source",
+                    "sources",
                     "currency",
                     "spot",
+                    "spotSource",
+                    "expiriesSources",
                     "quoteTime",
                     "receivedAt",
                     "expiries"

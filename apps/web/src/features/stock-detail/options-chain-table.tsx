@@ -1,16 +1,19 @@
 "use client";
 
-import type {
-  OptionContract,
-  OptionsChainOutput,
-  OptionsChainRow,
+import {
+  OPTIONS_CHAIN_SOURCE_LABELS,
+  type OptionContract,
+  type OptionsChainOutput,
+  type OptionsChainRow,
 } from "@darkfactory/api";
 import { cn } from "@darkfactory/ui";
 import { useState } from "react";
 
 // Options chain for one expiry. Desktop: calls left, strike in the middle, puts right.
 // Narrow screens: a Calls/Puts switch and one table that scrolls sideways. The at-the-money
-// row is highlighted; in-the-money cells are shaded. Read-only: no order controls.
+// row is highlighted; in-the-money cells are shaded. A bid or ask from IBKR has a dotted
+// underline, screen-reader text naming the source and a visible legend under the table.
+// Read-only: no order controls.
 
 type ColumnKey =
   | "bid"
@@ -147,6 +150,9 @@ const HeadCells = ({ columns }: { readonly columns: readonly Column[] }) =>
     </th>
   ));
 
+const LIVE_QUOTE_LABEL = `${OPTIONS_CHAIN_SOURCE_LABELS.ibkr} live quote`;
+const LIVE_QUOTE_LEGEND = ` A dotted underline marks an ${LIVE_QUOTE_LABEL}.`;
+
 const ContractCells = ({
   columns,
   contract,
@@ -156,11 +162,26 @@ const ContractCells = ({
   readonly contract: OptionContract | null;
   readonly shaded: boolean;
 }) =>
-  columns.map((column) => (
-    <td className={cn(cellClass, shaded && itmClass)} key={column.key}>
-      {formatCell(contract, column.key)}
-    </td>
-  ));
+  columns.map((column) => {
+    // The live pair, as opposed to the delayed Yahoo quote.
+    const live =
+      (column.key === "bid" || column.key === "ask") &&
+      contract?.sources.quote === "ibkr";
+    return (
+      <td
+        className={cn(
+          cellClass,
+          shaded && itmClass,
+          live && "underline decoration-dotted underline-offset-4"
+        )}
+        data-quote-source={live ? "ibkr" : undefined}
+        key={column.key}
+      >
+        {formatCell(contract, column.key)}
+        {live ? <span className="sr-only"> ({LIVE_QUOTE_LABEL})</span> : null}
+      </td>
+    );
+  });
 
 const StrikeCell = ({
   row,
@@ -314,6 +335,11 @@ export const OptionsChainTable = ({
   const atm = atmIndex(chain.rows, chain.spot);
   const rows = windowRows(chain.rows, atm, strikes);
   const atmStrike = chain.rows[atm]?.strike ?? null;
+  // Which sides of the shown rows have a marked cell: the legend follows the view.
+  const liveSides = {
+    call: rows.some((row) => row.call?.sources.quote === "ibkr"),
+    put: rows.some((row) => row.put?.sources.quote === "ibkr"),
+  };
   if (chain.rows.length === 0)
     return (
       <p className="p-4 text-muted-foreground text-sm" role="status">
@@ -360,6 +386,17 @@ export const OptionsChainTable = ({
       >
         Showing {rows.length} of {chain.rows.length} strikes. Shaded cells are
         in the money.
+        {/* Wide screens show both sides; narrow screens show the chosen side. */}
+        {liveSides.call || liveSides.put ? (
+          <span className="hidden lg:inline" data-quote-legend="split">
+            {LIVE_QUOTE_LEGEND}
+          </span>
+        ) : null}
+        {liveSides[side] ? (
+          <span className="lg:hidden" data-quote-legend={side}>
+            {LIVE_QUOTE_LEGEND}
+          </span>
+        ) : null}
       </p>
     </div>
   );

@@ -16,6 +16,9 @@ import type { OptionsChainGateway } from "./options-chain-client.ts";
 
 // Deterministic DUMMY market data for tests and the /lab component browser. Prices, quotes,
 // volumes and open interest are generated from the symbol; none of it is real market data.
+// The chain mimics the merged response (Quant Data first, then IBKR, then Yahoo): the 13 strikes
+// nearest the spot carry an "IBKR" quote and "Quant Data" open interest and flow, the rest are
+// tagged Yahoo.
 // Special symbols: NOOPT lists no options, FAIL makes every request fail.
 
 export const FAKE_NOW = new Date("2026-11-04T15:00:00.000Z");
@@ -91,10 +94,17 @@ const quoteFields = (
     date,
     dte: daysToExpiry(date, isoDay(now)),
   })),
-  quoteTime: now.toISOString(),
+  expiriesSources: ["quantdata", "ibkr", "yahoo"],
+  // Quant Data sends no quote time, as on the server.
+  quoteTime: null,
   receivedAt: now.toISOString(),
-  source: "yahoo",
+  sources: [
+    { message: null, source: "quantdata", status: "used" },
+    { message: null, source: "ibkr", status: "used" },
+    { message: null, source: "yahoo", status: "used" },
+  ],
   spot: fakeSpot(symbol),
+  spotSource: "quantdata",
   symbol,
 });
 
@@ -107,7 +117,9 @@ const fakeContract = (
   right: "call" | "put",
   strike: number,
   spot: number,
-  now: Date
+  now: Date,
+  // One of the strikes nearest the spot: the ones the dummy IBKR and Quant Data cover.
+  near: boolean
 ): OptionContract => {
   const moneyness = Math.log(strike / spot);
   const years = Math.max(yearsToExpiry(expiry, now), 1 / 365);
@@ -141,6 +153,13 @@ const fakeContract = (
     bid: cents(Math.max(0, price - spread)),
     change: cents(price * 0.04 * (right === "call" ? 1 : -1)),
     contractSymbol: `${symbol}${code}`.slice(0, 40),
+    flow: near
+      ? {
+          premium: cents(price * volume * 10),
+          trades: 1 + (volume % 7),
+          volume: Math.floor(volume / 10),
+        }
+      : null,
     greeks:
       model === null
         ? null
@@ -156,6 +175,12 @@ const fakeContract = (
     last: cents(price),
     lastTradeAt: now.toISOString(),
     openInterest: volume * 7 + 13,
+    sources: {
+      delta: model === null ? null : "model",
+      iv: iv === null ? null : "yahoo",
+      openInterest: near ? "quantdata" : "yahoo",
+      quote: near ? "ibkr" : "yahoo",
+    },
     volume,
   };
 };
@@ -204,15 +229,35 @@ export const createFakeOptionsChainGateway = (
           },
           dte: match.dte,
           expiry: selected,
+          flowFirstPageOnly: false,
           notes: [
             "DUMMY DATA for the lab and tests. These are not market quotes.",
             "Greeks are calculated with Black-Scholes (European exercise): risk-free rate 4.00 % (fixed assumption), dividend yield 0.00 %.",
           ],
-          rows: strikes.map((strike) => ({
-            call: fakeContract(upper, selected, "call", strike, spot, now),
-            put: fakeContract(upper, selected, "put", strike, spot, now),
-            strike,
-          })),
+          rows: strikes.map((strike) => {
+            const near = Math.abs(strike - center) <= 6 * step;
+            return {
+              call: fakeContract(
+                upper,
+                selected,
+                "call",
+                strike,
+                spot,
+                now,
+                near
+              ),
+              put: fakeContract(
+                upper,
+                selected,
+                "put",
+                strike,
+                spot,
+                now,
+                near
+              ),
+              strike,
+            };
+          }),
         };
         return output;
       }),
