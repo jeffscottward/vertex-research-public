@@ -379,7 +379,8 @@ export const GoLiveSizingSchema = z
 
 export const GoLivePreCheckSchema = z
   .object({
-    // The engine policy in arm_gate.py is not part of the web order path and is not run here.
+    // The engine policy in arm_gate.py is not run in this dry pre-check. At send, the order bridge runs it
+    // (v3 + ARM, card vertex-golive-exec-intake); the literal keeps its historical name for the contract.
     enginePolicy: z.literal("not_evaluated_not_in_web_order_path"),
     // The web final order gate, run dry on the sized order (packages/api final-order-gate.ts).
     // null when there is no sized order to check.
