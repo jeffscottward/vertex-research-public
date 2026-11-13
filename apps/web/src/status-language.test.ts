@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { parseAst } from "vite";
 import { describe, expect, it } from "vitest";
 import { STATUS_LANGUAGE_ALLOWLIST } from "./status-language-allowlist.ts";
 
@@ -9,18 +10,21 @@ import { STATUS_LANGUAGE_ALLOWLIST } from "./status-language-allowlist.ts";
 // next. A vague placeholder is not a status: "unknown", "N/A", "unavailable", "not available", a
 // bare dash, "?" or "…".
 //
-// This test reads every string literal and JSX text in apps/web/src (tests, fixtures and lab pages
-// excluded). A vague text must have an entry in status-language-allowlist.ts with a reason.
+// This test parses every source file in apps/web/src (tests, fixtures and lab pages excluded) and
+// reads each JSX text, string literal and template literal from the syntax tree. So wrapped JSX
+// text, text next to an {expression} and attribute strings all count, and types such as
+// `Array<unknown>` do not. A vague text must have an entry in status-language-allowlist.ts.
 // - New text: do not add an entry by reflex. Name the state: the cause, since when, the last known
 //   value, the next step ("Gateway disconnected since 01:13 ET · retrying"). Real uncertainty
 //   stays visible, but it is named ("Order outcome not confirmed by IBKR since 14:02 · checking").
-// - Entry with `"open": true`: a known ambiguous text from the audit. It leaves the list when its
+// - Entry with `open: true`: a known ambiguous text from the audit. It leaves the list when its
 //   replacement merges; the test fails on a stale entry, so the list only shrinks.
-// - Entry without `open`: checked and kept; the reason says why (a separator between two real
-//   values, a state value that is never displayed, an error text that names its cause).
+// - Entry without `open`: checked and kept; the reason says why (a state value that is never
+//   displayed, an explanation in prose, an error text that names its cause).
 //
-// Regenerate after a deliberate change: UPDATE_STATUS_LANGUAGE=1 pnpm exec vitest run ... this
-// file. It keeps the reasons of existing entries and marks new ones "REASON REQUIRED": write it.
+// Regenerate after a deliberate change: run this file with UPDATE_STATUS_LANGUAGE=1, then
+// `biome format --write` the list. Existing reasons are kept; a new entry gets "REASON REQUIRED"
+// and the test fails until the reason is written.
 
 const ROOT = join(import.meta.dirname);
 const LIST_FILE = "status-language-allowlist.ts";
@@ -34,14 +38,66 @@ const SKIPPED_DIRECTORIES = [
   "test",
 ];
 const SKIPPED_FILE = /\.(test|spec)\.|\.d\.ts$|fixture/;
-const COMMENT_LINE = /^\s*(\/\/|\*|\/\*).*$/gm;
-// A complete string literal, template literal, or JSX text between two tags.
-const LITERAL =
-  /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`|>([^<>{}\n]+)</g;
 const VAGUE_WORD =
   /\b(unknown|n\/a|unavailable|not available|undetermined|tbd)\b/i;
-const VAGUE_MARK = /^\s*(—|–|-|\?|…|\.\.\.)\s*$/;
+const VAGUE_MARK = /^(—|–|-|\?|…|\.\.\.)$/;
 const MISSING_REASON = "REASON REQUIRED";
+// An expression inside a template literal.
+const HOLE = "${}";
+
+type SyntaxNode = Readonly<Record<string, unknown>> & { readonly type: string };
+
+const isNode = (value: unknown): value is SyntaxNode =>
+  typeof value === "object" &&
+  value !== null &&
+  "type" in value &&
+  typeof value.type === "string";
+
+const collapse = (text: string): string => text.replace(/\s+/g, " ").trim();
+
+// The text of one node, or null when the node is not a text.
+const nodeText = (node: SyntaxNode): string | null => {
+  if (node.type === "JSXText") return collapse(String(node["value"]));
+  if (node.type === "Literal" && typeof node["value"] === "string")
+    return collapse(node["value"]);
+  if (node.type === "TemplateLiteral") {
+    // ESTree TemplateLiteral: the parser's node type is not exported, so the shape is stated here.
+    const quasis = node["quasis"] as readonly {
+      value: { cooked: string | null; raw: string };
+    }[];
+    return collapse(
+      quasis.map((part) => part.value.cooked ?? part.value.raw).join(HOLE)
+    );
+  }
+  return null;
+};
+
+const collectTexts = (value: unknown, found: string[]): void => {
+  if (Array.isArray(value)) {
+    for (const item of value) collectTexts(item, found);
+    return;
+  }
+  if (!isNode(value)) return;
+  // A module path is not a text.
+  if (
+    value.type === "ImportDeclaration" ||
+    value.type === "ExportAllDeclaration"
+  )
+    return;
+  const text = nodeText(value);
+  if (text !== null) found.push(text);
+  for (const [name, child] of Object.entries(value)) {
+    // The parts of a template literal are read with the literal itself.
+    if (name === "quasis" || (name === "source" && isNode(child))) continue;
+    if (typeof child === "object" && child !== null) collectTexts(child, found);
+  }
+};
+
+const vagueTexts = (source: string, lang: "ts" | "tsx"): string[] => {
+  const found: string[] = [];
+  collectTexts(parseAst(source, { lang }), found);
+  return found.filter((text) => VAGUE_MARK.test(text) || VAGUE_WORD.test(text));
+};
 
 const sourceFiles = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -55,22 +111,14 @@ const sourceFiles = (directory: string): string[] =>
       : [];
   });
 
-const vagueTexts = (source: string): string[] => {
-  const found: string[] = [];
-  for (const match of source.replace(COMMENT_LINE, "").matchAll(LITERAL)) {
-    const raw = match[1] ?? match[0].slice(1, -1);
-    if (VAGUE_MARK.test(raw) || VAGUE_WORD.test(raw)) found.push(raw.trim());
-  }
-  return found;
-};
-
 const key = (file: string, text: string): string => `${file}\u0000${text}`;
 
 const scan = (): Map<string, number> => {
   const counts = new Map<string, number>();
   for (const path of sourceFiles(ROOT)) {
     const file = relative(ROOT, path).replaceAll("\\", "/");
-    for (const text of vagueTexts(readFileSync(path, "utf8"))) {
+    const lang = path.endsWith(".tsx") ? "tsx" : "ts";
+    for (const text of vagueTexts(readFileSync(path, "utf8"), lang)) {
       const id = key(file, text);
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }
@@ -110,26 +158,35 @@ describe("status language guard", () => {
   const counts = scan();
   if (process.env["UPDATE_STATUS_LANGUAGE"] === "1") regenerate(counts);
 
-  it("finds vague texts in string literals, template literals and JSX text", () => {
-    expect(
-      vagueTexts(
-        [
-          'const a = "Account mode unknown";',
-          "const b = 'N/A';",
-          "const c = `Feed unavailable (${code})`;",
-          "<td>—</td>",
-          "<p>Not available</p>",
-          "// a comment with unknown is ignored",
-          'const fine = "Gateway disconnected since 01:13 ET · retrying";',
-          'const separator = "Live account · read-only";',
-        ].join("\n")
-      )
-    ).toEqual([
+  it("reads JSX text, attribute strings, string and template literals, and no types", () => {
+    const source = [
+      'import type { A } from "./unknown-module.ts";',
+      "const typed: unknown = 1 as unknown as Array<unknown>;",
+      "// a comment with unknown is ignored",
+      'const a = "Account mode unknown";',
+      "const b = 'N/A';",
+      "const c = `Feed unavailable (${typed}) since ${typed}`;",
+      'const fine = "Gateway disconnected since 01:13 ET · retrying";',
+      "export const View = ({ reason }: { reason: string | null }) => (",
+      '  <p title="Not available">',
+      '    Positions unknown: {reason ?? "—"} for now',
+      "    <span>",
+      "      Status",
+      "      unknown",
+      "    </span>",
+      "    {typed === 1 ? <b>…</b> : <i>Live account · read-only</i>}",
+      "  </p>",
+      ");",
+    ].join("\n");
+    expect(vagueTexts(source, "tsx")).toEqual([
       "Account mode unknown",
       "N/A",
-      "Feed unavailable (${code})",
-      "—",
+      "Feed unavailable (${}) since ${}",
       "Not available",
+      "Positions unknown:",
+      "—",
+      "Status unknown",
+      "…",
     ]);
   });
 

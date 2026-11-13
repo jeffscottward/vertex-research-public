@@ -112,6 +112,13 @@ export const PanelTitle = ({
   </h3>
 );
 
+// A withheld list has no count: "(0)" would read as none.
+const countedTitle = (
+  title: string,
+  rows: number,
+  withheld: string | null
+): string => (withheld !== null && rows === 0 ? title : `${title} (${rows})`);
+
 // An empty list is only "empty" when the book is live. Otherwise the list is withheld, and the
 // notice says what is withheld and why (accountDataWithheld: cause, since when, what happens next).
 export const EmptyOrWithheld = ({
@@ -379,7 +386,7 @@ export const PositionsPanel = ({
     <section aria-labelledby="pm-positions-title" className={SECTION}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <PanelTitle id="pm-positions-title">
-          {`${title} (${positions.length})`}
+          {countedTitle(title, positions.length, withheld)}
         </PanelTitle>
         <Button
           aria-controls="pm-column-editor"
@@ -695,7 +702,9 @@ export const OrdersTable = ({
   const groups = groupOrders(orders);
   return (
     <section aria-labelledby={titleId} className={SECTION}>
-      <PanelTitle id={titleId}>{`${title} (${orders.length})`}</PanelTitle>
+      <PanelTitle id={titleId}>
+        {countedTitle(title, orders.length, withheld)}
+      </PanelTitle>
       {completed ? null : <OrdersExplanation />}
       {orders.length === 0 ? (
         <EmptyOrWithheld empty={empty} what="Orders" withheld={withheld} />
@@ -798,7 +807,7 @@ export const ExecutionsTable = ({
   return (
     <section aria-labelledby="pm-executions-title" className={SECTION}>
       <PanelTitle id="pm-executions-title">
-        {`Executions today (${executions.length})`}
+        {countedTitle("Executions today", executions.length, withheld)}
       </PanelTitle>
       {rows.length === 0 ? (
         <EmptyOrWithheld

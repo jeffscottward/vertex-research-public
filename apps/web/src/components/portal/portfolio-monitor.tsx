@@ -525,13 +525,14 @@ const SectionBody = ({
       );
     }
     case "pnl": {
-      return <PnlChart positions={snapshot.positions} />;
+      return <PnlChart positions={snapshot.positions} withheld={withheld} />;
     }
     case "allocation": {
       return (
         <AllocationChart
           nlv={snapshot.summary.netLiquidation}
           positions={snapshot.positions}
+          withheld={withheld}
         />
       );
     }

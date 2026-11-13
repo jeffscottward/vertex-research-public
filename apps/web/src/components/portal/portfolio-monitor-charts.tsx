@@ -56,7 +56,9 @@ const CARD = "space-y-3 rounded-md border border-border bg-surface p-4";
 export const AllocationChart = ({
   nlv,
   positions,
+  withheld,
 }: {
+  readonly withheld: string | null;
   readonly nlv: number | null;
   readonly positions: readonly PortfolioMonitorPosition[];
 }) => {
@@ -76,7 +78,11 @@ export const AllocationChart = ({
         {"Allocation (% of NLV)"}
       </PanelTitle>
       {arcs.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No allocation data.</p>
+        <EmptyOrWithheld
+          empty="No allocation data."
+          what="Allocation"
+          withheld={withheld}
+        />
       ) : (
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           <svg
@@ -137,7 +143,9 @@ const CHART_WIDTH = 640;
 
 export const PnlChart = ({
   positions,
+  withheld,
 }: {
+  readonly withheld: string | null;
   readonly positions: readonly PortfolioMonitorPosition[];
 }) => {
   const bars = pnlBars(positions);
@@ -154,7 +162,11 @@ export const PnlChart = ({
     <section aria-labelledby="pm-pnl-title" className={CARD}>
       <PanelTitle id="pm-pnl-title">P&L by position</PanelTitle>
       {bars.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No positions to chart.</p>
+        <EmptyOrWithheld
+          empty="No positions to chart."
+          what="Positions"
+          withheld={withheld}
+        />
       ) : (
         <>
           <svg

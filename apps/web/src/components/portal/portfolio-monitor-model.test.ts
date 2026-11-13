@@ -26,7 +26,6 @@ import {
   groupOrders,
   ibkrTimeKey,
   accountDataWithheld,
-  isGatewayLive,
   isOptionPosition,
   ladderScale,
   localDayKey,
@@ -380,7 +379,7 @@ describe("portfolio monitor health rule", () => {
       },
       NOW
     );
-    expect(isGatewayLive(snapshot)).toBe(false);
+    expect(accountDataWithheld(snapshot)).not.toBeNull();
     return expect(
       monitorHealth({ snapshot, failureKind: null, nowMs: NOW, intervalS: 10 })
     ).toEqual({
@@ -392,13 +391,39 @@ describe("portfolio monitor health rule", () => {
     });
   });
 
-  return it("derives gateway liveness from the snapshot", () => {
-    expect(isGatewayLive(fixtureSnapshot({}, NOW))).toBe(true);
-    return expect(
-      isGatewayLive(
-        fixtureSnapshot({ status: { gateway: "disconnected" } }, NOW)
+  return it("says since when the gateway has been down, when the time is known", () => {
+    const since = new Date(NOW - 3_600_000).toISOString();
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot(
+          { status: { gateway: "disconnected", connected: false, since } },
+          NOW
+        ),
+        NOW
       )
-    ).toBe(false);
+    ).toMatch(
+      /^The IBKR gateway has been disconnected since (\S.* )?\d\d:\d\d \S+, so account data is withheld until it reconnects\. The reader retries on its own\.$/
+    );
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot({ status: { gateway: "starting", since } }, NOW),
+        NOW
+      )
+    ).toMatch(
+      /^The IBKR gateway has been connecting since (\S.* )?\d\d:\d\d \S+, so/
+    );
+    // No start time from the reader: the sentence stays correct without it.
+    return expect(
+      accountDataWithheld(
+        fixtureSnapshot(
+          { status: { gateway: "disconnected", since: null } },
+          NOW
+        ),
+        NOW
+      )
+    ).toBe(
+      "The IBKR gateway has been disconnected, so account data is withheld until it reconnects. The reader retries on its own."
+    );
   });
 });
 

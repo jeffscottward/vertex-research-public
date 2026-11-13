@@ -694,7 +694,7 @@ describe("PortfolioMonitor", () => {
     ).toContain("Account mode not reported");
   });
 
-  it("marks values out of date and empty lists unknown when the gateway is disconnected", async () => {
+  it("marks values out of date and empty lists withheld when the gateway is disconnected", async () => {
     const snapshot = fixtureSnapshot({
       status: {
         gateway: "disconnected",
@@ -718,7 +718,7 @@ describe("PortfolioMonitor", () => {
       "Status:Paper account · read-only"
     );
     expect(find("[data-withheld]").textContent).toBe(
-      "Positions withheld. The IBKR gateway is disconnected, so account data is withheld until it reconnects. The reader retries on its own."
+      "Positions withheld. The IBKR gateway has been disconnected, so account data is withheld until it reconnects. The reader retries on its own."
     );
     expect(text()).not.toContain("No open positions");
     expect(text()).not.toMatch(/unknown/i);
@@ -735,12 +735,16 @@ describe("PortfolioMonitor", () => {
     );
     expect(
       withheld.some((line) =>
-        line.startsWith("Orders withheld. The IBKR gateway is disconnected")
+        line.startsWith(
+          "Orders withheld. The IBKR gateway has been disconnected"
+        )
       )
     ).toBe(true);
     return expect(
       withheld.some((line) =>
-        line.startsWith("Executions withheld. The IBKR gateway is disconnected")
+        line.startsWith(
+          "Executions withheld. The IBKR gateway has been disconnected"
+        )
       )
     ).toBe(true);
   });
@@ -833,8 +837,12 @@ describe("PortfolioMonitor", () => {
     expect(find("[data-health=mode-mismatch]").textContent).toContain(
       "Account data withheld"
     );
-    // Withheld lists are not shown as an empty account.
+    // Withheld lists are not shown as an empty account: no "(0)" count, and the notice names the cause.
     expect(text()).not.toMatch(/No open positions|No open orders/);
+    expect(find("[data-withheld]").textContent).toBe(
+      "Positions withheld. The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert shows the fix."
+    );
+    expect(find("#pm-positions-title").textContent).not.toContain("(0)");
     expect(text()).not.toMatch(/Values may be out of date/);
     await run(() => root.unmount());
     await mount(
