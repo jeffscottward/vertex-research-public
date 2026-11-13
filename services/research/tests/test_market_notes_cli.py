@@ -425,16 +425,17 @@ def test_an_old_reel_gets_its_review_period_from_today(rig: Rig):
     assert code == 0
     fields = rig.client.calls[1][1]
     assert (fields["asOf"], fields["reviewBy"], fields["source"]["author"]) == ("2026-09-01", "2026-12-11", "handle")
-    assert "stored as expired" not in err
+    assert "will read as expired" not in err
 
 
-def test_a_past_review_date_is_stored_with_a_notice_that_the_note_is_expired(rig: Rig):
+def test_a_past_review_date_is_stored_with_a_notice_that_the_note_will_read_as_expired(rig: Rig):
     rig.download = FakeDownload({"id": "abc", "channel": "handle", "upload_date": "20260901"})
     code, _out, err = rig.run("add", REEL, "--review-by", "2026-10-01")
     assert code == 0
     fields = rig.client.calls[1][1]
     assert (fields["asOf"], fields["reviewBy"]) == ("2026-09-01", "2026-10-01")
-    assert "review date 2026-10-01 is before today: the note is stored as expired" in err
+    assert ("review date 2026-10-01 is before today: the note will read as expired and stay out of agent context "
+            "until you renew it with the renew command") in err
 
 
 @pytest.mark.parametrize(("argv", "text"), [
