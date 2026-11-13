@@ -279,6 +279,7 @@ describe("agent API key scope", () => {
       "breadth90.get",
       "goLiveDrafts.collect",
       "goLiveDrafts.queue",
+      "instantBacktest.run",
     ]);
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(
@@ -288,6 +289,10 @@ describe("agent API key scope", () => {
       true
     );
     expect(isAgentApiKeyProcedurePath(["sectorRotation", "map"])).toBe(false);
+    expect(isAgentApiKeyProcedurePath(["instantBacktest", "run"])).toBe(true);
+    expect(isAgentApiKeyProcedurePath(["instantBacktest", "series"])).toBe(
+      false
+    );
     expect(
       isAgentApiKeyProcedurePath(["autopilot", "campaigns", "create"])
     ).toBe(false);
