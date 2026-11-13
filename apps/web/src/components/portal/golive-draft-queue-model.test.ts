@@ -29,6 +29,7 @@ import {
   CURRENT_PRECHECK_LABEL,
   CURRENT_QUOTE_LABEL,
   CURRENT_SIZING_LABEL,
+  canSendApproved,
   currentSizingText,
   DRAFT_STATE_WORDS,
   decisionAftermathText,
@@ -64,8 +65,6 @@ import {
   marketNotesText,
   maxLossText,
   NO_ENTRY_BASIS_REASON,
-  NO_ORDERS_NOTICE,
-  NO_ORDERS_NOTICE_PARTS,
   NO_PLAN_TEXT,
   NO_SIZED_ORDER_REASON,
   NODE_BADGE_WORDS,
@@ -73,7 +72,10 @@ import {
   NOT_APPROVABLE_WORDS,
   nodeText,
   noLiveQuoteReason,
+  noOrdersNotice,
+  noOrdersNoticeParts,
   noteText,
+  noticeCapsText,
   notKnownText,
   OTHER_GROUP_TITLE,
   OWNER_ONLY_DECISION_TEXT,
@@ -90,11 +92,14 @@ import {
   quoteText,
   REJECT_NOTE_REQUIRED,
   REJECTION_RECORD_SENTENCE,
+  SEND_STATE_WORDS,
   SIGNED_OUT_TEXT,
   SIZING_REASON_WORDS,
   STRUCTURE_WORDS,
   safeHttpsUrl,
   sendOutcomeText,
+  sendStateText,
+  sendSummaryRows,
   sleeveRow,
   staleDialogNotice,
   staleDialogReason,
@@ -160,6 +165,7 @@ const draft = (
   },
   quote: null,
   revision: 3,
+  send: null,
   shortStrike: 455,
   signalFacts: [],
   sizing: {
@@ -325,12 +331,13 @@ describe("wording maps", () => {
       winner_expiry_day_1545_et:
         "Proposal to close: open winner, 15:45 ET on expiry day",
     });
-    expect(NO_ORDERS_NOTICE).toBe(
-      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+    expect(noOrdersNotice(plan())).toBe(
+      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the caps of the plan in force (7.5% total, 2% per name, 1.25% per position). An approved order that was not sent, or that the order bridge refused, has a Send approved order button. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The notice never tells the owner to place an approved vertical on a Vertex screen.
-    expect(NO_ORDERS_NOTICE).not.toMatch(/to place|use the|yourself/iu);
-    expect(NO_ORDERS_NOTICE_PARTS.link).toBe("Portfolio");
+    for (const shown of [plan(), null, undefined])
+      expect(noOrdersNotice(shown)).not.toMatch(/to place|use the|yourself/iu);
+    expect(noOrdersNoticeParts(plan()).link).toBe("Portfolio");
     expect(PORTFOLIO_HREF).toBe("/portfolio?tab=orders");
     expect(APPROVAL_NOT_SENT_SENTENCE).toBe(
       "This records your approval and sends this exact order as one combo limit order, only if the execution node is armed, engine policy v3 accepts it and the plan caps allow it."
@@ -361,10 +368,10 @@ describe("wording maps", () => {
     expect(tab?.[1]).toBe(VERTEX_ORDERS_TAB_VALUE);
     expect(tab?.[2]).toBe(VERTEX_ORDERS_TAB_LABEL);
     expect(VERTEX_ORDERS_TAB_LABEL).toBe("Vertex orders");
-    expect(NO_ORDERS_NOTICE).toContain(
+    expect(noOrdersNotice(plan())).toContain(
       `(Portfolio, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket`
     );
-    expect(NO_ORDERS_NOTICE).not.toContain("Orders & stops");
+    expect(noOrdersNotice(plan())).not.toContain("Orders & stops");
     expect(PORTFOLIO_HREF).toBe(`/portfolio?tab=${VERTEX_ORDERS_TAB_VALUE}`);
     expect(MARKET_NOTES_WORDS).toEqual({
       attached: "Market notes: attached to the drafts",
@@ -374,6 +381,32 @@ describe("wording maps", () => {
     expect(ENGINE_POLICY_LINE).toBe(
       "Engine policy (arm_gate): not part of the web order path; not evaluated here."
     );
+  });
+
+  it("builds the caps in the notice from the plan in force, never from fixed numbers", () => {
+    const limits = {
+      maxPositions: 3,
+      nameRiskCapPct: 1.5,
+      openRiskCapPct: 3,
+      positionRiskPct: 0.75,
+    };
+    expect(noticeCapsText(plan({ limits }))).toBe(
+      "only inside the caps of the plan in force (3% total, 1.5% per name, 0.75% per position)"
+    );
+    // A plan that is not approved, or no plan: the send gate sends nothing.
+    for (const none of [
+      null,
+      plan({ approvalBasis: null, status: "proposed" }),
+      plan({ status: "retired" }),
+    ])
+      expect(noticeCapsText(none)).toBe(
+        "only under an approved plan (no approved plan is in force now, so nothing is sent)"
+      );
+    // Before the queue is read the notice names no number.
+    expect(noticeCapsText(undefined)).toBe(
+      "only inside the caps of the plan in force"
+    );
+    expect(noOrdersNotice(undefined)).not.toMatch(/\d%/u);
   });
 
   it("has no sentence that says or suggests this page sent, staged or will send an order", () => {
@@ -1786,10 +1819,179 @@ describe("staleDialogReason", () => {
     ).toBeNull();
   });
 
+  describe("for Send approved order", () => {
+    const approved = draft({
+      approvedOrder: ORDER,
+      send: "refused",
+      state: "approved",
+    });
+    const send = { draft: approved, order: ORDER, type: "send" as const };
+
+    it("finds nothing while the fresh row can still send the order the dialog shows", () => {
+      expect(staleDialogReason(send, approved, CONTEXT)).toBeNull();
+      // A newer revision of an approved row changes nothing about its stored order.
+      expect(
+        staleDialogReason(send, { ...approved, revision: 9 }, CONTEXT)
+      ).toBeNull();
+    });
+
+    it("names a row that can no longer send, or that stores another order", () => {
+      expect(staleDialogReason(send, undefined, CONTEXT)).toBe(
+        "the draft is no longer in the queue"
+      );
+      expect(
+        staleDialogReason(send, { ...approved, send: "unknown" }, CONTEXT)
+      ).toBe(
+        "the approved order can no longer be sent here (outcome unknown: the order may still reach IBKR. Check open orders at IBKR; the next order preview checks it)"
+      );
+      expect(
+        staleDialogReason(
+          send,
+          { ...approved, send: null, state: "expired" },
+          CONTEXT
+        )
+      ).toBe(
+        `the approved order can no longer be sent here (${draftStateText("expired")})`
+      );
+      expect(
+        staleDialogReason(
+          send,
+          { ...approved, approvedOrder: { ...ORDER, quantity: 1 } },
+          CONTEXT
+        )
+      ).toBe(
+        "the approved order changed and is no longer the order the dialog showed"
+      );
+      expect(
+        staleDialogNotice("the draft is no longer in the queue", true)
+      ).toBe(
+        "A newer read of the queue shows that the draft is no longer in the queue. The open dialog was closed and nothing was sent."
+      );
+    });
+  });
+
   it("puts the reason in a notice that says the dialog closed and nothing was recorded", () =>
     expect(staleDialogNotice("the draft is no longer in the queue")).toBe(
       "A newer read of the queue shows that the draft is no longer in the queue. The open dialog was closed and nothing was recorded."
     ));
+});
+
+describe("send of an approved entry", () => {
+  it("has words for every send state, and names a value it does not know", () => {
+    expect(SEND_STATE_WORDS).toEqual({
+      not_found:
+        "Not found at IBKR: the outcome was unknown and a later check did not find the order. Not sent again here; check the IBKR order history.",
+      not_sent:
+        "Not sent: no send of this order reached the order bridge (a send the checks here refused records nothing).",
+      refused:
+        "Not sent: the order bridge refused the last send before IBKR. It can be sent again.",
+      sent: "Sent to IBKR: the last send went past the order bridge (placed, or found there later).",
+      unavailable:
+        "Not known: the order records could not be read. Reload the queue; the send button needs a known state.",
+      unknown:
+        "Outcome unknown: the order may still reach IBKR. Check open orders at IBKR; the next order preview checks it.",
+    });
+    expect(sendStateText(future("queued"))).toContain("Send state ");
+    expect(sendStateText(future("queued"))).toContain("queued");
+  });
+
+  it("offers a send only for an approved entry with its stored order, not sent or refused", () => {
+    const approved = draft({ approvedOrder: ORDER, state: "approved" });
+    for (const send of ["not_sent", "refused"] as const)
+      expect(canSendApproved({ ...approved, send })).toBe(true);
+    for (const send of [
+      "sent",
+      "unknown",
+      "not_found",
+      "unavailable",
+      null,
+    ] as const)
+      expect(canSendApproved({ ...approved, send })).toBe(false);
+    expect(
+      canSendApproved({ ...approved, approvedOrder: null, send: "not_sent" })
+    ).toBe(false);
+    expect(
+      canSendApproved({ ...approved, kind: "exit", send: "not_sent" })
+    ).toBe(false);
+    expect(
+      canSendApproved({ ...approved, send: "not_sent", state: "proposed" })
+    ).toBe(false);
+  });
+
+  it("repeats the stored order and the room its approval holds in the send dialog", () => {
+    expect(
+      sendSummaryRows(
+        { approvedRoom: { maxLoss: 1250, maxLossPctNlv: 1.25 } },
+        ORDER
+      ).map((row) => row.label)
+    ).toEqual(["Quantity", "Limit", "Max loss"]);
+  });
+
+  it("words the outcome of a resend without an approval", () => {
+    const result = {
+      message: "ok",
+      mode: "live" as const,
+      orderRef: "vertex-gl1",
+      permId: 7,
+      state: "submitted" as const,
+    };
+    expect(sendOutcomeText({ result, sent: true }, true)).toBe(
+      "Sent to IBKR as one combo limit order (live, submitted, ref vertex-gl1). ok"
+    );
+    expect(
+      sendOutcomeText(
+        {
+          result: {
+            ...result,
+            message:
+              "Engine refused the opening: ENGINE_DISARMED: no_arm_record",
+            permId: null,
+            state: "engine_refused",
+          },
+          sent: true,
+        },
+        true
+      )
+    ).toBe(
+      "Nothing was sent: the order bridge refused it before IBKR (ENGINE_DISARMED: no_arm_record). You can send it again."
+    );
+    expect(
+      sendOutcomeText(
+        { result: { ...result, state: "rejected" }, sent: true },
+        true
+      )
+    ).toBe("IBKR did not take the order (rejected): ok");
+    expect(sendOutcomeText({ message: "timeout", sent: "unknown" }, true)).toBe(
+      "The send outcome is unknown (timeout). Check open orders at IBKR before doing anything else."
+    );
+    expect(
+      sendOutcomeText(
+        { reasons: ["GO-LIVE V3_NOT_ON_LIVE_PATH: off"], sent: false },
+        true
+      )
+    ).toBe(
+      "Nothing was sent: go-live sends are off because the order gateway does not report engine policy v3 (simulated gateway or an older bridge)."
+    );
+    expect(
+      sendOutcomeText(
+        {
+          reasons: [
+            "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (checked T)",
+          ],
+          sent: false,
+        },
+        true
+      )
+    ).toBe(
+      "Engine disarmed: nothing was sent (engine running-disarmed (checked T))."
+    );
+    expect(
+      sendOutcomeText(
+        { reasons: ["GO-LIVE DRAFT_ALREADY_SENT: already sent"], sent: false },
+        true
+      )
+    ).toBe("Not sent: already sent.");
+  });
 });
 
 describe("plan links", () => {

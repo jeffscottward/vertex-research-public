@@ -16,9 +16,23 @@ The queue stores decisions. Approve on an entry draft also sends that exact orde
 Approve on an approved entry draft sends that exact order to IBKR as one combo limit order (GO-LIVE 4: `vertexOrders.comboPreview` and `comboSubmit` with `goLiveDraftId`; the gate is `packages/api/src/server/golive-send-gate.ts`). Each refusal is named:
 
 - `V3_NOT_ON_LIVE_PATH` unless the order gateway is the order bridge and its account reports `gates.orderPolicy: "options_only_defined_risk_v3"`. The simulated gateway and an older bridge never report it (owner 2026-11-12, card vertex-golive-exec-intake).
-- `ENGINE_DISARMED` unless the node badge is exactly `running-armed`; the order must be the exact approved order, inside the plan caps (4% total, 2% per name, 1% per position), and not sent before.
+- `ENGINE_DISARMED` unless the node badge is exactly `running-armed`; the order must be the exact approved order, inside the caps of the approved plan the draft belongs to (`limits.openRiskCapPct` total, `nameRiskCapPct` per name, `positionRiskPct` per position), and not sent before.
 
 The order bridge (market-watch-bot `market_watch/vertexbridge.py`) then runs the exec node's own `arm_gate` on the opening: engine order policy v3 (`preview_order`) on the node's account snapshot, close reservations and open-risk ledger, and the node ARM record (`ArmGate.status()`), once at the check and again right before the order run. A refusal returns `state: "engine_refused"` and nothing reaches IBKR.
+
+### Once only, also across web processes
+
+A draft's order carries a fixed `orderRef` (`vertex-gl` + 30 hex of SHA-256 of `golive:<draft id>`, `packages/api/src/server/golive-order-ref.ts`). Submit writes the intent row of that ref only through `orderIntents.recordIntentOnce`: one transaction reads the ref's rows, refuses a ref already sent (its last row is not a bridge refusal), and claims `(order_ref, attempt)` in `vertex_order_send_claims` (migration `0071_vertex_order_send_claims`) before it writes the intent row. `attempt` is the number of earlier sends of the ref the order bridge refused, so of two concurrent sends of one draft (two web processes) the primary key lets exactly one through, and a resend after a refusal claims the next attempt. The loser is refused as `GO-LIVE DRAFT_ALREADY_SENT` and sends nothing. The in-process mark still covers the simulated gateway, which has no intent store.
+
+### Send approved order
+
+The queue answer gives each approved entry draft `send`, read from the intent rows of its ref: `not_sent` (no send reached the order bridge; a send the web checks refused writes no row), `refused` (the bridge refused the last send before IBKR), `sent` (placed, or found open or as a position change), `unknown` (in flight or outcome unknown), `not_found` (an unknown outcome a later check did not find; not sent again here) or `unavailable` (no store, or the read failed). Exit drafts, other states and API keys get `null`.
+
+`unknown` and `not_found` are never offered a send, and the server refuses them too (`GO-LIVE DRAFT_ALREADY_SENT`). `unknown` means the order may still reach IBKR (a bridge timeout or failure, an unconfirmed order, or a send still in flight), and a second order with the same `orderRef` could fill twice. `not_found` is not proof that nothing was sent: the reconciliation only sees open orders and the position of the first leg, so an order IBKR filled and closed, or cancelled, also reads as not found. Only `refused` (the bridge says nothing reached IBKR) frees the draft for another send.
+
+For `not_sent` and `refused` the owner's row shows **Send approved order**. It opens a dialog that repeats the stored order and the room its approval holds; **Send order** sends that stored order through the same preview and submit (with `goLiveDraftId`), so every rule above runs again. It records no decision. The notice says what the order path did, and the queue is read again.
+
+The notice at the top of the page names the caps of the plan the queue read (for an approved plan; otherwise it says nothing is sent without an approved plan).
 
 The "Vertex orders" tab of the Portfolio page (`/portfolio`) still takes single option orders only in live mode: its vertical ticket is shown only in simulated mode (`apps/web/src/components/portal/vertex-orders.tsx`). Placing a vertical by hand at IBKR is outside Vertex and its checks.
 
@@ -284,3 +298,11 @@ The backtest closes 3 calendar days before expiry. The two rules give the same d
 ## Market notes
 
 This branch has no market-notes store. The queue answers `marketNotes: "feature_not_deployed"` and every draft has an empty `notes` list. The service has a small optional reader for notes, so they can be attached later.
+
+## Deploy
+
+Migration `0071_vertex_order_send_claims` is not applied by the web deploy: the steps in [infra/quantvps/README.md](../../infra/quantvps/README.md#deploy-a-new-web-build) copy `dist` and restart `vertex-web` only. Apply it by hand before the web build that sends go-live drafts is deployed, as [flow-pipeline.md](flow-pipeline.md#deploy) states: do not run `db:migrate` against the QuantVPS database (its Drizzle ledger is incomplete); apply `packages/db/migrations/0071_vertex_order_send_claims.sql` alone with `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container, then check that the table `vertex_order_send_claims` exists and that `vertex_research` has SELECT and INSERT on it. Without the table every go-live send is refused before the gateway (`Order intent store unavailable; nothing was sent`); other orders are not affected.
+
+The migration only creates the table and the grant and changes no existing table, so the running build is unaffected when it is applied first.
+
+Rollback: roll the web build back first, then `packages/db/rollback/0071_vertex_order_send_claims.down.sql` (`psql -v ON_ERROR_STOP=1`, without `--single-transaction`). It refuses while a claim has no result or reconciliation row at or after it (a send in flight). The intent and outcome rows stay in `audit_records`.
