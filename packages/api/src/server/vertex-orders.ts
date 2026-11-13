@@ -1,14 +1,14 @@
 import type { SemanticEvent } from "@darkfactory/observability/port";
-import { implement } from "@orpc/server";
+import { call, implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
+import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
 import type {
   VertexComboInput,
   VertexComboLeg,
   VertexOpenOrder,
   VertexOrderInput,
 } from "../contracts/vertex-orders.ts";
-import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
 import type { ApiContext } from "./context.ts";
 import {
   evaluateFinalOrderGate,
@@ -16,16 +16,24 @@ import {
   type FinalGateOrder,
   isRiskReducing,
 } from "./final-order-gate.ts";
+import {
+  maxLoss,
+  orderSessionDay,
+  strikeWidth,
+} from "./golive-drafts-sizing.ts";
+import { goLiveSendRefusals } from "./golive-send-gate.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
+import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
+import type { VertexOrdersConfig } from "./service-config.ts";
 import {
   CONFIRM_TTL_MS,
   consumeConfirmToken,
   issueConfirmToken,
 } from "./vertex-orders-confirm.ts";
 import {
-  createBridgeOrderGateway,
   BRIDGE_TIMEOUT_MS,
+  createBridgeOrderGateway,
   createMockOrderGateway,
   OrderGatewayError,
   type OrderGatewayPort,
@@ -35,11 +43,11 @@ import {
   evaluateCombo,
   evaluateOpeningCombo,
   evaluateOrder,
+  GOLIVE_ENGINE_ORDER_POLICY,
   type GatewayOpenOrder,
   type OrderAccount,
   sameContract,
 } from "./vertex-orders-rules.ts";
-import type { VertexOrdersConfig } from "./service-config.ts";
 
 export type { VertexOrdersConfig } from "./service-config.ts";
 
@@ -49,11 +57,15 @@ export type { VertexOrdersConfig } from "./service-config.ts";
 // never account numbers). VERTEX_ORDERS_ENABLED off => the mock gateway only; IBKR is never called.
 
 interface Dependencies {
-  mock: OrderGatewayPort;
   bridgeFetch?: (input: string, init?: RequestInit) => Promise<Response>;
-  now: () => Date;
+  // Node status for the go-live send gate; defaults to nautilusArm.status.
+  goLiveNode?: (
+    context: ApiContext
+  ) => Promise<Parameters<typeof goLiveSendRefusals>[0]["node"]>;
   // Cached P5 JEV verdict for the final gate; defaults to the shared verdict store.
   jevVerdict?: (symbol: string) => JevVerdictOutput | null;
+  mock: OrderGatewayPort;
+  now: () => Date;
 }
 
 let dependencies: Dependencies | undefined;
@@ -66,14 +78,15 @@ export const setVertexOrdersDependenciesForTesting = (
 ): void => {
   dependencies = next;
   limits.clear();
+  goLiveSentRefs.clear();
   placingUntil = 0;
 };
 
 const DISABLED: VertexOrdersConfig = {
-  enabled: false,
-  submission: "disabled",
   bridgeUrl: null,
   confirmSecret: "",
+  enabled: false,
+  submission: "disabled",
 };
 
 const MIN_SECRET_LENGTH = 32;
@@ -125,10 +138,10 @@ const gatesOf = (
   gateway: OrderGatewayPort,
   account: OrderAccount
 ) => ({
-  ordersEnabled: liveAllowed(config),
-  mode: gateway.mode,
   killSwitch: account.gates.killSwitch,
+  mode: gateway.mode,
   optionsOnly: account.gates.optionsOnly,
+  ordersEnabled: liveAllowed(config),
 });
 
 const toOpenOrder = (order: GatewayOpenOrder): VertexOpenOrder => ({
@@ -139,8 +152,126 @@ const toOpenOrder = (order: GatewayOpenOrder): VertexOpenOrder => ({
 
 const orderAction = (order: VertexOrderInput): string =>
   `order:${JSON.stringify(order)}`;
-const comboAction = (order: VertexComboInput): string =>
-  `combo:${JSON.stringify(order)}`;
+const comboAction = (
+  order: VertexComboInput,
+  goLiveDraftId: string | undefined
+): string =>
+  `combo:${JSON.stringify(order)}${goLiveDraftId === undefined ? "" : `:golive:${goLiveDraftId}`}`;
+
+// One go-live draft is sent at most once: its orderRef is fixed by the draft id, and any intent
+// row for it (written before the bridge call, also when the outcome is unknown) refuses a second
+// send. The bridge tail also refuses an orderRef IBKR already has. Process memory covers the mock
+// gateway, which has no intent store.
+const goLiveSentRefs = new Set<string>();
+const goLiveOrderRef = async (draftId: string): Promise<string> => {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`golive:${draftId}`)
+  );
+  const hex = [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `vertex-gl${hex.slice(0, 30)}`;
+};
+const DRAFT_ALREADY_SENT =
+  "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions";
+// A send the order bridge refused before IBKR (engine_refused: engine policy v3 or the node ARM check)
+// sent nothing, so the draft may be sent again; a store read that fails counts as sent.
+const goLiveAlreadySent = async (
+  store: IntentStore | undefined,
+  orderRef: string
+): Promise<boolean> => {
+  if (goLiveSentRefs.has(orderRef)) return true;
+  if (store === undefined) return false;
+  try {
+    return (
+      (await store.hasIntent(orderRef)) && !(await store.refused(orderRef))
+    );
+  } catch {
+    return true;
+  }
+};
+
+/**
+ * The go-live send gate (golive-send-gate.ts) for an order sent for a go-live draft; no lines
+ * for any other order. A store or node read that fails refuses by name.
+ */
+const goLiveRefusals = async (
+  context: ApiContext,
+  draftId: string | undefined,
+  order: VertexComboInput,
+  account: OrderAccount,
+  now: Date
+): Promise<string[]> => {
+  if (draftId === undefined) return [];
+  const store = context.repositories.goLiveDrafts;
+  if (store === undefined)
+    return [
+      "GO-LIVE STORE_UNAVAILABLE: the go-live draft store is not configured",
+    ];
+  let drafts: Awaited<ReturnType<typeof store.listDrafts>>;
+  let plan: Awaited<ReturnType<typeof store.planInForce>>;
+  try {
+    [drafts, plan] = await Promise.all([
+      store.listDrafts({ tradingDay: orderSessionDay(now) }),
+      store.planInForce(),
+    ]);
+  } catch {
+    return ["GO-LIVE STORE_UNAVAILABLE: the go-live drafts could not be read"];
+  }
+  const node = await (
+    deps().goLiveNode ??
+    ((c: ApiContext) => call(nautilusArmRouter.status, {}, { context: c }))
+  )(context).catch(() => null);
+  // The working go-live combos of the day hold the max loss of their approved order.
+  const goLiveRisk = new Map<string, number>();
+  for (const draft of drafts)
+    if (draft.state === "approved" && draft.approvedOrder !== null)
+      goLiveRisk.set(
+        await goLiveOrderRef(draft.id),
+        maxLoss(
+          draft.structure,
+          draft.approvedOrder.limitPrice,
+          strikeWidth(draft),
+          draft.approvedOrder.quantity
+        )
+      );
+  // A go-live entry opens a new spread. One that touches a held contract would be read as a close by
+  // the order bridge, which runs engine policy v3 and the ARM check on openings only: refused here.
+  const held = order.legs.find((leg) =>
+    account.positions.some(
+      (p) =>
+        p.secType === "OPT" &&
+        p.quantity !== 0 &&
+        p.symbol === order.symbol &&
+        p.expiry === leg.expiry &&
+        Math.abs(p.strike - leg.strike) < 1e-6 &&
+        p.right === leg.right
+    )
+  );
+  const notOpening =
+    held === undefined
+      ? []
+      : [
+          `GO-LIVE NOT_AN_OPENING: ${order.symbol} ${held.expiry} ${held.strike}${held.right} is held; a go-live entry opens a new spread only`,
+        ];
+  return [
+    ...notOpening,
+    ...goLiveSendRefusals({
+      account,
+      draftId,
+      drafts,
+      goLiveRisk,
+      node,
+      now,
+      order,
+      plan,
+      // Only a bridge that reports engine policy v3 on every opening combo sends go-live drafts (owner
+      // 2026-11-12, card vertex-golive-exec-intake): never the mock gateway or an older bridge.
+      sendEnabled: account.gates.orderPolicy === GOLIVE_ENGINE_ORDER_POLICY,
+    }),
+  ];
+};
 
 type Failures = Readonly<
   Record<
@@ -171,19 +302,19 @@ const audit = async (
 ): Promise<boolean> => {
   if (context.semanticEvents === undefined) return false;
   const event: SemanticEvent = {
+    action,
+    attributes: { userId: userOf(context), ...attributes },
+    correlation: {
+      ...(context.span?.correlation ?? {}),
+      procedure: `vertexOrders.${action}`,
+      requestId: context.requestId,
+    },
+    entityType: "option-order",
     eventId: crypto.randomUUID(),
     name: `vertex.orders.${action}`,
     occurredAt: deps().now().toISOString(),
-    correlation: {
-      ...(context.span?.correlation ?? {}),
-      requestId: context.requestId,
-      procedure: `vertexOrders.${action}`,
-    },
-    action,
-    entityType: "option-order",
     outcome,
     source: "api",
-    attributes: { userId: userOf(context), ...attributes },
   };
   try {
     const result = await context.semanticEvents.emit(event);
@@ -289,14 +420,14 @@ const intentStoreOf = (
 // Writes the result row of a submit. A failed write never hides the gateway result.
 const outcomeRecorder =
   (context: ApiContext, store: IntentStore | undefined, orderRef: string) =>
-  async (outcome: "placed" | "unknown") =>
+  async (outcome: "placed" | "unknown" | "refused") =>
     await store
       ?.recordOutcome({
         action: "vertex.order.result",
         actorUserId: userOf(context),
-        requestId: context.requestId,
         orderRef,
         outcome,
+        requestId: context.requestId,
       })
       .catch(() => undefined);
 
@@ -347,9 +478,9 @@ const reconcileUnknown = async (
       await store.recordOutcome({
         action: "vertex.order.reconciled",
         actorUserId: userOf(context),
-        requestId: context.requestId,
         orderRef: intent.orderRef,
         outcome,
+        requestId: context.requestId,
       });
     } catch {
       reasons.push(unknown);
@@ -511,27 +642,27 @@ const preview = api.vertexOrders.preview
     const expiresAt = now.getTime() + CONFIRM_TTL_MS;
     const confirmToken = review.accepted
       ? await issueConfirmToken(config.confirmSecret, {
-          userId: userOf(context),
           action: orderAction(input),
-          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
           expiresAt,
+          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+          userId: userOf(context),
         })
       : null;
     await audit(context, "preview", review.accepted ? "success" : "failure", {
       contract: review.contractLabel,
-      side: input.side,
-      quantity: input.quantity,
       limitPrice: input.limitPrice,
       mode: gateway.mode,
+      quantity: input.quantity,
       result: review.accepted ? "accepted" : review.reasons.join(" | "),
+      side: input.side,
       ...gateAudit(review.finalGate),
     });
     return {
-      gates: gatesOf(config, gateway, account),
-      review,
       confirmToken,
       expiresAt:
         confirmToken === null ? null : new Date(expiresAt).toISOString(),
+      gates: gatesOf(config, gateway, account),
+      review,
     };
   });
 
@@ -547,14 +678,14 @@ const submit = api.vertexOrders.submit
     const label = contractLabel(input.order);
     const base = {
       contract: label,
-      side: input.order.side,
-      quantity: input.order.quantity,
       limitPrice: input.order.limitPrice,
+      quantity: input.order.quantity,
+      side: input.order.side,
     };
     const claims = await consumeConfirmToken(
       config.confirmSecret,
       input.confirmToken,
-      { userId: userOf(context), action: orderAction(input.order) },
+      { action: orderAction(input.order), userId: userOf(context) },
       now.getTime()
     );
     if (claims === null) {
@@ -596,16 +727,16 @@ const submit = api.vertexOrders.submit
     try {
       await store?.recordIntent({
         actorUserId: userOf(context),
-        requestId: context.requestId,
         intent: {
-          orderRef,
           contract: label,
-          symbol: input.order.symbol,
           expiry: input.order.expiry,
-          strike: input.order.strike,
-          right: input.order.right,
           heldBefore: heldIn(account, input.order),
+          orderRef,
+          right: input.order.right,
+          strike: input.order.strike,
+          symbol: input.order.symbol,
         },
+        requestId: context.requestId,
       });
     } catch {
       await auditFailure("intent store unavailable");
@@ -657,24 +788,25 @@ const comboPreview = api.vertexOrders.comboPreview
     rateCheck(context, failures, "preview");
     const config = configOf(context, failures);
     const gateway = selectOrderGateway(config);
+    const { goLiveDraftId, ...order } = input;
     const account = await guarded(failures, gateway.account);
     const now = deps().now();
-    const review = blockedBy(
-      reviewCombo(input, account, now),
-      await reconcileUnknown(
-        context,
-        intentStoreOf(context, gateway, failures),
-        account,
-        now.getTime()
-      )
-    );
+    const store = intentStoreOf(context, gateway, failures);
+    const review = blockedBy(reviewCombo(order, account, now), [
+      ...(await reconcileUnknown(context, store, account, now.getTime())),
+      ...(await goLiveRefusals(context, goLiveDraftId, order, account, now)),
+      ...(goLiveDraftId !== undefined &&
+      (await goLiveAlreadySent(store, await goLiveOrderRef(goLiveDraftId)))
+        ? [DRAFT_ALREADY_SENT]
+        : []),
+    ]);
     const expiresAt = now.getTime() + CONFIRM_TTL_MS;
     const confirmToken = review.accepted
       ? await issueConfirmToken(config.confirmSecret, {
-          userId: userOf(context),
-          action: comboAction(input),
-          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+          action: comboAction(order, goLiveDraftId),
           expiresAt,
+          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+          userId: userOf(context),
         })
       : null;
     await audit(
@@ -683,19 +815,20 @@ const comboPreview = api.vertexOrders.comboPreview
       review.accepted ? "success" : "failure",
       {
         contract: review.label,
-        quantity: input.quantity,
-        limitPrice: input.limitPrice,
+        limitPrice: order.limitPrice,
         mode: gateway.mode,
+        quantity: order.quantity,
         result: review.accepted ? "accepted" : review.reasons.join(" | "),
+        ...(goLiveDraftId === undefined ? {} : { goLiveDraftId }),
         ...gateAudit(review.finalGate),
       }
     );
     return {
-      gates: gatesOf(config, gateway, account),
-      review,
       confirmToken,
       expiresAt:
         confirmToken === null ? null : new Date(expiresAt).toISOString(),
+      gates: gatesOf(config, gateway, account),
+      review,
     };
   });
 
@@ -711,13 +844,16 @@ const comboSubmit = api.vertexOrders.comboSubmit
     const order = input.order;
     const base = {
       contract: `${order.symbol} combo (${order.legs.length} legs)`,
-      quantity: order.quantity,
       limitPrice: order.limitPrice,
+      quantity: order.quantity,
     };
     const claims = await consumeConfirmToken(
       config.confirmSecret,
       input.confirmToken,
-      { userId: userOf(context), action: comboAction(order) },
+      {
+        action: comboAction(order, input.goLiveDraftId),
+        userId: userOf(context),
+      },
       now.getTime()
     );
     if (claims === null) {
@@ -735,44 +871,69 @@ const comboSubmit = api.vertexOrders.comboSubmit
         result: outcome,
       });
     const store = intentStoreOf(context, gateway, failures);
+    const goLiveRef =
+      input.goLiveDraftId === undefined
+        ? null
+        : await goLiveOrderRef(input.goLiveDraftId);
     const account = await guarded(failures, gateway.account, auditFailure);
-    const review = blockedBy(
-      reviewCombo(order, account, now),
-      await reconcileUnknown(context, store, account, now.getTime())
-    );
+    const review = blockedBy(reviewCombo(order, account, now), [
+      ...(await reconcileUnknown(context, store, account, now.getTime())),
+      ...(await goLiveRefusals(
+        context,
+        input.goLiveDraftId,
+        order,
+        account,
+        now
+      )),
+      ...(goLiveRef !== null && (await goLiveAlreadySent(store, goLiveRef))
+        ? [DRAFT_ALREADY_SENT]
+        : []),
+    ]);
     if (!review.accepted) {
       await auditFailure(review.reasons.join(" | "));
       throw failures.ORDER_REJECTED({ message: review.reasons.join(" ") });
     }
-    const orderRef = `vertex-${claims.nonce}`;
+    // The review above refused a ref already sent. Reserve it now, with no await since that check
+    // (onePlacementAtATime runs one submit at a time in this process), so a later submit of the
+    // same draft is refused while this one is in flight.
+    if (goLiveRef !== null) goLiveSentRefs.add(goLiveRef);
+    const orderRef = goLiveRef ?? `vertex-${claims.nonce}`;
+    // Nothing is sent before the intent row exists: a failure until then frees the reservation.
+    const release = () => {
+      if (goLiveRef !== null) goLiveSentRefs.delete(goLiveRef);
+    };
     await requireAudit(context, failures, "comboSubmit", {
       ...base,
       mode: gateway.mode,
       orderRef,
       ...gateAudit(review.finalGate),
+    }).catch((error: unknown) => {
+      release();
+      throw error;
     });
     // The intent tracks the first leg: reconciliation finds the orderRef in open orders, or a changed
     // position in that leg after the wait.
     // The contract schema requires at least two legs.
     const [first] = order.legs as [VertexComboLeg, ...VertexComboLeg[]];
     const leg = {
-      symbol: order.symbol,
       expiry: first.expiry,
-      strike: first.strike,
       right: first.right,
+      strike: first.strike,
+      symbol: order.symbol,
     };
     try {
       await store?.recordIntent({
         actorUserId: userOf(context),
-        requestId: context.requestId,
         intent: {
-          orderRef,
           contract: review.label,
+          orderRef,
           ...leg,
           heldBefore: heldIn(account, leg),
         },
+        requestId: context.requestId,
       });
     } catch {
+      release();
       await auditFailure("intent store unavailable");
       throw failures.AUDIT_UNAVAILABLE({
         message: "Order intent store unavailable; nothing was sent",
@@ -793,8 +954,17 @@ const comboSubmit = api.vertexOrders.comboSubmit
         });
       throw error;
     }
-    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
-    await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
+    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live. "engine_refused":
+    // the bridge refused it before IBKR, so a go-live draft is free to be sent again.
+    const engineRefused = result.state === "engine_refused";
+    await outcomeOf(
+      result.state === "unconfirmed"
+        ? "unknown"
+        : engineRefused
+          ? "refused"
+          : "placed"
+    );
+    if (engineRefused) release();
     // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
     // is a refusal and is audited as a failure.
     await audit(
@@ -841,21 +1011,21 @@ const cancelPreview = api.vertexOrders.cancelPreview
     const order = findOrder(failures, account, input.permId);
     const expiresAt = deps().now().getTime() + CONFIRM_TTL_MS;
     const confirmToken = await issueConfirmToken(config.confirmSecret, {
-      userId: userOf(context),
       action: `cancel:${input.permId}`,
-      nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
       expiresAt,
+      nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+      userId: userOf(context),
     });
     await audit(context, "cancelPreview", "success", {
-      permId: input.permId,
       contract: order.symbol,
       mode: gateway.mode,
+      permId: input.permId,
     });
     return {
-      gates: gatesOf(config, gateway, account),
-      order: toOpenOrder(order),
       confirmToken,
       expiresAt: new Date(expiresAt).toISOString(),
+      gates: gatesOf(config, gateway, account),
+      order: toOpenOrder(order),
     };
   });
 
@@ -869,7 +1039,7 @@ const cancelSubmit = api.vertexOrders.cancelSubmit
     const claims = await consumeConfirmToken(
       config.confirmSecret,
       input.confirmToken,
-      { userId: userOf(context), action: `cancel:${input.permId}` },
+      { action: `cancel:${input.permId}`, userId: userOf(context) },
       deps().now().getTime()
     );
     if (claims === null) {
@@ -882,8 +1052,8 @@ const cancelSubmit = api.vertexOrders.cancelSubmit
     const gateway = selectOrderGateway(config);
     const auditFailure = (outcome: string) =>
       audit(context, "cancel", "failure", {
-        permId: input.permId,
         mode: gateway.mode,
+        permId: input.permId,
         result: outcome,
       });
     const account = await guarded(failures, gateway.account, auditFailure);
@@ -897,9 +1067,9 @@ const cancelSubmit = api.vertexOrders.cancelSubmit
       });
     }
     await requireAudit(context, failures, "cancel", {
-      permId: input.permId,
       contract: order.symbol,
       mode: gateway.mode,
+      permId: input.permId,
     });
     const result = await guarded(
       failures,
@@ -907,20 +1077,20 @@ const cancelSubmit = api.vertexOrders.cancelSubmit
       auditFailure
     );
     await audit(context, "cancel", "success", {
-      permId: input.permId,
       contract: order.symbol,
       mode: gateway.mode,
+      permId: input.permId,
       result: result.state,
     });
     return { mode: gateway.mode, orderRef: order.orderRef, ...result };
   });
 
 export const vertexOrdersRouter = {
-  status,
-  preview,
-  submit,
-  comboPreview,
-  comboSubmit,
   cancelPreview,
   cancelSubmit,
+  comboPreview,
+  comboSubmit,
+  preview,
+  status,
+  submit,
 };

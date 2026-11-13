@@ -629,7 +629,7 @@ _SESSION_EXPR_KEYS = {
     "sessionReturn": frozenset({"type", "name", "from", "to"}),
     "noiseBand": frozenset({"type", "name", "band", "length", "multiple"}),
 }
-_INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery"})
+_INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery", "exitEvery"})
 _LEG_KEYS = frozenset({"entry", "exit", "filters", "options"})
 
 
@@ -1244,13 +1244,14 @@ def _normalize_intraday(intraday: Any) -> dict[str, Any] | None:
             "The entry window must be inside the session: open < entryFrom <= entryTo < close"
         )
     normalized: dict[str, Any] = {"timezone": INTRADAY_TIMEZONE, **times}
-    if "decisionEvery" in intraday:
-        every = intraday["decisionEvery"]
-        if not _is_whole(every, 1, INTRADAY_MAX_DECISION_MINUTES):
-            raise InputError(
-                f"intraday decisionEvery must be a whole number from 1 to {INTRADAY_MAX_DECISION_MINUTES}"
-            )
-        normalized["decisionEvery"] = int(every)
+    for field in ("decisionEvery", "exitEvery"):
+        if field in intraday:
+            every = intraday[field]
+            if not _is_whole(every, 1, INTRADAY_MAX_DECISION_MINUTES):
+                raise InputError(
+                    f"intraday {field} must be a whole number from 1 to {INTRADAY_MAX_DECISION_MINUTES}"
+                )
+            normalized[field] = int(every)
     return normalized
 
 
@@ -1555,22 +1556,24 @@ def intraday_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessio
 
 
 def _intraday_gates(sessions: IntradaySessions, intraday: Mapping[str, Any]) -> tuple[list[int], list[int]]:
-    """TS intradayGates: (entry, exit) bars of the intraday block."""
+    """TS intradayGates: (entry, exit) bars of the intraday block. Exits on the exitEvery grid (else the
+    decision grid), entries on the decisionEvery grid."""
     size = len(sessions.session)
     start = _minutes_of(intraday["entryFrom"]) * MINUTE_MS
     end = _minutes_of(intraday["entryTo"]) * MINUTE_MS
-    every = intraday.get("decisionEvery")
-    grid = None if every is None else every * MINUTE_MS
+    decision = intraday.get("decisionEvery")
+    exit_every = intraday.get("exitEvery", decision)
     entry = [0] * size
     exit_ = [0] * size
     for index in range(size):
         if sessions.session[index] < 0:
             continue
         close = sessions.close_ms[index]
-        if grid is not None and math.fmod(close - sessions.open_ms, grid) != 0:
-            continue
-        exit_[index] = 1
-        if start <= close <= end and sessions.last[index] == 0:
+        offset = close - sessions.open_ms
+        if exit_every is None or math.fmod(offset, exit_every * MINUTE_MS) == 0:
+            exit_[index] = 1
+        on_decision = decision is None or math.fmod(offset, decision * MINUTE_MS) == 0
+        if on_decision and start <= close <= end and sessions.last[index] == 0:
             entry[index] = 1
     return entry, exit_
 
@@ -1685,15 +1688,16 @@ def _align_to_grid(field: str, value: str | float, minutes: float, sessions: Int
 
 def _attach_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessions:
     """TS attachSessions: refuses bars without two bars on one New York date, and open, close,
-    entryFrom, entryTo or decisionEvery that are not whole multiples of the bar duration."""
+    entryFrom, entryTo, decisionEvery or exitEvery that are not whole multiples of the bar duration."""
     sessions = intraday_sessions(bars, intraday)
     if sessions is None:
         raise intraday_daily_unsupported()
     for field in ("open", "close", "entryFrom", "entryTo"):
         _align_to_grid(field, intraday[field], _minutes_of(intraday[field]), sessions)
-    every = intraday.get("decisionEvery")
-    if every is not None:
-        _align_to_grid("decisionEvery", every, every, sessions)
+    for field in ("decisionEvery", "exitEvery"):
+        every = intraday.get(field)
+        if every is not None:
+            _align_to_grid(field, every, every, sessions)
     return sessions
 
 

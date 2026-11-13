@@ -272,10 +272,13 @@ describe("human-only research chat service", () => {
       principal,
       scope
     );
-    expect(roster.participants).toHaveLength(17);
+    expect(roster.participants).toHaveLength(18);
     expect(
       roster.participants.filter((entry) => entry.kind === "expert")
-    ).toHaveLength(16);
+    ).toHaveLength(17);
+    expect(roster.participants.map((entry) => entry.participantId)).toContain(
+      "jay-medrow"
+    );
     for (const entry of roster.participants) {
       expect(entry.availability).toBe("unavailable");
       expect(entry.corpus).toEqual({

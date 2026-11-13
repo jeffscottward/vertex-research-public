@@ -5,6 +5,11 @@ rules after them (the last month of the data and expiries after the data end).
 Monthly expiration = 3rd Friday of the month, or the prior trading day when the
 Friday is a holiday (Good Friday, Juneteenth).
 
+A bar key is a day ("2024-03-15": a daily bar, which stands for its close) or a bar time
+("2024-03-15T10:35": the New York time at which an intraday bar closes; `bar_time` makes one).
+`parse` gives the day of both; `day_left` gives the part of a day between a bar time and the
+16:00 close. Bar keys of one kind sort in time order as text.
+
 Also the calendar windows of the DSL `calendarWindow` filter:
 - turn of month: trading-day offsets, -1 = last trading day of the month,
   1 = first trading day of the month;
@@ -18,13 +23,47 @@ from collections.abc import Iterable, Sequence
 from datetime import date, timedelta
 
 __all__ = [
-    "TradingCalendar", "easter", "expirations_after", "in_months", "is_nyse_holiday", "month_offsets",
-    "monthly_expiration", "opex_window", "parse", "turn_of_month",
+    "SESSION_CLOSE", "TradingCalendar", "bar_time", "day_left", "easter", "expirations_after", "in_months",
+    "is_bar_time", "is_nyse_holiday", "month_offsets", "monthly_expiration", "opex_window", "parse", "turn_of_month",
 ]
+
+# Minutes after midnight (New York time) at which the options of a day stop trading.
+SESSION_CLOSE = 16 * 60
+MINUTES_PER_DAY = 24 * 60
+_DAY_LENGTH = len("2024-03-15")
+_BAR_TIME_LENGTH = len("2024-03-15T10:35")
+
+
+def bar_time(day: str | date, minutes: int) -> str:
+    """The bar key of the bar that closes `minutes` after midnight (New York time) on `day`."""
+    if isinstance(minutes, bool) or not isinstance(minutes, int) or not 0 <= minutes <= SESSION_CLOSE:
+        raise ValueError(f"A bar closes 0 to {SESSION_CLOSE} minutes after midnight, not {minutes!r}")
+    return f"{parse(day).isoformat()}T{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def is_bar_time(value: str | date) -> bool:
+    """True for a bar time, False for a date or a day key."""
+    return isinstance(value, str) and len(value) == _BAR_TIME_LENGTH and value[_DAY_LENGTH] == "T"
 
 
 def parse(value: str | date) -> date:
-    return value if isinstance(value, date) else date.fromisoformat(value)
+    """The day of a date, of a day key or of a bar time."""
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(value[:_DAY_LENGTH] if is_bar_time(value) else value)
+
+
+def day_left(value: str | date) -> float:
+    """Part of a day between a bar time and the 16:00 close of its day; 0 for a date or a day key."""
+    if not is_bar_time(value):
+        return 0.0
+    hours, colon, minutes = value[11:13], value[13], value[14:16]
+    if colon != ":" or not (hours.isdigit() and minutes.isdigit()) or int(minutes) > 59:
+        raise ValueError(f"Not a bar time: {value!r}")
+    close = int(hours) * 60 + int(minutes)
+    if close > SESSION_CLOSE:
+        raise ValueError(f"Bar time {value} is after the 16:00 close")
+    return (SESSION_CLOSE - close) / MINUTES_PER_DAY
 
 
 def easter(year: int) -> date:

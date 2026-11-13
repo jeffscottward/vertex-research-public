@@ -93,7 +93,7 @@ flowchart LR
 
 ## CI lanes
 
-`ci.yml` runs on `pull_request` and `workflow_dispatch` only, never on push. Each lane runs one root script, `bun run verify:<lane>`, and only the browser lane builds. Branch protection on `main` requires the four lane checks plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
+`ci.yml` runs on `pull_request`, on `workflow_dispatch` and on every push to the live branch. A docs-only change or a draft pull request gets the light lane (core only); `scripts/ci/ci-changes.sh` decides. Each lane runs one root script, `bun run verify:<lane>`, and only the browser lane builds. Branch protection on `main` requires the four lane checks plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
 
 ```mermaid
 flowchart TB

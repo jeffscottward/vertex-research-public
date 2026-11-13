@@ -17,6 +17,10 @@ Each day, in this order:
 4. equity = cash + sum(contracts * today's mark). A trade's mark on a day
    without a bar of its symbol is its last mark.
 Cash and costs are booked in cents, as the Nautilus CASH account does.
+
+A run day is the key of a bar (calendar.py): a day, or for intraday bars the
+time a bar closes. Then "day" and "today" above mean one bar, the run is one
+equity value per bar, and intraday.daily_result gives its daily closes.
 """
 from __future__ import annotations
 
@@ -24,6 +28,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 from .book import PricedTrade, contracts_for
+from .calendar import is_bar_time
 
 __all__ = ["DEFAULT_CAPITAL", "LedgerResult", "run_ledger", "timeline", "trade_record"]
 
@@ -45,6 +50,8 @@ def timeline(trades: Sequence[PricedTrade], dates: Iterable[str] | None = None) 
     """The run days: `dates` (or the union of the mark dates) holding every mark date."""
     marked = {day for trade in trades for day, _ in trade.marks}
     days = tuple(sorted(set(dates))) if dates is not None else tuple(sorted(marked))
+    if len({is_bar_time(day) for day in days}) > 1:
+        raise ValueError("The run days must be all days or all bar times")
     missing = marked.difference(days)
     if missing:
         raise ValueError(f"Mark dates outside the run dates: {min(missing)}")
@@ -56,15 +63,19 @@ def timeline(trades: Sequence[PricedTrade], dates: Iterable[str] | None = None) 
 
 def trade_record(trade: PricedTrade, contracts: int, entry_price: float, exit_price: float,
                  entry_fee: float, exit_fee: float) -> dict:
-    """The trade record both ledgers return. Fees are the totals for all contracts."""
+    """The trade record both ledgers return. Fees are the totals for all contracts. A calendar (two expiries) also
+    has `farExpiry`, the expiry of its long leg; `expiry` is its near leg."""
     pnl = round(contracts * (exit_price - entry_price) - entry_fee - exit_fee, 2)
-    return {
+    record = {
         "id": trade.trade_id, "symbol": trade.symbol, "structure": trade.structure, "expiry": trade.expiry,
         "longStrike": trade.long_strike, "shortStrike": trade.short_strike,
         "entryDate": trade.entry_date, "exitDate": trade.exit_date, "contracts": contracts,
         "entryPrice": entry_price, "exitPrice": exit_price, "entryFee": entry_fee, "exitFee": exit_fee,
         "pnl": pnl, "returnOnRisk": pnl / (contracts * trade.max_loss), "exitReason": trade.exit_reason,
     }
+    if trade.far_expiry is not None:
+        record["farExpiry"] = trade.far_expiry
+    return record
 
 
 def run_ledger(trades: Sequence[PricedTrade], capital: float = DEFAULT_CAPITAL,
