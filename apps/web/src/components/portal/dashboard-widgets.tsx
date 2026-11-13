@@ -31,6 +31,7 @@ import {
 } from "./dashboard-widgets-model.ts";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 import { useStoredState } from "./portfolio-monitor-controls.tsx";
+import { accountDataWithheld } from "./portfolio-monitor-model.ts";
 import {
   type JournalSnapshotLoader,
   type JournalSource,
@@ -203,6 +204,9 @@ const JournalWidget = ({
     <LoadBody
       describe={describeSnapshotFailure}
       ready={(snapshot) => {
+        // Withheld fills are not "0 fills": say why they are not shown.
+        const withheld = accountDataWithheld(snapshot);
+        if (withheld !== null) return <Muted>{withheld}</Muted>;
         const kpis = journalKpis(latestExecutions(snapshot.executions));
         return (
           <dl className="grid grid-cols-3 gap-2 text-sm">

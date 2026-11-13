@@ -184,6 +184,7 @@ describe("JournalReport status and contracts", () => {
     lastError: null,
     ordersAsOf: null,
     receivedAt: "2026-10-09T14:00:00.000Z",
+    since: "2026-10-09T13:00:00.000Z",
     ...overrides,
   });
 
@@ -194,11 +195,37 @@ describe("JournalReport status and contracts", () => {
         status={status({ connected: false, dataAsOf: null })}
       />
     );
-    expect(text(offline)).toContain("fills may be missing");
+    expect(text(offline)).toContain("Fills withheld");
+    expect(text(offline)).not.toContain("No fills yet");
     const note = offline.querySelector("[data-journal-connected]");
     expect(note?.getAttribute("data-journal-connected")).toBe("false");
-    expect(note?.textContent).toContain("Gateway disconnected");
-    expect(note?.textContent).toContain("unknown");
+    expect(note?.textContent).toContain(
+      "The IBKR gateway is disconnected, so account data is withheld until it reconnects."
+    );
+    expect(text(offline)).not.toMatch(/unknown/i);
+    // The API shape of an account mode mismatch: gateway live, lists emptied, not connected.
+    const mismatch = await render(
+      <JournalReport
+        account={{
+          mode: null,
+          modeSource: null,
+          modeConfirmedAt: null,
+          modeError: "mismatch",
+          count: 0,
+        }}
+        executions={[]}
+        status={status({ connected: false, dataAsOf: null })}
+      />
+    );
+    expect(text(mismatch)).toContain("Fills withheld");
+    expect(text(mismatch)).toContain("does not match its configured mode");
+    expect(text(mismatch)).not.toContain("disconnected");
+    const noTime = await render(
+      <JournalReport executions={[]} status={status({ dataAsOf: null })} />
+    );
+    expect(noTime.querySelector("[data-journal-connected]")?.textContent).toBe(
+      "Gateway connected · IBKR has sent no data time yet"
+    );
     const online = await render(
       <JournalReport executions={[]} status={status()} />
     );

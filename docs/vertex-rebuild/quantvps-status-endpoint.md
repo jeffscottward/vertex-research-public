@@ -264,7 +264,7 @@ Roll back: `systemctl disable --now vertex-history; rm /etc/systemd/system/verte
 
 ## Read-only IBKR portfolio service (2026-10-10)
 
-Sources: `infra/quant-vps/portfolio/` (`vertex_portfolio.py` 1.0.0, 23 tests incl. the AST allow-list of IB calls and a cross-language snapshot fixture, `vertex-portfolio.service`, `resolve-gateway.sh`, `install-portfolio.sh`, `README.md`). Rig deployer: `~/.local/state/vertex-vps-status/deploy-portfolio.mjs` (uses the `quantvps` SSH key alias only; it reads no `.env` file). Consumer: `portfolioMonitor.snapshot` (operator-only; not reachable with agent API keys or MCP tools). Since the Mission control account card (audit P1-2, phase 2) no page reads it: `/dashboard` and `/portfolio` both read `ibkrMonitor.snapshot`. The procedure and service remain until their retirement is approved.
+Sources: `infra/quant-vps/portfolio/` (`vertex_portfolio.py` 1.1.0, 48 tests incl. the AST allow-list of IB calls and a cross-language snapshot fixture, `vertex-portfolio.service`, `resolve-gateway.sh`, `install-portfolio.sh`, `README.md`). Rig deployer: `~/.local/state/vertex-vps-status/deploy-portfolio.mjs` (uses the `quantvps` SSH key alias only; it reads no `.env` file). Consumer: `portfolioMonitor.snapshot` (operator-only; not reachable with agent API keys or MCP tools). Since the Mission control account card (audit P1-2, phase 2) no page reads it: `/dashboard` and `/portfolio` both read `ibkrMonitor.snapshot`. The procedure and service remain until their retirement is approved.
 
 | Item | Value |
 | --- | --- |
