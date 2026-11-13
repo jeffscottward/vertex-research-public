@@ -18,7 +18,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Academy unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -26,7 +26,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Academy unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -34,7 +34,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Assistant unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -42,7 +42,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Autopilot unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -50,7 +50,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Backtest runs unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -58,7 +58,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Parameter sweeps unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -66,7 +66,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Backtests unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -74,7 +74,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Baskets unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -82,7 +82,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Calendar unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -90,7 +90,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Charts unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -98,7 +98,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Congress trades unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -106,7 +106,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Dashboard unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -121,7 +121,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Deep value screen unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -129,7 +129,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Deployments unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -137,7 +137,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Order drafts unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -145,7 +145,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Engines unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -161,7 +161,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Flow unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -169,7 +169,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Forward drift unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -177,7 +177,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Instant backtest unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -185,7 +185,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Trade journal unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -193,22 +193,15 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Knowledge chat unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
-  },
-  {
-    file: "app/(portal)/knowledge/page.tsx",
-    text: "unavailable",
-    count: 1,
-    reason:
-      'Not displayed: DOM data attribute for tests/styling. The visible text already names the cause (no kb-chat address, env var) and the badge says "Not configured".',
   },
   {
     file: "app/(portal)/library/error.tsx",
     text: "Strategy library unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -216,7 +209,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Market context unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -224,7 +217,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "News monitor unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -232,7 +225,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Optimizations unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -240,7 +233,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Papers unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -248,7 +241,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Pick lists unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -256,7 +249,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Plays unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -264,7 +257,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Portfolio combos unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -272,7 +265,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Price alerts unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -280,7 +273,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Risk allocator unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -288,7 +281,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Rotation matrix unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -296,7 +289,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Sector rotation unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -304,7 +297,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Semantic terms unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -312,7 +305,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Account settings unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -320,7 +313,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Administration unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -328,7 +321,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Setup replay unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -336,7 +329,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Stock detail unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -344,7 +337,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Strategy builder unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -352,7 +345,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Todos unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -360,7 +353,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Watchlist unavailable",
     count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change. Keep the "nothing',
+      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
     open: true,
   },
   {
@@ -544,6 +537,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       'Kept: The cause follows immediately in parentheses from gate.nlvDetail (API-supplied reason for the missing NLV). Could read "NLV not received" but the cause is present.',
   },
   {
+    file: "components/portal/account-glance.tsx",
+    text: "IBKR_MONITOR_URL is not set on this server",
+    count: 1,
+    reason:
+      "Kept: names the missing server setting, which is the cause and the fix.",
+  },
+  {
     file: "components/portal/agent-api-keys-section.tsx",
     text: "—",
     count: 2,
@@ -607,6 +607,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
+    file: "components/portal/agent-model-runs-workspace.tsx",
+    text: "(not set)",
+    count: 1,
+    reason:
+      'Audit 2026-11-13: ambiguous. Replace: name the missing field of the grouped row, for example "no model recorded" or "no agent recorded" from the active group-by column.',
+    open: true,
+  },
+  {
     file: "components/portal/agent-ops-client.tsx",
     text: "—",
     count: 3,
@@ -628,12 +636,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: Names the cause (storage, 503) and the operator next step (apply migrations 0015 and 0017).",
-  },
-  {
-    file: "components/portal/agent-ops-client.tsx",
-    text: "UNAVAILABLE",
-    count: 1,
-    reason: "Not displayed: Error-code token in a switch, not displayed.",
   },
   {
     file: "components/portal/assistant-client.ts",
@@ -674,13 +676,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Three causes merged (not computed, missing in an old report, division by zero). At minimum replace with "not computable"; better, let each Stat pass its reason (e.g. "no benchmark", "no losing trades").',
     open: true,
-  },
-  {
-    file: "components/portal/backtest-analytics-panels.tsx",
-    text: "unavailable",
-    count: 2,
-    reason:
-      "Not displayed: Type-level string. The record maps each unavailable reason to a specific message.",
   },
   {
     file: "components/portal/backtest-report-depth.tsx",
@@ -865,12 +860,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Badge "Load failed" with the error code; state.message is in scope and already shown in the body ("Filings unavailable: <message>"). Add last successful load time if kept in state.',
     open: true,
-  },
-  {
-    file: "components/portal/dashboard-widgets-model.ts",
-    text: "-",
-    count: 1,
-    reason: "Not displayed: Date-part separator, not a displayed status.",
   },
   {
     file: "components/portal/dashboard-widgets.tsx",
@@ -1105,10 +1094,31 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",
+    text: "not known to this page version (${})",
+    count: 1,
+    reason:
+      "Kept: names the cause (the page version is older than the state the server sent) and prints the value.",
+  },
+  {
+    file: "components/portal/golive-draft-queue-model.ts",
+    text: "Not known: the order records could not be read. Reload the queue; the send button needs a known state.",
+    count: 1,
+    reason:
+      "Kept: real uncertainty with its cause (the order records could not be read) and the next step (reload; sending stays off).",
+  },
+  {
+    file: "components/portal/golive-draft-queue-model.ts",
     text: "Outcome unknown: the order may still reach IBKR. Check open orders at IBKR; the next order preview checks it.",
     count: 1,
     reason:
       "Kept: Real unknown outcome with resolution path (next preview checks it); add since-when if the API has the send time.",
+  },
+  {
+    file: "components/portal/golive-draft-queue-model.ts",
+    text: "so it is not known whether it was recorded.",
+    count: 1,
+    reason:
+      "Kept: real uncertainty with its cause: the request did not return, so the record is not confirmed; the sentence before it names the request.",
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",
@@ -1128,6 +1138,20 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",
+    text: "The generator has not reported for ${}, so entry signals are not known.",
+    count: 1,
+    reason:
+      "Kept: real uncertainty with its cause and since-when (the generator has not reported for the stated time).",
+  },
+  {
+    file: "components/portal/golive-draft-queue-model.ts",
+    text: "The generator has not reported for ${}, so it is not known whether the model holds a position the account does not.",
+    count: 1,
+    reason:
+      "Kept: real uncertainty with its cause and since-when (the generator has not reported for the stated time).",
+  },
+  {
+    file: "components/portal/golive-draft-queue-model.ts",
     text: "The send outcome is unknown",
     count: 2,
     reason:
@@ -1135,9 +1159,17 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",
-    text: "unknown",
-    count: 3,
-    reason: "Not displayed: Type-level discriminator, not displayed.",
+    text: "The server answered that it is not set up for this ${}, ${}",
+    count: 1,
+    reason:
+      'Kept: "not set up" names a server configuration state as the cause of the refusal; it is not a placeholder.',
+  },
+  {
+    file: "components/portal/golive-draft-queue-model.ts",
+    text: "The server is not set up to answer this request.",
+    count: 1,
+    reason:
+      'Kept: "not set up" names a server configuration state as the cause of the refusal; it is not a placeholder.',
   },
   {
     file: "components/portal/golive-draft-queue.tsx",
@@ -1160,13 +1192,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Lead with the definite state: "IBKR login state not read (<code>: <message>) since HH:MM · last known: <state>"; needs last-known state kept in the model.',
     open: true,
-  },
-  {
-    file: "components/portal/ibkr-recovery-control.tsx",
-    text: "unavailable",
-    count: 1,
-    reason:
-      "Not displayed: Enum comparison; the shown message names the cause and next step.",
   },
   {
     file: "components/portal/instant-backtest-workspace.tsx",
@@ -1326,13 +1351,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/nautilus-arm-control.tsx",
-    text: "unavailable",
-    count: 1,
-    reason:
-      "Not displayed: Enum comparison; shown messages give cause and next step.",
-  },
-  {
-    file: "components/portal/nautilus-arm-control.tsx",
     text: "unknown",
     count: 1,
     reason:
@@ -1341,17 +1359,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/nautilus-arm-model.ts",
-    text: "-",
+    text: "unknown",
     count: 1,
     reason:
-      "Not displayed: Input validation token and its message, not a status.",
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "unknown",
-    count: 2,
-    reason:
-      "Not displayed: API enum compared in code; display label is separate (line 21).",
+      'Audit 2026-11-13: ambiguous. Replace: the arm detail prints "unknown" for a missing armedBy. Say "operator not recorded in the arm record" (and "time not recorded" for armedAt).',
+    open: true,
   },
   {
     file: "components/portal/nautilus-arm-model.ts",
@@ -1442,13 +1454,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/pick-list-import.ts",
-    text: "-",
-    count: 1,
-    reason:
-      "Not displayed: Slug separator in a replaceAll call, not displayed status.",
-  },
-  {
     file: "components/portal/pick-list-proposal-panel.tsx",
     text: "—",
     count: 6,
@@ -1511,15 +1516,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/portal/portfolio-monitor-client.ts",
     text: "unavailable",
-    count: 2,
-    reason: "Not displayed: TypeScript discriminant, never rendered.",
-  },
-  {
-    file: "components/portal/portfolio-monitor-client.ts",
-    text: "UNAVAILABLE",
     count: 1,
-    reason:
-      "Not displayed: Code comparison; maps UNAVAILABLE/UPSTREAM_ERROR to one kind (loses which one, see the journal/monitor texts).",
+    reason: "Not displayed: TypeScript discriminant, never rendered.",
   },
   {
     file: "components/portal/portfolio-monitor-dashboard.tsx",
@@ -1538,12 +1536,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/portfolio-monitor-model.ts",
-    text: "unavailable",
-    count: 1,
-    reason: "Not displayed: Internal comparison, not rendered.",
-  },
-  {
     file: "components/portal/portfolio-monitor.tsx",
     text: "Round-number check unavailable. Order prices are not flagged.",
     count: 1,
@@ -1553,10 +1545,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/portfolio-monitor.tsx",
-    text: "unavailable",
+    text: "VERTEX_PORTFOLIO_URL is not set on this server",
     count: 1,
     reason:
-      "Kept: Names the failed check and the consequence (prices not flagged). Could add the failure time.",
+      "Kept: names the missing server setting, which is the cause and the fix.",
   },
   {
     file: "components/portal/position-actions-model.ts",
@@ -1698,7 +1690,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/portal/semantic-terms-workspace.tsx",
     text: "unavailable",
-    count: 2,
+    count: 1,
     reason: "Not displayed: TypeScript discriminant, not rendered.",
   },
   {
@@ -1846,12 +1838,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/vertex-orders.tsx",
-    text: "-",
-    count: 1,
-    reason: "Not displayed: Date-format transform.",
-  },
-  {
-    file: "components/portal/vertex-orders.tsx",
     text: "Calls or puts, limit order, day order. Share orders and naked short options are not available.",
     count: 1,
     reason:
@@ -1866,30 +1852,12 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/vertical-ticket.tsx",
-    text: "-",
-    count: 1,
-    reason: "Not displayed: Date-format transform.",
-  },
-  {
-    file: "components/portal/watchlist-analytics.ts",
-    text: "-",
-    count: 1,
-    reason: "Not displayed: String transform.",
-  },
-  {
     file: "components/portal/watchlist-analytics.ts",
     text: "—",
     count: 2,
     reason:
       "Audit 2026-11-13: ambiguous. Replace: 'Needs 2+ daily closes (have n)' or 'Bars not loaded'. Callers know the close count and load state.",
     open: true,
-  },
-  {
-    file: "components/portal/watchlist-bars.tsx",
-    text: "-",
-    count: 1,
-    reason: "Not displayed: String transform.",
   },
   {
     file: "components/portal/watchlist-client.ts",
@@ -1936,6 +1904,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
+    file: "components/portal/watchlist-research.tsx",
+    text: "Not set",
+    count: 1,
+    reason:
+      'Kept: the buy zone is an optional value that the user enters; "Not set" states that the user has not entered one.',
+  },
+  {
     file: "components/portal/watchlist-workspace.tsx",
     text: "—",
     count: 4,
@@ -1960,7 +1935,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/research/vertex-client.ts",
     text: "unavailable",
-    count: 2,
+    count: 1,
     reason: "Not displayed: TypeScript discriminant.",
   },
   {
@@ -2054,32 +2029,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "features/charts/types.ts",
-    text: "rights-unavailable",
-    count: 1,
-    reason:
-      "Not displayed: Type literal; renderers of this state are audited at their own hits.",
-  },
-  {
-    file: "features/charts/types.ts",
-    text: "unavailable",
-    count: 4,
-    reason: "Not displayed: Comment.",
-  },
-  {
-    file: "features/charts/types.ts",
-    text: "unknown",
-    count: 2,
-    reason:
-      "Not displayed: Type literal; renderers of this state are audited at their own hits.",
-  },
-  {
-    file: "features/charts/workstation.ts",
-    text: "-",
-    count: 2,
-    reason: "Not displayed: Separator in a file name, not a status.",
-  },
-  {
     file: "features/click-log/install.ts",
     text: "unknown",
     count: 1,
@@ -2154,36 +2103,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/experience/portfolio.tsx",
-    text: "source-unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Do not print the raw enum. Show 'No portfolio source connected for <environment>' with cause and last successful observation time; the API must add reason and lastObservedAt.",
-    open: true,
-  },
-  {
-    file: "features/experience/portfolio.tsx",
-    text: "unavailable",
-    count: 1,
-    reason: "Not displayed: Comparison only; the text is at line 478.",
-  },
-  {
-    file: "features/experience/portfolio.tsx",
     text: "Unknown — not supplied",
     count: 1,
     reason:
       "Kept: Names the cause (source did not supply the value) and avoids showing zero.",
-  },
-  {
-    file: "features/experience/research-chat-client.ts",
-    text: "-",
-    count: 1,
-    reason: "Not displayed: Character replacement, not a text.",
-  },
-  {
-    file: "features/experience/research-chat-conversation.ts",
-    text: "unavailable",
-    count: 1,
-    reason: "Not displayed: Type literal.",
   },
   {
     file: "features/experience/research-chat-room.tsx",
@@ -2241,7 +2164,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "features/experience/research-chat-room.tsx",
     text: "unavailable",
-    count: 9,
+    count: 6,
     reason:
       "Audit 2026-11-13: ambiguous. Replace: Add a distinct failure kind 'not-configured' to VertexFailureKind (web-only) with text '<Service> not configured in this deployment · nothing was sent · ask the operator to enable it'. Proof: the port is null. Keep 'unavailable' for disconnect/timeout only.",
     open: true,
@@ -2323,8 +2246,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "features/experience/research-chat-view.tsx",
     text: "unavailable",
-    count: 3,
-    reason: "Not displayed: Type literal.",
+    count: 1,
+    reason:
+      "Not displayed: status value of the private content state; the displayed text is built from it elsewhere in the file.",
   },
   {
     file: "features/experience/research-chat-view.tsx",
@@ -2453,12 +2377,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/experience/today.tsx",
-    text: "unavailable",
-    count: 1,
-    reason: "Not displayed: Comparison only.",
-  },
-  {
-    file: "features/experience/today.tsx",
     text: "Unknown — not supplied",
     count: 1,
     reason: "Kept: Names the cause (no digest supplied for this item).",
@@ -2549,13 +2467,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/experience/utilities.tsx",
-    text: "unknown",
-    count: 2,
-    reason:
-      "Not displayed: Comparison of an API enum; the texts are at lines 726-735 and 877.",
-  },
-  {
-    file: "features/experience/utilities.tsx",
     text: "Unknown — conflicting source readiness reason codes",
     count: 1,
     reason:
@@ -2606,13 +2517,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/experience/utilities.tsx",
-    text: "unknown-outcome",
-    count: 1,
-    reason:
-      "Not displayed: Comparison of an API enum; the texts are at lines 726-735 and 877.",
-  },
-  {
-    file: "features/experience/utilities.tsx",
     text: "UNRESOLVED RECONCILIATION — ${} unknown (source)",
     count: 1,
     reason: "Kept: Real unknown kept, with count and source attribution.",
@@ -2632,12 +2536,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason:
       "Audit 2026-11-13: ambiguous. Replace: Give cause and time: 'The <symbol> − <ticker> basis was not computed for the <gex.at> snapshot (no simultaneous prices)'. gex.at is in scope; the precise cause needs an API field.",
     open: true,
-  },
-  {
-    file: "features/flow/view-model.ts",
-    text: "unknown",
-    count: 1,
-    reason: "Not displayed: Comparison only; nothing is shown for this value.",
   },
   {
     file: "features/flow/view-model.ts",
@@ -2696,12 +2594,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/stock-detail/fake-gateways.ts",
-    text: "-",
-    count: 1,
-    reason: "Not displayed: Parser token in a test/lab fake gateway.",
-  },
-  {
-    file: "features/stock-detail/fake-gateways.ts",
     text: "IBKR history service unavailable (dummy)",
     count: 1,
     reason:
@@ -2728,12 +2620,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason:
       "Audit 2026-11-13: ambiguous. Replace: Split: empty cell title 'No contract listed at this strike' vs 'No quote' / 'IV not computed'. contract === null and the null field are distinguishable in fixed/cell helpers.",
     open: true,
-  },
-  {
-    file: "features/stock-detail/stock-chart-panel.tsx",
-    text: "-",
-    count: 1,
-    reason: "Not displayed: Character replacement.",
   },
   {
     file: "features/stock-detail/stock-detail-workspace.tsx",
@@ -2776,6 +2662,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     file: "lib/server-session.ts",
     text: "unknown",
     count: 1,
-    reason: "Not displayed: Comment.",
+    reason:
+      "Not displayed: fallback error name of the session deny check; it is compared and logged, never rendered.",
   },
 ];
