@@ -116781,16 +116781,65 @@
                           "type": "integer"
                         },
                         "mode": {
-                          "enum": [
-                            "live",
-                            "paper",
-                            "unknown"
-                          ],
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "live",
+                                "paper"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "modeConfirmedAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "modeError": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "mismatch",
+                                "not-configured",
+                                "not-reported"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "modeSource": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "configured",
+                                "confirmed"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
                         "mode",
+                        "modeSource",
+                        "modeConfirmedAt",
+                        "modeError",
                         "count"
                       ],
                       "type": "object"
@@ -117577,6 +117626,17 @@
                         "receivedAt": {
                           "maxLength": 40,
                           "type": "string"
+                        },
+                        "since": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -117587,6 +117647,7 @@
                         "generatedAt",
                         "receivedAt",
                         "lastError",
+                        "since",
                         "clientId"
                       ],
                       "type": "object"
@@ -143235,16 +143296,65 @@
                           "type": "integer"
                         },
                         "mode": {
-                          "enum": [
-                            "live",
-                            "paper",
-                            "unknown"
-                          ],
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "live",
+                                "paper"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "modeConfirmedAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "modeError": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "mismatch",
+                                "not-configured",
+                                "not-reported"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "modeSource": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "configured",
+                                "confirmed"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
                         "mode",
+                        "modeSource",
+                        "modeConfirmedAt",
+                        "modeError",
                         "count"
                       ],
                       "type": "object"
@@ -144031,6 +144141,17 @@
                         "receivedAt": {
                           "maxLength": 40,
                           "type": "string"
+                        },
+                        "since": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -144041,6 +144162,7 @@
                         "generatedAt",
                         "receivedAt",
                         "lastError",
+                        "since",
                         "clientId"
                       ],
                       "type": "object"
