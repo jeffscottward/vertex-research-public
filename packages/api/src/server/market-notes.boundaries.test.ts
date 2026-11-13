@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 // checks direct imports only: server/market-notes.ts imports the app contract aggregate
 // (../contract.ts), like every procedure file, and that aggregate also holds the order contracts.
 const FORBIDDEN_IMPORT =
-  /order-intents|ibkr-recovery|arm-switch-audit|vertex-runtime-policy|vertex-orders|nautilus-arm|risk-allocator|vertex-policy|autopilot|deployment-requests|final-order-gate/u;
+  /order-intents|ibkr-recovery|arm-switch-audit|vertex-runtime-policy|vertex-orders|nautilus-arm|risk-allocator|vertex-policy|autopilot|deployment-requests|final-order-gate|golive-|vertex-order-claims/u;
 
 const repository = join(import.meta.dirname, "..", "..", "..", "..");
 const sources = [
@@ -50,6 +50,9 @@ describe("market notes boundaries", () => {
       'import { recover } from "./ibkr-recovery.ts";',
       'import { audit } from "@darkfactory/db/server/arm-switch-audit";',
       'import { policy } from "./vertex-runtime-policy.ts";',
+      'import { sendGate } from "./golive-send-gate.ts";',
+      'import { sized } from "./golive-drafts-sizing.ts";',
+      'import { claims } from "@darkfactory/db/schema/vertex-order-claims";',
       'import { z } from "zod";',
       'import { sha256Hex } from "./canonical-json.ts";',
     ].join("\n");
@@ -65,6 +68,9 @@ describe("market notes boundaries", () => {
       "./ibkr-recovery.ts",
       "@darkfactory/db/server/arm-switch-audit",
       "./vertex-runtime-policy.ts",
+      "./golive-send-gate.ts",
+      "./golive-drafts-sizing.ts",
+      "@darkfactory/db/schema/vertex-order-claims",
     ]);
   });
 });
