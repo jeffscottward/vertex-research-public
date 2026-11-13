@@ -172,10 +172,12 @@ export {
 export {
   createOrderIntentRepository,
   ORDER_INTENT_ACTIONS,
+  ORDER_INTENT_OUTCOMES,
   type OrderIntent,
   type OrderIntentAction,
   type OrderIntentOutcome,
   type OrderIntentRepository,
+  type OrderSendState,
 } from "./order-intents.ts";
 export {
   boundDriftMessage,

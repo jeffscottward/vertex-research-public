@@ -203,6 +203,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
     "account_alias,environment,projection_id,source_ordinal",
   vertex_native_settlements: "account_alias,environment,projection_id",
   vertex_object_metadata: "account_alias,environment,collection_key,object_key",
+  vertex_order_send_claims: "order_ref,attempt",
   vertex_outbox: "account_alias,environment,event_id",
   vertex_paper_jobs: "account_alias,environment,admission_id",
   vertex_policy_heads: "account_alias,environment",

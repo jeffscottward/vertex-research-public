@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray } from "drizzle-orm";
 
-import { auditRecords } from "../schema/index.ts";
+import { auditRecords, vertexOrderSendClaims } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
 
 // Persisted owner option-order intents (state-machine audit 2026-11-03, card sma-vertex-order-unknown).
@@ -16,14 +16,16 @@ export const ORDER_INTENT_ACTIONS = [
 ] as const;
 export type OrderIntentAction = (typeof ORDER_INTENT_ACTIONS)[number];
 
-export type OrderIntentOutcome =
-  | "placed"
-  | "unknown"
-  | "open"
-  | "position-changed"
-  | "not-found"
+export const ORDER_INTENT_OUTCOMES = [
+  "placed",
+  "unknown",
+  "open",
+  "position-changed",
+  "not-found",
   // The order bridge refused it before IBKR (engine policy v3 or the node ARM check): nothing was sent.
-  | "refused";
+  "refused",
+] as const;
+export type OrderIntentOutcome = (typeof ORDER_INTENT_OUTCOMES)[number];
 
 export type OrderIntent = Readonly<{
   orderRef: string;
@@ -61,13 +63,68 @@ export type OrderIntentRepository = Readonly<{
   hasIntent: (orderRef: string) => Promise<boolean>;
   /** Whether the last outcome written for this orderRef is "refused" (nothing reached IBKR). */
   refused: (orderRef: string) => Promise<boolean>;
+  /**
+   * Once-only send of a fixed orderRef across processes: in one transaction, claims
+   * (orderRef, attempt) in vertex_order_send_claims and writes the intent row. attempt is the
+   * number of earlier sends of the ref the order bridge refused. false, with nothing written, when
+   * the ref was already sent (its last row is not a refusal) or another send holds the claim.
+   */
+  recordIntentOnce: (
+    input: Readonly<{
+      actorUserId: string;
+      requestId: string;
+      intent: Omit<OrderIntent, "createdAt">;
+    }>
+  ) => Promise<boolean>;
+  /** What the last row of each orderRef says (refs with no row: "none"). */
+  sendStates: (
+    orderRefs: readonly string[]
+  ) => Promise<ReadonlyMap<string, OrderSendState>>;
 }>;
+
+/**
+ * What the last row of an orderRef says: no row, an intent with no outcome yet ("pending": in
+ * flight, or the process stopped before its outcome), or the outcome written last.
+ */
+export type OrderSendState = "none" | "pending" | OrderIntentOutcome;
+
+type RefRow = Readonly<{
+  action: string;
+  createdAt: Date;
+  entityId: string;
+  metadata: unknown;
+}>;
+
+const outcomeOf = (row: RefRow): unknown =>
+  (row.metadata as Record<string, unknown> | null)?.["outcome"];
+
+// The very last row decides: a later intent row (a new send) is not refused. On a timestamp tie an
+// intent sorts last (a resend in flight is never read as refused).
+const stateOf = (rows: readonly RefRow[]): OrderSendState => {
+  const intentLast = (action: string) =>
+    action === "vertex.order.intent" ? 1 : 0;
+  const last = [...rows]
+    .sort(
+      (a, b) =>
+        a.createdAt.getTime() - b.createdAt.getTime() ||
+        intentLast(a.action) - intentLast(b.action)
+    )
+    .at(-1);
+  if (last === undefined) return "none";
+  if (last.action === "vertex.order.intent") return "pending";
+  // An outcome this code does not know is read as unknown: the order may have reached IBKR.
+  const outcome = ORDER_INTENT_OUTCOMES.find(
+    (known) => known === outcomeOf(last)
+  );
+  return outcome ?? "unknown";
+};
 
 export const createOrderIntentRepository = (
   database: DatabaseExecutor,
   dependencies: Readonly<{ now: () => Date; generateId: () => string }>
 ): OrderIntentRepository => {
   const insert = async (
+    executor: DatabaseExecutor,
     action: OrderIntentAction,
     actorUserId: string,
     requestId: string,
@@ -76,7 +133,7 @@ export const createOrderIntentRepository = (
   ): Promise<void> => {
     if (requestId.trim() === "") throw new Error("requestId is required");
     if (orderRef.trim() === "") throw new Error("orderRef is required");
-    await database.insert(auditRecords).values({
+    await executor.insert(auditRecords).values({
       action,
       actorUserId,
       createdAt: dependencies.now(),
@@ -87,6 +144,33 @@ export const createOrderIntentRepository = (
       requestId,
     });
   };
+  const rowsOf = async (
+    executor: DatabaseExecutor,
+    orderRefs: readonly string[]
+  ): Promise<readonly RefRow[]> =>
+    await executor
+      .select({
+        action: auditRecords.action,
+        createdAt: auditRecords.createdAt,
+        entityId: auditRecords.entityId,
+        metadata: auditRecords.metadata,
+      })
+      .from(auditRecords)
+      .where(
+        and(
+          eq(auditRecords.entityType, "vertex_order"),
+          inArray(auditRecords.entityId, [...orderRefs]),
+          inArray(auditRecords.action, [...ORDER_INTENT_ACTIONS])
+        )
+      );
+  const intentMetadata = (intent: Omit<OrderIntent, "createdAt">) => ({
+    contract: intent.contract,
+    expiry: intent.expiry,
+    heldBefore: intent.heldBefore,
+    right: intent.right,
+    strike: intent.strike,
+    symbol: intent.symbol,
+  });
   return {
     hasIntent: async (orderRef) => {
       const rows = await database
@@ -101,62 +185,72 @@ export const createOrderIntentRepository = (
         .limit(1);
       return rows.length > 0;
     },
-    refused: async (orderRef) => {
-      const rows = await database
-        .select({
-          action: auditRecords.action,
-          createdAt: auditRecords.createdAt,
-          metadata: auditRecords.metadata,
-        })
-        .from(auditRecords)
-        .where(
-          and(
-            eq(auditRecords.entityType, "vertex_order"),
-            eq(auditRecords.entityId, orderRef),
-            inArray(auditRecords.action, [...ORDER_INTENT_ACTIONS])
-          )
-        );
-      // The very last row must be the refusal: a later intent row (a new send) is not refused.
-      // On a timestamp tie an intent sorts last (a resend in flight is never read as refused).
-      const intentLast = (action: string) =>
-        action === "vertex.order.intent" ? 1 : 0;
-      const last = [...rows]
-        .sort(
-          (a, b) =>
-            a.createdAt.getTime() - b.createdAt.getTime() ||
-            intentLast(a.action) - intentLast(b.action)
-        )
-        .at(-1);
-      return (
-        last !== undefined &&
-        last.action !== "vertex.order.intent" &&
-        (last.metadata as Record<string, unknown> | null)?.["outcome"] ===
-          "refused"
-      );
-    },
     recordIntent: async ({ actorUserId, requestId, intent }) =>
       await insert(
+        database,
         "vertex.order.intent",
         actorUserId,
         requestId,
         intent.orderRef,
-        {
-          contract: intent.contract,
-          expiry: intent.expiry,
-          heldBefore: intent.heldBefore,
-          right: intent.right,
-          strike: intent.strike,
-          symbol: intent.symbol,
-        }
+        intentMetadata(intent)
       ),
+    recordIntentOnce: async ({ actorUserId, requestId, intent }) => {
+      if (requestId.trim() === "") throw new Error("requestId is required");
+      if (intent.orderRef.trim() === "")
+        throw new Error("orderRef is required");
+      // A second transaction inserting the same (orderRef, attempt) waits for the first one and
+      // then inserts nothing (primary key), so exactly one of two concurrent sends gets true.
+      return await database.transaction(async (transaction) => {
+        const rows = await rowsOf(transaction, [intent.orderRef]);
+        const state = stateOf(rows);
+        if (state !== "none" && state !== "refused") return false;
+        const attempt = rows.filter(
+          (row) =>
+            row.action !== "vertex.order.intent" && outcomeOf(row) === "refused"
+        ).length;
+        const claimed = await transaction
+          .insert(vertexOrderSendClaims)
+          .values({
+            attempt,
+            claimedAt: dependencies.now(),
+            orderRef: intent.orderRef,
+            requestId,
+          })
+          .onConflictDoNothing()
+          .returning({ attempt: vertexOrderSendClaims.attempt });
+        if (claimed.length === 0) return false;
+        await insert(
+          transaction,
+          "vertex.order.intent",
+          actorUserId,
+          requestId,
+          intent.orderRef,
+          intentMetadata(intent)
+        );
+        return true;
+      });
+    },
     recordOutcome: async (input) =>
       await insert(
+        database,
         input.action,
         input.actorUserId,
         input.requestId,
         input.orderRef,
         { outcome: input.outcome }
       ),
+    refused: async (orderRef) =>
+      stateOf(await rowsOf(database, [orderRef])) === "refused",
+    sendStates: async (orderRefs) => {
+      const rows =
+        orderRefs.length === 0 ? [] : await rowsOf(database, orderRefs);
+      return new Map(
+        orderRefs.map((ref) => [
+          ref,
+          stateOf(rows.filter((row) => row.entityId === ref)),
+        ])
+      );
+    },
     unresolved: async (since) => {
       const rows = await database
         .select({
