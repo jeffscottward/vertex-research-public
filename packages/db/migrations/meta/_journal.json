@@ -505,6 +505,13 @@
       "when": 1794539866572,
       "tag": "0071_vertex_order_send_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794593572441,
+      "tag": "0072_market_notes",
+      "breakpoints": true
     }
   ]
 }
