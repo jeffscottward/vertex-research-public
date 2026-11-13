@@ -21,7 +21,9 @@ export type OrderIntentOutcome =
   | "unknown"
   | "open"
   | "position-changed"
-  | "not-found";
+  | "not-found"
+  // The order bridge refused it before IBKR (engine policy v3 or the node ARM check): nothing was sent.
+  | "refused";
 
 export type OrderIntent = Readonly<{
   orderRef: string;
@@ -57,6 +59,8 @@ export type OrderIntentRepository = Readonly<{
   unresolved: (since: Date) => Promise<readonly OrderIntent[]>;
   /** Whether any row (intent, result or reconciliation) exists for this orderRef. */
   hasIntent: (orderRef: string) => Promise<boolean>;
+  /** Whether the last outcome written for this orderRef is "refused" (nothing reached IBKR). */
+  refused: (orderRef: string) => Promise<boolean>;
 }>;
 
 export const createOrderIntentRepository = (
@@ -96,6 +100,39 @@ export const createOrderIntentRepository = (
         )
         .limit(1);
       return rows.length > 0;
+    },
+    refused: async (orderRef) => {
+      const rows = await database
+        .select({
+          action: auditRecords.action,
+          createdAt: auditRecords.createdAt,
+          metadata: auditRecords.metadata,
+        })
+        .from(auditRecords)
+        .where(
+          and(
+            eq(auditRecords.entityType, "vertex_order"),
+            eq(auditRecords.entityId, orderRef),
+            inArray(auditRecords.action, [...ORDER_INTENT_ACTIONS])
+          )
+        );
+      // The very last row must be the refusal: a later intent row (a new send) is not refused.
+      // On a timestamp tie an intent sorts last (a resend in flight is never read as refused).
+      const intentLast = (action: string) =>
+        action === "vertex.order.intent" ? 1 : 0;
+      const last = [...rows]
+        .sort(
+          (a, b) =>
+            a.createdAt.getTime() - b.createdAt.getTime() ||
+            intentLast(a.action) - intentLast(b.action)
+        )
+        .at(-1);
+      return (
+        last !== undefined &&
+        last.action !== "vertex.order.intent" &&
+        (last.metadata as Record<string, unknown> | null)?.["outcome"] ===
+          "refused"
+      );
     },
     recordIntent: async ({ actorUserId, requestId, intent }) =>
       await insert(
@@ -143,7 +180,10 @@ export const createOrderIntentRepository = (
       const last = new Map<string, string>();
       for (const row of sorted) {
         const metadata = (row.metadata ?? {}) as Record<string, unknown>;
-        if (row.action === "vertex.order.intent")
+        if (row.action === "vertex.order.intent") {
+          // A new intent for the ref (a go-live draft sent again after a refusal) is unresolved
+          // until its own outcome row.
+          last.delete(row.entityId);
           intents.set(row.entityId, {
             contract: String(metadata["contract"] ?? ""),
             createdAt: row.createdAt,
@@ -154,7 +194,7 @@ export const createOrderIntentRepository = (
             strike: Number(metadata["strike"] ?? 0),
             symbol: String(metadata["symbol"] ?? ""),
           });
-        else last.set(row.entityId, String(metadata["outcome"] ?? ""));
+        } else last.set(row.entityId, String(metadata["outcome"] ?? ""));
       }
       return [...intents.values()].filter((intent) => {
         const outcome = last.get(intent.orderRef);

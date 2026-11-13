@@ -214,6 +214,7 @@ const intentStore = () => {
   const store: OrderIntentRepository = {
     hasIntent: async (orderRef) =>
       intents.some((i) => i.orderRef === orderRef) || outcomes.has(orderRef),
+    refused: async (orderRef) => outcomes.get(orderRef) === "refused",
     recordIntent: async ({ intent }) => {
       intents.push({ ...intent, createdAt: clock });
       rows.push(`intent ${intent.orderRef}`);
@@ -667,14 +668,21 @@ describe("vertexOrders procedures", () => {
       }),
     };
     const base = {
-      goLiveSendEnabled: true,
       mock: {
         ...mock,
-        account: async () => ({
-          ...(await mock.account()),
-          openOrders: [],
-          positions: [],
-        }),
+        account: async () => {
+          const account = await mock.account();
+          // A bridge that runs engine policy v3 + ARM on openings (market-watch-bot vertexbridge).
+          return {
+            ...account,
+            gates: {
+              ...account.gates,
+              orderPolicy: "options_only_defined_risk_v3",
+            },
+            openOrders: [],
+            positions: [],
+          };
+        },
         placeCombo,
       },
       now: () => clock,
@@ -750,7 +758,7 @@ describe("vertexOrders procedures", () => {
     expect(placeCombo).toHaveBeenCalledTimes(1);
   });
 
-  it("refuses every go-live send by name while sends are off (the default)", async () => {
+  it("refuses every go-live send by name when the gateway does not report engine policy v3 (mock)", async () => {
     clock = new Date("2026-11-13T15:00:00.000Z");
     const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>();
     setVertexOrdersDependenciesForTesting({
@@ -782,9 +790,123 @@ describe("vertexOrders procedures", () => {
     expect(preview.confirmToken).toBeNull();
     expect(preview.review.reasons).toEqual(
       expect.arrayContaining([
-        expect.stringMatching(
-          /^GO-LIVE (?:V3_NOT_ON_LIVE_PATH|DRAFT_NOT_FOUND)/u
-        ),
+        expect.stringMatching(/^GO-LIVE V3_NOT_ON_LIVE_PATH/u),
+      ])
+    );
+    expect(placeCombo).not.toHaveBeenCalled();
+  });
+
+  it("a bridge that reports engine policy v3 on openings lifts V3_NOT_ON_LIVE_PATH", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>();
+    setVertexOrdersDependenciesForTesting({
+      goLiveNode: async () => ({
+        arm: null,
+        badge: "running-armed",
+        checkedAt: "T",
+      }),
+      mock: {
+        ...mock,
+        account: async () => {
+          const account = await mock.account();
+          return {
+            ...account,
+            gates: {
+              ...account.gates,
+              orderPolicy: "options_only_defined_risk_v3",
+            },
+          };
+        },
+        placeCombo,
+      },
+      now: () => clock,
+    });
+    const client = clientFor({
+      goLiveDrafts: {
+        listDrafts: async () => [],
+        planInForce: async () => null,
+      },
+      intents: intentStore().store,
+    });
+    const preview = await client.vertexOrders.comboPreview({
+      goLiveDraftId: "d-9",
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    });
+    expect(preview.confirmToken).toBeNull();
+    expect(
+      preview.review.reasons.some((r) => r.includes("V3_NOT_ON_LIVE_PATH"))
+    ).toBe(false);
+    expect(preview.review.reasons).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^GO-LIVE DRAFT_NOT_FOUND/u),
+      ])
+    );
+    expect(placeCombo).not.toHaveBeenCalled();
+  });
+
+  it("refuses a go-live entry that touches a held contract (the bridge would read it as a close)", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi.fn<OrderGatewayPort["placeCombo"]>();
+    setVertexOrdersDependenciesForTesting({
+      goLiveNode: async () => ({
+        arm: null,
+        badge: "running-armed",
+        checkedAt: "T",
+      }),
+      mock: {
+        ...mock,
+        account: async () => {
+          const account = await mock.account();
+          return {
+            ...account,
+            gates: {
+              ...account.gates,
+              orderPolicy: "options_only_defined_risk_v3",
+            },
+            positions: [
+              {
+                expiry: "20280121",
+                premium: 100,
+                quantity: -1,
+                right: "C",
+                secType: "OPT",
+                strike: 105,
+                symbol: "MOCKS",
+              },
+            ],
+          };
+        },
+        placeCombo,
+      },
+      now: () => clock,
+    });
+    const client = clientFor({
+      goLiveDrafts: {
+        listDrafts: async () => [],
+        planInForce: async () => null,
+      },
+      intents: intentStore().store,
+    });
+    const preview = await client.vertexOrders.comboPreview({
+      goLiveDraftId: "d-9",
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    });
+    expect(preview.confirmToken).toBeNull();
+    expect(preview.review.reasons).toEqual(
+      expect.arrayContaining([
+        "GO-LIVE NOT_AN_OPENING: MOCKS 20280121 105C is held; a go-live entry opens a new spread only",
       ])
     );
     expect(placeCombo).not.toHaveBeenCalled();
@@ -837,14 +959,21 @@ describe("vertexOrders procedures", () => {
     let badge: "running-armed" | "running-disarmed" = "running-disarmed";
     setVertexOrdersDependenciesForTesting({
       goLiveNode: async () => ({ arm: null, badge, checkedAt: "T" }),
-      goLiveSendEnabled: true,
       mock: {
         ...mock,
-        account: async () => ({
-          ...(await mock.account()),
-          openOrders: [],
-          positions: [],
-        }),
+        account: async () => {
+          const account = await mock.account();
+          // A bridge that runs engine policy v3 + ARM on openings (market-watch-bot vertexbridge).
+          return {
+            ...account,
+            gates: {
+              ...account.gates,
+              orderPolicy: "options_only_defined_risk_v3",
+            },
+            openOrders: [],
+            positions: [],
+          };
+        },
         placeCombo,
       },
       now: () => clock,
@@ -882,6 +1011,103 @@ describe("vertexOrders procedures", () => {
       "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
     );
     expect(placeCombo).toHaveBeenCalledTimes(1);
+  });
+
+  it("an engine refusal at the bridge frees the draft: nothing reached IBKR, so it can be sent again", async () => {
+    clock = new Date("2026-11-13T15:00:00.000Z");
+    const placeCombo = vi
+      .fn<OrderGatewayPort["placeCombo"]>()
+      .mockResolvedValueOnce({
+        message:
+          "Engine refused the opening: OPENING_NOT_IN_SNAPSHOT: send again in about a minute",
+        permId: null,
+        state: "engine_refused",
+      })
+      .mockResolvedValue({ message: "ok", permId: 79, state: "submitted" });
+    const spread: VertexComboInput = {
+      legs: [
+        { expiry: "20280121", ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: "20280121", ratio: 1, right: "C", side: "SELL", strike: 105 },
+      ],
+      limitPrice: 1.25,
+      quantity: 1,
+      symbol: "MOCKS",
+    };
+    const goLiveDrafts = {
+      listDrafts: async () => [
+        {
+          approvedOrder: spread,
+          expiry: "20280121",
+          id: "d-1",
+          kind: "entry",
+          longStrike: 100,
+          planId: "pie",
+          shortStrike: 105,
+          state: "approved",
+          structure: "callDebitVertical",
+          symbol: "MOCKS",
+          tradingDay: "2026-11-13",
+        },
+      ],
+      planInForce: async () => ({
+        id: "pie",
+        limits: {
+          maxPositions: 4,
+          nameRiskCapPct: 2,
+          openRiskCapPct: 4,
+          positionRiskPct: 1,
+        },
+        sleeves: [{ symbols: ["MOCKS"] }],
+        status: "approved",
+      }),
+    };
+    let badge: "running-armed" | "running-disarmed" = "running-disarmed";
+    setVertexOrdersDependenciesForTesting({
+      goLiveNode: async () => ({ arm: null, badge, checkedAt: "T" }),
+      mock: {
+        ...mock,
+        account: async () => {
+          const account = await mock.account();
+          // A bridge that runs engine policy v3 + ARM on openings (market-watch-bot vertexbridge).
+          return {
+            ...account,
+            gates: {
+              ...account.gates,
+              orderPolicy: "options_only_defined_risk_v3",
+            },
+            openOrders: [],
+            positions: [],
+          };
+        },
+        placeCombo,
+      },
+      now: () => clock,
+    });
+    const { store, rows } = intentStore();
+    const client = clientFor({ goLiveDrafts, intents: store });
+    const send = async () => {
+      const preview = await client.vertexOrders.comboPreview({
+        ...spread,
+        goLiveDraftId: "d-1",
+      });
+      if (preview.confirmToken === null) return preview.review.reasons;
+      return await client.vertexOrders.comboSubmit({
+        confirm: true,
+        confirmToken: preview.confirmToken,
+        goLiveDraftId: "d-1",
+        order: spread,
+      });
+    };
+    badge = "running-armed";
+    const refused = await send();
+    expect(refused).toMatchObject({ permId: null, state: "engine_refused" });
+    expect(rows.at(-1)).toBe("vertex.order.result refused");
+    // The same draft again: the bridge sent nothing, so the draft is not "already sent".
+    expect(await send()).toMatchObject({ permId: 79, state: "submitted" });
+    expect(await send()).toContain(
+      "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+    );
+    expect(placeCombo).toHaveBeenCalledTimes(2);
   });
 
   it("binds a go-live draft id to the confirm token and refuses by name when the draft store is missing", async () => {

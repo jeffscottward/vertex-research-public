@@ -838,7 +838,11 @@ describe("vertex order gateways", () => {
                 netLiquidation: 1,
                 positions: [],
                 openOrders: [],
-                gates: { killSwitch: false, optionsOnly: true },
+                gates: {
+                  killSwitch: false,
+                  optionsOnly: true,
+                  orderPolicy: "options_only_defined_risk_v3",
+                },
                 caps: { leapsMinDays: 365, leapsPct: 2, shortPct: 2 },
               }
             : reply
@@ -847,7 +851,10 @@ describe("vertex order gateways", () => {
       TOKEN
     );
     expect(gateway.mode).toBe("live");
-    expect((await gateway.account()).netLiquidation).toBe(1);
+    const account = await gateway.account();
+    expect(account.netLiquidation).toBe(1);
+    // The bridge reports the engine policy it enforces on openings (go-live sends need it).
+    expect(account.gates.orderPolicy).toBe("options_only_defined_risk_v3");
     expect(await gateway.place(order(), "vertex-2")).toEqual(reply);
     expect(await gateway.cancel(5)).toEqual(reply);
     expect(calls.map(([url, init]) => `${init?.method} ${url}`)).toEqual([

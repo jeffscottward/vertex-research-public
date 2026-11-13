@@ -177,6 +177,87 @@ describe("order intent repository", () => {
     ]);
   });
 
+  it("answers whether the last outcome of an orderRef is refused", async () => {
+    const rows = (outcomes: [number, string][]) =>
+      fakeDatabase([
+        {
+          action: "vertex.order.intent",
+          createdAt: at(0),
+          entityId: "vertex-gla",
+          metadata: {},
+        },
+        ...outcomes.map(([minute, outcome]) => ({
+          action: "vertex.order.result",
+          createdAt: at(minute),
+          entityId: "vertex-gla",
+          metadata: { outcome },
+        })),
+      ]).database;
+    const refused = (outcomes: [number, string][]) =>
+      createOrderIntentRepository(rows(outcomes), deps).refused("vertex-gla");
+    expect(await refused([[1, "refused"]])).toBe(true);
+    expect(
+      await refused([
+        [2, "placed"],
+        [1, "refused"],
+      ])
+    ).toBe(false);
+    expect(
+      await refused([
+        [1, "placed"],
+        [2, "refused"],
+      ])
+    ).toBe(true);
+    expect(await refused([])).toBe(false);
+    // refused, then a new intent (sent again) with no outcome yet: not refused, and unresolved
+    const again = fakeDatabase([
+      {
+        action: "vertex.order.intent",
+        createdAt: at(0),
+        entityId: "vertex-gla",
+        metadata: {},
+      },
+      {
+        action: "vertex.order.result",
+        createdAt: at(1),
+        entityId: "vertex-gla",
+        metadata: { outcome: "refused" },
+      },
+      {
+        action: "vertex.order.intent",
+        createdAt: at(2),
+        entityId: "vertex-gla",
+        metadata: {},
+      },
+    ]).database;
+    expect(
+      await createOrderIntentRepository(again, deps).refused("vertex-gla")
+    ).toBe(false);
+    expect(
+      (await createOrderIntentRepository(again, deps).unresolved(at(-5))).map(
+        (i) => i.orderRef
+      )
+    ).toEqual(["vertex-gla"]);
+    // Same millisecond, rows in any order: the resend's intent still wins.
+    const tie = fakeDatabase([
+      {
+        action: "vertex.order.intent",
+        createdAt: at(1),
+        entityId: "vertex-gla",
+        metadata: {},
+      },
+      {
+        action: "vertex.order.result",
+        createdAt: at(1),
+        entityId: "vertex-gla",
+        metadata: { outcome: "refused" },
+      },
+    ]).database;
+    expect(
+      await createOrderIntentRepository(tie, deps).refused("vertex-gla")
+    ).toBe(false);
+  });
+
   it("answers whether any row exists for an orderRef", async () => {
     const limited = (rows: unknown[]) =>
       ({
