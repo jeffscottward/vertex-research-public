@@ -25,6 +25,9 @@ end date for it) gives split- and dividend-adjusted bars; secType=IND (indices s
 exchange required) serves bars only, not ticks or depth.
 /news (1.3.0): newest headlines for one stock from every API news provider on the account (read-only:
 reqNewsProviders, reqHistoricalNews).
+/option-chain (1.4.0, card vertex-options-chain-ibkr): top-of-book quotes for the strikes nearest the money of one
+stock option expiry (read-only: reqSecDefOptParams, then one-shot reqMktData snapshots, never a regulatory
+snapshot, never a streaming subscription). Off unless VERTEX_HISTORY_OPTION_QUOTES=1.
 
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
@@ -37,11 +40,13 @@ import re
 import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
+from zoneinfo import ZoneInfo
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 SCHEMA = "vertex-history-bars-v1"
 TICKS_SCHEMA = "vertex-history-ticks-v1"
 DEPTH_SCHEMA = "vertex-history-depth-v1"
@@ -110,12 +115,52 @@ NEWS_DEADLINE = 25.0  # one budget per /news request: lock, spacing, contract lo
 PROVIDERS_TTL = 86400
 PROVIDERS_EMPTY_TTL = 300
 HEADLINE_META_RE = re.compile(r"^\{[^{}]{0,300}\}")  # IBKR prefixes some headlines with {A:...:L:en:K:...}
+# Option chain (1.4.0): reqSecDefOptParams (cached CONTRACT_TTL), one reqMktData snapshot of the underlying, then one
+# snapshot per call and put of the strikes nearest the money, all in one wave. Market data snapshots use the market
+# data lines of the IB gateway that the live engine shares, so the endpoint is off by default and the owner turns it
+# on with VERTEX_HISTORY_OPTION_QUOTES=1 (read once at start-up). Every reqMktData is a one-shot snapshot with
+# regulatorySnapshot=False (a regulatory snapshot costs money per request) and no generic ticks; reqMarketDataType
+# is never called, so the session keeps the gateway's default (live) market data type.
+OPTION_CHAIN_SCHEMA = "vertex-history-option-chain-v1"
+OPTION_QUOTES_ENV = "VERTEX_HISTORY_OPTION_QUOTES"
+OPTION_STRIKES_MAX, OPTION_STRIKES_DEFAULT = 12, 8
+OPTION_SNAPSHOT_MAX = 2 * OPTION_STRIKES_MAX + 1  # snapshot requests per /option-chain call, underlying included
+OPTION_TTL = 30
+OPTION_STALE_MAX = 300
+OPTION_MIN_INTERVAL = 5.0
+OPTION_MAX_WAIT = 2.0  # longest wait for the lock; then 429 busy
+OPTION_MIN_WINDOW = 3.0  # no snapshot wave is sent with less budget left than this; the answer is 504
+# reqMktData and cancelMktData sends of the option path in any one second. IB accepts 50 messages per second from one
+# client; a full call (25 requests, 25 cancels) would send 50 in about a second without this limit.
+OPTION_MESSAGES_PER_SECOND = 40
+OPTION_SNAPSHOT_SECONDS = 12.0  # IBKR ends a snapshot after about 11 s at the latest
+# Longest wait for the underlying snapshot; then the price rule takes what is there (last, midpoint, close). With the
+# lock wait (2 s) and the spacing (5 s) this leaves OPTION_MIN_WINDOW of the budget for the option wave.
+OPTION_UNDERLYING_SECONDS = 4.0
+# One budget per /option-chain request: lock, spacing, lookups, both snapshot waves. The consumer waits 15 s.
+OPTION_DEADLINE = 14.0
+OPTION_CLOSE_ZONE, OPTION_CLOSE_HOUR = "America/New_York", 16  # an expiry counts until its 16:00 New York close
+OPTION_SUBSCRIPTION_CODES = {354, 10089, 10090, 10091, 10167, 10168}  # market data not subscribed (for the API)
+# Warnings IB addresses to one snapshot request and may still follow with prices: they are recorded, they do not end
+# the snapshot (that takes tickSnapshotEnd, a terminal error or the deadline).
+OPTION_WARNING_CODES = {10090, 10091, 10167}
+# A wave whose option rows are all not_subscribed means the account has no option market data for the API. The
+# service then makes no IB call for /option-chain for this long: at most one such wave per 15 minutes.
+OPTION_NOT_SUBSCRIBED_SECONDS = 900
+OPTION_PRICE_MAX = 1e9  # a snapshot price at or above this is a sentinel (the unset double of the IB API is DBL_MAX), not a price
+# tickPrice types: live 1 bid, 2 ask, 4 last, 9 close; their delayed twins 66, 67, 68, 75
+PRICE_TICKS = {1: "bid", 2: "ask", 4: "last", 9: "close", 66: "bid", 67: "ask", 68: "last", 75: "close"}
+DELAYED_PRICE_TICKS = {66, 67, 68, 75}
+MARKET_DATA_TYPES = {1: "live", 2: "frozen", 3: "delayed", 4: "delayed-frozen"}  # marketDataType callback
+OPTION_UNDERLYING = {"secType": "STK", "exchange": "SMART", "currency": "USD"}  # stock underlyings only
 
 PARAMS = ("symbol", "secType", "exchange", "currency", "barSize", "duration", "whatToShow", "useRTH", "contractMonth",
           "endDateTime")
 TICKS_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "count", "useRTH", "quotes")
 DEPTH_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "rows")
 NEWS_PARAMS = ("symbol", "secType", "exchange", "currency", "count")
+OPTION_CHAIN_PARAMS = ("symbol", "expiry", "strikes")
+EXPIRY_RE = re.compile(r"[0-9]{8}")  # fullmatch, ASCII
 SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,11}( [A-Z])?$")  # IBKR class shares: "BRK B"
 EXCHANGE_RE = re.compile(r"^[A-Z][A-Z0-9.]{1,15}$")
 CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
@@ -131,7 +176,7 @@ class BadRequest(Exception):
 
 
 class IbError(Exception):
-    """kind: no_contract | entitlement | ibkr_error | unavailable | timeout"""
+    """kind: no_contract | entitlement | ibkr_error | unavailable | timeout | no_option_chain | expiry_not_listed"""
 
     def __init__(self, kind, message, code=None):
         super().__init__(message)
@@ -329,6 +374,136 @@ def validate_news(raw):
     return dict(inst, count=count)
 
 
+def option_quotes_enabled(environ=None):
+    """The /option-chain switch: on only when VERTEX_HISTORY_OPTION_QUOTES is exactly "1"."""
+    return (os.environ if environ is None else environ).get(OPTION_QUOTES_ENV) == "1"
+
+
+def validate_option_chain(raw):
+    """Option chain of one stock (always STK on SMART in USD; no secType parameter): `expiry` YYYYMMDD (absent = nearest listed expiry that has
+    not closed), `strikes` = how many listed strikes nearest the underlying price (a call and a put each)."""
+    values = _single_values(raw, OPTION_CHAIN_PARAMS)
+    symbol = values.get("symbol", "").upper()
+    if not SYMBOL_RE.match(symbol):
+        raise BadRequest("invalid symbol")
+    expiry = None
+    if "expiry" in values:
+        expiry = values["expiry"]
+        if not EXPIRY_RE.fullmatch(expiry):
+            raise BadRequest("expiry must be YYYYMMDD")
+        try:
+            expiry_close_ts(expiry)
+        except ValueError:
+            raise BadRequest("expiry must be YYYYMMDD and a real date") from None
+    strikes = _bounded_int(values, "strikes", OPTION_STRIKES_DEFAULT, 1, OPTION_STRIKES_MAX)
+    return {"symbol": symbol, "expiry": expiry, "strikes": strikes}
+
+
+_option_zone = None  # the resolved OPTION_CLOSE_ZONE; set once by option_zone()
+
+
+def option_zone():
+    """The America/New_York zone, resolved once and kept. None when the host has no tz data for it (ZoneInfo then
+    raises ZoneInfoNotFoundError, a KeyError); HistoryService turns the option switch off in that case."""
+    global _option_zone
+    if _option_zone is None:
+        try:
+            _option_zone = ZoneInfo(OPTION_CLOSE_ZONE)
+        except Exception:
+            return None
+    return _option_zone
+
+
+def expiry_close_ts(expiry):
+    """`YYYYMMDD` -> epoch seconds of that day's 16:00 America/New_York close; ValueError when not a real date."""
+    day = datetime.strptime(expiry, "%Y%m%d")
+    zone = option_zone()
+    if zone is None:  # not reachable through the service: without the zone the switch is off
+        raise IbError("unavailable", "time zone data for %s is missing" % OPTION_CLOSE_ZONE)
+    return datetime(day.year, day.month, day.day, OPTION_CLOSE_HOUR, tzinfo=zone).timestamp()
+
+
+def pick_expiry(expirations, wanted, now):
+    """wanted when listed and its close is after now (else None); without wanted the first listed expiry whose
+    close is after now."""
+    if wanted is not None:
+        return wanted if wanted in expirations and expiry_close_ts(wanted) > now else None
+    for expiry in sorted(expirations):
+        if expiry_close_ts(expiry) > now:
+            return expiry
+    return None
+
+
+def nearest_strikes(strikes, price, count):
+    """The `count` listed strikes nearest to price (ties: the lower strike first), ascending."""
+    near = sorted(set(strikes), key=lambda strike: (abs(strike - price), strike))[:max(0, count)]
+    return sorted(near)
+
+
+def underlying_price(quote):
+    """The underlying price used to pick strikes: last if > 0, else the bid/ask midpoint (both > 0), else close
+    if > 0, else None."""
+    bid, ask, last, close = (quote.get(name) or 0 for name in ("bid", "ask", "last", "close"))
+    if last > 0:
+        return last
+    if bid > 0 and ask > 0:
+        return (bid + ask) / 2.0
+    return close if close > 0 else None
+
+
+def underlying_complete(prices):
+    """The underlying snapshot has what the request needs: a last above 0, or a bid and an ask above 0. A close
+    alone is not enough to stop waiting; underlying_price still falls back to it at the end of the window."""
+    bid, ask, last = (prices.get(name) or 0 for name in ("bid", "ask", "last"))
+    return last > 0 or (bid > 0 and ask > 0)
+
+
+def option_quote_complete(prices):
+    """An option snapshot has what the consumer needs: a bid that is not null (0 is a real bid) and an ask above
+    0. The same test says whether "a bid and an ask arrived" after a warning code."""
+    return prices.get("bid") is not None and (prices.get("ask") or 0) > 0
+
+
+def option_price(value):
+    """One snapshot price: kept only when finite, not negative and below OPTION_PRICE_MAX; anything else is None."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if 0 <= number < OPTION_PRICE_MAX else None  # NaN fails both comparisons
+
+
+def option_error_kind(error):
+    """Per-contract error label of one option snapshot request: not_subscribed only for the market data
+    subscription codes; every other error (10197 competing live session included) is ib_error."""
+    code = getattr(error, "code", None)
+    kind = getattr(error, "kind", None)
+    if code == 200 or kind == "no_contract":
+        return "no_security_definition"
+    if code in OPTION_SUBSCRIPTION_CODES:
+        return "not_subscribed"
+    return "ib_error"
+
+
+def option_quote_row(strike, right, holder):
+    """The published row of one option snapshot. One rule: a row with an error has bid, ask and last null and
+    dataType as IB reported it (or null). A row with a bid and an ask (option_quote_complete) is a good row, with
+    or without tickSnapshotEnd and also after a warning code; last is null when it had not arrived. Without
+    them, a warning code makes the row not_subscribed and the end of the window makes it timeout."""
+    prices = holder.prices
+    if holder.error is not None:
+        label = option_error_kind(holder.error)
+    elif holder.warning is not None and not option_quote_complete(prices):
+        label = "not_subscribed"
+    elif holder.timed_out:
+        label = "timeout"
+    else:
+        label = None
+    bid, ask, last = (None, None, None) if label else (prices["bid"], prices["ask"], prices["last"])
+    return {"strike": strike, "right": right, "bid": bid, "ask": ask, "last": last,
+            "dataType": holder.reported_type(), "error": label}
+
+
 def parse_news_time(text):
     """IBKR's `YYYY-MM-DD HH:MM:SS[.f]` -> epoch seconds, read as UTC (IBKR: "UTC assumed"; to be confirmed
     against a live headline, see docs/vertex-rebuild/quantvps-status-endpoint.md); ValueError when malformed."""
@@ -515,6 +690,40 @@ class DepthPacer:
         self.last = self.clock()
 
 
+class MessageLimiter:
+    """At most `limit` sends in any window of `period` seconds: wait() returns when one more send is allowed and
+    counts it. The sleep runs in real time, so it uses up the budget of the request that waits. One wait() never
+    sleeps longer than `period`."""
+
+    def __init__(self, limit, period=1.0, clock=time.monotonic, sleep=time.sleep):
+        self.limit, self.period, self.clock, self.sleep = limit, period, clock, sleep
+        self.sent = deque()  # send times inside the last period, oldest first
+        self.lock = threading.Lock()
+
+    def _now(self):
+        """The clock, after the recorded sends that no longer count are dropped."""
+        now = self.clock()
+        if self.sent and now < self.sent[-1]:  # the clock went back: start a new window, do not sleep it out
+            self.sent.clear()
+        while self.sent and now - self.sent[0] >= self.period:
+            self.sent.popleft()
+        return now
+
+    def wait(self):
+        with self.lock:
+            now, slept = self._now(), 0.0
+            while len(self.sent) >= self.limit and slept < self.period:
+                pause = min(self.period - slept, max(0.0, self.sent[0] + self.period - now))
+                if pause <= 0:
+                    break
+                self.sleep(pause)
+                slept += pause
+                now = self._now()
+            if len(self.sent) >= self.limit:  # the clock did not move with the sleep: start a new window
+                self.sent.clear()
+            self.sent.append(now)
+
+
 class DiskCache:
     def __init__(self, directory, clock=time.time):
         self.dir, self.clock = directory, clock
@@ -542,7 +751,8 @@ class DiskCache:
 
 
 class HistoryService:
-    def __init__(self, gateway, cache, pacer, clock=time.time, sleep=time.sleep, log=None, depth_pacer=None):
+    def __init__(self, gateway, cache, pacer, clock=time.time, sleep=time.sleep, log=None, depth_pacer=None,
+                 option_quotes=False):
         self.gateway, self.cache, self.pacer = gateway, cache, pacer
         self.depth_pacer = depth_pacer or DepthPacer(clock)
         self.clock, self.sleep = clock, sleep
@@ -551,6 +761,19 @@ class HistoryService:
         self.depth_lock = threading.Lock()  # at most one market depth subscription at a time
         self.news_lock = threading.Lock()  # one news request at a time
         self.news_last = None
+        # /option-chain switch (VERTEX_HISTORY_OPTION_QUOTES=1, read once at start-up). Off by default: market data
+        # snapshots use the market data lines of the IB gateway that the live engine shares, so the owner turns it on.
+        # The expiry rule needs the America/New_York zone: it is resolved here, once, and without it the switch is
+        # forced off, so no request can fail on missing tz data.
+        self.option_quotes = bool(option_quotes)
+        if self.option_quotes and option_zone() is None:
+            self.option_quotes = False
+            self.log("option_quotes_forced_off", reason="tz_data_missing", zone=OPTION_CLOSE_ZONE)
+        self.option_lock = threading.Lock()  # one option chain fetch at a time
+        self.option_last = None
+        # Service clock of the last wave that showed the account has no option market data (see
+        # OPTION_NOT_SUBSCRIBED_SECONDS). Per process, written only under option_lock.
+        self.option_unsubscribed = None
 
     def _ok(self, payload, age, ttl, hit, stale=False, camel=False):
         body = dict(payload)
@@ -568,7 +791,8 @@ class HistoryService:
 
     def _ib_error(self, e, fallback):
         """Same status and body for every endpoint; unavailable and timeout may serve a stale copy."""
-        status = {"no_contract": 422, "unavailable": 503, "timeout": 504}.get(e.kind, 502)
+        status = {"no_contract": 422, "unavailable": 503, "timeout": 504, "no_option_chain": 404,
+                  "expiry_not_listed": 404}.get(e.kind, 502)
         body = {"error": e.kind, "message": scrub(e.message)}
         if e.code is not None:
             body["ibkr_code"] = e.code
@@ -741,7 +965,8 @@ class HistoryService:
 
     def health(self):
         return 200, {"schema": "vertex-history-health-v1", "version": VERSION, "client_id": CLIENT_ID,
-                     "connected": self.gateway.connected(), "pacing": self.pacer.snapshot()}
+                     "connected": self.gateway.connected(), "pacing": self.pacer.snapshot(),
+                     "optionQuotes": self.option_quotes}
 
     def news(self, raw):
         """Newest IBKR news headlines for one stock (camelCase fields, like ticks and depth)."""
@@ -791,6 +1016,91 @@ class HistoryService:
             return self._ok(payload, 0, ttl, False, camel=True)
         finally:
             self.news_lock.release()
+
+    def _option_unsubscribed(self):
+        """The answer while the not_subscribed memo is fresh (no IB call), else None."""
+        since = self.option_unsubscribed
+        rest = 0 if since is None else since + OPTION_NOT_SUBSCRIBED_SECONDS - self.clock()
+        if not 0 < rest <= OPTION_NOT_SUBSCRIBED_SECONDS:  # over, or the clock went back
+            return None
+        return 502, {"error": "not_subscribed", "retry_after_seconds": int(math.ceil(rest)),
+                     "message": "IB reported no market data subscription for option quotes; the service asks IB "
+                                "again after retry_after_seconds"}
+
+    def option_chain(self, raw):
+        """Top-of-book snapshot quotes of the calls and puts nearest the money for one stock option expiry
+        (camelCase fields, like news). Refused, before anything else and without any IB call, while the switch
+        is off. A fresh cached answer is served first; after that the request is refused, without any IB call,
+        while the not_subscribed memo is fresh."""
+        if not self.option_quotes:
+            return 403, {"error": "disabled",
+                         "message": "option quotes are off; the owner enables them with %s=1" % OPTION_QUOTES_ENV}
+        try:
+            req = validate_option_chain(raw)
+        except BadRequest as e:
+            return 400, {"error": "bad_request", "message": str(e)}
+        key, ttl = cache_key(dict(req, endpoint="option-chain")), OPTION_TTL
+
+        def fallback(status, body):
+            return self._stale_or(key, ttl, status, body, OPTION_STALE_MAX, camel=True)
+
+        hit = self.cache.get(key, ttl)
+        if hit:
+            return self._ok(hit[0], hit[1], ttl, True, camel=True)
+        refused = self._option_unsubscribed()
+        if refused:
+            return refused
+        budget_end = self.clock() + OPTION_DEADLINE
+
+        def remaining():
+            return budget_end - self.clock()
+
+        if not self.option_lock.acquire(timeout=max(0.0, min(OPTION_MAX_WAIT, remaining()))):
+            return fallback(429, {"error": "busy", "retry_after_seconds": int(OPTION_MIN_INTERVAL)})
+        try:
+            hit = self.cache.get(key, ttl)
+            if hit:
+                return self._ok(hit[0], hit[1], ttl, True, camel=True)
+            refused = self._option_unsubscribed()  # the request this one waited for may have set the memo
+            if refused:
+                return refused
+            if self.option_last is not None:
+                wait = min(OPTION_MIN_INTERVAL, self.option_last + OPTION_MIN_INTERVAL - self.clock())
+                if wait > 0 and remaining() - wait < OPTION_MIN_WINDOW:  # the spacing does not fit in the budget
+                    return fallback(429, {"error": "busy", "retry_after_seconds": max(1, int(math.ceil(wait)))})
+                if wait > 0:
+                    self.sleep(wait)
+            self.option_last = self.clock()
+            try:
+                chain = self.gateway.fetch_option_chain(req, remaining)
+            except IbError as e:
+                return self._ib_error(e, fallback)
+            except PacingViolation:  # snapshots have no historical back-off; just ask the caller to retry
+                self.log("option_chain_pacing_violation")
+                return fallback(429, {"error": "pacing_violation", "retry_after_seconds": int(OPTION_MIN_INTERVAL)})
+            except Exception as e:  # never drop the connection without a JSON answer
+                self.log("option_chain_failed", kind=type(e).__name__)
+                return fallback(500, {"error": "internal", "message": "option chain request failed"})
+            quotes = chain["quotes"]
+            errors = sorted(set(quote["error"] for quote in quotes if quote["error"]))
+            quoted = sum(1 for quote in quotes if quote["error"] is None)
+            if errors == ["not_subscribed"] and quoted == 0:  # every option row; this answer is not cached
+                self.option_unsubscribed = self.clock()
+                self.log("option_chain_not_subscribed", symbol=req["symbol"], expiry=chain["expiry"],
+                         quotes=len(quotes), errors=scrub(",".join(errors)),
+                         retry_after_seconds=OPTION_NOT_SUBSCRIBED_SECONDS)
+                return self._option_unsubscribed()
+            payload = {"schema": OPTION_CHAIN_SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "request": req,
+                       "expirations": chain["expirations"], "expiry": chain["expiry"],
+                       "tradingClass": chain["tradingClass"], "multiplier": chain["multiplier"],
+                       "underlying": chain["underlying"], "quotes": quotes, "count": len(quotes),
+                       "fetchedAt": now_iso(self.clock())}
+            self.cache.put(key, payload)
+            self.log("option_chain", symbol=req["symbol"], expiry=chain["expiry"], quotes=len(quotes),
+                     quoted=quoted, errors=scrub(",".join(errors)) or None)
+            return self._ok(payload, 0, ttl, False, camel=True)
+        finally:
+            self.option_lock.release()
 
 
 class _Holder:
@@ -845,6 +1155,51 @@ class DepthBook(_Holder):
             return [dict(level) for level in bids], [dict(level) for level in asks], self.updates
 
 
+class QuoteSnapshot(_Holder):
+    """Prices of one reqMktData snapshot request. done = tickSnapshotEnd, a terminal error, or complete(prices):
+    the request has what its caller needs, so the wave does not wait for tickSnapshotEnd (IB can hold it for about
+    11 s). While the holder is registered every callback changes it under IbGateway.holders_lock; after _snapshots
+    has popped it nothing changes it."""
+
+    def __init__(self, complete=option_quote_complete):
+        _Holder.__init__(self)
+        self.complete = complete  # prices -> bool
+        self.prices = {"bid": None, "ask": None, "last": None, "close": None}
+        self.data_type = None  # live | frozen | delayed | delayed-frozen, as IB reported it for this request
+        self.delayed = False  # a price came from a delayed tick type (66, 67, 68, 75)
+        self.timed_out = False  # no tickSnapshotEnd, no terminal error and not complete when the wave ended
+        self.ended = False  # tickSnapshotEnd arrived: IB closed the market data line, nothing to cancel
+        self.refused = False  # IB answered this request id with a terminal error: closed at IB, nothing to cancel
+        self.warning = None  # an OPTION_WARNING_CODES message; prices may still follow
+
+    def tick(self, tick_type, price):
+        """tickPrice: bid, ask, last or close (live or delayed). The latest valid tick of a field wins. A value
+        that is not a plausible price (negative, non-finite, a sentinel) is ignored: it never replaces a price, so
+        a request that is done stays done."""
+        try:
+            kind = int(tick_type)
+        except (TypeError, ValueError):
+            return
+        name, number = PRICE_TICKS.get(kind), option_price(price)
+        if name is None or number is None:
+            return
+        self.prices[name] = number
+        self.delayed = self.delayed or kind in DELAYED_PRICE_TICKS
+        if self.complete(self.prices):  # same lock as the price: the waiter of the wave cannot miss it
+            self.done.set()
+
+    def reported_type(self):
+        """dataType of the request: what marketDataType said. Without it, "delayed" when a price came from a
+        delayed tick type, else None: live tick types alone are not reported as live."""
+        return self.data_type if self.data_type is not None else "delayed" if self.delayed else None
+
+    def market_data_type(self, value):
+        try:
+            self.data_type = MARKET_DATA_TYPES.get(int(value), self.data_type)
+        except (TypeError, ValueError):
+            return
+
+
 def _wrapper_class():
     from ibapi.wrapper import EWrapper
 
@@ -896,6 +1251,22 @@ def _wrapper_class():
         def historicalNewsEnd(self, requestId, hasMore):
             self.owner.finish(requestId)
 
+        def securityDefinitionOptionParameter(self, reqId, exchange, underlyingConId, tradingClass, multiplier,
+                                              expirations, strikes):
+            self.owner.add_row(reqId, (exchange, tradingClass, multiplier, expirations, strikes))
+
+        def securityDefinitionOptionParameterEnd(self, reqId):
+            self.owner.finish(reqId)
+
+        def tickPrice(self, reqId, tickType, price, attrib):
+            self.owner.tick_price(reqId, tickType, price)
+
+        def tickSnapshotEnd(self, reqId):
+            self.owner.snapshot_end(reqId)
+
+        def marketDataType(self, reqId, marketDataType):
+            self.owner.market_data_type(reqId, marketDataType)
+
     return Wrapper
 
 
@@ -910,7 +1281,7 @@ class IbGateway:
 
     IB_CALLS = ("connect", "disconnect", "isConnected", "run", "reqContractDetails", "reqHistoricalData",
                 "cancelHistoricalData", "reqHistoricalTicks", "reqMktDepth", "cancelMktDepth", "reqNewsProviders",
-                "reqHistoricalNews")
+                "reqHistoricalNews", "reqSecDefOptParams", "reqMktData", "cancelMktData")
 
     def __init__(self, gateway_file, clock=time.time, log=None):
         self.gateway_file, self.clock = gateway_file, clock
@@ -927,6 +1298,10 @@ class IbGateway:
         self.depth_collect = DEPTH_COLLECT_SECONDS
         self.providers = None  # (fetched at, [{code, name}])
         self.providers_rid = None
+        self.option_defs = {}  # (symbol, conId) -> (fetched at, option chain definition)
+        self.snapshot_wait = OPTION_SNAPSHOT_SECONDS
+        self.underlying_wait = OPTION_UNDERLYING_SECONDS
+        self.option_limiter = MessageLimiter(OPTION_MESSAGES_PER_SECOND)  # reqMktData and cancelMktData sends
 
     def connected(self):
         return bool(self._client is not None and self._client.isConnected() and self.ready.is_set())
@@ -989,6 +1364,31 @@ class IbGateway:
         if isinstance(h, DepthBook):
             h.apply(position, operation, side, price, size, venue)
 
+    def _snapshot_update(self, req_id, update):
+        """Applies update(holder) to the registered QuoteSnapshot of req_id under holders_lock; False when there is
+        none. _snapshots pops its holders under the same lock, so a callback that comes later (a late tick, the
+        answer to a cancel) changes nothing."""
+        with self.holders_lock:
+            h = self.holders.get(req_id)
+            if not isinstance(h, QuoteSnapshot):
+                return False
+            update(h)
+            return True
+
+    def tick_price(self, req_id, tick_type, price):
+        self._snapshot_update(req_id, lambda h: h.tick(tick_type, price))
+
+    def market_data_type(self, req_id, value):
+        self._snapshot_update(req_id, lambda h: h.market_data_type(value))
+
+    def snapshot_end(self, req_id):
+        """tickSnapshotEnd: IB has closed the market data line of this snapshot."""
+        def end(h):
+            h.ended = True
+            h.done.set()
+
+        self._snapshot_update(req_id, end)
+
     def depth_notice(self, req_id, message):
         book = self._depth_book(req_id)
         if book is None:
@@ -1033,6 +1433,15 @@ class IbGateway:
         else:
             err = IbError("ibkr_error", text, code)
         self.log("ib_message", req_id=req_id, code=code)
+        def record(h):
+            if code in OPTION_WARNING_CODES:  # a warning: the snapshot stays open and may still fill
+                h.warning = IbError("entitlement", text, code)
+            else:
+                h.error, h.refused = err, True
+                h.done.set()
+
+        if self._snapshot_update(req_id, record):
+            return
         h = self.holders.get(req_id)
         if h is not None:
             h.error = err
@@ -1262,6 +1671,149 @@ class IbGateway:
         items.sort(key=lambda i: i["t"], reverse=True)
         return info, providers, items[:req["count"]]
 
+    def _option_definition(self, req, info, remaining=None):
+        """{tradingClass, multiplier, expirations, strikes} of the SMART option chain, cached for CONTRACT_TTL."""
+        dkey = (req["symbol"], info["conId"])
+        cached = self.option_defs.get(dkey)
+        if cached and self.clock() - cached[0] < CONTRACT_TTL:
+            return cached[1]
+        rows, _ = self._call(lambda rid: self._client.reqSecDefOptParams(rid, req["symbol"], "", "STK",
+                                                                         info["conId"]), remaining)
+        smart = [row for row in rows if row[0] == "SMART"]
+        if not smart:
+            raise IbError("no_option_chain", "no SMART option chain for this symbol")
+        classes = (req["symbol"], req["symbol"].replace(" ", ""))
+        row = next((row for row in smart if row[1] in classes), None)
+        if row is None:  # another class may be an adjusted chain (after a split or merger): never guess
+            raise IbError("no_option_chain", "no SMART option chain with the trading class of this symbol")
+        expirations = []
+        for expiry in sorted(set(str(e) for e in row[3] or [])):
+            try:
+                if EXPIRY_RE.fullmatch(expiry) and expiry_close_ts(expiry):
+                    expirations.append(expiry)
+            except ValueError:
+                continue
+        strikes = set()
+        for strike in row[4] or []:
+            try:
+                if 0 < _finite(strike) < OPTION_PRICE_MAX:
+                    strikes.add(_finite(strike))
+            except (TypeError, ValueError):
+                continue
+        definition = {"tradingClass": _text(row[1], 16), "multiplier": _text(row[2], 8), "expirations": expirations,
+                      "strikes": sorted(strikes)}
+        self.option_defs[dkey] = (self.clock(), definition)
+        return definition
+
+    def _option_spec(self, inst, definition, expiry, strike, right):
+        spec = self._spec(dict(inst, secType="OPT", exchange="SMART", contractMonth=expiry))
+        spec.lastTradeDateOrContractMonth = expiry
+        spec.strike, spec.right = strike, right
+        spec.multiplier, spec.tradingClass = definition["multiplier"] or "", definition["tradingClass"] or ""
+        return spec
+
+    def _snapshots(self, specs, remaining=None, complete=option_quote_complete, window=None):
+        """One wave of one-shot market data snapshots, one QuoteSnapshot per spec in the same order. Waits until
+        every request is done: tickSnapshotEnd, a terminal error, or complete(prices). The wait is at most
+        window (default snapshot_wait) and never goes past the caller's budget; with less than OPTION_MIN_WINDOW of budget left
+        nothing is sent. Every send goes through option_limiter. Then the holders are popped; a request that is not done at that moment is marked
+        timed_out. cancelMktData goes only to the sent requests that are still open at IB: no tickSnapshotEnd
+        and no error that IB addressed to that request id. So a request that completed on its prices is
+        cancelled at once; a warning code does not close a request, and neither does a gateway loss reported for
+        all requests. Always snapshot=True, regulatorySnapshot=False (a regulatory snapshot costs money) and no
+        generic ticks."""
+        if not 0 < len(specs) < OPTION_SNAPSHOT_MAX:
+            raise IbError("ibkr_error", "snapshot wave outside the request cap")
+        if remaining is not None and remaining() < OPTION_MIN_WINDOW:
+            raise IbError("timeout", "too little of the request budget is left for a market data snapshot")
+        pending = []
+        with self.holders_lock:
+            for spec in specs:
+                self.next_id += 1
+                holder = self.holders[self.next_id] = QuoteSnapshot(complete)
+                pending.append((self.next_id, spec, holder))
+        sent = []
+        try:
+            for req_id, spec, _holder in pending:
+                self.option_limiter.wait()
+                sent.append(req_id)
+                self._client.reqMktData(req_id, spec, "", True, False, [])
+            # sized after the sends: a wait of the limiter has used up some of the budget
+            wait = self.snapshot_wait if window is None else window
+            wait = wait if remaining is None else min(wait, remaining())
+            end = time.monotonic() + max(0.0, wait)
+            for _req_id, _spec, holder in pending:
+                holder.done.wait(max(0.0, end - time.monotonic()))
+        finally:
+            still_open = []
+            with self.holders_lock:  # one consistent read: from here on no callback can change these holders
+                for req_id, _spec, holder in pending:
+                    self.holders.pop(req_id, None)
+                    holder.timed_out = not (holder.ended or holder.error is not None or complete(holder.prices))
+                    if req_id in sent and not holder.ended and not holder.refused:
+                        still_open.append(req_id)
+            for req_id in still_open:  # after the pop: an answer of IB to a cancel (code 300) finds no holder
+                self._cancel_snapshot(req_id)
+        return [holder for _req_id, _spec, holder in pending]
+
+    def _cancel_snapshot(self, req_id):
+        try:  # a failure of the limiter must never skip the cancel
+            self.option_limiter.wait()
+        except Exception as e:
+            self.log("ib_option_limiter_failed", req_id=req_id, kind=type(e).__name__)
+        try:
+            self._client.cancelMktData(req_id)
+        except Exception as e:
+            self.log("ib_cancel_snapshot_failed", req_id=req_id, kind=type(e).__name__)
+
+    def fetch_option_chain(self, req, remaining=None):
+        """The chain of one stock: the option chain definition, one snapshot of the underlying, then one snapshot
+        per call and put of the req["strikes"] listed strikes nearest the underlying price. At most
+        OPTION_SNAPSHOT_MAX snapshot requests; a failed option contract is reported in its row, not raised."""
+        if req["expiry"] is not None and expiry_close_ts(req["expiry"]) <= self.clock():  # before any IB call
+            raise IbError("expiry_not_listed", "expiry %s has passed its 16:00 New York close" % req["expiry"])
+        self._connect()
+        inst = dict(OPTION_UNDERLYING, symbol=req["symbol"])
+        try:
+            info = self._details(inst, remaining)
+        except IbError as e:
+            if e.kind == "no_contract":  # unknown symbol: 404 on this endpoint
+                raise IbError("no_option_chain", "no stock contract found for this symbol", e.code) from None
+            raise
+        definition = self._option_definition(inst, info, remaining)
+        expiry = pick_expiry(definition["expirations"], req["expiry"], self.clock())
+        if expiry is None:
+            raise IbError("expiry_not_listed", "expiry %s is not listed for this symbol" % req["expiry"]
+                          if req["expiry"] else "no listed expiry is still open")
+        under = self._snapshots([self._resolved_spec(inst, info)], remaining, underlying_complete,
+                                self.underlying_wait)[0]
+        price = underlying_price(under.prices)
+        error = under.error
+        if error is not None and (price is None or not isinstance(error, IbError) or error.kind == "unavailable"):
+            raise error
+        if price is None:
+            if under.warning is not None:
+                raise under.warning
+            if under.timed_out:
+                raise IbError("timeout", "the underlying snapshot did not answer in time")
+            raise IbError("ibkr_error", "no usable underlying price in the snapshot")
+        strikes = nearest_strikes(definition["strikes"], price, min(req["strikes"], OPTION_STRIKES_MAX))
+        if not strikes:
+            raise IbError("no_option_chain", "the option chain lists no strikes")
+        legs = [(strike, right) for strike in strikes for right in ("C", "P")]
+        self.log("ib_option_chain", symbol=req["symbol"], expiry=expiry, strikes=len(strikes), snapshots=len(legs) + 1)
+        holders = self._snapshots([self._option_spec(inst, definition, expiry, strike, right)
+                                   for strike, right in legs], remaining)
+        quotes = []
+        for (strike, right), holder in zip(legs, holders):
+            error = holder.error
+            if isinstance(error, IbError) and error.kind == "unavailable":
+                raise error  # the gateway went away: not a per-contract problem
+            quotes.append(option_quote_row(strike, right, holder))
+        return {"expirations": definition["expirations"], "expiry": expiry,
+                "tradingClass": definition["tradingClass"], "multiplier": definition["multiplier"],
+                "underlying": dict(under.prices, price=price, dataType=under.reported_type()), "quotes": quotes}
+
     def close(self):
         if self._client is not None:
             self._client.disconnect()
@@ -1270,7 +1822,7 @@ class IbGateway:
 def make_handler(service, token):
     expected = ("Bearer " + token).encode()
     routes = {PREFIX + "/bars": service.bars, PREFIX + "/ticks": service.ticks, PREFIX + "/depth": service.depth,
-              PREFIX + "/news": service.news}
+              PREFIX + "/news": service.news, PREFIX + "/option-chain": service.option_chain}
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "vertex-history/" + VERSION
@@ -1327,7 +1879,8 @@ def main():
     cache_dir = os.environ.get("CACHE_DIRECTORY", "/var/cache/vertex-history")
     gateway_file = os.path.join(os.environ.get("RUNTIME_DIRECTORY", "/run/vertex-history"), "gateway")
     gateway = IbGateway(gateway_file, log=_log)
-    service = HistoryService(gateway, DiskCache(cache_dir), Pacer(), log=_log)
+    option_quotes = option_quotes_enabled()  # read once; a change needs a restart
+    service = HistoryService(gateway, DiskCache(cache_dir), Pacer(), log=_log, option_quotes=option_quotes)
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), make_handler(service, token))
     server.daemon_threads = True
 
@@ -1339,7 +1892,8 @@ def main():
                 os._exit(75)
 
     threading.Thread(target=watchdog, name="watchdog", daemon=True).start()
-    _log("listening", host=LISTEN_HOST, port=LISTEN_PORT, version=VERSION, client_id=CLIENT_ID)
+    _log("listening", host=LISTEN_HOST, port=LISTEN_PORT, version=VERSION, client_id=CLIENT_ID,
+         option_quotes=service.option_quotes)
     try:
         server.serve_forever()
     finally:
