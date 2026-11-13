@@ -264,7 +264,16 @@ describe("PortfolioMonitor", () => {
     await mount(
       <PortfolioMonitor
         gateway={gatewayOf(
-          fixtureSnapshot({ account: { mode: "live", count: 2 }, messages: [] })
+          fixtureSnapshot({
+            account: {
+              mode: "live",
+              modeSource: "confirmed",
+              modeConfirmedAt: "2026-11-11T05:12:00.000Z",
+              modeError: null,
+              count: 2,
+            },
+            messages: [],
+          })
         )}
         defaultTab="positions"
       />
@@ -660,6 +669,7 @@ describe("PortfolioMonitor", () => {
         gateway: "disconnected",
         connected: false,
         lastError: "Test gateway error.",
+        since: null,
       },
       positions: [],
       orders: [],
@@ -668,9 +678,13 @@ describe("PortfolioMonitor", () => {
     const { root } = await mount(
       <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab="positions" />
     );
-    expect(health()).toContain("Gateway disconnected");
-    expect(find("[data-banner=disconnected]").textContent).toBe(
-      "IBKR gateway: disconnected. Test gateway error. Values may be out of date."
+    expect(health()).toBe("Status:Gateway disconnected · retrying");
+    expect(find("[data-banner=disconnected]").textContent).toMatch(
+      /^Gateway disconnected · retrying\. Last confirmed: Paper account \d\d:\d\d \S+\. Test gateway error\. Values may be out of date\.$/
+    );
+    // The account mode is a configured fact: it stays on the badge during the disconnect.
+    expect(find("[data-account-mode=paper]").textContent).toBe(
+      "Status:Paper account · read-only"
     );
     expect(find("[data-unknown]").textContent).toContain("Positions unknown");
     expect(text()).not.toContain("No open positions");
@@ -695,15 +709,103 @@ describe("PortfolioMonitor", () => {
     await mount(
       <PortfolioMonitor
         gateway={gatewayOf(
-          fixtureSnapshot({ status: { gateway: "starting", connected: false } })
+          fixtureSnapshot({
+            status: { gateway: "starting", connected: false, since: null },
+            account: {
+              mode: "live",
+              modeSource: "configured",
+              modeConfirmedAt: null,
+              modeError: null,
+              count: 0,
+            },
+          })
         )}
         defaultTab="positions"
       />
     );
-    expect(health()).toContain("Gateway starting");
-    return expect(find("[data-banner=starting]").textContent).toBe(
-      "IBKR gateway: starting. Values may be out of date."
+    expect(health()).toBe("Status:Gateway connecting · retrying");
+    expect(find("[data-account-mode=live]").textContent).toBe(
+      "Status:Live account · read-only"
     );
+    return expect(find("[data-banner=starting]").textContent).toBe(
+      "Gateway connecting · retrying. Live account from the gateway configuration; no session has confirmed it yet. Values may be out of date."
+    );
+  });
+
+  it("shows since when the gateway has been down and keeps the account mode", async () => {
+    const since = new Date(Date.now() - 20 * 60_000).toISOString();
+    await mount(
+      <PortfolioMonitor
+        gateway={gatewayOf(
+          fixtureSnapshot({
+            status: { gateway: "disconnected", connected: false, since },
+            account: {
+              mode: "live",
+              modeSource: "configured",
+              modeConfirmedAt: since,
+              modeError: null,
+              count: 0,
+            },
+          })
+        )}
+        defaultTab="positions"
+      />
+    );
+    expect(health()).toMatch(
+      /^Status:Gateway disconnected since (\w{3} \d{1,2} )?\d\d:\d\d \S+ · retrying$/
+    );
+    expect(find("[data-account-mode=live]").textContent).toBe(
+      "Status:Live account · read-only"
+    );
+    expect(text()).not.toMatch(/account mode unknown/i);
+    return expect(find("[data-banner=disconnected]").textContent).toContain(
+      "Last confirmed: Live account"
+    );
+  });
+
+  it("shows a named account-mode error with its fix instead of a mode", async () => {
+    const withError = (
+      modeError: "mismatch" | "not-configured" | "not-reported"
+    ) =>
+      fixtureSnapshot({
+        account: {
+          mode: null,
+          modeSource: null,
+          modeConfirmedAt: null,
+          modeError,
+          count: 0,
+        },
+        // The API empties the lists on a mismatch and leaves the gateway state as it is.
+        ...(modeError === "mismatch" ? { positions: [], orders: [] } : {}),
+      });
+    const { root } = await mount(
+      <PortfolioMonitor
+        gateway={gatewayOf(withError("mismatch"))}
+        defaultTab="positions"
+      />
+    );
+    expect(find("[data-account-mode=mismatch]").textContent).toBe(
+      "Status:Account mode mismatch · data withheld"
+    );
+    expect(
+      find("[data-banner=account-mode-mismatch]").getAttribute("role")
+    ).toBe("alert");
+    expect(find("[data-health=mode-mismatch]").textContent).toContain(
+      "Account data withheld"
+    );
+    // Withheld lists are not shown as an empty account.
+    expect(text()).not.toMatch(/No open positions|No open orders/);
+    expect(text()).not.toMatch(/Values may be out of date/);
+    await run(() => root.unmount());
+    await mount(
+      <PortfolioMonitor
+        gateway={gatewayOf(withError("not-configured"))}
+        defaultTab="positions"
+      />
+    );
+    return expect(
+      find("[data-banner=account-mode-not-configured]").textContent
+    ).toContain("Set IBKR_TRADING_MODE");
   });
 
   it("shows stale data with its age", async () => {

@@ -184,6 +184,7 @@ describe("JournalReport status and contracts", () => {
     lastError: null,
     ordersAsOf: null,
     receivedAt: "2026-10-09T14:00:00.000Z",
+    since: "2026-10-09T13:00:00.000Z",
     ...overrides,
   });
 

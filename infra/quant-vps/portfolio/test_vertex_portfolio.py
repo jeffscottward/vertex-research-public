@@ -86,8 +86,13 @@ class FakeClient:
 
     def run(self):
         if self.script.get("handshake", True):
-            self.state.managedAccounts(self.script.get("accounts", "DU1111111"))
+            accounts = self.script.get("accounts", "DU1111111")
+            late = self.script.get("late_accounts", False)  # the list arrives after nextValidId
+            if not late and accounts:
+                self.state.managedAccounts(accounts)
             self.state.nextValidId(1)
+            if late and accounts:
+                threading.Timer(0.05, self.state.managedAccounts, (accounts,)).start()
 
     def disconnect(self):
         self.calls.append(("disconnect",))
@@ -158,7 +163,7 @@ class HelpersTest(unittest.TestCase):
         self.assertEqual(vp.scrub("ES 20261218"), "ES 20261218")
 
     def test_account_mode(self):
-        self.assertEqual(vp.account_mode([]), "unknown")
+        self.assertIsNone(vp.account_mode([]))
         self.assertEqual(vp.account_mode(["DU1111111", "DF2222222"]), "paper")
         self.assertEqual(vp.account_mode(["DU1111111", "U3333333"]), "live")
         self.assertEqual(vp.account_mode(["U3333333"]), "live")
@@ -221,10 +226,13 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual(d["schema"], "vertex-portfolio-snapshot-v1")
         self.assertEqual((d["source"], d["clientId"], d["state"], d["connected"]), ("ibkr-gateway", 78, "live", True))
         self.assertEqual((d["accountMode"], d["accountCount"]), ("paper", 2))
+        self.assertEqual((d["modeSource"], d["modeConfirmedAt"], d["modeError"]), ("confirmed", self.clock.t, None))
+        self.assertEqual(d["stateSince"], self.clock.t)
         self.assertEqual(d["dataAsOf"], self.clock.t)
         self.assertEqual(d["ordersAsOf"], self.clock.t)
         self.assertEqual(set(d), {"schema", "source", "clientId", "version", "generatedAt", "state", "connected",
-                                  "lastError", "accountMode", "accountCount", "dataAsOf", "ordersAsOf", "summary",
+                                  "lastError", "accountMode", "modeSource", "modeConfirmedAt", "modeError",
+                                  "stateSince", "accountCount", "dataAsOf", "ordersAsOf", "summary",
                                   "pnl", "positions", "orders", "completed", "executions", "errors"})
 
     def test_main_account_and_summary(self):
@@ -297,6 +305,145 @@ class FixtureTest(unittest.TestCase):
         self.assertEqual(json.dumps(populated_state(FakeClock()).snapshot(), indent=2) + "\n", fixture)
 
 
+class ModeTrackerTest(unittest.TestCase):
+    def setUp(self):
+        self.clock = FakeClock()
+
+    def tracker(self, configured=None, store=None):
+        return vp.ModeTracker(configured=configured, store=store, clock=self.clock)
+
+    def test_configured_mode_before_any_connection(self):
+        m = self.tracker("live")
+        self.assertEqual(m.view(), {"accountMode": "live", "modeSource": "configured", "modeConfirmedAt": None,
+                                    "modeError": None})
+        self.assertEqual(m.since(), self.clock.t)
+
+    def test_not_configured_is_a_named_error(self):
+        self.assertEqual(self.tracker().view(), {"accountMode": None, "modeSource": None, "modeConfirmedAt": None,
+                                                 "modeError": "not-configured"})
+        self.assertEqual(self.tracker("demo").view()["modeError"], "not-configured")
+
+    def test_confirm_disconnect_reconnect(self):
+        m = self.tracker("live")
+        t0 = self.clock.t
+        self.assertTrue(m.observe("live"))
+        m.set_live(True)
+        self.assertEqual(m.view(), {"accountMode": "live", "modeSource": "confirmed", "modeConfirmedAt": t0,
+                                    "modeError": None})
+        self.assertEqual(m.since(), t0)
+        self.clock.t += 60
+        down = self.clock.t
+        m.set_live(False)
+        m.session_reset()
+        # Disconnected: same mode, source falls back to the configuration, last confirmation is kept.
+        self.assertEqual(m.view(), {"accountMode": "live", "modeSource": "configured", "modeConfirmedAt": t0,
+                                    "modeError": None})
+        self.assertEqual(m.since(), down)
+        self.clock.t += 30
+        m.set_live(False)
+        self.assertEqual(m.since(), down)  # the outage start does not move while it lasts
+        self.assertTrue(m.observe("live"))
+        m.set_live(True)
+        self.assertEqual((m.view()["modeSource"], m.view()["modeConfirmedAt"], m.since()),
+                         ("confirmed", self.clock.t, self.clock.t))
+
+    def test_mismatch_both_directions_and_recovery(self):
+        for configured, observed in (("paper", "live"), ("live", "paper")):
+            m = self.tracker(configured)
+            self.assertFalse(m.observe(observed))
+            self.assertEqual(m.view(), {"accountMode": None, "modeSource": None, "modeConfirmedAt": None,
+                                        "modeError": "mismatch"})
+            m.session_reset()
+            self.assertEqual(m.view()["modeError"], "mismatch")  # stays until a list agrees
+            self.assertFalse(m.observe(None))
+            self.assertTrue(m.observe(configured))
+            self.assertEqual((m.view()["accountMode"], m.view()["modeError"]), (configured, None))
+
+    def test_mismatch_does_not_become_the_confirmed_mode(self):
+        store = vp.MemoryModeStore()
+        m = self.tracker("paper", store)
+        m.observe("live")
+        self.assertNotIn("confirmedMode", store.load())
+
+    def test_confirmed_mode_without_configuration(self):
+        m = self.tracker()
+        m.observe("paper")
+        m.session_reset()
+        self.assertEqual(m.view(), {"accountMode": "paper", "modeSource": "confirmed",
+                                    "modeConfirmedAt": self.clock.t, "modeError": None})
+
+    def test_old_confirmation_of_the_other_mode_is_not_shown(self):
+        store = vp.MemoryModeStore({"confirmedMode": "paper", "confirmedAt": "1700000000"})
+        self.assertEqual(self.tracker("live", store).view(),
+                         {"accountMode": "live", "modeSource": "configured", "modeConfirmedAt": None,
+                          "modeError": None})
+
+    def test_restart_keeps_confirmation_and_outage_start(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "account-mode.sqlite")
+            m = self.tracker("live", vp.open_mode_store(path))
+            t0 = self.clock.t
+            m.observe("live")
+            m.set_live(True)
+            self.clock.t += 100
+            down = self.clock.t
+            m.set_live(False)
+            self.clock.t += 500
+            m2 = self.tracker("live", vp.open_mode_store(path))  # service restart during the outage
+            self.assertEqual(m2.view(), {"accountMode": "live", "modeSource": "configured", "modeConfirmedAt": t0,
+                                         "modeError": None})
+            self.assertEqual(m2.since(), down)
+            m3 = self.tracker(None, vp.open_mode_store(path))  # configuration lost: last confirmed mode
+            self.assertEqual((m3.view()["accountMode"], m3.view()["modeSource"]), ("live", "confirmed"))
+            with open(path, "rb") as f:
+                self.assertIsNone(vp.ACCOUNT_RE.search(f.read().decode("latin-1")))
+
+    def test_restart_keeps_a_mismatch_until_the_configuration_or_the_list_changes(self):
+        store = vp.MemoryModeStore()
+        self.tracker("paper", store).observe("live")
+        again = self.tracker("paper", store)  # restart: still a mismatch before any handshake
+        self.assertEqual(again.view()["modeError"], "mismatch")
+        self.assertEqual(self.tracker("live", store).view()["accountMode"], "live")  # configuration corrected
+        self.assertEqual(self.tracker(None, store).view()["modeError"], "not-configured")
+        self.assertTrue(again.observe("paper"))
+        self.assertNotIn("mismatch", store.load())
+        self.assertIsNone(self.tracker("paper", store).view()["modeError"])
+
+    def test_restart_while_live_starts_a_new_outage(self):
+        store = vp.MemoryModeStore()
+        m = self.tracker("live", store)
+        m.observe("live")
+        m.set_live(True)
+        self.assertNotIn("downSince", store.load())
+        self.clock.t += 50
+        self.assertEqual(self.tracker("live", store).since(), self.clock.t)
+
+    def test_store_failure_falls_back_to_memory(self):
+        logs = []
+        store = vp.open_mode_store("/nonexistent-dir/x/account-mode.sqlite", log=lambda e, **kw: logs.append(e))
+        self.assertIsInstance(store, vp.MemoryModeStore)
+        self.assertEqual(logs, ["account_mode_store_unavailable"])
+
+        class Broken(vp.MemoryModeStore):
+            def save(self, key, value):
+                raise OSError("disk full")
+        m = self.tracker("live", Broken())
+        self.assertTrue(m.observe("live"))
+        self.assertEqual(m.view()["modeSource"], "confirmed")
+
+    def test_read_configured_mode(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "mode")
+            self.assertIsNone(vp.read_configured_mode(path))
+            for text, want in (("live\n", "live"), (" Paper ", "paper"), ("", None), ("unknown", None)):
+                with open(path, "w") as f:
+                    f.write(text)
+                self.assertEqual(vp.read_configured_mode(path), want)
+
+    def test_no_neutral_placeholder_in_source(self):
+        self.assertNotIn('"unknown"', SOURCE)
+
+
 class MonitorTest(unittest.TestCase):
     def setUp(self):
         self.clock = FakeClock()
@@ -305,6 +452,122 @@ class MonitorTest(unittest.TestCase):
             f.write("172.18.0.5 4003\n")
         self.state = vp.PortfolioState(clock=self.clock)
         self.clients = []
+
+    def configured(self, mode):
+        self.state = vp.PortfolioState(clock=self.clock, mode=vp.ModeTracker(configured=mode, clock=self.clock))
+
+    def test_mode_through_disconnect_and_reconnect(self):
+        self.configured("live")
+        start = self.clock.t
+        snap = self.state.snapshot()
+        self.assertEqual((snap["accountMode"], snap["modeSource"], snap["modeConfirmedAt"], snap["stateSince"]),
+                         ("live", "configured", None, start))
+        ticks = {"n": 0}
+
+        def open_orders(c, *a):
+            ticks["n"] += 1
+            if ticks["n"] % 3 == 0:
+                c.state.error(-1, 1100, "Connectivity lost")
+
+        m = self.monitor({"accounts": "U5555555", "reqAllOpenOrders": open_orders})
+        seen = []
+        orig = m.session
+
+        def session():
+            try:
+                return orig()
+            finally:
+                seen.append(self.state.snapshot())
+        m.session = session
+        m.run_once()
+        live = seen[0]
+        self.assertEqual((live["state"], live["accountMode"], live["modeSource"], live["modeError"]),
+                         ("live", "live", "confirmed", None))
+        self.assertGreaterEqual(live["stateSince"], live["modeConfirmedAt"])
+        snap = self.state.snapshot()
+        self.assertEqual((snap["state"], snap["accountMode"], snap["modeSource"], snap["modeError"]),
+                         ("disconnected", "live", "configured", None))
+        self.assertEqual(snap["modeConfirmedAt"], live["modeConfirmedAt"])
+        self.assertGreater(snap["stateSince"], live["stateSince"])
+        self.assertEqual((snap["accountCount"], snap["positions"], snap["summary"], snap["dataAsOf"]),
+                         (0, [], {}, None))
+        down = snap["stateSince"]
+        self.assertEqual(self.state.snapshot()["stateSince"], down)
+        m.run_once()
+        again = seen[1]
+        self.assertEqual((again["state"], again["modeSource"]), ("live", "confirmed"))
+        self.assertGreater(again["stateSince"], down)
+        self.assertGreater(again["modeConfirmedAt"], live["modeConfirmedAt"])
+        self.assertNotIn("5555555", json.dumps(seen))
+
+    def test_mode_mismatch_withholds_and_sends_no_account_request(self):
+        for configured, accounts in (("paper", "U5555555"), ("live", "DU1111111")):
+            self.configured(configured)
+            self.clients = []
+            logs = []
+            m = self.monitor({"accounts": accounts})
+            m.log = lambda event, **kw: logs.append((event, kw))
+            self.assertEqual(m.run_once(), 10)
+            names = [c[0] for c in self.clients[0].calls]
+            self.assertEqual(names, ["connect", "disconnect"])
+            snap = self.state.snapshot()
+            self.assertEqual((snap["accountMode"], snap["modeSource"], snap["modeConfirmedAt"], snap["modeError"]),
+                             (None, None, None, "mismatch"))
+            self.assertEqual((snap["state"], snap["connected"], snap["lastError"]),
+                             ("disconnected", False, "account mode mismatch"))
+            self.assertEqual((snap["positions"], snap["orders"], snap["summary"], snap["dataAsOf"]),
+                             ([], [], {}, None))
+            self.assertEqual(m.failures, 1)
+            self.assertIn(("account_mode_mismatch", {"configured": configured}), logs)
+            self.assertIsNone(vp.ACCOUNT_RE.search(json.dumps([snap, logs])))
+
+    def test_late_account_list_is_checked_before_any_account_request(self):
+        self.configured("paper")
+        real_sleep = self.clock.sleep
+
+        def sleep(s):  # let the timer thread deliver the late list
+            time.sleep(0.02)
+            real_sleep(s)
+        m = self.monitor({"accounts": "U5555555", "late_accounts": True})
+        m.sleep = sleep
+        m.run_once()
+        self.assertEqual([c[0] for c in self.clients[0].calls], ["connect", "disconnect"])
+        self.assertEqual(self.state.snapshot()["modeError"], "mismatch")
+
+    def test_no_account_list_means_no_account_request(self):
+        self.configured("live")
+        m = self.monitor({"accounts": ""})
+        m.run_once()
+        self.assertEqual([c[0] for c in self.clients[0].calls], ["connect", "disconnect"])
+        snap = self.state.snapshot()
+        self.assertEqual((snap["state"], snap["lastError"], snap["accountMode"], snap["modeSource"]),
+                         ("disconnected", "account list not received", "live", "configured"))
+
+    def test_mismatch_after_live_withholds_at_once(self):
+        self.configured("live")
+        self.state.managedAccounts("U5555555")
+        self.state.set_state("live")
+        self.assertTrue(self.state.health()["connected"])
+        self.state.managedAccounts("DU1111111")
+        snap = self.state.snapshot()
+        self.assertEqual((snap["connected"], snap["modeError"], snap["dataAsOf"]), (False, "mismatch", None))
+        self.assertFalse(self.state.health()["connected"])
+
+    def test_mismatch_is_not_hidden_by_a_later_api_error(self):
+        self.configured("paper")
+        self.state.managedAccounts("U5555555")
+        self.state.error(-1, 1100, "Connectivity lost")
+        self.state.connectionClosed()
+        self.assertEqual(self.state.fatal, "account mode mismatch")
+        self.state.set_state("live")  # even a state set to live shows nothing from that account
+        snap = self.state.snapshot()
+        self.assertEqual((snap["connected"], snap["modeError"], snap["positions"]), (False, "mismatch", []))
+
+    def test_no_configuration_and_never_connected(self):
+        m = self.monitor({"connect": False})
+        m.run_once()
+        snap = self.state.snapshot()
+        self.assertEqual((snap["accountMode"], snap["modeError"]), (None, "not-configured"))
 
     def tearDown(self):
         os.unlink(self.gw)

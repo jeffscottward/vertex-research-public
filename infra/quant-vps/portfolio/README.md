@@ -19,6 +19,26 @@ On disconnect or a fatal error (326, 502, 504, 1100, 1300) the service clears al
 
 Account codes never leave the process: allow-listed fields, and every output string is scrubbed.
 
+## Account mode
+
+The snapshot always has a definite account mode, also while the gateway is down:
+
+- `accountMode` is `live` or `paper`. `modeSource` says where it comes from: `configured` (the trading mode
+  of the gateway container, which `resolve-gateway.sh` writes to `/run/vertex-portfolio/mode` at each start) or
+  `confirmed` (the managed account list of the current session agrees; without a configured mode it can be
+  the list of the last session, see `modeConfirmedAt`). `modeConfirmedAt` is the last time an
+  account list confirmed that mode.
+- `stateSince` is the start of the current connection state (live since, or not live since).
+- `modeError` names the two cases without a mode. `mismatch`: the configured mode and the account list
+  disagree. The session ends before any account request and no account data is shown. With a configured
+  mode the service waits for the account list first and requests nothing without it. The mismatch is stored
+  too, so a restart keeps it until the configuration or the account list changes. `not-configured`: no
+  configured mode and no confirmed mode yet. Fix: set `TRADING_MODE` on the ib-gateway container.
+
+The last confirmed mode, its time and the outage start are kept in SQLite in the unit's `StateDirectory`
+(`/var/lib/vertex-portfolio/account-mode.sqlite`), so a disconnect or a restart does not lose them. The file
+holds mode words and times only, no account codes.
+
 ## Endpoints (bearer `VERTEX_STATUS_TOKEN`)
 
 - `GET /vertex-portfolio/v1/snapshot` -> `vertex-portfolio-snapshot-v1`
