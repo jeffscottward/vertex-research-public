@@ -783,10 +783,10 @@ const submit = api.vertexOrders.submit
     }
     // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
     await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
-    // Only "submitted" and "unconfirmed" reached IBKR. A bridge "unknown" may have reached it
-    // (stored as an unknown outcome, reconciled and never resent); the audit outcome is binary,
-    // so it is audited as a failure with result "unknown" in the details. Any other state (for
-    // example "aborted") is a refusal and is audited as a failure.
+    // Only "submitted" and "unconfirmed" reached IBKR; any other state is audited as a failure.
+    // Known gap (single-order path, predates go-live; follow-up of card vertex-golive-exec-intake):
+    // a bridge "unknown" or "aborted" is stored as "placed" here, so it is not reconciled. The
+    // combo path maps states with comboOutcome instead ("unknown" stays an unknown outcome).
     await audit(
       context,
       "submit",
