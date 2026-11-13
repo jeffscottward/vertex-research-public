@@ -444,7 +444,19 @@ describe("PapersWorkspace layout", () => {
   });
 
   it("creates the browser gateway when none is supplied", async () => {
-    const container = await render(<PapersWorkspace />);
-    expect(container.querySelector("h1")?.textContent).toBe("Papers");
+    // No network in a unit test: the request is refused at once, so the load
+    // settles before the test ends. The browser client is built here and kept
+    // by its module, with this stub: a later test of this file cannot swap it.
+    const request = vi.fn(async () =>
+      Promise.reject(new TypeError("fetch failed"))
+    );
+    vi.stubGlobal("fetch", request);
+    try {
+      const container = await render(<PapersWorkspace />);
+      expect(request).toHaveBeenCalledOnce();
+      expect(status(container)).toBe("Unavailable");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
