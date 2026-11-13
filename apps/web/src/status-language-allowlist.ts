@@ -417,7 +417,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "How to read identities, provenance, review status, and unavailable states in Vertex Research.",
     count: 1,
     reason:
-      "Not displayed: Page metadata (SEO description), describes documentation content, not a state.",
+      "Kept: page meta description (search snippets and link previews); prose about the documentation, not a status.",
   },
   {
     file: "app/(public)/resources/page.tsx",
@@ -860,6 +860,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Badge "Load failed" with the error code; state.message is in scope and already shown in the body ("Filings unavailable: <message>"). Add last successful load time if kept in state.',
     open: true,
+  },
+  {
+    file: "components/portal/dashboard-widgets-model.ts",
+    text: "-",
+    count: 1,
+    reason:
+      "Kept: separator of an ISO date key (year-month-day), not a placeholder.",
   },
   {
     file: "components/portal/dashboard-widgets.tsx",
@@ -1401,7 +1408,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     file: "components/portal/options-analytics-panel.tsx",
     text: "-",
     count: 1,
-    reason: "Not displayed: Sign character of a number, not a placeholder.",
+    reason:
+      "Kept: the minus sign of a number or of a subtraction in an expression; it is a real value, not a placeholder.",
   },
   {
     file: "components/portal/options-analytics-panel.tsx",
@@ -1454,6 +1462,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
+    file: "components/portal/pick-list-import.ts",
+    text: "-",
+    count: 1,
+    reason:
+      "Kept: hyphen that replaces other characters in a slug, not a placeholder.",
+  },
+  {
     file: "components/portal/pick-list-proposal-panel.tsx",
     text: "—",
     count: 6,
@@ -1490,7 +1505,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unknown",
     count: 1,
     reason:
-      "Not displayed: Mostly a data attribute; the visible title carries gate label plus detail. Screen-reader text should say 'not evaluated' (minor, covered by the Unknown label fix).",
+      'Not displayed: value of the data-verdict attribute only; the screen-reader text says "not evaluated" with the gate detail.',
   },
   {
     file: "components/portal/plays-workspace.tsx",
@@ -1807,7 +1822,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     file: "components/portal/strategy-builder-model.ts",
     text: "-",
     count: 1,
-    reason: "Not displayed: Minus operator glyph, not a placeholder.",
+    reason:
+      "Kept: the minus sign of a number or of a subtraction in an expression; it is a real value, not a placeholder.",
   },
   {
     file: "components/portal/strategy-builder-workspace.tsx",
@@ -2069,6 +2085,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
+    file: "features/charts/workstation.ts",
+    text: "-",
+    count: 2,
+    reason:
+      "Kept: hyphen in an export file name (symbol slug and time stamp), not a placeholder.",
+  },
+  {
     file: "features/click-log/install.ts",
     text: "unknown",
     count: 1,
@@ -2147,6 +2170,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: Names the cause (source did not supply the value) and avoids showing zero.",
+  },
+  {
+    file: "features/experience/research-chat-client.ts",
+    text: "-",
+    count: 1,
+    reason:
+      'Kept: base64url encoding replaces "+" with a hyphen; it is not a displayed text.',
   },
   {
     file: "features/experience/research-chat-room.tsx",

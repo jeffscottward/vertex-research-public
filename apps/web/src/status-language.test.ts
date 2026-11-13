@@ -59,18 +59,16 @@ const MISSING_REASON = "REASON REQUIRED";
 // An expression inside a template literal.
 const HOLE = "${}";
 const COMPARISONS = ["===", "!==", "==", "!="];
-// String methods whose literal argument is a separator or a pattern, not a text.
-const STRING_METHODS = [
+// String methods whose first literal argument is a separator or a pattern, not a text. A second
+// argument (the replacement) and the arguments of join, padStart and padEnd can be displayed.
+const PATTERN_METHODS = [
   "split",
-  "join",
   "replace",
   "replaceAll",
   "startsWith",
   "endsWith",
   "includes",
   "indexOf",
-  "padStart",
-  "padEnd",
 ];
 
 type SyntaxNode = Readonly<Record<string, unknown>> & { readonly type: string };
@@ -87,6 +85,12 @@ const nameOf = (value: unknown): string =>
 const collapse = (text: string): string =>
   text
     .replace(/&(mdash|ndash|hellip);/g, (entity) => ENTITIES[entity] ?? entity)
+    .replace(/&#x([0-9a-f]+);/gi, (_entity, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16))
+    )
+    .replace(/&#(\d+);/g, (_entity, decimal: string) =>
+      String.fromCodePoint(Number.parseInt(decimal, 10))
+    )
     .replace(/\s+/g, " ")
     .trim();
 
@@ -115,15 +119,19 @@ const notDisplayed = (node: SyntaxNode): readonly unknown[] => {
   )
     return [node["left"], node["right"]];
   if (node.type === "SwitchCase") return [node["test"]];
+  // The literal value of a data-* attribute is for tests and styles, not for the reader.
+  if (node.type === "JSXAttribute" && nameOf(node["name"]).startsWith("data-"))
+    return [node["value"]];
   if (node.type === "CallExpression") {
     const callee = node["callee"];
-    if (nameOf(callee) === "require") return [node["arguments"]];
+    const [first] = Array.isArray(node["arguments"]) ? node["arguments"] : [];
+    if (nameOf(callee) === "require") return [first];
     if (
       isNode(callee) &&
       callee.type === "MemberExpression" &&
-      STRING_METHODS.includes(nameOf(callee["property"]))
+      PATTERN_METHODS.includes(nameOf(callee["property"]))
     )
-      return [node["arguments"]];
+      return [first];
   }
   return [];
 };
@@ -134,16 +142,11 @@ const collectTexts = (value: unknown, found: string[]): void => {
     return;
   }
   if (!isNode(value)) return;
-  // A type is not a text; neither is a data-* attribute.
+  // A type is not a text.
   if (value.type === "TSLiteralType") return;
-  if (
-    value.type === "JSXAttribute" &&
-    nameOf(value["name"]).startsWith("data-")
-  )
-    return;
   const text = nodeText(value);
   if (text !== null) found.push(text);
-  const skipped = notDisplayed(value).flat();
+  const skipped = notDisplayed(value);
   const shown = (child: unknown): boolean =>
     !(skipped.includes(child) && isNode(child) && nodeText(child) !== null);
   for (const [name, child] of Object.entries(value)) {
@@ -271,6 +274,8 @@ describe("status language guard", () => {
       "      unknown",
       "    </span>",
       "    <td>&mdash;</td>",
+      "    <td>&#8212;</td>",
+      '    <b data-tip={a ? "fine" : "Tip unavailable"}>{a.padEnd(8, "…")}</b>',
       "    {a === b ? <b>…</b> : <i>Live account · read-only</i>}",
       "  </p>",
       ");",
@@ -288,6 +293,9 @@ describe("status language guard", () => {
         "—",
         "Status unknown",
         "—",
+        "—",
+        "Tip unavailable",
+        "…",
         "…",
       ].sort()
     );
@@ -302,7 +310,7 @@ describe("status language guard", () => {
       "const typed: unknown = 1 as unknown as Array<unknown>;",
       "// a comment with unknown is ignored",
       "const unknown_state = 1;",
-      'const parts = "a-b".split("-").join("—");',
+      'const parts = "a-b".split("-");',
       "export const kind = (state: State): number => {",
       '  if (state === "unknown" || "n/a" !== state) return 0;',
       "  switch (state) {",
@@ -317,13 +325,19 @@ describe("status language guard", () => {
     expect(vagueTexts('<p data-state="unknown">Live</p>;', "view.tsx")).toEqual(
       []
     );
-    // A displayed text next to a skipped position is still read.
+    // A displayed text next to a skipped position is still read: the result of a comparison, a
+    // replacement, a join separator.
     expect(
       vagueTexts(
-        'export const label = (s: string) => (s === "unknown" ? "Unknown" : s);',
+        [
+          'export const label = (s: string) => (s === "unknown" ? "Unknown" : s);',
+          'export const shown = (s: string) => (s.includes("unknown") ? "N/A" : s);',
+          'export const filled = (s: string) => s.replace("null", "Not available");',
+          'export const joined = (parts: string[]) => parts.join(" — ") + parts.join("—");',
+        ].join("\n"),
         "label.ts"
       )
-    ).toEqual(["Unknown"]);
+    ).toEqual(["Unknown", "N/A", "Not available", "—", "—"]);
   });
 
   it("names the file of a source that does not parse", () => {
