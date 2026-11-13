@@ -402,11 +402,11 @@ describe("DashboardWidgets", () => {
       ],
       [
         { status: { gateway: "disconnected", connected: false } },
-        "gateway is disconnected",
+        "gateway has been disconnected",
       ],
       [
         { status: { gateway: "starting", connected: false } },
-        "gateway is connecting",
+        "gateway has been connecting",
       ],
     ] as const) {
       const container = await render(

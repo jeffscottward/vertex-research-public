@@ -1529,14 +1529,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/portfolio-monitor-charts.tsx",
-    text: "Positions unknown. The IBKR gateway is not live.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Keep the unknown but add since-when and last known: 'Positions not confirmed: IBKR gateway not live since HH:MM · last confirmed HH:MM · retrying'. Pass health/snapshot status (already in the parent) as props.",
-    open: true,
-  },
-  {
     file: "components/portal/portfolio-monitor-client.ts",
     text: "unavailable",
     count: 1,
@@ -1559,43 +1551,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/portfolio-monitor-tables.tsx",
-    text: "Executions unknown. The IBKR gateway is not live, so this list may be incomplete.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Executions not confirmed since HH:MM · last confirmed HH:MM · retrying'. Same props as positions.",
-    open: true,
-  },
-  {
-    file: "components/portal/portfolio-monitor-tables.tsx",
-    text: "Orders unknown. The IBKR gateway is not live, so this list may be incomplete.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Open orders not confirmed since HH:MM · last confirmed HH:MM · do not assume none are working · retrying'. Same props as positions.",
-    open: true,
-  },
-  {
-    file: "components/portal/portfolio-monitor-tables.tsx",
-    text: "Positions unknown. The IBKR gateway is not live, so this list may be incomplete.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Positions not confirmed: IBKR gateway not live since HH:MM · last confirmed list HH:MM (n rows) · retrying every Ns'. snapshot.status and fetchedAt exist in the parent; pass as props.",
-    open: true,
-  },
-  {
     file: "components/portal/portfolio-monitor.tsx",
     text: "Round-number check unavailable. Order prices are not flagged.",
     count: 1,
     reason:
       "Audit 2026-11-13: ambiguous. Replace: States the consequence but not the cause. Keep the error in the feed state and show 'Round-number check failed at HH:MM: <code: message> · order prices are not flagged · retried on next refresh'.",
-    open: true,
-  },
-  {
-    file: "components/portal/portfolio-monitor.tsx",
-    text: "The IBKR data time is unknown.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'IBKR sent no data timestamp in the snapshot fetched HH:MM; freshness cannot be checked.' fetchedAt is in scope.",
     open: true,
   },
   {

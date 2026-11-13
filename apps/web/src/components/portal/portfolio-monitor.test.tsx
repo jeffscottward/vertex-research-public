@@ -660,7 +660,9 @@ describe("PortfolioMonitor", () => {
       />
     );
     expect(find("[data-empty]").textContent).toBe("No open positions.");
-    return expect(document.querySelector("[data-unknown]")).toBeNull();
+    // A live empty list keeps its count: zero is a fact here.
+    expect(find("#pm-positions-title").textContent).toContain("(0)");
+    return expect(document.querySelector("[data-withheld]")).toBeNull();
   });
 
   it("names the disconnect without a last confirmation when the reader reports no mode", async () => {
@@ -694,7 +696,7 @@ describe("PortfolioMonitor", () => {
     ).toContain("Account mode not reported");
   });
 
-  it("marks values out of date and empty lists unknown when the gateway is disconnected", async () => {
+  it("marks values out of date and empty lists withheld when the gateway is disconnected", async () => {
     const snapshot = fixtureSnapshot({
       status: {
         gateway: "disconnected",
@@ -717,8 +719,11 @@ describe("PortfolioMonitor", () => {
     expect(find("[data-account-mode=paper]").textContent).toBe(
       "Status:Paper account · read-only"
     );
-    expect(find("[data-unknown]").textContent).toContain("Positions unknown");
+    expect(find("[data-withheld]").textContent).toBe(
+      "Positions withheld. The IBKR gateway has been disconnected, so account data is withheld until it reconnects. The reader retries on its own."
+    );
     expect(text()).not.toContain("No open positions");
+    expect(text()).not.toMatch(/unknown/i);
     await run(() =>
       root.render(
         <PortfolioMonitor
@@ -727,12 +732,22 @@ describe("PortfolioMonitor", () => {
         />
       )
     );
-    const unknown = [...document.querySelectorAll("[data-unknown]")].map(
+    const withheld = [...document.querySelectorAll("[data-withheld]")].map(
       (node) => node.textContent ?? ""
     );
-    expect(unknown.some((line) => line.includes("Orders unknown"))).toBe(true);
+    expect(
+      withheld.some((line) =>
+        line.startsWith(
+          "Orders withheld. The IBKR gateway has been disconnected"
+        )
+      )
+    ).toBe(true);
     return expect(
-      unknown.some((line) => line.includes("Executions unknown"))
+      withheld.some((line) =>
+        line.startsWith(
+          "Executions withheld. The IBKR gateway has been disconnected"
+        )
+      )
     ).toBe(true);
   });
 
@@ -794,6 +809,31 @@ describe("PortfolioMonitor", () => {
     );
   });
 
+  it("keeps the last rows of a disconnected reader, marked out of date, in tables and charts alike", async () => {
+    // ibkr-monitor keeps its last snapshot while its bridge reconnects: the rows are stale, not
+    // withheld. Tables and charts both show them under the "out of date" banner.
+    const snapshot = fixtureSnapshot({
+      status: { gateway: "disconnected", connected: false },
+    });
+    const { root } = await mount(
+      <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab="positions" />
+    );
+    expect(find("[data-banner=disconnected]").textContent).toContain(
+      "Values may be out of date."
+    );
+    expect(document.querySelector("[data-withheld]")).toBeNull();
+    expect(find("#pm-positions-title").textContent).toMatch(/\(\d+\)$/);
+    for (const tab of ["pnl", "allocation"] as const) {
+      await run(() =>
+        root.render(
+          <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab={tab} />
+        )
+      );
+      expect(document.querySelector("[data-withheld]")).toBeNull();
+      expect(document.querySelector("svg")).not.toBeNull();
+    }
+  });
+
   it("shows a named account-mode error with its fix instead of a mode", async () => {
     const withError = (
       modeError: "mismatch" | "not-configured" | "not-reported"
@@ -806,8 +846,19 @@ describe("PortfolioMonitor", () => {
           modeError,
           count: 0,
         },
-        // The API empties the lists on a mismatch and leaves the gateway state as it is.
-        ...(modeError === "mismatch" ? { positions: [], orders: [] } : {}),
+        // The API output on a mismatch (withholdOnModeMismatch): lists and summary emptied, not
+        // connected.
+        ...(modeError === "mismatch"
+          ? {
+              positions: [],
+              orders: [],
+              status: { connected: false },
+              summary: {
+                ...fixtureSnapshot().summary,
+                netLiquidation: null,
+              },
+            }
+          : {}),
       });
     const { root } = await mount(
       <PortfolioMonitor
@@ -824,8 +875,30 @@ describe("PortfolioMonitor", () => {
     expect(find("[data-health=mode-mismatch]").textContent).toContain(
       "Account data withheld"
     );
-    // Withheld lists are not shown as an empty account.
+    // Withheld lists are not shown as an empty account: no "(0)" count, and the notice names the cause.
     expect(text()).not.toMatch(/No open positions|No open orders/);
+    expect(find("[data-withheld]").textContent).toBe(
+      "Positions withheld. The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert on the Portfolio page shows the fix."
+    );
+    expect(find("#pm-positions-title").textContent).not.toContain("(0)");
+    // The charts say the same, not "No positions to chart".
+    for (const [tab, what, empty] of [
+      ["pnl", "Positions", "No positions to chart."],
+      ["allocation", "Allocation", "No allocation data."],
+    ] as const) {
+      await run(() =>
+        root.render(
+          <PortfolioMonitor
+            gateway={gatewayOf(withError("mismatch"))}
+            defaultTab={tab}
+          />
+        )
+      );
+      expect(find("[data-withheld]").textContent).toMatch(
+        new RegExp(`^${what} withheld\\. The IBKR gateway's account list`)
+      );
+      expect(text()).not.toContain(empty);
+    }
     expect(text()).not.toMatch(/Values may be out of date/);
     await run(() => root.unmount());
     await mount(
@@ -860,8 +933,8 @@ describe("PortfolioMonitor", () => {
         defaultTab="positions"
       />
     );
-    expect(find("[data-banner=stale]").textContent).toBe(
-      "The IBKR data time is unknown. Values may be out of date."
+    expect(find("[data-banner=stale]").textContent).toMatch(
+      /^IBKR sent no data time in the snapshot fetched at \d\d:\d\d:\d\d, so its age cannot be checked\. Values may be out of date\.$/
     );
     return expect(find("[data-freshness]").textContent).toMatch(
       /^Data as of — · fetched /u

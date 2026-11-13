@@ -112,32 +112,41 @@ export const PanelTitle = ({
   </h3>
 );
 
-const UnknownNotice = ({ text }: { readonly text: string }) => (
-  <p
-    className="rounded-md border border-warning-border bg-warning-subtle px-3 py-2 text-sm text-warning-foreground"
-    data-unknown="true"
-  >
-    {text}
-  </p>
-);
+// A withheld list has no count: "(0)" would read as none.
+const countedTitle = (
+  title: string,
+  rows: number,
+  withheld: string | null
+): string => (withheld !== null && rows === 0 ? title : `${title} (${rows})`);
 
-// An empty list is only "empty" when the gateway is live; otherwise the true state is unknown.
-export const EmptyOrUnknown = ({
+// An empty list is only "empty" when the book is live. Otherwise the list is withheld, and the
+// notice says what is withheld and why (accountDataWithheld: cause, since when, what happens next).
+export const EmptyOrWithheld = ({
   empty,
-  live,
-  unknown,
+  what,
+  withheld,
 }: {
   readonly empty: string;
-  readonly live: boolean;
-  readonly unknown: string;
+  /** Plural name of the rows, e.g. "Positions". */
+  readonly what: string;
+  /** Why the rows are not shown, or null when the book is live. */
+  readonly withheld: string | null;
 }) => {
-  if (live)
+  if (withheld === null)
     return (
       <p className="text-muted-foreground text-sm" data-empty="true">
         {empty}
       </p>
     );
-  return <UnknownNotice text={unknown} />;
+  return (
+    <p
+      className="rounded-md border border-warning-border bg-warning-subtle px-3 py-2 text-sm text-warning-foreground"
+      data-withheld="true"
+      role="status"
+    >
+      {`${what} withheld. ${withheld}`}
+    </p>
+  );
 };
 
 const Muted = ({ text }: { readonly text: string }) => (
@@ -348,7 +357,7 @@ const BodyCell = ({
 export const PositionsPanel = ({
   actions,
   empty = "No open positions.",
-  live,
+  withheld,
   positions,
   title = "Positions",
 }: {
@@ -360,7 +369,7 @@ export const PositionsPanel = ({
       ) => ReactNode)
     | undefined;
   readonly empty?: string;
-  readonly live: boolean;
+  readonly withheld: string | null;
   readonly positions: readonly PortfolioMonitorPosition[];
   readonly title?: string;
 }) => {
@@ -377,7 +386,7 @@ export const PositionsPanel = ({
     <section aria-labelledby="pm-positions-title" className={SECTION}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <PanelTitle id="pm-positions-title">
-          {`${title} (${positions.length})`}
+          {countedTitle(title, positions.length, withheld)}
         </PanelTitle>
         <Button
           aria-controls="pm-column-editor"
@@ -392,11 +401,7 @@ export const PositionsPanel = ({
       </div>
       {editing ? <ColumnEditor config={config} onChange={setConfig} /> : null}
       {positions.length === 0 ? (
-        <EmptyOrUnknown
-          empty={empty}
-          live={live}
-          unknown="Positions unknown. The IBKR gateway is not live, so this list may be incomplete."
-        />
+        <EmptyOrWithheld empty={empty} what="Positions" withheld={withheld} />
       ) : (
         <ScrollRegion label="Positions table">
           <Table containerClassName="overflow-visible" className={TABLE}>
@@ -680,7 +685,7 @@ export interface OrdersTableProps {
   readonly title: string;
   readonly titleId: string;
   readonly empty: string;
-  readonly live: boolean;
+  readonly withheld: string | null;
   readonly completed?: boolean;
   readonly handles?: RoundHandleFlags | undefined;
 }
@@ -689,7 +694,7 @@ export const OrdersTable = ({
   completed = false,
   empty,
   handles,
-  live,
+  withheld,
   orders,
   title,
   titleId,
@@ -697,14 +702,12 @@ export const OrdersTable = ({
   const groups = groupOrders(orders);
   return (
     <section aria-labelledby={titleId} className={SECTION}>
-      <PanelTitle id={titleId}>{`${title} (${orders.length})`}</PanelTitle>
+      <PanelTitle id={titleId}>
+        {countedTitle(title, orders.length, withheld)}
+      </PanelTitle>
       {completed ? null : <OrdersExplanation />}
       {orders.length === 0 ? (
-        <EmptyOrUnknown
-          empty={empty}
-          live={live}
-          unknown="Orders unknown. The IBKR gateway is not live, so this list may be incomplete."
-        />
+        <EmptyOrWithheld empty={empty} what="Orders" withheld={withheld} />
       ) : (
         <ScrollRegion label={`${title} table`}>
           <Table containerClassName="overflow-visible" className={TABLE}>
@@ -795,22 +798,22 @@ export const OrdersTable = ({
 
 export const ExecutionsTable = ({
   executions,
-  live,
+  withheld,
 }: {
   readonly executions: readonly PortfolioMonitorExecution[];
-  readonly live: boolean;
+  readonly withheld: string | null;
 }) => {
   const rows = executionsNewestFirst(executions);
   return (
     <section aria-labelledby="pm-executions-title" className={SECTION}>
       <PanelTitle id="pm-executions-title">
-        {`Executions today (${executions.length})`}
+        {countedTitle("Executions today", executions.length, withheld)}
       </PanelTitle>
       {rows.length === 0 ? (
-        <EmptyOrUnknown
+        <EmptyOrWithheld
           empty="No executions today."
-          live={live}
-          unknown="Executions unknown. The IBKR gateway is not live, so this list may be incomplete."
+          what="Executions"
+          withheld={withheld}
         />
       ) : (
         <ScrollRegion label="Executions table">

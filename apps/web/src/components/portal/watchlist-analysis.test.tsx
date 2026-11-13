@@ -466,7 +466,7 @@ describe("relationships tab", () => {
     });
     await open("Exposure");
     expect(panel("Exposure").textContent).toContain(
-      "The IBKR gateway is disconnected, so account data is withheld until it reconnects."
+      "The IBKR gateway has been disconnected, so account data is withheld until it reconnects."
     );
     expect(panel("Exposure").textContent).not.toContain(
       "No positions with a market value"
