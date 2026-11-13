@@ -38,9 +38,17 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // openbb.* is a root: the OpenBB tick (scripts/openbb/tick.ts) writes ingest and recordRun with a
 // write key, and research agents read the other openbb.* procedures with a read key.
 // The breadth-90 rig tick pushes sessions with a write key (breadth90.collect) and research agents
-// read the signal with a read key (breadth90.get). The market-notes rig intake stores a note,
-// records claim checks and reviews a note with a write key (marketNotes.add, recordChecks, review),
-// and research agents read notes with a read key (marketNotes.list, marketNotes.get).
+// read the signal with a read key (breadth90.get).
+// The market-notes rig intake stores a note, records claim checks and reviews a note with a write
+// key (marketNotes.add, recordChecks, review), and research agents read notes with a read key
+// (marketNotes.list, marketNotes.get).
+// The go-live draft generator on the rig stores its candidates with a write key
+// (goLiveDrafts.collect) and agents read the queue with a read key (goLiveDrafts.queue), which
+// never shows the account value or a sized order to a key; goLiveDrafts.approve and
+// goLiveDrafts.reject stay session-only, so a key never decides a draft.
+// The engine comparison driver (scripts/engine-comparison-driver) asks for its fixed instant
+// backtests with an operator write key (instantBacktest.run, research only, no order path);
+// instantBacktest.series and instantBacktest.universes stay session-only.
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -55,6 +63,9 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "flow.snapshot",
   "breadth90.collect",
   "breadth90.get",
+  "goLiveDrafts.collect",
+  "goLiveDrafts.queue",
+  "instantBacktest.run",
   "marketNotes.add",
   "marketNotes.get",
   "marketNotes.list",
@@ -90,7 +101,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, breadth90.collect, breadth90.get, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks and marketNotes.review",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks and marketNotes.review",
       })
     );
   }

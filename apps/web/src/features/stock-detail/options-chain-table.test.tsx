@@ -39,6 +39,7 @@ const contract: OptionContract = {
   bid: 1.3,
   change: null,
   contractSymbol: "DEMO261106C00100000",
+  flow: null,
   greeks: {
     delta: 0.5234,
     gamma: 0.019_12,
@@ -51,6 +52,12 @@ const contract: OptionContract = {
   last: null,
   lastTradeAt: null,
   openInterest: 12_345,
+  sources: {
+    delta: "model",
+    iv: "yahoo",
+    openInterest: "yahoo",
+    quote: "yahoo",
+  },
   volume: null,
 };
 
@@ -140,6 +147,137 @@ describe("OptionsChainTable", () => {
     expect(
       container.querySelector("[data-strike-count]")?.textContent
     ).toContain("Showing 20 of 41 strikes");
+  });
+
+  it("marks a bid and ask from IBKR with screen-reader text and a visible legend", async () => {
+    const data = await chain();
+    const container = await render(
+      {
+        ...data,
+        rows: [
+          {
+            call: {
+              ...contract,
+              sources: { ...contract.sources, quote: "ibkr" },
+            },
+            put: contract,
+            strike: 100,
+          },
+          { call: null, put: null, strike: 105 },
+        ],
+      },
+      10
+    );
+    const row = container.querySelector(
+      "[data-chain-layout=split] tbody tr[data-strike='100']"
+    );
+    const live = [
+      ...(row?.querySelectorAll("td[data-quote-source=ibkr]") ?? []),
+    ];
+    // Only the call's bid and ask; the Yahoo put and the other columns stay unmarked.
+    expect(live.map((cell) => cell.textContent)).toEqual([
+      "1.40 (IBKR live quote)",
+      "1.30 (IBKR live quote)",
+    ]);
+    for (const cell of live) {
+      expect(cell.className).toContain("decoration-dotted");
+      expect(cell.querySelector("span")?.className).toBe("sr-only");
+      // The reason is text, not a hover title.
+      expect(cell.hasAttribute("title")).toBe(false);
+    }
+    expect(row?.querySelectorAll("td span.sr-only")).toHaveLength(2);
+    // No column was added: 11 per side.
+    expect(row?.querySelectorAll("td")).toHaveLength(22);
+    expect(
+      container.querySelector("[data-strike-count] [data-quote-legend=split]")
+        ?.textContent
+    ).toBe(" A dotted underline marks an IBKR live quote.");
+    // The dummy chain marks the strikes nearest the spot on both sides.
+    const lab = await render(data, "all");
+    expect(
+      lab.querySelectorAll(
+        "[data-chain-layout=split] td[data-quote-source=ibkr]"
+      )
+    ).toHaveLength(13 * 4);
+  });
+
+  it("shows the legend only when a cell of the current view has an IBKR quote", async () => {
+    const data = await chain();
+    const legends = (container: HTMLElement) =>
+      [...container.querySelectorAll("[data-quote-legend]")].map((node) => [
+        node.getAttribute("data-quote-legend"),
+        node.className,
+      ]);
+    const press = async (container: HTMLElement, label: string) => {
+      const button = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === label
+      );
+      await act(async () => button?.click());
+    };
+    const yahooOnly = await render(
+      {
+        ...data,
+        rows: [
+          { call: contract, put: contract, strike: 100 },
+          { call: null, put: null, strike: 105 },
+        ],
+      },
+      10
+    );
+    expect(legends(yahooOnly)).toEqual([]);
+    expect(yahooOnly.querySelector("[data-quote-source]")).toBeNull();
+    // Only a put has an IBKR quote: the wide view (both sides) shows the legend, the narrow
+    // view shows it for Puts and not for Calls.
+    const putOnly = await render(
+      {
+        ...data,
+        rows: [
+          {
+            call: contract,
+            put: {
+              ...contract,
+              sources: { ...contract.sources, quote: "ibkr" },
+            },
+            strike: 100,
+          },
+        ],
+      },
+      10
+    );
+    expect(legends(putOnly)).toEqual([["split", "hidden lg:inline"]]);
+    await press(putOnly, "Puts");
+    expect(legends(putOnly)).toEqual([
+      ["split", "hidden lg:inline"],
+      ["put", "lg:hidden"],
+    ]);
+    expect(putOnly.querySelector("[data-quote-legend=put]")?.textContent).toBe(
+      " A dotted underline marks an IBKR live quote."
+    );
+    await press(putOnly, "Calls");
+    expect(legends(putOnly)).toEqual([["split", "hidden lg:inline"]]);
+    // Only a call: the narrow view opens on Calls and shows it.
+    const callOnly = await render(
+      {
+        ...data,
+        rows: [
+          {
+            call: {
+              ...contract,
+              sources: { ...contract.sources, quote: "ibkr" },
+            },
+            put: contract,
+            strike: 100,
+          },
+        ],
+      },
+      10
+    );
+    expect(legends(callOnly)).toEqual([
+      ["split", "hidden lg:inline"],
+      ["call", "lg:hidden"],
+    ]);
+    await press(callOnly, "Puts");
+    expect(legends(callOnly)).toEqual([["split", "hidden lg:inline"]]);
   });
 
   it("switches between calls and puts on narrow screens", async () => {

@@ -133,10 +133,12 @@ export const slugifyStrategyName = (name: string): string => {
   const slug = name
     .normalize("NFKD")
     .toLowerCase()
+    // Each run of other characters is now one "-", so one "-" at most stands at either end;
+    // single-character patterns keep the trim linear in the name length.
     .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "")
+    .replace(/^-|-$/gu, "")
     .slice(0, STRATEGY_SLUG_MAX_LENGTH)
-    .replace(/-+$/u, "");
+    .replace(/-$/u, "");
   if (slug === "") fail("name must contain a letter or digit to derive a slug");
   return slug;
 };

@@ -18,6 +18,9 @@ directory `vertex-allocation`).
 | `research/backtests/allocation/sensitivity.py` | The candidates again under changed option-model assumptions (diagnostics) |
 | `research/backtests/allocation/fetch_chain_snapshot.py` | One-day option-chain snapshot: measured half-spread and skew per ETF |
 | `research/backtests/allocation/funded_pie.py` | The lower-bar pie the owner picked: three sleeves in one account under both option models (proposal) |
+| `research/backtests/allocation/deploy_rehearsal.py` | Deployability rehearsal of the pie, on paper only: every step from a signal to an exit, with the cause of each stop |
+| `scripts/research/deploy-rehearsal-requests.ts` | The deployment-request step of the rehearsal: the request rules in one process, no database (CLI: `scripts/research-deploy-rehearsal-requests.ts`) |
+| `services/research/tests/test_deploy_rehearsal.py` | Synthetic tests of the rehearsal (base Python lane) |
 
 `run.py` writes its output to a report work directory. The app does not read it (AGENTS.md rule 13).
 
@@ -269,3 +272,61 @@ sleeve is long-only beta and loses month after month in a bear market. Neither a
 repository gate. The two rows are two option models on one history, not a forecast range. Before real money the
 owner must re-arm the engine and decide how it may place spreads: the order policy refuses them today (card
 `vertex-order-policy-spreads`).
+
+## Deployability rehearsal (paper only)
+
+Card `vertex-deploy-readiness-dryrun`, 2026-11-11. Owner question: with good numbers, would the pie deploy
+end to end, and does a rule collision hold it back? `deploy_rehearsal.py` replays two windows through the
+whole chain and writes one JSON document. It sends no order, writes no database row, arms nothing and never
+contacts the Quant VPS, the Vertex database or a broker.
+
+| Step | Code that runs in the rehearsal |
+| --- | --- |
+| signal | the sleeve definitions of `funded_pie.py` (`trace_signals` adds the cause of each month end without a trade) |
+| sleeve budget and caps | `allocation.combine` (`trace_caps` adds the date of each refusal and must give the same trades) |
+| sizing | `book.contracts_for` through the ledger |
+| paper deployment request | the API contract and the repository field and lifecycle rules, in a `bun` child process; no row |
+| request to engine, engine strategy, order built by the engine | no code exists; the rehearsal reads `run_live.py` and builds the orders itself (`leg_orders`, a shim) |
+| order policy | `arm_gate.check_order_policy` in this process, against a temporary snapshot file |
+| simulated fill, exit rule | ledger and NautilusTrader backtest with the owner exit rule (research code; the engine has neither) |
+
+Windows. The rule is fixed before a result is read: the six full calendar months with the highest SPY total
+return since the first full month in which all three sleeves can run, and as a contrast the last 63
+sessions. `--extra-window NAME=START:END` adds a window by hand; the output labels it as such.
+
+- Every window starts with no position. A monthly decision belongs to the window when its entry bar (the
+  next session) is in the window: the decision of the last month end before the start counts, the one on
+  the last day does not. So a window that starts on the first session of a month is at risk from day one.
+- The contrast window starts on the entry day of the last monthly decision before the 63 sessions, for
+  the same reason.
+- The percent at risk of a day is the sum of contracts times the maximum loss per contract of the open
+  spreads, over the equity of that day. The budget held is the sum of the position budgets (1% each).
+
+Each stop has a cause and a class in `CAUSES`: a missing piece, a collision between two rules, or a rule
+that works as designed (a closed gate, a false entry rule).
+
+```sh
+<venv with services/research/requirements-nautilus-linux-py312.lock>/bin/python \
+  research/backtests/allocation/deploy_rehearsal.py --data <data dir> --capital <account value, rounded> \
+  --out <work dir>/rehearsal.json
+```
+
+Limits of the rehearsal:
+
+- Option prices are the model of `options.py`, not quotes.
+- The request step does not check the strategy row, the params schema, the operator session or the Postgres
+  constraints.
+- The orders are built by the rehearsal. No engine code builds an option order from a strategy.
+- The engine step is a static read of `run_live.py` (syntax tree and text). It runs no engine code.
+- `ordersSent`, `rowsWritten` and `armed` in the output are constants: the script has no call that sends an
+  order, opens a database or arms a node. The proof that prod did not change is a read of prod before and
+  after, outside this script.
+- The script reads private helpers of the research modules (`pf._signals`, `al._refusal`, `bk._Pricing`) and
+  imports the order policy from the exec-node folder (without writing bytecode there). `trace_caps` raises
+  when it does not accept the trades of `combine`. `trace_signals` raises when the book of each leg,
+  `owner_rule_trades` and the monthly decisions it walks do not name the same entries.
+- The engine, policy and exit stops are "would also stop here" counts: every sized trade is checked at those
+  steps, although it already stops at the request step.
+- A trade that is open on the last day of the data counts as at risk on that day.
+- Leveraged ETFs: the data has no leveraged ETF and no option price for one. `leveraged_probe` checks the
+  order policy only, with an example premium. It is a what-if.

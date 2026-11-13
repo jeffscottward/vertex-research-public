@@ -77,8 +77,9 @@ def trade_pnl(trade: PricedTrade) -> float:
 
 
 def _same_entry(a: PricedTrade, b: PricedTrade) -> bool:
-    return (a.symbol, a.entry_index, a.expiry, a.long_strike, a.short_strike, a.entry_price, a.entry_fee) == (
-        b.symbol, b.entry_index, b.expiry, b.long_strike, b.short_strike, b.entry_price, b.entry_fee)
+    return (a.symbol, a.entry_index, a.expiry, a.far_expiry, a.long_strike, a.short_strike, a.entry_price,
+            a.entry_fee) == (b.symbol, b.entry_index, b.expiry, b.far_expiry, b.long_strike, b.short_strike,
+                             b.entry_price, b.entry_fee)
 
 
 def expiry_close_fee(trade: PricedTrade, spot: float) -> float:
@@ -107,7 +108,8 @@ def owner_exit(trade: PricedTrade, options: Mapping, market) -> PricedTrade:
     cuts = build_book([event], {**options, "exitDte": OWNER_LOSER_EXIT_DTE}, {trade.symbol: market}).trades
     if cuts and cuts[0].exit_reason == "exitDte" and trade_pnl(cuts[0]) < 0:
         return dataclasses.replace(cuts[0], trade_id=trade.trade_id, exit_reason=OWNER_CUT_REASON)
-    if trade.exit_reason == "expiry":
+    # A calendar's book price at the near expiry already holds its closing cost (the far leg is sold there).
+    if trade.exit_reason == "expiry" and trade.far_expiry is None:
         return dataclasses.replace(trade, exit_fee=expiry_close_fee(trade, market.close[trade.exit_index]))
     return trade
 

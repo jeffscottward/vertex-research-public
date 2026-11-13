@@ -16,7 +16,7 @@ Then check the claims (see [Verification](#verification)). The command prints th
 
 ## Data
 
-Table `market_notes` (migration `0067_market_notes.sql`, repository `packages/db/src/server/market-notes.ts`, contract `packages/api/src/contracts/market-notes.ts`).
+Table `market_notes` (migration `0072_market_notes.sql`, repository `packages/db/src/server/market-notes.ts`, contract `packages/api/src/contracts/market-notes.ts`).
 
 | Field | Meaning |
 | --- | --- |
@@ -134,4 +134,4 @@ The Financial Datasets rights mode is research-only. Evidence text holds a few d
 
 - Web: remove `OwnerMarketNotesCard` from the markets page.
 - API: remove `marketNotes` from `packages/api/src/contract.ts` and `packages/api/src/server/router.ts`, the `marketNotes.*` entries from `AGENT_API_KEY_PROCEDURE_PATHS` and `AGENT_API_KEY_READ_PROCEDURES`, the MCP tool and the assistant block; regenerate `packages/api/openapi.json`.
-- Database: `packages/db/rollback/0067_market_notes.down.sql` drops the table. It refuses while the table has rows, so owner notes are never discarded without a decision.
+- Database: `packages/db/rollback/0072_market_notes.down.sql` drops the table. It refuses while the table has rows, so owner notes are never discarded without a decision.

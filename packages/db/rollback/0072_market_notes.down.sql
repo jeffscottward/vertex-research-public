@@ -1,4 +1,4 @@
--- Guarded reversal of 0067_market_notes only.
+-- Guarded reversal of 0072_market_notes only.
 -- Refuses while any market note exists so the owner's notes (the source text, the claims and the
 -- evidence recorded for them) are never silently discarded. No cascading drops, truncation or
 -- conditional drops. Drizzle ledger reconciliation is deliberately not automated; coordinate it

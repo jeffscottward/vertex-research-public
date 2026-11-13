@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { marketNotes } from "../schema/index.ts";
 
-const TAG = "0067_market_notes";
+const TAG = "0072_market_notes";
 
 describe(`${TAG} migration`, () => {
   const migration = readFileSync(

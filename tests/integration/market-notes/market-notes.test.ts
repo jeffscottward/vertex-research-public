@@ -21,10 +21,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const read = (path: string): string =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const migrationSql = read(
-  "../../../packages/db/migrations/0067_market_notes.sql"
+  "../../../packages/db/migrations/0072_market_notes.sql"
 );
 const rollbackSql = read(
-  "../../../packages/db/rollback/0067_market_notes.down.sql"
+  "../../../packages/db/rollback/0072_market_notes.down.sql"
 );
 
 const NOW = new Date("2026-11-11T14:00:00.000Z");
