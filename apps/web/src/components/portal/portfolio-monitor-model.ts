@@ -974,7 +974,7 @@ export const accountDataWithheld = (
   nowMs?: number
 ): string | null => {
   if (snapshot.account.modeError === "mismatch")
-    return "The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert shows the fix.";
+    return "The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert on the Portfolio page shows the fix.";
   const since =
     nowMs === undefined ? null : sinceClock(snapshot.status.since, nowMs);
   const sinceText = since === null ? "" : ` since ${since}`;

@@ -660,6 +660,8 @@ describe("PortfolioMonitor", () => {
       />
     );
     expect(find("[data-empty]").textContent).toBe("No open positions.");
+    // A live empty list keeps its count: zero is a fact here.
+    expect(find("#pm-positions-title").textContent).toContain("(0)");
     return expect(document.querySelector("[data-withheld]")).toBeNull();
   });
 
@@ -840,9 +842,27 @@ describe("PortfolioMonitor", () => {
     // Withheld lists are not shown as an empty account: no "(0)" count, and the notice names the cause.
     expect(text()).not.toMatch(/No open positions|No open orders/);
     expect(find("[data-withheld]").textContent).toBe(
-      "Positions withheld. The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert shows the fix."
+      "Positions withheld. The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert on the Portfolio page shows the fix."
     );
     expect(find("#pm-positions-title").textContent).not.toContain("(0)");
+    // The charts say the same, not "No positions to chart".
+    for (const [tab, what, empty] of [
+      ["pnl", "Positions", "No positions to chart."],
+      ["allocation", "Allocation", "No allocation data."],
+    ] as const) {
+      await run(() =>
+        root.render(
+          <PortfolioMonitor
+            gateway={gatewayOf(withError("mismatch"))}
+            defaultTab={tab}
+          />
+        )
+      );
+      expect(find("[data-withheld]").textContent).toMatch(
+        new RegExp(`^${what} withheld\\. The IBKR gateway's account list`)
+      );
+      expect(text()).not.toContain(empty);
+    }
     expect(text()).not.toMatch(/Values may be out of date/);
     await run(() => root.unmount());
     await mount(
