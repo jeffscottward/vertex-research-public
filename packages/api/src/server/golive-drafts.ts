@@ -2,6 +2,7 @@ import type {
   GoLiveDraftRecord,
   GoLiveDraftsRepository,
   GoLivePlanRecord,
+  OrderSendState,
 } from "@darkfactory/db/server";
 import { call, implement } from "@orpc/server";
 
@@ -13,6 +14,7 @@ import {
   GoLivePlanSchema,
   type GoLiveQueueOutput,
   type GoLiveQuote,
+  type GoLiveSendState,
   goLiveStrikesFitStructure,
 } from "../contracts/golive-drafts.ts";
 import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
@@ -30,6 +32,7 @@ import {
   sizeDrafts,
 } from "./golive-drafts-sizing.ts";
 import type { GoLiveQuotesPort } from "./golive-live-quotes.ts";
+import { goLiveOrderRef } from "./golive-order-ref.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -253,6 +256,8 @@ type Loaded = Readonly<{
   now: Date;
   plan: GoLivePlanRecord | null;
   records: readonly GoLiveDraftRecord[];
+  // Where the send of each entry draft of the day stands; never read for an API key.
+  sends: SendOf;
 }>;
 
 /**
@@ -291,6 +296,49 @@ const withLiveQuotes = async (
       : { ...record, quote: { ...quote, asOf: quote.asOf.toISOString() } };
   });
 };
+// What each entry draft's fixed orderRef shows in the order intent store (one read). A missing
+// store or a failed read is "unavailable": the page then offers no send, the server checks at send.
+const SEND_STATE_OF: Readonly<Record<OrderSendState, GoLiveSendState>> = {
+  none: "not_sent",
+  "not-found": "not_found",
+  "not-taken": "not_taken",
+  open: "sent",
+  pending: "unknown",
+  placed: "sent",
+  "position-changed": "sent",
+  refused: "refused",
+  unknown: "unknown",
+};
+// Where a draft's send stands, by draft id. No answer from the store (no store, a failed read, or no
+// state for the draft's ref) is "unavailable".
+type SendOf = (draftId: string) => GoLiveSendState;
+const sendLookup =
+  (states: ReadonlyMap<string, OrderSendState | undefined>): SendOf =>
+  (draftId) => {
+    const state = states.get(draftId);
+    return state === undefined ? "unavailable" : SEND_STATE_OF[state];
+  };
+// An agent API key reads no send.
+const NO_SENDS = sendLookup(new Map());
+const readSends = async (
+  context: ApiContext,
+  records: readonly GoLiveDraftRecord[]
+): Promise<SendOf> => {
+  const refs = await Promise.all(
+    records
+      .filter((record) => record.kind === "entry")
+      .map(
+        async (record) => [record.id, await goLiveOrderRef(record.id)] as const
+      )
+  );
+  const store = context.repositories.orderIntents;
+  const states =
+    store === undefined
+      ? null
+      : await store.sendStates(refs.map(([, ref]) => ref)).catch(() => null);
+  return sendLookup(new Map(refs.map(([id, ref]) => [id, states?.get(ref)])));
+};
+
 const load = async (
   context: ApiContext,
   repository: GoLiveDraftsRepositoryPort,
@@ -300,10 +348,11 @@ const load = async (
   const forKey = context.agentApiKeyPresented === true;
   const listed = repository.listDrafts({ tradingDay });
   // The live quotes are read while the account and the node are read.
-  const [plan, records, quoted, run, account, node] = await Promise.all([
+  const [plan, records, quoted, sends, run, account, node] = await Promise.all([
     repository.planInForce(),
     listed,
     listed.then((rows) => (forKey ? rows : withLiveQuotes(context, rows))),
+    listed.then((rows) => (forKey ? NO_SENDS : readSends(context, rows))),
     repository.lastRun(tradingDay),
     forKey ? KEY_ACCOUNT : (dependencies.account ?? readAccount)(context, now),
     (dependencies.node ?? readNode)(context),
@@ -323,6 +372,7 @@ const load = async (
     now,
     plan,
     records: quoted,
+    sends,
   };
 };
 
@@ -474,6 +524,11 @@ const viewsOf = (
         webFinalGate:
           gate === null ? null : { ...gate, reasons: [...gate.reasons] },
       },
+      // Only an approved entry has a send; read before the decision for a draft just approved.
+      send:
+        draft.state === "approved" && draft.kind === "entry" && !loaded.forKey
+          ? loaded.sends(draft.id)
+          : null,
       sizing,
     };
   });

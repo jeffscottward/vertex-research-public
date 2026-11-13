@@ -44,9 +44,11 @@ import {
   ENGINE_POLICY_LINE,
   EXIT_RULE_WORDS,
   type GoLiveSendResult,
-  NO_ORDERS_NOTICE,
   NODE_DISARMED_NOTE,
+  noOrdersNotice,
   REJECT_NOTE_REQUIRED,
+  SEND_APPROVED_SENTENCE,
+  sendStateText,
 } from "./golive-draft-queue-model.ts";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -135,6 +137,7 @@ const draft = (
     source: "ibkr_live",
   },
   revision: 3,
+  send: null,
   shortStrike: 455,
   signalFacts: ["VIX 19.5 on 2026-11-11"],
   sizing: {
@@ -364,7 +367,7 @@ describe("GoLiveDraftQueue", () => {
     gateway.queue.mockReturnValue(new Promise(() => undefined));
     const container = await mount(gateway);
     expect(one(container, "[data-golive-notice]").textContent).toBe(
-      NO_ORDERS_NOTICE
+      noOrdersNotice(undefined)
     );
     const status = one(container, "[role='status']");
     expect(status.getAttribute("aria-busy")).toBe("true");
@@ -378,7 +381,7 @@ describe("GoLiveDraftQueue", () => {
       "The go-live order draft queue (plan record and order drafts) is limited to operators."
     );
     expect(one(container, "[data-golive-notice]").textContent).toBe(
-      NO_ORDERS_NOTICE
+      noOrdersNotice(undefined)
     );
     expect(container.querySelector("[data-golive-group]")).toBeNull();
   });
@@ -807,6 +810,169 @@ describe("GoLiveDraftQueue", () => {
     ).toContain("Approved, engine disarmed: nothing was sent");
   });
 
+  describe("Send approved order", () => {
+    const NAME = "Send approved order SPY 2026-12-18";
+    const approvedWith = (
+      send: GoLiveDraftOutput["send"],
+      overrides: Partial<GoLiveDraftOutput> = {}
+    ) =>
+      draft({
+        approvedOrder: ORDER,
+        decidedAt: AT,
+        send,
+        state: "approved",
+        ...overrides,
+      });
+    const buttons = (root: ParentNode) =>
+      root.querySelectorAll("[data-golive-action='send']").length;
+
+    it("is offered to the owner for an approved entry that was not sent or that the bridge refused", async () => {
+      for (const send of ["not_sent", "refused"] as const) {
+        const container = await mount(
+          gatewayOf(queue({ drafts: [approvedWith(send)] }))
+        );
+        expect(button(container, NAME).disabled).toBe(false);
+        expect(one(container, "[data-golive-send-state]").textContent).toBe(
+          sendStateText(send)
+        );
+      }
+    });
+
+    it("is not offered once the order may have reached IBKR, when the state is not known, without the stored order, or to anyone but the owner", async () => {
+      for (const send of [
+        "sent",
+        "not_taken",
+        "unknown",
+        "not_found",
+        "unavailable",
+      ] as const) {
+        const container = await mount(
+          gatewayOf(queue({ drafts: [approvedWith(send)] }))
+        );
+        expect(buttons(container)).toBe(0);
+        expect(
+          one(container, "[data-golive-send-state]").getAttribute(
+            "data-golive-send-state"
+          )
+        ).toBe(send);
+      }
+      const noOrder = await mount(
+        gatewayOf(
+          queue({ drafts: [approvedWith("not_sent", { approvedOrder: null })] })
+        )
+      );
+      expect(buttons(noOrder)).toBe(0);
+      const notOwner = await mount(
+        gatewayOf(
+          queue({ canDecide: false, drafts: [approvedWith("not_sent")] })
+        )
+      );
+      expect(buttons(notOwner)).toBe(0);
+      // A proposed draft has no send line at all.
+      const proposed = await mount(gatewayOf(queue()));
+      expect(proposed.querySelector("[data-golive-send-state]")).toBeNull();
+    });
+
+    it("confirms the stored order, sends it through the order path, says what it did and reads the queue again", async () => {
+      const refused = approvedWith("refused");
+      const gateway = gatewayOf(
+        queue({ drafts: [refused] }),
+        queue({ drafts: [{ ...refused, send: "unknown" }] })
+      );
+      gateway.sendApproved.mockResolvedValueOnce({
+        result: {
+          message: "Engine refused the opening: V3_REFUSED snapshot_stale",
+          mode: "live",
+          orderRef: "vertex-gl1",
+          permId: null,
+          state: "engine_refused",
+        },
+        sent: true,
+      });
+      const container = await mount(gateway);
+      await click(button(container, NAME));
+      const dialog = one(document, "[role='dialog']");
+      expect(dialog.getAttribute("data-golive-dialog")).toBe("send");
+      expect(dialog.textContent).toContain(SEND_APPROVED_SENTENCE);
+      expect(dialog.textContent).toContain("Max loss");
+      // Opening the dialog sends nothing; Cancel closes it with nothing sent.
+      expect(gateway.sendApproved).not.toHaveBeenCalled();
+      await click(button(dialog, "Cancel"));
+      await settle();
+      expect(document.querySelector("[role='dialog']")).toBeNull();
+      expect(gateway.sendApproved).not.toHaveBeenCalled();
+
+      await click(button(container, NAME));
+      await click(button(one(document, "[role='dialog']"), "Send order"));
+      expect(gateway.sendApproved).toHaveBeenCalledTimes(1);
+      expect(gateway.sendApproved).toHaveBeenCalledWith({
+        draftId: "draft-spy",
+        order: ORDER,
+      });
+      // A send records no decision.
+      expect(gateway.approve).not.toHaveBeenCalled();
+      expect(gateway.queue).toHaveBeenCalledTimes(2);
+      expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
+        "Nothing was sent: the order bridge refused it before IBKR (V3_REFUSED snapshot_stale). Its row shows whether it can be sent again."
+      );
+      expect(one(container, "[data-golive-send-state]").textContent).toBe(
+        sendStateText("unknown")
+      );
+      expect(buttons(container)).toBe(0);
+    });
+
+    it("sets no state and reads nothing when the page is left while a send is in flight", async () => {
+      const slow = deferred<GoLiveSendResult>();
+      const gateway = gatewayOf(queue({ drafts: [approvedWith("not_sent")] }));
+      gateway.sendApproved.mockReturnValueOnce(slow.promise);
+      const container = await mount(gateway);
+      await click(button(container, NAME));
+      await click(button(one(document, "[role='dialog']"), "Send order"));
+      expect(gateway.sendApproved).toHaveBeenCalledTimes(1);
+      const errors = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      try {
+        for (const root of roots.splice(0))
+          await act(async () => root.unmount());
+        await act(async () => slow.resolve({ reasons: ["late"], sent: false }));
+        expect(errors).not.toHaveBeenCalled();
+        expect(gateway.queue).toHaveBeenCalledTimes(1);
+      } finally {
+        errors.mockRestore();
+      }
+    });
+
+    it("names a send that failed before the order path answered as not sent", async () => {
+      const gateway = gatewayOf(
+        queue({ drafts: [approvedWith("not_sent")] }),
+        queue({ drafts: [approvedWith("not_sent")] })
+      );
+      gateway.sendApproved.mockRejectedValueOnce(new Error("Network down"));
+      const container = await mount(gateway);
+      await click(button(container, NAME));
+      await click(button(one(document, "[role='dialog']"), "Send order"));
+      expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
+        "Not sent: Network down."
+      );
+    });
+
+    it("closes an open send dialog when a newer read shows the order can no longer be sent", async () => {
+      const gateway = gatewayOf(
+        queue({ drafts: [approvedWith("not_sent")] }),
+        queue({ drafts: [approvedWith("sent")] })
+      );
+      const container = await mount(gateway);
+      await reloadThenOpen(container, NAME);
+      await settle();
+      expect(document.querySelector("[role='dialog']")).toBeNull();
+      expect(gateway.sendApproved).not.toHaveBeenCalled();
+      expect(one(container, "[data-golive-decision-notice]").textContent).toBe(
+        "A newer read of the queue shows that the approved order can no longer be sent here (sent to IBKR: IBKR took the last send (submitted, or found there later)). The open dialog was closed and nothing was sent."
+      );
+    });
+  });
+
   it("shows the exit schedule of an approved entry, and drops a send answer after the page is left", async () => {
     const approved = draft({
       approvedOrder: ORDER,
@@ -1069,9 +1235,10 @@ describe("GoLiveDraftQueue", () => {
   it("says no Vertex screen can open a vertical on the live account, and links the live order screen", async () => {
     const container = await mount(gatewayOf(queue()));
     const notice = one(container, "[data-golive-notice]");
-    expect(notice.textContent).toBe(NO_ORDERS_NOTICE);
+    expect(notice.textContent).toBe(noOrdersNotice(queue().plan));
+    // The caps are the plan's own (8% open risk in this plan), not fixed numbers.
     expect(notice.textContent).toBe(
-      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
+      "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the caps of the plan in force (8% open risk on the plan's names, 2% per name, 2% per position). For the owner, an approved order whose send never reached the order bridge, or that the bridge refused, has a Send approved order button. The live order screen (Portfolio, Vertex orders tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks."
     );
     // The owner is not told to place an approved vertical on a Vertex screen.
     expect(notice.textContent).not.toMatch(/to place|use the|yourself/iu);

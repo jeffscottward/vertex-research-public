@@ -80,6 +80,23 @@ export const GOLIVE_NOT_APPROVABLE_VALUES = [
   "DRAFT_NOT_PROPOSED",
   "DRAFT_EXPIRED",
 ] as const;
+// The send of an approved entry draft, read from the order intent store: not_sent (no send has
+// run), refused (the order bridge refused the last send before IBKR: nothing was sent), sent
+// (submitted at IBKR, or found there later), not_taken (the bridge answered with another state, for
+// example aborted: not placed, but no proof that nothing reached IBKR; not sent again here), unknown
+// (in flight or outcome unknown: it may still reach IBKR), not_found (an unknown outcome checked
+// later and not found at IBKR; not sent again here), unavailable (the store is missing or did not
+// answer).
+export const GOLIVE_SEND_STATE_VALUES = [
+  "not_sent",
+  "refused",
+  "sent",
+  "not_taken",
+  "unknown",
+  "not_found",
+  "unavailable",
+] as const;
+export const GOLIVE_SENDABLE_STATES = ["not_sent", "refused"] as const;
 export const GOLIVE_QUOTE_SOURCE_VALUES = [
   "ibkr_live",
   "yahoo_delayed_snapshot",
@@ -430,6 +447,10 @@ export const GoLiveDraftSchema = z
     // 1 when the draft is stored; every later write to it adds 1. approve sends the revision the
     // owner read and is refused when the draft has another one.
     revision: z.number().int().positive(),
+    // Where the send of an approved entry stands (the order intent rows of its fixed orderRef):
+    // not_sent and refused may be sent with "Send approved order"; the server decides again at
+    // send. null for any other draft and for API keys.
+    send: z.enum(GOLIVE_SEND_STATE_VALUES).nullable(),
     shortStrike: z.number(),
     signalFacts: z.array(z.string()),
     // Computed at read time from the live account; never stored.
@@ -597,6 +618,7 @@ export type GoLivePlanLimits = z.infer<typeof GoLivePlanLimitsSchema>;
 export type GoLiveDraftCandidate = z.infer<typeof GoLiveDraftCandidateSchema>;
 export type GoLiveDraftOutput = z.infer<typeof GoLiveDraftSchema>;
 export type GoLiveDraftState = z.infer<typeof GoLiveDraftStateSchema>;
+export type GoLiveSendState = (typeof GOLIVE_SEND_STATE_VALUES)[number];
 export type GoLiveSizing = z.infer<typeof GoLiveSizingSchema>;
 export type GoLiveQuote = z.infer<typeof GoLiveQuoteSchema>;
 export type GoLiveQueueOutput = z.infer<typeof GoLiveQueueOutputSchema>;

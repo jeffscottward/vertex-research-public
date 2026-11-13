@@ -687,6 +687,7 @@ export const LAB_GOLIVE_QUEUE: GoLiveQueueOutput = {
         source: "yahoo_delayed_snapshot",
       },
       revision: 1,
+      send: null,
       shortStrike: 590,
       signalFacts: ["Dummy model has held SPY since 2026-10-20"],
       sizing: {

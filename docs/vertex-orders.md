@@ -73,6 +73,12 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
   `open` at once. After 10 minutes a changed position in the contract resolves as `position-changed`,
   an unchanged one as `not-found`. Submits are placed one at a time (see "One placement at a time"). While an intent is still unknown, every new order is refused with a reason that
   names it.
+- **Go-live once only, across processes.** An order sent for a go-live draft (`goLiveDraftId`)
+  has a fixed `orderRef` and writes its intent row with `recordIntentOnce`: one transaction claims
+  `(order_ref, attempt)` in `vertex_order_send_claims` and writes the intent, so of two web
+  processes sending the same draft exactly one reaches the gateway; the other is refused as
+  `GO-LIVE DRAFT_ALREADY_SENT`. A bridge refusal (`refused`) frees the draft for the next attempt
+  (docs/vertex-rebuild/golive-draft-queue.md, "Once only, also across web processes").
 - Only option orders can be cancelled here. Share stop orders protect positions and are shown
   as "Not cancellable here".
 
@@ -126,4 +132,4 @@ refuses otherwise, so a resting exit cannot later open a short.
 |`POST /combos`|combo fields (`symbol`, `quantity`, `limitPrice`, `legs[]`) plus `orderRef`|`{state, permId, message}`|
 |`POST /cancel`|`{permId}` (Vertex orders of client 211 only)|`{state, permId, message}`|
 
-`state` `unconfirmed` (sent, IBKR has not acknowledged) is stored as an unknown outcome. `state` `engine_refused`: the bridge refused an opening combo before IBKR (engine policy v3 or the node ARM record, market-watch-bot `market_watch/vertex_v3.py`); it is stored as outcome `refused`, and a go-live draft refused this way may be sent again.
+`state` `unconfirmed` (sent, IBKR has not acknowledged) is stored as an unknown outcome. `state` `engine_refused`: the bridge refused an opening combo before IBKR (engine policy v3 or the node ARM record, market-watch-bot `market_watch/vertex_v3.py`); it is stored as outcome `refused`, and a go-live draft refused this way may be sent again. `state` `unknown`: the bridge cannot tell whether IBKR took it; it is stored as an unknown outcome, reconciled and never resent. Any other `state` (for example `aborted` or `error`) is stored as outcome `not-taken`, and the order is never sent again.

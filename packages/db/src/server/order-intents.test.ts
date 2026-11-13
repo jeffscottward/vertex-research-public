@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { vertexOrderSendClaims } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
 import { createOrderIntentRepository } from "./order-intents.ts";
 
@@ -275,5 +276,186 @@ describe("order intent repository", () => {
         "vertex-gla"
       )
     ).toBe(false);
+  });
+
+  const row = (
+    minute: number,
+    action: string,
+    outcome?: string,
+    entityId = "vertex-gla"
+  ): Row => ({
+    action,
+    createdAt: at(minute),
+    entityId,
+    metadata: outcome === undefined ? {} : { outcome },
+  });
+  const INTENT = "vertex.order.intent";
+  const RESULT = "vertex.order.result";
+
+  it("reads where the send of each orderRef stands from its last row", async () => {
+    const { database } = fakeDatabase([
+      row(0, INTENT, undefined, "a"),
+      row(0, INTENT, undefined, "b"),
+      row(1, RESULT, "placed", "b"),
+      row(0, INTENT, undefined, "c"),
+      row(1, RESULT, "not-a-known-outcome", "c"),
+      row(0, INTENT, undefined, "d"),
+      row(1, RESULT, "unknown", "d"),
+      row(2, "vertex.order.reconciled", "not-found", "d"),
+    ]);
+    const states = await createOrderIntentRepository(database, deps).sendStates(
+      ["a", "b", "c", "d", "e"]
+    );
+    expect(Object.fromEntries(states)).toEqual({
+      a: "pending",
+      b: "placed",
+      // An outcome this code does not know may have reached IBKR.
+      c: "unknown",
+      d: "not-found",
+      e: "none",
+    });
+    // No ref: no query.
+    const noQuery = {
+      select: () => {
+        throw new Error("no query expected");
+      },
+    } as unknown as DatabaseExecutor;
+    expect(
+      (await createOrderIntentRepository(noQuery, deps).sendStates([])).size
+    ).toBe(0);
+  });
+
+  // A database whose transaction runs on the same fake; vertex_order_send_claims keeps its
+  // primary key (orderRef, attempt) in `taken`, as another process's claim would.
+  const claimDatabase = (rows: Row[], taken = new Set<string>()) => {
+    const inserted: Record<string, unknown>[] = [];
+    const claims: Record<string, unknown>[] = [];
+    const executor = {
+      insert: (table: unknown) => ({
+        values: (value: Record<string, unknown>) => {
+          if (table !== vertexOrderSendClaims) {
+            inserted.push(value);
+            return Promise.resolve();
+          }
+          return {
+            onConflictDoNothing: () => ({
+              returning: async () => {
+                const key = `${String(value["orderRef"])}#${String(value["attempt"])}`;
+                if (taken.has(key)) return [];
+                taken.add(key);
+                claims.push(value);
+                return [{ attempt: value["attempt"] }];
+              },
+            }),
+          };
+        },
+      }),
+      select: () => ({ from: () => ({ where: async () => rows }) }),
+    };
+    const database = {
+      ...executor,
+      transaction: async (operation: (tx: unknown) => Promise<unknown>) =>
+        await operation(executor),
+    } as unknown as DatabaseExecutor;
+    return { claims, database, inserted, taken };
+  };
+  const once = (database: DatabaseExecutor, requestId = "req-2") =>
+    createOrderIntentRepository(database, deps).recordIntentOnce({
+      actorUserId: "owner",
+      intent: {
+        contract: "SPY combo",
+        expiry: "20261218",
+        heldBefore: 0,
+        orderRef: "vertex-gla",
+        right: "C",
+        strike: 100,
+        symbol: "SPY",
+      },
+      requestId,
+    });
+
+  it("writes the first intent of a ref with its claim, attempt 0", async () => {
+    const fake = claimDatabase([]);
+    expect(await once(fake.database)).toBe(true);
+    expect(fake.claims).toEqual([
+      {
+        attempt: 0,
+        claimedAt: now,
+        orderRef: "vertex-gla",
+        requestId: "req-2",
+      },
+    ]);
+    expect(fake.inserted).toEqual([
+      expect.objectContaining({
+        action: INTENT,
+        entityId: "vertex-gla",
+        metadata: expect.objectContaining({ contract: "SPY combo" }),
+        requestId: "req-2",
+      }),
+    ]);
+  });
+
+  it("refuses, writing nothing, when another send holds the claim", async () => {
+    // Two processes read the same rows; the first claim wins the primary key.
+    const taken = new Set<string>();
+    const first = claimDatabase([], taken);
+    const second = claimDatabase([], taken);
+    expect(await once(first.database, "req-a")).toBe(true);
+    expect(await once(second.database, "req-b")).toBe(false);
+    expect(second.claims).toEqual([]);
+    expect(second.inserted).toEqual([]);
+  });
+
+  it("refuses a ref already sent, and claims the next attempt after each bridge refusal", async () => {
+    for (const sent of [
+      [row(0, INTENT)],
+      [row(0, INTENT), row(1, RESULT, "placed")],
+      [row(0, INTENT), row(1, RESULT, "unknown")],
+      [
+        row(0, INTENT),
+        row(1, RESULT, "unknown"),
+        row(2, "vertex.order.reconciled", "not-found"),
+      ],
+      [row(0, INTENT), row(1, RESULT, "refused"), row(2, INTENT)],
+    ]) {
+      const fake = claimDatabase(sent);
+      expect(await once(fake.database)).toBe(false);
+      expect(fake.claims).toEqual([]);
+      expect(fake.inserted).toEqual([]);
+    }
+    const refusedTwice = claimDatabase([
+      row(0, INTENT),
+      row(1, RESULT, "refused"),
+      row(2, INTENT),
+      row(3, RESULT, "refused"),
+    ]);
+    expect(await once(refusedTwice.database)).toBe(true);
+    expect(refusedTwice.claims).toEqual([
+      expect.objectContaining({ attempt: 2 }),
+    ]);
+    expect(refusedTwice.inserted).toHaveLength(1);
+  });
+
+  it("refuses a blank request id or orderRef before any claim", async () => {
+    const fake = claimDatabase([]);
+    await expect(once(fake.database, " ")).rejects.toThrow(
+      "requestId is required"
+    );
+    await expect(
+      createOrderIntentRepository(fake.database, deps).recordIntentOnce({
+        actorUserId: "owner",
+        intent: {
+          contract: "SPY combo",
+          expiry: "20261218",
+          heldBefore: 0,
+          orderRef: " ",
+          right: "C",
+          strike: 100,
+          symbol: "SPY",
+        },
+        requestId: "req-2",
+      })
+    ).rejects.toThrow("orderRef is required");
+    expect(fake.claims).toEqual([]);
   });
 });

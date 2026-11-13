@@ -7,6 +7,7 @@ import {
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   type GOLIVE_QUOTE_SOURCE_VALUES,
   GOLIVE_QUOTE_SPREAD_FLOOR,
+  GOLIVE_SENDABLE_STATES,
   type GOLIVE_SIZING_REASON_VALUES,
   type GOLIVE_STRUCTURE_VALUES,
   type GoLiveDraftOutput,
@@ -82,14 +83,37 @@ const wordsOf = <Key extends string>(
 export const VERTEX_ORDERS_TAB_VALUE = "orders";
 export const VERTEX_ORDERS_TAB_LABEL = "Vertex orders";
 export const PORTFOLIO_HREF = `/portfolio?tab=${VERTEX_ORDERS_TAB_VALUE}`;
+// A cap of the plan, as the plan stores it: 4 -> "4%", 1.5 -> "1.5%".
+const capPct = (value: number): string => `${Number(value.toFixed(2))}%`;
+/**
+ * The caps clause of the notice, from the plan the queue read (the send gate checks the caps of
+ * the approved plan the draft belongs to). undefined: the queue is not loaded yet, so no number is
+ * shown; a plan that is not approved, or no plan: nothing is sent, said as such.
+ */
+export const noticeCapsText = (
+  plan: GoLivePlanOutput | null | undefined
+): string => {
+  if (plan === undefined) return "only inside the caps of the plan in force";
+  if (plan === null || plan.status !== "approved")
+    return "only under an approved plan (no approved plan is in force now, so nothing is sent)";
+  const { nameRiskCapPct, openRiskCapPct, positionRiskPct } = plan.limits;
+  return `only inside the caps of the plan in force (${capPct(openRiskCapPct)} open risk on the plan's names, ${capPct(nameRiskCapPct)} per name, ${capPct(positionRiskPct)} per position)`;
+};
 // The notice in three parts, so the page can make the page name a link to that tab.
-export const NO_ORDERS_NOTICE_PARTS = Object.freeze({
-  after: `, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks.`,
-  before:
-    "Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and only inside the plan caps (4% total, 2% per name, 1% per position). The live order screen (",
-  link: "Portfolio",
-});
-export const NO_ORDERS_NOTICE = `${NO_ORDERS_NOTICE_PARTS.before}${NO_ORDERS_NOTICE_PARTS.link}${NO_ORDERS_NOTICE_PARTS.after}`;
+export const noOrdersNoticeParts = (
+  plan: GoLivePlanOutput | null | undefined
+): Readonly<{ after: string; before: string; link: string }> =>
+  Object.freeze({
+    after: `, ${VERTEX_ORDERS_TAB_LABEL} tab) has no vertical ticket and takes single option orders only (buy to open, sell to close). Placing a vertical by hand at IBKR is outside Vertex and its checks.`,
+    before: `Approve sends that exact order to IBKR as one combo limit order, only while you have ARMED the execution node, only if engine policy v3 accepts it (the order bridge runs the node's own check) and ${noticeCapsText(plan)}. For the owner, an approved order whose send never reached the order bridge, or that the bridge refused, has a Send approved order button. The live order screen (`,
+    link: "Portfolio",
+  });
+export const noOrdersNotice = (
+  plan: GoLivePlanOutput | null | undefined
+): string => {
+  const parts = noOrdersNoticeParts(plan);
+  return `${parts.before}${parts.link}${parts.after}`;
+};
 export const APPROVAL_NOT_SENT_SENTENCE =
   "This records your approval and sends this exact order as one combo limit order, only if the execution node is armed, engine policy v3 accepts it and the plan caps allow it.";
 export const REJECTION_RECORD_SENTENCE =
@@ -1188,7 +1212,8 @@ type GoLiveOpenDecision =
       outsideTestedEntryRule?: boolean;
       type: "approve";
     }>
-  | Readonly<{ draft: GoLiveShownDraft; type: "reject" }>;
+  | Readonly<{ draft: GoLiveShownDraft; type: "reject" }>
+  | Readonly<{ draft: GoLiveShownDraft; order: GoLiveOrder; type: "send" }>;
 
 /** The fields of an order in a fixed sequence, so two orders compare by value. */
 const orderKey = (order: GoLiveOrder): string =>
@@ -1209,7 +1234,8 @@ const orderKey = (order: GoLiveOrder): string =>
  * Why an open dialog no longer matches the queue, or null when it still does. A newer read can
  * arrive behind the dialog; the page then closes it instead of offering a decision that its own
  * row forbids. Both decisions need a proposed draft of the revision the dialog shows; an approval
- * also needs no blocker and the exact order the dialog shows.
+ * also needs no blocker and the exact order the dialog shows. A send needs the approved entry,
+ * still sendable (canSendApproved), with the stored order the dialog shows.
  */
 export const staleDialogReason = (
   decision: GoLiveOpenDecision,
@@ -1217,6 +1243,19 @@ export const staleDialogReason = (
   context: GoLiveDraftContext
 ): string | null => {
   if (fresh === undefined) return "the draft is no longer in the queue";
+  // A send needs the approved entry, still sendable, with the stored order the dialog shows.
+  if (decision.type === "send") {
+    if (!canSendApproved(fresh))
+      return `the approved order can no longer be sent here (${
+        fresh.send === null
+          ? draftStateText(fresh.state)
+          : lowerFirst(sendStateText(fresh.send)).replace(/\.$/u, "")
+      })`;
+    return fresh.approvedOrder !== null &&
+      orderKey(fresh.approvedOrder) === orderKey(decision.order)
+      ? null
+      : "the approved order changed and is no longer the order the dialog showed";
+  }
   if (fresh.state !== "proposed")
     return `the draft is no longer proposed (${draftStateText(fresh.state)})`;
   // A rerun of the generator refreshes an open draft under a new revision: the owner has not
@@ -1237,8 +1276,12 @@ export const staleDialogReason = (
     : "the order of the draft changed and is no longer the order the dialog showed";
 };
 
-export const staleDialogNotice = (reason: string): string =>
-  `A newer read of the queue shows that ${reason}. The open dialog was closed and nothing was recorded.`;
+/** What a closed dialog left behind: a send dialog sent nothing, a decision dialog recorded nothing. */
+export const dialogClosedText = (sending: boolean): string =>
+  `The open dialog was closed and nothing was ${sending ? "sent" : "recorded"}.`;
+
+export const staleDialogNotice = (reason: string, sending = false): string =>
+  `A newer read of the queue shows that ${reason}. ${dialogClosedText(sending)}`;
 
 /**
  * The owner's standing exit rule for an approved entry, in words: the day a loser closes and the
@@ -1271,23 +1314,34 @@ const reasonText = (reason: string): string =>
     : reason;
 
 /**
- * The notice after an approval: what the order path did with the approved order. Sends off (v3
- * not on the live path) and a disarmed node lead the notice; every other refusal is listed.
+ * The notice after an approval, or after Send approved order (resend: true): what the order path
+ * did with the approved order. Sends off (v3 not on the live path) and a disarmed node lead the
+ * notice; every other refusal is listed.
  */
-export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
+export const sendOutcomeText = (
+  outcome: GoLiveSendResult,
+  resend = false
+): string => {
+  // The same facts after an approval ("Approved; ...") and after a resend (no approval now).
+  const lead = (approved: string, resent: string): string =>
+    resend ? resent : approved;
   if (outcome.sent === "unknown")
-    return `Approved; the send outcome is unknown (${outcome.message}). Check open orders at IBKR before doing anything else.`;
+    return `${lead("Approved; the send outcome is unknown", "The send outcome is unknown")} (${outcome.message}). Check open orders at IBKR before doing anything else.`;
   if (outcome.sent) {
     const { result } = outcome;
+    // A bridge reply of state "unknown" means the bridge could not tell whether IBKR took it:
+    // the same as an unknown send, never "did not take" (it is reconciled, not resent).
+    if (result.state === "unknown")
+      return `${lead("Approved; the send outcome is unknown", "The send outcome is unknown")} (${result.message}). Check open orders at IBKR before doing anything else.`;
     const reached =
       result.state === "submitted" || result.state === "unconfirmed";
     if (reached)
-      return `Approved and sent to IBKR as one combo limit order (${result.mode}, ${result.state}, ref ${result.orderRef}). ${result.message}`;
+      return `${lead("Approved and sent", "Sent")} to IBKR as one combo limit order (${result.mode}, ${result.state}, ref ${result.orderRef}). ${result.message}`;
     // The order bridge refuses an opening before IBKR when engine policy v3 or the node ARM check
     // says no (market-watch-bot vertexbridge state engine_refused, card vertex-golive-exec-intake).
     return result.state === "engine_refused"
-      ? `Approved; nothing was sent: the order bridge refused it before IBKR (${result.message.replace(/^Engine refused the opening(?: at send time)?: /u, "")}). You can send it again.`
-      : `Approved; IBKR did not take the order (${result.state}): ${result.message}`;
+      ? `${lead("Approved; nothing was sent", "Nothing was sent")}: the order bridge refused it before IBKR (${result.message.replace(/^Engine refused the opening(?: at send time)?: /u, "")}). Its row shows whether it can be sent again.`
+      : `${lead("Approved; IBKR did not take the order", "IBKR did not take the order")} (${result.state}): ${result.message.replace(/\.$/u, "")}. It is not sent again here; check open orders at IBKR.`;
   }
   const codes = outcome.reasons.map(reasonCode);
   const others = outcome.reasons
@@ -1298,14 +1352,65 @@ export const sendOutcomeText = (outcome: GoLiveSendResult): string => {
     .map(reasonText);
   const rest = others.length === 0 ? "" : ` Also: ${others.join("; ")}.`;
   if (codes.includes("V3_NOT_ON_LIVE_PATH"))
-    return `Approved and recorded; nothing was sent: go-live sends are off because the order gateway does not report engine policy v3 (simulated gateway or an older bridge).${rest}`;
+    return `${lead("Approved and recorded; nothing was sent", "Nothing was sent")}: go-live sends are off because the order gateway does not report engine policy v3 (simulated gateway or an older bridge).${rest}`;
   const disarmed = outcome.reasons.find(
     (reason) => reasonCode(reason) === "ENGINE_DISARMED"
   );
   if (disarmed !== undefined)
-    return `Approved, engine disarmed: nothing was sent (${reasonText(disarmed).replace(/^approved, /u, "")}).${rest}`;
-  return `Approved, not sent: ${others.join("; ")}.`;
+    return `${lead("Approved, engine disarmed", "Engine disarmed")}: nothing was sent (${reasonText(disarmed).replace(/^approved, /u, "")}).${rest}`;
+  return `${lead("Approved, not sent", "Not sent")}: ${others.join("; ")}.`;
 };
+
+// ---------- the send of an approved entry ----------
+
+type GoLiveSendStateValue = NonNullable<GoLiveDraftOutput["send"]>;
+
+export const SEND_STATE_WORDS: Readonly<Record<GoLiveSendStateValue, string>> =
+  Object.freeze({
+    not_found:
+      "Not found at IBKR: the outcome was unknown and a later check did not find the order. Not sent again here; check the IBKR order history.",
+    not_sent:
+      "Not sent: no send of this order reached the order bridge (a send the checks here refused records nothing).",
+    not_taken:
+      "Not placed: the order bridge answered that the last send was not taken (for example aborted). Not sent again here, since it may still be at IBKR under this ref; check open orders at IBKR.",
+    refused:
+      "Not sent: the order bridge refused the last send before IBKR. It can be sent again.",
+    sent: "Sent to IBKR: IBKR took the last send (submitted, or found there later).",
+    unavailable:
+      "Not known: the order records could not be read. Reload the queue; the send button needs a known state.",
+    unknown:
+      "Outcome unknown: the order may still reach IBKR. Check open orders at IBKR; the next order preview checks it.",
+  });
+
+/** Where the send of an approved entry stands, in words. */
+export const sendStateText = (send: GoLiveSendStateValue): string =>
+  wordsOf(SEND_STATE_WORDS, send, "Send state ");
+
+export const SEND_APPROVED_LABEL = "Send approved order";
+export const SEND_APPROVED_SENTENCE =
+  "This sends the order you approved, exactly as stored, to IBKR as one combo limit order, only if the execution node is armed, engine policy v3 accepts it and the plan caps allow it. It records no new decision.";
+
+/**
+ * Whether the row offers Send approved order: an approved entry with its stored order whose send
+ * never reached the order bridge, or that the bridge refused before IBKR. The page shows it to the
+ * owner only; the server checks every rule again at send and refuses a ref already sent.
+ */
+export const canSendApproved = (
+  draft: Pick<GoLiveDraftOutput, "approvedOrder" | "kind" | "send" | "state">
+): boolean =>
+  draft.kind === "entry" &&
+  draft.state === "approved" &&
+  draft.approvedOrder !== null &&
+  GOLIVE_SENDABLE_STATES.some((state) => state === draft.send);
+
+/** The rows of the send dialog: the stored order and the room its approval holds. */
+export const sendSummaryRows = (
+  draft: Pick<GoLiveDraftOutput, "approvedRoom">,
+  order: GoLiveOrder
+): readonly GoLiveLabelValue[] => [
+  ...orderRows(order),
+  { label: "Max loss", value: approvedRoomText(draft.approvedRoom) },
+];
 
 export const OUTSIDE_TESTED_RULE_LABEL =
   "I approve this position outside the tested entry rule (a late entry the backtest never tested).";

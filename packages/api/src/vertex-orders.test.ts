@@ -6,6 +6,7 @@ import {
 import type {
   OrderIntent,
   OrderIntentRepository,
+  OrderSendState,
   Repositories,
 } from "@darkfactory/db/server";
 import type {
@@ -22,6 +23,7 @@ import type {
   VertexOrderInput,
 } from "./contracts/vertex-orders.ts";
 import { createApiContext } from "./server/context.ts";
+import { goLiveOrderRef } from "./server/golive-order-ref.ts";
 import {
   AGENT_API_KEY_PROCEDURE_ROOTS,
   handleApiRequest,
@@ -211,25 +213,48 @@ const intentStore = () => {
   const intents: OrderIntent[] = [];
   const outcomes = new Map<string, string>();
   const rows: string[] = [];
+  const claimedElsewhere = new Set<string>();
   const store: OrderIntentRepository = {
     hasIntent: async (orderRef) =>
       intents.some((i) => i.orderRef === orderRef) || outcomes.has(orderRef),
-    refused: async (orderRef) => outcomes.get(orderRef) === "refused",
     recordIntent: async ({ intent }) => {
       intents.push({ ...intent, createdAt: clock });
       rows.push(`intent ${intent.orderRef}`);
+    },
+    // The claim rule of the repository: a ref already sent, or one another process holds
+    // (claimedElsewhere), gets false and nothing is written.
+    recordIntentOnce: async ({ intent }) => {
+      const sent =
+        intents.some((i) => i.orderRef === intent.orderRef) &&
+        outcomes.get(intent.orderRef) !== "refused";
+      if (sent || claimedElsewhere.has(intent.orderRef)) return false;
+      outcomes.delete(intent.orderRef);
+      intents.push({ ...intent, createdAt: clock });
+      rows.push(`intent once ${intent.orderRef}`);
+      return true;
     },
     recordOutcome: async ({ action, orderRef, outcome }) => {
       outcomes.set(orderRef, outcome);
       rows.push(`${action} ${outcome}`);
     },
+    refused: async (orderRef) => outcomes.get(orderRef) === "refused",
+    sendStates: async (refs) =>
+      new Map(
+        refs.map((ref) => [
+          ref,
+          (outcomes.get(ref) ??
+            (intents.some((i) => i.orderRef === ref)
+              ? "pending"
+              : "none")) as OrderSendState,
+        ])
+      ),
     unresolved: async () =>
       intents.filter((i) => {
         const outcome = outcomes.get(i.orderRef);
         return outcome === undefined || outcome === "unknown";
       }),
   };
-  return { intents, rows, store };
+  return { claimedElsewhere, intents, rows, store };
 };
 
 // A promise the test settles by hand (the tsconfig lib has no Promise.withResolvers).
@@ -978,7 +1003,7 @@ describe("vertexOrders procedures", () => {
       },
       now: () => clock,
     });
-    const { store, rows } = intentStore();
+    const { claimedElsewhere, store, rows } = intentStore();
     const client = clientFor({ goLiveDrafts, intents: store });
     const send = async () => {
       const preview = await client.vertexOrders.comboPreview({
@@ -1000,12 +1025,23 @@ describe("vertexOrders procedures", () => {
       ),
     ]);
     badge = "running-armed";
+    // Another web process holds the claim on this draft's ref (it is sending it now): this submit
+    // is refused by name and nothing reaches the gateway; the in-process mark is freed again.
+    const ref = await goLiveOrderRef("d-1");
+    claimedElsewhere.add(ref);
+    await expectCode(send(), "ORDER_REJECTED", 422);
+    expect(placeCombo).not.toHaveBeenCalled();
+    expect(rows).toEqual([]);
+    claimedElsewhere.delete(ref);
     const first = await send();
     expect(first).toMatchObject({ permId: 79, state: "submitted" });
+    expect((first as { orderRef: string }).orderRef).toBe(ref);
     expect((first as { orderRef: string }).orderRef).toMatch(
       /^vertex-gl[0-9a-f]{30}$/u
     );
-    expect(rows[0]).toBe(`intent ${(first as { orderRef: string }).orderRef}`);
+    expect(rows[0]).toBe(
+      `intent once ${(first as { orderRef: string }).orderRef}`
+    );
     // Second send of the same draft: refused at preview, nothing reaches the gateway again.
     expect(await send()).toContain(
       "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
@@ -1109,6 +1145,114 @@ describe("vertexOrders procedures", () => {
     );
     expect(placeCombo).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    ["aborted", "not-taken"],
+    ["error", "not-taken"],
+    ["unknown", "unknown"],
+  ] as const)(
+    "a bridge answer %s on a go-live send is stored as %s and the draft is never sent again",
+    async (state, outcome) => {
+      clock = new Date("2026-11-13T15:00:00.000Z");
+      const placeCombo = vi
+        .fn<OrderGatewayPort["placeCombo"]>()
+        .mockResolvedValue({ message: "not placed", permId: null, state });
+      const spread: VertexComboInput = {
+        legs: [
+          {
+            expiry: "20280121",
+            ratio: 1,
+            right: "C",
+            side: "BUY",
+            strike: 100,
+          },
+          {
+            expiry: "20280121",
+            ratio: 1,
+            right: "C",
+            side: "SELL",
+            strike: 105,
+          },
+        ],
+        limitPrice: 1.25,
+        quantity: 1,
+        symbol: "MOCKS",
+      };
+      const goLiveDrafts = {
+        listDrafts: async () => [
+          {
+            approvedOrder: spread,
+            expiry: "20280121",
+            id: "d-1",
+            kind: "entry",
+            longStrike: 100,
+            planId: "pie",
+            shortStrike: 105,
+            state: "approved",
+            structure: "callDebitVertical",
+            symbol: "MOCKS",
+            tradingDay: "2026-11-13",
+          },
+        ],
+        planInForce: async () => ({
+          id: "pie",
+          limits: {
+            maxPositions: 4,
+            nameRiskCapPct: 2,
+            openRiskCapPct: 4,
+            positionRiskPct: 1,
+          },
+          sleeves: [{ symbols: ["MOCKS"] }],
+          status: "approved",
+        }),
+      };
+      let badge: "running-armed" | "running-disarmed" = "running-disarmed";
+      setVertexOrdersDependenciesForTesting({
+        goLiveNode: async () => ({ arm: null, badge, checkedAt: "T" }),
+        mock: {
+          ...mock,
+          account: async () => {
+            const account = await mock.account();
+            // A bridge that runs engine policy v3 + ARM on openings (market-watch-bot vertexbridge).
+            return {
+              ...account,
+              gates: {
+                ...account.gates,
+                orderPolicy: "options_only_defined_risk_v3",
+              },
+              openOrders: [],
+              positions: [],
+            };
+          },
+          placeCombo,
+        },
+        now: () => clock,
+      });
+      const { store, rows } = intentStore();
+      const client = clientFor({ goLiveDrafts, intents: store });
+      const send = async () => {
+        const preview = await client.vertexOrders.comboPreview({
+          ...spread,
+          goLiveDraftId: "d-1",
+        });
+        if (preview.confirmToken === null) return preview.review.reasons;
+        return await client.vertexOrders.comboSubmit({
+          confirm: true,
+          confirmToken: preview.confirmToken,
+          goLiveDraftId: "d-1",
+          order: spread,
+        });
+      };
+      badge = "running-armed";
+      expect(await send()).toMatchObject({ permId: null, state });
+      expect(rows.at(-1)).toBe(`vertex.order.result ${outcome}`);
+      // Not placed is no proof that nothing reached IBKR: the draft stays sent.
+      expect(await send()).toContain(
+        "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+      );
+      expect(placeCombo).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it("binds a go-live draft id to the confirm token and refuses by name when the draft store is missing", async () => {
     clock = new Date(at);

@@ -21,6 +21,7 @@ import {
   orderSessionDay,
   strikeWidth,
 } from "./golive-drafts-sizing.ts";
+import { goLiveOrderRef } from "./golive-order-ref.ts";
 import { goLiveSendRefusals } from "./golive-send-gate.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
@@ -158,21 +159,14 @@ const comboAction = (
 ): string =>
   `combo:${JSON.stringify(order)}${goLiveDraftId === undefined ? "" : `:golive:${goLiveDraftId}`}`;
 
-// One go-live draft is sent at most once: its orderRef is fixed by the draft id, and any intent
-// row for it (written before the bridge call, also when the outcome is unknown) refuses a second
-// send. The bridge tail also refuses an orderRef IBKR already has. Process memory covers the mock
-// gateway, which has no intent store.
+// One go-live draft is sent at most once: its orderRef is fixed by the draft id (goLiveOrderRef),
+// and any intent row for it (written before the bridge call, also when the outcome is unknown)
+// refuses a second send until the bridge refused it. Across web processes, the intent row is
+// written only with a claim on (orderRef, attempt) (orderIntents.recordIntentOnce, one
+// transaction), so of two concurrent sends exactly one reaches the bridge. The bridge tail also
+// refuses an orderRef IBKR already has. Process memory covers the mock gateway, which has no
+// intent store.
 const goLiveSentRefs = new Set<string>();
-const goLiveOrderRef = async (draftId: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(`golive:${draftId}`)
-  );
-  const hex = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  return `vertex-gl${hex.slice(0, 30)}`;
-};
 const DRAFT_ALREADY_SENT =
   "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions";
 // A send the order bridge refused before IBKR (engine_refused: engine policy v3 or the node ARM check)
@@ -420,7 +414,7 @@ const intentStoreOf = (
 // Writes the result row of a submit. A failed write never hides the gateway result.
 const outcomeRecorder =
   (context: ApiContext, store: IntentStore | undefined, orderRef: string) =>
-  async (outcome: "placed" | "unknown" | "refused") =>
+  async (outcome: "placed" | "unknown" | "refused" | "not-taken") =>
     await store
       ?.recordOutcome({
         action: "vertex.order.result",
@@ -430,6 +424,33 @@ const outcomeRecorder =
         requestId: context.requestId,
       })
       .catch(() => undefined);
+
+// Writes the intent row before the gateway call. A go-live ref is written only with its claim
+// (recordIntentOnce): another web process that sends the same draft at the same time gets false
+// and sends nothing. With no store (the mock gateway, unwired) nothing is written: true.
+const writeIntent = async (
+  store: IntentStore | undefined,
+  goLive: boolean,
+  input: Parameters<IntentStore["recordIntent"]>[0]
+): Promise<boolean> => {
+  if (store === undefined) return true;
+  if (goLive) return await store.recordIntentOnce(input);
+  await store.recordIntent(input);
+  return true;
+};
+
+// The outcome row of a combo submit, from the bridge state. "submitted": placed. "unconfirmed" (IBKR
+// has not acknowledged it yet) and "unknown" (the bridge could not tell): it may still be live, so
+// reconciliation checks it. "engine_refused": the bridge refused it before IBKR, so a go-live draft
+// is free to be sent again. Any other state (for example "aborted") did not place the order but is
+// no proof that nothing reached IBKR: "not-taken", never sent again.
+const comboOutcome = (
+  state: string
+): "placed" | "unknown" | "refused" | "not-taken" => {
+  if (state === "submitted") return "placed";
+  if (state === "unconfirmed" || state === "unknown") return "unknown";
+  return state === "engine_refused" ? "refused" : "not-taken";
+};
 
 const heldIn = (
   account: OrderAccount,
@@ -762,8 +783,10 @@ const submit = api.vertexOrders.submit
     }
     // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
     await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
-    // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
-    // is a refusal and is audited as a failure.
+    // Only "submitted" and "unconfirmed" reached IBKR; any other state is audited as a failure.
+    // Known gap (single-order path, predates go-live; follow-up of card vertex-golive-exec-intake):
+    // a bridge "unknown" or "aborted" is stored as "placed" here, so it is not reconciled. The
+    // combo path maps states with comboOutcome instead ("unknown" stays an unknown outcome).
     await audit(
       context,
       "submit",
@@ -921,23 +944,30 @@ const comboSubmit = api.vertexOrders.comboSubmit
       strike: first.strike,
       symbol: order.symbol,
     };
+    const intentInput = {
+      actorUserId: userOf(context),
+      intent: {
+        contract: review.label,
+        orderRef,
+        ...leg,
+        heldBefore: heldIn(account, leg),
+      },
+      requestId: context.requestId,
+    };
+    let claimed: boolean;
     try {
-      await store?.recordIntent({
-        actorUserId: userOf(context),
-        intent: {
-          contract: review.label,
-          orderRef,
-          ...leg,
-          heldBefore: heldIn(account, leg),
-        },
-        requestId: context.requestId,
-      });
+      claimed = await writeIntent(store, goLiveRef !== null, intentInput);
     } catch {
       release();
       await auditFailure("intent store unavailable");
       throw failures.AUDIT_UNAVAILABLE({
         message: "Order intent store unavailable; nothing was sent",
       });
+    }
+    if (!claimed) {
+      release();
+      await auditFailure(DRAFT_ALREADY_SENT);
+      throw failures.ORDER_REJECTED({ message: DRAFT_ALREADY_SENT });
     }
     const outcomeOf = outcomeRecorder(context, store, orderRef);
     let result: Awaited<ReturnType<OrderGatewayPort["placeCombo"]>>;
@@ -954,19 +984,13 @@ const comboSubmit = api.vertexOrders.comboSubmit
         });
       throw error;
     }
-    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live. "engine_refused":
-    // the bridge refused it before IBKR, so a go-live draft is free to be sent again.
     const engineRefused = result.state === "engine_refused";
-    await outcomeOf(
-      result.state === "unconfirmed"
-        ? "unknown"
-        : engineRefused
-          ? "refused"
-          : "placed"
-    );
+    await outcomeOf(comboOutcome(result.state));
     if (engineRefused) release();
-    // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
-    // is a refusal and is audited as a failure.
+    // Only "submitted" and "unconfirmed" reached IBKR. A bridge "unknown" may have reached it
+    // (stored as an unknown outcome, reconciled and never resent); the audit outcome is binary,
+    // so it is audited as a failure with result "unknown" in the details. Any other state (for
+    // example "aborted") is a refusal and is audited as a failure.
     await audit(
       context,
       "comboSubmit",
