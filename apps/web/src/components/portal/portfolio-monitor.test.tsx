@@ -809,6 +809,31 @@ describe("PortfolioMonitor", () => {
     );
   });
 
+  it("keeps the last rows of a disconnected reader, marked out of date, in tables and charts alike", async () => {
+    // ibkr-monitor keeps its last snapshot while its bridge reconnects: the rows are stale, not
+    // withheld. Tables and charts both show them under the "out of date" banner.
+    const snapshot = fixtureSnapshot({
+      status: { gateway: "disconnected", connected: false },
+    });
+    const { root } = await mount(
+      <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab="positions" />
+    );
+    expect(find("[data-banner=disconnected]").textContent).toContain(
+      "Values may be out of date."
+    );
+    expect(document.querySelector("[data-withheld]")).toBeNull();
+    expect(find("#pm-positions-title").textContent).toMatch(/\(\d+\)$/);
+    for (const tab of ["pnl", "allocation"] as const) {
+      await run(() =>
+        root.render(
+          <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab={tab} />
+        )
+      );
+      expect(document.querySelector("[data-withheld]")).toBeNull();
+      expect(document.querySelector("svg")).not.toBeNull();
+    }
+  });
+
   it("shows a named account-mode error with its fix instead of a mode", async () => {
     const withError = (
       modeError: "mismatch" | "not-configured" | "not-reported"
@@ -821,8 +846,19 @@ describe("PortfolioMonitor", () => {
           modeError,
           count: 0,
         },
-        // The API empties the lists on a mismatch and leaves the gateway state as it is.
-        ...(modeError === "mismatch" ? { positions: [], orders: [] } : {}),
+        // The API output on a mismatch (withholdOnModeMismatch): lists and summary emptied, not
+        // connected.
+        ...(modeError === "mismatch"
+          ? {
+              positions: [],
+              orders: [],
+              status: { connected: false },
+              summary: {
+                ...fixtureSnapshot().summary,
+                netLiquidation: null,
+              },
+            }
+          : {}),
       });
     const { root } = await mount(
       <PortfolioMonitor

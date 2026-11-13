@@ -77,7 +77,7 @@ export const AllocationChart = ({
       <PanelTitle id="pm-allocation-title">
         {"Allocation (% of NLV)"}
       </PanelTitle>
-      {withheld !== null || arcs.length === 0 ? (
+      {arcs.length === 0 ? (
         <EmptyOrWithheld
           empty="No allocation data."
           what="Allocation"
@@ -161,7 +161,7 @@ export const PnlChart = ({
   return (
     <section aria-labelledby="pm-pnl-title" className={CARD}>
       <PanelTitle id="pm-pnl-title">P&L by position</PanelTitle>
-      {withheld !== null || bars.length === 0 ? (
+      {bars.length === 0 ? (
         <EmptyOrWithheld
           empty="No positions to chart."
           what="Positions"
