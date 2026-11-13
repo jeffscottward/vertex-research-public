@@ -53,6 +53,9 @@ holds mode words and times only, no account codes.
 
 ## Deploy
 
+Order: deploy the Vertex API and web build first, then this service. The API before 1.1.0 support has a
+strict upstream schema and rejects the new snapshot fields.
+
 From the rig: `node ~/.local/state/vertex-vps-status/deploy-portfolio.mjs`
 (set `VERTEX_INFRA_DIR` to another `infra/quant-vps` checkout if needed). It runs `install-portfolio.sh` as
 root over SSH. The installer checks the protected containers and compose hashes before and after, installs

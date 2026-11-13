@@ -235,6 +235,8 @@ class ModeTracker:
         # A mismatch is stored with the configured mode it was found for, so a restart keeps it and a
         # corrected configuration clears it.
         self.mismatch = self.configured is not None and saved.get("mismatch") == self.configured
+        if "mismatch" in saved and not self.mismatch:
+            self._put("mismatch", None)  # found for another configuration: it must not come back later
         self._put("downSince", self.down_since)
 
     def _put(self, key, value):
@@ -863,7 +865,9 @@ def main():
     store = open_mode_store(os.path.join(state_dir, "account-mode.sqlite"), log=_log)
     state = PortfolioState(mode=ModeTracker(configured=configured, store=store))
     mode = state.mode_view()
-    if mode["modeError"] == "not-configured":
+    if mode["modeError"] == "mismatch":
+        _log("account_mode_mismatch", configured=configured, source="stored")
+    elif mode["modeError"] == "not-configured":
         # A named setup error, not a neutral placeholder. resolve-gateway.sh reads the mode from the
         # gateway container (label com.ibkr-nautilus-exec-node.trading-mode, else TRADING_MODE).
         _log("account_mode_not_configured", fix="set TRADING_MODE on the ib-gateway container")

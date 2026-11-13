@@ -412,6 +412,7 @@ describe("portfolioMonitor derivation", () => {
       modeError: "mismatch",
       count: 1,
     });
+    expect(output.status.connected).toBe(false);
     expect(output.status.dataAsOf).toBeNull();
     expect(output.summary.netLiquidation).toBeNull();
     expect(output.pnl).toEqual({

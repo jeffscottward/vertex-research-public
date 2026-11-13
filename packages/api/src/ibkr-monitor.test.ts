@@ -329,6 +329,8 @@ describe("ibkrMonitor mapping", () => {
       modeError: "mismatch",
       count: 1,
     });
+    // Fails closed for every consumer of `connected` (trade journal, fills count).
+    expect(output.status.connected).toBe(false);
     expect(output.positions).toEqual([]);
     expect(output.orders).toEqual([]);
     expect(output.summary.netLiquidation).toBeNull();

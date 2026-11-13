@@ -405,6 +405,9 @@ class ModeTrackerTest(unittest.TestCase):
         self.assertEqual(again.view()["modeError"], "mismatch")
         self.assertEqual(self.tracker("live", store).view()["accountMode"], "live")  # configuration corrected
         self.assertEqual(self.tracker(None, store).view()["modeError"], "not-configured")
+        self.assertNotIn("mismatch", store.load())  # dropped by the start with another configuration
+        self.assertIsNone(self.tracker("paper", store).view()["modeError"])  # and it does not come back
+        self.assertFalse(again.observe("live"))
         self.assertTrue(again.observe("paper"))
         self.assertNotIn("mismatch", store.load())
         self.assertIsNone(self.tracker("paper", store).view()["modeError"])

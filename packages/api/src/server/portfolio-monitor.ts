@@ -448,7 +448,13 @@ export const withholdOnModeMismatch = (
   output.account.modeError === "mismatch"
     ? {
         ...output,
-        status: { ...output.status, dataAsOf: null, ordersAsOf: null },
+        // Not connected to the configured account: every consumer of `connected` fails closed.
+        status: {
+          ...output.status,
+          connected: false,
+          dataAsOf: null,
+          ordersAsOf: null,
+        },
         summary: toSummary({}),
         pnl: { daily: null, unrealized: null, realized: null },
         positions: [],
