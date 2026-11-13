@@ -31,6 +31,7 @@ import {
 } from "./assistant-runtime.ts";
 import { storableTrace } from "./assistant-chart-tools.ts";
 import type { ApiContext } from "./context.ts";
+import { marketNoteAssistantLines } from "./market-notes.ts";
 import {
   AGENT_VIEWER_PLAN_ONLY_MESSAGE,
   isAgentViewerEmail,
@@ -437,6 +438,8 @@ export const assistantSend = api.assistant.send
         ),
       errors
     );
+    // Optional research context: a notes failure never fails the turn (it is reported as an event).
+    const marketNotes = await marketNoteAssistantLines(context, runtime.now());
     const storeProposals = (
       messageId: string,
       proposals: readonly AssistantProposal[]
@@ -518,6 +521,7 @@ export const assistantSend = api.assistant.send
           message: input.message,
           ...(input.page === undefined ? {} : { page: input.page }),
           ...(input.teach === true ? { teach: true } : {}),
+          marketNotes,
           // Chart drawing ids of this turn: quant-<end of the user message id>-<n>.
           turnId: userMessage.id,
           client: runtime.client,

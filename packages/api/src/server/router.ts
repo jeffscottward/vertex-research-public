@@ -144,6 +144,7 @@ import { openbbRouter } from "./openbb.ts";
 import { sectorRotationRouter } from "./sector-rotation.ts";
 import { breadth90Router } from "./breadth-90.ts";
 import { goLiveDraftsRouter } from "./golive-drafts.ts";
+import { marketNotesRouter } from "./market-notes.ts";
 import { marketNewsRouter } from "./market-news.ts";
 import { basketsRouter } from "./baskets.ts";
 import { pickListsRouter } from "./pick-lists.ts";
@@ -1724,6 +1725,7 @@ export const appRouter = api.router({
   sectorRotation: sectorRotationRouter,
   breadth90: breadth90Router,
   goLiveDrafts: goLiveDraftsRouter,
+  marketNotes: marketNotesRouter,
   marketNews: marketNewsRouter,
   baskets: basketsRouter,
   pickLists: pickListsRouter,
