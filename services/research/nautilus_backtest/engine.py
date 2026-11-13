@@ -11,7 +11,7 @@ Pin: nautilus-trader==1.227.0, shared with Quant Lab (quantlab/nautilus_engine.p
 Lock: services/research/requirements-nautilus-linux-py312.lock.
 
 Model (the same rules as the TypeScript engine):
-- One simulated venue "VTX", CASH account in USD with the run capital, netting,
+- One simulated venue "VTX", CASH account in USDX (US dollars with 9 decimals, as in academy/engine.py) with the run capital, netting,
   one CFD instrument with 9-decimal prices and quantities (fractional units).
 - Each bar i is fed as three one-minute LAST bars, 1 ns apart, starting at the
   bar time: the open print (open = high = low = close = open), the path from the
@@ -66,9 +66,10 @@ __all__ = ["ENGINE_ID", "NautilusUnavailable", "RunResult", "require", "run_sign
 
 ENGINE_ID = f"nautilus-trader-{NAUTILUS_VERSION}"
 # Bump when the order or fill model of this module changes.
-MODEL_VERSION = 3
+MODEL_VERSION = 4
 DEFAULT_CAPITAL = 1_000_000.0
 PRECISION = 9
+LEDGER_CURRENCY = "USDX"
 YEAR_MS = 365.25 * 24 * 60 * 60 * 1000
 BPS = 10_000
 PERCENT = 100
@@ -84,7 +85,8 @@ _NAUTILUS_NAMES = {
     "SimulationModuleConfig": ("nautilus_trader.backtest.config", "SimulationModuleConfig"),
     "LoggingConfig": ("nautilus_trader.config", "LoggingConfig"),
     "StrategyConfig": ("nautilus_trader.config", "StrategyConfig"),
-    "USD": ("nautilus_trader.model.currencies", "USD"),
+    "Currency": ("nautilus_trader.model.objects", "Currency"),
+    "CurrencyType": ("nautilus_trader.model.enums", "CurrencyType"),
     "NBar": ("nautilus_trader.model.data", "Bar"),
     "BarType": ("nautilus_trader.model.data", "BarType"),
     "AccountType": ("nautilus_trader.model.enums", "AccountType"),
@@ -321,7 +323,10 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
         raise InputError("At least 2 bars needed")
     _check_options(bars, compiled, options)
     nt = _nautilus()
-    USD, Money, Price, Quantity, OrderSide = nt["USD"], nt["Money"], nt["Price"], nt["Quantity"], nt["OrderSide"]
+    Money, Price, Quantity, OrderSide = nt["Money"], nt["Price"], nt["Quantity"], nt["OrderSide"]
+    # Ledger dollars with 9 decimals: the ISO USD books in whole cents, and those roundings add up to
+    # more than the 1e-5 totalReturn tolerance on small capitals (TS keeps unrounded floats).
+    USD = nt["Currency"](LEDGER_CURRENCY, PRECISION, 0, "US dollar, 9 decimals", nt["CurrencyType"].FIAT)
     profile = None if options.costs is None else options.costs["profile"]
     capital = float(options.costs["capital"]) if options.costs is not None else float(capital or DEFAULT_CAPITAL)
     cost = options.cost_bps / BPS
