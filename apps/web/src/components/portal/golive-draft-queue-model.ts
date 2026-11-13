@@ -126,7 +126,7 @@ export const EXIT_RULE_WORDS: Readonly<Record<GoLiveExitRule, string>> =
       "Owner exit rule (nothing here closes a position; you close it): let winners run to expiry; close losers 3 trading days before expiry; close open winners at 15:45 ET on expiry day.",
   });
 export const ENGINE_POLICY_LINE =
-  "Engine policy (arm_gate): not part of the web order path; not evaluated here.";
+  "Engine policy v3 (arm_gate): not run in this dry pre-check; when the order bridge reports policy v3, it runs the node's own check, with the ARM state, on an approved order before IBKR.";
 export const NO_PLAN_TEXT =
   "No plan record: no proposed or approved plan is stored";
 export const MODEL_HOLDS_GROUP_TITLE =

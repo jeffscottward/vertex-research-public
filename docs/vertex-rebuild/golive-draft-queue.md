@@ -281,7 +281,7 @@ Limits:
 
 The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so a real order review can still refuse an order that the pre-check allowed. Approve sends a vertical only through the checks in "Placing an approved order". The pre-check is not a clearance to send.
 
-`preCheck.enginePolicy` is always `not_evaluated_not_in_web_order_path`: the engine policy (`arm_gate.py`) is not part of the web order path.
+`preCheck.enginePolicy` is always `not_evaluated_not_in_web_order_path` (a historical name): the engine policy (`arm_gate.py`, v3) is not run in this dry pre-check. At send (go-live sends are on only when the order bridge reports policy v3), the order bridge runs it on the node's snapshot with the ARM state before anything reaches IBKR (see "Placing an approved order").
 
 ## Node badge and the arm state
 
