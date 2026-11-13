@@ -21,6 +21,7 @@ import {
   orderSessionDay,
   strikeWidth,
 } from "./golive-drafts-sizing.ts";
+import { goLiveOrderRef } from "./golive-order-ref.ts";
 import { goLiveSendRefusals } from "./golive-send-gate.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
@@ -158,21 +159,14 @@ const comboAction = (
 ): string =>
   `combo:${JSON.stringify(order)}${goLiveDraftId === undefined ? "" : `:golive:${goLiveDraftId}`}`;
 
-// One go-live draft is sent at most once: its orderRef is fixed by the draft id, and any intent
-// row for it (written before the bridge call, also when the outcome is unknown) refuses a second
-// send. The bridge tail also refuses an orderRef IBKR already has. Process memory covers the mock
-// gateway, which has no intent store.
+// One go-live draft is sent at most once: its orderRef is fixed by the draft id (goLiveOrderRef),
+// and any intent row for it (written before the bridge call, also when the outcome is unknown)
+// refuses a second send until the bridge refused it. Across web processes, the intent row is
+// written only with a claim on (orderRef, attempt) (orderIntents.recordIntentOnce, one
+// transaction), so of two concurrent sends exactly one reaches the bridge. The bridge tail also
+// refuses an orderRef IBKR already has. Process memory covers the mock gateway, which has no
+// intent store.
 const goLiveSentRefs = new Set<string>();
-const goLiveOrderRef = async (draftId: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(`golive:${draftId}`)
-  );
-  const hex = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  return `vertex-gl${hex.slice(0, 30)}`;
-};
 const DRAFT_ALREADY_SENT =
   "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions";
 // A send the order bridge refused before IBKR (engine_refused: engine policy v3 or the node ARM check)
@@ -430,6 +424,20 @@ const outcomeRecorder =
         requestId: context.requestId,
       })
       .catch(() => undefined);
+
+// Writes the intent row before the gateway call. A go-live ref is written only with its claim
+// (recordIntentOnce): another web process that sends the same draft at the same time gets false
+// and sends nothing. With no store (the mock gateway, unwired) nothing is written: true.
+const writeIntent = async (
+  store: IntentStore | undefined,
+  goLive: boolean,
+  input: Parameters<IntentStore["recordIntent"]>[0]
+): Promise<boolean> => {
+  if (store === undefined) return true;
+  if (goLive) return await store.recordIntentOnce(input);
+  await store.recordIntent(input);
+  return true;
+};
 
 const heldIn = (
   account: OrderAccount,
@@ -921,23 +929,30 @@ const comboSubmit = api.vertexOrders.comboSubmit
       strike: first.strike,
       symbol: order.symbol,
     };
+    const intentInput = {
+      actorUserId: userOf(context),
+      intent: {
+        contract: review.label,
+        orderRef,
+        ...leg,
+        heldBefore: heldIn(account, leg),
+      },
+      requestId: context.requestId,
+    };
+    let claimed: boolean;
     try {
-      await store?.recordIntent({
-        actorUserId: userOf(context),
-        intent: {
-          contract: review.label,
-          orderRef,
-          ...leg,
-          heldBefore: heldIn(account, leg),
-        },
-        requestId: context.requestId,
-      });
+      claimed = await writeIntent(store, goLiveRef !== null, intentInput);
     } catch {
       release();
       await auditFailure("intent store unavailable");
       throw failures.AUDIT_UNAVAILABLE({
         message: "Order intent store unavailable; nothing was sent",
       });
+    }
+    if (!claimed) {
+      release();
+      await auditFailure(DRAFT_ALREADY_SENT);
+      throw failures.ORDER_REJECTED({ message: DRAFT_ALREADY_SENT });
     }
     const outcomeOf = outcomeRecorder(context, store, orderRef);
     let result: Awaited<ReturnType<OrderGatewayPort["placeCombo"]>>;

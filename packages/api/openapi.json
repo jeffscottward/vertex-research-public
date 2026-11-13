@@ -111924,6 +111924,24 @@
                       "minimum": -9007199254740991,
                       "type": "integer"
                     },
+                    "send": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "not_sent",
+                            "refused",
+                            "sent",
+                            "unknown",
+                            "not_found",
+                            "unavailable"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "shortStrike": {
                       "type": "number"
                     },
@@ -112076,6 +112094,7 @@
                     "preCheck",
                     "quote",
                     "revision",
+                    "send",
                     "shortStrike",
                     "signalFacts",
                     "sizing",
@@ -113252,6 +113271,24 @@
                       "minimum": -9007199254740991,
                       "type": "integer"
                     },
+                    "send": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "not_sent",
+                            "refused",
+                            "sent",
+                            "unknown",
+                            "not_found",
+                            "unavailable"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "shortStrike": {
                       "type": "number"
                     },
@@ -113404,6 +113441,7 @@
                     "preCheck",
                     "quote",
                     "revision",
+                    "send",
                     "shortStrike",
                     "signalFacts",
                     "sizing",
@@ -115322,6 +115360,24 @@
                             "minimum": -9007199254740991,
                             "type": "integer"
                           },
+                          "send": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "not_sent",
+                                  "refused",
+                                  "sent",
+                                  "unknown",
+                                  "not_found",
+                                  "unavailable"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "shortStrike": {
                             "type": "number"
                           },
@@ -115474,6 +115530,7 @@
                           "preCheck",
                           "quote",
                           "revision",
+                          "send",
                           "shortStrike",
                           "signalFacts",
                           "sizing",

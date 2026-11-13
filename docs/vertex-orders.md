@@ -73,6 +73,12 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
   `open` at once. After 10 minutes a changed position in the contract resolves as `position-changed`,
   an unchanged one as `not-found`. Submits are placed one at a time (see "One placement at a time"). While an intent is still unknown, every new order is refused with a reason that
   names it.
+- **Go-live once only, across processes.** An order sent for a go-live draft (`goLiveDraftId`)
+  has a fixed `orderRef` and writes its intent row with `recordIntentOnce`: one transaction claims
+  `(order_ref, attempt)` in `vertex_order_send_claims` and writes the intent, so of two web
+  processes sending the same draft exactly one reaches the gateway; the other is refused as
+  `GO-LIVE DRAFT_ALREADY_SENT`. A bridge refusal (`refused`) frees the draft for the next attempt
+  (docs/vertex-rebuild/golive-draft-queue.md, "Once only, also across web processes").
 - Only option orders can be cancelled here. Share stop orders protect positions and are shown
   as "Not cancellable here".
 
