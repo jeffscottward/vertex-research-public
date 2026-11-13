@@ -123,6 +123,15 @@ tests/test_noise_band_futures.py
 tests/test_noise_band_futures_run.py
 tests/test_noise_band_retest.py
 tests/test_ibkr_history.py
+tests/test_market_notes_client.py
+tests/test_market_notes_sources.py
+tests/test_market_notes_transcribe.py
+tests/test_market_notes_process.py
+tests/test_market_notes_extract.py
+tests/test_market_notes_evidence.py
+tests/test_market_notes_cli.py
+tests/test_market_notes_allocation.py
+tests/test_market_notes_boundary.py
 tests/test_deploy_rehearsal.py
 ../execution/tests/test_paper_deploy_exit_rule.py
 ../execution/tests/test_paper_deploy_runner.py

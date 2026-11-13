@@ -663,6 +663,37 @@ describe("PortfolioMonitor", () => {
     return expect(document.querySelector("[data-withheld]")).toBeNull();
   });
 
+  it("names the disconnect without a last confirmation when the reader reports no mode", async () => {
+    await mount(
+      <PortfolioMonitor
+        gateway={gatewayOf(
+          fixtureSnapshot({
+            status: {
+              gateway: "disconnected",
+              connected: false,
+              lastError: null,
+              since: null,
+            },
+            account: {
+              mode: null,
+              modeSource: null,
+              modeConfirmedAt: null,
+              modeError: "not-reported",
+              count: 0,
+            },
+          })
+        )}
+        defaultTab="positions"
+      />
+    );
+    expect(find("[data-banner=disconnected]").textContent).toBe(
+      "Gateway disconnected · retrying. Values may be out of date."
+    );
+    return expect(
+      find("[data-account-mode=not-reported]").textContent
+    ).toContain("Account mode not reported");
+  });
+
   it("marks values out of date and empty lists unknown when the gateway is disconnected", async () => {
     const snapshot = fixtureSnapshot({
       status: {

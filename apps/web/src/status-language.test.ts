@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { STATUS_LANGUAGE_ALLOWLIST } from "./status-language-allowlist.ts";
 
 // Status language guard (owner rule 2026-11-11, card vertex-no-unknown-status).
 //
@@ -9,7 +10,7 @@ import { describe, expect, it } from "vitest";
 // bare dash, "?" or "…".
 //
 // This test reads every string literal and JSX text in apps/web/src (tests, fixtures and lab pages
-// excluded). A vague text must have an entry in status-language-allowlist.json with a reason.
+// excluded). A vague text must have an entry in status-language-allowlist.ts with a reason.
 // - New text: do not add an entry by reflex. Name the state: the cause, since when, the last known
 //   value, the next step ("Gateway disconnected since 01:13 ET · retrying"). Real uncertainty
 //   stays visible, but it is named ("Order outcome not confirmed by IBKR since 14:02 · checking").
@@ -21,16 +22,9 @@ import { describe, expect, it } from "vitest";
 // Regenerate after a deliberate change: UPDATE_STATUS_LANGUAGE=1 pnpm exec vitest run ... this
 // file. It keeps the reasons of existing entries and marks new ones "REASON REQUIRED": write it.
 
-type Entry = Readonly<{
-  file: string;
-  text: string;
-  count: number;
-  reason: string;
-  open?: boolean;
-}>;
-
 const ROOT = join(import.meta.dirname);
-const LIST_PATH = join(ROOT, "status-language-allowlist.json");
+const LIST_FILE = "status-language-allowlist.ts";
+const LIST_PATH = join(ROOT, LIST_FILE);
 const SKIPPED_DIRECTORIES = [
   "node_modules",
   "dist",
@@ -54,7 +48,9 @@ const sourceFiles = (directory: string): string[] =>
     const path = join(directory, entry.name);
     if (entry.isDirectory())
       return SKIPPED_DIRECTORIES.includes(entry.name) ? [] : sourceFiles(path);
-    return /\.tsx?$/.test(entry.name) && !SKIPPED_FILE.test(entry.name)
+    return /\.tsx?$/.test(entry.name) &&
+      !SKIPPED_FILE.test(entry.name) &&
+      entry.name !== LIST_FILE
       ? [path]
       : [];
   });
@@ -82,13 +78,11 @@ const scan = (): Map<string, number> => {
   return counts;
 };
 
-const entries = (
-  JSON.parse(readFileSync(LIST_PATH, "utf8")) as { entries: readonly Entry[] }
-).entries;
+const entries = STATUS_LANGUAGE_ALLOWLIST;
 
 const regenerate = (counts: Map<string, number>): void => {
   const known = new Map(
-    entries.map((entry) => [key(entry.file, entry.text), entry])
+    entries.map((entry) => [key(entry.file, entry.text), entry] as const)
   );
   const next = [...counts]
     .map(([id, count]) => {
@@ -105,7 +99,11 @@ const regenerate = (counts: Map<string, number>): void => {
     .sort(
       (a, b) => a.file.localeCompare(b.file) || a.text.localeCompare(b.text)
     );
-  writeFileSync(LIST_PATH, `${JSON.stringify({ entries: next }, null, 2)}\n`);
+  // Keep the header (comment and type) of the list file; replace the array.
+  const marker = "readonly StatusLanguageEntry[] = ";
+  const current = readFileSync(LIST_PATH, "utf8");
+  const header = current.slice(0, current.indexOf(marker) + marker.length);
+  writeFileSync(LIST_PATH, `${header}${JSON.stringify(next, null, 2)};\n`);
 };
 
 describe("status language guard", () => {
@@ -156,7 +154,7 @@ describe("status language guard", () => {
         return `${file}: ${JSON.stringify(text)} (${count}, allowed ${allowed.get(id) ?? 0})`;
       });
     // A failure here means: name the state (cause, since when, next step) instead of the vague
-    // word, or add an entry with its reason to status-language-allowlist.json.
+    // word, or add an entry with its reason to status-language-allowlist.ts.
     expect(added).toEqual([]);
   });
 

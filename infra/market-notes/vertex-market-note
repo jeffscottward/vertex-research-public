@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Rig intake and verification of owner market notes (research only, no orders). Runs
+# `python -m market_notes.cli "$@"` in services/research of the runner checkout with the operator
+# write key from its owner-only file. The key goes to that process through the environment only;
+# nothing prints it. Installed copy: ~/.local/bin/vertex-market-note. Usage:
+#   vertex-market-note add <url-or-text> [--owner-message URL]
+#   vertex-market-note list [--scope active|all] [--format text|json]
+#   vertex-market-note evidence <id> [--ticker T ...]
+#   vertex-market-note check <id> --claim cN --status supported|contradicted|cannot-check --evidence TEXT
+#   vertex-market-note renew <id> --review-by DATE | retire <id>
+# Settings (names only):
+#   ~/.config/vertex/market-notes.env  optional file of nonsecret settings, sourced when it exists (it must
+#       belong to the user who runs this and must not be writable by group or others): VERTEX_ORIGIN (or
+#       VERTEX_API_URL), VERTEX_MARKET_NOTE_YTDLP, VERTEX_MARKET_NOTE_TRANSCRIBE,
+#       VERTEX_MARKET_NOTE_TRANSCRIBE_PYTHON, VERTEX_OMP_BIN and the MARKET_NOTES_* names below. A value in
+#       the file replaces the one of the calling shell.
+#   VERTEX_API_URL and VERTEX_ORIGIN, when both are set, must name the same origin: the write key does not
+#       go to an origin that the calling shell adds beside the one of the settings file.
+#   MARKET_NOTES_ENV_FILE    another path for that file
+#   MARKET_NOTES_RUNNER_DIR  runner checkout (default: the ticks runner checkout of vertex-breadth-90-run)
+#   MARKET_NOTES_KEY_FILE    operator write key file (default ~/.config/vertex/agent-write-key); refused when
+#       group or others have any permission on it
+#   MARKET_NOTES_PYTHON      research interpreter (default <runner>/services/research/.venv/bin/python:
+#       CPython 3.12 with services/research/requirements-linux-py312.lock)
+# `evidence` also needs FINANCIAL_DATASETS_API_KEY in the calling environment; this wrapper does not read it
+# from a file.
+set -euo pipefail
+ME=vertex-market-note
+
+ENVF="${MARKET_NOTES_ENV_FILE:-$HOME/.config/vertex/market-notes.env}"
+if [[ -e "$ENVF" ]]; then
+  # Owner id and mode of the file. Anything that is not "<number> <octal mode>" fails closed.
+  read -r ENV_OWNER ENV_MODE _ <<<"$(stat -L -c '%u %a' "$ENVF" 2>/dev/null || true)"
+  if [[ ! -f "$ENVF" || ! -r "$ENVF" || ! "${ENV_OWNER:-}" =~ ^[0-9]+$ || ! "${ENV_MODE:-}" =~ ^[0-7]{3,4}$ ]] ||
+    [[ "$ENV_OWNER" != "$(id -u)" ]] || (((8#$ENV_MODE & 8#022) != 0)); then
+    echo "$ME: $ENVF must be a readable file of the current user that group and others cannot write (chmod 600)" >&2
+    exit 2
+  fi
+  set -a
+  # shellcheck source=/dev/null
+  . "$ENVF"
+  set +a
+fi
+if [[ -n "${VERTEX_API_URL:-}" && -n "${VERTEX_ORIGIN:-}" && "${VERTEX_API_URL%/}" != "${VERTEX_ORIGIN%/}" ]]; then
+  echo "$ME: VERTEX_API_URL and VERTEX_ORIGIN are both set and differ; set one, or make them equal (the write key goes to one origin only)" >&2
+  exit 2
+fi
+
+cd "${MARKET_NOTES_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-ticks-runner}"
+PY="${MARKET_NOTES_PYTHON:-$PWD/services/research/.venv/bin/python}"
+if [[ ! -x "$PY" ]]; then
+  echo "$ME: the research interpreter is not installed ($PY); in $PWD/services/research run: uv venv --python 3.12 .venv && VIRTUAL_ENV=.venv uv pip sync --require-hashes requirements-linux-py312.lock (or set MARKET_NOTES_PYTHON)" >&2
+  exit 127
+fi
+
+KEYF="${MARKET_NOTES_KEY_FILE:-$HOME/.config/vertex/agent-write-key}"
+if [[ ! -f "$KEYF" || ! -r "$KEYF" ]]; then
+  echo "$ME: the write key file is missing or not readable ($KEYF); set MARKET_NOTES_KEY_FILE" >&2
+  exit 2
+fi
+if [[ "$(stat -L -c %a "$KEYF")" != [4-7]00 ]]; then
+  echo "$ME: $KEYF must be readable by its owner only (chmod 600)" >&2
+  exit 2
+fi
+VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
+if [[ -z "$VERTEX_AGENT_API_KEY" ]]; then
+  echo "$ME: $KEYF is empty" >&2
+  exit 2
+fi
+export VERTEX_AGENT_API_KEY
+export PYTHONDONTWRITEBYTECODE=1
+
+cd services/research
+exec "$PY" -m market_notes.cli "$@"
