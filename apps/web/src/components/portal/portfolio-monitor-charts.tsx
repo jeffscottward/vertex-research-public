@@ -22,7 +22,7 @@ import {
   type LadderScale,
   type StopLadder,
 } from "./portfolio-monitor-model.ts";
-import { EmptyOrUnknown, PanelTitle } from "./portfolio-monitor-tables.tsx";
+import { EmptyOrWithheld, PanelTitle } from "./portfolio-monitor-tables.tsx";
 
 // Plain SVG and CSS charts (no chart dependency). Each mark has a native title tooltip
 // and every chart has a text equivalent (legend or list) for screen readers and touch.
@@ -292,11 +292,11 @@ const ladderSummary = (ladder: StopLadder): string => {
 };
 
 export const StopLadders = ({
-  live,
+  withheld,
   orders,
   positions,
 }: {
-  readonly live: boolean;
+  readonly withheld: string | null;
   readonly orders: readonly PortfolioMonitorOrder[];
   readonly positions: readonly PortfolioMonitorPosition[];
 }) => {
@@ -305,10 +305,10 @@ export const StopLadders = ({
     <section aria-labelledby="pm-ladders-title" className={CARD}>
       <PanelTitle id="pm-ladders-title">Stop ladders vs last price</PanelTitle>
       {ladders.length === 0 ? (
-        <EmptyOrUnknown
+        <EmptyOrWithheld
           empty="No open positions, so there are no stop ladders."
-          live={live}
-          unknown="Positions unknown. The IBKR gateway is not live."
+          what="Positions"
+          withheld={withheld}
         />
       ) : (
         <ul className="space-y-4">

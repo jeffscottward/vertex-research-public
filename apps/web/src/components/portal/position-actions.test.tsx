@@ -180,7 +180,7 @@ const Harness = ({ g }: Readonly<{ g: VertexOrdersGateway }>) => {
     <>
       <PositionsPanel
         actions={actions?.cell}
-        live
+        withheld={null}
         positions={[
           call,
           shortCall,
@@ -483,7 +483,7 @@ describe("spread close dialog", () => {
         <>
           <PositionsPanel
             actions={actions?.cell}
-            live
+            withheld={null}
             positions={[
               spreadLong,
               {

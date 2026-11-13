@@ -660,7 +660,7 @@ describe("PortfolioMonitor", () => {
       />
     );
     expect(find("[data-empty]").textContent).toBe("No open positions.");
-    return expect(document.querySelector("[data-unknown]")).toBeNull();
+    return expect(document.querySelector("[data-withheld]")).toBeNull();
   });
 
   it("marks values out of date and empty lists unknown when the gateway is disconnected", async () => {
@@ -686,8 +686,11 @@ describe("PortfolioMonitor", () => {
     expect(find("[data-account-mode=paper]").textContent).toBe(
       "Status:Paper account · read-only"
     );
-    expect(find("[data-unknown]").textContent).toContain("Positions unknown");
+    expect(find("[data-withheld]").textContent).toBe(
+      "Positions withheld. The IBKR gateway is disconnected, so account data is withheld until it reconnects. The reader retries on its own."
+    );
     expect(text()).not.toContain("No open positions");
+    expect(text()).not.toMatch(/unknown/i);
     await run(() =>
       root.render(
         <PortfolioMonitor
@@ -696,12 +699,18 @@ describe("PortfolioMonitor", () => {
         />
       )
     );
-    const unknown = [...document.querySelectorAll("[data-unknown]")].map(
+    const withheld = [...document.querySelectorAll("[data-withheld]")].map(
       (node) => node.textContent ?? ""
     );
-    expect(unknown.some((line) => line.includes("Orders unknown"))).toBe(true);
+    expect(
+      withheld.some((line) =>
+        line.startsWith("Orders withheld. The IBKR gateway is disconnected")
+      )
+    ).toBe(true);
     return expect(
-      unknown.some((line) => line.includes("Executions unknown"))
+      withheld.some((line) =>
+        line.startsWith("Executions withheld. The IBKR gateway is disconnected")
+      )
     ).toBe(true);
   });
 
@@ -829,8 +838,8 @@ describe("PortfolioMonitor", () => {
         defaultTab="positions"
       />
     );
-    expect(find("[data-banner=stale]").textContent).toBe(
-      "The IBKR data time is unknown. Values may be out of date."
+    expect(find("[data-banner=stale]").textContent).toMatch(
+      /^IBKR sent no data time in the snapshot fetched at \d\d:\d\d:\d\d, so its age cannot be checked\. Values may be out of date\.$/
     );
     return expect(find("[data-freshness]").textContent).toMatch(
       /^Data as of — · fetched /u

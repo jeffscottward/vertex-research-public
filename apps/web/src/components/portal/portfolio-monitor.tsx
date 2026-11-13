@@ -33,10 +33,10 @@ import {
   PNL_TONE_CLASS,
   REFRESH_INTERVALS,
   accountBadge,
+  accountDataWithheld,
   ageSeconds,
   clock,
   completedToday,
-  isGatewayLive,
   isOptionPosition,
   failureVisible,
   modeConfirmedText,
@@ -374,7 +374,7 @@ export const Banner = ({
       ? `Updating: the last request did not complete, so the page is retrying. Values below are from ${clock(fetchedAt)}.`
       : health.key === "stale"
         ? age === null
-          ? "The IBKR data time is unknown."
+          ? `IBKR sent no data time in the snapshot fetched at ${clock(fetchedAt)}, so its age cannot be checked.`
           : `The IBKR data is ${Math.round(age)} s old.`
         : `${health.label}.${confirmed === null ? "" : ` ${confirmed}.`}`;
   const lastError =
@@ -452,12 +452,12 @@ export const ForbiddenState = () => (
 // Orders & stops: the round-number check polls only while this tab is open (mounted).
 const OrdersStopsSection = ({
   gateway,
-  live,
+  withheld,
   nowMs,
   snapshot,
 }: {
   readonly gateway: PortfolioMonitorGateway;
-  readonly live: boolean;
+  readonly withheld: string | null;
   readonly nowMs: number;
   readonly snapshot: PortfolioMonitorOutput;
 }) => {
@@ -475,21 +475,21 @@ const OrdersStopsSection = ({
       <OrdersTable
         empty="No open orders."
         handles={handles.flags ?? undefined}
-        live={live}
+        withheld={withheld}
         orders={snapshot.orders}
         title="Open orders"
         titleId="pm-open-orders-title"
       />
       <StopLadders
-        live={live}
+        withheld={withheld}
         orders={snapshot.orders}
         positions={snapshot.positions}
       />
-      <ExecutionsTable executions={snapshot.executions} live={live} />
+      <ExecutionsTable executions={snapshot.executions} withheld={withheld} />
       <OrdersTable
         completed
         empty="No completed or cancelled orders today."
-        live={live}
+        withheld={withheld}
         orders={completedToday(snapshot.completed, new Date(nowMs))}
         title="Completed / cancelled today"
         titleId="pm-completed-title"
@@ -511,13 +511,14 @@ const SectionBody = ({
   readonly section: MonitorSection;
   readonly snapshot: PortfolioMonitorOutput;
 }) => {
-  const live = isGatewayLive(snapshot);
+  // Why the lists are not shown (cause, since when, what happens next); null for a live book.
+  const withheld = accountDataWithheld(snapshot, nowMs);
   switch (section) {
     case "orders-stops": {
       return (
         <OrdersStopsSection
           gateway={gateway}
-          live={live}
+          withheld={withheld}
           nowMs={nowMs}
           snapshot={snapshot}
         />
@@ -538,7 +539,7 @@ const SectionBody = ({
       return (
         <PositionsPanel
           empty="No option positions."
-          live={live}
+          withheld={withheld}
           actions={actions}
           positions={snapshot.positions.filter(isOptionPosition)}
           title="Option positions"
@@ -549,7 +550,7 @@ const SectionBody = ({
       return (
         <PositionsPanel
           actions={actions}
-          live={live}
+          withheld={withheld}
           positions={snapshot.positions}
         />
       );

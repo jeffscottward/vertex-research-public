@@ -969,14 +969,19 @@ export const donutArc = (
 // is complete and current. For every surface that reads positions, orders or fills: an empty list
 // in a withheld snapshot is not "none".
 export const accountDataWithheld = (
-  snapshot: Pick<PortfolioMonitorOutput, "account" | "status">
+  snapshot: Pick<PortfolioMonitorOutput, "account" | "status">,
+  // With the current time, the sentence also says since when ("since 13 Nov, 01:13 EST").
+  nowMs?: number
 ): string | null => {
   if (snapshot.account.modeError === "mismatch")
     return "Account data is withheld: the IBKR gateway's account list does not match its configured mode (live or paper). The Portfolio page shows the fix.";
+  const since =
+    nowMs === undefined ? null : sinceClock(snapshot.status.since, nowMs);
+  const sinceText = since === null ? "" : ` since ${since}`;
   if (snapshot.status.gateway === "starting")
-    return "The IBKR gateway is connecting, so account data is not received yet. The reader retries on its own.";
+    return `The IBKR gateway is connecting${sinceText}, so account data is not received yet. The reader retries on its own.`;
   if (snapshot.status.gateway !== "live" || !snapshot.status.connected)
-    return "The IBKR gateway is disconnected, so account data is withheld until it reconnects. The reader retries on its own.";
+    return `The IBKR gateway is disconnected${sinceText}, so account data is withheld until it reconnects. The reader retries on its own.`;
   return null;
 };
 
