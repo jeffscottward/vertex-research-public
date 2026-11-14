@@ -432,6 +432,7 @@ const repositoryOf = (get: ResearchStudyRepository["get"]) => {
     },
     upsert: () => Promise.reject(new Error("read-only procedure")),
     upsertMany: () => Promise.reject(new Error("read-only procedure")),
+    verdicts: () => Promise.resolve([]),
   };
   return { ids, repository };
 };

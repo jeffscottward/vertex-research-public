@@ -1,10 +1,12 @@
 // What: Drizzle repository for frozen research studies (one jsonb study document per row).
-// Used by: packages/db/src/server/repositories.ts (createRepositories) for researchStudies.get, and
+// Used by: packages/db/src/server/repositories.ts (createRepositories) for researchStudies.get and
+// for the strategy library list/get verdict lookup (verdicts), and
 // scripts/research-studies/import.ts (`bun run vertex:research-studies:import`) for writes.
 // See: packages/db/migrations/0051_research_studies.sql; docs/vertex-rebuild/research-studies.md.
 // The document is stored and returned as given; callers validate it with ResearchStudyDocumentSchema
-// (packages/api/src/contracts/research-studies.ts). Research records only.
-import { eq, sql } from "drizzle-orm";
+// (packages/api/src/contracts/research-studies.ts). `verdicts` reads only two keys inside the stored
+// document (summary->>'kind', summary->>'verdict'); its caller validates them. Research records only.
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { researchStudies } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
@@ -30,6 +32,13 @@ export type ResearchStudyUpsertInput = Readonly<{
   summary: Readonly<Record<string, unknown>>;
 }>;
 
+/** The kind and verdict keys of one stored study, read without the rest of the document. */
+export type ResearchStudyVerdictRecord = Readonly<{
+  id: string;
+  kind: string | null;
+  verdict: string | null;
+}>;
+
 export type ResearchStudyUpsertResult = Readonly<{
   /** True when the row is new; false when an existing study was replaced. */
   created: boolean;
@@ -40,6 +49,13 @@ export type ResearchStudyUpsertResult = Readonly<{
 export type ResearchStudyRepository = Readonly<{
   /** The stored study, or null when no study has this id. */
   get: (id: string) => Promise<ResearchStudyRecord | null>;
+  /**
+   * The kind and verdict keys of the studies with these ids, in one query; ids without a study are
+   * left out. Empty ids return [] without a query.
+   */
+  verdicts: (
+    ids: readonly string[]
+  ) => Promise<readonly ResearchStudyVerdictRecord[]>;
   /** Stores a study, or replaces the stored document, spec and run date of the same id. */
   upsert: (
     input: ResearchStudyUpsertInput
@@ -118,6 +134,23 @@ export const createResearchStudyRepository = (
           .where(eq(researchStudies.id, id))
           .limit(1);
         return row ?? null;
+      } catch (error) {
+        return mapError("research study read", error);
+      }
+    },
+    verdicts: async (ids) => {
+      if (ids.length === 0) return [];
+      try {
+        return await database
+          .select({
+            id: researchStudies.id,
+            kind: sql<string | null>`${researchStudies.summary} ->> 'kind'`,
+            verdict: sql<
+              string | null
+            >`${researchStudies.summary} ->> 'verdict'`,
+          })
+          .from(researchStudies)
+          .where(inArray(researchStudies.id, [...ids]));
       } catch (error) {
         return mapError("research study read", error);
       }

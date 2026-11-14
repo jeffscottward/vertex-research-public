@@ -5,6 +5,12 @@ import {
   AGENT_OPS_API_ERRORS,
   BacktestResultSummarySchema,
 } from "./agent-ops.ts";
+import {
+  QC_PORT_STUDY_KIND,
+  QcPortStudySchema,
+  STRATEGY_BACKTEST_STUDY_KIND,
+  StrategyBacktestStudySchema,
+} from "./research-studies.ts";
 
 // Operator strategy library: strategies, typed parameter schemas, named presets and linked backtests.
 // Operator-only (requireOperator); agent keys may call it, read keys only list and get.
@@ -135,10 +141,27 @@ export const StrategyLatestBacktestSchema = z.object({
   maxDrawdown: z.number().nullable(),
 });
 
+// Vertex's own study result for a strategy: the kind and verdict of the study stored under its slug,
+// shown only when the strategy has the study tag for that kind (strategy-study-tags.ts). A research
+// result with no trading authority. The server reads the two keys without the full document and
+// trusts the full check the import CLI ran on write. Read-only agent keys see it through list/get
+// (owner decision 2026-11-13, private tracker card vertex-library-list-vertex-verdict).
+export const StrategyVertexStudySchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal(QC_PORT_STUDY_KIND),
+    verdict: QcPortStudySchema.shape.verdict,
+  }),
+  z.object({
+    kind: z.literal(STRATEGY_BACKTEST_STUDY_KIND),
+    verdict: StrategyBacktestStudySchema.shape.verdict,
+  }),
+]);
+
 export const StrategySummarySchema = StrategySchema.extend({
   presetCount: z.number().int().nonnegative(),
   backtestCount: z.number().int().nonnegative(),
   latestBacktest: StrategyLatestBacktestSchema.nullable(),
+  vertexStudy: StrategyVertexStudySchema.nullable(),
 });
 
 export const StrategyPresetSchema = z.object({
@@ -334,6 +357,7 @@ export type StrategyExternalValidationOutput = z.infer<
 export type StrategyParamOutput = z.infer<typeof StrategyParamSchema>;
 export type StrategyOutput = z.infer<typeof StrategySchema>;
 export type StrategySummaryOutput = z.infer<typeof StrategySummarySchema>;
+export type StrategyVertexStudy = z.infer<typeof StrategyVertexStudySchema>;
 export type StrategyLatestBacktestOutput = z.infer<
   typeof StrategyLatestBacktestSchema
 >;

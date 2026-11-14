@@ -6,6 +6,7 @@ import {
   type StrategyListRow,
 } from "@darkfactory/db/server";
 import type { Strategy, StrategyPreset } from "@darkfactory/db/schema";
+import type { SemanticEvent } from "@darkfactory/observability/port";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
@@ -14,8 +15,14 @@ import type {
   StrategyOutput,
   StrategyPresetOutput,
   StrategySummaryOutput,
+  StrategyVertexStudy,
 } from "../contracts/strategy-library.ts";
-import { latestBacktestStats, sortStrategies } from "../strategy-library.ts";
+import {
+  latestBacktestStats,
+  sortStrategies,
+  studyCandidateSlugs,
+  studyVerdictsBySlug,
+} from "../strategy-library.ts";
 import {
   toBacktestSummariesWithTitles,
   toBacktestSummaryOutput,
@@ -104,12 +111,14 @@ const toStrategyOutput = (row: Strategy): StrategyOutput => ({
 
 const toStrategySummaryOutput = (
   row: StrategyListRow,
-  latestBacktest: StrategyLatestBacktestOutput | null
+  latestBacktest: StrategyLatestBacktestOutput | null,
+  vertexStudy: StrategyVertexStudy | null
 ): StrategySummaryOutput => ({
   ...toStrategyOutput(row),
   presetCount: row.presetCount,
   backtestCount: row.backtestCount,
   latestBacktest,
+  vertexStudy,
 });
 
 const toStrategyPresetOutput = (row: StrategyPreset): StrategyPresetOutput => ({
@@ -134,6 +143,74 @@ const latestByStrategy = async (
   );
 };
 
+type StudyLookupProcedure = "strategyLibrary.list" | "strategyLibrary.get";
+
+// Reporting never fails the request (same rule as market-notes reportFailure).
+const reportStudyLookupFailure = async (
+  context: ApiContext,
+  procedure: StudyLookupProcedure,
+  errorCategory: "repository-missing" | "storage-error",
+  candidates: number
+): Promise<void> => {
+  if (context.semanticEvents === undefined) return;
+  const event: SemanticEvent = {
+    action: "studyVerdicts",
+    attributes: { candidates },
+    correlation: {
+      ...(context.span?.correlation ?? {}),
+      procedure,
+      requestId: context.requestId,
+    },
+    entityType: "research-study",
+    errorCategory,
+    eventId: crypto.randomUUID(),
+    name: "vertex.strategyLibrary.studyVerdicts",
+    occurredAt: new Date().toISOString(),
+    outcome: "failure",
+    source: "api",
+  };
+  try {
+    await context.semanticEvents.emit(event);
+  } catch {
+    // Reporting never fails the request.
+  }
+};
+
+// The Vertex study verdict per slug, in at most one query. Fail-open: a missing study store or a
+// failed read gives no verdicts (the web then shows "Vertex study: see Backtests tab" on tagged rows)
+// and one semantic event, never a failed list or get.
+const studyVerdictsByStrategy = async (
+  context: ApiContext,
+  rows: readonly StrategyListRow[],
+  procedure: StudyLookupProcedure
+): Promise<Map<string, StrategyVertexStudy>> => {
+  const candidates = studyCandidateSlugs(rows);
+  if (candidates.length === 0) return new Map();
+  const studies = context.repositories.researchStudies;
+  if (studies === undefined) {
+    await reportStudyLookupFailure(
+      context,
+      procedure,
+      "repository-missing",
+      candidates.length
+    );
+    return new Map();
+  }
+  let projected: Awaited<ReturnType<typeof studies.verdicts>>;
+  try {
+    projected = await studies.verdicts(candidates);
+  } catch {
+    await reportStudyLookupFailure(
+      context,
+      procedure,
+      "storage-error",
+      candidates.length
+    );
+    return new Map();
+  }
+  return studyVerdictsBySlug(rows, projected);
+};
+
 const strategyLibraryList = api.strategyLibrary.list
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -148,8 +225,17 @@ const strategyLibraryList = api.strategyLibrary.list
         ...(input.limit === undefined ? {} : { limit: input.limit }),
       });
       const latest = await latestByStrategy(repository, rows);
+      const studies = await studyVerdictsByStrategy(
+        context,
+        rows,
+        "strategyLibrary.list"
+      );
       const summaries = rows.map((row) =>
-        toStrategySummaryOutput(row, latest.get(row.id) ?? null)
+        toStrategySummaryOutput(
+          row,
+          latest.get(row.id) ?? null,
+          studies.get(row.slug) ?? null
+        )
       );
       return { strategies: sortStrategies(summaries, input.sort ?? "updated") };
     } catch (error) {
@@ -172,6 +258,11 @@ const strategyLibraryGet = api.strategyLibrary.get
     const strategy = found.strategy;
     try {
       const latest = await latestByStrategy(repository, [strategy]);
+      const studies = await studyVerdictsByStrategy(
+        context,
+        [strategy],
+        "strategyLibrary.get"
+      );
       const backtestRepository = context.repositories.backtestResults;
       const backtestRows =
         backtestRepository === undefined || strategy.backtestCount === 0
@@ -188,7 +279,8 @@ const strategyLibraryGet = api.strategyLibrary.get
       return {
         strategy: toStrategySummaryOutput(
           strategy,
-          latest.get(strategy.id) ?? null
+          latest.get(strategy.id) ?? null,
+          studies.get(strategy.slug) ?? null
         ),
         presets: found.presets.map(toStrategyPresetOutput),
         backtests,

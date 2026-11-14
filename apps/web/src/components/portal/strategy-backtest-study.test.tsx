@@ -278,6 +278,7 @@ describe("strategy library detail: Backtest study section", () => {
     id: "strategy-seed-qc-iv-rank-gate",
     kind: "python",
     latestBacktest: null,
+    vertexStudy: null,
     name: "IV-Rank Gate for Credit Spreads",
     params,
     presetCount: 0,

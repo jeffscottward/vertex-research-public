@@ -1,16 +1,63 @@
-// Strategy library read rules: latest-backtest return statistics and board sort order (high priority
-// first, then the selected sort).
+// Strategy library read rules: latest-backtest return statistics, the Vertex study verdict of each
+// row, and board sort order (high priority first, then the selected sort).
 // Statistics come from returnStats over the latest linked backtest's reported equity, the same
 // derivation the backtest detail view uses; reported metrics are never used for sorting.
 import {
   returnStats,
   type AnalyticsEquityPoint,
 } from "./backtest-analytics.ts";
-import type {
-  StrategyLatestBacktestOutput,
-  StrategyPriorityValue,
-  StrategySortValue,
+import { ResearchStudyIdSchema } from "./contracts/research-studies.ts";
+import {
+  StrategyVertexStudySchema,
+  type StrategyLatestBacktestOutput,
+  type StrategyPriorityValue,
+  type StrategySortValue,
+  type StrategyVertexStudy,
 } from "./contracts/strategy-library.ts";
+import { studyKindsForTags } from "./strategy-study-tags.ts";
+
+type StudyRow = Readonly<{ slug: string; tags: readonly string[] | null }>;
+
+/**
+ * Slugs whose study verdict the list may show: the row has a study tag and its slug is a valid
+ * study id (study ids are shorter than slugs, so a longer slug can never have a study).
+ */
+export const studyCandidateSlugs = (rows: readonly StudyRow[]): string[] =>
+  rows
+    .filter(
+      (row) =>
+        studyKindsForTags(row.tags ?? []).size > 0 &&
+        ResearchStudyIdSchema.safeParse(row.slug).success
+    )
+    .map((row) => row.slug);
+
+/**
+ * The verdict per slug from projected study rows: a row counts only when its kind and verdict are
+ * valid for one of the two strategy study kinds and the strategy has the tag for that kind. Filter
+ * studies, unknown kinds and invalid verdicts are dropped (the import CLI checked the full document).
+ */
+export const studyVerdictsBySlug = (
+  rows: readonly StudyRow[],
+  projected: readonly Readonly<{
+    id: string;
+    kind: string | null;
+    verdict: string | null;
+  }>[]
+): Map<string, StrategyVertexStudy> => {
+  const kindsBySlug = new Map(
+    rows.map((row) => [row.slug, studyKindsForTags(row.tags ?? [])])
+  );
+  const verdicts = new Map<string, StrategyVertexStudy>();
+  for (const study of projected) {
+    const parsed = StrategyVertexStudySchema.safeParse({
+      kind: study.kind,
+      verdict: study.verdict,
+    });
+    if (parsed.success && kindsBySlug.get(study.id)?.has(parsed.data.kind))
+      verdicts.set(study.id, parsed.data);
+  }
+  return verdicts;
+};
 
 export type LatestBacktestInput = Readonly<{
   id: string;
