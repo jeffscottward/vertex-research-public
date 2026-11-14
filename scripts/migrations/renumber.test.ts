@@ -32,15 +32,15 @@ const gitEnvironment = withoutGitRepositoryEnvironment(process.env);
 const journalOf = (
   entries: ReadonlyArray<readonly [string, number]>
 ): Journal => ({
+  version: "7",
   dialect: "postgresql",
   entries: entries.map(([tag, when], idx) => ({
-    breakpoints: true,
     idx,
-    tag,
     version: "7",
     when,
+    tag,
+    breakpoints: true,
   })),
-  version: "7",
 });
 
 describe("planRenumber", () => {
@@ -64,8 +64,8 @@ describe("planRenumber", () => {
       { from: "0003_later", to: "0004_later" },
     ]);
     expect(plan.journal.entries.slice(3)).toEqual([
-      { breakpoints: true, idx: 3, tag: "0003_mine", version: "7", when: 301 },
-      { breakpoints: true, idx: 4, tag: "0004_later", version: "7", when: 900 },
+      { idx: 3, version: "7", when: 301, tag: "0003_mine", breakpoints: true },
+      { idx: 4, version: "7", when: 900, tag: "0004_later", breakpoints: true },
     ]);
   });
 
@@ -79,7 +79,7 @@ describe("planRenumber", () => {
       ours,
       sqlTags: ["0000_a", "0001_mine"],
     });
-    expect(plan).toEqual({ journal: ours, moves: [], own: ["0001_mine"] });
+    expect(plan).toEqual({ journal: ours, own: ["0001_mine"], moves: [] });
   });
 
   it("orders migrations that share a number by name and fills in entries the branch journal lacks", () => {
@@ -329,8 +329,22 @@ describe("formatSnapshot", () => {
     expect(formatSnapshot({ values: fits, z: 1 })).toBe(
       `{\n  "values": [\n    "${fits[0]}",\n    "b"\n  ],\n  "z": 1\n}\n`
     );
-    expect(formatSnapshot([[`${fits[0]}xxxxxxxxxxxxx`, "b"]])).toBe(
-      `[\n  [\n    "${fits[0]}xxxxxxxxxxxxx",\n    "b"\n  ]\n]\n`
+    // One column less leaves room for the comma; one column more does not fit.
+    const shorter = [fits[0]?.slice(1), "b"];
+    expect(formatSnapshot({ values: shorter, z: 1 })).toBe(
+      `{\n  "values": ["${shorter[0]}", "b"],\n  "z": 1\n}\n`
+    );
+    expect(formatSnapshot({ values: [`${fits[0]}x`, "b"] })).toBe(
+      `{\n  "values": [\n    "${fits[0]}x",\n    "b"\n  ]\n}\n`
+    );
+    // An array inside an array has no key: only the indent counts.
+    expect(
+      formatSnapshot([
+        ["a", "b"],
+        [`${"x".repeat(72)}`, "b"],
+      ])
+    ).toBe(
+      `[\n  ["a", "b"],\n  [\n    "${"x".repeat(72)}",\n    "b"\n  ]\n]\n`
     );
   });
 
@@ -350,7 +364,7 @@ describe("formatSnapshot", () => {
 const directories: string[] = [];
 afterEach(() => {
   for (const directory of directories.splice(0)) {
-    rmSync(directory, { force: true, recursive: true });
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 
@@ -448,9 +462,9 @@ const createRepository = (
   commit(
     root,
     {
+      "README.md": "readme\n",
       "packages/db/migrations/0000_a.sql": "CREATE TABLE a();\n",
       "packages/db/migrations/0001_b.sql": "CREATE TABLE b();\n",
-      "README.md": "readme\n",
       [`${META}/0000_snapshot.json`]: snapshotFile("A0", ZERO),
       [`${META}/0001_snapshot.json`]:
         options.snapshots?.b ?? snapshotFile("B0", "A0"),
@@ -463,10 +477,10 @@ const createRepository = (
   commit(
     root,
     {
+      "README.md": "readme 0002_mine\n",
       "packages/db/migrations/0002_mine.sql":
         "-- 0002_mine adds mine\nCREATE TABLE mine();\n",
       "packages/db/migrations/0003_more.sql": "CREATE TABLE more();\n",
-      "README.md": "readme 0002_mine\n",
       ...(options.conflictInB
         ? { "packages/db/migrations/0001_b.sql": "CREATE TABLE b(x int);\n" }
         : {}),
@@ -487,12 +501,12 @@ const createRepository = (
         ["0002_mine", 300],
         ["0003_more", 400],
       ]),
-      "assets/blob.bin": "0002_mine\u0000binary\n",
-      "docs/notes.md": "0002_mine_extra is another name\n",
       "packages/db/rollback/0002_mine.down.sql":
         "-- reverses 0002_mine\nDROP TABLE mine;\n",
       "src/mine.test.ts":
         'read("migrations/0002_mine.sql"); // migration 0002\n',
+      "docs/notes.md": "0002_mine_extra is another name\n",
+      "assets/blob.bin": "0002_mine\u0000binary\n",
     },
     "feature migrations"
   );
@@ -500,8 +514,8 @@ const createRepository = (
   commit(
     root,
     {
-      "packages/db/migrations/0002_theirs.sql": "CREATE TABLE theirs();\n",
       "README.md": "readme main\n",
+      "packages/db/migrations/0002_theirs.sql": "CREATE TABLE theirs();\n",
       ...(options.conflictInB
         ? { "packages/db/migrations/0001_b.sql": "CREATE TABLE b(y int);\n" }
         : {}),
@@ -533,10 +547,10 @@ const run = (root: string, ...argv: string[]) => {
   const stderr: string[] = [];
   const code = runRenumber(argv, {
     cwd: root,
-    stderr: (line) => stderr.push(line),
     stdout: (line) => stdout.push(line),
+    stderr: (line) => stderr.push(line),
   });
-  return { code, stderr, stdout };
+  return { code, stdout, stderr };
 };
 
 describe("runRenumber", () => {
@@ -616,7 +630,8 @@ describe("runRenumber", () => {
 
     expect(result.code).toBe(0);
     expect(result.stderr).toEqual([]);
-    expect(result.stdout.slice(1)).toEqual([
+    expect(result.stdout).toEqual([
+      "db:renumber: staged 10 paths (base MERGE_HEAD)",
       "moved 0002_mine -> 0003_mine",
       "moved 0003_more -> 0004_more",
       `merged the base's schema changes into ${META}/0003_snapshot.json`,
@@ -678,6 +693,9 @@ describe("runRenumber", () => {
       id: string;
       prevId: string;
     };
+    expect(JSON.parse(read(root, `${META}/0003_snapshot.json`))).toMatchObject({
+      prevId: "T0",
+    });
     expect(more.prevId).toBe(moved.id);
     expect(new Set([moved.id, more.id, "M0", "R0"]).size).toBe(4);
     // 0003_more dropped table b; the base's table arrives in both snapshots.
@@ -715,6 +733,43 @@ describe("runRenumber", () => {
     expect(read(root, `${META}/0003_snapshot.json`)).toBe(
       tablesSnapshot("M0", "T0", { b: "text" })
     );
+    // A second run finds the snapshots chained and does not repeat the lines.
+    expect(run(root)).toEqual({
+      code: 0,
+      stderr: [],
+      stdout: [
+        "db:renumber: nothing to do; this branch's migrations already follow MERGE_HEAD.",
+      ],
+    });
+  });
+
+  it("names each later branch snapshot that was generated from a snapshot to correct", () => {
+    const conflicting = createRepository({
+      snapshots: {
+        b: tablesSnapshot("B0", "A0", { b: "int" }),
+        mine: tablesSnapshot("M0", "B0", { b: "text" }),
+        more: tablesSnapshot("R0", "M0", { b: "text", more: "int" }),
+        theirs: tablesSnapshot("T0", "B0", { b: "bigint" }),
+      },
+    });
+    mergeMain(conflicting);
+    expect(run(conflicting).stderr.slice(0, 2)).toEqual([
+      `check the snapshot: ${META}/0003_snapshot.json: tables > public.b > columns > id > type changed on both sides; kept this branch's value`,
+      `check the snapshot: ${META}/0004_snapshot.json: generated from ${META}/0003_snapshot.json; repeat the correction here`,
+    ]);
+
+    const missing = createRepository({
+      snapshots: {
+        mine: tablesSnapshot("M0", "GONE", { mine: "int" }),
+        more: tablesSnapshot("R0", "M0", { mine: "int", more: "int" }),
+        theirs: tablesSnapshot("T0", "B0", { theirs: "int" }),
+      },
+    });
+    mergeMain(missing);
+    expect(run(missing).stderr.slice(0, 2)).toEqual([
+      `check the snapshot: ${META}/0003_snapshot.json: the snapshot with id GONE is not in this checkout; only prevId was updated`,
+      `check the snapshot: ${META}/0004_snapshot.json: generated from ${META}/0003_snapshot.json; repeat the correction here`,
+    ]);
   });
 
   it("exits 1 and only re-chains when the start snapshot is not in the checkout", () => {
@@ -735,6 +790,22 @@ describe("runRenumber", () => {
     expect(read(root, `${META}/0003_snapshot.json`)).toBe(
       tablesSnapshot("M0", "T0", { mine: "int" })
     );
+  });
+
+  it("prints the snapshot check also when a migration file still conflicts", () => {
+    const root = createRepository({
+      conflictInB: true,
+      snapshots: { mine: tablesSnapshot("M0", "GONE", { mine: "int" }) },
+    });
+    mergeMain(root);
+
+    const result = run(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toEqual([
+      `check the snapshot: ${META}/0003_snapshot.json: the snapshot with id GONE is not in this checkout; only prevId was updated`,
+      "db:renumber: migration files that the base also changed still conflict; resolve them by hand, then run db:renumber again.",
+    ]);
   });
 
   it("exits 1 and only re-chains when the snapshot version differs", () => {
@@ -780,11 +851,11 @@ describe("runRenumber", () => {
     put(root, { [JOURNAL]: "{ broken" });
     expect(run(root, "--base", "main")).toEqual({
       code: 0,
-      stderr: [],
       stdout: [
         "db:renumber: staged 1 paths (base main)",
         "Next: resolve any other conflicts, `git commit` (or `git merge --continue`), then run the db tests.",
       ],
+      stderr: [],
     });
     // Without the branch's own entries, `when` continues from the base's last entry.
     expect(
@@ -846,10 +917,10 @@ describe("runRenumber", () => {
     const root = createRepository();
     expect(run(root, "--base", "main")).toEqual({
       code: 1,
+      stdout: [],
       stderr: [
         "db:renumber: the base migrations 0002_theirs are not in this checkout; merge the base branch first",
       ],
-      stdout: [],
     });
   });
 
@@ -895,8 +966,8 @@ describe("runRenumber", () => {
       git(root, "status", "--porcelain=v1", "-uall") + git(root, "diff");
     expect(run(root, ...argv)).toEqual({
       code: 1,
-      stderr: [message],
       stdout: [],
+      stderr: [message],
     });
     expect(
       git(root, "status", "--porcelain=v1", "-uall") + git(root, "diff")
