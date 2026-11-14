@@ -337,14 +337,15 @@ describe("formatSnapshot", () => {
     expect(formatSnapshot({ values: [`${fits[0]}x`, "b"] })).toBe(
       `{\n  "values": [\n    "${fits[0]}x",\n    "b"\n  ]\n}\n`
     );
-    // An array inside an array has no key: only the indent counts.
+    // An array inside an array has no key: only the indent counts (80 columns fit, 81 do not).
     expect(
       formatSnapshot([
         ["a", "b"],
-        [`${"x".repeat(72)}`, "b"],
+        ["x".repeat(69), "b"],
       ])
-    ).toBe(
-      `[\n  ["a", "b"],\n  [\n    "${"x".repeat(72)}",\n    "b"\n  ]\n]\n`
+    ).toBe(`[\n  ["a", "b"],\n  ["${"x".repeat(69)}", "b"]\n]\n`);
+    expect(formatSnapshot([["x".repeat(70), "b"]])).toBe(
+      `[\n  [\n    "${"x".repeat(70)}",\n    "b"\n  ]\n]\n`
     );
   });
 
@@ -581,6 +582,13 @@ describe("runRenumber", () => {
         ["0004_more", 400],
       ])
     );
+    // drizzle-kit's key order stays, so the base's entries keep their bytes.
+    expect(read(root, JOURNAL)).toContain(
+      '{\n  "version": "7",\n  "dialect": "postgresql",\n  "entries": [\n    {\n      "idx": 0,\n      "version": "7",\n      "when": 100,\n      "tag": "0000_a",\n      "breakpoints": true\n    },'
+    );
+    expect(read(root, JOURNAL)).toContain(
+      '    {\n      "idx": 3,\n      "version": "7",\n      "when": 351,\n      "tag": "0003_mine",\n      "breakpoints": true\n    },'
+    );
     expect(read(root, "packages/db/migrations/0003_mine.sql")).toBe(
       "-- 0003_mine adds mine\nCREATE TABLE mine();\n"
     );
@@ -753,10 +761,14 @@ describe("runRenumber", () => {
       },
     });
     mergeMain(conflicting);
-    expect(run(conflicting).stderr.slice(0, 2)).toEqual([
-      `check the snapshot: ${META}/0003_snapshot.json: tables > public.b > columns > id > type changed on both sides; kept this branch's value`,
-      `check the snapshot: ${META}/0004_snapshot.json: generated from ${META}/0003_snapshot.json; repeat the correction here`,
-    ]);
+    expect(run(conflicting)).toMatchObject({
+      code: 1,
+      stderr: [
+        `check the snapshot: ${META}/0003_snapshot.json: tables > public.b > columns > id > type changed on both sides; kept this branch's value`,
+        `check the snapshot: ${META}/0004_snapshot.json: generated from ${META}/0003_snapshot.json; repeat the correction here`,
+        'db:renumber: correct the snapshots above by hand (CONVENTIONS.md, Migration numbers), then run pnpm db:generate; it must report "No schema changes".',
+      ],
+    });
 
     const missing = createRepository({
       snapshots: {
@@ -766,10 +778,14 @@ describe("runRenumber", () => {
       },
     });
     mergeMain(missing);
-    expect(run(missing).stderr.slice(0, 2)).toEqual([
-      `check the snapshot: ${META}/0003_snapshot.json: the snapshot with id GONE is not in this checkout; only prevId was updated`,
-      `check the snapshot: ${META}/0004_snapshot.json: generated from ${META}/0003_snapshot.json; repeat the correction here`,
-    ]);
+    expect(run(missing)).toMatchObject({
+      code: 1,
+      stderr: [
+        `check the snapshot: ${META}/0003_snapshot.json: the snapshot with id GONE is not in this checkout; only prevId was updated`,
+        `check the snapshot: ${META}/0004_snapshot.json: generated from ${META}/0003_snapshot.json; repeat the correction here`,
+        'db:renumber: correct the snapshots above by hand (CONVENTIONS.md, Migration numbers), then run pnpm db:generate; it must report "No schema changes".',
+      ],
+    });
   });
 
   it("exits 1 and only re-chains when the start snapshot is not in the checkout", () => {
@@ -804,6 +820,7 @@ describe("runRenumber", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toEqual([
       `check the snapshot: ${META}/0003_snapshot.json: the snapshot with id GONE is not in this checkout; only prevId was updated`,
+      'db:renumber: correct the snapshots above by hand (CONVENTIONS.md, Migration numbers), then run pnpm db:generate; it must report "No schema changes".',
       "db:renumber: migration files that the base also changed still conflict; resolve them by hand, then run db:renumber again.",
     ]);
   });

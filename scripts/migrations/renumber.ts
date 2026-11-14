@@ -529,7 +529,8 @@ const chainSnapshots = (
   const byId = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
   const chained: Chained = { writes: new Map(), merged: [], checks: [] };
   let previous = snapshots[0];
-  let flagged: string | undefined;
+  // Snapshots that need a correction, by their id before any merge.
+  const toCorrect = new Map<string, string>();
   ordered.slice(1).forEach((path, offset) => {
     const before = required(previous, "previous snapshot");
     const snapshot = required(snapshots[offset + 1], "snapshot");
@@ -537,11 +538,13 @@ const chainSnapshots = (
     if (workspace.baseFiles.has(path)) {
       return;
     }
-    if (flagged !== undefined) {
+    const source = toCorrect.get(snapshot.prevId);
+    if (source !== undefined) {
       // It was generated from a snapshot that needs a correction, so it needs the same one.
       chained.checks.push(
-        `${path}: generated from ${flagged}; repeat the correction here`
+        `${path}: generated from ${source}; repeat the correction here`
       );
+      toCorrect.set(snapshot.id, path);
     }
     if (snapshot.prevId === before.id) {
       return;
@@ -549,7 +552,7 @@ const chainSnapshots = (
     const rebased = rebaseSnapshot(byId.get(snapshot.prevId), before, snapshot);
     chained.checks.push(...rebased.checks.map((check) => `${path}: ${check}`));
     if (rebased.checks.length > 0) {
-      flagged = path;
+      toCorrect.set(snapshot.id, path);
     }
     if (rebased.snapshot === undefined) {
       const text = required(texts.get(path), path);
@@ -637,21 +640,21 @@ const report = (
   for (const check of snapshots.checks) {
     io.stderr(`check the snapshot: ${check}`);
   }
-  if (
-    left.some(
-      (path) =>
-        path.startsWith(`${MIGRATIONS}/`) || path.startsWith(`${ROLLBACKS}/`)
-    )
-  ) {
-    io.stderr(
-      "db:renumber: migration files that the base also changed still conflict; resolve them by hand, then run db:renumber again."
-    );
-    return 1;
-  }
   if (snapshots.checks.length > 0) {
     io.stderr(
       'db:renumber: correct the snapshots above by hand (CONVENTIONS.md, Migration numbers), then run pnpm db:generate; it must report "No schema changes".'
     );
+  }
+  const migrationsConflict = left.some(
+    (path) =>
+      path.startsWith(`${MIGRATIONS}/`) || path.startsWith(`${ROLLBACKS}/`)
+  );
+  if (migrationsConflict) {
+    io.stderr(
+      "db:renumber: migration files that the base also changed still conflict; resolve them by hand, then run db:renumber again."
+    );
+  }
+  if (migrationsConflict || snapshots.checks.length > 0) {
     return 1;
   }
   io.stdout(
