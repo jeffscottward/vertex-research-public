@@ -4,6 +4,11 @@ Places no orders and writes nothing to Postgres. Reads the public daily data of 
 fetch and the QuantJourney library definitions; writes one JSON document to --out (a report
 work directory outside the repository; the app never reads it).
 
+With --market-notes the document also carries the active owner market notes (key
+ownerMarketNotes), read from the Vertex API (VERTEX_API_URL or VERTEX_ORIGIN, and
+VERTEX_AGENT_API_KEY). They are context for the reader only: no weight, gate, cap or size reads
+them. Without the flag the document is the same as before the flag existed.
+
 Run (rig, in the venv with services/research/requirements-nautilus-linux-py312.lock):
   python research/backtests/allocation/run.py --data <qc-ports data dir> --capital <account value, rounded> \
       --out <report work dir>/results.json
@@ -127,13 +132,35 @@ def open_today(priced, last_day: str) -> list[dict]:
             for t in priced if t.exit_reason == "end" and t.exit_date == last_day]
 
 
+MARKET_NOTES_HELP = ("add the active owner market notes to the document as ownerMarketNotes: context for the reader only, "
+                     "not used in any weight, gate, cap or size; a read failure stops the run")
+
+
+def owner_market_notes() -> dict:
+    """The ownerMarketNotes block of a document (--market-notes): the active notes with the status of every claim.
+
+    The block is read before the study runs, so a failed read stops the run at once: an input that
+    was asked for must not vanish silently. It is written into the document unchanged and no
+    computation reads it. The import is here so that a run without the flag loads nothing new.
+    """
+    from market_notes.client import MarketNotesError
+    from market_notes.render import read_report_block
+
+    try:
+        return read_report_block()
+    except (MarketNotesError, ValueError) as error:  # these messages never hold the key
+        raise SystemExit(f"--market-notes: the owner market notes could not be read: {error}") from None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--capital", type=float, required=True, help="account value for sizing (rounded)")
     parser.add_argument("--library", type=Path, default=ROOT / "research/backtests/quantjourney/library.json")
+    parser.add_argument("--market-notes", action="store_true", help=MARKET_NOTES_HELP)
     args = parser.parse_args()
+    owner_notes = owner_market_notes() if args.market_notes else None
 
     data = study.load_study_data(args.data)
     dataset = data.dataset
@@ -272,6 +299,8 @@ def main() -> None:
         "portfolios": portfolios, "regime": regime(data),
         "stressWindows": {**{name: list(window) for name, window in STRESS.items()}, "last3Months": list(recent)},
     }
+    if owner_notes is not None:
+        document["ownerMarketNotes"] = owner_notes
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(document, indent=1))
     log(f"wrote {args.out}: {len(eligible)} eligible, {len(bench)} bench, {n_trials} trials")

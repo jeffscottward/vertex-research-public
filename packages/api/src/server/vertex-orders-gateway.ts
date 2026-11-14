@@ -234,7 +234,11 @@ const BridgeAccountSchema = z.object({
     )
     .max(2000),
   openOrders: z.array(BridgeOrderSchema).max(2000),
-  gates: z.object({ killSwitch: z.boolean(), optionsOnly: z.boolean() }),
+  gates: z.object({
+    killSwitch: z.boolean(),
+    optionsOnly: z.boolean(),
+    orderPolicy: z.string().max(64).nullable().optional(),
+  }),
   // The gateway's effective caps; required, so a bridge without them fails closed.
   caps: z.object({
     leapsMinDays: z.number().int().positive(),

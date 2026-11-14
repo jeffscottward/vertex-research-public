@@ -61,6 +61,7 @@ export {
 } from "./dashboard-service.ts";
 export type { DeployStatusConfig } from "./deploy-status.ts";
 export { resolveDeployStatusConfig } from "./deploy-status.ts";
+export { bridgeQuotesReaderFor } from "./golive-live-quotes.ts";
 export {
   AGENT_API_KEY_PROCEDURE_PATHS,
   AGENT_API_KEY_PROCEDURE_ROOTS,

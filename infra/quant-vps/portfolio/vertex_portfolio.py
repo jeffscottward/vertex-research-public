@@ -12,11 +12,16 @@ Account codes never leave the process: every output record is built from an allo
 every output string is scrubbed for account-code patterns. Logs are JSON status lines without account data.
 
 HTTP never waits for IB: requests read the last state under a lock.
+
+Account mode (live / paper) is a configured fact and is reported at all times, also while the gateway
+is down. See ModeTracker. The snapshot never carries a neutral placeholder for it: it has a mode, or a
+named error (mismatch / not-configured).
 """
 import hmac
 import json
 import os
 import re
+import sqlite3
 import sys
 import threading
 import time
@@ -24,7 +29,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 SCHEMA = "vertex-portfolio-snapshot-v1"
 HEALTH_SCHEMA = "vertex-portfolio-health-v1"
 SOURCE = "ibkr-gateway"
@@ -45,6 +50,7 @@ FEEDS = ("positions", "summary", "orders", "executions")
 FEEDS_TIMEOUT = 30.0
 COMPLETED_WAIT = 10.0
 ACCOUNT_WAIT = 10.0
+ACCOUNT_LIST_WAIT = 10.0
 TICK = 1.0
 ORDERS_EVERY = 15.0
 COMPLETED_EVERY = 60.0
@@ -105,12 +111,197 @@ def deep_scrub(obj):
 
 
 def account_mode(accounts):
+    """Mode of a managed account list (DU/DF codes = paper). None for an empty list: nothing observed."""
     accounts = [a for a in accounts if a]
     if not accounts:
-        return "unknown"
+        return None
     if all(a.startswith(("DU", "DF")) for a in accounts):
         return "paper"
     return "live"
+
+
+def normalize_mode(value):
+    mode = value.strip().lower() if isinstance(value, str) else ""
+    return mode if mode in ("live", "paper") else None
+
+
+def read_configured_mode(path):
+    """The gateway container's configured trading mode, written by resolve-gateway.sh. None if absent."""
+    try:
+        with open(path) as f:
+            return normalize_mode(f.read())
+    except OSError:
+        return None
+
+
+MODE_KEYS = ("confirmedMode", "confirmedAt", "downSince", "mismatch")
+ACCOUNT_LIST_MISSING = "account list not received"
+MODE_MISMATCH = "account mode mismatch"
+
+
+class MemoryModeStore:
+    def __init__(self, initial=None):
+        self.rows = dict(initial or {})
+
+    def load(self):
+        return dict(self.rows)
+
+    def save(self, key, value):
+        if value is None:
+            self.rows.pop(key, None)
+        else:
+            self.rows[key] = str(value)
+
+
+class SqliteModeStore:
+    """Key-value rows in the service's state directory. Holds mode words and times, never account codes."""
+
+    def __init__(self, path):
+        self.path = path
+        db = self._db()
+        try:
+            with db:
+                db.execute("CREATE TABLE IF NOT EXISTS account_mode (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
+        finally:
+            db.close()
+
+    def _db(self):
+        return sqlite3.connect(self.path, timeout=5)
+
+    def load(self):
+        db = self._db()
+        try:
+            return dict(db.execute("SELECT k, v FROM account_mode").fetchall())
+        finally:
+            db.close()
+
+    def save(self, key, value):
+        db = self._db()
+        try:
+            with db:
+                if value is None:
+                    db.execute("DELETE FROM account_mode WHERE k = ?", (key,))
+                else:
+                    db.execute("INSERT INTO account_mode (k, v) VALUES (?, ?) "
+                               "ON CONFLICT(k) DO UPDATE SET v = excluded.v", (key, str(value)))
+        finally:
+            db.close()
+
+
+def open_mode_store(path, log=None):
+    """A store that cannot be opened is logged once and replaced by memory: the mode is still served,
+    it only does not survive a restart."""
+    try:
+        return SqliteModeStore(path)
+    except (sqlite3.Error, OSError) as e:
+        if log:
+            log("account_mode_store_unavailable", reason=type(e).__name__)
+        return MemoryModeStore()
+
+
+def _epoch(value):
+    try:
+        t = float(value)
+    except (TypeError, ValueError):
+        return None
+    return t if t > 0 and t == t and t != float("inf") else None
+
+
+class ModeTracker:
+    """Account mode of the gateway session. Not thread-safe: PortfolioState calls it under its lock.
+
+    configured  the trading mode the gateway container is configured for (read at service start);
+    confirmed   the mode of the managed account list the gateway sent in a session.
+    The last confirmed mode, its time and the start of the current outage are kept in the store, so a
+    disconnect or a service restart does not lose them.
+    Errors are named: "mismatch" (configured and confirmed disagree; account data is withheld) and
+    "not-configured" (no configured mode and no confirmed mode yet).
+    """
+
+    def __init__(self, configured=None, store=None, clock=time.time):
+        self.clock = clock
+        self.store = store or MemoryModeStore()
+        try:
+            saved = self.store.load()
+        except (sqlite3.Error, OSError):
+            saved = {}
+        self.configured = normalize_mode(configured)
+        self.confirmed_mode = normalize_mode(saved.get("confirmedMode"))
+        self.confirmed_at = _epoch(saved.get("confirmedAt"))
+        # Start of the current outage. A fresh process is down until a session reaches live.
+        self.down_since = _epoch(saved.get("downSince")) or self.clock()
+        self.live_since = None
+        self.session_confirmed = False
+        # A mismatch is stored with the configured mode it was found for, so a restart keeps it and a
+        # corrected configuration clears it.
+        self.mismatch = self.configured is not None and saved.get("mismatch") == self.configured
+        if "mismatch" in saved and not self.mismatch:
+            self._put("mismatch", None)  # found for another configuration: it must not come back later
+        self._put("downSince", self.down_since)
+
+    def _put(self, key, value):
+        if key not in MODE_KEYS:
+            raise ValueError("unexpected account-mode key %s" % key)
+        try:
+            self.store.save(key, value)
+        except (sqlite3.Error, OSError):
+            pass  # the in-memory value stays correct
+
+    def observe(self, observed):
+        """The mode of the account list of this session. Returns False on a mismatch."""
+        observed = normalize_mode(observed)
+        if observed is None:
+            return not self.mismatch
+        if self.configured and observed != self.configured:
+            if not self.mismatch:
+                self._put("mismatch", self.configured)
+            self.mismatch = True
+            self.session_confirmed = False
+            return False
+        if self.mismatch:
+            self._put("mismatch", None)
+        self.mismatch = False
+        self.session_confirmed = True
+        self.confirmed_at = self.clock()
+        if observed != self.confirmed_mode:
+            self.confirmed_mode = observed
+            self._put("confirmedMode", observed)
+        self._put("confirmedAt", self.confirmed_at)
+        return True
+
+    def session_reset(self):
+        """A new connection: nothing is confirmed in it yet. A mismatch stays until a list agrees."""
+        self.session_confirmed = False
+
+    def set_live(self, live):
+        if live:
+            if self.live_since is None:
+                self.live_since = self.clock()
+            if self.down_since is not None:
+                self.down_since = None
+                self._put("downSince", None)
+        else:
+            self.live_since = None
+            if self.down_since is None:
+                self.down_since = self.clock()
+                self._put("downSince", self.down_since)
+
+    def since(self):
+        return self.live_since if self.live_since is not None else self.down_since
+
+    def view(self):
+        none = {"accountMode": None, "modeSource": None, "modeConfirmedAt": None}
+        if self.mismatch:
+            return dict(none, modeError="mismatch")
+        mode = self.configured or self.confirmed_mode
+        if not mode:
+            return dict(none, modeError="not-configured")
+        return {
+            "accountMode": mode,
+            "modeSource": "confirmed" if self.session_confirmed or not self.configured else "configured",
+            "modeConfirmedAt": self.confirmed_at if self.confirmed_mode == mode else None,
+            "modeError": None,
+        }
 
 
 def next_backoff(current):
@@ -122,8 +313,9 @@ def next_backoff(current):
 class PortfolioState:
     """IB callback sink and snapshot builder. Thread-safe through self.lock."""
 
-    def __init__(self, clock=time.time):
+    def __init__(self, clock=time.time, mode=None):
         self.clock = clock
+        self.mode = mode or ModeTracker(clock=clock)
         self.lock = threading.Lock()
         self.ready = threading.Event()
         self.state = "starting"
@@ -138,7 +330,9 @@ class PortfolioState:
             self.ready.clear()
             self.feeds = set()
             self.fatal = None
+            # The account list is dropped with the connection; the account mode is not (self.mode).
             self.accounts = []
+            self.mode.session_reset()
             self.main_acct = None
             self.positions = {}  # (acct, conId) -> {position, avgCost}
             self.contracts = {}
@@ -161,6 +355,7 @@ class PortfolioState:
     def set_state(self, state, error=None):
         with self.lock:
             self.state = state
+            self.mode.set_live(state == "live" and not self.mode.mismatch)
             if error is not None:
                 self.last_error = scrub(error)[:200]
 
@@ -176,15 +371,19 @@ class PortfolioState:
     def managedAccounts(self, accountsList):
         with self.lock:
             self.accounts = [a.strip() for a in str(accountsList).split(",") if a.strip()]
+            if not self.mode.observe(account_mode(self.accounts)):
+                # Configured mode and account list disagree: end the session, show nothing from it.
+                self.fatal = MODE_MISMATCH
 
     def connectionClosed(self):
-        self.fatal = "connection closed"
+        if self.fatal != MODE_MISMATCH:
+            self.fatal = "connection closed"
 
     def error(self, reqId, code, msg, *rest):
         code = as_int(code)
         if code in INFO_CODES:
             return
-        if code in FATAL_CODES:
+        if code in FATAL_CODES and self.fatal != MODE_MISMATCH:
             self.fatal = "api error %d" % code
         with self.lock:
             self.errors.append({"t": self.clock(), "code": code, "msg": scrub(msg)[:200]})
@@ -361,7 +560,7 @@ class PortfolioState:
 
     def snapshot(self):
         with self.lock:
-            live = self.state == "live"
+            live = self.state == "live" and not self.mode.mismatch
             totals = {}
             for acct, tags in self.summary.items():
                 for tag, val in tags.items():
@@ -402,7 +601,9 @@ class PortfolioState:
             doc = {
                 "schema": SCHEMA, "source": SOURCE, "clientId": CLIENT_ID, "version": VERSION,
                 "generatedAt": self.clock(), "state": self.state, "connected": live,
-                "lastError": self.last_error, "accountMode": account_mode(self.accounts),
+                "lastError": self.last_error, **self.mode.view(),
+                # Start of the current connection state: live since, or not live since.
+                "stateSince": self.mode.since(),
                 "accountCount": len(self.accounts), "dataAsOf": self.data_ts if live else None,
                 # Until the core feeds have ended (state live), account data is unknown: withhold it
                 # instead of showing a partial book as if it were complete.
@@ -416,9 +617,17 @@ class PortfolioState:
             }
         return deep_scrub(doc)
 
+    def mode_view(self):
+        with self.lock:
+            return self.mode.view()
+
+    def has_accounts(self):
+        with self.lock:
+            return bool(self.accounts)
+
     def health(self):
         with self.lock:
-            live = self.state == "live"
+            live = self.state == "live" and not self.mode.mismatch
             return {"schema": HEALTH_SCHEMA, "version": VERSION, "clientId": CLIENT_ID, "state": self.state,
                     "connected": live, "dataAsOf": self.data_ts if live else None}
 
@@ -491,6 +700,16 @@ class IbMonitor:
         threading.Thread(target=self._client.run, name="ib-reader", daemon=True).start()
         if not self._wait(self.state.ready.is_set, READY_TIMEOUT):
             raise ConnectionError(self.state.fatal or "gateway handshake timed out")
+        if self.state.mode.configured:
+            # The mode check needs the managed account list, which can arrive after nextValidId. No
+            # account request is sent before it is checked, and none to a gateway that is logged in
+            # to the other kind of account.
+            self._wait(lambda: self.state.has_accounts() or not self._alive(), ACCOUNT_LIST_WAIT)
+            if self.state.fatal == MODE_MISMATCH:
+                self.log("account_mode_mismatch", configured=self.state.mode.configured)
+                raise ConnectionError(MODE_MISMATCH)
+            if not self.state.has_accounts():
+                raise ConnectionError(self.state.fatal or ACCOUNT_LIST_MISSING)
         self._client.reqPositions()
         self._client.reqAccountSummary(SUMMARY_REQ_ID, "All", ",".join(SUMMARY_TAGS))
         self._client.reqAllOpenOrders()
@@ -522,8 +741,9 @@ class IbMonitor:
                 self.log("account_updates_pending", client_id=CLIENT_ID)
         # Only now is the book complete; before this the snapshot stays "starting" (unknown, not empty).
         self.state.set_state("live")
+        mode = self.state.mode_view()
         self.log("ib_live", client_id=CLIENT_ID, account_count=len(self.state.accounts),
-                 account_mode=account_mode(self.state.accounts))
+                 account_mode=mode["accountMode"], mode_source=mode["modeSource"])
         subscribed = set()
         last = {"orders": started, "completed": started, "execs": started}
         while not self.stop.is_set():
@@ -639,7 +859,20 @@ def main():
         print("VERTEX_STATUS_TOKEN missing", file=sys.stderr)
         return 2
     gateway_file = os.path.join(os.environ.get("RUNTIME_DIRECTORY", "/run/vertex-portfolio"), "gateway")
-    state = PortfolioState()
+    runtime_dir = os.path.dirname(gateway_file)
+    configured = read_configured_mode(os.path.join(runtime_dir, "mode"))
+    state_dir = os.environ.get("STATE_DIRECTORY", "").split(":")[0] or runtime_dir
+    store = open_mode_store(os.path.join(state_dir, "account-mode.sqlite"), log=_log)
+    state = PortfolioState(mode=ModeTracker(configured=configured, store=store))
+    mode = state.mode_view()
+    if mode["modeError"] == "mismatch":
+        _log("account_mode_mismatch", configured=configured, source="stored")
+    elif mode["modeError"] == "not-configured":
+        # A named setup error, not a neutral placeholder. resolve-gateway.sh reads the mode from the
+        # gateway container (label com.ibkr-nautilus-exec-node.trading-mode, else TRADING_MODE).
+        _log("account_mode_not_configured", fix="set TRADING_MODE on the ib-gateway container")
+    else:
+        _log("account_mode", account_mode=mode["accountMode"], mode_source=mode["modeSource"])
     monitor = IbMonitor(state, gateway_file, log=_log)
     threading.Thread(target=monitor.run_forever, name="ib-monitor", daemon=True).start()
 

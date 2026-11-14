@@ -1,7 +1,7 @@
 // Internal failure carrying a 1-based source position. Thrown inside the lexer, parser,
 // checker and evaluator, and always caught at the compileScript/runScript boundary.
 
-import type { ScriptError } from "./index.ts";
+import type { ScriptError } from "./types.ts";
 
 export type Position = Readonly<{ line: number; column: number }>;
 

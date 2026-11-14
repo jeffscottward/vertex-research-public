@@ -292,7 +292,13 @@ export const labPortfolioMonitorSnapshot = (
   const stamp = now.toISOString();
   const gross = total((row) => Math.abs(row.marketValue));
   return {
-    account: { count: 1, mode: "paper" },
+    account: {
+      count: 1,
+      mode: "paper",
+      modeConfirmedAt: stamp,
+      modeError: null,
+      modeSource: "confirmed",
+    },
     completed: labCompletedOrders(now),
     executions: [...LAB_EXECUTIONS],
     messages: [
@@ -320,6 +326,7 @@ export const labPortfolioMonitorSnapshot = (
       lastError: null,
       ordersAsOf: stamp,
       receivedAt: stamp,
+      since: stamp,
     },
     summary: {
       availableFunds: 141_300,

@@ -57,6 +57,9 @@ export const feedProblem = (
     return `The IB gateway is ${gateway}${connected ? "" : " and disconnected"}; live account values are unknown.`;
   }
   // The feed can be logged in to a paper account: then it is not the owner's live account.
+  if (snapshot.account.mode === null) {
+    return `The feed has an account-mode error (${snapshot.account.modeError}), so it is not confirmed as the live account; live account values are withheld.`;
+  }
   if (snapshot.account.mode !== "live") {
     return `The feed reports a ${snapshot.account.mode} account, not the live account; live account values are unknown.`;
   }

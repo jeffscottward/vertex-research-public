@@ -28,6 +28,7 @@ import type {
   ContactDeliveryPort,
   ContactThrottlePort,
 } from "./contact-service.ts";
+import type { GoLiveQuotesPort } from "./golive-live-quotes.ts";
 import type { JevConfig } from "./jev-client.ts";
 import type { QuantDataConfig } from "./quantdata-client.ts";
 import type {
@@ -131,6 +132,8 @@ export type ApiContext = Readonly<{
   verifyPassword?: (password: string) => Promise<boolean>;
   // Owner order screen (VERTEX_ORDERS_ENABLED, VERTEX_ORDER_BRIDGE_URL). Absent => disabled, mock only.
   vertexOrders?: VertexOrdersConfig;
+  // Live IBKR spread quotes for the go-live drafts (bridge POST /quotes, read only). Absent => none.
+  goLiveQuotes?: GoLiveQuotesPort;
   // Research assistant (OpenRouter client + session-bound tool caller). Server-only; absent => not wired.
   assistant?: AssistantRuntime;
   semanticEvents?: SemanticEventPort;
@@ -191,6 +194,8 @@ export type ApiContextDependencies = Readonly<{
   verifyPassword?: (headers: Headers, password: string) => Promise<boolean>;
   // Owner order screen (VERTEX_ORDERS_ENABLED, VERTEX_ORDER_BRIDGE_URL). Absent => disabled, mock only.
   vertexOrders?: VertexOrdersConfig;
+  // Live IBKR spread quotes for the go-live drafts (bridge POST /quotes, read only). Absent => none.
+  goLiveQuotes?: GoLiveQuotesPort;
   assistant?: AssistantDependencies;
   requestId?: string;
   generateRequestId?: () => string;
@@ -331,6 +336,9 @@ export const createApiContext = (
     ...(dependencies.vertexOrders === undefined
       ? {}
       : { vertexOrders: dependencies.vertexOrders }),
+    ...(dependencies.goLiveQuotes === undefined
+      ? {}
+      : { goLiveQuotes: dependencies.goLiveQuotes }),
     ...(dependencies.semanticEvents === undefined
       ? {}
       : { semanticEvents: dependencies.semanticEvents }),
