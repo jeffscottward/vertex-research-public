@@ -1465,6 +1465,52 @@ describe("portfolio block", () => {
         `portfolio.frame: ${STRATEGY_MONTHLY_INDICATOR_MESSAGE}`,
       ],
     ],
+    [
+      "a portfolio without options before a short side with management",
+      {
+        ...minimal,
+        management: { breakevenR: 1 },
+        portfolio: { policy: "roll", symbols: ["SPY"] },
+        side: "short",
+        stopLoss: { kind: "pct", pct: 5 },
+      },
+      [
+        "portfolio: A portfolio block trades option verticals; add an options block",
+        "management: management raises a long stop; a short definition takes no management",
+      ],
+    ],
+    [
+      "a shifted window before a short side with options",
+      withPortfolio(
+        { policy: "window", shift: 2, symbols: ["SPY"] },
+        { exit: { any: [always] }, side: "short" }
+      ),
+      [
+        "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
+        "side: Option strategies take their direction from options.structure; remove side",
+      ],
+    ],
+    [
+      "the monthly frame before a short side with options",
+      withPortfolio(
+        { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+        {
+          entry: {
+            all: [
+              {
+                ...always,
+                left: { length: 5, name: "atr", type: "indicator" },
+              },
+            ],
+          },
+          side: "short",
+        }
+      ),
+      [
+        `portfolio.frame: ${STRATEGY_MONTHLY_INDICATOR_MESSAGE}`,
+        "side: Option strategies take their direction from options.structure; remove side",
+      ],
+    ],
   ])("lists %s", (_label, definition, expected) => {
     expect(issues(definition)).toEqual(expected);
   });

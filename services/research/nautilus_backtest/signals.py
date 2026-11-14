@@ -1300,7 +1300,9 @@ def _definition_exprs(normalized: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     ] + [select[key] for key in ("score", "tieBreak") if key in select]
 
 
-def _check_definition_refinements(definition: Mapping[str, Any], normalized: Mapping[str, Any]) -> None:
+def _check_definition_refinements(
+    definition: Mapping[str, Any], normalized: Mapping[str, Any]
+) -> None:
     """The StrategyDefinitionSchema refinements that follow the sizing, stop and management ones,
     in the TS order: the first one that fails is the first TS issue among them."""
     side = normalized["side"]

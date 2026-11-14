@@ -1768,6 +1768,25 @@ def test_session_indicators_are_refused_in_portfolio_legs_and_selection(name: st
             sig.normalize_definition(_portfolio_definition(portfolio))
 
 
+def test_the_first_session_indicator_in_the_typescript_walk_order_is_raised() -> None:
+    """strategy-dsl.ts definitionExprPaths: the definition, then the legs, then the score and the tie break."""
+    vwap = {"type": "indicator", "name": "vwap"}
+    session_return = {"type": "indicator", "name": "sessionReturn", "from": "open", "to": "10:30"}
+    noise_band = {"type": "indicator", "name": "noiseBand", "band": "upper", "length": 14}
+    roll = {"policy": "roll", "symbols": ["SPY"]}
+    legs = [{"entry": {"all": [{**ALWAYS, "right": session_return}]}, "options": OPTIONS}]
+    tie_break = {"score": CLOSE, "tieBreak": noise_band, "top": 1}
+    cases = [
+        (_portfolio_definition({**roll, "legs": legs, "select": tie_break}, exit={"any": [{**ALWAYS, "left": vwap}]}),
+         "vwap"),
+        (_portfolio_definition({**roll, "legs": legs, "select": tie_break}), "sessionReturn"),
+        (_portfolio_definition({**roll, "select": {**tie_break, "score": vwap}}), "vwap"),
+    ]
+    for definition, name in cases:
+        with pytest.raises(InputError, match=f"^{name} reads the intraday session; add an intraday block$"):
+            sig.normalize_definition(definition)
+
+
 _SHIFTED = {"policy": "window", "shift": 2, "symbols": ["SPY"]}
 _VOL_TARGET = {"mode": "volTarget", "targetPct": 10, "length": 20, "maxLeverage": 2}
 _VOL_TARGET_MESSAGE = "Option strategies size by options.maxLossPct; remove the volTarget sizing"
@@ -1792,6 +1811,19 @@ _VOL_TARGET_MESSAGE = "Option strategies size by options.maxLossPct; remove the 
             entry={"all": [{**ALWAYS, "left": {"type": "indicator", "name": "atr", "length": 5}}]},
             sizing=_VOL_TARGET,
         ), _VOL_TARGET_MESSAGE),
+        # A portfolio without options before a short side with management.
+        ({"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, "management": {"breakevenR": 1},
+          "portfolio": {"policy": "roll", "symbols": ["SPY"]}, "side": "short", "stopLoss": {"kind": "pct", "pct": 5}},
+         "A portfolio block trades option verticals; add an options block"),
+        # A shifted window before a short side with options.
+        (_portfolio_definition(_SHIFTED, exit={"any": [ALWAYS]}, side="short"),
+         "A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only"),
+        # The monthly frame before a short side with options.
+        (_portfolio_definition(
+            {"policy": "roll", "frame": "monthly", "symbols": ["SPY"]},
+            entry={"all": [{**ALWAYS, "left": {"type": "indicator", "name": "atr", "length": 5}}]},
+            side="short",
+        ), sig.MONTHLY_INDICATOR_MESSAGE),
     ],
 )
 def test_cross_field_checks_raise_in_the_typescript_order(definition: dict[str, Any], message: str) -> None:
