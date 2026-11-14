@@ -124,6 +124,7 @@
     "agent-desk": "bun scripts/agent-desk.ts",
     "research:backtest-151": "bun scripts/research-backtest-151.ts",
     "research:calendar-spread": "bun --no-env-file scripts/research-calendar-spread.ts",
+    "research:forecast-scorecard": "bun --no-env-file scripts/research-forecast-scorecard.ts",
     "research:quantjourney": "bun scripts/research-quantjourney.ts",
     "research:core7": "bun scripts/vertex-core7-rerun.ts",
     "research:academy-golden": "bun scripts/research-academy-golden.ts",
