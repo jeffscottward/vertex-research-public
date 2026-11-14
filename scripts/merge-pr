@@ -9,7 +9,16 @@
 # branch:<repo>:<base> (card vertex-base-merge-serialization, 2026-11-12).
 #
 # Usage: scripts/merge-pr <pr> --card <card> --head <reviewed-sha>
-#                         [--wait <minutes>] [--ci-timeout <minutes>]
+#                         [--repo <owner/name>] [--wait <minutes>] [--ci-timeout <minutes>]
+#
+# Repository: the script works on one GitHub repository for the whole run and
+# never on gh's default for the working folder (with two GitHub remotes that
+# default can be another repository that has a PR with the same number).
+# --repo names it. Without --repo it is the repository of the Git remotes of
+# the working folder; when they point at more than one repository, it is the
+# one whose PR <pr> is at the reviewed head on GitHub. None or several: exit 1.
+# A PR read that fails for another reason than "no such PR" also stops the
+# run. The script clears GH_REPO and names the repository on every gh call.
 #
 # Steps:
 # 1. Take a local lock and the claim branch:<repo>:<base>. Another holder means
@@ -45,6 +54,7 @@ usage() {
 
 pr=""
 card="${FM_CARD:-}"
+repo_arg=""
 expected_head=""
 wait_minutes=0
 ci_timeout_minutes=90
@@ -53,6 +63,7 @@ while (($# > 0)); do
   case "$1" in
     --card) value "$@"; card="$2"; shift 2 ;;
     --head) value "$@"; expected_head="$2"; shift 2 ;;
+    --repo) value "$@"; repo_arg="$2"; shift 2 ;;
     --wait) value "$@"; wait_minutes="$2"; shift 2 ;;
     --ci-timeout) value "$@"; ci_timeout_minutes="$2"; shift 2 ;;
     -h | --help) usage 0 ;;
@@ -72,7 +83,11 @@ retry_seconds="${MERGE_PR_RETRY_SECONDS:-5}"
 ((beat_seconds < 1800)) || usage
 max_updates=5
 
-log() { echo "merge-pr #$pr: $*" >&2; }
+# Every gh call below names its repository; an exported GH_REPO must not choose
+# one.
+unset GH_REPO
+repo=""
+log() { echo "merge-pr $repo#$pr: $*" >&2; }
 die() { log "$1"; exit "${2:-1}"; }
 
 # Sleeps in the background so INT/TERM reach the trap at once; the sleep does not
@@ -99,14 +114,87 @@ gh_read() {
   return 1
 }
 
-repo=$(gh_read repo view --json nameWithOwner --jq .nameWithOwner) || exit 1
+# Prints the canonical owner/name of a repository given as owner/name or as a
+# remote URL.
+repo_name_of() { gh_read repo view "$1" --json nameWithOwner --jq .nameWithOwner; }
+
+# Prints the head SHA of PR $pr in repository $1, or nothing when GitHub reports
+# that the repository has no such PR (HTTP 404; also a repository that the
+# caller cannot see). Any other failure, and an answer without a head SHA, is
+# retried and then returns 1, so a failed read is never taken for "no such PR".
+pr_head_in() {
+  local attempt out sha
+  for attempt in 1 2 3; do
+    if out=$(gh api "repos/$1/pulls/$pr" 2>/dev/null); then
+      if sha=$(jq -r .head.sha <<<"$out" 2>/dev/null) && [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+        printf '%s\n' "$sha"
+        return 0
+      fi
+    elif [[ "$(jq -r '.status? // empty' <<<"$out" 2>/dev/null)" == 404 ]]; then
+      return 0
+    fi
+    ((attempt == 3)) || pause "$retry_seconds"
+  done
+  log "gh api repos/$1/pulls/$pr failed 3 times${out:+: ${out:0:300}}"
+  return 1
+}
+
+# Sets the globals repo and repo_source (see "Repository" above). Call it
+# directly, never in a subshell.
+resolve_repo() {
+  local line remote url name head list names="" detail="" hint="pass --repo <owner/name>"
+  local -a lines=() candidates=() matches=()
+  local -A seen=()
+  if [[ -n "$repo_arg" ]]; then
+    repo=$(repo_name_of "$repo_arg") || die "cannot read the repository $repo_arg given as --repo"
+    repo_source="given as --repo"
+    return
+  fi
+  # One "<remote> <url> (fetch|push)" line for each URL of each remote.
+  mapfile -t lines < <(git remote -v 2>/dev/null)
+  for line in "${lines[@]}"; do
+    read -r remote url _ <<<"$line"
+    # A user name or token in the URL is not needed and must not reach a log.
+    [[ ! "$url" =~ ^([a-z+]+://)[^/@]*@(.*)$ ]] || url="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+    [[ -n "$url" && -z "${seen[$url]:-}" ]] || continue
+    seen[$url]=1
+    name=$(repo_name_of "$url") || die "gh cannot read remote $remote ($url) as a GitHub repository; $hint"
+    names+="$name"$'\n'
+  done
+  [[ -n "$names" ]] || die "the working folder has no Git remote; $hint"
+  mapfile -t candidates < <(LC_ALL=C sort -u <<<"$names" | grep -v '^$')
+  if ((${#candidates[@]} == 1)); then
+    repo=${candidates[0]}
+    repo_source="the only repository of the Git remotes"
+    return
+  fi
+  # Several repositories: GitHub says which one has this PR at the reviewed head.
+  for name in "${candidates[@]}"; do
+    head=$(pr_head_in "$name") || die "cannot read PR #$pr of $name; try again, or $hint"
+    if [[ -z "$head" ]]; then
+      detail+="$name: no PR #$pr; "
+    else
+      detail+="$name: head $head; "
+      [[ "$head" != "$expected_head" ]] || matches+=("$name")
+    fi
+  done
+  ((${#matches[@]} == 1)) \
+    || die "cannot tell which repository has PR #$pr: ${#matches[@]} of the repositories of the Git remotes have it at the reviewed head $expected_head (${detail%; }); check --head, or $hint"
+  repo=${matches[0]}
+  list=$(printf '%s, ' "${candidates[@]}")
+  repo_source="the only one of ${list%, } whose PR #$pr is at the reviewed head"
+}
+resolve_repo
+# gh takes an empty --repo for "no --repo" and would use its default again.
+[[ "$repo" == ?*/?* ]] || die "gh gave no repository name"
 repo_name=${repo#*/}
+log "works on $repo ($repo_source)"
 
 # Sets state, draft, pr_base, head and merge_state from the live PR; a failed read
 # exits with $1 (default 1).
 read_pr() {
   local row
-  row=$(gh_read pr view "$pr" --json state,isDraft,baseRefName,headRefOid,mergeStateStatus \
+  row=$(gh_read pr view "$pr" --repo "$repo" --json state,isDraft,baseRefName,headRefOid,mergeStateStatus \
     --jq '[.state, .isDraft, .baseRefName, .headRefOid, .mergeStateStatus] | @tsv') || exit "${1:-1}"
   IFS=$'\t' read -r state draft pr_base head merge_state <<<"$row"
 }
@@ -122,7 +210,7 @@ refresh() {
 read_pr
 base=$pr_base
 [[ "$state" == OPEN ]] || die "PR is $state, not OPEN"
-[[ "$draft" == false ]] || die "PR is a draft; run gh pr ready $pr first"
+[[ "$draft" == false ]] || die "PR is a draft; run gh pr ready $pr --repo $repo first"
 [[ "$head" == "$expected_head" ]] || die "PR head is $head, not the reviewed --head $expected_head"
 base_path=${base//\//%2F}
 resource="branch:$repo_name:$base"
@@ -204,7 +292,7 @@ beat() {
     last_beat=$now
   fi
 }
-beat "holds $base, checking PR ${head:0:8}" force
+beat "holds $base of $repo, checking PR ${head:0:8}" force
 
 # Required checks as "context<TAB>app id" lines (empty app id: any source; classic
 # protection reports "any source" as app_id -1).
@@ -276,7 +364,7 @@ while true; do
     count_update
     log "head $head is $behind commit(s) behind $base; merging $base into the PR"
     beat "updating branch ($behind behind $base)" force
-    gh pr update-branch "$pr" >&2 || die "gh pr update-branch failed (error above); on a conflict merge origin/$base into the PR branch locally, push, review, then rerun"
+    gh pr update-branch "$pr" --repo "$repo" >&2 || die "gh pr update-branch failed (error above); on a conflict merge the $base branch of $repo into the PR branch locally, push, review, then rerun"
     for _ in 1 2 3 4 5 6; do
       read_pr
       [[ "$head" == "$previous" ]] || break
@@ -314,7 +402,7 @@ done
 
 beat "merging ${head:0:8} into $base" force
 log "required checks green on $head; merging"
-if ! gh pr merge "$pr" --merge --match-head-commit "$head" >&2; then
+if ! gh pr merge "$pr" --repo "$repo" --merge --match-head-commit "$head" >&2; then
   # The merge may have landed even though the client saw an error.
   read_pr 5
   case "$state" in
@@ -324,7 +412,7 @@ if ! gh pr merge "$pr" --merge --match-head-commit "$head" >&2; then
   esac
 fi
 
-row=$(gh_read pr view "$pr" --json state,mergeCommit --jq '[.state, (.mergeCommit.oid // "")] | @tsv') || exit 5
+row=$(gh_read pr view "$pr" --repo "$repo" --json state,mergeCommit --jq '[.state, (.mergeCommit.oid // "")] | @tsv') || exit 5
 IFS=$'\t' read -r state merge_sha <<<"$row"
 [[ "$state" == MERGED && -n "$merge_sha" ]] || die "PR is $state with merge commit '$merge_sha' after gh pr merge" 5
 head_tree=$(gh_read api "repos/$repo/commits/$head" --jq .commit.tree.sha) || exit 5

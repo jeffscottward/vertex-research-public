@@ -1,6 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,23 +35,30 @@ const responder = [
   "}",
 ].join("\n");
 
-const API = "repos/owner/vertex-research-public";
+const REPO = "owner/vertex-research-public";
+const API = `repos/${REPO}`;
 
 // Stands in for the GitHub CLI, keyed on the exact calls scripts/merge-pr makes for
-// PR 9. Commit reads are keyed by SHA, so a check run only exists for the commit
-// a test gives it. Check-run and status answers are raw API JSON filtered through
-// the script's own --jq expression with the system jq, as gh does.
+// PR 9. It refuses to run with GH_REPO set. Every pr call must name REPO: a
+// call without --repo, or with another repository, has no answer and exits 2.
+// "repo view <target>" answers from $STATE/repo-<last path part of the target>
+// and "api repos/<owner>/<name>/pulls/9" from $STATE/pull-<name>. Commit reads
+// are keyed by SHA, so a check run only exists for the commit a test gives it.
+// Check-run and status answers are raw API JSON filtered through the script's
+// own --jq expression with the system jq, as gh does.
 const fakeGh = [
   "#!/usr/bin/env bash",
   "set -o pipefail",
   'echo "gh $*" >>"$CALL_LOG"',
+  '[[ -z "${GH_REPO:-}" ]] || exit 2',
   responder,
   'sha() { local rest=${1#*/commits/}; echo "${rest%%/*}"; }',
   'filter() { local args=("$@") i; for ((i = 0; i < ${#args[@]}; i++)); do [[ "${args[i]}" == --jq ]] && echo "${args[i + 1]}"; done; }',
   'case "$*" in',
-  '  "repo view --json nameWithOwner "*) respond repo ;;',
-  '  "pr view 9 --json state,isDraft,baseRefName,headRefOid,mergeStateStatus "*) respond view ;;',
-  '  "pr view 9 --json state,mergeCommit "*) respond merged ;;',
+  '  "repo view "*" --json nameWithOwner "*) respond "repo-$(basename "$3" .git)" ;;',
+  '  "api repos/"*"/pulls/9") respond "pull-$(basename "${2%/pulls/9}")" ;;',
+  `  "pr view 9 --repo ${REPO} --json state,isDraft,baseRefName,headRefOid,mergeStateStatus "*) respond view ;;`,
+  `  "pr view 9 --repo ${REPO} --json state,mergeCommit "*) respond merged ;;`,
   `  "api ${API}/branches/base%2Fmain/protection/required_status_checks "*) respond required ;;`,
   `  "api ${API}/rules/branches/base%2Fmain "*) respond rules empty ;;`,
   `  "api ${API}/git/ref/heads/base/main "*) respond ref ;;`,
@@ -54,8 +67,8 @@ const fakeGh = [
   `  "api ${API}/commits/"*"/status?per_page=100 "*) respond "status-$(sha "$2")" | jq -r "$(filter "$@")" ;;`,
   `  "api ${API}/commits/"*" --jq [([.parents"*) respond "parents-$(sha "$2")" ;;`,
   `  "api ${API}/commits/"*" --jq .commit.tree.sha") respond "tree-$(sha "$2")" ;;`,
-  '  "pr update-branch 9") respond update ;;',
-  '  "pr merge 9 --merge --match-head-commit "*) respond merge ;;',
+  `  "pr update-branch 9 --repo ${REPO}") respond update ;;`,
+  `  "pr merge 9 --repo ${REPO} --merge --match-head-commit "*) respond merge ;;`,
   "  *) exit 2 ;;",
   "esac",
   "",
@@ -100,7 +113,7 @@ const CLEAN: Record<string, string[]> = {
   merge: [""],
   merged: ["MERGED\\tmerge1"],
   ref: [B1],
-  repo: ["owner/vertex-research-public"],
+  "repo-vertex-research-public": [REPO],
   required: ["ci-gate\\t15368"],
   [`runs-${H1}`]: [PASS],
   [`runs-${H2}`]: [PASS],
@@ -113,9 +126,49 @@ const CLEAN: Record<string, string[]> = {
 
 const ARGS = ["9", "--card", "job-a", "--head", H1];
 
-const setup = (responses: Record<string, string[]>) => {
+type Responses = Record<string, string[]>;
+
+// The Git remotes of the working folder the script runs in; git: false makes
+// it a plain folder.
+interface Layout {
+  git?: boolean;
+  remotes?: Record<string, string>;
+}
+const OTHER = "owner/vertex-research";
+const ONE_REMOTE = { origin: `https://github.com/${REPO}.git` };
+const TWO_REMOTES = {
+  origin: `https://github.com/${OTHER}.git`,
+  public: `git@github.com:${REPO}.git`,
+};
+
+// No user or system Git configuration (URL rewrites, hooks).
+const GIT_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+
+const git = (cwd: string, ...args: string[]): void => {
+  const result = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    env: { ...GIT_ENV, PATH: process.env["PATH"] ?? "" },
+  });
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+  }
+};
+
+// Builds the fake tools, the state files and the working folder: a real Git
+// checkout with the layout's remotes, so the script never reads the remotes of
+// the checkout the tests run in.
+const setup = (responses: Responses, layout: Layout = {}) => {
   const directory = mkdtempSync(join(tmpdir(), "merge-pr-"));
   const log = join(directory, "calls.log");
+  const cwd = join(directory, "checkout");
+  mkdirSync(cwd);
+  if (layout.git !== false) {
+    git(cwd, "init", "--quiet");
+    for (const [name, url] of Object.entries(layout.remotes ?? ONE_REMOTE)) {
+      git(cwd, "remote", "add", name, url);
+    }
+  }
   writeFileSync(join(directory, "gh"), fakeGh, { mode: 0o755 });
   writeFileSync(join(directory, "fm"), fakeFm, { mode: 0o755 });
   writeFileSync(log, "");
@@ -123,7 +176,10 @@ const setup = (responses: Record<string, string[]>) => {
     writeFileSync(join(directory, key), `${lines.join("\n")}\n`);
   }
   const env = {
+    ...GIT_ENV,
     CALL_LOG: log,
+    // Git must not look for a checkout above the working folder.
+    GIT_CEILING_DIRECTORIES: directory,
     MERGE_PR_POLL_SECONDS: "0",
     MERGE_PR_RETRY_SECONDS: "0",
     PATH: `${directory}:${process.env["PATH"] ?? ""}`,
@@ -132,15 +188,21 @@ const setup = (responses: Record<string, string[]>) => {
   };
   const calls = () => readFileSync(log, "utf8").split("\n").filter(Boolean);
   const cleanup = () => rmSync(directory, { force: true, recursive: true });
-  return { calls, cleanup, env };
+  return { calls, cleanup, cwd, env };
 };
 
-const run = (responses: Record<string, string[]>, args: string[] = ARGS) => {
-  const { calls, cleanup, env } = setup(responses);
+const run = (
+  responses: Responses,
+  args: string[] = ARGS,
+  layout: Layout = {},
+  extraEnv: Record<string, string> = {}
+) => {
+  const { calls, cleanup, cwd, env } = setup(responses, layout);
   try {
     const result = spawnSync("bash", [script, ...args], {
+      cwd,
       encoding: "utf8",
-      env,
+      env: { ...env, ...extraEnv },
     });
     return {
       calls: calls(),
@@ -155,6 +217,9 @@ const run = (responses: Record<string, string[]>, args: string[] = ARGS) => {
 
 const claimCall = `fm claim job-a ${RESOURCE}`;
 const releaseCall = `fm release job-a ${RESOURCE}`;
+const mergeCall = (head: string) =>
+  `gh pr merge 9 --repo ${REPO} --merge --match-head-commit ${head}`;
+const updateCall = `gh pr update-branch 9 --repo ${REPO}`;
 const merges = (calls: string[]): string[] =>
   calls.filter((call) => call.startsWith("gh pr merge"));
 const checkRunShas = (calls: string[]): string[] =>
@@ -167,9 +232,7 @@ describe("scripts/merge-pr", () => {
     const { calls, status, stdout } = run({});
     expect(status).toBe(0);
     expect(stdout.trim()).toBe("merge1");
-    expect(merges(calls)).toEqual([
-      `gh pr merge 9 --merge --match-head-commit ${H1}`,
-    ]);
+    expect(merges(calls)).toEqual([mergeCall(H1)]);
     // The claim is renewed right before merging.
     const lastClaim = calls.lastIndexOf(claimCall);
     expect(lastClaim).toBeGreaterThan(calls.indexOf(claimCall));
@@ -186,14 +249,12 @@ describe("scripts/merge-pr", () => {
       view: [view(H1), view(H1), view(H2)],
     });
     expect(status).toBe(0);
-    const update = calls.indexOf("gh pr update-branch 9");
+    const update = calls.indexOf(updateCall);
     const firstRun = calls.findIndex((call) => call.includes("/check-runs "));
     expect(update).toBeGreaterThan(-1);
     expect(firstRun).toBeGreaterThan(update);
     expect(checkRunShas(calls)).toEqual([H2, H2, H2]);
-    expect(merges(calls)).toEqual([
-      `gh pr merge 9 --merge --match-head-commit ${H2}`,
-    ]);
+    expect(merges(calls)).toEqual([mergeCall(H2)]);
   });
 
   it("updates again when GitHub reports the PR behind after CI passed", () => {
@@ -203,12 +264,8 @@ describe("scripts/merge-pr", () => {
       view: [view(H1), view(H1), view(H1, "BEHIND"), view(H1), view(H2)],
     });
     expect(status).toBe(0);
-    expect(
-      calls.filter((call) => call === "gh pr update-branch 9")
-    ).toHaveLength(1);
-    expect(merges(calls)).toEqual([
-      `gh pr merge 9 --merge --match-head-commit ${H2}`,
-    ]);
+    expect(calls.filter((call) => call === updateCall)).toHaveLength(1);
+    expect(merges(calls)).toEqual([mergeCall(H2)]);
   });
 
   it("stops instead of spinning when GitHub keeps reporting BEHIND", () => {
@@ -433,7 +490,9 @@ describe("scripts/merge-pr", () => {
       update: ["!1 merge conflict"],
     });
     expect(status).toBe(1);
-    expect(stderr).toContain(`merge origin/${BASE} into the PR branch locally`);
+    expect(stderr).toContain(
+      `merge the ${BASE} branch of ${REPO} into the PR branch locally`
+    );
     expect(merges(calls)).toEqual([]);
     expect(calls.at(-1)).toBe(releaseCall);
   });
@@ -477,9 +536,7 @@ describe("scripts/merge-pr", () => {
     const { calls, status, stderr } = run(responses);
     expect(status).toBe(1);
     expect(stderr).toContain("base moved 5 times");
-    expect(
-      calls.filter((call) => call === "gh pr update-branch 9")
-    ).toHaveLength(5);
+    expect(calls.filter((call) => call === updateCall)).toHaveLength(5);
     expect(merges(calls)).toEqual([]);
   });
 
@@ -499,6 +556,10 @@ describe("scripts/merge-pr", () => {
       expect(status).toBe(1);
       expect(calls.some((call) => call.startsWith("fm claim"))).toBe(false);
     }
+    // The hint names the repository, as every gh call must.
+    expect(run({ view: [view(H1, "DRAFT", "true")] }).stderr).toContain(
+      `run gh pr ready 9 --repo ${REPO} first`
+    );
   });
 
   it("stops when gh pr merge fails and the PR is not merged", () => {
@@ -557,9 +618,10 @@ describe("scripts/merge-pr", () => {
   });
 
   it("releases the claim when terminated while waiting for CI", async () => {
-    const { calls, cleanup, env } = setup({ [`runs-${H1}`]: [PENDING] });
+    const { calls, cleanup, cwd, env } = setup({ [`runs-${H1}`]: [PENDING] });
     try {
       const child = spawn("bash", [script, ...ARGS], {
+        cwd,
         env: { ...env, MERGE_PR_POLL_SECONDS: "30" },
       });
       const exited = once(child, "exit");
@@ -582,7 +644,7 @@ describe("scripts/merge-pr", () => {
   });
 
   it("serializes two runs on one host with a lock", async () => {
-    const { calls, cleanup, env } = setup({});
+    const { calls, cleanup, cwd, env } = setup({});
     try {
       const lock = join(
         env.XDG_RUNTIME_DIR,
@@ -598,6 +660,7 @@ describe("scripts/merge-pr", () => {
       try {
         await once(holder.stdout, "data");
         const result = spawnSync("bash", [script, ...ARGS], {
+          cwd,
           encoding: "utf8",
           env,
         });
@@ -612,6 +675,210 @@ describe("scripts/merge-pr", () => {
     }
   });
 
+  const otherCalls = (calls: string[]): string[] =>
+    calls.filter((call) => /owner\/vertex-research(?!-public)/.test(call));
+  const pullReads = (calls: string[]): string[] =>
+    calls.filter((call) => call.endsWith("/pulls/9"));
+  const fmCalls = (calls: string[]): string[] =>
+    calls.filter((call) => call.startsWith("fm "));
+  // GitHub's answers to "api repos/<repository>/pulls/9".
+  const pull = (head: string) => JSON.stringify({ head: { sha: head } });
+  const NO_PULL = '!1 {"message":"Not Found","status":"404"}';
+  const TWO = { remotes: TWO_REMOTES };
+  const twoRepos = (other: string, self: string): Responses => ({
+    "pull-vertex-research": [other],
+    "pull-vertex-research-public": [self],
+    "repo-vertex-research": [OTHER],
+  });
+
+  it("names the repository of the only remote on every GitHub call", () => {
+    const { calls, status, stderr } = run({});
+    expect(status).toBe(0);
+    // The repository comes from the remote URL, never from gh's default.
+    expect(calls.filter((call) => call.startsWith("gh repo view"))).toEqual([
+      `gh repo view ${ONE_REMOTE.origin} --json nameWithOwner --jq .nameWithOwner`,
+    ]);
+    const prCalls = calls.filter((call) => call.startsWith("gh pr "));
+    expect(prCalls.length).toBeGreaterThan(2);
+    expect(prCalls.every((call) => call.includes(` --repo ${REPO} `))).toBe(
+      true
+    );
+    const apiCalls = calls.filter((call) => call.startsWith("gh api "));
+    expect(apiCalls.length).toBeGreaterThan(2);
+    expect(apiCalls.every((call) => call.includes(` ${API}/`))).toBe(true);
+    expect(pullReads(calls)).toEqual([]);
+    expect(stderr).toContain(
+      `merge-pr ${REPO}#9: works on ${REPO} (the only repository of the Git remotes)`
+    );
+    // The first card note names the repository; all keep the short prefix.
+    const beats = calls.filter((call) => call.startsWith("fm beat"));
+    expect(beats[0]).toBe(
+      `fm beat job-a merge-pr #9: holds ${BASE} of ${REPO}, checking PR ${H1.slice(0, 8)}`
+    );
+    expect(
+      beats.every((call) => call.startsWith("fm beat job-a merge-pr #9: "))
+    ).toBe(true);
+  });
+
+  it("with remotes on two repositories works on the one whose PR is at the reviewed head", () => {
+    const { calls, status, stderr } = run(
+      twoRepos(pull(H2), pull(H1)),
+      ARGS,
+      TWO
+    );
+    expect(status).toBe(0);
+    expect(merges(calls)).toEqual([mergeCall(H1)]);
+    expect(calls).toContain(claimCall);
+    // The other repository is only resolved and asked for its PR head.
+    expect(otherCalls(calls)).toEqual([
+      `gh repo view ${TWO_REMOTES.origin} --json nameWithOwner --jq .nameWithOwner`,
+      `gh api repos/${OTHER}/pulls/9`,
+    ]);
+    expect(stderr).toContain(
+      `merge-pr ${REPO}#9: works on ${REPO} (the only one of ${OTHER}, ${REPO} whose PR #9 is at the reviewed head)`
+    );
+  });
+
+  it("ignores a repository that has no PR with that number", () => {
+    const { calls, status } = run(twoRepos(NO_PULL, pull(H1)), ARGS, TWO);
+    expect(status).toBe(0);
+    expect(merges(calls)).toEqual([mergeCall(H1)]);
+  });
+
+  it("stops before any claim when no repository or both have the PR at the reviewed head", () => {
+    const none = run(twoRepos(NO_PULL, pull(H2)), ARGS, TWO);
+    expect(none.status).toBe(1);
+    expect(none.stderr).toContain(
+      `merge-pr #9: cannot tell which repository has PR #9: 0 of the repositories of the Git remotes have it at the reviewed head ${H1} (${OTHER}: no PR #9; ${REPO}: head ${H2}); check --head, or pass --repo <owner/name>`
+    );
+    expect(fmCalls(none.calls)).toEqual([]);
+
+    const both = run(twoRepos(pull(H1), pull(H1)), ARGS, TWO);
+    expect(both.status).toBe(1);
+    expect(both.stderr).toContain(
+      `2 of the repositories of the Git remotes have it at the reviewed head ${H1} (${OTHER}: head ${H1}; ${REPO}: head ${H1})`
+    );
+    expect(fmCalls(both.calls)).toEqual([]);
+    expect(merges(both.calls)).toEqual([]);
+  });
+
+  it("never takes a failed PR read for a missing PR", () => {
+    // Both repositories have the PR at the reviewed head, and one read fails.
+    const failing = run(twoRepos("!1 HTTP 502", pull(H1)), ARGS, TWO);
+    expect(failing.status).toBe(1);
+    expect(failing.stderr).toContain(
+      `cannot read PR #9 of ${OTHER}; try again, or pass --repo <owner/name>`
+    );
+    expect(pullReads(failing.calls)).toHaveLength(3);
+    expect(fmCalls(failing.calls)).toEqual([]);
+
+    // Only HTTP 404 means "no such PR": not another error body, and not an
+    // answer without a head SHA.
+    for (const answer of [
+      '!1 {"message":"API rate limit exceeded","status":"403"}',
+      "<html>proxy</html>",
+      "{}",
+    ]) {
+      const unusable = run(twoRepos(answer, pull(H1)), ARGS, TWO);
+      expect(unusable.status).toBe(1);
+      expect(unusable.stderr).toContain(`cannot read PR #9 of ${OTHER}`);
+      expect(fmCalls(unusable.calls)).toEqual([]);
+    }
+
+    const retried = run(
+      {
+        ...twoRepos(pull(H2), pull(H1)),
+        "pull-vertex-research": ["!1 HTTP 502", pull(H2)],
+      },
+      ARGS,
+      TWO
+    );
+    expect(retried.status).toBe(0);
+    expect(merges(retried.calls)).toEqual([mergeCall(H1)]);
+  });
+
+  it("works on the --repo repository without asking for PR heads", () => {
+    const { calls, status, stderr } = run(
+      twoRepos(pull(H1), pull(H1)),
+      // A URL is accepted; later calls use the canonical name.
+      [...ARGS, "--repo", `https://github.com/${REPO}.git`],
+      TWO
+    );
+    expect(status).toBe(0);
+    expect(merges(calls)).toEqual([mergeCall(H1)]);
+    expect(otherCalls(calls)).toEqual([]);
+    expect(pullReads(calls)).toEqual([]);
+    expect(stderr).toContain(`works on ${REPO} (given as --repo)`);
+  });
+
+  it("treats two remotes of one repository as one repository", () => {
+    const { calls, status } = run({}, ARGS, {
+      remotes: { ...ONE_REMOTE, upstream: `git@github.com:${REPO}.git` },
+    });
+    expect(status).toBe(0);
+    expect(pullReads(calls)).toEqual([]);
+    expect(merges(calls)).toEqual([mergeCall(H1)]);
+  });
+
+  it("drops a user name or token from a remote URL", () => {
+    const { calls, status, stderr } = run({}, ARGS, {
+      remotes: {
+        ...ONE_REMOTE,
+        token: `https://user:secret@github.com/${REPO}.git`,
+      },
+    });
+    expect(status).toBe(0);
+    // Without the credentials it is the URL of origin: one read, no PR read.
+    expect(calls.filter((call) => call.startsWith("gh repo view"))).toEqual([
+      `gh repo view ${ONE_REMOTE.origin} --json nameWithOwner --jq .nameWithOwner`,
+    ]);
+    expect(`${calls.join("\n")}\n${stderr}`).not.toContain("secret");
+  });
+
+  it("stops when gh cannot read a remote or the --repo value", () => {
+    const unreadable = run({ "repo-mirror": ["!1 not found"] }, ARGS, {
+      remotes: {
+        ...ONE_REMOTE,
+        mirror: "https://git.example.test/owner/mirror.git",
+      },
+    });
+    expect(unreadable.status).toBe(1);
+    expect(unreadable.stderr).toContain(
+      "gh cannot read remote mirror (https://git.example.test/owner/mirror.git) as a GitHub repository; pass --repo <owner/name>"
+    );
+    expect(fmCalls(unreadable.calls)).toEqual([]);
+
+    const wrong = run({ "repo-missing": ["!1 not found"] }, [
+      ...ARGS,
+      "--repo",
+      "owner/missing",
+    ]);
+    expect(wrong.status).toBe(1);
+    expect(wrong.stderr).toContain(
+      "cannot read the repository owner/missing given as --repo"
+    );
+    expect(fmCalls(wrong.calls)).toEqual([]);
+  });
+
+  it("needs --repo outside a Git checkout", () => {
+    const { calls, status, stderr } = run({}, ARGS, { git: false });
+    expect(status).toBe(1);
+    // Before the repository is known, the prefix has no repository.
+    expect(stderr).toContain(
+      "merge-pr #9: the working folder has no Git remote; pass --repo <owner/name>"
+    );
+    expect(calls).toEqual([]);
+    expect(run({}, [...ARGS, "--repo", REPO], { git: false }).status).toBe(0);
+  });
+
+  it("clears GH_REPO, so gh cannot take another repository from it", () => {
+    // The fake gh refuses to run with GH_REPO set.
+    const { calls, status } = run({}, ARGS, {}, { GH_REPO: OTHER });
+    expect(status).toBe(0);
+    expect(otherCalls(calls)).toEqual([]);
+    expect(merges(calls)).toEqual([mergeCall(H1)]);
+  });
+
   it("rejects calls without a PR number, card or reviewed head", () => {
     expect(run({}, ["9", "--card", "job-a"]).status).toBe(2);
     expect(run({}, ["--card", "job-a", "--head", H1]).status).toBe(2);
@@ -620,6 +887,7 @@ describe("scripts/merge-pr", () => {
       2
     );
     expect(run({}, [...ARGS, "--wait", "x"]).status).toBe(2);
+    expect(run({}, [...ARGS, "--repo"]).status).toBe(2);
     expect(run({}, ["--help"]).status).toBe(0);
   });
 });
