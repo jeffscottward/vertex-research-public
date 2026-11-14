@@ -304,7 +304,9 @@ const execute = async (
     const text = await io
       .readFile(join(args.bars, file))
       .catch((error: unknown) => {
-        const missing = (error as { code?: unknown }).code === "ENOENT";
+        const missing =
+          error instanceof Error &&
+          (error as { code?: unknown }).code === "ENOENT";
         throw new InputError(
           `${file}: ${missing ? "file not found" : "cannot read the file"}`
         );

@@ -58,6 +58,7 @@ const harness = (
       const text = files[path];
       if (text === "<unreadable>")
         return Promise.reject(new Error(`EISDIR /abs/${path}`));
+      if (text === "<null>") return Promise.reject(null);
       return text === undefined
         ? Promise.reject(
             Object.assign(new Error(`ENOENT /abs/${path}`), { code: "ENOENT" })
@@ -291,6 +292,16 @@ describe("runForecastScorecardCli", () => {
     expect(at(lines, 8)).toBe("");
   });
 
+  it("takes the horizon of the summary from the result", async () => {
+    const { out } = await harness(LONG, (records, bars, params, random) => ({
+      ...scoreForecasts(records, bars, params, random),
+      params: { ...params, horizonBars: 5 },
+    })).run(...ARGS, "--summary");
+    expect(at(out.split("\n"), 2)).toBe(
+      "horizon 5 bars, price adj_close, seed 7, files 3"
+    );
+  });
+
   it("reports short files as not enough data and still checks the arithmetic", async () => {
     const short = await harness({
       "data/AAA.csv": csv(320, 1),
@@ -323,7 +334,11 @@ describe("runForecastScorecardCli", () => {
       ...LONG,
       "data/BAD.csv": `${HEADER}\n2020-01-02,1,2,3,4,-5\n`,
       "data/DIR.csv": "<unreadable>",
+      "data/NUL.csv": "<null>",
     });
+    expect((await run("--bars", "data", "--symbols", "NUL")).err).toBe(
+      "forecast scorecard failed: NUL.csv: cannot read the file\n"
+    );
     expect(await run("--bars", "data", "--symbols", "DIR")).toEqual({
       code: 1,
       err: "forecast scorecard failed: DIR.csv: cannot read the file\n",
