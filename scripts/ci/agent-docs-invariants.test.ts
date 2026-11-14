@@ -31,6 +31,20 @@ describe("agent entry points", () => {
     );
   });
 
+  // Owner decision 2026-11-10: the owner never reviews code. Merges wait on
+  // CI and a fresh-context agent review; trading safety gates stay owner calls.
+  it("never makes a person's code review a merge gate", async () => {
+    const agents = await readFile(at("AGENTS.md"), "utf8");
+    expect(agents).not.toMatch(/person's review|a person reviews it/u);
+    const section = /## Code review practice\n([\s\S]*?)\n## /u.exec(
+      agents
+    )?.[1];
+    expect(section).toContain("No merge waits for a person to read code");
+    for (const gate of ["arming trading", "live orders", "kill switches"]) {
+      expect(section, gate).toContain(gate);
+    }
+  });
+
   return it("gives every role skill matching name and description frontmatter", async () => {
     const roles = (await readdir(at(".agents/skills"))).sort();
     expect(roles).toEqual(SKILL_ROLES);
