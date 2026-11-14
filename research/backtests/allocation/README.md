@@ -15,7 +15,8 @@ directory `vertex-allocation`).
 | `services/research/strategies/qc_ports/allocation.py` | Owner exit rule, the gate (`GATE`, `gate_checks`), account caps (`combine`), out-of-sample Sharpe, Monte Carlo, correlation, three weighting methods |
 | `services/research/tests/test_qc_ports_allocation.py` | Synthetic tests of that module (base Python lane) |
 | `research/backtests/allocation/run.py` | The study: runs every candidate and the combined portfolios on NautilusTrader and writes one JSON document to `--out` |
-| `research/backtests/allocation/sensitivity.py` | The candidates again under changed option-model assumptions (diagnostics) |
+| `research/backtests/allocation/sensitivity.py` | The candidates again under changed option-model assumptions (diagnostics), and the long option proxy with its decision rule |
+| `services/research/tests/test_allocation_sensitivity.py` | Synthetic tests of the proxy structure, the scenario list and the decision rule (core lane) |
 | `research/backtests/allocation/fetch_chain_snapshot.py` | One-day option-chain snapshot: measured half-spread and skew per ETF |
 | `research/backtests/allocation/funded_pie.py` | The lower-bar pie the owner picked: three sleeves in one account under both option models (proposal) |
 | `research/backtests/allocation/deploy_rehearsal.py` | Deployability rehearsal of the pie, on paper only: every step from a signal to an exit, with the cause of each stop |
@@ -211,6 +212,7 @@ Findings:
   max drawdown of -55%; it fails G5 and G7.
 - The engine's order policy (`options_only_defined_risk_v2`) refuses combos and opening short legs, so no
   vertical tested here can be placed today. A single-long-option form is not tested (the runner prices verticals).
+  (State on 2026-11-11; see "Long option proxy".)
 
 | Scenario | Sharpe > 0 | >= 0.3 | >= 0.5 | Median Sharpe | Best Sharpe | Pass the gate | Pass without G5 (baseline check left out) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -240,6 +242,108 @@ expiries 37 and 65 days out, quoted spreads.
 
 One day of quotes is not a history: spreads widen in stress, and a limit order inside the spread costs less. The
 option model in `options.py` is unchanged; replacing its constants needs more than one snapshot.
+
+## Long option proxy (2026-11-14)
+
+The sensitivity findings name one gap: a single-long-option form is not tested. This section closes it with a
+stand-in, without new pricing code. Design: `docs/vertex-rebuild/single-long-option-proxy.md`. The scenarios are
+diagnostics: they count as no trial and make no strategy eligible.
+
+Engine state on 2026-11-14 (the deployed `ORDER_POLICY` and the environment of the trading container, read on
+that date): order policy `options_only_defined_risk_v3` with the vertical-spread switch on since 2026-11-12.
+The engine accepts a single long option and a defined-risk vertical spread; it refuses calendar spreads. A
+single long option is therefore no longer the only form the engine can place.
+
+### Method (fixed before the run, in the commit that adds `proxy_decision`)
+
+- **Proxy.** Every debit vertical keeps its own expiry rule and its 0.5-delta long leg. Its short leg moves
+  3 standard deviations of the move to expiry out of the money (`widthSigma` 3, the maximum the option parser
+  accepts). Credit verticals do not change.
+- **Scenarios.** `longProxy` (the study model), `longProxyNoCosts` (no commission and no spread: an upper bound
+  of the proxy on costs) and `longProxyCalibrated` (the measured chain snapshot of 2026-11-11, expiries 37 and
+  65 days out: the only measured model).
+- **One run.** The seven existing scenarios and the three proxy scenarios ran in one invocation, on the data of
+  the 2026-11-11 study (to 2026-11-10), with the trial count (61) and trial variance of `run.py`. Capital = the
+  rounded account value of 2026-11-14 (not stated here). It differs from the capital of 2026-11-11, so the rows
+  below are compared with each other and not with the tables above.
+- **Decision rule.** A run counts when it is a distinct strategy run, the proxy changed its definition, and it
+  reaches both Sharpe floors of the gate (0.5 on the full window and on the last 40% of the days).
+  `candidate`: a run counts under `longProxy`; a follow-up proposes exact single-option pricing.
+  `no`: no run counts in any of the three proxy scenarios; the question closes.
+  `model-dependent`: a run counts only without costs or in the measured model; a decision record comes first.
+  `incomplete`: nothing counts and a proxy scenario is missing (a run without `--chain`); the run is repeated.
+- **Regression.** The changed script at the capital of 2026-11-11 reproduces every stored value of the seven
+  existing scenarios (161 rows, 0 differences).
+
+### Result
+
+**Outcome: `no`. No short-dated proxy run of an allocation candidate reaches the two Sharpe floors under any of
+the three cost models, and no run passes the gate.** Ledger and NautilusTrader agree on every run (largest
+relative equity gap 4.3e-16). The 16 strategy candidates make 13 distinct runs.
+
+| Scenario | Distinct strategy runs | Runs at both Sharpe floors | Median Sharpe | Best Sharpe | Best out-of-sample Sharpe | Best deflated Sharpe | Pass the gate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Study model, vertical as studied (`base`) | 13 | 0 | -0.03 | +0.42 | +0.33 | 0.29 | 0 |
+| Study model, proxy (`longProxy`) | 13 | 0 | +0.08 | +0.58 | +0.47 | 0.53 | 0 |
+| No costs, vertical (`noCosts`) | 13 | 0 | +0.20 | +0.61 | +0.61 | 0.58 | 0 |
+| No costs, proxy (`longProxyNoCosts`) | 13 | 0 | +0.23 | +0.74 | +0.69 | 0.76 | 0 |
+| Measured chain snapshot, vertical (`calibrated`) | 13 | 1 | +0.24 | +0.80 | +0.59 | 0.83 | 0 |
+| Measured chain snapshot, proxy (`longProxyCalibrated`) | 13 | 0 | +0.12 | +0.66 | +0.54 | 0.65 | 0 |
+
+The "best" columns are the best value per column, so they can come from different runs: no single proxy run
+has both values at 0.5 or more.
+
+Strategy runs, ordered by the Sharpe of the proxy in the study model:
+
+| Strategy run | Sharpe, vertical | Sharpe, proxy | Change | Out-of-sample, vertical | Out-of-sample, proxy | Proxy without costs (Sharpe / out-of-sample) | Measured model: vertical to proxy (Sharpe) | Trades, vertical / proxy |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `oil-predicts-equity/A` | +0.42 | +0.58 | +0.16 | +0.16 | +0.32 | +0.74 / +0.46 | +0.80 to +0.66 | 341 / 341 |
+| `momentum-rotation/A` | +0.06 | +0.28 | +0.22 | +0.22 | +0.44 | +0.49 / +0.69 | +0.38 to +0.33 | 609 / 603 |
+| `qj/W01` | +0.12 | +0.26 | +0.14 | +0.24 | +0.40 | +0.39 / +0.57 | +0.35 to +0.28 | 643 / 641 |
+| `qj/O13` | +0.07 | +0.16 | +0.09 | +0.33 | +0.47 | +0.25 / +0.59 | +0.25 to +0.15 | 339 / 339 |
+| `asset-class-trend/A` | -0.08 | +0.15 | +0.23 | -0.05 | +0.24 | +0.39 / +0.54 | +0.25 to +0.18 | 1220 / 1216 |
+| `qj/O06` | +0.03 | +0.10 | +0.07 | +0.17 | +0.27 | +0.22 / +0.43 | +0.25 to +0.13 | 389 / 388 |
+| `qj/O01` | -0.02 | +0.08 | +0.09 | +0.08 | +0.25 | +0.23 / +0.45 | +0.24 to +0.12 | 723 / 721 |
+| `qj/O02` | -0.03 | +0.03 | +0.06 | +0.21 | +0.30 | +0.18 / +0.49 | +0.11 to +0.01 | 354 / 353 |
+| `futures-trend-carry/A` | -0.26 | +0.00 | +0.26 | -0.20 | +0.14 | +0.25 / +0.36 | +0.10 to +0.03 | 989 / 981 |
+| `same-month-seasonality/A` | -0.23 | -0.03 | +0.21 | +0.03 | +0.28 | +0.23 / +0.55 | +0.08 to -0.03 | 544 / 544 |
+| `turn-of-the-month/A` | -0.35 | -0.14 | +0.22 | -0.45 | -0.26 | +0.22 / +0.11 | -0.08 to -0.05 | 1170 / 1173 |
+| `gold-fed-model/A` | -0.26 | -0.16 | +0.10 | +0.16 | +0.16 | -0.03 / +0.26 | -0.17 to -0.12 | 95 / 95 |
+| `opex-week/A` | -0.51 | -0.38 | +0.13 | -0.34 | -0.26 | -0.01 / +0.10 | -0.25 to -0.29 | 1162 / 1167 |
+
+What the rows show:
+
+- In the study model the proxy has a higher Sharpe than the vertical in 13 of 13 runs (median -0.03 to +0.08,
+  best +0.42 to +0.58). Without costs it is higher in 11 of 13.
+- In the measured model the proxy has a lower Sharpe than the vertical in 11 of 13 runs (median +0.24 to +0.12,
+  best +0.80 to +0.66). A likely reason, not tested by itself: the measured call skew is flatter
+  than the study model's, so the short call of the vertical is worth more and the proxy gives that premium up.
+- The nearest misses are in the scenario without costs: `oil-predicts-equity/A` (Sharpe +0.74, out of sample
+  +0.46) and `momentum-rotation/A` (+0.49, +0.69). Each fails one floor, and no real account trades without costs.
+- One vertical reaches both Sharpe floors in the measured model (`oil-predicts-equity/A`, +0.80 and +0.53). Its
+  proxy does not (+0.66 and +0.38). That vertical still fails the deflated Sharpe check (0.83 against 0.95).
+- So moving the short leg to 3 sigma raises the Sharpe in the study model and without costs, and lowers it in the
+  one measured snapshot. Exact single-option pricing is not built.
+
+### Limits of the proxy
+
+- It is not a long option. It pays commission and half-spread on a second leg (at least the commission and the
+  minimum half-spread of `options.py` per side). The scenario without costs removes this.
+- The 3-sigma width raises the max loss per contract (the worst closing cost of the book grows with the width),
+  so the proxy buys fewer contracts, and a trade can fall from one contract to none. The effect on the Sharpe is
+  not measured; the result document outside the repository holds the size skips per run.
+- Calls and puts differ. For calls the far short leg is worth almost nothing. For puts the skew prices it
+  higher, and it caps the crash payoff. A put proxy is skipped ("no strikes") when the short strike would be at
+  or below zero; at 60 days that needs an at-the-money volatility of about 80%. One candidate
+  (`futures-trend-carry/A`) holds put debit verticals.
+- The proxy gives up most of the skew premium that the short leg of the real spread collects, so its result
+  depends on the skew assumption (a likely reason the measured model and the study model disagree above; not
+  isolated, because the measured model also changes the half-spreads).
+- No scenario varies the at-the-money volatility level (a 30-day index for options of 21 to 65 days). A long
+  option carries an error in that level in full, so the `no` holds for the volatility level of the study.
+- The scenarios keep the trial count of `run.py`, so the deflated Sharpe of a proxy row is overstated.
+- Not tested: options of 365 days or more (no long-dated quote or volatility term structure for six of the seven
+  ETFs), the options-forms study, and the number of contracts of a real long option that fit the 2% cap.
 
 ## Lower-bar pie (owner pick, 2026-11-11)
 
@@ -271,7 +375,7 @@ The pie as a whole passes the lower bar in both models; alone, only the put-cred
 sleeve is long-only beta and loses month after month in a bear market. Neither a sleeve nor the pie passes the
 repository gate. The two rows are two option models on one history, not a forecast range. Before real money the
 owner must re-arm the engine and decide how it may place spreads: the order policy refuses them today (card
-`vertex-order-policy-spreads`).
+`vertex-order-policy-spreads`). (State on 2026-11-11; see "Long option proxy".)
 
 ## Deployability rehearsal (paper only)
 
