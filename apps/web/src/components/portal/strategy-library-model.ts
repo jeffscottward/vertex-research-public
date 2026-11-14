@@ -1,10 +1,13 @@
 // Pure strategy-library view helpers: labels, section grouping, preset form values and text export.
-import type {
-  StrategyParamOutput,
-  StrategyPresetOutput,
-  StrategySortValue,
-  StrategyStatusValue,
-  StrategySummaryOutput,
+import {
+  studyKindsForTags,
+  type StrategyBacktestStudy,
+  type StrategyParamOutput,
+  type StrategyPresetOutput,
+  type StrategySortValue,
+  type StrategyStatusValue,
+  type StrategySummaryOutput,
+  type StrategyVertexStudy,
 } from "@darkfactory/api";
 
 export const STRATEGY_TABS = ["overview", "parameters", "backtests"] as const;
@@ -48,8 +51,22 @@ export const STRATEGY_SORT_LABELS: Readonly<Record<StrategySortValue, string>> =
     return: "Return (latest backtest)",
   });
 
+/** Labels of the strategy-backtest study verdicts (the Backtests tab and the library badge). */
+export const VERDICT_LABELS: Readonly<
+  Record<StrategyBacktestStudy["verdict"], string>
+> = {
+  edge: "Edge",
+  "needs-more-data": "Needs more data",
+  "no-edge": "No edge",
+};
+
+/** Library tag that records "Vertex tested this strategy and it failed". */
+export const FAILED_TAG = "failed";
+
 // Badges beside a strategy name. "Externally pre-validated" records a third party's claim; it is
 // shown exactly when the strategy carries an external claim and never means validated by Vertex.
+// The Vertex badge shows Vertex's own result: the study verdict, else the failed tag, else a pointer
+// to the Backtests tab when a study tag says a study exists. A verdict grants no trading authority.
 const HIGH_PRIORITY_LABEL = "High priority";
 const EXTERNALLY_PRE_VALIDATED_LABEL = "Externally pre-validated";
 export const EXTERNAL_CLAIM_HEADING =
@@ -57,37 +74,126 @@ export const EXTERNAL_CLAIM_HEADING =
 export const EXTERNAL_CLAIM_NOTICE =
   "This is the source's claim. Vertex shows its own test result on the Backtests tab. A strategy counts as validated by Vertex only after the Vertex replication and gates pass.";
 
-export type StrategyBadgeKey = "high-priority" | "externally-pre-validated";
+export type StrategyBadgeKey =
+  | "high-priority"
+  | "vertex-result"
+  | "externally-pre-validated";
 export type StrategyBadge = Readonly<{
   key: StrategyBadgeKey;
   label: string;
   hint: string;
   // Read by screen readers after the label; null when the label says it all.
   srText: string | null;
+  variant: "default" | "outline";
+  dataAttributes: Readonly<Record<string, string>>;
 }>;
 const EXTERNAL_CLAIM_SR_TEXT = " (source claim, not validated by Vertex)";
+const STUDY_HINT =
+  "Vertex's own backtest study of this strategy. A research result: it gives no trading authority. Details on the Backtests tab.";
+const STUDY_SR_TEXT = " (Vertex research result, not a trading signal)";
+const CONFLICT_NOTE = " Also tagged failed.";
+
+const vertexResultBadge = (
+  label: string,
+  hint: string,
+  srText: string,
+  result: string,
+  source: "study" | "tag"
+): StrategyBadge => ({
+  dataAttributes: {
+    "data-strategy-vertex-result": result,
+    "data-strategy-vertex-result-source": source,
+  },
+  hint,
+  key: "vertex-result",
+  label,
+  srText,
+  variant: "outline",
+});
+
+const studyBadge = (
+  study: StrategyVertexStudy,
+  tagged: boolean
+): StrategyBadge => {
+  const label =
+    study.kind === "qc-port"
+      ? `Vertex backtest: ${study.verdict}`
+      : `Vertex study: ${VERDICT_LABELS[study.verdict]}`;
+  // A study is a stored, validated result; a tag is free text. The study wins, and a positive
+  // verdict that disagrees with the failed tag says so.
+  const conflict =
+    tagged && (study.verdict === "edge" || study.verdict === "PASS")
+      ? CONFLICT_NOTE
+      : "";
+  return vertexResultBadge(
+    label,
+    `${STUDY_HINT}${conflict}`,
+    `${STUDY_SR_TEXT}${conflict}`,
+    study.verdict,
+    "study"
+  );
+};
+
+/** The Vertex result badge, or null when the strategy has no study, no failed tag and no study tag. */
+export const vertexResultBadgeFor = (
+  strategy: Pick<StrategySummaryOutput, "tags"> &
+    Partial<Pick<StrategySummaryOutput, "vertexStudy">>
+): StrategyBadge | null => {
+  const tagged = strategy.tags.includes(FAILED_TAG);
+  // An older server sends no vertexStudy field; treat it as no verdict.
+  const study = strategy.vertexStudy ?? null;
+  if (study !== null) return studyBadge(study, tagged);
+  if (tagged)
+    return vertexResultBadge(
+      "Tested, failed",
+      "Tagged failed in the library: Vertex tested this strategy and it failed. No stored study is shown.",
+      " (Vertex result from the failed tag)",
+      FAILED_TAG,
+      "tag"
+    );
+  if (studyKindsForTags(strategy.tags).size > 0)
+    return vertexResultBadge(
+      "Vertex study: see Backtests tab",
+      "This strategy has a Vertex study. Its result could not be shown here; open the Backtests tab.",
+      " (Vertex study result on the Backtests tab)",
+      "see-backtests-tab",
+      "tag"
+    );
+  return null;
+};
+
 export const strategyBadges = (
-  strategy: Pick<StrategySummaryOutput, "priority" | "externalValidation">
+  strategy: Pick<
+    StrategySummaryOutput,
+    "priority" | "externalValidation" | "tags"
+  > &
+    Partial<Pick<StrategySummaryOutput, "vertexStudy">>
 ): StrategyBadge[] => {
+  const vertexResult = vertexResultBadgeFor(strategy);
   return [
     ...(strategy.priority === "high"
       ? [
           {
+            dataAttributes: { "data-strategy-priority": "high" },
             hint: "Listed first in every sort.",
             key: "high-priority" as const,
             label: HIGH_PRIORITY_LABEL,
             srText: null,
+            variant: "default" as const,
           },
         ]
       : []),
+    ...(vertexResult === null ? [] : [vertexResult]),
     ...(strategy.externalValidation === null
       ? []
       : [
           {
+            dataAttributes: { "data-strategy-external-validation": "" },
             hint: "A third party published a backtest of this strategy. This is the source's claim, not a Vertex validation.",
             key: "externally-pre-validated" as const,
             label: EXTERNALLY_PRE_VALIDATED_LABEL,
             srText: EXTERNAL_CLAIM_SR_TEXT,
+            variant: "outline" as const,
           },
         ]),
   ];

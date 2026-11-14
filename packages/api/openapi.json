@@ -184941,6 +184941,56 @@
                             "format": "date-time",
                             "type": "string",
                             "x-native-type": "date"
+                          },
+                          "vertexStudy": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "kind": {
+                                        "const": "qc-port"
+                                      },
+                                      "verdict": {
+                                        "enum": [
+                                          "PASS",
+                                          "FAIL"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "verdict"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "properties": {
+                                      "kind": {
+                                        "const": "strategy-backtest"
+                                      },
+                                      "verdict": {
+                                        "enum": [
+                                          "edge",
+                                          "no-edge",
+                                          "needs-more-data"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "verdict"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -184961,7 +185011,8 @@
                           "updatedAt",
                           "presetCount",
                           "backtestCount",
-                          "latestBacktest"
+                          "latestBacktest",
+                          "vertexStudy"
                         ],
                         "type": "object"
                       },
@@ -187007,6 +187058,56 @@
                           "format": "date-time",
                           "type": "string",
                           "x-native-type": "date"
+                        },
+                        "vertexStudy": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "kind": {
+                                      "const": "qc-port"
+                                    },
+                                    "verdict": {
+                                      "enum": [
+                                        "PASS",
+                                        "FAIL"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "verdict"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "properties": {
+                                    "kind": {
+                                      "const": "strategy-backtest"
+                                    },
+                                    "verdict": {
+                                      "enum": [
+                                        "edge",
+                                        "no-edge",
+                                        "needs-more-data"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "verdict"
+                                  ],
+                                  "type": "object"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -187027,7 +187128,8 @@
                         "updatedAt",
                         "presetCount",
                         "backtestCount",
-                        "latestBacktest"
+                        "latestBacktest",
+                        "vertexStudy"
                       ],
                       "type": "object"
                     }

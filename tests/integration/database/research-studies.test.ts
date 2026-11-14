@@ -208,4 +208,50 @@ describe("research study repository (Postgres)", () => {
       JSON.parse(text)
     );
   });
+
+  it("reads only the kind and verdict keys of the requested studies", async () => {
+    const repository = createResearchStudyRepository(database());
+    await repository.upsert({
+      id: "verdict-port",
+      ranOn: "2026-11-02",
+      specRef: "docs/specs/verdict-port.md",
+      summary: {
+        id: "verdict-port",
+        kind: "qc-port",
+        ran: "2026-11-02",
+        spec: "docs/specs/verdict-port.md",
+        verdict: "FAIL",
+      },
+    });
+    await repository.upsert({
+      id: "verdict-backtest",
+      ranOn: "2026-11-03",
+      specRef: "docs/specs/verdict-backtest.md",
+      summary: {
+        id: "verdict-backtest",
+        kind: "strategy-backtest",
+        ran: "2026-11-03",
+        spec: "docs/specs/verdict-backtest.md",
+        verdict: "needs-more-data",
+      },
+    });
+    const verdicts = await repository.verdicts([
+      "verdict-port",
+      "verdict-backtest",
+      "adx-rvol-filters",
+      "no-such-study",
+    ]);
+    expect(
+      [...verdicts].sort((left, right) => left.id.localeCompare(right.id))
+    ).toEqual([
+      { id: "adx-rvol-filters", kind: null, verdict: null },
+      {
+        id: "verdict-backtest",
+        kind: "strategy-backtest",
+        verdict: "needs-more-data",
+      },
+      { id: "verdict-port", kind: "qc-port", verdict: "FAIL" },
+    ]);
+    expect(await repository.verdicts([])).toEqual([]);
+  });
 });

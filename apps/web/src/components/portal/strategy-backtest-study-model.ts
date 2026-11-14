@@ -7,9 +7,6 @@ import { definitionRunHref } from "./backtest-runs-model.ts";
 import { formatRatio, formatSignedPercent } from "./strategy-library-model.ts";
 import type { JournalPoint } from "./trade-journal-model.ts";
 
-/** Strategy library entries with this tag have a backtest study stored under their slug. */
-export const QC_IDEA_TAG = "quantconnect-idea";
-
 /**
  * The stored strategy definition of a qc-port library row: fixed choice params (migration 0059)
  * definitionId, definitionSha256, runFrom and initialCapital.

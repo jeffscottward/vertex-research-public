@@ -13,6 +13,7 @@ import {
   type BacktestTrialLedger,
   type BacktestResultSummary,
   type Repositories,
+  type ResearchStudyRepository,
   type StrategyLibraryRepository,
   type StrategyListRow,
 } from "@darkfactory/db/server";
@@ -21,6 +22,11 @@ import type {
   BacktestResult,
   StrategyPreset,
 } from "@darkfactory/db/schema";
+import type {
+  SemanticEvent,
+  SemanticEventPort,
+  SpanHandle,
+} from "@darkfactory/observability/port";
 import { ORPCError } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 
@@ -33,7 +39,12 @@ import {
 } from "./server/mcp.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
-import { latestBacktestStats, sortStrategies } from "./strategy-library.ts";
+import {
+  latestBacktestStats,
+  sortStrategies,
+  studyCandidateSlugs,
+  studyVerdictsBySlug,
+} from "./strategy-library.ts";
 
 const at = new Date("2026-01-02T03:04:05.000Z");
 const later = new Date("2026-01-03T03:04:05.000Z");
@@ -288,6 +299,9 @@ type Harness = Readonly<{
   apiKeyAccess?: "read" | "write";
   strategyLibrary?: StrategyLibraryRepository;
   backtestResults?: BacktestResultsRepository;
+  researchStudies?: ResearchStudyRepository;
+  semanticEvents?: SemanticEventPort;
+  span?: SpanHandle;
 }>;
 
 const clientFor = (options: Harness = {}) => {
@@ -307,6 +321,9 @@ const clientFor = (options: Harness = {}) => {
     ...(options.backtestResults === undefined
       ? {}
       : { backtestResults: options.backtestResults }),
+    ...(options.researchStudies === undefined
+      ? {}
+      : { researchStudies: options.researchStudies }),
   };
   const keys = {
     authenticate: vi.fn(async (headers: Headers) => {
@@ -349,6 +366,10 @@ const clientFor = (options: Harness = {}) => {
         },
         operatorEmails: ["operator@domain.test"],
         agentApiKeys: keys,
+        ...(options.semanticEvents === undefined
+          ? {}
+          : { semanticEvents: options.semanticEvents }),
+        ...(options.span === undefined ? {} : { span: options.span }),
       });
       return handleApiRequest(request, context);
     },
@@ -507,6 +528,225 @@ describe("strategy library rules", () => {
       "z",
       "x",
     ]);
+  });
+});
+
+describe("strategy study verdicts", () => {
+  const tagged = (slug: string, tags: string[]) => ({ slug, tags });
+
+  it("picks only tagged rows whose slug is a valid study id", () => {
+    expect(
+      studyCandidateSlugs([
+        tagged("triple-rsi", ["backtest-study", "failed"]),
+        tagged("qc-port-one", ["quantconnect-idea"]),
+        tagged("untagged", ["failed"]),
+        { slug: "no-tags", tags: null },
+        tagged(`long-${"a".repeat(70)}`, ["backtest-study"]),
+      ])
+    ).toEqual(["triple-rsi", "qc-port-one"]);
+  });
+
+  it("keeps a verdict only when it is valid for its kind and the row has that kind's tag", () => {
+    const rows = [
+      tagged("study-ok", ["backtest-study"]),
+      tagged("port-ok", ["quantconnect-idea"]),
+      tagged("both", ["quantconnect-idea", "backtest-study"]),
+      tagged("wrong-kind", ["quantconnect-idea"]),
+      tagged("filter", ["backtest-study"]),
+      tagged("bad-verdict", ["backtest-study"]),
+      { slug: "no-tags", tags: null },
+    ];
+    const verdicts = studyVerdictsBySlug(rows, [
+      { id: "study-ok", kind: "strategy-backtest", verdict: "no-edge" },
+      { id: "port-ok", kind: "qc-port", verdict: "FAIL" },
+      { id: "both", kind: "strategy-backtest", verdict: "edge" },
+      { id: "wrong-kind", kind: "strategy-backtest", verdict: "edge" },
+      { id: "filter", kind: null, verdict: null },
+      { id: "bad-verdict", kind: "strategy-backtest", verdict: "PASS" },
+      { id: "no-tags", kind: "qc-port", verdict: "PASS" },
+      { id: "unknown-slug", kind: "qc-port", verdict: "PASS" },
+    ]);
+    expect(Object.fromEntries(verdicts)).toEqual({
+      both: { kind: "strategy-backtest", verdict: "edge" },
+      "port-ok": { kind: "qc-port", verdict: "FAIL" },
+      "study-ok": { kind: "strategy-backtest", verdict: "no-edge" },
+    });
+  });
+});
+
+const studiesRepository = (
+  verdicts: ResearchStudyRepository["verdicts"]
+): ResearchStudyRepository & {
+  verdicts: ReturnType<typeof vi.fn>;
+} => ({
+  get: () => Promise.reject(new Error("not used")),
+  upsert: () => Promise.reject(new Error("not used")),
+  upsertMany: () => Promise.reject(new Error("not used")),
+  verdicts: vi.fn(verdicts),
+});
+
+/** A structured event sink that keeps the strategy-library events; `fail` makes emit throw. */
+const eventSink = (fail = false) => {
+  const events: SemanticEvent[] = [];
+  const port: SemanticEventPort = {
+    emit: async (event) => {
+      if (fail) throw new Error("sink down");
+      if (event.name.startsWith("vertex.strategyLibrary.")) events.push(event);
+      return {
+        analytics: "skipped",
+        span: "skipped",
+        structuredEvent: "emitted",
+      };
+    },
+  };
+  return { events, port };
+};
+
+describe("strategyLibrary study verdicts", () => {
+  const studyRows = () => [
+    strategyRow({
+      id: "s-triple",
+      slug: "triple-rsi",
+      tags: ["backtest-study", "failed"],
+    }),
+    strategyRow({ id: "s-hmm" }),
+  ];
+
+  it("adds the study verdict to list and get rows in one lookup of tagged slugs", async () => {
+    const studies = studiesRepository(async () => [
+      { id: "triple-rsi", kind: "strategy-backtest", verdict: "no-edge" },
+    ]);
+    const client = clientFor({
+      strategyLibrary: strategiesRepository(studyRows()),
+      researchStudies: studies,
+    });
+    const listed = await client.strategyLibrary.list({ sort: "name" });
+    expect(
+      Object.fromEntries(
+        listed.strategies.map((row) => [row.slug, row.vertexStudy])
+      )
+    ).toEqual({
+      hmm: null,
+      "triple-rsi": { kind: "strategy-backtest", verdict: "no-edge" },
+    });
+    expect(studies.verdicts).toHaveBeenCalledTimes(1);
+    expect(studies.verdicts).toHaveBeenCalledWith(["triple-rsi"]);
+    const detail = await client.strategyLibrary.get({ id: "s-triple" });
+    expect(detail.strategy.vertexStudy).toEqual({
+      kind: "strategy-backtest",
+      verdict: "no-edge",
+    });
+  });
+
+  it("makes no lookup and sends no event when no row has a study tag", async () => {
+    const studies = studiesRepository(async () => []);
+    const sink = eventSink();
+    const client = clientFor({
+      strategyLibrary: strategiesRepository([strategyRow()]),
+      researchStudies: studies,
+      semanticEvents: sink.port,
+    });
+    const listed = await client.strategyLibrary.list({});
+    expect(listed.strategies[0]?.vertexStudy).toBeNull();
+    expect(studies.verdicts).not.toHaveBeenCalled();
+    await expect(
+      clientFor({
+        strategyLibrary: strategiesRepository([strategyRow()]),
+        semanticEvents: sink.port,
+      }).strategyLibrary.list({})
+    ).resolves.toMatchObject({ strategies: [{ vertexStudy: null }] });
+    expect(sink.events).toEqual([]);
+  });
+
+  it("gives a read key the study verdict through list and get", async () => {
+    const reader = clientFor({
+      requestSession: null,
+      apiKeyAccess: "read",
+      strategyLibrary: strategiesRepository(studyRows()),
+      researchStudies: studiesRepository(async () => [
+        { id: "triple-rsi", kind: "strategy-backtest", verdict: "no-edge" },
+      ]),
+    });
+    const verdict = { kind: "strategy-backtest", verdict: "no-edge" };
+    expect(
+      (await reader.strategyLibrary.list({})).strategies.find(
+        (row) => row.slug === "triple-rsi"
+      )?.vertexStudy
+    ).toEqual(verdict);
+    expect(
+      (await reader.strategyLibrary.get({ id: "s-triple" })).strategy
+        .vertexStudy
+    ).toEqual(verdict);
+  });
+
+  it("still lists when the lookup fails and reports one storage-error event", async () => {
+    const sink = eventSink();
+    const client = clientFor({
+      strategyLibrary: strategiesRepository(studyRows()),
+      researchStudies: studiesRepository(() =>
+        Promise.reject(new DatabasePersistenceError("research study read"))
+      ),
+      semanticEvents: sink.port,
+    });
+    const listed = await client.strategyLibrary.list({});
+    expect(listed.strategies.map((row) => row.vertexStudy)).toEqual([
+      null,
+      null,
+    ]);
+    expect(sink.events).toHaveLength(1);
+    expect(sink.events[0]).toMatchObject({
+      action: "studyVerdicts",
+      attributes: { candidates: 1 },
+      correlation: {
+        procedure: "strategyLibrary.list",
+        requestId: "request-1",
+      },
+      entityType: "research-study",
+      errorCategory: "storage-error",
+      name: "vertex.strategyLibrary.studyVerdicts",
+      outcome: "failure",
+      source: "api",
+    });
+  });
+
+  it("reports a missing study store on get and still returns the strategy", async () => {
+    const sink = eventSink();
+    const span: SpanHandle = {
+      addEvent: () => undefined,
+      correlation: { requestId: "request-1", traceId: "trace-1" },
+      recordMetric: () => undefined,
+    };
+    const client = clientFor({
+      strategyLibrary: strategiesRepository(studyRows()),
+      semanticEvents: sink.port,
+      span,
+    });
+    const detail = await client.strategyLibrary.get({ id: "s-triple" });
+    expect(detail.strategy.vertexStudy).toBeNull();
+    expect(sink.events.map((event) => event.errorCategory)).toEqual([
+      "repository-missing",
+    ]);
+    // The span's correlation stays next to the procedure and request id.
+    expect(sink.events[0]?.correlation).toMatchObject({
+      procedure: "strategyLibrary.get",
+      requestId: "request-1",
+      traceId: "trace-1",
+    });
+  });
+
+  it("never fails the request when reporting fails or no event sink is set", async () => {
+    const failing = () =>
+      studiesRepository(() => Promise.reject(new Error("down")));
+    for (const semanticEvents of [eventSink(true).port, undefined]) {
+      const client = clientFor({
+        strategyLibrary: strategiesRepository(studyRows()),
+        researchStudies: failing(),
+        ...(semanticEvents === undefined ? {} : { semanticEvents }),
+      });
+      expect((await client.strategyLibrary.list({})).strategies).toHaveLength(
+        2
+      );
+    }
   });
 });
 
@@ -880,6 +1120,10 @@ describe("strategyLibrary procedures", () => {
       strategyLibrary: repository,
     });
     expect((await reader.strategyLibrary.list({})).strategies).toHaveLength(1);
+    // Read keys see the study verdict field (owner decision 2026-11-13).
+    expect(
+      (await reader.strategyLibrary.list({})).strategies[0]
+    ).toHaveProperty("vertexStudy", null);
     expect(
       (await reader.strategyLibrary.get({ id: "s-hmm" })).strategy.id
     ).toBe("s-hmm");
