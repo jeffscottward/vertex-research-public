@@ -62,6 +62,95 @@ export const DeploymentLimitsSchema = z
   })
   .strict();
 
+// Optional options block (migration 0067). The full rules (legs agree with the structure, budget not
+// above max loss, group contains the request symbol) are enforced by the repository normaliser; the
+// ceiling is repeated here so no input or output above it has a valid shape.
+export const DEPLOYMENT_OPTION_STRUCTURE_VALUES = [
+  "callDebitVertical",
+  "putDebitVertical",
+  "putCreditVertical",
+  "callCreditVertical",
+] as const;
+export const DEPLOYMENT_MAX_LOSS_PCT_CEILING_VALUE = 2;
+export const DEPLOYMENT_GROUP_MIN_SYMBOLS_VALUE = 2;
+export const DEPLOYMENT_GROUP_MAX_SYMBOLS_VALUE = 16;
+
+const DEPLOYMENT_WIDTH_UNIT_VALUES = ["sigma", "price"] as const;
+const DEPLOYMENT_MAX_WIDTH_VALUE = 10_000;
+
+const SymbolInputSchema = z.string().max(64);
+// Strike distance between the anchor and the wing, in sigma (the research sleeves' unit) or in price.
+const DeploymentOptionWidthSchema = z
+  .object({
+    unit: z.enum(DEPLOYMENT_WIDTH_UNIT_VALUES),
+    value: z.number().finite().positive().max(DEPLOYMENT_MAX_WIDTH_VALUE),
+  })
+  .strict();
+const DeploymentOptionLegSchema = z
+  .object({
+    role: z.enum(["anchor", "wing"]),
+    action: z.enum(["buy", "sell"]),
+    right: z.enum(["call", "put"]),
+  })
+  .strict();
+const DeploymentOptionGroupSchema = z
+  .object({
+    key: z.string().min(1).max(64),
+    symbols: z
+      .array(SymbolInputSchema)
+      .min(DEPLOYMENT_GROUP_MIN_SYMBOLS_VALUE)
+      .max(DEPLOYMENT_GROUP_MAX_SYMBOLS_VALUE),
+  })
+  .strict();
+const deploymentOptionFields = {
+  structure: z.enum(DEPLOYMENT_OPTION_STRUCTURE_VALUES),
+  dte: z
+    .object({
+      target: z.number().int().min(1).max(730),
+      min: z.number().int().min(0).max(730),
+    })
+    .strict(),
+  width: DeploymentOptionWidthSchema,
+  anchorDelta: z.number().gt(0).lt(1),
+  budgetPctOfAccount: z
+    .number()
+    .finite()
+    .positive()
+    .max(DEPLOYMENT_MAX_LOSS_PCT_CEILING_VALUE),
+  maxLossPctOfAccount: z
+    .number()
+    .finite()
+    .positive()
+    .max(DEPLOYMENT_MAX_LOSS_PCT_CEILING_VALUE),
+};
+
+// Stored form: legs always present, group null unless the request belongs to a multi-symbol group.
+export const DeploymentOptionsSchema = z
+  .object({
+    ...deploymentOptionFields,
+    legs: z.array(DeploymentOptionLegSchema).length(2),
+    group: DeploymentOptionGroupSchema.nullable(),
+  })
+  .strict();
+
+// Input form: legs may be left out (the server fills them from the structure); when sent they must
+// agree with the structure.
+export const DeploymentOptionsInputSchema = z
+  .object({
+    ...deploymentOptionFields,
+    legs: z.array(DeploymentOptionLegSchema).length(2).optional(),
+    group: DeploymentOptionGroupSchema.nullable().optional(),
+  })
+  .strict();
+
+// createGroup: the server fills `group` (generated key, the input symbols), so it is not accepted.
+export const DeploymentGroupOptionsInputSchema = z
+  .object({
+    ...deploymentOptionFields,
+    legs: z.array(DeploymentOptionLegSchema).length(2).optional(),
+  })
+  .strict();
+
 export const DeploymentRequestSchema = z
   .object({
     id: z.string().min(1),
@@ -75,6 +164,8 @@ export const DeploymentRequestSchema = z
     timeframe: z.string(),
     mode: z.literal("paper"),
     limits: DeploymentLimitsSchema,
+    // null (or absent on a record written before 0067): the old format without an options block.
+    options: DeploymentOptionsSchema.nullable().optional(),
     status: DeploymentRequestStatusSchema,
     requestedBy: z.string(),
     requestedAt: z.date().nullable(),
@@ -115,6 +206,31 @@ export const DeploymentRequestCreateInputSchema = z
     // Only paper exists; accepted for explicitness, never anything else.
     mode: z.literal("paper").optional(),
     limits: DeploymentLimitsSchema,
+    options: DeploymentOptionsInputSchema.nullable().optional(),
+  })
+  .strict();
+
+// One draft per symbol, all or nothing. Same fields as create, with `symbols` instead of `symbol`.
+export const DeploymentRequestCreateGroupInputSchema = z
+  .object({
+    strategyId: IdSchema,
+    presetId: IdSchema.nullable().optional(),
+    params: ParamsSchema.optional(),
+    symbols: z
+      .array(SymbolInputSchema)
+      .min(DEPLOYMENT_GROUP_MIN_SYMBOLS_VALUE)
+      .max(DEPLOYMENT_GROUP_MAX_SYMBOLS_VALUE),
+    timeframe: z.string().max(16),
+    mode: z.literal("paper").optional(),
+    limits: DeploymentLimitsSchema,
+    options: DeploymentGroupOptionsInputSchema,
+  })
+  .strict();
+export const DeploymentRequestCreateGroupOutputSchema = z
+  .object({
+    groupKey: z.string().min(1),
+    requests: z.array(DeploymentRequestSchema),
+    ...DeploymentLockSchema.shape,
   })
   .strict();
 
@@ -126,6 +242,8 @@ export const DeploymentRequestUpdateInputSchema = z
     symbol: z.string().max(64).optional(),
     timeframe: z.string().max(16).optional(),
     limits: DeploymentLimitsSchema.optional(),
+    // null removes the options block; leave it out to keep the stored one.
+    options: DeploymentOptionsInputSchema.nullable().optional(),
   })
   .strict()
   .refine(
@@ -136,6 +254,7 @@ export const DeploymentRequestUpdateInputSchema = z
         input.symbol,
         input.timeframe,
         input.limits,
+        input.options,
       ].some((value) => value !== undefined),
     { message: "Change at least one field" }
   );
@@ -189,6 +308,18 @@ const create = deploymentRequestsApi
   })
   .input(DeploymentRequestCreateInputSchema)
   .output(DeploymentRequestSchema);
+
+const createGroup = deploymentRequestsApi
+  .route({
+    method: "POST",
+    path: "/deployment-requests/group",
+    operationId: "deploymentRequests.createGroup",
+    summary:
+      "Create one draft paper deployment request per symbol (2 to 16), all or nothing",
+    tags,
+  })
+  .input(DeploymentRequestCreateGroupInputSchema)
+  .output(DeploymentRequestCreateGroupOutputSchema);
 
 const update = deploymentRequestsApi
   .route({
@@ -250,6 +381,7 @@ export const deploymentRequestsContract = {
   list,
   get,
   create,
+  createGroup,
   update,
   submit,
   approve,
@@ -267,6 +399,16 @@ export type DeploymentRequestListInput = z.input<
 >;
 export type DeploymentRequestCreateInput = z.input<
   typeof DeploymentRequestCreateInputSchema
+>;
+export type DeploymentOptionsOutput = z.infer<typeof DeploymentOptionsSchema>;
+export type DeploymentOptionsInput = z.input<
+  typeof DeploymentOptionsInputSchema
+>;
+export type DeploymentRequestCreateGroupInput = z.input<
+  typeof DeploymentRequestCreateGroupInputSchema
+>;
+export type DeploymentRequestCreateGroupOutput = z.infer<
+  typeof DeploymentRequestCreateGroupOutputSchema
 >;
 export type DeploymentRequestUpdateInput = z.input<
   typeof DeploymentRequestUpdateInputSchema

@@ -45,7 +45,7 @@ flowchart LR
 | Flow (`/flow`) | Turns order-flow and options-flow inputs for SPY and ES into time-aligned snapshots. A reading describes recent flow; it is not an instruction to trade. | `packages/api/src/contracts/flow.ts`, `scripts/flow/`, `infra/flow/`, [flow-pipeline.md](docs/vertex-rebuild/flow-pipeline.md) |
 | Strategy library | Strategy catalog (`/library`), strategy specs and backtest harnesses | `docs/specs/strategies/`, `research/backtests/`, [strategy-inventory.md](docs/vertex-rebuild/strategy-inventory.md) |
 | Semantic layer (`/semantic-terms`) | A catalog of certified business terms with two read-only agent tools (`terms_list`, `terms_query`) | `packages/api/src/server/semantic-terms.ts`, [agent-semantic-layer.md](docs/vertex-rebuild/agent-semantic-layer.md) |
-| Agents and master rules | Research agents, the agent desk and the rule pack built from trader knowledge bases | `services/research/agents/`, `research/master-rules/`, [agent-desk.md](docs/vertex-rebuild/agent-desk.md) |
+| Agents and master rules | Research agents, the agent desk, the rule pack built from trader knowledge bases, and the read-only `master_rules_search` tool (MCP and in-app assistant) that cites the source KB posts | `services/research/agents/`, `research/master-rules/`, [agent-desk.md](docs/vertex-rebuild/agent-desk.md) |
 | Data sources | IBKR is the primary venue and first-choice data source; other providers fill gaps | [data-sources-and-platform-roles.md](docs/data-sources-and-platform-roles.md) |
 
 Other apps: `apps/operator` (opt-in console for the agent SDLC, [docs/operator.md](docs/operator.md)), `apps/academy-video` (renders Academy lesson videos with Remotion) and `apps/desktop` (Electron shell, [docs/desktop.md](docs/desktop.md)).

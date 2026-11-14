@@ -187,6 +187,14 @@ export const createLabGoLiveDraftsGateway = (
     approve: (input) => decide(input.id, input, input.note ?? null),
     queue: () => Promise.resolve({ ...start, drafts }),
     reject: (input) => decide(input.id, null, input.note),
+    // The lab never reaches an order path: a send is refused as from a disarmed node.
+    sendApproved: () =>
+      Promise.resolve({
+        reasons: [
+          "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (lab); the owner arms the node",
+        ],
+        sent: false as const,
+      }),
   };
 };
 

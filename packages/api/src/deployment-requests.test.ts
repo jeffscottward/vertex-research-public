@@ -6,8 +6,10 @@ import {
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import {
+  DEPLOYMENT_MAX_LOSS_PCT_CEILING,
   DeploymentRequestStateError,
   InvalidRepositoryInputError,
+  type DeploymentRequestOptions,
   type DeploymentRequestRow,
   type DeploymentRequestsRepository,
   type Repositories,
@@ -18,7 +20,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
 import {
+  DEPLOYMENT_MAX_LOSS_PCT_CEILING_VALUE,
   DEPLOYMENT_NOT_DISPATCHED_REASON,
+  DeploymentRequestCreateGroupInputSchema,
+  DeploymentRequestCreateInputSchema,
   DeploymentRequestListOutputSchema,
   DeploymentRequestSchema,
 } from "./contracts/deployment-requests.ts";
@@ -51,6 +56,26 @@ const LOCK = {
   },
 };
 
+const options = {
+  structure: "putCreditVertical" as const,
+  dte: { target: 45, min: 30 },
+  width: { unit: "sigma" as const, value: 1 },
+  anchorDelta: 0.25,
+  budgetPctOfAccount: 1,
+  maxLossPctOfAccount: 2,
+};
+const storedOptions = (
+  overrides: Partial<DeploymentRequestOptions> = {}
+): DeploymentRequestOptions => ({
+  ...options,
+  legs: [
+    { role: "anchor", action: "sell", right: "put" },
+    { role: "wing", action: "buy", right: "put" },
+  ],
+  group: null,
+  ...overrides,
+});
+
 const requestRow = (
   overrides: Partial<DeploymentRequestRow> = {}
 ): DeploymentRequestRow => ({
@@ -62,6 +87,7 @@ const requestRow = (
   timeframe: "5m",
   mode: "paper",
   limits,
+  options: null,
   status: "draft",
   requestedBy: "user-a",
   requestedAt: null,
@@ -92,9 +118,26 @@ const memoryRequests = () => {
         id: "dr-new",
         symbol: input.symbol.toUpperCase(),
         requestedBy: input.requestedBy,
+        options:
+          input.options === null || input.options === undefined
+            ? null
+            : storedOptions(input.options),
       });
       rows.set(row.id, row);
       return row;
+    }),
+    createGroup: vi.fn(async (input) => {
+      if (input.strategyId === "missing") return null;
+      return (input.symbols as string[]).map((symbol, index) => {
+        const row = requestRow({
+          id: `dr-group-${index}`,
+          symbol,
+          requestedBy: input.requestedBy,
+          options: storedOptions(input.options),
+        });
+        rows.set(row.id, row);
+        return row;
+      });
     }),
     update: vi.fn(async (input) => {
       const row = rows.get(input.id);
@@ -360,6 +403,7 @@ describe("deploymentRequests access", () => {
     return expect(Object.keys(deploymentRequestsRouter).sort()).toEqual([
       "approve",
       "create",
+      "createGroup",
       "get",
       "list",
       "reject",
@@ -632,5 +676,299 @@ describe("deploymentRequests modules have no network path", () => {
     return expect(
       importsOf(source("./contracts/deployment-requests.ts")).sort()
     ).toEqual(["./agent-ops.ts", "@orpc/contract", "zod"]);
+  });
+});
+
+describe("deploymentRequests options block", () => {
+  it("keeps the ceiling of the contract equal to the rule constant", () => {
+    expect(DEPLOYMENT_MAX_LOSS_PCT_CEILING).toBe(2);
+    return expect(DEPLOYMENT_MAX_LOSS_PCT_CEILING_VALUE).toBe(
+      DEPLOYMENT_MAX_LOSS_PCT_CEILING
+    );
+  });
+
+  it("takes width as a unit and a value and refuses a bare number, another unit or an extra key", () => {
+    const parse = (width: unknown) =>
+      DeploymentRequestCreateInputSchema.safeParse({
+        strategyId: "s-hmm",
+        symbol: "SPY",
+        timeframe: "1d",
+        limits,
+        options: { ...options, width },
+      }).success;
+    expect(parse({ unit: "sigma", value: 1 })).toBe(true);
+    expect(parse({ unit: "price", value: 10_000 })).toBe(true);
+    expect(parse(5)).toBe(false);
+    expect(parse({ unit: "sigma", value: 0 })).toBe(false);
+    expect(parse({ unit: "sigma", value: 10_001 })).toBe(false);
+    expect(parse({ unit: "percent", value: 1 })).toBe(false);
+    expect(parse({ value: 1 })).toBe(false);
+    return expect(parse({ unit: "price", value: 5, strikes: 1 })).toBe(false);
+  });
+
+  it("refuses a max loss of 2.5 percent, accepts exactly 2 and still accepts the old format", () => {
+    const base = {
+      strategyId: "s-hmm",
+      symbol: "SPY",
+      timeframe: "1d",
+      limits,
+    };
+    expect(
+      DeploymentRequestCreateInputSchema.safeParse({
+        ...base,
+        options: { ...options, maxLossPctOfAccount: 2.5 },
+      }).success
+    ).toBe(false);
+    expect(
+      DeploymentRequestCreateInputSchema.safeParse({ ...base, options }).success
+    ).toBe(true);
+    expect(DeploymentRequestCreateInputSchema.safeParse(base).success).toBe(
+      true
+    );
+    expect(
+      DeploymentRequestCreateInputSchema.safeParse({ ...base, options: null })
+        .success
+    ).toBe(true);
+    // No way to ask for anything but paper, with or without options.
+    return expect(
+      DeploymentRequestCreateInputSchema.safeParse({
+        ...base,
+        options,
+        mode: "live",
+      }).success
+    ).toBe(false);
+  });
+
+  it("parses an old record (options null or absent) and a record with options, lock unchanged", () => {
+    const { options: _absent, ...oldRecord } = requestRow();
+    const output = { ...oldRecord, presetName: null, ...LOCK };
+    expect(DeploymentRequestSchema.parse(output).options).toBeUndefined();
+    expect(
+      DeploymentRequestSchema.parse({ ...output, options: null }).options
+    ).toBeNull();
+    expect(
+      DeploymentRequestSchema.parse({ ...output, options: storedOptions() })
+    ).toMatchObject({ ...LOCK, options: { maxLossPctOfAccount: 2 } });
+    expect(
+      DeploymentRequestSchema.safeParse({
+        ...output,
+        options: storedOptions({ maxLossPctOfAccount: 2.5 }),
+      }).success
+    ).toBe(false);
+    return expect(
+      DeploymentRequestSchema.safeParse({
+        ...output,
+        options: storedOptions(),
+        executionAuthorized: true,
+      }).success
+    ).toBe(false);
+  });
+
+  it("passes options through create and update and returns them with the lock", async () => {
+    const repository = memoryRequests();
+    const client = clientFor({ repository });
+    const created = await client.deploymentRequests.create({
+      strategyId: "s-hmm",
+      symbol: "spy",
+      timeframe: "1d",
+      limits,
+      options,
+    });
+    expect(created).toMatchObject({
+      ...LOCK,
+      mode: "paper",
+      status: "draft",
+      options: storedOptions(),
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ options })
+    );
+    // Old format: no options key reaches the repository and the output carries null.
+    const plain = await client.deploymentRequests.create({
+      strategyId: "s-hmm",
+      symbol: "ES",
+      timeframe: "5m",
+      limits,
+    });
+    expect(plain.options).toBeNull();
+    expect(repository.create.mock.calls[1]?.[0]).not.toHaveProperty("options");
+
+    await client.deploymentRequests.update({ id: "dr-1", options: null });
+    expect(repository.update).toHaveBeenLastCalledWith({
+      id: "dr-1",
+      options: null,
+    });
+    await expectCode(
+      client.deploymentRequests.create({
+        strategyId: "s-hmm",
+        symbol: "SPY",
+        timeframe: "1d",
+        limits,
+        options: { ...options, maxLossPctOfAccount: 2.5 },
+      }),
+      "BAD_REQUEST",
+      400
+    );
+    return expect(repository.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates one draft per symbol with a server-made group and refuses duplicates", async () => {
+    const repository = memoryRequests();
+    const client = clientFor({ repository });
+    const result = await client.deploymentRequests.createGroup({
+      strategyId: "s-hmm",
+      symbols: ["spy", "QQQ", "IWM"],
+      timeframe: "1d",
+      limits,
+      options,
+    });
+    expect(result).toMatchObject(LOCK);
+    expect(result.groupKey).toMatch(/^grp-[0-9a-f-]{36}$/u);
+    expect(result.requests.map((request) => request.symbol)).toEqual([
+      "SPY",
+      "QQQ",
+      "IWM",
+    ]);
+    for (const request of result.requests) {
+      expect(request).toMatchObject({
+        ...LOCK,
+        mode: "paper",
+        status: "draft",
+        options: {
+          maxLossPctOfAccount: 2,
+          group: { key: result.groupKey, symbols: ["SPY", "QQQ", "IWM"] },
+        },
+      });
+    }
+    expect(repository.createGroup).toHaveBeenCalledTimes(1);
+    expect(repository.createGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbols: ["SPY", "QQQ", "IWM"],
+        requestedBy: "user-a",
+      })
+    );
+    expect(repository.create).not.toHaveBeenCalled();
+
+    await expectCode(
+      client.deploymentRequests.createGroup({
+        strategyId: "s-hmm",
+        symbols: ["SPY", "spy", "QQQ"],
+        timeframe: "1d",
+        limits,
+        options,
+      }),
+      "VALIDATION_ERROR",
+      422,
+      "options.group.symbols must not repeat a symbol"
+    );
+    // The client may not supply the group, a single symbol is not a group, and the ceiling holds.
+    const groupInput = {
+      strategyId: "s-hmm",
+      symbols: ["SPY", "QQQ"],
+      timeframe: "1d",
+      limits,
+      options,
+    };
+    expect(
+      DeploymentRequestCreateGroupInputSchema.safeParse(groupInput).success
+    ).toBe(true);
+    for (const invalid of [
+      { ...groupInput, symbols: ["SPY"] },
+      { ...groupInput, options: undefined },
+      { ...groupInput, options: { ...options, maxLossPctOfAccount: 2.5 } },
+      {
+        ...groupInput,
+        options: {
+          ...options,
+          group: { key: "mine", symbols: ["SPY", "QQQ"] },
+        },
+      },
+    ]) {
+      expect(
+        DeploymentRequestCreateGroupInputSchema.safeParse(invalid).success
+      ).toBe(false);
+    }
+    await expectCode(
+      client.deploymentRequests.createGroup({
+        ...groupInput,
+        strategyId: "missing",
+      }),
+      "NOT_FOUND",
+      404
+    );
+    await expectCode(
+      clientFor({ apiKey: true, repository }).deploymentRequests.createGroup(
+        groupInput
+      ),
+      "FORBIDDEN",
+      403
+    );
+    return expect(repository.createGroup).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses to approve a stored options block that breaks the ceiling", async () => {
+    const repository = memoryRequests();
+    repository.get.mockResolvedValue(
+      requestRow({
+        status: "requested",
+        requestedAt: at,
+        symbol: "SPY",
+        options: storedOptions({ maxLossPctOfAccount: 2.5 }),
+      })
+    );
+    await expectCode(
+      clientFor({ repository }).deploymentRequests.approve({
+        id: "dr-1",
+        confirmSlug: "hmm",
+      }),
+      "VALIDATION_ERROR",
+      422,
+      "options.maxLossPctOfAccount must be greater than 0 and at most 2"
+    );
+    expect(repository.transition).not.toHaveBeenCalled();
+
+    // Legs that disagree with the stored structure are refused the same way.
+    repository.get.mockResolvedValue(
+      requestRow({
+        status: "requested",
+        requestedAt: at,
+        symbol: "SPY",
+        options: storedOptions({ structure: "callDebitVertical" }),
+      })
+    );
+    await expectCode(
+      clientFor({ repository }).deploymentRequests.approve({
+        id: "dr-1",
+        confirmSlug: "hmm",
+      }),
+      "VALIDATION_ERROR",
+      422
+    );
+    return expect(repository.transition).not.toHaveBeenCalled();
+  });
+
+  return it("approves a request at exactly the ceiling and one in the old format", async () => {
+    for (const stored of [storedOptions(), null]) {
+      const repository = memoryRequests();
+      const row = requestRow({
+        status: "requested",
+        requestedAt: at,
+        symbol: "SPY",
+        options: stored,
+      });
+      repository.get.mockResolvedValue(row);
+      repository.transition.mockResolvedValue({
+        ...row,
+        status: "approved",
+        decidedBy: "user-a",
+        decidedAt: at,
+      });
+      expect(
+        await clientFor({ repository }).deploymentRequests.approve({
+          id: "dr-1",
+          confirmSlug: "hmm",
+        })
+      ).toMatchObject({ ...LOCK, status: "approved", options: stored });
+    }
   });
 });

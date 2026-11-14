@@ -133,7 +133,9 @@ describe("development preference seeds", () => {
   it("inserts every missing preference with the complete authored policy", async () => {
     const double = createPreferenceSeedDatabase([[], [], []]);
 
-    await convergeDevelopmentPreferences(double.database);
+    await expect(convergeDevelopmentPreferences(double.database)).resolves.toBe(
+      3
+    );
 
     const inserts = double.operations.filter(
       (operation) => operation.kind === "insert"
@@ -149,6 +151,21 @@ describe("development preference seeds", () => {
     return expect(
       inserts.every((operation) => operation.conflict !== undefined)
     ).toBe(true);
+  });
+
+  it("counts the rows of the list it converges, not the persona list", async () => {
+    const double = createPreferenceSeedDatabase([[]]);
+
+    await expect(
+      convergeDevelopmentPreferences(
+        double.database,
+        DEVELOPMENT_PREFERENCES.slice(0, 1)
+      )
+    ).resolves.toBe(1);
+
+    return expect(
+      double.operations.filter((operation) => operation.kind === "insert")
+    ).toHaveLength(1);
   });
 
   it("leaves preferences unchanged when every policy field already matches", async () => {

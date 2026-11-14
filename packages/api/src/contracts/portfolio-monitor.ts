@@ -8,7 +8,23 @@ import { z } from "zod";
 
 export const PORTFOLIO_MONITOR_MAX_ROWS = 500;
 export const PORTFOLIO_MONITOR_MAX_MESSAGES = 20;
-export const PORTFOLIO_ACCOUNT_MODES = ["live", "paper", "unknown"] as const;
+// The account mode is a configured fact, so it is always one of these two. When it cannot be
+// stated, `modeError` names why (see PORTFOLIO_ACCOUNT_MODE_ERRORS); there is no neutral placeholder.
+export const PORTFOLIO_ACCOUNT_MODES = ["live", "paper"] as const;
+// confirmed: the account list of the current gateway session (or, without a configured mode, the
+// last session). configured: the gateway's configured trading mode, while no session confirms it.
+export const PORTFOLIO_ACCOUNT_MODE_SOURCES = [
+  "configured",
+  "confirmed",
+] as const;
+// mismatch: the configured mode and the gateway's account list disagree; account data is withheld.
+// not-configured: no configured trading mode and no gateway session yet (set IBKR_TRADING_MODE).
+// not-reported: the IBKR reader is an old version that sends no mode (update the reader).
+export const PORTFOLIO_ACCOUNT_MODE_ERRORS = [
+  "mismatch",
+  "not-configured",
+  "not-reported",
+] as const;
 export const PORTFOLIO_GATEWAY_STATES = [
   "starting",
   "live",
@@ -33,6 +49,9 @@ export const PortfolioMonitorStatusSchema = z
     generatedAt: isoTime,
     receivedAt: isoTime,
     lastError: shortText(300).nullable(),
+    // Start of the current gateway state: live since, or not live since (kept across reader
+    // restarts). Null only from a reader version that does not send it.
+    since: isoTime.nullable(),
     // IB API client id of the reader: 78 (vertex-portfolio) or 195 (ibkr-monitor, Portfolio tab).
     clientId: z.number().int().nonnegative(),
   })
@@ -40,11 +59,28 @@ export const PortfolioMonitorStatusSchema = z
 
 export const PortfolioMonitorAccountSchema = z
   .object({
-    // Derived on the VPS from the managed account code prefix (DU/DF = paper). The code itself is removed.
-    mode: z.enum(PORTFOLIO_ACCOUNT_MODES),
+    // Derived on the VPS from the gateway's configured trading mode and the managed account code
+    // prefix (DU/DF = paper). The code itself is removed. Null exactly when modeError is set.
+    mode: z.enum(PORTFOLIO_ACCOUNT_MODES).nullable(),
+    modeSource: z.enum(PORTFOLIO_ACCOUNT_MODE_SOURCES).nullable(),
+    // Last time a gateway session confirmed `mode` with its account list.
+    modeConfirmedAt: isoTime.nullable(),
+    modeError: z.enum(PORTFOLIO_ACCOUNT_MODE_ERRORS).nullable(),
     count: z.number().int().nonnegative(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (account) => (account.mode === null) !== (account.modeError === null),
+    {
+      message: "account has either a mode or a modeError",
+    }
+  )
+  .refine(
+    (account) => (account.mode === null) === (account.modeSource === null),
+    {
+      message: "modeSource is set exactly when mode is set",
+    }
+  );
 
 export const PortfolioMonitorSummarySchema = z
   .object({
@@ -214,6 +250,13 @@ const snapshot = portfolioMonitor
 export const portfolioMonitorContract = { snapshot };
 
 export type PortfolioAccountMode = (typeof PORTFOLIO_ACCOUNT_MODES)[number];
+export type PortfolioAccountModeSource =
+  (typeof PORTFOLIO_ACCOUNT_MODE_SOURCES)[number];
+export type PortfolioAccountModeError =
+  (typeof PORTFOLIO_ACCOUNT_MODE_ERRORS)[number];
+export type PortfolioMonitorAccount = z.infer<
+  typeof PortfolioMonitorAccountSchema
+>;
 export type PortfolioGatewayState = (typeof PORTFOLIO_GATEWAY_STATES)[number];
 export type PortfolioMonitorOutput = z.infer<
   typeof PortfolioMonitorOutputSchema

@@ -21,7 +21,12 @@ import {
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusFetch } from "./deploy-status.ts";
 import { requireOperator } from "./operator-access.ts";
-import { readCappedText, scrubPortfolioText } from "./portfolio-monitor.ts";
+import {
+  readCappedText,
+  scrubPortfolioText,
+  toPortfolioAccount,
+  withholdOnModeMismatch,
+} from "./portfolio-monitor.ts";
 
 // Read-only proxy to the running ibkr-monitor server (IB client 195) on the Vertex host's loopback.
 // ibkr-monitor stays the single IBKR reader: this module never opens an IB connection.
@@ -163,7 +168,18 @@ const IbkrMonitorSnapshotSchema = z.object({
     dataAsOf: ms.nullable(),
     lastError: z.string().max(2000).nullable().optional(),
     serverTime: ms,
+    // Start of the current bridge state (live since / down since). ibkr-monitor with account mode.
+    since: ms.nullable().optional(),
   }),
+  // Absent from an ibkr-monitor version that does not report the account mode.
+  account: z
+    .object({
+      mode: z.string().max(16).nullable(),
+      modeSource: z.string().max(16).nullable(),
+      modeConfirmedAt: ms.nullable(),
+      modeError: z.string().max(32).nullable(),
+    })
+    .optional(),
   accountCount: z.number().int().nonnegative().optional(),
   summary: z.record(z.string().max(60), z.number().finite().nullable()),
   pnl: z.object({ daily: num, unrealized: num, realized: num }),
@@ -338,13 +354,26 @@ export const toIbkrMonitorOutput = (
         lastError === null || lastError === undefined || lastError === ""
           ? null
           : scrubPortfolioText(lastError, 300),
+      since:
+        document.status.since === null || document.status.since === undefined
+          ? null
+          : isoMs(document.status.since),
       clientId: IBKR_MONITOR_CLIENT_ID,
     },
-    account: {
-      // ibkr-monitor removes account codes before it serves them, so live/paper cannot be derived here.
-      mode: "unknown",
+    // ibkr-monitor derives live/paper on the VPS (gateway trading mode + account code prefixes) and
+    // sends only the word; account codes never reach this server.
+    account: toPortfolioAccount({
+      reported: document.account !== undefined,
+      mode: document.account?.mode,
+      modeSource: document.account?.modeSource,
+      modeConfirmedAt:
+        document.account?.modeConfirmedAt === null ||
+        document.account?.modeConfirmedAt === undefined
+          ? null
+          : isoMs(document.account.modeConfirmedAt),
+      modeError: document.account?.modeError,
       count: document.accountCount ?? 0,
-    },
+    }),
     summary: {
       netLiquidation: summaryValue(summary, "NetLiquidation"),
       totalCashValue: summaryValue(summary, "TotalCashValue"),
@@ -382,7 +411,7 @@ export const toIbkrMonitorOutput = (
         message: scrubPortfolioText(entry.msg, 200),
       })),
   };
-  return PortfolioMonitorOutputSchema.parse(output);
+  return PortfolioMonitorOutputSchema.parse(withholdOnModeMismatch(output));
 };
 
 const upstreamFailure = (message: string) =>

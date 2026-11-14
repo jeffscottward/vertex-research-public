@@ -5,10 +5,7 @@ import {
   type PriceAlertRuleState,
   type WatchlistRepository,
 } from "@darkfactory/db/server";
-import {
-  createNtfyNotificationAdapter,
-  type NotificationFetch,
-} from "@darkfactory/notifications/server";
+import type { NotificationFetch } from "@darkfactory/notifications/server";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
@@ -40,6 +37,10 @@ import {
   settle,
 } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
+import {
+  type PriceAlertsNtfyDelivery,
+  sendPriceAlertsNtfy,
+} from "./price-alerts-ntfy.ts";
 import { fetchBoundedJson } from "./research-lenses.ts";
 import type { PriceAlertsNtfyConfig } from "./service-config.ts";
 
@@ -51,7 +52,7 @@ import { signalAlertsRouter } from "./signal-alerts.ts";
 // quotes each watched symbol once (IBKR 5-minute history first within merged-bars.ts's per-isolate
 // budget; public Yahoo for the rest), evaluates the active rules,
 // triggers each rule at most once and sends one fixed-text ntfy notification per owner with a
-// trigger. The topic and token never leave this module and are never logged. No order path.
+// trigger (price-alerts-ntfy.ts; the topic and token are never logged). No order path.
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -60,10 +61,6 @@ const YAHOO_USER_AGENT =
 const YAHOO_MAX_BYTES = 2 * 1024 * 1024;
 const QUOTE_TIMEOUT_MS = 8000;
 const QUOTE_CONCURRENCY = 5;
-const NTFY_TIMEOUT_MS = 10_000;
-const NOTIFICATION_TENANT = "vertex";
-const NOTIFICATION_RECIPIENT = "price-alerts";
-const NOTIFICATION_CONFIGURATION = "price-alerts-ntfy";
 
 /** Configured only when both the origin and the topic are set. */
 export const resolvePriceAlertsNtfyConfig = (
@@ -93,7 +90,6 @@ export const setPriceAlertsOptionsForTesting = (
 const currentTime = (): Date =>
   (priceAlertsOptions.now ?? (() => new Date()))();
 
-type Delivery = "sent" | "not-configured" | "failed";
 type QuoteError = Readonly<{ symbol: string; reason: string }>;
 type ActiveRule = PriceAlertRuleRecord &
   Readonly<{ state: Extract<PriceAlertRuleState, { status: "active" }> }>;
@@ -102,7 +98,7 @@ type RunResult = Readonly<{
   checked: number;
   triggered: PriceAlertRuleRecord[];
   quoteErrors: QuoteError[];
-  deliveries: ReadonlyMap<string, Delivery>;
+  deliveries: ReadonlyMap<string, PriceAlertsNtfyDelivery>;
 }>;
 
 /** Yahoo's last price and today's 5-minute bars. */
@@ -219,71 +215,6 @@ const fetchQuote = (
   });
 };
 
-const sha256Hex = async (text: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text)
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-};
-
-/**
- * One ntfy message through the notifications package, sent to the price alert ntfy destination
- * (also used by sectorRotation.collect). The idempotency key is the SHA-256 of `idempotencySource`.
- */
-export const sendPriceAlertsNtfy = async (
-  config: PriceAlertsNtfyConfig | null,
-  message: Readonly<{ title: string; body: string }>,
-  idempotencySource: string,
-  at: Date,
-  notify?: NotificationFetch
-): Promise<Delivery> => {
-  if (config === null) return "not-configured";
-  const fetcher =
-    notify ?? ((url: string, init: RequestInit) => globalThis.fetch(url, init));
-  const adapter = createNtfyNotificationAdapter({
-    enabled: true,
-    fetcher,
-    resolveConfiguration: async () => ({
-      bearerToken: config.token,
-      enabled: true,
-      origin: config.origin,
-      recipientKey: NOTIFICATION_RECIPIENT,
-      tenantKey: NOTIFICATION_TENANT,
-      topic: config.topic,
-    }),
-    timeoutMs: NTFY_TIMEOUT_MS,
-  });
-  const signal = new AbortController().signal;
-  const preparation = await adapter.prepare(
-    {
-      authenticated: true,
-      channel: "phone",
-      configurationRef: NOTIFICATION_CONFIGURATION,
-      cooldownMs: 1000,
-      enabled: true,
-      expiresAt: at.getTime() + 10 * 60_000,
-      purpose: "market-alert",
-      recipientKey: NOTIFICATION_RECIPIENT,
-      recipientRef: NOTIFICATION_RECIPIENT,
-      tenantKey: NOTIFICATION_TENANT,
-    },
-    signal
-  );
-  if (preparation.status !== "ready") return "failed";
-  const outcome = await preparation.send(
-    {
-      body: message.body,
-      providerIdempotencyKey: await sha256Hex(idempotencySource),
-      title: message.title,
-    },
-    signal
-  );
-  return outcome.acceptance === "accepted" ? "sent" : "failed";
-};
-
 const isActive = (rule: PriceAlertRuleRecord): rule is ActiveRule =>
   rule.state.status === "active";
 
@@ -324,7 +255,7 @@ const notifyOwners = async (
   const owners = new Map<string, string[]>();
   for (const rule of triggered)
     owners.set(rule.userId, [...(owners.get(rule.userId) ?? []), rule.id]);
-  const deliveries = new Map<string, Delivery>();
+  const deliveries = new Map<string, PriceAlertsNtfyDelivery>();
   const settled = new Map<string, PriceAlertRuleRecord>();
   for (const [userId, ids] of owners) {
     const delivery = await sendPriceAlertsNtfy(

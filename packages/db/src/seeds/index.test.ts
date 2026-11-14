@@ -181,9 +181,12 @@ beforeEach(() => {
   convergence.content.mockReset();
   convergence.plays.mockReset();
   convergence.plays.mockResolvedValue(undefined);
-  convergence.profiles.mockResolvedValue(undefined);
-  convergence.preferences.mockResolvedValue(undefined);
-  return convergence.content.mockResolvedValue(undefined);
+  convergence.profiles.mockResolvedValue(3);
+  convergence.preferences.mockResolvedValue(3);
+  return convergence.content.mockResolvedValue({
+    addresses: 3,
+    featureItems: 3,
+  });
 });
 
 describe("development seed orchestration", () => {
@@ -209,15 +212,18 @@ describe("development seed orchestration", () => {
     const double = createSeedDatabase(allExistingOutcomes());
     const identity = preparedIdentity();
     const applicationOrder: string[] = [];
-    convergence.profiles.mockImplementation(async () =>
-      applicationOrder.push("profiles")
-    );
-    convergence.preferences.mockImplementation(async () =>
-      applicationOrder.push("preferences")
-    );
-    convergence.content.mockImplementation(async () =>
-      applicationOrder.push("content")
-    );
+    convergence.profiles.mockImplementation(async () => {
+      applicationOrder.push("profiles");
+      return 4;
+    });
+    convergence.preferences.mockImplementation(async () => {
+      applicationOrder.push("preferences");
+      return 5;
+    });
+    convergence.content.mockImplementation(async () => {
+      applicationOrder.push("content");
+      return { addresses: 6, featureItems: 7 };
+    });
     convergence.plays.mockImplementation(async () =>
       applicationOrder.push("plays")
     );
@@ -264,10 +270,10 @@ describe("development seed orchestration", () => {
     expect(result).toEqual({
       identitiesCreated: 0,
       usersConverged: 3,
-      profilesConverged: 3,
-      preferencesConverged: 3,
-      addressesConverged: 3,
-      featureItemsConverged: 3,
+      profilesConverged: 4,
+      preferencesConverged: 5,
+      addressesConverged: 6,
+      featureItemsConverged: 7,
     });
     expect(Object.isFrozen(result)).toBe(true);
     return expect(double.lifecycle).toEqual(["begin", "commit"]);

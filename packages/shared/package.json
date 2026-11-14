@@ -19,10 +19,6 @@
     "./vertex": {
       "import": "./src/vertex/index.ts",
       "default": "./src/vertex/index.ts"
-    },
-    ".": {
-      "import": "./src/index.ts",
-      "default": "./src/index.ts"
     }
   },
   "scripts": {
@@ -30,7 +26,6 @@
     "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
   },
   "devDependencies": {
-    "@darkfactory/testkit": "workspace:*",
     "vitest": "catalog:"
   },
   "engines": {

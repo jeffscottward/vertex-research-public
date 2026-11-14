@@ -12,7 +12,7 @@ import {
   DEFAULT_COLUMN_CONFIG,
   DEFAULT_REFRESH_INTERVAL,
   DEFAULT_SORT,
-  accountLabel,
+  accountBadge,
   ageSeconds,
   allocationSlices,
   clock,
@@ -25,6 +25,7 @@ import {
   executionsNewestFirst,
   groupOrders,
   ibkrTimeKey,
+  accountDataWithheld,
   isGatewayLive,
   isOptionPosition,
   ladderScale,
@@ -52,6 +53,8 @@ import {
   qty,
   signed,
   sortPositions,
+  modeConfirmedText,
+  sinceClock,
   staleAfterSeconds,
   stopLadder,
   summaryStats,
@@ -146,24 +149,29 @@ describe("portfolio monitor health rule", () => {
     expect(
       health({
         snapshot: fixtureSnapshot(
-          { status: { gateway: "starting", connected: false } },
+          { status: { gateway: "starting", connected: false, since: null } },
           NOW
         ),
       })
-    ).toBe("Gateway starting");
+    ).toBe("Gateway connecting · retrying");
     expect(
       health({
         snapshot: fixtureSnapshot(
-          { status: { gateway: "disconnected", connected: false } },
+          {
+            status: { gateway: "disconnected", connected: false, since: null },
+          },
           NOW
         ),
       })
-    ).toBe("Gateway disconnected");
+    ).toBe("Gateway disconnected · retrying");
     expect(
       health({
-        snapshot: fixtureSnapshot({ status: { connected: false } }, NOW),
+        snapshot: fixtureSnapshot(
+          { status: { connected: false, since: null } },
+          NOW
+        ),
       })
-    ).toBe("Gateway disconnected");
+    ).toBe("Gateway disconnected · retrying");
     expect(
       health({ snapshot: fixtureSnapshot({ status: { dataAsOf: null } }, NOW) })
     ).toBe("Stale");
@@ -190,10 +198,201 @@ describe("portfolio monitor health rule", () => {
     return expect(visible("unauthorized", NOW, NOW)).toBe(true);
   });
 
-  return it("labels the account mode without any account id", () => {
-    expect(accountLabel("live")).toBe("Live account · read-only");
-    expect(accountLabel("paper")).toBe("Paper account · read-only");
-    expect(accountLabel("unknown")).toBe("Account mode unknown");
+  it("says since when the gateway is not live", () => {
+    const since = new Date(NOW - 47 * 60_000).toISOString();
+    const at = sinceClock(since, NOW);
+    expect(at).toMatch(/^\d\d:\d\d \S+$/);
+    expect(
+      health({
+        snapshot: fixtureSnapshot(
+          { status: { gateway: "disconnected", connected: false, since } },
+          NOW
+        ),
+      })
+    ).toBe(`Gateway disconnected since ${at} · retrying`);
+    expect(
+      health({
+        snapshot: fixtureSnapshot(
+          { status: { gateway: "starting", connected: false, since } },
+          NOW
+        ),
+      })
+    ).toBe(`Gateway connecting since ${at} · retrying`);
+    // Another day: the date is part of it.
+    expect(
+      sinceClock(new Date(NOW - 3 * 86_400_000).toISOString(), NOW)
+    ).toMatch(/^[A-Z][a-z]{2} \d{1,2} \d\d:\d\d \S+$/);
+    expect(sinceClock(null, NOW)).toBeNull();
+    return expect(sinceClock("not a time", NOW)).toBeNull();
+  });
+
+  it("always shows the account mode as Live or Paper, with named errors otherwise", () => {
+    const account = (
+      over: Partial<ReturnType<typeof fixtureSnapshot>["account"]>
+    ) => ({ ...fixtureSnapshot({}, NOW).account, ...over });
+    expect(accountBadge(account({ mode: "live" }))).toEqual({
+      key: "live",
+      label: "Live account · read-only",
+      tone: "info",
+      next: null,
+    });
+    expect(accountBadge(account({ mode: "paper" }))).toEqual({
+      key: "paper",
+      label: "Paper account · read-only",
+      tone: "neutral",
+      next: null,
+    });
+    // The configured mode alone gives the same badge: a disconnect does not change the mode.
+    expect(
+      accountBadge(
+        account({
+          mode: "live",
+          modeSource: "configured",
+          modeConfirmedAt: null,
+        })
+      ).label
+    ).toBe("Live account · read-only");
+    const errors = (
+      [
+        ["mismatch", "Account mode mismatch · data withheld"],
+        ["not-configured", "Account mode not configured"],
+        ["not-reported", "Account mode not reported"],
+      ] as const
+    ).map(([modeError, label]) => {
+      const badge = accountBadge(
+        account({ mode: null, modeSource: null, modeError })
+      );
+      expect(badge.key).toBe(modeError);
+      expect(badge.label).toBe(label);
+      expect(badge.tone).toBe("destructive");
+      return badge.next;
+    });
+    expect(errors[0]).toContain("withheld until");
+    expect(errors[1]).toContain("Set IBKR_TRADING_MODE");
+    return expect(errors[2]).toContain("Deploy the current reader");
+  });
+
+  it("names the last confirmation of the mode while the gateway is not live", () => {
+    const confirmedAt = new Date(NOW - 48 * 60_000).toISOString();
+    const down = { gateway: "disconnected", connected: false } as const;
+    expect(modeConfirmedText(fixtureSnapshot({}, NOW), NOW)).toBeNull();
+    expect(
+      modeConfirmedText(
+        fixtureSnapshot(
+          {
+            status: down,
+            account: {
+              mode: "live",
+              modeSource: "configured",
+              modeConfirmedAt: confirmedAt,
+              modeError: null,
+              count: 2,
+            },
+          },
+          NOW
+        ),
+        NOW
+      )
+    ).toBe(`Last confirmed: Live account ${sinceClock(confirmedAt, NOW)}`);
+    expect(
+      modeConfirmedText(
+        fixtureSnapshot(
+          {
+            status: down,
+            account: {
+              mode: "paper",
+              modeSource: "configured",
+              modeConfirmedAt: null,
+              modeError: null,
+              count: 0,
+            },
+          },
+          NOW
+        ),
+        NOW
+      )
+    ).toBe(
+      "Paper account from the gateway configuration; no session has confirmed it yet"
+    );
+    return expect(
+      modeConfirmedText(
+        fixtureSnapshot(
+          {
+            status: down,
+            account: {
+              mode: null,
+              modeSource: null,
+              modeConfirmedAt: null,
+              modeError: "mismatch",
+              count: 0,
+            },
+          },
+          NOW
+        ),
+        NOW
+      )
+    ).toBeNull();
+  });
+
+  it("says why account data is withheld, or null for a live book", () => {
+    expect(accountDataWithheld(fixtureSnapshot({}, NOW))).toBeNull();
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot({ status: { gateway: "starting" } }, NOW)
+      )
+    ).toContain("connecting");
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot({ status: { connected: false } }, NOW)
+      )
+    ).toContain("disconnected");
+    return expect(
+      accountDataWithheld(
+        fixtureSnapshot(
+          {
+            account: {
+              mode: null,
+              modeSource: null,
+              modeConfirmedAt: null,
+              modeError: "mismatch",
+              count: 0,
+            },
+          },
+          NOW
+        )
+      )
+    ).toContain("does not match its configured mode");
+  });
+
+  it("treats a mode mismatch as withheld data, whatever the connection says", () => {
+    // The API output on a mismatch: gateway still "live", lists emptied.
+    const snapshot = fixtureSnapshot(
+      {
+        account: {
+          mode: null,
+          modeSource: null,
+          modeConfirmedAt: null,
+          modeError: "mismatch",
+          count: 0,
+        },
+        positions: [],
+        orders: [],
+      },
+      NOW
+    );
+    expect(isGatewayLive(snapshot)).toBe(false);
+    return expect(
+      monitorHealth({ snapshot, failureKind: null, nowMs: NOW, intervalS: 10 })
+    ).toEqual({
+      key: "mode-mismatch",
+      label: expect.stringMatching(
+        /^Account data withheld since .+ · account mode mismatch$/
+      ),
+      tone: "destructive",
+    });
+  });
+
+  return it("derives gateway liveness from the snapshot", () => {
     expect(isGatewayLive(fixtureSnapshot({}, NOW))).toBe(true);
     return expect(
       isGatewayLive(

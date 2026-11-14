@@ -116,7 +116,7 @@ describe("development profile seeds", () => {
   it("inserts every missing profile with the authored seed values", async () => {
     const double = createProfileSeedDatabase([[], [], []]);
 
-    await convergeDevelopmentProfiles(double.database);
+    await expect(convergeDevelopmentProfiles(double.database)).resolves.toBe(3);
 
     const inserts = double.operations.filter(
       (operation) => operation.kind === "insert"
@@ -132,6 +132,21 @@ describe("development profile seeds", () => {
     return expect(
       inserts.every((operation) => operation.conflict !== undefined)
     ).toBe(true);
+  });
+
+  it("counts the rows of the list it converges, not the persona list", async () => {
+    const double = createProfileSeedDatabase([[]]);
+
+    await expect(
+      convergeDevelopmentProfiles(
+        double.database,
+        DEVELOPMENT_PROFILES.slice(0, 1)
+      )
+    ).resolves.toBe(1);
+
+    return expect(
+      double.operations.filter((operation) => operation.kind === "insert")
+    ).toHaveLength(1);
   });
 
   it("leaves profiles unchanged when every authored field already matches", async () => {
