@@ -5,6 +5,7 @@ import copy
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -93,6 +94,34 @@ def test_a_scenario_without_structure_returns_the_same_object(sens):
 def test_an_unknown_structure_is_refused(sens):
     with pytest.raises(ValueError, match="longProxi"):
         sens.restructure(_definition(), {"structure": "longProxi"})
+
+
+def test_scenario_rows_store_the_flag_and_the_size_skips(sens, monkeypatch):
+    """scenario_rows with the data, pricing and engine calls stubbed: only the rewritten debit candidate is flagged."""
+    day = "2024-01-02"
+    credit = {"name": "credit only", "options": dict(qi.PUT_CREDIT)}
+    candidates = [{"key": "debit/A", "role": "strategy", "sleeve": "trend", "definition": _definition(), "start": day},
+                  {"key": "credit/A", "role": "overlay", "sleeve": "vol premium", "definition": credit, "start": day}]
+    curves = iter(range(100))
+    monkeypatch.setattr(sens, "apply_model", lambda scenario, chain_path=None: None)
+    monkeypatch.setattr(sens.study, "load_study_data",
+                        lambda data_dir: SimpleNamespace(dataset=SimpleNamespace(calendar=[day]), facts=None))
+    monkeypatch.setattr(sens.qi, "family",
+                        lambda facts: {key: SimpleNamespace(definition={"name": key}, start=day) for key in sens.REFERENCES})
+    monkeypatch.setattr(sens.al, "qc_candidates", lambda runs: list(candidates))
+    monkeypatch.setattr(sens.base, "qj_candidates", lambda library: [])
+    monkeypatch.setattr(sens.al, "owner_rule_trades", lambda made, dataset, start: ())
+    monkeypatch.setattr(sens.base, "nautilus_run",
+                        lambda priced, capital, dates: (SimpleNamespace(equity=(next(curves),)), 0.0, "stub"))
+    monkeypatch.setattr(sens.base, "run_stats", lambda result, priced, capital, trials, variance: {
+        **dict.fromkeys(sens.STAT_KEYS), "sharpe": 0.6, "oosSharpe": 0.6, "trades": 40, "sizeSkips": 3})
+    proxy = sens.scenario_rows("longProxy", "data", "library.json", 100_000.0, 61, 0.0, None)
+    assert {key: row["restructured"] for key, row in proxy.items()} == {
+        "debit/A": True, "credit/A": False, **dict.fromkeys(sens.REFERENCES, False)}
+    assert proxy["debit/A"]["sizeSkips"] == 3 and proxy["debit/A"]["duplicateOf"] is None
+    plain = sens.scenario_rows("base", "data", "library.json", 100_000.0, 61, 0.0, None)
+    assert not any(row["restructured"] for row in plain.values())
+    assert sens.proxy_decision({"longProxy": proxy})["runs"]["longProxy"][0]["key"] == "debit/A"
 
 
 # --------------------------------------------------------------------------- scenarios

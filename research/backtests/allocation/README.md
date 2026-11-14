@@ -271,6 +271,7 @@ single long option is therefore no longer the only form the engine can place.
   `candidate`: a run counts under `longProxy`; a follow-up proposes exact single-option pricing.
   `no`: no run counts in any of the three proxy scenarios; the question closes.
   `model-dependent`: a run counts only without costs or in the measured model; a decision record comes first.
+  `incomplete`: nothing counts and a proxy scenario is missing (a run without `--chain`); the run is repeated.
 - **Regression.** The changed script at the capital of 2026-11-11 reproduces every stored value of the seven
   existing scenarios (161 rows, 0 differences).
 
@@ -288,6 +289,9 @@ relative equity gap 4.3e-16). The 16 strategy candidates make 13 distinct runs.
 | No costs, proxy (`longProxyNoCosts`) | 13 | 0 | +0.23 | +0.74 | +0.69 | 0.76 | 0 |
 | Measured chain snapshot, vertical (`calibrated`) | 13 | 1 | +0.24 | +0.80 | +0.59 | 0.83 | 0 |
 | Measured chain snapshot, proxy (`longProxyCalibrated`) | 13 | 0 | +0.12 | +0.66 | +0.54 | 0.65 | 0 |
+
+The "best" columns are the best value per column, so they can come from different runs: no single proxy run
+has both values at 0.5 or more.
 
 Strategy runs, ordered by the Sharpe of the proxy in the study model:
 
@@ -318,20 +322,23 @@ What the rows show:
   +0.46) and `momentum-rotation/A` (+0.49, +0.69). Each fails one floor, and no real account trades without costs.
 - One vertical reaches both Sharpe floors in the measured model (`oil-predicts-equity/A`, +0.80 and +0.53). Its
   proxy does not (+0.66 and +0.38). That vertical still fails the deflated Sharpe check (0.83 against 0.95).
-- So dropping the short leg helps only under cost and skew assumptions that the measured quotes do not support.
-  Exact single-option pricing is not built.
+- So moving the short leg to 3 sigma raises the Sharpe in the study model and without costs, and lowers it in the
+  one measured snapshot. Exact single-option pricing is not built.
 
 ### Limits of the proxy
 
-- It is not a long option. It pays commission and half-spread on a second leg: small on SPY, a few percent of
-  the premium on low-priced SLV and USO at 30/21 days. The scenario without costs removes this.
+- It is not a long option. It pays commission and half-spread on a second leg (at least the commission and the
+  minimum half-spread of `options.py` per side). The scenario without costs removes this.
 - The 3-sigma width raises the max loss per contract (the worst closing cost of the book grows with the width),
   so the proxy buys fewer contracts, and a trade can fall from one contract to none. The effect on the Sharpe is
   not measured; the result document outside the repository holds the size skips per run.
 - Calls and puts differ. For calls the far short leg is worth almost nothing. For puts the skew prices it
-  higher, and it caps the crash payoff. One candidate (`futures-trend-carry/A`) holds put debit verticals.
+  higher, and it caps the crash payoff. A put proxy is skipped ("no strikes") when the short strike would be at
+  or below zero; at 60 days that needs an at-the-money volatility of about 80%. One candidate
+  (`futures-trend-carry/A`) holds put debit verticals.
 - The proxy gives up most of the skew premium that the short leg of the real spread collects, so its result
-  depends on the skew assumption (the reason the measured model and the study model disagree above).
+  depends on the skew assumption (a likely reason the measured model and the study model disagree above; not
+  isolated, because the measured model also changes the half-spreads).
 - No scenario varies the at-the-money volatility level (a 30-day index for options of 21 to 65 days). A long
   option carries an error in that level in full, so the `no` holds for the volatility level of the study.
 - The scenarios keep the trial count of `run.py`, so the deflated Sharpe of a proxy row is overstated.
