@@ -3,13 +3,20 @@
 #
 #   ci-changes.sh classify   Read changed paths on stdin; print "docs" or "code".
 #   ci-changes.sh plan       Used by the `changes` job in ci.yml. Writes the outputs
-#                            heavy=true|false, draft=true|false and
-#                            exclude=<matrix exclude JSON> to GITHUB_OUTPUT.
+#                            heavy=true|false, draft=true|false,
+#                            exclude=<matrix exclude JSON>, acceptance=true|false and
+#                            skip_shards=<matrix exclude JSON> to GITHUB_OUTPUT.
 #
 # The light lane (core) always runs. The full lane (coverage shards, coverage merge,
 # integration, browser) runs when code changed, except on a pull request that is a
-# draft when the run plans its lanes. A manual run always takes the full lane. Any
-# error or unknown input means "code" and "not a draft".
+# draft when the run plans its lanes. A manual run and the nightly run always take the
+# full lane. Any error or unknown input means "code" and "not a draft".
+#
+# The template init acceptance shard (scripts/init/init.acceptance.test.ts, the longest
+# job) is part of the full lane only on the nightly run, on a manual run, when a changed
+# path is scripts/init.ts, under scripts/init/ or scripts/lib/git-env.ts (init and its
+# acceptance test import it), and when the changed files are unknown or the list is empty
+# (owner 2026-11-11, card vertex-code-stewardship).
 set -euo pipefail
 
 # A path is documentation when it is a Markdown file anywhere, or a non-code file
@@ -42,6 +49,11 @@ classify() {
   done
   # No changed paths is unknown, so take the full lane.
   if ((any == 0)); then echo code; else echo docs; fi
+}
+
+# Succeeds when a changed path on stdin belongs to the template init command.
+touches_init() {
+  grep -q -E '^scripts/(init(\.ts$|/)|lib/git-env\.ts$)'
 }
 
 changed_paths() {
@@ -85,11 +97,13 @@ draft_now() {
 }
 
 plan() {
-  local kind heavy exclude draft
-  if [[ "${EVENT}" == "workflow_dispatch" ]]; then
+  local kind heavy exclude draft paths acceptance=true skip_shards
+  if [[ "${EVENT}" == "workflow_dispatch" || "${EVENT}" == "schedule" ]]; then
     kind=code
   elif paths="$(changed_paths)"; then
     kind="$(classify <<<"${paths}")"
+    # An empty list is unknown input (classify reads it as code): keep the shard.
+    if [[ -n "${paths//[[:space:]]/}" ]] && ! touches_init <<<"${paths}"; then acceptance=false; fi
   else
     echo "Could not list the changed files; taking the full lane."
     kind=code
@@ -103,12 +117,19 @@ plan() {
   if [[ "${heavy}" != "true" || "${BROWSER_TESTS:-}" != "on" ]]; then lanes+=('{"lane":"browser"}'); fi
   exclude="[$(IFS=,; echo "${lanes[*]}")]"
 
-  echo "Event ${EVENT}, draft in the event ${DRAFT:-false}, draft now ${draft}, changes ${kind}: heavy=${heavy}, exclude=${exclude}"
+  # No shard runs outside the full lane, so the acceptance shard is not planned there.
+  if [[ "${heavy}" != "true" ]]; then acceptance=false; fi
+  skip_shards='[{"shard":"acceptance"}]'
+  if [[ "${acceptance}" == "true" ]]; then skip_shards='[]'; fi
+
+  echo "Event ${EVENT}, draft in the event ${DRAFT:-false}, draft now ${draft}, changes ${kind}: heavy=${heavy}, exclude=${exclude}, acceptance=${acceptance}"
   {
     echo "kind=${kind}"
     echo "heavy=${heavy}"
     echo "draft=${draft}"
     echo "exclude=${exclude}"
+    echo "acceptance=${acceptance}"
+    echo "skip_shards=${skip_shards}"
   } >>"${GITHUB_OUTPUT}"
 }
 

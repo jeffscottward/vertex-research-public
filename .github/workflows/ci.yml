@@ -8,6 +8,11 @@ on:
   # Test every merge on the live line (owner 2026-10-31, card vertex-ci-push-trigger).
   push:
     branches: [vertex/rebuild-darkfactory-20260921]
+  # Nightly full run of the live line, 07:23 UTC (owner 2026-11-11, card
+  # vertex-code-stewardship). It includes the template init acceptance shard, which
+  # pull requests run only when they change the init command (scripts/ci/ci-changes.sh).
+  schedule:
+    - cron: "23 7 * * *"
   workflow_dispatch:
     inputs:
       browser_tests:
@@ -25,8 +30,9 @@ concurrency:
   # are batched (owner 2026-11-02, card vertex-ci-queue-pathfilter): they never cancel a
   # running run, but a newer push replaces a still-queued one, because GitHub keeps only
   # one pending run per group. Deploy only from a commit whose own CI run is green.
-  # Manual runs get their own group, so they are never cancelled or replaced.
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && format('run-{0}', github.run_id) || github.event.pull_request.number || github.ref }}
+  # Manual runs and the nightly run get their own group, so they are never cancelled or
+  # replaced and never replace a queued live-line run.
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && format('run-{0}', github.run_id) || github.event_name == 'schedule' && format('nightly-{0}', github.run_id) || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/vertex/rebuild-darkfactory-20260921') }}
 
 permissions:
@@ -52,6 +58,8 @@ jobs:
       heavy: ${{ steps.plan.outputs.heavy }}
       draft: ${{ steps.plan.outputs.draft }}
       exclude: ${{ steps.plan.outputs.exclude }}
+      acceptance: ${{ steps.plan.outputs.acceptance }}
+      skip_shards: ${{ steps.plan.outputs.skip_shards }}
     steps:
       - name: Check out the CI scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,6 +98,11 @@ jobs:
       matrix:
         shard:
           ["1/12", "2/12", "3/12", "4/12", "5/12", "6/12", "7/12", "8/12", "9/12", "10/12", "11/12", "12/12", acceptance]
+        # The acceptance shard (template init test, the longest job) runs on the nightly
+        # run, on a manual run and when the init command changed; the changes job excludes
+        # it otherwise (owner 2026-11-11). When it is planned, the coverage lane below
+        # requires its report, so it stays a required check for those pull requests.
+        exclude: ${{ fromJSON(needs.changes.outputs.skip_shards) }}
     env:
       APP_ENV: test
       # CI-only port so local dev databases on 55582 never collide with CI.
@@ -397,13 +410,16 @@ jobs:
           path: .vitest-reports
           merge-multiple: true
 
-      # Every shard must be present: a partial merge could pass on partial data.
-      - name: Require all 13 coverage shard reports
+      # Every planned shard must be present: a partial merge could pass on partial data.
+      # Twelve Vitest shards, plus the acceptance shard when the changes job planned it.
+      - name: Require every planned coverage shard report
         shell: bash
+        env:
+          EXPECTED: ${{ needs.changes.outputs.acceptance == 'true' && 13 || 12 }}
         run: |
           count=$(find .vitest-reports -maxdepth 1 -type f | wc -l)
-          echo "Coverage shard reports: ${count}"
-          if (( count != 13 )); then echo "Expected 13 shard reports; use Re-run all jobs."; exit 1; fi
+          echo "Coverage shard reports: ${count} of ${EXPECTED}"
+          if (( count != EXPECTED )); then echo "Expected ${EXPECTED} shard reports; use Re-run all jobs."; exit 1; fi
 
       - name: Run verification lane
         run: bun run "verify:${{ matrix.lane }}"
