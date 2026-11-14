@@ -5,6 +5,7 @@ it the tests skip, unless VERTEX_REQUIRE_NAUTILUS=1 (the Nautilus CI run), where
 a missing engine is a failure. Synthetic books always run; the real-data case
 runs only where the qc-ports data folder exists (it is not in the repo).
 """
+import dataclasses
 import os
 import random
 
@@ -97,6 +98,57 @@ def test_synthetic_books_match(structure, extra):
     assert len(book.trades) > 20
     ledger, _ = assert_parity(book.trades, dates=markets["SPY"].dates)
     assert max(ledger.open_positions) > 2  # overlapping trades on two symbols
+    assert {t["exitReason"] for t in ledger.trades} >= {"signal"}
+
+
+@needs_nautilus
+@pytest.mark.parametrize("structure", ["callCalendar", "putCalendar"])
+def test_synthetic_calendar_books_match(structure):
+    """Two-expiry trades (book.CALENDARS) are one instrument per spread like a vertical: both engines agree."""
+    size = 320
+    spy = market(_walk(5, size, 450.0), rate=0.03)
+    spy = dataclasses.replace(spy, iv_term=(("VIX3M", tuple(24.0 + (index % 7) for index in range(size))),
+                                            ("VIX6M", tuple(25.0 + (index % 5) for index in range(size)))))
+    rng = random.Random(9)
+    events, index = [], 0
+    while index < size - 2:
+        exit_index = index + rng.randint(3, 30) if rng.random() < 0.5 else None
+        events.append(SignalEvent("SPY", index, exit_index))
+        index += rng.randint(2, 9)
+    options = {"structure": structure, "dte": {"target": 30, "min": 21}, "farDte": {"target": 60, "min": 45},
+               "maxLossPct": 2, "profitTakePct": 25}
+    book = build_book(events, options, {"SPY": spy})
+    assert len(book.trades) > 20 and all(trade.far_expiry for trade in book.trades)
+    ledger, _ = assert_parity(book.trades, dates=spy.dates)
+    assert max(ledger.open_positions) > 2
+    assert {t["exitReason"] for t in ledger.trades} >= {"signal", "expiry"}
+
+
+@needs_nautilus
+@pytest.mark.parametrize("minutes", [1, 30])
+def test_a_run_on_bar_times_matches_the_ledger(minutes):
+    """1-minute bars are the closest bar times there are: the clock prints of a bar come before the next bar."""
+    from tests.qc_ports_synthetic import intraday_market
+
+    size = 390  # one session of 1-minute bars, 30 sessions of 30-minute bars
+    markets = {"SPY": intraday_market(_walk(7, size, 450.0), minutes),
+               "QQQ": intraday_market(_walk(11, size, 380.0), minutes, symbol="QQQ", iv=24.0, rate=0.045)}
+    rng = random.Random(3)
+    # One spread closes on the bar on which another opens: the exit is booked before the entry is sized.
+    events = [SignalEvent("SPY", 0, 6), SignalEvent("QQQ", 6, 30)]
+    for symbol in markets:
+        index = 40
+        while index < size - 2:
+            exit_index = index + rng.randint(3, 40) if rng.random() < 0.5 else None
+            events.append(SignalEvent(symbol, index, exit_index))
+            index += rng.randint(4, 25)
+    options = {"structure": "callDebitVertical", "dte": {"target": 45, "min": 21}, "widthSigma": 0.5, "maxLossPct": 2}
+    book = build_book(events, options, markets)
+    assert len(book.trades) > 20
+    assert book.trades[0].exit_date == book.trades[1].entry_date == markets["SPY"].dates[7]
+    ledger, _ = assert_parity(book.trades, dates=markets["SPY"].dates)
+    assert ledger.dates[0] == ("2024-01-02T09:31" if minutes == 1 else "2024-01-02T10:00")
+    assert max(ledger.open_positions) > 2  # overlapping trades that open and close inside a session
     assert {t["exitReason"] for t in ledger.trades} >= {"signal"}
 
 
@@ -317,3 +369,18 @@ def test_batch_cli_multi_case_with_series_equals_each_run_alone():
         alone = batch({"bars": {key: values[first:end] for key, values in bars.items()},
                        "series": _cut(rows, case["spec"]["to"]), "cases": [{"id": case["id"], "spec": case["spec"]}]})
         assert together[case["id"]] == alone[case["id"]]
+
+
+def test_trades_share_an_instrument_only_when_one_ends_before_the_next_starts():
+    from types import SimpleNamespace
+
+    def trade(trade_id, entry, exit_):
+        return SimpleNamespace(trade_id=trade_id, entry_date=entry, exit_date=exit_,
+                               marks=((entry, 1.0), (exit_, 1.0)))
+
+    trades = [trade(1, "2024-01-02T10:00", "2024-01-02T11:00"),
+              trade(2, "2024-01-02T11:00", "2024-01-02T12:00"),  # opens on the bar the first one closes
+              trade(3, "2024-01-02T11:30", "2024-01-02T13:00"),  # after the first one: its instrument again
+              trade(4, "2024-01-02T11:30", "2024-01-02T14:00")]  # overlaps the second and the third one
+    assert nautilus_runner.instrument_slots(trades) == {1: 0, 2: 1, 3: 0, 4: 2}
+    assert nautilus_runner.instrument_slots([]) == {}

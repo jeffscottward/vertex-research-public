@@ -72,7 +72,6 @@ flowchart LR
   darkfactory_operator_app --> darkfactory_jobs
   darkfactory_operator_app --> darkfactory_operator
   darkfactory_operator_app --> darkfactory_ui
-  darkfactory_shared --> darkfactory_testkit
   darkfactory_storage --> darkfactory_shared
   darkfactory_web --> darkfactory_academy
   darkfactory_web --> darkfactory_analytics
@@ -125,7 +124,7 @@ flowchart LR
 | [`@darkfactory/notifications`](../../packages/notifications/package.json) | product | Vertex operator notifications: ntfy and email ports with dispatch policy. | `@darkfactory/email`, `@darkfactory/shared` | `.`, `./server`, `./server/dispatch`, `./test` |
 | [`@darkfactory/observability`](../../packages/observability/package.json) | product | Telemetry port: OpenTelemetry traces and metrics, evlog events and redaction. | — | `.`, `./port`, `./redaction`, `./server/evlog`, `./server/fanout`, `./server/otel`, `./test` |
 | [`@darkfactory/scripting`](../../packages/scripting/package.json) | product | Pine v5 subset parser and bar-by-bar interpreter for chart scripts. | — | `.` |
-| [`@darkfactory/shared`](../../packages/shared/package.json) | product | Vertex shared primitives: canonical JSON, hashing and artifact helpers. | `@darkfactory/testkit` | `.`, `./universes`, `./vertex` |
+| [`@darkfactory/shared`](../../packages/shared/package.json) | product | Vertex shared primitives: canonical JSON, hashing and artifact helpers. | — | `./universes`, `./vertex` |
 | [`@darkfactory/state`](../../packages/state/package.json) | product | UI-free state: XState lifecycles and Zustand stores. | — | `.`, `./client`, `./flow` |
 | [`@darkfactory/storage`](../../packages/storage/package.json) | product | Vertex object storage: R2 adapter, chat copies and artifact metadata. | `@darkfactory/shared` | `.`, `./chat-copies`, `./r2`, `./test`, `./vertex` |
 | [`@darkfactory/ui`](../../packages/ui/package.json) | product | Presentational React components, styles and shadcn primitives. | — | `.`, `./alert`, `./avatar`, `./badge`, `./button`, `./card`, `./client/data-table`, `./client/dialog`, `./client/dropdown-menu`, `./client/page-sections`, `./client/sidebar`, `./client/tabs`, `./client/theme`, `./client/toaster`, `./data-table-sort`, `./empty-state`, `./headings`, `./icon-button`, `./input`, `./kpi`, `./label`, `./separator`, `./skeleton`, `./stat-card`, `./status-badge`, `./styles.css`, `./table`, `./textarea`, `./themes`, `./utilities` |

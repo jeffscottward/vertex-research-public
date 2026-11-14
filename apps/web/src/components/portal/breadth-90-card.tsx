@@ -15,7 +15,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
 import { Breadth90Chart } from "./breadth-90-chart.tsx";
 
-// Breadth-90 signal card (breadth90.get), the first thing on the markets page: the state the rig
+// Breadth-90 signal card (breadth90.get), near the top of the markets page: the state the rig
 // tick computed from NYSE up/down volume (ARMED after an 80%+ down day, FIRED on a 90% up day or
 // two 80% up days while armed, FORMING when today's unfinished session meets that rule), the last
 // 30 sessions, recent events and the dip basket. Read only: nothing here creates or routes an order.

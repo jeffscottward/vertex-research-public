@@ -38,6 +38,9 @@ overrides:
   "fast-uri@>=3.0.0 <3.1.7": ^3.1.7
   "fflate@>=0.7.0 <0.7.5": ^0.7.5
   "image-size@<2.0.3": ^2.0.3
+  # seroval: every advisory up to GHSA-f86p-h4j2-7qgj is fixed in 1.6.11. solid-js
+  # 1.9.14 asks for ~1.5.4. Keep this entry over any weaker upstream seroval entry.
+  "seroval@<1.6.11": ~1.6.11
   "sharp@<0.35.4": ^0.35.4
   "undici@>=7.0.0 <7.29.1": ^7.29.1
   # One OTel API copy: better-auth, drizzle-orm and orpc auto-install the

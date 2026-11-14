@@ -19,6 +19,7 @@ export const AGENT_VIEWER_READ_ONLY_MESSAGE =
 const READ_POST_PROCEDURES: ReadonlySet<string> = new Set([
   "agentModelRuns.list",
   "agentModelRuns.search",
+  "masterRules.search",
   "semanticTerms.query",
 ]);
 

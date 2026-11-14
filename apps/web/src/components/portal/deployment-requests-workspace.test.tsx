@@ -172,6 +172,7 @@ const summary = (
   id: "s-hmm",
   kind: "python",
   latestBacktest: null,
+  vertexStudy: null,
   name: "HMM forward filter",
   params: [lookback, side],
   presetCount: 1,

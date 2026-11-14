@@ -9,6 +9,7 @@ import { createPostHogAnalyticsPort } from "@darkfactory/analytics/server/postho
 import { CONTACT_ERRORS, vertexWorkerRequestMaxBytes } from "@darkfactory/api";
 import {
   type ApiContextDependencies,
+  bridgeQuotesReaderFor,
   createApiContext,
   createVertexLocalSetupService,
   createVertexPlatformRequestDependencies,
@@ -301,6 +302,11 @@ const vertexContextDependencies = (
     // Engines and Market context views: rig status files pushed to QuantVPS, served on loopback
     // (engines.status, marketContext.get).
     engineStatus: env.ENGINE_STATUS_URL ?? null,
+    // Go-live drafts: live IBKR spread quotes through the bridge POST /quotes (read only).
+    goLiveQuotes: bridgeQuotesReaderFor(
+      env.VERTEX_ORDER_BRIDGE_URL ?? null,
+      env.VERTEX_ORDER_BRIDGE_TOKEN ?? null
+    ),
     hostLabel: env.VERTEX_HOST_LABEL,
     // Portfolio tab: read-only proxy to ibkr-monitor on loopback (allow-listed GET endpoints only).
     ibkrMonitor: env.IBKR_MONITOR_URL ?? null,

@@ -39,14 +39,16 @@ import {
 import { describeSpans, sourceSpans, spanNames } from "./fetch-sources.ts";
 import {
   combineSleeves,
-  type LibraryDoc,
-  type LibraryStrategy,
   loadLibrary,
   type PriceTable,
   parsePriceCsv,
-  type SeriesSummary,
   summarize,
 } from "./quantjourney.ts";
+import type {
+  LibraryDoc,
+  LibraryStrategy,
+  SeriesSummary,
+} from "./quantjourney-schema.ts";
 
 export const CORE7_DIR = "research/backtests/core7";
 export const RESULTS_PATH = `${CORE7_DIR}/rerun-results.json`;

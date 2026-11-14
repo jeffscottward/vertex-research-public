@@ -4,9 +4,11 @@ import { appContract } from "./contract.ts";
 import {
   GOLIVE_COLLECT_MAX,
   GOLIVE_DRAFT_LIST_MAX,
+  GOLIVE_NOT_APPROVABLE_VALUES,
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   GOLIVE_QUOTE_SPREAD_FLOOR,
-  GOLIVE_NOT_APPROVABLE_VALUES,
+  GOLIVE_SEND_STATE_VALUES,
+  GOLIVE_SENDABLE_STATES,
   GOLIVE_SIZING_REASON_VALUES,
   GOLIVE_STANDING_MAX_LOSS_PCT,
   GOLIVE_STANDING_NAME_CAP_PCT,
@@ -106,6 +108,7 @@ const draft = () => ({
   entryBasis: "signal_today",
   exitReason: null,
   exitRule: "owner_standing_rule_v1",
+  exitSchedule: null,
   expiry: "20261218",
   id: "d-spy",
   kind: "entry",
@@ -123,6 +126,7 @@ const draft = () => ({
   },
   quote: null,
   revision: 1,
+  send: null,
   shortStrike: 105,
   signalFacts: [],
   sizing: {
@@ -554,6 +558,22 @@ describe("goLiveDrafts contract", () => {
       { ...draft(), revision: 1.5 },
       { ...draft(), revision: "1" },
       { ...draft(), revision: null },
+    ])
+      expect(GoLiveDraftSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("carries where the send of an approved entry stands, or null, and never leaves it out", () => {
+    for (const send of GOLIVE_SEND_STATE_VALUES)
+      expect(GoLiveDraftSchema.parse({ ...draft(), send }).send).toBe(send);
+    expect(GoLiveDraftSchema.parse(draft()).send).toBeNull();
+    // Only a send that never reached the order bridge, or that it refused, may be sent again.
+    expect([...GOLIVE_SENDABLE_STATES]).toEqual(["not_sent", "refused"]);
+    const { send: _send, ...without } = draft();
+    for (const bad of [
+      without,
+      { ...draft(), send: "placed" },
+      { ...draft(), send: "pending" },
+      { ...draft(), send: true },
     ])
       expect(GoLiveDraftSchema.safeParse(bad).success).toBe(false);
   });

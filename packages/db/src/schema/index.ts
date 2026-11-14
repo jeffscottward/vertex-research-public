@@ -32,6 +32,7 @@ export * from "./semantic-layer.ts";
 export * from "./academy-content.ts";
 export * from "./golive.ts";
 export * from "./leveraged-etf.ts";
+export * from "./vertex-order-claims.ts";
 
 import type { DeploymentRequestOptions } from "../server/deployment-requests.ts";
 import { sql } from "drizzle-orm";
@@ -3131,3 +3132,83 @@ export const breadth90Status = pgTable(
 );
 
 export type Breadth90StatusRow = typeof breadth90Status.$inferSelect;
+
+// Owner market notes (marketNotes.*): dated narrative context the owner sends (a reel, an article
+// or plain text). One row per source (source_key is the normalized URL, or a hash of the text for
+// owner text), with the claims and their verification status in jsonb. "expired" is derived from
+// review_by and never stored. Research context only: no order path.
+export type MarketNoteSourceKindValue = "reel" | "article" | "owner-text";
+export type MarketNoteStanceValue = "risk-on" | "risk-off" | "neutral";
+export type MarketNoteConfidenceValue = "low" | "medium" | "high";
+export type MarketNoteStoredStatusValue = "active" | "retired";
+export type MarketNoteClaimStatusValue =
+  | "unverified"
+  | "supported"
+  | "contradicted"
+  | "cannot-check";
+export interface MarketNoteClaimValue {
+  id: string;
+  text: string;
+  status: MarketNoteClaimStatusValue;
+  evidence: string | null;
+  /** ISO timestamp of the check; null while the claim is unverified. */
+  checkedAt: string | null;
+}
+export interface MarketNoteAffectedValue {
+  tickers: string[];
+  sectors: string[];
+  strategies: string[];
+}
+
+export const marketNotes = pgTable(
+  "market_notes",
+  {
+    id: text("id").primaryKey(),
+    sourceKey: text("source_key").notNull(),
+    receivedAt: utcTimestamp("received_at").notNull(),
+    asOf: date("as_of", { mode: "string" }).notNull(),
+    sourceKind: text("source_kind")
+      .$type<MarketNoteSourceKindValue>()
+      .notNull(),
+    sourceUrl: text("source_url"),
+    sourceAuthor: text("source_author"),
+    rawText: text("raw_text").notNull(),
+    theme: text("theme").notNull(),
+    claims: jsonb("claims").$type<MarketNoteClaimValue[]>().notNull(),
+    affected: jsonb("affected").$type<MarketNoteAffectedValue>().notNull(),
+    stance: text("stance").$type<MarketNoteStanceValue>().notNull(),
+    stanceConfidence: text("stance_confidence")
+      .$type<MarketNoteConfidenceValue>()
+      .notNull(),
+    reviewBy: date("review_by", { mode: "string" }).notNull(),
+    status: text("status")
+      .$type<MarketNoteStoredStatusValue>()
+      .notNull()
+      .default("active"),
+    ownerMessageUrl: text("owner_message_url"),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // One note per source: a second add of the same source returns the stored note.
+    uniqueIndex("market_notes_source_key_idx").on(table.sourceKey),
+    index("market_notes_received_at_idx").on(table.receivedAt),
+    check(
+      "market_notes_fields_check",
+      sql`${table.sourceKind} in ('reel', 'article', 'owner-text') and ${table.stance} in ('risk-on', 'risk-off', 'neutral') and ${table.stanceConfidence} in ('low', 'medium', 'high') and ${table.status} in ('active', 'retired') and char_length(${table.rawText}) between 1 and 200000`
+    ),
+    // The same limits as the oRPC contract: 1 to 12 claims in an array, an object for the affected
+    // area, a theme of 1 to 300 characters and a review date on or after the market date.
+    check(
+      "market_notes_content_check",
+      sql`case when jsonb_typeof(${table.claims}) = 'array' then jsonb_array_length(${table.claims}) between 1 and 12 else false end and jsonb_typeof(${table.affected}) = 'object' and char_length(${table.theme}) between 1 and 300 and ${table.reviewBy} >= ${table.asOf}`
+    ),
+    // Owner text has no URL; a reel or an article always has one.
+    check(
+      "market_notes_source_check",
+      sql`(${table.sourceKind} = 'owner-text' and ${table.sourceUrl} is null) or (${table.sourceKind} in ('reel', 'article') and ${table.sourceUrl} is not null)`
+    ),
+  ]
+);
+
+export type MarketNoteRow = typeof marketNotes.$inferSelect;

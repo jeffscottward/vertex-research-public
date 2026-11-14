@@ -102,7 +102,7 @@ const GateBadge = ({
       title={`${GATE_LABELS[gate]}: ${detail}`}
     >
       <Icon aria-hidden="true" className="size-4" />
-      <span className="sr-only">{`${GATE_LABELS[gate]} ${verdict}: ${detail}`}</span>
+      <span className="sr-only">{`${GATE_LABELS[gate]} ${ok === null ? "not evaluated" : verdict}: ${detail}`}</span>
     </span>
   );
 };
