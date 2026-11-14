@@ -1389,7 +1389,10 @@ class IbapiPinTest(unittest.TestCase):
         """US stock bar volume arrives in lots of 100 with ibapi 9.81; packages/api/src/server/ibkr-history.ts
         (STK_VOLUME_LOT) scales it to shares. Upgrading ibapi (10.x reports shares) must change both."""
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install-history.sh")
-        if not os.path.exists(path):  # the QuantVPS install stage holds only the service and this test
+        if not os.path.exists(path):
+            # The QuantVPS install stage holds the service, this test, the systemd unit, the resolver and
+            # Caddyfile.tailnet, but not install-history.sh, so the test skips there. In the repository,
+            # python-history.test.ts (pre-push and CI) fails when this test does not report ok.
             self.skipTest("install-history.sh is not next to the test")
         with open(path) as f:
             self.assertIn("ibapi-9.81.1.post1.tar.gz", f.read())

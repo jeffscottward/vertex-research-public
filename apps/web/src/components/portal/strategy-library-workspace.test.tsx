@@ -161,6 +161,7 @@ const summary = (
   externalValidation: null,
   backtestCount: 0,
   latestBacktest: null,
+  vertexStudy: null,
   ...overrides,
 });
 
@@ -205,6 +206,7 @@ const toStrategy = (row: StrategySummaryOutput): StrategyOutput => {
     presetCount: _p,
     backtestCount: _b,
     latestBacktest: _l,
+    vertexStudy: _v,
     ...rest
   } = row;
   return rest;
@@ -357,6 +359,84 @@ describe("strategy library board", () => {
     await click(button("Cards"));
     expect(container.querySelectorAll("[data-strategy-card]")).toHaveLength(3);
     return expect(container.querySelector("[data-strategy-row]")).toBeNull();
+  });
+
+  it("shows the Vertex result before the external claim in rows and cards", async () => {
+    const external = {
+      sourceUrl: "https://youtu.be/XLMG6-SATRk",
+      sourceTitle: "I Backtested 10,000 Strategies",
+      sourceAuthor: "Lil Fish, YouTube",
+      publishedOn: "2026-09-24",
+      claimedMethod: "10,500 strategies ranked by total net R.",
+      claimedMetrics: [{ label: "Rank", value: "1 of 10,500" }],
+    };
+    const studied = summary({
+      id: "s-study",
+      slug: "volume-spike-breakout",
+      name: "Volume spike breakout",
+      tags: ["backtest-study", "externally-pre-validated"],
+      externalValidation: external,
+      vertexStudy: { kind: "strategy-backtest", verdict: "no-edge" },
+    });
+    const tagged = summary({
+      id: "s-failed",
+      slug: "tagged-failed",
+      name: "Tagged failed",
+      tags: ["failed"],
+      externalValidation: external,
+    });
+    const pending = summary({
+      id: "s-pending",
+      slug: "pending-study",
+      name: "Pending study",
+      tags: ["quantconnect-idea"],
+    });
+    const gateway = gatewayWith({
+      list: vi.fn(async () => [studied, tagged, pending, ...rows()]),
+    });
+    const container = await mount(
+      <StrategyLibraryWorkspace gateway={gateway} initialStrategyId={null} />
+    );
+    const badges = (selector: string) =>
+      [...container.querySelectorAll(`${selector} [data-strategy-badge]`)].map(
+        (badge) => badge.textContent
+      );
+    expect(badges('[data-strategy-row="s-study"]')).toEqual([
+      "Vertex study: No edge (Vertex research result, not a trading signal)",
+      "Externally pre-validated (source claim, not validated by Vertex)",
+    ]);
+    expect(badges('[data-strategy-row="s-failed"]')).toEqual([
+      "Tested, failed (Vertex result from the failed tag)",
+      "Externally pre-validated (source claim, not validated by Vertex)",
+    ]);
+    expect(badges('[data-strategy-row="s-pending"]')).toEqual([
+      "Vertex study: see Backtests tab (Vertex study result on the Backtests tab)",
+    ]);
+    expect(badges('[data-strategy-row="s-hmm"]')).toEqual([]);
+    const result = container.querySelector(
+      '[data-strategy-row="s-study"] [data-strategy-vertex-result]'
+    );
+    expect(result?.getAttribute("data-strategy-vertex-result")).toBe("no-edge");
+    expect(result?.getAttribute("data-strategy-vertex-result-source")).toBe(
+      "study"
+    );
+    expect(result?.hasAttribute("data-strategy-external-validation")).toBe(
+      false
+    );
+    expect(result?.getAttribute("title")).toContain(
+      "it gives no trading authority"
+    );
+    expect(
+      container.querySelectorAll("[data-strategy-external-validation]")
+    ).toHaveLength(2);
+    await click(button("Cards"));
+    expect(badges('[data-strategy-card="s-study"]')).toEqual([
+      "Vertex study: No edge (Vertex research result, not a trading signal)",
+      "Externally pre-validated (source claim, not validated by Vertex)",
+    ]);
+    expect(badges('[data-strategy-card="s-failed"]')[0]).toBe(
+      "Tested, failed (Vertex result from the failed tag)"
+    );
   });
 
   it("shows the High priority and Externally pre-validated badges in rows and cards, and none otherwise", async () => {

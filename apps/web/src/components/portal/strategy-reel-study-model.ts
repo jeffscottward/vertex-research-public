@@ -4,19 +4,14 @@
 // Research only: a study verdict grants no trading authority.
 import type { StrategyBacktestStudy } from "@darkfactory/api";
 
-import { formatRatio, formatSignedPercent } from "./strategy-library-model.ts";
+import {
+  formatRatio,
+  formatSignedPercent,
+  VERDICT_LABELS,
+} from "./strategy-library-model.ts";
 import type { JournalPoint } from "./trade-journal-model.ts";
 
-/** Strategy library entries with this tag have a strategy-backtest study stored under their slug. */
-export const BACKTEST_STUDY_TAG = "backtest-study";
-
 type Verdict = StrategyBacktestStudy["verdict"];
-
-export const VERDICT_LABELS: Readonly<Record<Verdict, string>> = {
-  edge: "Edge",
-  "needs-more-data": "Needs more data",
-  "no-edge": "No edge",
-};
 
 const COMPARISON_KIND_LABELS: Readonly<
   Record<StrategyBacktestStudy["comparison"][number]["kind"], string>

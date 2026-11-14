@@ -429,6 +429,8 @@ const labStrategySummary = (
     status: seed.status,
     tags: [...seed.tags],
     updatedAt: labDate(1 + index),
+    // No lab seed has a study tag, so no row has a Vertex study verdict.
+    vertexStudy: null,
   };
 };
 

@@ -2,11 +2,14 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 
 // Research studies (researchStudies.get): frozen research documents in Postgres
-// (research_studies.summary). Two kinds share the table, told apart by the document's `kind`:
+// (research_studies.summary). Three kinds share the table, told apart by the document's `kind`:
 // - filter studies such as the ADX/RVOL study on the /backtests page (docs/specs/research/adx-filter.md).
 //   They carry no `kind` (the seeded document predates it) or `kind: "filter"`.
 // - `kind: "qc-port"` backtest studies of the QuantConnect idea ports (docs/specs/strategies/qc-*.md),
 //   shown on the strategy library detail of the entry whose slug is the study id.
+// - `kind: "strategy-backtest"` studies of entries tagged backtest-study (StrategyBacktestStudySchema).
+// The strategy library list and get also read the kind and verdict of qc-port and strategy-backtest
+// studies for the Vertex result badge (strategy-study-tags.ts).
 // Documents are written by `bun run vertex:research-studies:import`, never through oRPC. The web app,
 // the API service and the import CLI share ResearchStudyDocumentSchema, so a document is checked when
 // it is stored and again when it is read. Research only: a study result grants no trading authority.
