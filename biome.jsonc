@@ -84,6 +84,9 @@
         "useErrorCause": "off"
       },
       "suspicious": {
+        // A runtime import cycle lets module load order decide which constants exist yet. Fix a
+        // cycle by moving the shared code into a leaf module. Type-only imports are not counted.
+        "noImportCycles": "error",
         // Security parsers and redaction must match raw control bytes.
         "noControlCharactersInRegex": "off",
         // Biome's inference misses ref mutation across awaits, `while (true)` loops and
@@ -258,6 +261,23 @@
           "complexity": {
             // Fail-closed E2E helpers keep ordered ownership/cleanup checks in one auditable place.
             "noExcessiveCognitiveComplexity": "off"
+          }
+        }
+      }
+    },
+    {
+      // The one import cycle left (untangle report, 2026-11-05): these fixtures are below 100%
+      // coverage, so their shared code cannot move to a new file yet (AGENTS.md rule 4).
+      // This list only shrinks. Never add a file to it.
+      "includes": [
+        "packages/api/src/server/native-evidence.test-support.ts",
+        "packages/api/src/server/vertex-research-chat-conversation-runtime.test-support.ts",
+        "packages/api/src/server/vertex-research-chat-worker-runtime.test-support.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noImportCycles": "off"
           }
         }
       }

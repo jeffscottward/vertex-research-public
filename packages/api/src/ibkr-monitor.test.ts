@@ -75,6 +75,15 @@ const upstream = (overrides: Record<string, unknown> = {}) => ({
     ageS: 2,
     lastError: "",
     serverTime: SERVER_MS,
+    since: SERVER_MS - 3_600_000,
+  },
+  account: {
+    mode: "live",
+    modeSource: "confirmed",
+    modeConfirmedAt: SERVER_MS - 2000,
+    modeError: null,
+    configuredMode: "live",
+    reportedMode: "live",
   },
   accountCount: 1,
   summary: {
@@ -258,7 +267,117 @@ describe("ibkrMonitor mapping", () => {
       unrealizedPct: 20,
       weightPct: 1.2,
     });
-    expect(output.account).toEqual({ mode: "unknown", count: 1 });
+    expect(output.account).toEqual({
+      mode: "live",
+      modeSource: "confirmed",
+      modeConfirmedAt: new Date(SERVER_MS - 2000).toISOString(),
+      modeError: null,
+      count: 1,
+    });
+    expect(output.status.since).toBe(
+      new Date(SERVER_MS - 3_600_000).toISOString()
+    );
+  });
+
+  it("keeps the configured account mode and says since when while the bridge is down", () => {
+    const base = upstream();
+    const output = toIbkrMonitorOutput(
+      upstream({
+        status: {
+          ...base.status,
+          bridge: "restarting",
+          since: SERVER_MS - 780_000,
+        },
+        account: {
+          mode: "paper",
+          modeSource: "configured",
+          modeConfirmedAt: SERVER_MS - 840_000,
+          modeError: null,
+        },
+      }),
+      at
+    );
+    expect(output.status.gateway).toBe("starting");
+    expect(output.status.since).toBe(
+      new Date(SERVER_MS - 780_000).toISOString()
+    );
+    expect(output.account).toEqual({
+      mode: "paper",
+      modeSource: "configured",
+      modeConfirmedAt: new Date(SERVER_MS - 840_000).toISOString(),
+      modeError: null,
+      count: 1,
+    });
+  });
+
+  it("reports a mode mismatch as an error and withholds every account value", () => {
+    const output = toIbkrMonitorOutput(
+      upstream({
+        account: {
+          mode: null,
+          modeSource: null,
+          modeConfirmedAt: null,
+          modeError: "mismatch",
+        },
+      }),
+      at
+    );
+    expect(output.account).toEqual({
+      mode: null,
+      modeSource: null,
+      modeConfirmedAt: null,
+      modeError: "mismatch",
+      count: 1,
+    });
+    // Fails closed for every consumer of `connected` (trade journal, fills count).
+    expect(output.status.connected).toBe(false);
+    expect(output.positions).toEqual([]);
+    expect(output.orders).toEqual([]);
+    expect(output.summary.netLiquidation).toBeNull();
+    expect(output.pnl).toEqual({
+      daily: null,
+      unrealized: null,
+      realized: null,
+    });
+  });
+
+  it("names a missing configuration and an old ibkr-monitor instead of a neutral mode", () => {
+    const notConfigured = toIbkrMonitorOutput(
+      upstream({
+        account: {
+          mode: null,
+          modeSource: null,
+          modeConfirmedAt: null,
+          modeError: "not-configured",
+        },
+      }),
+      at
+    );
+    expect(notConfigured.account.modeError).toBe("not-configured");
+    // A value outside live/paper is never passed on as a mode.
+    const odd = toIbkrMonitorOutput(
+      upstream({
+        account: {
+          mode: "demo",
+          modeSource: "confirmed",
+          modeConfirmedAt: null,
+          modeError: null,
+        },
+      }),
+      at
+    );
+    expect(odd.account.mode).toBeNull();
+    expect(odd.account.modeError).toBe("not-configured");
+
+    const { account: _account, ...legacy } = upstream();
+    const old = toIbkrMonitorOutput(legacy, at);
+    expect(old.account).toEqual({
+      mode: null,
+      modeSource: null,
+      modeConfirmedAt: null,
+      modeError: "not-reported",
+      count: 1,
+    });
   });
 
   it("keeps parent/child nesting and drops parent keys that point at no listed order", () => {

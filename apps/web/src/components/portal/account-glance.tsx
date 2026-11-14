@@ -18,6 +18,8 @@ import {
   useNautilusArm,
 } from "./nautilus-arm-control.tsx";
 import {
+  AccountBadge,
+  AccountModeAlert,
   Banner,
   FailureState,
   ForbiddenState,
@@ -158,14 +160,19 @@ export const AccountGlance = ({
       )
     ) : (
       <>
+        <AccountModeAlert account={snapshot.account} />
         <Banner
           age={age}
           failure={failure}
           fetchedAt={fetchedAt}
           health={health}
+          nowMs={nowMs}
           snapshot={snapshot}
         />
-        <GlanceStats snapshot={snapshot} />
+        {/* On a mode mismatch the values are withheld: the alert says so; no empty stat grid. */}
+        {snapshot.account.modeError === "mismatch" ? null : (
+          <GlanceStats snapshot={snapshot} />
+        )}
       </>
     );
 
@@ -194,6 +201,9 @@ export const AccountGlance = ({
           <StatusBadge data-health={health.key} status={health.tone}>
             {health.label}
           </StatusBadge>
+          {snapshot === null ? null : (
+            <AccountBadge account={snapshot.account} />
+          )}
           <IbkrRecoveryButton model={recovery} nowMs={nowMs} />
           <NautilusArmControls model={nautilus} />
           <Link

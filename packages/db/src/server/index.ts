@@ -172,10 +172,12 @@ export {
 export {
   createOrderIntentRepository,
   ORDER_INTENT_ACTIONS,
+  ORDER_INTENT_OUTCOMES,
   type OrderIntent,
   type OrderIntentAction,
   type OrderIntentOutcome,
   type OrderIntentRepository,
+  type OrderSendState,
 } from "./order-intents.ts";
 export {
   boundDriftMessage,
@@ -293,6 +295,29 @@ export {
   type GoLiveStructureValue,
   goLiveEntryDraftId,
 } from "./golive-drafts.ts";
+export {
+  MARKET_NOTES_ACTIVE_LIMIT,
+  MARKET_NOTES_LIST_LIMIT,
+  type MarketNoteAffectedValue,
+  type MarketNoteCheckRecord,
+  type MarketNoteChecksResult,
+  type MarketNoteClaimStatusValue,
+  type MarketNoteClaimValue,
+  type MarketNoteConfidenceValue,
+  type MarketNoteDetailRecord,
+  type MarketNoteInsertResult,
+  type MarketNoteListResult,
+  type MarketNoteNewRecord,
+  type MarketNoteRecord,
+  type MarketNoteReviewAction,
+  type MarketNoteReviewResult,
+  type MarketNoteSourceKindValue,
+  type MarketNoteStanceValue,
+  type MarketNoteStoredStatusValue,
+  type MarketNotesRepository,
+  type MarketNotesRepositoryDependencies,
+  createMarketNotesRepository,
+} from "./market-notes.ts";
 export type {
   MarketBarColumns,
   MarketBarRow,
@@ -514,10 +539,22 @@ export {
   createDashboardRepository,
   DashboardPersistenceError,
 } from "./dashboard-repository.ts";
-export type { DeploymentRequestAction } from "./deployment-requests.ts";
+export type {
+  DeploymentOptionGroup,
+  DeploymentOptionLeg,
+  DeploymentOptionStructure,
+  DeploymentRequestAction,
+  DeploymentRequestOptions,
+} from "./deployment-requests.ts";
 export {
   checkDeploymentTransition,
+  DEPLOYMENT_GROUP_MAX_SYMBOLS,
+  DEPLOYMENT_GROUP_MIN_SYMBOLS,
   DEPLOYMENT_LIMIT_KEYS,
+  DEPLOYMENT_MAX_LOSS_PCT_CEILING,
+  DEPLOYMENT_OPTION_STRUCTURES,
+  deploymentOptionLegs,
+  normalizeDeploymentOptions,
   DEPLOYMENT_REQUEST_ACTIONS,
   DEPLOYMENT_REQUEST_TRANSITIONS,
   DeploymentRequestInputError,

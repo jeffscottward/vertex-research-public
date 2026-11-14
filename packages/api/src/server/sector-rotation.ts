@@ -47,7 +47,7 @@ import {
   windowFillBefore,
 } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
-import { sendPriceAlertsNtfy } from "./price-alerts.ts";
+import { sendPriceAlertsNtfy } from "./price-alerts-ntfy.ts";
 import { fetchBoundedJson, type ResearchLensError } from "./research-lenses.ts";
 
 // Sector rotation procedures (sectorRotation.*). Operator-only. collect (scheduler, operator agent
