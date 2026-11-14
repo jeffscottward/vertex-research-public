@@ -7,7 +7,6 @@ import type { AnalyticsEquityPoint } from "../../packages/api/src/backtest-analy
 import { fakeNautilus } from "./dsl-engine.test-support.ts";
 import { NAUTILUS_ENGINE_ID, TYPESCRIPT_ENGINE_ID } from "./dsl-engine.ts";
 import {
-  type AdapterRun,
   adapterRun,
   applyGates,
   beatsBothHalves,
@@ -19,25 +18,28 @@ import {
   equityFromReturns,
   failureNote,
   fileInputs,
-  type LibraryDoc,
-  type LibraryStrategy,
-  libraryDocSchema,
   loadLibrary,
-  type Published,
   parsePriceCsv,
-  primarySummary,
   quantjourneySource,
   RESEARCH_DIR,
   type RerunInputs,
   rerunStrategy,
   runDslSleeves,
   runQuantJourneyCli,
-  type SeriesSummary,
-  type StrategyResult,
   summarize,
   TRIALS,
 } from "./quantjourney.ts";
 import { num, pct, renderDoc, verdict } from "./quantjourney-render.ts";
+import {
+  type AdapterRun,
+  type LibraryDoc,
+  type LibraryStrategy,
+  libraryDocSchema,
+  type Published,
+  primarySummary,
+  type SeriesSummary,
+  type StrategyResult,
+} from "./quantjourney-schema.ts";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
 const temps: string[] = [];

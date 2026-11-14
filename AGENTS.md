@@ -210,6 +210,17 @@ Do not use `pnpm run` for lifecycle commands or bare `pnpm ci` as a gate; pnpm i
 - Do not duplicate code, suppress failures, edit unrelated files, or bundle cleanup into a functional commit.
 - Focused commits contain one coherent change and its contract, tests, generated artifacts, Graphify update, and directly affected documentation.
 
+## Code stewardship
+
+Owner decision, 2026-11-11: the agents that work here own the quality of this code.
+
+- Leave the code you touch cleaner than you found it. A small refactor in files that your change already touches is welcome in any PR: a clearer name, an extracted function, deleted dead code, a helper moved to the module that owns it. Give it its own commit; the "Security and repository hygiene" rules stay (no cleanup inside a functional commit, no unrelated files).
+- A structure-only change keeps behavior: the tests are green before and after, coverage does not go down, and public contracts (oRPC, Zod, database schema, package `exports`) stay the same.
+- A behavior change needs its own PR. A bug found during a cleanup also gets its own PR.
+- A change to an order, execution, arming or risk path is never cleanup. It follows "Code review practice": a person reviews it.
+- For an optimization, measure first. Put the number before and the number after in the PR.
+- Runtime import cycles are a lint error (`suspicious/noImportCycles` in `biome.jsonc`). Fix a cycle by moving the shared code into a leaf module, not with a lazy import. The override list for this rule only shrinks.
+
 ## Code review practice
 
 This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15). Machines do most of the reading; a person owns the outcome.

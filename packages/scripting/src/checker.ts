@@ -22,13 +22,6 @@ import {
   unsupported,
 } from "./errors.ts";
 import {
-  SCRIPT_PLOTS_MAX,
-  type ScriptDeclaration,
-  type ScriptError,
-  type ScriptInputSpec,
-  type ScriptPlotKind,
-} from "./index.ts";
-import {
   clip,
   SCRIPT_INPUT_ID_MAX,
   SCRIPT_INPUT_STRING_MAX,
@@ -36,10 +29,17 @@ import {
   SCRIPT_LABEL_MAX,
   SCRIPT_OPTION_MAX,
   SCRIPT_OPTIONS_MAX,
+  SCRIPT_PLOTS_MAX,
   SCRIPT_STRING_MAX,
   SCRIPT_TITLE_MAX,
   STRING_TOO_LONG,
 } from "./limits.ts";
+import type {
+  ScriptDeclaration,
+  ScriptError,
+  ScriptInputSpec,
+  ScriptPlotKind,
+} from "./types.ts";
 import { color, isColor, type Scalar, type Value } from "./values.ts";
 
 export type NameRef =

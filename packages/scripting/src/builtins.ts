@@ -2,7 +2,6 @@
 // (name -> {params, arity, kind, impl}); the evaluator never branches on builtin names.
 
 import { fail, type Position } from "./errors.ts";
-import type { ScriptBar, ScriptInputSpec, ScriptSignal } from "./index.ts";
 import type { Site } from "./series.ts";
 import {
   barssince,
@@ -28,6 +27,7 @@ import {
   vwma,
   wma,
 } from "./ta.ts";
+import type { ScriptBar, ScriptInputSpec, ScriptSignal } from "./types.ts";
 import {
   type ColorValue,
   color,
