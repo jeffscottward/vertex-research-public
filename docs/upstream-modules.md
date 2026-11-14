@@ -24,5 +24,6 @@ Reference only, no code copied:
 - "151 Trading Strategies" (Kakushadze and Serur): backtest target list in `research/backtests/151-strategies/`.
 - [Open-Alpha-Lab](https://github.com/Guillain-RDCDE/Open-Alpha-Lab): published results used as validation references in `research/backtests/carousel/`.
 - [LangAlpha](https://github.com/ginlix-ai/LangAlpha/tree/e102a7838225157f7b3beca3fc274b26be852154) (Apache-2.0, see `NOTICE`): the readiness posture, scenario tree, exit levels and monitoring structure of its trade-pitch and research-conventions skills, adapted in `scripts/agent-desk/pitch.ts`. LangAlpha itself does not run in Vertex.
+- [calibrain-harness](https://github.com/zadescoxp/calibrain-harness/tree/d9a3a62d1e64bfd28514e07ce6d300ec44654ddb) (MIT, see `NOTICE`): the method of the forecast scorecard (an outcome label for every forecast, a base-rate baseline, non-overlapping windows and a bootstrap skill status) in `packages/api/src/forecast-scorecard.ts`, with controls and the command in `scripts/research/forecast-scorecard*.ts`. Ideas only; no upstream code is copied. Spec: [`docs/specs/research/forecast-scorecard.md`](specs/research/forecast-scorecard.md).
 
 The license and rights state of the original migration sources is tracked in `docs/vertex-rebuild/migration-matrix.json`. The licenses of the other projects are in the notices named in each row.

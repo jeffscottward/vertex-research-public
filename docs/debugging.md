@@ -33,6 +33,7 @@ Start with `bun run doctor`, then find the symptom below. Paths are relative to 
 | `OMP model relay is unavailable`, `… failed to start` or `OMP sandbox did not report its process` | `/usr/bin/nsenter` (util-linux) must be root-owned, and able to enter the sandbox's user namespace; `packages/jobs/src/server/model-relay.ts#openOmpModelRelay` |
 | Verifier check fails with `EAGAIN` or `Resource temporarily unavailable` | The container's task limit, which counts threads (`packages/jobs/src/server/omp.ts#OMP_VERIFIER_PIDS`). Limit how many processes the failing test starts at once; see [operator.md](operator.md#how-the-verifier-runs) |
 | Pages load slowly in `bun run dev` | Count the requests in the browser network tab. Hundreds of `node_modules` requests mean a barrel package (for example `lucide-react`) is not pre-bundled: add it to `CLIENT_OPTIMIZE_DEPS_INCLUDE` in `apps/web/vite.config.ts`, then restart with `--force`. See [Page-load performance](#page-load-performance) |
+| Forecast scorecard prints `NOT_ENOUGH_DATA`, fewer scored windows than expected, or `self-check: FAILED` | `ledger.byStatus` in the output; `packages/api/src/forecast-scorecard.ts#classifyForecasts`; [`docs/specs/research/forecast-scorecard.md`](specs/research/forecast-scorecard.md) (status rule) |
 
 ## Tools
 

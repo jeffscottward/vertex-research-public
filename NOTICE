@@ -91,6 +91,28 @@ this commit.
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
+calibrain-harness
+https://github.com/zadescoxp/calibrain-harness
+Commit d9a3a62d1e64bfd28514e07ce6d300ec44654ddb
+License: MIT License, Copyright (c) 2026 zadescoxp and Calibrain Harness
+contributors (see licenses/calibrain-harness-MIT.txt)
+
+No calibrain-harness code is included in this repository.
+packages/api/src/forecast-scorecard.ts,
+scripts/research/forecast-scorecard-controls.ts and
+scripts/research/forecast-scorecard.ts adapt ideas of ctb/calibration.py
+(non-overlapping windows, comparison with base rates),
+ctb/evaluation/labeler.py (an outcome label for every forecast),
+ctb/evaluation/validation.py (bootstrap interval and status) and
+ctb/features.py (base rates without look-ahead).
+
+Changes: a direction score on daily bars instead of bracket questions on
+1-minute bars; a prior over all earlier history; date clusters with a
+stationary bootstrap; no blend weight; control forecasts with an independent
+check value; written in TypeScript.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
 Vibe-Trading
 https://github.com/HKUDS/Vibe-Trading
 Tag v0.1.18, commit 66eb57634f16344b326d85fd1fe10029c7f348bb
