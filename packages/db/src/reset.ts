@@ -17,6 +17,31 @@ export class DevelopmentResetError extends Error {
   }
 }
 
+// The product tables that a reset names. CASCADE also empties every table that
+// references them, such as the operator-plane tables owned by @darkfactory/jobs,
+// so this package never needs to know their names.
+const RESET_TABLES = [
+  "session",
+  "account",
+  "addresses",
+  "profiles",
+  "user_preferences",
+  "feature_items",
+  "watchlist_items",
+  "baskets",
+  "basket_members",
+  "pick_lists",
+  "pick_list_snapshots",
+  "pick_list_members",
+  "plays",
+  "contact_rate_limits",
+  "audit_records",
+  "user",
+  "verification",
+  "rate_limit",
+  "outbox_events",
+] as const;
+
 export const resetDevelopment = async (
   database: Database,
   options: ResetDevelopmentOptions
@@ -27,34 +52,14 @@ export const resetDevelopment = async (
     );
   }
 
-  // Names only product tables. CASCADE also empties every table that references
-  // them, such as the operator-plane tables owned by @darkfactory/jobs, so this
-  // package never needs to know their names.
   await withTransaction(database, async (transaction) => {
-    return await transaction.execute(sql`
-      TRUNCATE TABLE
-        "session",
-        "account",
-        "addresses",
-        "profiles",
-        "user_preferences",
-        "feature_items",
-        "watchlist_items",
-        "baskets",
-        "basket_members",
-        "pick_lists",
-        "pick_list_snapshots",
-        "pick_list_members",
-        "plays",
-        "contact_rate_limits",
-        "audit_records",
-        "user",
-        "verification",
-        "rate_limit",
-        "outbox_events"
-      RESTART IDENTITY CASCADE
-    `);
+    return await transaction.execute(
+      sql`TRUNCATE TABLE ${sql.join(
+        RESET_TABLES.map((table) => sql.identifier(table)),
+        sql`, `
+      )} RESTART IDENTITY CASCADE`
+    );
   });
 
-  return Object.freeze({ tablesCleared: 15 });
+  return Object.freeze({ tablesCleared: RESET_TABLES.length });
 };
