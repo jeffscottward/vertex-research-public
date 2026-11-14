@@ -1306,6 +1306,246 @@ describe("portfolio block", () => {
     ).toEqual([]);
   });
 
+  it.each([
+    ["vwap", { name: "vwap", type: "indicator" }],
+    [
+      "sessionReturn",
+      { from: "open", name: "sessionReturn", to: "10:30", type: "indicator" },
+    ],
+    [
+      "noiseBand",
+      { band: "upper", length: 14, name: "noiseBand", type: "indicator" },
+    ],
+  ])(
+    "refuses %s in a portfolio leg and in the selection score and tie break",
+    (name, indicator) => {
+      const message = `${name} reads the intraday session; add an intraday block`;
+      const roll = { policy: "roll", symbols: ["SPY"] };
+      const nested = {
+        left: always.left,
+        op: "sub",
+        right: indicator,
+        type: "math",
+      };
+      const score = always.left;
+      // The same portfolio without a session indicator is valid.
+      expect(
+        issues(
+          withPortfolio({
+            ...roll,
+            legs: [{ ...leg, exit: { any: [always] } }],
+            select: { score, tieBreak: always.left, top: 1 },
+          })
+        )
+      ).toEqual([]);
+      expect(
+        issues(
+          withPortfolio({
+            ...roll,
+            legs: [
+              { ...leg, entry: { all: [{ ...always, left: indicator }] } },
+            ],
+          })
+        )
+      ).toEqual([`portfolio.legs.0.entry.all.0.left: ${message}`]);
+      expect(
+        issues(
+          withPortfolio({
+            ...roll,
+            legs: [
+              leg,
+              { ...leg, exit: { any: [always, { ...always, right: nested }] } },
+            ],
+          })
+        )
+      ).toEqual([`portfolio.legs.1.exit.any.1.right: ${message}`]);
+      expect(
+        issues(withPortfolio({ ...roll, select: { score: nested, top: 1 } }))
+      ).toEqual([`portfolio.select.score: ${message}`]);
+      expect(
+        issues(
+          withPortfolio({
+            ...roll,
+            select: { score, tieBreak: indicator, top: 1 },
+          })
+        )
+      ).toEqual([`portfolio.select.tieBreak: ${message}`]);
+      // Every use is one issue, in the order: definition, legs, score, tie break.
+      expect(
+        issues(
+          withPortfolio(
+            {
+              ...roll,
+              legs: [
+                leg,
+                { ...leg, entry: { all: [{ ...always, right: indicator }] } },
+              ],
+              select: { score, tieBreak: indicator, top: 1 },
+            },
+            { exit: { any: [{ ...always, left: indicator }] } }
+          )
+        )
+      ).toEqual([
+        `exit.any.0.left: ${message}`,
+        `portfolio.legs.1.entry.all.0.right: ${message}`,
+        `portfolio.select.tieBreak: ${message}`,
+      ]);
+    }
+  );
+
+  // The Python normalize_definition raises the first issue of each list
+  // (test_cross_field_checks_raise_in_the_typescript_order).
+  it.each([
+    [
+      "management without a stop loss before a portfolio without options",
+      {
+        ...minimal,
+        management: { breakevenR: 1 },
+        portfolio: { policy: "roll", symbols: ["SPY"] },
+      },
+      [
+        "management: management moves the stop loss; add a stop loss",
+        "portfolio: A portfolio block trades option verticals; add an options block",
+      ],
+    ],
+    [
+      "the management checks before a shifted window",
+      withPortfolio(
+        { policy: "window", shift: 2, symbols: ["SPY"] },
+        { exit: { any: [always] }, management: { breakevenR: 1 } }
+      ),
+      [
+        "management: management moves the stop loss; add a stop loss",
+        "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management",
+        "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
+      ],
+    ],
+    [
+      "volTarget sizing before a shifted window",
+      withPortfolio(
+        { policy: "window", shift: 2, symbols: ["SPY"] },
+        {
+          exit: { any: [always] },
+          sizing: {
+            length: 20,
+            maxLeverage: 2,
+            mode: "volTarget",
+            targetPct: 10,
+          },
+        }
+      ),
+      [
+        "sizing: Option strategies size by options.maxLossPct; remove the volTarget sizing",
+        "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
+      ],
+    ],
+    [
+      "volTarget sizing before the monthly frame",
+      withPortfolio(
+        { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+        {
+          entry: {
+            all: [
+              {
+                ...always,
+                left: { length: 5, name: "atr", type: "indicator" },
+              },
+            ],
+          },
+          sizing: {
+            length: 20,
+            maxLeverage: 2,
+            mode: "volTarget",
+            targetPct: 10,
+          },
+        }
+      ),
+      [
+        "sizing: Option strategies size by options.maxLossPct; remove the volTarget sizing",
+        `portfolio.frame: ${STRATEGY_MONTHLY_INDICATOR_MESSAGE}`,
+      ],
+    ],
+    [
+      "a portfolio without options before a short side with management",
+      {
+        ...minimal,
+        management: { breakevenR: 1 },
+        portfolio: { policy: "roll", symbols: ["SPY"] },
+        side: "short",
+        stopLoss: { kind: "pct", pct: 5 },
+      },
+      [
+        "portfolio: A portfolio block trades option verticals; add an options block",
+        "management: management raises a long stop; a short definition takes no management",
+      ],
+    ],
+    [
+      "a shifted window before a short side with options",
+      withPortfolio(
+        { policy: "window", shift: 2, symbols: ["SPY"] },
+        { exit: { any: [always] }, side: "short" }
+      ),
+      [
+        "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
+        "side: Option strategies take their direction from options.structure; remove side",
+      ],
+    ],
+    [
+      "the monthly frame before a short side with options",
+      withPortfolio(
+        { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+        {
+          entry: {
+            all: [
+              {
+                ...always,
+                left: { length: 5, name: "atr", type: "indicator" },
+              },
+            ],
+          },
+          side: "short",
+        }
+      ),
+      [
+        `portfolio.frame: ${STRATEGY_MONTHLY_INDICATOR_MESSAGE}`,
+        "side: Option strategies take their direction from options.structure; remove side",
+      ],
+    ],
+  ])("lists %s", (_label, definition, expected) => {
+    expect(issues(definition)).toEqual(expected);
+  });
+
+  // zod runs the cross-field checks only when every field is valid. The Python
+  // normalize_definition raises the field error first too
+  // (test_field_errors_come_before_the_portfolio_checks).
+  it.each([
+    [
+      "a portfolio without options",
+      { ...minimal, portfolio: { policy: "roll", symbols: ["SPY"] } },
+    ],
+    [
+      "a monthly frame with atr",
+      withPortfolio(
+        { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+        {
+          entry: {
+            all: [
+              {
+                ...always,
+                left: { length: 5, name: "atr", type: "indicator" },
+              },
+            ],
+          },
+        }
+      ),
+    ],
+  ])("lists only an unknown side for %s", (_label, definition) => {
+    expect(issues(definition)).toHaveLength(1);
+    expect(issues({ ...definition, side: "sideways" })).toEqual([
+      expect.stringMatching(/^side: /u),
+    ]);
+  });
+
   it("refuses a 20000-level selection score without overflowing the stack", () => {
     let deep: unknown = { series: "$tr", type: "series" };
     for (let level = 0; level < 20_000; level += 1)
