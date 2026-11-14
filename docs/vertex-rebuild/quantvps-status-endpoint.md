@@ -116,7 +116,7 @@ State on 2026-10-03:
 
 ## Read-only IBKR history service (2026-10-04)
 
-Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.4.0, `test_vertex_history.py` 138 tests incl. a static scan that fails on any order, account or position API name and an AST allow-list of IB client calls, `vertex-history.service`, `resolve-gateway.sh`, `install-history.sh`). Rig deployer: `~/.local/state/vertex-vps-status/deploy-history.mjs`.
+Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.4.0, `test_vertex_history.py` 138 tests incl. a static scan that fails on any order, account or position API name and an AST allow-list of IB client calls, `vertex-history.service`, `resolve-gateway.sh`, `install-history.sh`, `python-history.test.ts`, which runs the test file in pre-push and the full CI lane). Rig deployer: `~/.local/state/vertex-vps-status/deploy-history.mjs`.
 
 | Item | Value |
 | --- | --- |
