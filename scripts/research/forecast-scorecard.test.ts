@@ -42,8 +42,8 @@ const csv = (count: number, seed: number, volume = false): string => {
 };
 
 const LONG: Readonly<Record<string, string>> = {
-  "data/AAA.csv": csv(700, 1),
-  "data/BBB.csv": csv(710, 2, true),
+  "data/AAA.csv": csv(705, 1),
+  "data/BBB.csv": csv(715, 2, true),
   "data/CCC.csv": csv(705, 3),
 };
 
@@ -56,8 +56,12 @@ const harness = (
   const io: ScorecardIo = {
     readFile: (path) => {
       const text = files[path];
+      if (text === "<unreadable>")
+        return Promise.reject(new Error(`EISDIR /abs/${path}`));
       return text === undefined
-        ? Promise.reject(new Error(`ENOENT /abs/${path}`))
+        ? Promise.reject(
+            Object.assign(new Error(`ENOENT /abs/${path}`), { code: "ENOENT" })
+          )
         : Promise.resolve(text);
     },
     score,
@@ -135,6 +139,22 @@ describe("parseBarCsv", () => {
       "AAA.csv line 3: date must be later than the line before",
     ],
     [
+      rows("2020-02-30,1,2,0.5,9,10"),
+      "AAA.csv line 2: date must be YYYY-MM-DD",
+    ],
+    [
+      rows("2020-13-01,1,2,0.5,9,10"),
+      "AAA.csv line 2: date must be YYYY-MM-DD",
+    ],
+    [
+      rows("2020-01-02,1,2,0.5,9,0x10"),
+      "AAA.csv line 2: adj_close must be a number above 0",
+    ],
+    [
+      rows("2020-01-02,1,2,0.5,9, 10"),
+      "AAA.csv line 2: adj_close must be a number above 0",
+    ],
+    [
       rows("2020-01-02,1,2,0.5,9,0"),
       "AAA.csv line 2: adj_close must be a number above 0",
     ],
@@ -174,6 +194,8 @@ describe("parseArgs", () => {
     [[...ARGS, "--bars", "other"]],
     [[...ARGS, "--summary", "--summary"]],
     [[...ARGS, "--seed"]],
+    [["--symbols", "AAA", "--bars", "--summary"]],
+    [["--symbols", "AAA", "--bars", ""]],
     [["--bars", "data", "--symbols", "AAA,../x"]],
     [["--bars", "data", "--symbols", "AAA,,BBB"]],
     [["--bars", "data", "--symbols", "AAA,AAA"]],
@@ -197,6 +219,13 @@ describe("runForecastScorecardCli", () => {
       "Controls only. This run says nothing about JEV or any real forecaster. It does not evaluate the order gate."
     );
     expect(result.controlsPassed).toBe(true);
+    // Keys are in alphabetical order at the top level.
+    expect(Object.keys(result)).toEqual([
+      "controls",
+      "controlsPassed",
+      "method",
+      "note",
+    ]);
     expect(
       result.controls.map((control) => [control.id, control.strength])
     ).toEqual([
@@ -221,7 +250,7 @@ describe("runForecastScorecardCli", () => {
         file: `${symbol}.csv`,
         firstDate: "2015-01-05",
         lastDate: expect.stringMatching(/^2017-\d{2}-\d{2}$/u),
-        rows: { AAA: 700, BBB: 710, CCC: 705 }[symbol],
+        rows: { AAA: 705, BBB: 715, CCC: 705 }[symbol],
         sha256: createHash("sha256")
           .update(LONG[`data/${symbol}.csv`] ?? "")
           .digest("hex"),
@@ -274,20 +303,31 @@ describe("runForecastScorecardCli", () => {
     expect(at(result.controls, 1).scorecard.score.scored).toBe(6);
     expect(result.controls.every((control) => control.agrees)).toBe(true);
 
-    // No grid point at all: nothing is scored and nothing differs.
-    const empty = await harness({
-      "data/AAA.csv": csv(100, 1),
-    }).run("--bars", "data", "--symbols", "AAA", "--summary");
-    expect(empty.code).toBe(0);
-    expect(at(empty.out.split("\n"), 3)).toBe(
-      "baseline-copy: scored 0, clusters 0, skill best n/a, NOT_ENOUGH_DATA, check agrees, hits 0/0 sided, prior 0/0 (counts only)"
-    );
+    // No grid point at all: nothing was checked, so the run is refused.
+    expect(
+      await harness({ "data/AAA.csv": csv(100, 1) }).run(
+        "--bars",
+        "data",
+        "--symbols",
+        "AAA"
+      )
+    ).toEqual({
+      code: 1,
+      err: "forecast scorecard failed: no control forecast could be built: every bar file is too short (about 270 rows are needed)\n",
+      out: "",
+    });
   });
 
   it("exits 1 with a base-name message for a missing or bad file", async () => {
     const { run } = harness({
       ...LONG,
       "data/BAD.csv": `${HEADER}\n2020-01-02,1,2,3,4,-5\n`,
+      "data/DIR.csv": "<unreadable>",
+    });
+    expect(await run("--bars", "data", "--symbols", "DIR")).toEqual({
+      code: 1,
+      err: "forecast scorecard failed: DIR.csv: cannot read the file\n",
+      out: "",
     });
     expect(await run("--bars", "data", "--symbols", "AAA,ZZZ")).toEqual({
       code: 1,
@@ -307,7 +347,14 @@ describe("runForecastScorecardCli", () => {
     const result = JSON.parse(json.out) as ScorecardRun;
     expect(json.code).toBe(3);
     expect(result.controlsPassed).toBe(false);
-    expect(result.controls.some((control) => !control.agrees)).toBe(true);
+    // The same records are scored; the skill comparison shows the error.
+    expect(
+      result.controls.every(
+        (control) =>
+          control.scorecard.score.scored === control.check.records &&
+          !control.agrees
+      )
+    ).toBe(true);
 
     const summary = await run(...ARGS, "--summary");
     expect(summary.code).toBe(3);
@@ -316,17 +363,20 @@ describe("runForecastScorecardCli", () => {
   });
 
   it("exits 3 when the scorer scores nothing", async () => {
-    const { code, out } = await harness(
-      LONG,
-      (records, _bars, params, random) =>
-        scoreForecasts(records, new Map(), params, random)
-    ).run(...ARGS);
-    expect(code).toBe(3);
+    const { run } = harness(LONG, (records, _bars, params, random) =>
+      scoreForecasts(records, new Map(), params, random)
+    );
+    const json = await run(...ARGS);
+    expect(json.code).toBe(3);
     expect(
-      (JSON.parse(out) as ScorecardRun).controls.every(
+      (JSON.parse(json.out) as ScorecardRun).controls.every(
         (control) => !control.agrees
       )
     ).toBe(true);
+    const summary = await run(...ARGS, "--summary");
+    expect(at(summary.out.split("\n"), 3)).toMatch(
+      /^baseline-copy: scored 0, clusters 0, skill best n\/a, NOT_ENOUGH_DATA, check DIFFERS, hits 0\/0 sided, prior 0\/0 \(counts only\)$/u
+    );
   });
 
   it("does not hide an unexpected error", async () => {

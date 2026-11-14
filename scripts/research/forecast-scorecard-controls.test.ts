@@ -38,9 +38,9 @@ const walk = (count: number, seed: number): SymbolBars => {
 
 // About 44 grid points per symbol, in more than 40 two-week clusters.
 const barsBySymbol = new Map([
-  ["BBB", walk(710, 2)],
+  ["BBB", walk(715, 2)],
   ["CCC", walk(705, 3)],
-  ["AAA", walk(700, 1)],
+  ["AAA", walk(705, 1)],
 ]);
 const grid = controlGrid(barsBySymbol, HORIZON, PRIOR_MIN);
 const score = (control: Control, bars = barsBySymbol) =>
@@ -57,10 +57,10 @@ describe("controlGrid", () => {
       indices.every((index, position) => index === 259 + position * 10)
     ).toBe(true);
     // The last point has ten later bars; one more step has not.
-    expect(at(indices, indices.length - 1) + HORIZON).toBeLessThan(700);
+    expect(at(indices, indices.length - 1) + HORIZON).toBeLessThan(705);
     expect(
       at(indices, indices.length - 1) + 2 * HORIZON
-    ).toBeGreaterThanOrEqual(700);
+    ).toBeGreaterThanOrEqual(705);
     expect(grid.map((point) => point.symbol)).toEqual(
       [...grid.map((point) => point.symbol)].sort()
     );
@@ -210,14 +210,17 @@ describe("controls against the scorer", () => {
     );
     const control = at(controls, 4);
     const result = score(control, shifted);
-    const agrees =
-      result.ledger.byStatus.SCORED === control.check.records &&
+    // The same records are scored, so only the skill comparison can show the error.
+    expect(result.ledger.byStatus.SCORED).toBe(control.check.records);
+    expect(
       Math.abs(
         (result.score.skill?.half ?? Number.NaN) - control.check.skillHalf
-      ) < 1e-9 &&
+      )
+    ).toBeGreaterThan(1e-9);
+    expect(
       Math.abs(
         (result.score.skill?.prior ?? Number.NaN) - control.check.skillPrior
-      ) < 1e-9;
-    expect(agrees).toBe(false);
+      )
+    ).toBeGreaterThan(1e-9);
   });
 });

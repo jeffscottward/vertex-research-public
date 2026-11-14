@@ -48,6 +48,7 @@ const NOTE =
   "Controls only. This run says nothing about JEV or any real forecaster. It does not evaluate the order gate.";
 const HEADER = "date,open,high,low,close,adj_close";
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/u;
+const DECIMAL = /^\d+(?:\.\d+)?$/u;
 const SEED = /^\d{1,10}$/u;
 const SEED_MAX = 4_294_967_295;
 const DEFAULT_SEED = "7";
@@ -84,10 +85,18 @@ export const parseBarCsv = (text: string, fileName: string): ParsedBars => {
     const cells = line.split(",");
     if (cells.length !== fields) throw fail(`expected ${fields} fields`);
     const date = at(cells, 0);
-    if (!ISO_DAY.test(date)) throw fail("date must be YYYY-MM-DD");
+    // A real calendar date: it survives a round trip through Date.
+    const time = ISO_DAY.test(date)
+      ? Date.parse(`${date}T00:00:00Z`)
+      : Number.NaN;
+    if (
+      Number.isNaN(time) ||
+      new Date(time).toISOString().slice(0, 10) !== date
+    )
+      throw fail("date must be YYYY-MM-DD");
     if (date <= (dates.at(-1) ?? ""))
       throw fail("date must be later than the line before");
-    const price = Number(at(cells, 5));
+    const price = DECIMAL.test(at(cells, 5)) ? Number(at(cells, 5)) : 0;
     if (!(Number.isFinite(price) && price > 0))
       throw fail("adj_close must be a number above 0");
     dates.push(date);
@@ -120,7 +129,8 @@ export const parseArgs = (argv: readonly string[]): ScorecardArgs => {
       continue;
     }
     const value = argv[index + 1];
-    if (value === undefined) throw new UsageError();
+    if (value === undefined || value === "" || value.startsWith("--"))
+      throw new UsageError();
     values.set(flag, value);
     index += 1;
   }
@@ -267,7 +277,7 @@ const renderSummary = (run: ScorecardRun): string => {
   const lines = [
     run.note,
     `self-check: ${run.controlsPassed ? "PASSED" : "FAILED"}`,
-    `horizon ${DEFAULT_SCORECARD_PARAMS.horizonBars} bars, price ${run.method.priceBasis}, seed ${run.method.seed}, files ${run.method.files.length}`,
+    `horizon ${at(run.controls, 0).scorecard.params.horizonBars} bars, price ${run.method.priceBasis}, seed ${run.method.seed}, files ${run.method.files.length}`,
   ];
   for (const { agrees, id, scorecard } of run.controls) {
     const { clusters, hits, interval, scored, skill, skillStatus } =
@@ -291,17 +301,33 @@ const execute = async (
   const files: ScorecardFile[] = [];
   for (const symbol of args.symbols) {
     const file = `${symbol}.csv`;
-    const text = await io.readFile(join(args.bars, file)).catch(() => {
-      throw new InputError(`${file}: file not found`);
-    });
+    const text = await io
+      .readFile(join(args.bars, file))
+      .catch((error: unknown) => {
+        const missing = (error as { code?: unknown }).code === "ENOENT";
+        throw new InputError(
+          `${file}: ${missing ? "file not found" : "cannot read the file"}`
+        );
+      });
     const { bars, firstDate, lastDate, rows } = parseBarCsv(text, file);
     barsBySymbol.set(symbol, bars);
     files.push({ file, firstDate, lastDate, rows, sha256: io.sha256(text) });
   }
+  const { controls, controlsPassed } = runControls(
+    barsBySymbol,
+    args.seed,
+    io.score
+  );
+  // Without a single control forecast nothing was checked: that is not a pass.
+  if (at(controls, 0).check.records === 0)
+    throw new InputError(
+      "no control forecast could be built: every bar file is too short (about 270 rows are needed)"
+    );
   return {
+    controls,
+    controlsPassed,
     method: { files, priceBasis: "adj_close", seed: args.seed },
     note: NOTE,
-    ...runControls(barsBySymbol, args.seed, io.score),
   };
 };
 

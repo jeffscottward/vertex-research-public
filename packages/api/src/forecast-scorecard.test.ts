@@ -112,6 +112,17 @@ describe("parseForecastRecords", () => {
     ["a lower-case symbol", { ...valid, symbol: "spy" }],
     ["a date with a time", { ...valid, dataAsOf: "2026-01-05T00:00:00Z" }],
     [
+      "a time without three fraction digits",
+      { ...valid, decidedAt: "2026-01-06T14:30:00Z" },
+    ],
+    [
+      "a probability that is not a finite number",
+      {
+        ...valid,
+        probabilities: { BEARISH: 0.2, BULLISH: Number.NaN, NEUTRAL: 0.3 },
+      },
+    ],
+    [
       "a time with an offset",
       { ...valid, decidedAt: "2026-01-06T14:30:00+02:00" },
     ],
@@ -222,7 +233,7 @@ describe("classifyForecasts", () => {
     const rows = classifyForecasts(
       [
         at9(null, 0.1),
-        at9("2015-02-01T10:00:00Z", 0.2),
+        at9("2015-02-01T09:00:00.510Z", 0.2),
         at9("2015-02-01T09:00:00.500Z", 0.3),
         at9("2015-02-01T09:00:00.500Z", 0.4),
         record("BBB", day(9)),
@@ -587,7 +598,8 @@ describe("scoreForecasts", () => {
       read: 0,
       sumOffTolerance: 0,
     });
-    expect(empty.score.skillStatus).toBe("NOT_ENOUGH_DATA");
+    expect(empty.score).toEqual(scoreWindows([], params, createRandom(7)));
+    expect(empty.score.scored).toBe(0);
 
     const pending = scoreForecasts(
       [record("AAA", at(bars.dates, 399)), record("BBB", at(bars.dates, 398))],
@@ -597,7 +609,7 @@ describe("scoreForecasts", () => {
     );
     expect(pending.ledger.byStatus.PENDING_OUTCOME).toBe(2);
     expect(pending.score.scored).toBe(0);
-    expect(pending.score.skill).toBeNull();
+    expect(pending.score).toEqual(empty.score);
   });
 
   it("refuses a list with more than one source", () => {

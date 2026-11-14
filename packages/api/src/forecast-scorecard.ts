@@ -21,8 +21,8 @@ export const FORECAST_CLASSES = ["BULLISH", "NEUTRAL", "BEARISH"] as const;
 export const FORECAST_SYMBOL_PATTERN = /^[A-Z][A-Z0-9.]{0,11}$/u;
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/u;
-// The form Date.toISOString() writes; text order equals time order.
-const UTC_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/u;
+// Exactly the form Date.toISOString() writes (three fraction digits), so text order is time order.
+const UTC_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 export const ForecastRecordSchema = z
   .object({
@@ -30,7 +30,8 @@ export const ForecastRecordSchema = z
     dataAsOf: z.string().regex(ISO_DAY).nullable(),
     decidedAt: z.string().regex(UTC_INSTANT).nullable(),
     model: z.string().max(200).nullable(),
-    // Raw values. The range is checked by the status rule, not here.
+    // Raw values. The parser refuses a value that is not a finite number (a shape error); the
+    // range from 0 to 1 is checked by the status rule.
     probabilities: z
       .object({
         BEARISH: z.number(),
