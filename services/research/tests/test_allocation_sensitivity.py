@@ -59,11 +59,24 @@ def test_the_proxy_keeps_the_expiry_of_a_30_day_candidate(sens):
     assert made["options"]["dte"] == {"target": 30, "min": 21}
 
 
-def test_rewritten_blocks_do_not_share_the_override(sens):
+def test_rewritten_blocks_do_not_share_the_override(sens, monkeypatch):
+    nested = {"widthSigma": 3.0, "dte": {"target": 60, "min": 45}}
+    monkeypatch.setitem(sens.STRUCTURE_OVERRIDES, "longProxy", nested)
     made = sens.restructure(_definition(), PROXY)
-    made["options"]["widthSigma"] = 1.0
-    assert sens.STRUCTURE_OVERRIDES["longProxy"] == {"widthSigma": 3.0}
-    assert made["portfolio"]["legs"][0]["options"]["widthSigma"] == 3.0
+    first, second = made["options"]["dte"], made["portfolio"]["legs"][0]["options"]["dte"]
+    assert first == second == nested["dte"]
+    assert first is not second and first is not nested["dte"] and second is not nested["dte"]
+
+
+def test_the_restructured_flag_of_a_row(sens):
+    """The expression scenario_rows stores as `restructured`: true only when a debit vertical was rewritten."""
+    debit = _definition()
+    credit = {"name": "credit only", "options": dict(qi.PUT_CREDIT)}
+    bare = {"name": "no options"}
+    assert sens.restructure(debit, PROXY) != debit
+    assert sens.restructure(credit, PROXY) == credit
+    assert sens.restructure(bare, PROXY) == bare
+    assert sens.restructure(debit, {"costs": "none"}) == debit
 
 
 def test_wide_itm_is_unchanged(sens):
@@ -83,6 +96,20 @@ def test_an_unknown_structure_is_refused(sens):
 
 
 # --------------------------------------------------------------------------- scenarios
+
+def test_the_existing_scenarios_are_unchanged(sens):
+    assert list(sens.SCENARIOS.items())[:7] == [
+        ("base", {}),
+        ("noCosts", {"costs": "none"}),
+        ("liquidCosts", {"costs": "liquid"}),
+        ("flatCallSkew", {"skew": "flatCalls"}),
+        ("realistic", {"costs": "liquid", "skew": "flatCalls"}),
+        ("realisticWideItm", {"costs": "liquid", "skew": "flatCalls", "structure": "wideItm"}),
+        ("calibrated", {"costs": "measured"}),
+    ]
+    assert list(sens.SCENARIOS)[7:] == list(sens.PROXY_SCENARIOS)
+    assert "sizeSkips" in sens.STAT_KEYS
+
 
 def test_the_proxy_scenarios_reuse_the_cost_models(sens):
     assert sens.SCENARIOS["longProxy"] == {"structure": "longProxy"}
