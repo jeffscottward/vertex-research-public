@@ -144,6 +144,7 @@ export * from "./contracts/research-studies.ts";
 export * from "./contracts/click-log.ts";
 export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
 export * from "./contracts/strategy-library.ts";
+export * from "./strategy-study-tags.ts";
 export * from "./contracts/vertex-chart-read.ts";
 export * from "./contracts/vertex-experience.ts";
 export * from "./contracts/vertex-notification-read.ts";
