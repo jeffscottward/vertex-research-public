@@ -1,12 +1,12 @@
-import { StrategyBacktestStudySchema } from "@darkfactory/api";
+import {
+  BACKTEST_STUDY_TAG,
+  StrategyBacktestStudySchema,
+} from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
 import fixture from "../../features/research-studies/fixtures/strategy-backtest-study.json";
-import {
-  BACKTEST_STUDY_TAG,
-  toStrategyStudyViewModel,
-  VERDICT_LABELS,
-} from "./strategy-reel-study-model.ts";
+import { VERDICT_LABELS } from "./strategy-library-model.ts";
+import { toStrategyStudyViewModel } from "./strategy-reel-study-model.ts";
 
 const STUDY = StrategyBacktestStudySchema.parse(fixture);
 

@@ -1,0 +1,334 @@
+#!/usr/bin/env bash
+# Merge one reviewed pull request into its protected base branch, one merge at a time.
+#
+# Why: the base branch requires a strict, up-to-date ci-gate (about 40 min of CI).
+# When two jobs merge on their own, the slower one loses the race, must update and
+# rerun CI, and can lose again. GitHub's merge queue is not offered for this
+# user-owned repository (a merge_queue ruleset is refused with HTTP 422), so this
+# script serializes merges through the firstmate claim
+# branch:<repo>:<base> (card vertex-base-merge-serialization, 2026-11-12).
+#
+# Usage: scripts/merge-pr <pr> --card <card> --head <reviewed-sha>
+#                         [--wait <minutes>] [--ci-timeout <minutes>]
+#
+# Steps:
+# 1. Take a local lock and the claim branch:<repo>:<base>. Another holder means
+#    exit 4; --wait retries until it frees up or the wait runs out.
+# 2. After every read, the PR must be open, not a draft, still target the same
+#    base, and sit at the reviewed SHA (or the update merge made here).
+# 3. When the head is behind the base, merge the base into the PR
+#    (gh pr update-branch) and accept the new head only when it is GitHub's
+#    verified web-flow merge whose parents are exactly the previous head and the
+#    base tip.
+# 4. Read the required checks from branch protection and rulesets, and wait until
+#    each one has a successful run on that exact head from the required app.
+# 5. Renew the claim, require GitHub's merge state CLEAN/UNSTABLE/HAS_HOOKS, and
+#    merge with a merge commit pinned to the head (--match-head-commit).
+# 6. Check that the merge commit's tree equals the PR head's tree, then release
+#    the claim (on every exit, unless the card held it before the script started).
+# The script never bypasses required checks, never force-pushes and never reruns CI.
+#
+# Exit codes: 0 merged and verified; 1 stopped before merging (message says why);
+# 2 usage; 4 another card or run holds the base; 5 merged or possibly merged, but
+# the verification after it failed (check the PR by hand); 6 claim lost.
+#
+# Environment: MERGE_PR_POLL_SECONDS (default 60) poll interval;
+# MERGE_PR_BEAT_SECONDS (default 300, below 1800) heartbeat interval that keeps the
+# claim alive (a claim expires 30 min after the card's last beat);
+# MERGE_PR_RETRY_SECONDS (default 5) pause between retries of a failed read.
+set -euo pipefail
+
+usage() {
+  sed -n '11,12p' "$0" | sed 's/^# //' >&2
+  exit "${1:-2}"
+}
+
+pr=""
+card="${FM_CARD:-}"
+expected_head=""
+wait_minutes=0
+ci_timeout_minutes=90
+value() { [[ -n "${2:-}" && "$2" != -* ]] || usage; }
+while (($# > 0)); do
+  case "$1" in
+    --card) value "$@"; card="$2"; shift 2 ;;
+    --head) value "$@"; expected_head="$2"; shift 2 ;;
+    --wait) value "$@"; wait_minutes="$2"; shift 2 ;;
+    --ci-timeout) value "$@"; ci_timeout_minutes="$2"; shift 2 ;;
+    -h | --help) usage 0 ;;
+    -*) usage ;;
+    *) [[ -z "$pr" ]] || usage; pr="$1"; shift ;;
+  esac
+done
+number='^[0-9]+$'
+[[ "$pr" =~ $number && -n "$card" && "$expected_head" =~ ^[0-9a-f]{40}$ ]] || usage
+[[ "$wait_minutes" =~ $number && "$ci_timeout_minutes" =~ $number ]] || usage
+
+# 0 is accepted for tests only; real runs keep the defaults.
+poll_seconds="${MERGE_PR_POLL_SECONDS:-60}"
+beat_seconds="${MERGE_PR_BEAT_SECONDS:-300}"
+retry_seconds="${MERGE_PR_RETRY_SECONDS:-5}"
+[[ "$poll_seconds" =~ $number && "$beat_seconds" =~ $number && "$retry_seconds" =~ $number ]] || usage
+((beat_seconds < 1800)) || usage
+max_updates=5
+
+log() { echo "merge-pr #$pr: $*" >&2; }
+die() { log "$1"; exit "${2:-1}"; }
+
+# Sleeps in the background so INT/TERM reach the trap at once; the sleep does not
+# inherit the lock descriptor, and the trap kills it.
+pause_pid=""
+pause() {
+  sleep "$1" 9>&- &
+  pause_pid=$!
+  wait "$pause_pid"
+  pause_pid=""
+}
+
+# Runs a read-only gh call, retrying transient failures.
+gh_read() {
+  local attempt out
+  for attempt in 1 2 3; do
+    if out=$(gh "$@"); then
+      printf '%s\n' "$out"
+      return 0
+    fi
+    ((attempt == 3)) || pause "$retry_seconds"
+  done
+  log "gh $* failed 3 times"
+  return 1
+}
+
+repo=$(gh_read repo view --json nameWithOwner --jq .nameWithOwner) || exit 1
+repo_name=${repo#*/}
+
+# Sets state, draft, pr_base, head and merge_state from the live PR; a failed read
+# exits with $1 (default 1).
+read_pr() {
+  local row
+  row=$(gh_read pr view "$pr" --json state,isDraft,baseRefName,headRefOid,mergeStateStatus \
+    --jq '[.state, .isDraft, .baseRefName, .headRefOid, .mergeStateStatus] | @tsv') || exit "${1:-1}"
+  IFS=$'\t' read -r state draft pr_base head merge_state <<<"$row"
+}
+
+# Reads the PR and stops unless it is still open, ready, on $base and at $1.
+refresh() {
+  read_pr
+  [[ "$state" == OPEN && "$draft" == false ]] || die "PR is now $state (draft $draft)"
+  [[ "$pr_base" == "$base" ]] || die "PR base changed from $base to $pr_base"
+  [[ "$head" == "$1" ]] || die "PR head moved to $head; review it, then rerun scripts/merge-pr"
+}
+
+read_pr
+base=$pr_base
+[[ "$state" == OPEN ]] || die "PR is $state, not OPEN"
+[[ "$draft" == false ]] || die "PR is a draft; run gh pr ready $pr first"
+[[ "$head" == "$expected_head" ]] || die "PR head is $head, not the reviewed --head $expected_head"
+base_path=${base//\//%2F}
+resource="branch:$repo_name:$base"
+deadline=$(($(date +%s) + wait_minutes * 60))
+
+# Same-host runs (including two from the same card, which fm treats as a renewal)
+# serialize on a local lock first; the kernel drops it if the process dies.
+if command -v flock >/dev/null; then
+  lock_file="${XDG_RUNTIME_DIR:-/tmp}/merge-pr-$repo_name-${base//\//_}.lock"
+  exec 9>"$lock_file"
+  flock -w "$((wait_minutes * 60))" 9 || die "another merge-pr run holds $lock_file" 4
+else
+  log "flock not found; relying on the fm claim alone"
+fi
+
+# fm matches resources by lowercase prefix; only this exact manual claim counts.
+held_before=$(fm claims "$resource" --json |
+  jq -r --arg card "$card" --arg resource "${resource,,}" \
+    'any(.[]; .card == $card and (.resource | ascii_downcase) == $resource and ((.auto // false) | not))') \
+  || die "fm claims failed"
+claimed=false
+release() {
+  if [[ -n "$pause_pid" ]]; then kill "$pause_pid" 2>/dev/null || true; fi
+  if [[ "$claimed" == true && "$held_before" == false ]]; then
+    fm release "$card" "$resource" >/dev/null || log "fm release failed; run: fm release $card $resource"
+  fi
+}
+trap release EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Takes or renews the claim. Exit code 4 from fm means another live card holds it.
+claim() {
+  set +e
+  claim_out=$(fm claim "$card" "$resource" 2>&1)
+  claim_rc=$?
+  set -e
+}
+claim_errors=0
+while true; do
+  # Set first, so a signal or an fm crash during the claim still releases whatever
+  # it took; releasing a claim the card does not hold does nothing.
+  claimed=true
+  claim
+  ((claim_rc != 0)) || break
+  if ((claim_rc != 4)); then
+    claim_errors=$((claim_errors + 1))
+    if ((claim_errors >= 3)); then
+      echo "$claim_out" >&2
+      die "fm claim failed (exit $claim_rc)"
+    fi
+    pause "$retry_seconds"
+    continue
+  fi
+  claimed=false
+  if (($(date +%s) >= deadline)); then
+    echo "$claim_out" >&2
+    die "another card holds $resource; retry later or pass --wait <minutes>" 4
+  fi
+  log "waiting for $resource: $claim_out"
+  pause "$poll_seconds"
+done
+log "holds $resource for card $card"
+
+# Heartbeat plus claim renewal; exit 6 only when another card took the claim.
+last_beat=0
+beat() {
+  local now attempt
+  now=$(date +%s)
+  if [[ "${2:-}" == force ]] || ((now - last_beat >= beat_seconds)); then
+    fm beat "$card" "merge-pr #$pr: $1" >/dev/null || log "fm beat failed"
+    for attempt in 1 2 3; do
+      claim
+      ((claim_rc != 0)) || break
+      ((claim_rc != 4)) || die "lost $resource: $claim_out" 6
+      ((attempt < 3)) || die "fm claim keeps failing (exit $claim_rc): $claim_out"
+      pause "$retry_seconds"
+    done
+    last_beat=$now
+  fi
+}
+beat "holds $base, checking PR ${head:0:8}" force
+
+# Required checks as "context<TAB>app id" lines (empty app id: any source; classic
+# protection reports "any source" as app_id -1).
+required=$(
+  gh_read api "repos/$repo/branches/$base_path/protection/required_status_checks" \
+    --jq '.checks[] | [.context, (.app_id // -1 | if . == -1 then "" else tostring end)] | @tsv' &&
+  gh_read api "repos/$repo/rules/branches/$base_path" --paginate \
+    --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[] | [.context, (.integration_id // "" | tostring)] | @tsv'
+) || die "cannot read the base's required checks"
+required=$(sort -u <<<"$required" | grep -v '^$' || true)
+[[ -n "$required" ]] || die "no required checks found for $base; refusing to merge unverified"
+
+# Prints pass, pending, fail or skipped for one required check on $head.
+check_state() {
+  local -x CTX=$1 APP=$2
+  local row
+  row=$(gh_read api -X GET "repos/$repo/commits/$head/check-runs" -f check_name="$CTX" -f filter=latest \
+    --jq '[.check_runs[] | select(env.APP == "" or (.app.id | tostring) == env.APP)] | max_by(.id) // empty | [.status, (.conclusion // "")] | @tsv') || exit 1
+  if [[ -z "$row" && -z "$APP" ]]; then
+    row=$(gh_read api "repos/$repo/commits/$head/status?per_page=100" \
+      --jq '.statuses[] | select(.context == env.CTX) | .state') || exit 1
+  fi
+  case "$row" in
+    "" | pending | queued* | in_progress* | waiting* | requested* | pending$'\t'*) echo pending ;;
+    success | completed$'\t'success) echo pass ;;
+    completed$'\t'skipped | completed$'\t'neutral) echo skipped ;;
+    *) echo fail ;;
+  esac
+}
+
+# Waits until every required check passed on $head; the PR must not change.
+wait_for_checks() {
+  local ci_deadline context app result waiting reviewed=$head
+  ci_deadline=$(($(date +%s) + ci_timeout_minutes * 60))
+  log "waiting for required checks on $head (at most $ci_timeout_minutes min)"
+  beat "waiting for CI on ${head:0:8}" force
+  while true; do
+    waiting=""
+    while IFS=$'\t' read -r context app; do
+      result=$(check_state "$context" "$app")
+      case "$result" in
+        fail) die "required check $context failed on $head; fix it, push, then rerun scripts/merge-pr" ;;
+        skipped) die "required check $context was skipped on $head; GitHub counts that as passing, this script does not" ;;
+        pending) waiting="$waiting $context" ;;
+      esac
+    done <<<"$required"
+    [[ -n "$waiting" ]] || return 0
+    (($(date +%s) < ci_deadline)) || die "still pending on $head after $ci_timeout_minutes min:$waiting"
+    beat "waiting for CI on ${head:0:8}"
+    pause "$poll_seconds"
+    refresh "$reviewed"
+  done
+}
+
+# Counts one base update; the base moving too often means someone merges around us.
+count_update() {
+  ((updates < max_updates)) || die "base moved $max_updates times while this script held the claim; check who merges without scripts/merge-pr"
+  updates=$((updates + 1))
+}
+
+updates=0
+behind_reports=0
+while true; do
+  previous=$head
+  refresh "$previous"
+  base_sha=$(gh_read api "repos/$repo/git/ref/heads/$base" --jq .object.sha) || exit 1
+  behind=$(gh_read api "repos/$repo/compare/$base_sha...$head" --jq .behind_by) || exit 1
+  if ((behind > 0)); then
+    count_update
+    log "head $head is $behind commit(s) behind $base; merging $base into the PR"
+    beat "updating branch ($behind behind $base)" force
+    gh pr update-branch "$pr" >&2 || die "gh pr update-branch failed (error above); on a conflict merge origin/$base into the PR branch locally, push, review, then rerun"
+    for _ in 1 2 3 4 5 6; do
+      read_pr
+      [[ "$head" == "$previous" ]] || break
+      pause "$retry_seconds"
+    done
+    [[ "$head" != "$previous" ]] || die "update-branch did not move the PR head"
+    identity=$(gh_read api "repos/$repo/commits/$head" \
+      --jq '[([.parents[].sha] | join(" ")), (.commit.verification.verified | tostring), (.committer.login // "")] | @tsv') || exit 1
+    [[ "$identity" == "$previous $base_sha"$'\t'"true"$'\t'"web-flow" ]] \
+      || die "new head $head is not GitHub's update merge of $previous and $base_sha (parents, verified, committer: $identity)"
+    refresh "$head"
+    continue
+  fi
+
+  wait_for_checks
+  for _ in 1 2 3 4 5 6; do
+    refresh "$previous"
+    # GitHub recomputes the state lazily; BLOCKED can linger briefly after the checks pass.
+    [[ "$merge_state" == UNKNOWN || "$merge_state" == BLOCKED ]] || break
+    pause "$retry_seconds"
+  done
+  case "$merge_state" in
+    CLEAN | UNSTABLE | HAS_HOOKS) break ;;
+    BEHIND)
+      # The next round's compare counts a real base move; this only bounds a
+      # BEHIND state that the compare does not confirm.
+      behind_reports=$((behind_reports + 1))
+      ((behind_reports <= max_updates)) || die "GitHub keeps reporting BEHIND while the compare shows $head up to date"
+      log "GitHub reports the PR behind $base; checking again"
+      pause "$poll_seconds"
+      ;;
+    *) die "GitHub reports merge state $merge_state for $head; not merging" ;;
+  esac
+done
+
+beat "merging ${head:0:8} into $base" force
+log "required checks green on $head; merging"
+if ! gh pr merge "$pr" --merge --match-head-commit "$head" >&2; then
+  # The merge may have landed even though the client saw an error.
+  read_pr 5
+  case "$state" in
+    MERGED) log "gh pr merge reported an error, but the PR is merged" ;;
+    OPEN) die "gh pr merge failed (error above)" ;;
+    *) die "PR is $state after a failed gh pr merge; check it by hand" 5 ;;
+  esac
+fi
+
+row=$(gh_read pr view "$pr" --json state,mergeCommit --jq '[.state, (.mergeCommit.oid // "")] | @tsv') || exit 5
+IFS=$'\t' read -r state merge_sha <<<"$row"
+[[ "$state" == MERGED && -n "$merge_sha" ]] || die "PR is $state with merge commit '$merge_sha' after gh pr merge" 5
+head_tree=$(gh_read api "repos/$repo/commits/$head" --jq .commit.tree.sha) || exit 5
+merge_tree=$(gh_read api "repos/$repo/commits/$merge_sha" --jq .commit.tree.sha) || exit 5
+[[ "$head_tree" == "$merge_tree" ]] || die "merged as $merge_sha, but its tree $merge_tree differs from PR head $head tree $head_tree" 5
+log "merged as $merge_sha (tree $merge_tree equals PR head $head tree)"
+echo "$merge_sha"

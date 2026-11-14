@@ -32,13 +32,14 @@ import type { VertexOrdersGateway } from "./vertex-orders-client.ts";
 import {
   PNL_TONE_CLASS,
   REFRESH_INTERVALS,
-  accountLabel,
+  accountBadge,
   ageSeconds,
   clock,
   completedToday,
   isGatewayLive,
   isOptionPosition,
   failureVisible,
+  modeConfirmedText,
   monitorHealth,
   normalizeInterval,
   summaryStats,
@@ -343,12 +344,14 @@ export const Banner = ({
   failure,
   fetchedAt,
   health,
+  nowMs,
   snapshot,
 }: {
   readonly age: number | null;
   readonly failure: PortfolioMonitorFailure | null;
   readonly fetchedAt: number | null;
   readonly health: Health;
+  readonly nowMs: number;
   readonly snapshot: PortfolioMonitorOutput;
 }) => {
   if (failure !== null) {
@@ -363,6 +366,9 @@ export const Banner = ({
     );
   }
   if (health.key === "live") return null;
+  // AccountModeAlert states the mismatch and its fix; the values are withheld, not out of date.
+  if (health.key === "mode-mismatch") return null;
+  const confirmed = modeConfirmedText(snapshot, nowMs);
   const detail =
     health.key === "updating"
       ? `Updating: the last request did not complete, so the page is retrying. Values below are from ${clock(fetchedAt)}.`
@@ -370,7 +376,7 @@ export const Banner = ({
         ? age === null
           ? "The IBKR data time is unknown."
           : `The IBKR data is ${Math.round(age)} s old.`
-        : `IBKR gateway: ${snapshot.status.gateway}.`;
+        : `${health.label}.${confirmed === null ? "" : ` ${confirmed}.`}`;
   const lastError =
     snapshot.status.lastError === null ? "" : ` ${snapshot.status.lastError}`;
   return (
@@ -565,14 +571,37 @@ const TabShown = ({
   return children;
 };
 
-const AccountBadge = ({ mode }: { readonly mode: string }) => (
-  <StatusBadge
-    data-account-mode={mode}
-    status={mode === "live" ? "info" : "neutral"}
-  >
-    {accountLabel(mode)}
-  </StatusBadge>
-);
+export const AccountBadge = ({
+  account,
+}: {
+  readonly account: PortfolioMonitorOutput["account"];
+}) => {
+  const badge = accountBadge(account);
+  return (
+    <StatusBadge data-account-mode={badge.key} status={badge.tone}>
+      {badge.label}
+    </StatusBadge>
+  );
+};
+
+// A named account-mode error with its fix. Live and paper need no alert.
+export const AccountModeAlert = ({
+  account,
+}: {
+  readonly account: PortfolioMonitorOutput["account"];
+}) => {
+  const badge = accountBadge(account);
+  if (badge.next === null) return null;
+  return (
+    <p
+      className="rounded-md border border-destructive-border bg-destructive-subtle px-3 py-2 text-destructive text-sm"
+      data-banner={`account-mode-${badge.key}`}
+      role="alert"
+    >
+      {`${badge.label}. ${badge.next}`}
+    </p>
+  );
+};
 
 // Read-only IBKR monitor. It polls portfolioMonitor.snapshot and never sends anything to IBKR.
 // Layout (owner 2026-11-04): status line -> alerts -> collapsible Summary (account KPIs) ->
@@ -632,13 +661,17 @@ export const PortfolioMonitor = ({
         <FailureState failure={failure} onRetry={retry} />
       )
     ) : (
-      <Banner
-        age={age}
-        failure={failure}
-        fetchedAt={fetchedAt}
-        health={health}
-        snapshot={snapshot}
-      />
+      <>
+        <AccountModeAlert account={snapshot.account} />
+        <Banner
+          age={age}
+          failure={failure}
+          fetchedAt={fetchedAt}
+          health={health}
+          nowMs={nowMs}
+          snapshot={snapshot}
+        />
+      </>
     );
 
   // Before the first snapshot a section tab shows a table placeholder while loading, else
@@ -691,7 +724,7 @@ export const PortfolioMonitor = ({
             {health.label}
           </StatusBadge>
           {snapshot === null ? null : (
-            <AccountBadge mode={snapshot.account.mode} />
+            <AccountBadge account={snapshot.account} />
           )}
           <label
             className="text-muted-foreground text-xs"

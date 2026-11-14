@@ -58,6 +58,7 @@ The calendar spread passes as a Vertex strategy only if at least one config pass
 ## Code and tests
 
 - Payoff, Greeks, simulation, pass rule and report: `scripts/research/calendar-spread.ts`; tests: `scripts/research/calendar-spread.test.ts` (100% coverage).
+- Two-expiry structure on the qc-ports option book (Python, ledger and NautilusTrader): `services/research/strategies/qc_ports/book.py` (`parse_calendar`, `_price_calendar`), IV term `options.term_atm_iv`, forms `forms_other.py` (`CALENDAR_CONFIGS`, `calendar_form`), VIX6M fetch `research/backtests/options-forms/fetch_data.py`; tests: `services/research/tests/test_qc_ports_two_expiry.py` and `test_synthetic_calendar_books_match` in `test_qc_ports_nautilus.py`.
 - Fetch: `research/backtests/calendar-spread/fetch_data.py`; run: `bun run research:calendar-spread -- backtest --data <dir> --out research/backtests/calendar-spread/results.md`; full table: `research/backtests/calendar-spread/results.md`.
 - Data: Yahoo SPY, QQQ, TQQQ, SOXL, ^VIX, ^VIX3M, ^VXN, ^IRX daily closes 2010-01-04 (TQQQ 2010-02-11, SOXL 2010-03-11) to 2026-11-06, plus split events, fetched 2026-11-08 on the rig. Not committed (Yahoo terms do not allow redistribution); `SHA256SUMS` sits next to the files. SHA-256 prefixes of the run's input: SPY.csv 13c60340f47eb014, QQQ.csv cad11a8add5faee0, TQQQ.csv 91116dda1c5313db, SOXL.csv b1838b78232803ca, VIX.csv c073dbae037cd307, VIX3M.csv 197a05e90cbad9af, VXN.csv 01ec4e5f1a332c88, IRX.csv ffaa93d2ee22a416, SPY.splits.csv d31f6770fe6f1d41, QQQ.splits.csv 8c193ab8763748ff, TQQQ.splits.csv 250ea72e8ca93cd1, SOXL.splits.csv 0719bbc7473022e6. The re-fetch for D1 (same source, same end date, plus split files) overwrote the first run's input files; the SPY and QQQ rows are identical in both runs.
 
@@ -66,6 +67,14 @@ The calendar spread passes as a Vertex strategy only if at least one config pass
 - D0 (before the first run, same session): rule B4 was edited after the pre-registration commit and before the first run, in the commit that holds the first run. The far expiry became the near expiry + N days (it had been the first trading day 2N days out), and the intrinsic-value floor on both legs was added. Neither is a pass-rule change; removing the floor moves no table row by more than 0.2 points.
 - Clarification of B2: for configs B and C both legs are at least 93 days out, so both get VIX3M and rule 4 never skips a day; only config A on SPY tests rule 4 (688 skipped days).
 - D1 (found after the first run, before any rule change): Yahoo closes are split-adjusted, so TQQQ started near USD 0.22 and SOXL near USD 0.66 in those units, while the fixed per-share costs of B7 (USD 0.0065 commission, USD 0.01 minimum slippage) are in traded dollars. The first run (commit "first modeled run") charged them in adjusted dollars, which made early leveraged-ETF cycles look far worse than they were. Fix: prices stay split-adjusted (option contracts are adjusted at a split too); only the fixed costs are converted with the later split ratios (`costScale`). The pass rule and every other design choice are unchanged. SPY and QQQ have no split in the window, so their rows did not change. First run: verdict FAIL with the same passing set (config C on SPY and QQQ only).
+- D2 (2026-11-12, options forms study run on the qc-ports option book and NautilusTrader): the method of that run
+  (study README, section "The long calendar spread") was fixed for config A only, with the VIX/VIX3M term, before
+  its first run. That first run (config A on SPY from 2006-07-17, three option models) gave Sharpe -0.46 / -0.10 /
+  +0.03 (study / measured quotes / commissions only); it fails the gate and the lower bar. After seeing it, the
+  VIX6M point (182 days) was added so that configs B and C (100/200 days) get a real term structure, and B and C
+  were run too. Requiring VIX6M moved the start of every config, A included, to 2008-01-02; A then gave -0.45 /
+  -0.12 / +0.03. B and C were never run in that study before this change; their parameters are those of B5,
+  unchanged. Three configs count as three trials.
 
 ## Results (2026-11-08, rig, after D1)
 
@@ -96,6 +105,34 @@ Reading the table:
 ## Verdict: FAIL (modeled)
 
 Config C passes on 2 of 4 underlyings (SPY, QQQ); the rule needs 3 of 4. No config passes on TQQQ or SOXL at the pre-set 3% slippage (see the cost sensitivity above: at 2% it would pass). The long calendar spread stays in the catalog as a research strategy (status backtested, tag failed). Next step if wanted: rerun config C on real historical option chains (vendor is an owner decision, `research/backtests/151-strategies/harness-evaluation.md`).
+
+## Options forms study run (qc-ports option book and NautilusTrader, 2026-11-12)
+
+The options forms study (`research/backtests/options-forms/README.md`) left this strategy out on 2026-11-11: the
+qc-ports option book priced single-expiry verticals only. The book now prices the two-expiry structure
+(`services/research/strategies/qc_ports/book.py`, `callCalendar` and `putCalendar`): each leg at the ATM IV of
+its own days to expiry from the SPY term structure VIX (30 days), VIX3M (93 days) and VIX6M (182 days), linear in
+total variance, at least its exercise value. This closes the gap named above for config C: its legs no longer
+share one flat IV past 93 days (only the far leg, 183 to 214 days, lies past the VIX6M point). Configs A, B and C
+run as three forms on SPY (`forms_other.py`, `CALENDAR_CONFIGS`) with rule 4 at entry, monthly listed expiries,
+the study's cost model and the study's owner exit rule instead of rule 5 (a winner is held to the near expiry, a
+loser closes 3 days before it). Each runs on the qc-ports reference ledger and on NautilusTrader 1.227.0; both
+agree (largest relative equity gap 3.6e-16).
+
+Result (SPY, 2008-01-02 to 2026-11-10; Sharpe of the daily equity, not per cycle as above):
+
+|Config|Spreads|Sharpe, study model|Sharpe, measured SPY quotes|Sharpe, commissions only|Study gate|Owner's lower bar|
+|---|---|---|---|---|---|---|
+|A 30/60 ATM|195|-0.45|-0.12|+0.03|fail|fail in all three|
+|B 100/200 ATM|69|+0.18|+0.34|+0.37|fail|pass in the two diagnostic models|
+|C 100/200, 0.30 delta|71|+0.41|+0.85|+0.52|fail (deflated Sharpe; study model also Sharpe < 0.5)|pass in all three|
+
+This agrees with the modeled verdict above for A (fails on SPY) and keeps config C as the one result that holds
+up: with a real IV term structure, listed expiries and the owner exit rule it still earns on SPY in this model,
+but it does not pass the study gate. This run is SPY only (the only underlying with an IV term), so it cannot
+give the verdict of the pass rule above (one config on at least 3 of the 4 underlyings); that verdict stays FAIL.
+It stays research. The model limits above still apply (no real quotes,
+index-based IV, 2008-2026 mostly rising); a test on historical option chains would be the next step.
 
 ## The reel's numbers (SOXL, quotes at the 2026-11-06 close)
 

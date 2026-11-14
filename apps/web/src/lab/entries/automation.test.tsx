@@ -88,7 +88,7 @@ describe("automation lab entries", () => {
     try {
       const host = await mount("drafts");
       const text = host.textContent ?? "";
-      expect(text).toContain("This page sends no orders.");
+      expect(text).toContain("only if engine policy v3 accepts it");
       expect(text).toContain(
         "Plan approved by delegation (the owner delegated the allocation choice)"
       );
@@ -194,6 +194,10 @@ describe("automation lab entries", () => {
     await expect(
       gateway.reject({ id: "nope", note: "No." })
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // The lab never sends: a send is refused as on a disarmed node.
+    await expect(
+      gateway.sendApproved({ draftId: draft.id, order })
+    ).resolves.toMatchObject({ sent: false });
 
     const rejected = await gateway.reject({ id: draft.id, note: "No." });
     expect(rejected).toMatchObject({
