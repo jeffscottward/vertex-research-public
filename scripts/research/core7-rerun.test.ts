@@ -29,13 +29,8 @@ import {
   nautilusEngine,
   TYPESCRIPT_ENGINE_ID,
 } from "./dsl-engine.ts";
-import {
-  type LibraryDoc,
-  type LibraryStrategy,
-  loadLibrary,
-  parsePriceCsv,
-  RESEARCH_DIR,
-} from "./quantjourney.ts";
+import { loadLibrary, parsePriceCsv, RESEARCH_DIR } from "./quantjourney.ts";
+import type { LibraryDoc, LibraryStrategy } from "./quantjourney-schema.ts";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
 const temps: string[] = [];

@@ -57,6 +57,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "sectorRotation.snapshot",
   "semanticTerms.list",
   "semanticTerms.query",
+  "masterRules.search",
   "agentModelRuns.list",
   "agentModelRuns.get",
   "agentModelRuns.breakdown",
@@ -80,6 +81,8 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "openbb.factors",
   "breadth90.get",
   "goLiveDrafts.queue",
+  "marketNotes.list",
+  "marketNotes.get",
 ]);
 
 type OperatorErrorFactories = Readonly<{

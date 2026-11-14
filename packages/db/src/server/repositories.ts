@@ -252,6 +252,10 @@ import {
   type LeveragedEtfUniverseRepository,
 } from "./leveraged-etf-universe.ts";
 import {
+  type MarketNotesRepository,
+  createMarketNotesRepository,
+} from "./market-notes.ts";
+import {
   createPickListRepository,
   type PickListRepository,
 } from "./pick-list-repository.ts";
@@ -4486,6 +4490,7 @@ export type Repositories = Readonly<{
   breadth90?: Breadth90Repository;
   goLiveDrafts?: GoLiveDraftsRepository;
   leveragedEtfUniverse?: LeveragedEtfUniverseRepository;
+  marketNotes?: MarketNotesRepository;
 }>;
 
 export const createRepositories = (
@@ -4590,4 +4595,8 @@ export const createRepositories = (
     resolveDependencies(dependencies)
   ),
   leveragedEtfUniverse: createLeveragedEtfUniverseRepository(database),
+  marketNotes: createMarketNotesRepository(
+    database,
+    resolveDependencies(dependencies)
+  ),
 });

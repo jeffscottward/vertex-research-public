@@ -154,10 +154,16 @@ const DEFAULT_DEVELOPMENT_CONTENT: DevelopmentContentSeed = {
   featureItems: DEVELOPMENT_FEATURE_ITEMS,
 };
 
+type DevelopmentContentCounts = Readonly<{
+  addresses: number;
+  featureItems: number;
+}>;
+
+/** Returns the number of address and feature item rows left in the seeded state. */
 export const convergeDevelopmentContent = async (
   database: DatabaseExecutor,
   content: DevelopmentContentSeed = DEFAULT_DEVELOPMENT_CONTENT
-): Promise<void> => {
+): Promise<DevelopmentContentCounts> => {
   const addresses = createAddressRepository(database);
   for (const expected of content.addresses) {
     const current = await addresses.findByIdForUser(
@@ -184,4 +190,9 @@ export const convergeDevelopmentContent = async (
       await features.update(featureUpdate(expected), context);
     }
   }
+
+  return {
+    addresses: content.addresses.length,
+    featureItems: content.featureItems.length,
+  };
 };

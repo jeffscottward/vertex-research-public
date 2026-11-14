@@ -13,6 +13,8 @@ import {
   type GoLiveDraftRecord,
   GoLivePlanMismatchError,
   type GoLivePlanRecord,
+  type OrderIntentRepository,
+  type OrderSendState,
   type Repositories,
 } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
@@ -33,6 +35,7 @@ import {
   goLiveDraftsRouter,
   setGoLiveDraftsDependenciesForTesting,
 } from "./server/golive-drafts.ts";
+import { goLiveOrderRef } from "./server/golive-order-ref.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import { setJevVerdictForTesting } from "./server/jev-verdict.ts";
 import { setNautilusArmDependenciesForTesting } from "./server/nautilus-arm.ts";
@@ -330,6 +333,8 @@ type ClientOptions = Readonly<{
   apiKey?: string;
   ibkrRecovery?: Readonly<{ token: string; url: string }>;
   keyAccess?: "read" | "write";
+  // The order intent store (only what the queue reads of it); absent: not configured.
+  orderIntents?: Pick<OrderIntentRepository, "sendStates">;
   portfolioMonitor?: Readonly<{ token: string; url: string }>;
   repository?: GoLiveDraftsRepositoryPort;
   // null: no session.
@@ -349,6 +354,9 @@ const contextFor = (request: Request, options: ClientOptions) => {
     ...(options.repository === undefined
       ? {}
       : { goLiveDrafts: options.repository }),
+    ...(options.orderIntents === undefined
+      ? {}
+      : { orderIntents: options.orderIntents }),
   } as Repositories;
   const requireSession = async () => {
     if (user === null) throw authError(401);
@@ -545,6 +553,7 @@ describe("goLiveDrafts.queue", () => {
     expect(spy).toEqual({
       ...record("d-spy"),
       approvedRoom: null,
+      exitSchedule: null,
       notApprovable: [],
       notes: [],
       order: ORDER,
@@ -562,6 +571,7 @@ describe("goLiveDrafts.queue", () => {
       },
       // The stored ISO text is returned as a date.
       quote: { ...liveQuote(), asOf: new Date(LIVE_AS_OF) },
+      send: null,
       sizing: SIZED,
     });
     // A late entry on a delayed quote is listed with its size and cannot be approved.
@@ -817,6 +827,120 @@ describe("goLiveDrafts.queue", () => {
       expect(queue.drafts[0]).toMatchObject({ approvedOrder: null, state });
     }
   );
+
+  describe("send of an approved entry", () => {
+    const approved = (id: string, overrides: Partial<GoLiveDraftRecord> = {}) =>
+      record(id, {
+        approvedOrder: ORDER,
+        decidedAt: NOW,
+        decidedBy: "owner",
+        state: "approved",
+        ...overrides,
+      });
+    const STATES = {
+      "d-changed": "position-changed",
+      "d-none": "none",
+      "d-notfound": "not-found",
+      "d-nottaken": "not-taken",
+      "d-open": "open",
+      "d-pending": "pending",
+      "d-placed": "placed",
+      "d-refused": "refused",
+      "d-unknown": "unknown",
+    } as const satisfies Record<string, OrderSendState>;
+    const storeOf = async () => {
+      const byRef = new Map<string, OrderSendState>(
+        await Promise.all(
+          Object.entries(STATES).map(
+            async ([id, state]) => [await goLiveOrderRef(id), state] as const
+          )
+        )
+      );
+      return vi.fn(
+        async (refs: readonly string[]) =>
+          new Map(refs.map((ref) => [ref, byRef.get(ref) ?? "none"]))
+      );
+    };
+
+    it("says where it stands, from the order intent rows of the draft's orderRef", async () => {
+      const sendStates = await storeOf();
+      const memory = createMemoryRepository({
+        drafts: [
+          ...Object.keys(STATES).map((id) => approved(id)),
+          record("d-proposed"),
+          // An exit draft has no send on this page.
+          approved("d-exit", {
+            entryBasis: null,
+            exitReason: "loser_3_trading_days_before_expiry",
+            kind: "exit",
+            parentDraftId: "d-none",
+          }),
+        ],
+      });
+      const queue = await clientFor({
+        orderIntents: { sendStates },
+        repository: memory.repository,
+      }).goLiveDrafts.queue({});
+      expect(
+        Object.fromEntries(queue.drafts.map((draft) => [draft.id, draft.send]))
+      ).toEqual({
+        "d-changed": "sent",
+        "d-exit": null,
+        "d-none": "not_sent",
+        "d-notfound": "not_found",
+        "d-nottaken": "not_taken",
+        "d-open": "sent",
+        "d-pending": "unknown",
+        "d-placed": "sent",
+        "d-proposed": null,
+        "d-refused": "refused",
+        "d-unknown": "unknown",
+      });
+      // One read for every entry draft of the day, so a draft approved by this request has one.
+      expect(sendStates).toHaveBeenCalledTimes(1);
+      expect(sendStates.mock.calls[0]?.[0]).toEqual(
+        await Promise.all(
+          [...Object.keys(STATES), "d-proposed"].map(goLiveOrderRef)
+        )
+      );
+    });
+
+    it("is unavailable when the intent store is missing, fails or has no answer for the ref", async () => {
+      const memory = createMemoryRepository({ drafts: [approved("d-spy")] });
+      const sendOf = async (options: ClientOptions) =>
+        (
+          await clientFor({
+            repository: memory.repository,
+            ...options,
+          }).goLiveDrafts.queue({})
+        ).drafts[0]?.send;
+      expect(await sendOf({})).toBe("unavailable");
+      expect(
+        await sendOf({
+          orderIntents: {
+            sendStates: async () => {
+              throw new Error("database down");
+            },
+          },
+        })
+      ).toBe("unavailable");
+      expect(
+        await sendOf({ orderIntents: { sendStates: async () => new Map() } })
+      ).toBe("unavailable");
+    });
+
+    it("is not read for an agent API key", async () => {
+      const sendStates = await storeOf();
+      const memory = createMemoryRepository({ drafts: [approved("d-none")] });
+      const queue = await clientFor({
+        apiKey: PLAINTEXT,
+        orderIntents: { sendStates },
+        repository: memory.repository,
+      }).goLiveDrafts.queue({});
+      expect(queue.drafts[0]?.send).toBeNull();
+      expect(sendStates).not.toHaveBeenCalled();
+    });
+  });
 
   it("does not show an approved order to an agent API key", async () => {
     // The quantity of an approved order was sized from the account value, and a key also sees
@@ -1713,6 +1837,46 @@ describe("goLiveDrafts.approve", () => {
     );
   });
 
+  it("approves a late entry only with the owner's outside-the-tested-rule tick, and says so in the note", async () => {
+    const late = record("d-spy", {
+      entryBasis: "model_holds_account_does_not",
+    });
+    const memory = createMemoryRepository({ drafts: [late] });
+    const client = clientFor({ repository: memory.repository });
+    await expectCode(client.goLiveDrafts.approve(approval()), "CONFLICT", 409);
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+    await client.goLiveDrafts.approve(
+      approval({ note: "Starter", outsideTestedEntryRule: true })
+    );
+    expect(memory.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvedOrder: ORDER,
+        decision: "approved",
+        id: "d-spy",
+        note: "[Approved outside the tested entry rule (late entry), owner tick box] Starter",
+      })
+    );
+  });
+
+  it("does not lift any other reason with the tick", async () => {
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-spy", {
+          entryBasis: "model_holds_account_does_not",
+          quote: liveQuote({ source: "yahoo_delayed_snapshot" }),
+        }),
+      ],
+    });
+    await expectCode(
+      clientFor({ repository: memory.repository }).goLiveDrafts.approve(
+        approval({ outsideTestedEntryRule: true })
+      ),
+      "CONFLICT",
+      409
+    );
+    expect(memory.repository.decide).not.toHaveBeenCalled();
+  });
+
   it("refuses a draft for each reason it cannot be approved", async () => {
     type Case = Readonly<{
       dependencies?: GoLiveDraftsDependencies;
@@ -1932,6 +2096,107 @@ describe("goLiveDrafts.approve", () => {
       "STORAGE_ERROR",
       503
     );
+  });
+});
+
+describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
+  const delayed = liveQuote({ source: "yahoo_delayed_snapshot" });
+
+  it("overlays the live spread quote on a proposed draft, so it becomes approvable", async () => {
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => ({ ...liveQuote(), asOf: new Date(LIVE_AS_OF) }))
+    );
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const client = clientFor({ repository: memory.repository });
+    const queue = await client.goLiveDrafts.queue({});
+    expect(reader).toHaveBeenCalledWith([
+      {
+        long: { expiry: EXPIRY, right: "C", strike: 100, symbol: "SPY" },
+        short: { expiry: EXPIRY, right: "C", strike: 105, symbol: "SPY" },
+      },
+    ]);
+    expect(queue.drafts[0]?.quote?.source).toBe("ibkr_live");
+    expect(queue.drafts[0]?.notApprovable).toEqual([]);
+    expect(queue.drafts[0]?.order).toEqual(ORDER);
+    await client.goLiveDrafts.approve(approval());
+    expect(memory.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({ approvedOrder: ORDER, id: "d-spy" })
+    );
+  });
+
+  it("quotes a put spread with put legs, and approves a late entry with the tick and no note", async () => {
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => null)
+    );
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-iwm", {
+          longStrike: 95,
+          shortStrike: 100,
+          sleeveKey: "income",
+          structure: "putCreditVertical",
+          symbol: "IWM",
+        }),
+      ],
+    });
+    await clientFor({ repository: memory.repository }).goLiveDrafts.queue({});
+    expect(reader).toHaveBeenCalledWith([
+      {
+        long: { expiry: EXPIRY, right: "P", strike: 95, symbol: "IWM" },
+        short: { expiry: EXPIRY, right: "P", strike: 100, symbol: "IWM" },
+      },
+    ]);
+    inject();
+    const late = createMemoryRepository({
+      drafts: [record("d-spy", { entryBasis: "model_holds_account_does_not" })],
+    });
+    await clientFor({ repository: late.repository }).goLiveDrafts.approve(
+      approval({ outsideTestedEntryRule: true })
+    );
+    expect(late.repository.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        note: "[Approved outside the tested entry rule (late entry), owner tick box]",
+      })
+    );
+  });
+
+  it("keeps the stored quotes when the live quote reader fails", async () => {
+    inject({ liveQuotes: () => Promise.reject(new Error("bridge down")) });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    expect(queue.drafts[0]?.quote?.source).toBe("yahoo_delayed_snapshot");
+  });
+
+  it("keeps the stored delayed quote when the reader has no live quote", async () => {
+    inject({ liveQuotes: async (spreads) => spreads.map(() => null) });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed })],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    expect(queue.drafts[0]?.quote?.source).toBe("yahoo_delayed_snapshot");
+    expect(queue.drafts[0]?.notApprovable).toContain("NO_LIVE_IBKR_QUOTE");
+  });
+
+  it("never quotes a decided draft or an API key caller", async () => {
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => null)
+    );
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [record("d-spy", { quote: delayed, state: "rejected" })],
+    });
+    await clientFor({ repository: memory.repository }).goLiveDrafts.queue({});
+    expect(reader).not.toHaveBeenCalled();
   });
 });
 
@@ -2158,6 +2423,7 @@ describe("goLiveDrafts sizing rules at the API", () => {
     // count 125, and QQQ would fit.
     expect(qqq).toMatchObject({
       approvedRoom: null,
+      exitSchedule: null,
       notApprovable: ["SIZED_TO_ZERO"],
       order: null,
       sizing: { quantity: 0, reason: "sleeve_budget_used" },
@@ -2322,6 +2588,7 @@ describe("goLiveDrafts sizing rules at the API", () => {
     // The 882 are what blocks the next draft: 882 + 125 is above the open risk cap of 900.
     expect(qqq).toMatchObject({
       approvedRoom: null,
+      exitSchedule: null,
       sizing: { quantity: 0, reason: "open_risk_cap_reached" },
     });
     // Without an account value the amount is still shown, and its share is empty.

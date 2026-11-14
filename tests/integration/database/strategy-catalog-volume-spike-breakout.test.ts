@@ -29,6 +29,11 @@ const rollbackSql = readFileSync(
   ),
   "utf8"
 );
+// Later catalog rows that also carry an external claim (0070 triple-rsi) are rolled back first, in reverse
+// migration order, so this suite sees the claim columns as 0065 left them.
+const laterClaimRollbacks = [
+  "../../../packages/db/rollback/0070_strategy_catalog_triple_rsi.down.sql",
+].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
 // The DDL runs once; only the insert-if-missing statement may run again.
 const insertSql = migrationSql.slice(migrationSql.indexOf("INSERT INTO"));
 const OTHER_ROW =
@@ -64,6 +69,7 @@ describe("0065 volume spike breakout catalog row (Postgres)", () => {
       maxConnections: 2,
     });
     await migrate(resource.db);
+    for (const sql of laterClaimRollbacks) await postgres().query(sql);
   }, 60_000);
 
   afterAll(async () => {
@@ -157,21 +163,21 @@ describe("0065 volume spike breakout catalog row (Postgres)", () => {
     if (resource === undefined) throw new Error("Database not started");
     const repository = createStrategyLibraryRepository(resource.db);
     const created = await repository.create({
-      name: "Claim to clear",
-      kind: "python",
       externalValidation: {
-        sourceUrl: "https://video.example.test/claim",
-        sourceTitle: "A claim",
-        sourceAuthor: "Someone",
-        publishedOn: "2026-09-24",
         claimedMethod: "One backtest.",
         claimedMetrics: [{ label: "Rank", value: "1" }],
+        publishedOn: "2026-09-24",
+        sourceAuthor: "Someone",
+        sourceTitle: "A claim",
+        sourceUrl: "https://video.example.test/claim",
       },
+      kind: "python",
+      name: "Claim to clear",
     });
     expect(created.externalValidation?.sourceTitle).toBe("A claim");
     const cleared = await repository.update({
-      id: created.id,
       externalValidation: null,
+      id: created.id,
     });
     expect(cleared?.externalValidation).toBeNull();
     const [stored] = await postgres().query<{ sql_null: boolean }>(

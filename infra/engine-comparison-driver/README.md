@@ -4,7 +4,7 @@ Step 4 of the [Nautilus switch plan](../../docs/vertex-rebuild/nautilus-backtest
 
 Dependencies:
 
-- The instant leg needs `instantBacktest.run` in the agent key scope (`AGENT_API_KEY_PROCEDURE_PATHS` in `packages/api/src/server/handler.ts`), a separate change. Until that is deployed, the first instant request answers 403 and the driver logs one FAIL, skips the other instant runs and exits 1.
+- The instant leg calls `instantBacktest.run` with the driver's operator write key. It is in the agent key scope (`AGENT_API_KEY_PROCEDURE_PATHS` in `packages/api/src/server/handler.ts`) since card vertex-step4-live-data (2026-11-12); `instantBacktest.series` and `instantBacktest.universes` stay session-only. A server without that change answers 403 on the first instant request; the driver then logs one FAIL, skips the other instant runs and exits 1.
 - The report step needs `vertex:engine-comparison-report` (PR #167) in the runner checkout. Without it the wrapper exits 3 after the driver (or with the driver's own failure code).
 
 ## What one run does

@@ -31,6 +31,7 @@ import { researchReportsContract } from "./contracts/research-reports.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { flowContract } from "./contracts/flow.ts";
 import { semanticTermsContract } from "./contracts/semantic-terms.ts";
+import { masterRulesContract } from "./contracts/master-rules.ts";
 import { clickLogContract } from "./contracts/click-log.ts";
 import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
 import { strategyLibraryContract } from "./contracts/strategy-library.ts";
@@ -56,6 +57,7 @@ import { portfolioMonitorContract } from "./contracts/portfolio-monitor.ts";
 import { enginesContract } from "./contracts/engines.ts";
 import { ibkrMonitorContract } from "./contracts/ibkr-monitor.ts";
 import { marketContextContract } from "./contracts/market-context.ts";
+import { marketNotesContract } from "./contracts/market-notes.ts";
 import { ibkrRecoveryContract } from "./contracts/ibkr-recovery.ts";
 import { nautilusArmContract } from "./contracts/nautilus-arm.ts";
 import { vertexOrdersContract } from "./contracts/vertex-orders.ts";
@@ -309,6 +311,7 @@ export const appContract = {
   researchStudies: researchStudiesContract,
   flow: flowContract,
   semanticTerms: semanticTermsContract,
+  masterRules: masterRulesContract,
   clickLog: clickLogContract,
   papers: papersContract,
   agentModelRuns: agentModelRunsContract,
@@ -336,6 +339,7 @@ export const appContract = {
   ibkrMonitor: ibkrMonitorContract,
   engines: enginesContract,
   marketContext: marketContextContract,
+  marketNotes: marketNotesContract,
   ibkrRecovery: ibkrRecoveryContract,
   nautilusArm: nautilusArmContract,
   vertexOrders: vertexOrdersContract,
