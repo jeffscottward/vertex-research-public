@@ -824,7 +824,8 @@ describe("scripts/merge-pr", () => {
     const { calls, status, stderr } = run({}, ARGS, {
       remotes: {
         ...ONE_REMOTE,
-        token: `https://user:secret@github.com/${REPO}.git`,
+        // A raw "@" in the password must not leave its tail behind.
+        token: `https://user:sec@ret@github.com/${REPO}.git`,
       },
     });
     expect(status).toBe(0);
@@ -832,7 +833,7 @@ describe("scripts/merge-pr", () => {
     expect(calls.filter((call) => call.startsWith("gh repo view"))).toEqual([
       `gh repo view ${ONE_REMOTE.origin} --json nameWithOwner --jq .nameWithOwner`,
     ]);
-    expect(`${calls.join("\n")}\n${stderr}`).not.toContain("secret");
+    expect(`${calls.join("\n")}\n${stderr}`).not.toMatch(/user:|ret@/);
   });
 
   it("stops when gh cannot read a remote or the --repo value", () => {

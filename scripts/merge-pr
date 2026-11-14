@@ -155,7 +155,7 @@ resolve_repo() {
   for line in "${lines[@]}"; do
     read -r remote url _ <<<"$line"
     # A user name or token in the URL is not needed and must not reach a log.
-    [[ ! "$url" =~ ^([a-z+]+://)[^/@]*@(.*)$ ]] || url="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+    [[ ! "$url" =~ ^([a-z+]+://)[^/]*@(.*)$ ]] || url="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
     [[ -n "$url" && -z "${seen[$url]:-}" ]] || continue
     seen[$url]=1
     name=$(repo_name_of "$url") || die "gh cannot read remote $remote ($url) as a GitHub repository; $hint"
