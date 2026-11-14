@@ -355,6 +355,10 @@ Four phases. Each phase ends with `bun run check` and the focused tests of its f
 
 * This document, committed in the same PR as the code so that `bun run docs:check` finds every path it names.
 
+#### 26. `tests/integration/semantic-layer/eval-recording.fixture.json` and `docs/vertex-rebuild/agent-semantic-layer.md` (Modify, found in CI)
+
+* The semantic-layer eval replay compares every tool result with its recording. `strategies_list` rows now carry `vertexStudy`, so the Q13 and H4 trials were recorded again the documented way (`bun run eval:semantic:record -- 3 1 Q13 H4`, then OMP judge_batch grading and a manual audit) and the re-recording is logged in the semantic-layer doc.
+
 ### Verification Plan
 
 1. While working: `pnpm exec vitest run <file>` for each changed test file.
