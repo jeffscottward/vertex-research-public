@@ -94,10 +94,15 @@ A migration takes the next free number on the branch where it is written (`NNNN_
 ```sh
 git merge origin/vertex/rebuild-darkfactory-20260921   # stops on the journal conflict
 pnpm db:renumber                                        # resolves it and stages the result
+pnpm db:generate                                        # must report "No schema changes"
 git commit --no-edit
 ```
 
 `db:renumber` keeps the base's migrations as they are and moves this branch's new ones behind them: next free numbers, `when` newer than the base's last entry (Drizzle skips an entry whose `when` is not newer than the last applied one), renamed SQL, snapshot and rollback files, every reference to the old tag in tracked text files rewritten, and each snapshot's `prevId` pointing at the snapshot before it. It prints the lines that still name the old number (`check the old number: ...`; some hits are other numbers): fix the real ones by hand, and re-run a generator whose output embeds the number. A second run with the same base changes nothing.
+
+`db:renumber` also merges the base's schema changes into each snapshot it moves, so the newest snapshot again describes the whole schema. It exits with code 1 and prints `check the snapshot: ...` when a person must correct a snapshot. Either both sides changed the same value (it kept this branch's value: set the named key to the value after both migrations), or it could not merge and changed only `prevId`: the snapshot that the branch's snapshot was generated from is not in the checkout (copy the missing objects from the base's newest snapshot), or `version` or `dialect` differ between the snapshots (write the snapshot again with the base's drizzle-kit version). It also names each later snapshot of the branch that was generated from such a snapshot; repeat the correction there. A second run does not repeat these lines.
+
+After the other conflicts are resolved and before the merge commit, run `pnpm db:generate` (it needs `DATABASE_URL` but does not connect). It must report "No schema changes". If it writes a migration instead, the moved snapshot is still incomplete. Do not commit that migration: remove the generated files (`git clean -f packages/db/migrations`, `git restore packages/db/migrations/meta/_journal.json`) and correct the snapshot until the check passes.
 
 The base is `MERGE_HEAD` during the merge, else origin/HEAD; pass `--base <ref>` for another one. It writes nothing and stops when a migration it would move is already on `MERGE_HEAD`, on origin/HEAD or on its local branch (the base you passed is older than the one you merged, or you are on the base branch itself: run it on the feature branch; a clone without origin/HEAD gets only the `MERGE_HEAD` check), when two of the branch's migrations share a number and a snapshot file, or when a snapshot still has conflict markers. It also stops during a rebase, where Git swaps the two sides of a conflict: run `git rebase --abort`, then update the branch with `git merge <base>` instead. A branch that contains the base through a merge commit still merges with `--ff-only`.
 
