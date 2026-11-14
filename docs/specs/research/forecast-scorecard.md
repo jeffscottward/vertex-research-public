@@ -486,7 +486,7 @@ Reading:
 
 * All five control runs agree with the independent check value. The baseline copy scores 0 and the perfect control scores 1.
 * With 925 clusters, each planted strength reaches `SKILL`, the 55% hit rate included.
-* Small samples find much less. On the synthetic bars of the tests (about 45 clusters) the planted control at 0.20 reached `SKILL` with one seed and `UNDECIDED` with another.
+* Small samples find much less. On an earlier synthetic test fixture (about 45 clusters; not in the repository) the planted control at 0.20 reached `SKILL` with one seed and `UNDECIDED` with another.
 * Measured false `SKILL` rate for a forecaster with zero expected skill: 22 of 200 seeds (11%) in the unit test (40 clusters with 3 windows each). The same generator with 400 seeds, run outside the test suite, gave 9.0% at 40 clusters, 6.0% at 100 and 6.5% at 300. The nominal level is 5%, so the interval is somewhat too narrow, more so at small samples. A `SKILL` status near the 30-cluster minimum needs this caution.
 * The run says nothing about JEV.
 
