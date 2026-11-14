@@ -185,7 +185,7 @@ Scored windows of different symbols on the same or near dates share market moves
 | `WORSE_THAN_BASELINE` | `high < 0` |
 | `UNDECIDED` | Otherwise |
 
-Why these values: the 90% interval makes `SKILL` a one-sided test with a nominal level of 5% (the measured rate is in the First run section); 30 clusters is the smallest sample for which a percentile interval is commonly used, and it is about 14 months of dates; the block length of 2 covers the overlap of neighbouring clusters. The result also holds `halfWidth = (high - low) / 2`. It describes the width of the interval only; it is not a guaranteed detection limit.
+Why these values: the 90% interval makes `SKILL` a one-sided test with a nominal level of 5% (the measured rate is higher; see First run); 30 clusters is the smallest sample for which a percentile interval is commonly used, and it is about 14 months of dates; the block length of 2 covers the overlap of neighbouring clusters. The result also holds `halfWidth = (high - low) / 2`. It describes the width of the interval only; it is not a guaranteed detection limit.
 
 ### Direction hits
 
@@ -457,6 +457,38 @@ No change: `knip.jsonc` (root scripts are found through `package.json`), `capabi
 * **Pre-push gate**: `bun run verify:prepush` (static checks plus unit, contract and operations tests). The pull request needs the eight required checks of [AGENTS.md](../../../AGENTS.md) (four verification lanes, two Analyze jobs, CodeQL, Dependency Review).
 * **Live run**: on the rig, `bun run research:forecast-scorecard -- --bars ~/Documents/reports/vertex-options-forms/data --symbols SPY,QQQ,IWM,AAPL,NVDA`, once as JSON and once with `--summary`, each redirected to a file under `~/Documents/reports/web/calibrain-eval/` (outside the repository). The five files have the required header (checked on 2026-11-14). Pass: exit 0; `controlsPassed` true; a second JSON run gives a file with the same SHA-256; `time` shows under 60 seconds; a search of both output files for the last `adj_close` value of each bar file gives no match.
 * **Drift check**: after implementation, a fresh reviewer compares this document with the code (the `egm-drift-report` procedure of the design process; it is not a repository script).
+
+--------------------------------------------------------------------------------
+
+## First run
+
+Date: 2026-11-14, on the rig. Command: `bun run research:forecast-scorecard -- --bars <research data folder> --symbols SPY,QQQ,IWM,AAPL,NVDA`, once as JSON and once with `--summary`. Exit code 0, `controlsPassed` true. Run time: 0.47 seconds. A second JSON run gave the same SHA-256. No price value of the bar files is in the output.
+
+| Bar file | Rows | First date | Last date | SHA-256 (first 16) |
+| --- | --- | --- | --- | --- |
+| AAPL.csv | 9283 | 1990-01-02 | 2026-11-10 | `837747c69c892ec0` |
+| IWM.csv | 6654 | 2000-05-26 | 2026-11-10 | `cf3265d6756de1fd` |
+| NVDA.csv | 6994 | 1999-01-22 | 2026-11-10 | `353657c9a7c3e23f` |
+| QQQ.csv | 6962 | 1999-03-10 | 2026-11-10 | `145fdae178166bac` |
+| SPY.csv | 8504 | 1993-01-29 | 2026-11-10 | `a8abee2cb9eca24c` |
+
+Summary lines of the five control runs (seed 7):
+
+```text
+baseline-copy: scored 3703, clusters 925, skill best 0.0000 [0.0000, 0.0000], UNDECIDED, check agrees, hits 2129/3695 sided, prior 2129/3703 (counts only)
+perfect: scored 3703, clusters 925, skill best 1.0000 [1.0000, 1.0000], SKILL, check agrees, hits 3703/3703 sided, prior 2129/3703 (counts only)
+planted-0.05: scored 3703, clusters 925, skill best 0.0105 [0.0051, 0.0160], SKILL, check agrees, hits 2158/3703 sided, prior 2129/3703 (counts only)
+planted-0.10: scored 3703, clusters 925, skill best 0.0395 [0.0285, 0.0512], SKILL, check agrees, hits 2243/3703 sided, prior 2129/3703 (counts only)
+planted-0.20: scored 3703, clusters 925, skill best 0.1681 [0.1481, 0.1874], SKILL, check agrees, hits 2619/3703 sided, prior 2129/3703 (counts only)
+```
+
+Reading:
+
+* All five control runs agree with the independent check value. The baseline copy scores 0 and the perfect control scores 1.
+* With 925 clusters, each planted strength reaches `SKILL`, the 55% hit rate included.
+* Small samples find much less. On the synthetic bars of the tests (about 45 clusters) the planted control at 0.20 reached `SKILL` with one seed and `UNDECIDED` with another.
+* Measured false `SKILL` rate for a forecaster with zero expected skill: 22 of 200 seeds (11%) in the unit test (40 clusters with 3 windows each). The same generator with 400 seeds, run outside the test suite, gave 9.0% at 40 clusters, 6.0% at 100 and 6.5% at 300. The nominal level is 5%, so the interval is somewhat too narrow, more so at small samples. A `SKILL` status near the 30-cluster minimum needs this caution.
+* The run says nothing about JEV.
 
 --------------------------------------------------------------------------------
 
