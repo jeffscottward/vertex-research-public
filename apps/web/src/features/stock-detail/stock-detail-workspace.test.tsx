@@ -22,6 +22,7 @@ import {
 } from "./fake-gateways.ts";
 import type { OptionsChainGateway } from "./options-chain-client.ts";
 import {
+  chainFlow,
   chainSummary,
   StockDetailWorkspace,
 } from "./stock-detail-workspace.tsx";
@@ -395,6 +396,233 @@ describe("StockDetailWorkspace", () => {
     later.chain.chain.mockImplementation(() => new Promise(() => undefined));
     const second = await mount(workspace("NVDA", later));
     expect(second.textContent).toContain("Loading NVDA options");
+  });
+});
+
+describe("last price card", () => {
+  const subText = async (
+    change: Partial<Pick<OptionsChainOutput, "quoteTime" | "spotSource">>
+  ) => {
+    const gateways = spies();
+    const chain = await createFakeOptionsChainGateway().chain({
+      symbol: "NVDA",
+    });
+    gateways.chain.chain.mockImplementation(async () => ({
+      ...chain,
+      ...change,
+    }));
+    const container = await mount(workspace("NVDA", gateways));
+    return container.querySelector("[data-stock-kpis]")?.textContent ?? "";
+  };
+
+  it("names the source of the spot when it sends no quote time", async () => {
+    // The dummy chain: a Quant Data spot without a quote time.
+    await expect(subText({})).resolves.toContain("Spot from Quant Data");
+    await expect(subText({ spotSource: "ibkr" })).resolves.toContain(
+      "Spot from IBKR"
+    );
+    await expect(subText({ spotSource: "yahoo" })).resolves.toContain(
+      "Spot from Yahoo Finance"
+    );
+  });
+
+  it("shows the quote time when there is one, and the plain text without a source", async () => {
+    const timed = await subText({
+      quoteTime: "2026-11-04T15:00:00.000Z",
+      spotSource: "ibkr",
+    });
+    expect(timed).toContain("Quote 04 Nov 2026 15:00 UTC");
+    expect(timed).not.toContain("Spot from");
+    const unknown = await subText({ spotSource: null });
+    expect(unknown).toContain("Spot from the options feed");
+    // While the chain loads there is no source yet.
+    const loading = spies();
+    loading.chain.chain.mockImplementation(() => new Promise(() => undefined));
+    const pending = await mount(workspace("NVDA", loading));
+    expect(pending.querySelector("[data-stock-kpis]")?.textContent).toContain(
+      "Spot from the options feed"
+    );
+  });
+});
+
+describe("chain source and flow lines", () => {
+  it("shows what each source did and the Quant Data flow under the KPI row", async () => {
+    const container = await mount(workspace("NVDA", spies()));
+    const lines = container.querySelector("[data-chain-sources]");
+    expect(lines?.previousElementSibling?.hasAttribute("data-stock-kpis")).toBe(
+      true
+    );
+    expect(lines?.querySelector("p")?.textContent).toBe(
+      "Sources · Quant Data: used · IBKR: used · Yahoo Finance: used"
+    );
+    expect(lines?.querySelector("[data-source-message]")).toBeNull();
+    const chain = await createFakeOptionsChainGateway().chain({
+      symbol: "NVDA",
+    });
+    const flow = chainFlow(chain);
+    expect(flow?.call).toBeGreaterThan(1000);
+    expect(flow?.put).toBeGreaterThan(1000);
+    expect(container.querySelector("[data-chain-flow]")?.textContent).toMatch(
+      /^Quant Data flow · call premium \$[\d.]+[KMB]? · put premium \$[\d.]+[KMB]? \(this expiry\)$/u
+    );
+  });
+
+  it("shows each source reason as visible text and hides the flow line without flow", async () => {
+    const gateways = spies();
+    const chain = await createFakeOptionsChainGateway().chain({
+      symbol: "NVDA",
+    });
+    gateways.chain.chain.mockImplementation(async () => ({
+      ...chain,
+      rows: chain.rows.map((row) => ({
+        call: row.call === null ? null : { ...row.call, flow: null },
+        put: row.put === null ? null : { ...row.put, flow: null },
+        strike: row.strike,
+      })),
+      sources: [
+        {
+          message: "QuantData termStructure: HTTP 500.",
+          source: "quantdata",
+          status: "failed",
+        },
+        {
+          message: "IBKR is asked only during the US regular session",
+          source: "ibkr",
+          status: "off",
+        },
+        {
+          message: "Yahoo Finance has no option rows for this expiry",
+          source: "yahoo",
+          status: "empty",
+        },
+      ],
+    }));
+    const container = await mount(workspace("NVDA", gateways));
+    const items = [
+      ...container.querySelectorAll("[data-chain-sources] [data-source]"),
+    ].map((node) => [
+      node.getAttribute("data-source"),
+      node.getAttribute("data-status"),
+      node.textContent,
+    ]);
+    expect(items).toEqual([
+      [
+        "quantdata",
+        "failed",
+        " · Quant Data: failed (QuantData termStructure: HTTP 500.)",
+      ],
+      [
+        "ibkr",
+        "off",
+        " · IBKR: off (IBKR is asked only during the US regular session)",
+      ],
+      [
+        "yahoo",
+        "empty",
+        " · Yahoo Finance: no data (Yahoo Finance has no option rows for this expiry)",
+      ],
+    ]);
+    // A long message without spaces breaks instead of overflowing a narrow screen.
+    expect(
+      container.querySelector("[data-chain-sources]")?.className.split(" ")
+    ).toContain("break-words");
+    // Text only: nothing is left for a hover title.
+    expect(
+      container.querySelectorAll("[data-chain-sources] [title]")
+    ).toHaveLength(0);
+    expect(container.querySelector("[data-chain-flow]")).toBeNull();
+  });
+
+  it("shows the warning of a used source and marks first-page flow", async () => {
+    const gateways = spies();
+    const chain = await createFakeOptionsChainGateway().chain({
+      symbol: "NVDA",
+    });
+    const warning =
+      "Quant Data order flow: first provider page only, so flow totals can be too low";
+    gateways.chain.chain.mockImplementation(async () => ({
+      ...chain,
+      flowFirstPageOnly: true,
+      sources: [
+        { message: warning, source: "quantdata", status: "used" },
+        chain.sources[1],
+        chain.sources[2],
+      ],
+    }));
+    const container = await mount(workspace("NVDA", gateways));
+    expect(container.querySelector("[data-chain-sources] p")?.textContent).toBe(
+      `Sources · Quant Data: used (${warning}) · IBKR: used · Yahoo Finance: used`
+    );
+    expect(container.querySelector("[data-chain-flow]")?.textContent).toMatch(
+      /\(this expiry, first provider page only\)$/u
+    );
+  });
+
+  it("shows no source line while the chain loads or after it failed", async () => {
+    const loading = spies();
+    loading.chain.chain.mockImplementation(() => new Promise(() => undefined));
+    const pending = await mount(workspace("NVDA", loading));
+    expect(pending.querySelector("[data-chain-sources]")).toBeNull();
+    const failed = await mount(workspace("FAIL", spies()));
+    expect(failed.querySelector("[data-error-code]")).not.toBeNull();
+    expect(failed.querySelector("[data-chain-sources]")).toBeNull();
+  });
+});
+
+describe("chainFlow", () => {
+  it("sums call and put premium, and is null without any flow", async () => {
+    const chain = await createFakeOptionsChainGateway().chain({
+      symbol: "NVDA",
+    });
+    const call = chain.rows[20]?.call ?? null;
+    const flow = { premium: 1500.5, trades: 2, volume: 30 };
+    expect(chainFlow({ ...chain, rows: [] })).toBeNull();
+    expect(
+      chainFlow({
+        ...chain,
+        rows: [
+          { call: null, put: null, strike: 90 },
+          {
+            call: call === null ? null : { ...call, flow: null },
+            put: null,
+            strike: 95,
+          },
+        ],
+      })
+    ).toBeNull();
+    expect(
+      chainFlow({
+        ...chain,
+        rows: [
+          {
+            call: call === null ? null : { ...call, flow },
+            put: null,
+            strike: 100,
+          },
+          {
+            call: call === null ? null : { ...call, flow },
+            put:
+              call === null
+                ? null
+                : { ...call, flow: { ...flow, premium: 10 } },
+            strike: 105,
+          },
+        ],
+      })
+    ).toEqual({ call: 3001, put: 10 });
+    // Puts alone still give a line.
+    expect(
+      chainFlow({
+        ...chain,
+        rows: [
+          {
+            call: null,
+            put: call === null ? null : { ...call, flow },
+            strike: 100,
+          },
+        ],
+      })
+    ).toEqual({ call: 0, put: 1500.5 });
   });
 });
 

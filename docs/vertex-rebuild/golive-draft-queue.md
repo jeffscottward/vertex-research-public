@@ -2,26 +2,41 @@
 
 Updated: 2026-11-12. The go-live draft queue lists the defined-risk vertical orders that the allocation plan in force wants for one trading day. Vertex computes each draft; the owner approves or rejects it.
 
-## Records only
+## Records, and the send through the order route
 
-The queue stores decisions. It sends nothing.
+The queue stores decisions. Approve on an entry draft also sends that exact order, only through the checks in "Placing an approved order".
 
-- The API has four procedures: `goLiveDrafts.queue`, `goLiveDrafts.collect`, `goLiveDrafts.approve` and `goLiveDrafts.reject`. There is no send route.
+- The API has four procedures: `goLiveDrafts.queue`, `goLiveDrafts.collect`, `goLiveDrafts.approve` and `goLiveDrafts.reject`. The `goLiveDrafts` router has no send route: the draft page sends through `vertexOrders.comboPreview` and `comboSubmit` with `goLiveDraftId`.
 - The service (`packages/api/src/server/golive-drafts.ts`), its sizing rules (`golive-drafts-sizing.ts`) and the store (`packages/db/src/server/golive-drafts.ts`) import no order route, no order gateway and no confirm module. A test reads the three sources. It fails on such an import, on a dynamic `import(...)`, on a module name written as a template literal, and on a name of the order path (`vertexOrders`, `orderGateway`, `orderBridge`, `confirmToken`). The test reads these three files only, not the files they import.
-- An approval is a stored owner decision: the exact order that was approved (`approvedOrder`) and the node badge read at that moment. No Vertex screen can place it on the live account today (see "Placing an approved order").
+- An approval is a stored owner decision: the exact order that was approved (`approvedOrder`) and the node badge read at that moment. The draft page sends it through the order route with `goLiveDraftId` (see "Placing an approved order").
 - Every queue answer carries `sendsOrders: false`.
 
 ## Placing an approved order
 
-No Vertex screen can open a vertical spread on the live account today.
+Approve on an approved entry draft sends that exact order to IBKR as one combo limit order (GO-LIVE 4: `vertexOrders.comboPreview` and `comboSubmit` with `goLiveDraftId`; the gate is `packages/api/src/server/golive-send-gate.ts`). Each refusal is named:
 
-- The order screen is the "Vertex orders" tab of the Portfolio page (`/portfolio`). Its vertical ticket is shown only in simulated mode (`apps/web/src/components/portal/vertex-orders.tsx`). In live mode the tab takes single option orders only (buy to open, sell to close).
-- The API behind that screen does accept a defined-risk opening vertical on the live gateway (`vertexOrders.comboPreview` and `comboSubmit` in `packages/api/src/server/vertex-orders.ts`): owner session, one-use confirm token, final order gate, kill switch, 2% max loss. No screen calls it in live mode, and the draft queue does not call it.
-- Production runs live mode. So an approved draft is not placed through Vertex. Placing a vertical by hand at IBKR is outside Vertex and its checks.
+- `V3_NOT_ON_LIVE_PATH` unless the order gateway is the order bridge and its account reports `gates.orderPolicy: "options_only_defined_risk_v3"`. The simulated gateway and an older bridge never report it (owner 2026-11-12, card vertex-golive-exec-intake).
+- `ENGINE_DISARMED` unless the node badge is exactly `running-armed`; the order must be the exact approved order, inside the caps of the approved plan the draft belongs to (`limits.openRiskCapPct` total, `nameRiskCapPct` per name, `positionRiskPct` per position), and not sent before.
+
+The order bridge (market-watch-bot `market_watch/vertexbridge.py`) then runs the exec node's own `arm_gate` on the opening: engine order policy v3 (`preview_order`) on the node's account snapshot, close reservations and open-risk ledger, and the node ARM record (`ArmGate.status()`), once at the check and again right before the order run. A refusal returns `state: "engine_refused"` and nothing reaches IBKR.
+
+### Once only, also across web processes
+
+A draft's order carries a fixed `orderRef` (`vertex-gl` + 30 hex of SHA-256 of `golive:<draft id>`, `packages/api/src/server/golive-order-ref.ts`). Submit writes the intent row of that ref only through `orderIntents.recordIntentOnce`: one transaction reads the ref's rows, refuses a ref already sent (its last row is not a bridge refusal), and claims `(order_ref, attempt)` in `vertex_order_send_claims` (migration `0071_vertex_order_send_claims`) before it writes the intent row. `attempt` is the number of earlier sends of the ref the order bridge refused, so of two concurrent sends of one draft (two web processes) the primary key lets exactly one through, and a resend after a refusal claims the next attempt. The loser is refused as `GO-LIVE DRAFT_ALREADY_SENT` and sends nothing. The in-process mark still covers the simulated gateway, which has no intent store.
+
+### Send approved order
+
+The queue answer gives each approved entry draft `send`, read from the intent rows of its ref: `not_sent` (no send reached the order bridge; a send the web checks refused writes no row), `refused` (the bridge refused the last send before IBKR), `sent` (the bridge answered `submitted`, or the order was found open or as a position change), `not_taken` (the bridge answered another state, for example `aborted`: not placed, but no proof that nothing reached IBKR, since `aborted` also covers an `orderRef` IBKR already has), `unknown` (in flight, `unconfirmed`, or the bridge answered `unknown`), `not_found` (an unknown outcome a later check did not find; not sent again here) or `unavailable` (no store, or the read failed). Exit drafts, other states and API keys get `null`.
+
+`unknown`, `not_found`, `not_taken` and `sent` are never offered a send, and the server refuses them too (`GO-LIVE DRAFT_ALREADY_SENT`). `unknown` means the order may still reach IBKR (a bridge timeout or failure, an unconfirmed order, or a send still in flight), and a second order with the same `orderRef` could fill twice. `not_found` is not proof that nothing was sent: the reconciliation only sees open orders and the position of the first leg, so an order IBKR filled and closed, or cancelled, also reads as not found. Only `refused` (the bridge says nothing reached IBKR) frees the draft for another send. When the bridge refused but the refusal row could not be written, the ref stays `unknown` (blocked); the notice therefore says that the row shows whether the order can be sent again.
+
+For `not_sent` and `refused` the owner's row shows **Send approved order**. It opens a dialog that repeats the stored order and the room its approval holds; **Send order** sends that stored order through the same preview and submit (with `goLiveDraftId`), so every rule above runs again. It records no decision. The notice says what the order path did, and the queue is read again.
+
+The notice at the top of the page names the caps of the plan the queue read (for an approved plan; otherwise it says nothing is sent without an approved plan).
+
+The "Vertex orders" tab of the Portfolio page (`/portfolio`) still takes single option orders only in live mode: its vertical ticket is shown only in simulated mode (`apps/web/src/components/portal/vertex-orders.tsx`). Placing a vertical by hand at IBKR is outside Vertex and its checks.
 
 The page says this in its notice. A test reads the source of the order screen and fails when the vertical ticket is offered in live mode, so the notice is rewritten in the same change.
-
-A send route for drafts is a later unit. It needs its own flag, the arm check named under "Node badge and the arm state", a live IBKR quote and the owner's approval of the exact order.
 
 ## Access
 
@@ -220,10 +235,14 @@ The drafts of a day are computed on the rig and stored through `collect`. Three 
 The generator refuses the run (exit 1, nothing printed) in these cases:
 
 - The bars, or any series a sleeve reads (gates, signal inputs, the volatility index of each symbol, the rate), have no value dated the last data day itself. A carried-forward value does not count. A gap must never look like "the plan wants nothing today".
+- One of those series, the bars of a traded ETF or the calendar's SPY bars lack a value on an older day that the data the plan was tested on has a value for, or their history starts later than it did. The model account is one path from its start: a sleeve that holds one spread at a time enters only after the last one closed, so a gap months back can move today's strikes or remove a spread. The holes of the tested data (data through 2026-11-11) are pinned in `services/research/golive/tested_gaps.py`; those are read as the backtest read them.
 - The option-chain store or a chain file cannot be read.
+- A candidate has no listed strikes (see below).
 - A candidate breaks an output rule: strikes equal or the wrong way round for the structure, an expiry on or before the trading day, a number that is not finite, a quote label other than `yahoo_delayed_snapshot`.
 
-A chain snapshot gives a quote only when its New York fetch day is the last data day or later. Every candidate carries fact lines with the dates of the values that set its strikes and gates.
+A candidate names listed strikes. Each model strike moves to the nearest listed strike (the lower one on a tie) of the oldest chain snapshot that holds the chain of its symbol, expiry and side and was fetched on the last data day or later (New York day). A stored snapshot does not change, so every run of a trading day names the same strikes, and the draft id stays the same all day. That holds while the store only grows by new runs: a run with an earlier time that is added later (a restore, or a run made by hand) becomes the oldest one and can change the strikes. The quote comes from the newest such snapshot. The listed steps are the exchange's (5 dollars on SPY away from the money), so a listed strike can be several dollars from the model strike; the fact lines name both. The run is refused when no such chain exists, when a model strike is outside the listed strikes of that chain, or when both legs meet on one listed strike.
+
+One exception, a rule on dates only: a snapshot keeps the monthly expiries 30 to 75 days after its own day (`DTE_RANGE` of `research/backtests/option-chain/snapshot.py`). A candidate whose expiry is fewer than 30 days after the last data day (a held spread near its expiry) or more than 75 days after the trading day (an entry further out than the store reaches) keeps the model's strikes and has no quote, and its fact lines say so. An expiry that only the trading day's own snapshots hold (75 days after the trading day, more after the last data day) is refused until the 12:30 snapshot of the day is stored. Every candidate carries fact lines with the dates of the values that set its strikes and gates.
 
 The collect script posts nothing and ends with a non-zero exit in these cases:
 
@@ -236,10 +255,10 @@ The collect script posts nothing and ends with a non-zero exit in these cases:
 Limits:
 
 - A refused run stores nothing. The page then shows "the generator has not reported" for that day, the same as before the first run. The journal of `vertex-golive-drafts.service` on the rig says which it is.
-- One volatility index that stops being published refuses every run until the plan or the data changes. The backtest skipped such a symbol; the generator is stricter.
-- The generator checks the last data day only. A value missing on an older day (the signal day or the entry day of an open model position) is not noticed: the draft is then dropped or a strike moves, with exit 0.
-- Strikes are the listed strikes of the newest usable chain snapshot, and the model's strikes when no snapshot is usable, or when a leg has no listed strike within one step of the backtest's strike grid. On a chain listed in 5-dollar steps many model strikes are further away than that. The draft id holds the strikes, so two runs of one day can name different strikes; the earlier draft then expires and a new one appears. A draft with model strikes may name a contract that is not listed.
-- The chain store keeps expiries of 30 to 75 days. A held spread nearer to expiry has no chain and no quote.
+- One volatility index that stops being published, or one new hole on any older day of a series a sleeve reads, refuses every run until a refresh fills it, the plan changes, or the hole is checked and pinned. The backtest carried a value forward for up to 5 days and skipped a symbol without an index; the generator is stricter. This holds also for a series of an ETF the plan does not hold today (a hole in VXD refuses the run while the rotation holds USO): any older day can change the path of the model account. In the two years to 2026-11-11 no series the plan reads missed a trading day, except VXSLV before 2025-05-15, which is pinned.
+- Pinning a hole (`cd services/research && python -m golive.pin --data <data directory> --out golive/tested_gaps.py`, then a PR) is a decision to trade on a history with that gap. Read the diff of `tested_gaps.py` before it is merged. A value that appears where the tested data had a hole is not refused.
+- A candidate whose chain no snapshot holds by the date rule above names the model's strikes, which may not be listed contracts; its fact lines say the strikes were not checked. Today that is a held spread fewer than 30 days from expiry, or an entry more than 75 days out. A wider range of the chain store would remove this case.
+- A day without a usable snapshot of the last data day or later refuses every run of the day until one is stored (the snapshot units run at 12:30 and 15:30 New York time).
 
 ## Seed script
 
@@ -260,15 +279,15 @@ Limits:
 - Held positions are not read: the order is checked as a new position.
 - The kill switch and the OPTIONS_ONLY setting are not read here. The order screen checks them when an order is sent.
 
-The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so a real order review can still refuse an order that the pre-check allowed. No screen sends a vertical on the live account today (see "Placing an approved order"). The pre-check is not a clearance to send.
+The dry web gate is run without the account's positions and without the kill-switch and options-only gates, so a real order review can still refuse an order that the pre-check allowed. Approve sends a vertical only through the checks in "Placing an approved order". The pre-check is not a clearance to send.
 
-`preCheck.enginePolicy` is always `not_evaluated_not_in_web_order_path`: the engine policy (`arm_gate.py`) is not part of the web order path.
+`preCheck.enginePolicy` is always `not_evaluated_not_in_web_order_path` (a historical name): the engine policy (`arm_gate.py`, v3) is not run in this dry pre-check. At send (go-live sends are on only when the order bridge reports policy v3), the order bridge runs it on the node's snapshot with the ARM state before anything reaches IBKR (see "Placing an approved order").
 
 ## Node badge and the arm state
 
 The queue shows the Nautilus node badge (`running-disarmed`, `running-armed`, `down`, `unknown`) through the read-only `nautilusArm.status` procedure. Any failure gives `unknown`. That procedure refuses agent API keys, so a key caller always sees `unknown`.
 
-The badge is information only. The order bridge checks only the kill switch. It does not read the Nautilus arm record. A disarmed node therefore does not stop an order that is sent through the order screen. Any later send route for drafts must check the arm state itself and hold when the badge is not exactly `running-armed`.
+A go-live send needs the badge to be exactly `running-armed`, and the order bridge reads the Nautilus arm record itself on every opening combo. Single option orders on the order screen are checked against the kill switch only, so a disarmed node does not stop them.
 
 ## Exit rule
 
@@ -279,3 +298,11 @@ The backtest closes 3 calendar days before expiry. The two rules give the same d
 ## Market notes
 
 This branch has no market-notes store. The queue answers `marketNotes: "feature_not_deployed"` and every draft has an empty `notes` list. The service has a small optional reader for notes, so they can be attached later.
+
+## Deploy
+
+Migration `0071_vertex_order_send_claims` is not applied by the web deploy: the steps in [infra/quantvps/README.md](../../infra/quantvps/README.md#deploy-a-new-web-build) copy `dist` and restart `vertex-web` only. Apply it by hand before the web build that sends go-live drafts is deployed, as [flow-pipeline.md](flow-pipeline.md#deploy) states: do not run `db:migrate` against the QuantVPS database (its Drizzle ledger is incomplete); apply `packages/db/migrations/0071_vertex_order_send_claims.sql` alone with `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container, then check that the table `vertex_order_send_claims` exists and that `vertex_research` has SELECT and INSERT on it. Without the table every go-live send is refused before the gateway (`Order intent store unavailable; nothing was sent`); other orders are not affected.
+
+The migration only creates the table and the grant and changes no existing table, so the running build is unaffected when it is applied first. QuantVPS runs one `vertex-web` process, and `restart-when-idle.sh` replaces it whole, so an old build that writes go-live intents without a claim never runs beside the new one.
+
+Rollback: roll the web build back first, then `packages/db/rollback/0071_vertex_order_send_claims.down.sql` (`psql -v ON_ERROR_STOP=1`, without `--single-transaction`). It refuses while a claim has no result or reconciliation row at or after it (a send in flight, or one whose process stopped before its outcome). Within 7 days of the intent (the reconciliation lookback, `INTENT_LOOKBACK_MS`) such a claim clears without any manual write: the next order preview after the 10-minute settle window reconciles the intent (`open`, `position-changed` or `not-found`) and writes the reconciliation row. After 7 days nothing reconciles it; write a `vertex.order.reconciled` row for its `orderRef` by hand. The intent and outcome rows stay in `audit_records`. On QuantVPS the migration was applied by hand, so there is no Drizzle ledger row to remove; to re-apply, run the migration file with `psql` again.

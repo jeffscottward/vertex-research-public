@@ -55,7 +55,13 @@ export type GatewayOpenOrder = Readonly<{
 export type OrderGates = Readonly<{
   killSwitch: boolean;
   optionsOnly: boolean;
+  // The engine order policy the order bridge enforces on every opening combo (market-watch-bot
+  // vertexbridge, card vertex-golive-exec-intake); absent: none (mock gateway, older bridge).
+  orderPolicy?: string | null | undefined;
 }>;
+
+// Go-live drafts are sent only through a bridge that enforces this policy (owner 2026-11-12).
+export const GOLIVE_ENGINE_ORDER_POLICY = "options_only_defined_risk_v3";
 
 export type OrderAccount = Readonly<{
   netLiquidation: number | null;

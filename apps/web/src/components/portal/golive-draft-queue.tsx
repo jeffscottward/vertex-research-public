@@ -7,6 +7,7 @@ import {
   type GoLiveDraftRejectInput,
   type GoLivePlanOutput,
   type GoLiveQueueOutput,
+  type VertexComboInput,
 } from "@darkfactory/api";
 import { Button, Textarea } from "@darkfactory/ui";
 import { Dialog, DialogContent } from "@darkfactory/ui/client/dialog";
@@ -34,8 +35,10 @@ import {
   CURRENT_PRECHECK_LABEL,
   CURRENT_QUOTE_LABEL,
   CURRENT_SIZING_LABEL,
+  canSendApproved,
   currentSizingText,
   decisionAftermathText,
+  dialogClosedText,
   decisionFailure,
   decisionText,
   draftStateText,
@@ -46,24 +49,28 @@ import {
   etDayClock,
   exitReasonText,
   exitRuleText,
+  exitScheduleText,
   expiryDate,
   type GoLiveDecisionFailure,
   type GoLiveDraftContext,
+  type GoLiveSendResult,
   generatorText,
   groupDrafts,
   keyedLines,
+  lateEntryOnlyBlocker,
   limitText,
   loadErrorText,
   loadedText,
   MODEL_HOLDS_GROUP_TITLE,
   marketNotesText,
   maxLossText,
-  NO_ORDERS_NOTICE_PARTS,
   NO_PLAN_TEXT,
   NODE_DISARMED_NOTE,
   nodeText,
+  noOrdersNoticeParts,
   noteText,
   OTHER_GROUP_TITLE,
+  OUTSIDE_TESTED_RULE_LABEL,
   OWNER_ONLY_DECISION_TEXT,
   orderLegLines,
   orderSummaryRows,
@@ -76,7 +83,12 @@ import {
   quoteText,
   REJECT_NOTE_REQUIRED,
   REJECTION_RECORD_SENTENCE,
+  SEND_APPROVED_LABEL,
+  SEND_APPROVED_SENTENCE,
   safeHttpsUrl,
+  sendOutcomeText,
+  sendStateText,
+  sendSummaryRows,
   sleeveRow,
   staleDialogNotice,
   staleDialogReason,
@@ -87,9 +99,10 @@ import {
 // Go-live order draft queue (/drafts): the allocation plan in force, the state of the account,
 // node and generator, and the order drafts of the order session day. The owner approves or
 // rejects each draft. The page has no polling: it says when it was loaded and has a Reload button.
-// RECORDS ONLY: goLiveDrafts has no send route. An approval is a stored decision and nothing
-// more. No Vertex screen opens a vertical spread on the live account: the live order screen (the
-// Vertex orders tab of /portfolio) has no vertical ticket. The notice on the page says so.
+// GO-LIVE 4 (owner 2026-11-12): after an approval is recorded, the page asks the owner order path
+// (vertexOrders combo preview and submit, bound to the draft id) to send the stored order. The
+// server sends only the exact approved order, only while the node is armed and only inside the plan
+// caps; otherwise it names why and the notice says so ("Approved, engine disarmed").
 
 export interface GoLiveDraftsGateway {
   readonly approve: (
@@ -102,15 +115,47 @@ export interface GoLiveDraftsGateway {
   readonly reject: (
     input: GoLiveDraftRejectInput
   ) => Promise<GoLiveDraftOutput>;
+  /**
+   * Sends the order stored with an approval through the owner order checks (combo preview and
+   * submit bound to the draft id). The server sends only the exact approved order, only while the
+   * owner has armed the execution node, and only inside the plan caps; otherwise it names why.
+   */
+  readonly sendApproved: (
+    input: Readonly<{ draftId: string; order: VertexComboInput }>
+  ) => Promise<GoLiveSendResult>;
 }
 
 // The one place that reads goLiveDrafts from the root API client.
 const connectGoLiveDrafts = (): GoLiveDraftsGateway => {
-  const api = createApiClient({ baseUrl: window.location.origin }).goLiveDrafts;
+  const client = createApiClient({ baseUrl: window.location.origin });
+  const api = client.goLiveDrafts;
   return {
     approve: (input) => api.approve(input),
     queue: (options) => api.queue({}, options),
     reject: (input) => api.reject(input),
+    sendApproved: async ({ draftId, order }) => {
+      const preview = await client.vertexOrders.comboPreview({
+        ...order,
+        goLiveDraftId: draftId,
+      });
+      if (preview.confirmToken === null)
+        return { reasons: preview.review.reasons, sent: false };
+      // An error after the preview may mean the order reached IBKR: never shown as "not sent".
+      try {
+        const result = await client.vertexOrders.comboSubmit({
+          confirm: true,
+          confirmToken: preview.confirmToken,
+          goLiveDraftId: draftId,
+          order,
+        });
+        return { result, sent: true };
+      } catch (error) {
+        return {
+          message: error instanceof Error ? error.message : String(error),
+          sent: "unknown",
+        };
+      }
+    },
   };
 };
 
@@ -126,6 +171,9 @@ export const createBrowserGoLiveDraftsGateway = (): GoLiveDraftsGateway => {
     queue: (options: Readonly<{ signal: AbortSignal }>) =>
       current().queue(options),
     reject: (input: GoLiveDraftRejectInput) => current().reject(input),
+    sendApproved: (
+      input: Readonly<{ draftId: string; order: VertexComboInput }>
+    ) => current().sendApproved(input),
   });
 };
 
@@ -147,40 +195,56 @@ type Decision =
   | Readonly<{
       draft: GoLiveDraftOutput;
       order: NonNullable<GoLiveDraftOutput["order"]>;
+      // A late entry approved with the owner's outside-the-tested-rule tick.
+      outsideTestedEntryRule: boolean;
       type: "approve";
     }>
-  | Readonly<{ draft: GoLiveDraftOutput; type: "reject" }>;
+  | Readonly<{ draft: GoLiveDraftOutput; type: "reject" }>
+  // Send approved order: the order stored with the approval, sent again through the order path.
+  | Readonly<{
+      draft: GoLiveDraftOutput;
+      order: NonNullable<GoLiveDraftOutput["approvedOrder"]>;
+      type: "send";
+    }>;
 
 const SECTION = "space-y-3 rounded-lg border border-border bg-card p-4";
 const FIELD_LABEL = "text-muted-foreground text-xs";
 
-const Notice = () => (
-  <p
-    className="rounded-lg border border-warning-border bg-warning-subtle p-3 font-medium text-sm text-warning-foreground"
-    data-golive-notice=""
-    role="note"
-  >
-    {NO_ORDERS_NOTICE_PARTS.before}
-    <Link
-      className="underline underline-offset-2"
-      href={PORTFOLIO_HREF}
-      prefetch={false}
+// The caps in the notice come from the plan the queue read; undefined until the queue is loaded.
+const Notice = ({
+  plan,
+}: Readonly<{ plan: GoLivePlanOutput | null | undefined }>) => {
+  const parts = noOrdersNoticeParts(plan);
+  return (
+    <p
+      className="rounded-lg border border-warning-border bg-warning-subtle p-3 font-medium text-sm text-warning-foreground"
+      data-golive-notice=""
+      role="note"
     >
-      {NO_ORDERS_NOTICE_PARTS.link}
-    </Link>
-    {NO_ORDERS_NOTICE_PARTS.after}
-  </p>
-);
+      {parts.before}
+      <Link
+        className="underline underline-offset-2"
+        href={PORTFOLIO_HREF}
+        prefetch={false}
+      >
+        {parts.link}
+      </Link>
+      {parts.after}
+    </p>
+  );
+};
 
 // Inert while the dialog is open: nothing behind it, the notice link included, can be clicked or
 // focused. The dialog itself is rendered outside this element (a portal on the document body).
 const Frame = ({
   children,
   inert = false,
+  plan,
   rootRef,
 }: Readonly<{
   children: ReactNode;
   inert?: boolean;
+  plan?: GoLivePlanOutput | null;
   rootRef?: RefObject<HTMLDivElement | null>;
 }>) => (
   <div
@@ -189,7 +253,7 @@ const Frame = ({
     inert={inert}
     ref={rootRef}
   >
-    <Notice />
+    <Notice plan={plan} />
     {children}
   </div>
 );
@@ -346,8 +410,9 @@ const DraftActions = ({
   onDecide: (decision: Decision) => void;
 }>) => {
   const reasonsId = useId();
+  const lateOnly = lateEntryOnlyBlocker(draft, context);
   const blockers = approveBlockers(draft, context);
-  const blocked = blockers.length > 0;
+  const blocked = blockers.length > 0 && !lateOnly;
   const { order } = draft;
   return (
     <div className="space-y-2" data-golive-actions="">
@@ -360,10 +425,16 @@ const DraftActions = ({
           onClick={
             order === null || blocked
               ? undefined
-              : () => onDecide({ draft, order, type: "approve" })
+              : () =>
+                  onDecide({
+                    draft,
+                    order,
+                    outsideTestedEntryRule: lateOnly,
+                    type: "approve",
+                  })
           }
         >
-          Approve
+          {lateOnly ? "Approve outside tested rule" : "Approve"}
         </Button>
         <Button
           aria-label={`Reject ${draftName(draft)}`}
@@ -375,6 +446,15 @@ const DraftActions = ({
           Reject
         </Button>
       </div>
+      {lateOnly ? (
+        <p
+          className="text-sm text-warning-foreground"
+          data-golive-late-entry=""
+        >
+          Late entry: not in the backtest. Approve asks you to confirm it is
+          outside the tested entry rule.
+        </p>
+      ) : null}
       {blocked ? (
         <div
           className="text-sm text-warning-foreground"
@@ -407,6 +487,9 @@ const DraftRow = ({
   const preCheck = preCheckView(draft.preCheck);
   const decided = decisionText(draft);
   const approved = approvedOrderView(draft);
+  // The stored order the owner may send again; null when the row offers no send.
+  const sendable =
+    canDecide && canSendApproved(draft) ? draft.approvedOrder : null;
   return (
     <li>
       <article
@@ -427,6 +510,11 @@ const DraftRow = ({
           <Field label="State">{draftStateText(draft.state)}</Field>
           <Field label="Expiry">{expiryDate(draft.expiry)}</Field>
           <Field label="Strikes">{strikesText(draft)}</Field>
+          {draft.exitSchedule === null ? null : (
+            <Field label="Exit (standing rule)">
+              {exitScheduleText(draft.exitSchedule)}
+            </Field>
+          )}
           {/* On an approved row every live value is labelled as current, not as approved. */}
           <Field label={approved === null ? "Quote" : CURRENT_QUOTE_LABEL}>
             {quoteText(draft, context.readAt)}
@@ -493,6 +581,13 @@ const DraftRow = ({
             <TextList empty="None attached" items={draft.notes.map(noteText)} />
           </Field>
           {decided === null ? null : <Field label="Decision">{decided}</Field>}
+          {draft.send === null ? null : (
+            <Field label="Send">
+              <span data-golive-send-state={draft.send}>
+                {sendStateText(draft.send)}
+              </span>
+            </Field>
+          )}
           {draft.decisionNote === null ? null : (
             <Field label="Decision note">{draft.decisionNote}</Field>
           )}
@@ -505,6 +600,16 @@ const DraftRow = ({
             onDecide={onDecide}
           />
         ) : null}
+        {sendable === null ? null : (
+          <Button
+            aria-label={`${SEND_APPROVED_LABEL} ${draftName(draft)}`}
+            data-golive-action="send"
+            disabled={busy}
+            onClick={() => onDecide({ draft, order: sendable, type: "send" })}
+          >
+            {SEND_APPROVED_LABEL}
+          </Button>
+        )}
       </article>
     </li>
   );
@@ -556,6 +661,22 @@ const DraftGroup = ({
   </section>
 );
 
+const DIALOG_TITLE: Readonly<Record<Decision["type"], string>> = {
+  approve: "Approve",
+  reject: "Reject",
+  send: SEND_APPROVED_LABEL,
+};
+const DIALOG_SENTENCE: Readonly<Record<Decision["type"], string>> = {
+  approve: APPROVAL_NOT_SENT_SENTENCE,
+  reject: REJECTION_RECORD_SENTENCE,
+  send: SEND_APPROVED_SENTENCE,
+};
+const DIALOG_SUBMIT: Readonly<Record<Decision["type"], string>> = {
+  approve: "Record approval",
+  reject: "Record rejection",
+  send: "Send order",
+};
+
 const DecisionDialog = ({
   busy,
   decision,
@@ -577,11 +698,23 @@ const DecisionDialog = ({
   const errorId = useId();
   const [note, setNote] = useState("");
   const [noteMissing, setNoteMissing] = useState(false);
+  const [outsideTicked, setOutsideTicked] = useState(false);
+  const outsideId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const { draft, type } = decision;
-  const order = decision.type === "approve" ? decision.order : null;
+  const order = decision.type === "reject" ? null : decision.order;
+  // A send repeats the stored order and the room its approval holds; an approval, today's sizing.
+  const summary =
+    order === null
+      ? []
+      : type === "send"
+        ? sendSummaryRows(draft, order)
+        : orderSummaryRows(order, draft.sizing);
+  const needsTick =
+    decision.type === "approve" && decision.outsideTestedEntryRule;
+  // Record approval stays disabled until the tick: submit never runs without it.
   const submit = () => {
     if (type === "reject" && note.trim() === "") return setNoteMissing(true);
     return onSubmit(note.trim());
@@ -602,11 +735,7 @@ const DecisionDialog = ({
         closeLabel="Cancel and close"
         data-golive-dialog={type}
         description={
-          <span data-golive-not-sent="">
-            {type === "approve"
-              ? APPROVAL_NOT_SENT_SENTENCE
-              : REJECTION_RECORD_SENTENCE}
-          </span>
+          <span data-golive-not-sent="">{DIALOG_SENTENCE[type]}</span>
         }
         onCloseAutoFocus={onClosed}
         onOpenAutoFocus={(event) => {
@@ -614,7 +743,7 @@ const DecisionDialog = ({
           event.preventDefault();
           (noteRef.current ?? cancelRef.current)?.focus();
         }}
-        title={`${type === "approve" ? "Approve" : "Reject"} ${draftName(draft)} ${structureText(draft.structure)}`}
+        title={`${DIALOG_TITLE[type]} ${draftName(draft)} ${structureText(draft.structure)}`}
       >
         {order === null ? (
           <div className="space-y-1 text-sm">
@@ -657,12 +786,24 @@ const DecisionDialog = ({
               ))}
             </ul>
             <dl className="grid grid-cols-3 gap-3">
-              {orderSummaryRows(order, draft.sizing).map((row) => (
+              {summary.map((row) => (
                 <Field key={row.label} label={row.label}>
                   {row.value}
                 </Field>
               ))}
             </dl>
+            {needsTick ? (
+              <div className="flex items-start gap-2">
+                <input
+                  checked={outsideTicked}
+                  data-golive-outside-rule=""
+                  id={outsideId}
+                  onChange={(event) => setOutsideTicked(event.target.checked)}
+                  type="checkbox"
+                />
+                <label htmlFor={outsideId}>{OUTSIDE_TESTED_RULE_LABEL}</label>
+              </div>
+            ) : null}
           </div>
         )}
         {error === null ? null : (
@@ -687,11 +828,11 @@ const DecisionDialog = ({
           <Button
             aria-describedby={error === null ? undefined : errorId}
             data-golive-dialog-submit=""
-            disabled={busy}
+            disabled={busy || (needsTick && !outsideTicked)}
             onClick={submit}
-            variant={type === "approve" ? "default" : "destructive"}
+            variant={type === "reject" ? "destructive" : "default"}
           >
-            {type === "approve" ? "Record approval" : "Record rejection"}
+            {DIALOG_SUBMIT[type]}
           </Button>
         </div>
       </DialogContent>
@@ -797,8 +938,8 @@ export const GoLiveDraftQueue = ({
     setDecision(null);
     setNotice(
       data.canDecide && reason !== null
-        ? staleDialogNotice(reason)
-        : `${OWNER_ONLY_DECISION_TEXT} The open dialog was closed and nothing was recorded.`
+        ? staleDialogNotice(reason, decision.type === "send")
+        : `${OWNER_ONLY_DECISION_TEXT} ${dialogClosedText(decision.type === "send")}`
     );
   }, [busy, decision, state]);
 
@@ -850,7 +991,10 @@ export const GoLiveDraftQueue = ({
     );
   };
 
-  const send = (current: Decision, note: string): Promise<GoLiveDraftOutput> =>
+  const record = (
+    current: Exclude<Decision, Readonly<{ type: "send" }>>,
+    note: string
+  ): Promise<GoLiveDraftOutput> =>
     current.type === "approve"
       ? // The dialog repeated exactly this order; the server refuses when its own order differs.
         gateway.approve({
@@ -859,8 +1003,24 @@ export const GoLiveDraftQueue = ({
           order: current.order,
           // The revision of the draft the dialog shows: the server refuses another one.
           revision: current.draft.revision,
+          ...(current.outsideTestedEntryRule
+            ? { outsideTestedEntryRule: true }
+            : {}),
         })
       : gateway.reject({ id: current.draft.id, note });
+
+  // Sends the stored order through the order path. A failure before the order path answered
+  // (the preview did not run) sent nothing and is shown as a refusal.
+  const sendStored = (
+    draftId: string,
+    order: NonNullable<GoLiveDraftOutput["approvedOrder"]>
+  ): Promise<GoLiveSendResult> =>
+    gateway.sendApproved({ draftId, order }).catch(
+      (error: unknown): GoLiveSendResult => ({
+        reasons: [error instanceof Error ? error.message : String(error)],
+        sent: false,
+      })
+    );
 
   // The dialog may show a stale order, or the decision may already be recorded: the dialog
   // closes, the queue is read again and the notice says what the reloaded row shows.
@@ -885,20 +1045,33 @@ export const GoLiveDraftQueue = ({
     );
   };
 
-  const submit = async (
-    current: Decision,
+  // Send approved order records nothing: the order path decides and the notice says what it did;
+  // the queue is read again for the row's new send state. sendStored never throws.
+  const resend = async (
+    current: Extract<Decision, Readonly<{ type: "send" }>>
+  ) => {
+    const outcome = await sendStored(current.draft.id, current.order);
+    if (!mounted.current) return;
+    setDecision(null);
+    setNotice(sendOutcomeText(outcome, true));
+    await load();
+  };
+
+  // Records an approval or a rejection, then sends an approved order through the order path.
+  const decide = async (
+    current: Exclude<Decision, Readonly<{ type: "send" }>>,
     note: string,
     facts: GoLiveDraftContext
   ) => {
-    if (submitting.current) return;
-    submitting.current = true;
-    setBusy(true);
-    setDecisionError(null);
     try {
-      const decided = await send(current, note);
+      const decided = await record(current, note);
       if (!mounted.current) return;
       keep(decided);
       setDecision(null);
+      if (decided.state === "approved" && decided.approvedOrder !== null) {
+        const outcome = await sendStored(decided.id, decided.approvedOrder);
+        if (mounted.current) setNotice(sendOutcomeText(outcome));
+      }
       await load();
     } catch (error) {
       if (!mounted.current) return;
@@ -910,6 +1083,22 @@ export const GoLiveDraftQueue = ({
       );
       if (failure.action === "stay") setDecisionError(failure.text);
       else await closeAndReload(failure, current.draft);
+    }
+  };
+
+  // One decision or send at a time; the dialog is busy while it runs.
+  const submit = async (
+    current: Decision,
+    note: string,
+    facts: GoLiveDraftContext
+  ) => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setDecisionError(null);
+    try {
+      if (current.type === "send") await resend(current);
+      else await decide(current, note, facts);
     } finally {
       submitting.current = false;
       if (mounted.current) setBusy(false);
@@ -970,7 +1159,7 @@ export const GoLiveDraftQueue = ({
     onDecide: open,
   };
   return (
-    <Frame inert={dialogOpen} rootRef={rootRef}>
+    <Frame inert={dialogOpen} plan={data.plan} rootRef={rootRef}>
       {notice === null ? null : (
         <p
           className="text-destructive text-sm"

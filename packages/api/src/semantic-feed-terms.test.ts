@@ -26,7 +26,13 @@ const snapshot = (
     account?: PortfolioMonitorOutput["account"];
   }> = {}
 ): PortfolioMonitorOutput => ({
-  account: over.account ?? { count: 1, mode: "live" },
+  account: over.account ?? {
+    count: 1,
+    mode: "live",
+    modeConfirmedAt: AS_OF,
+    modeError: null,
+    modeSource: "confirmed",
+  },
   completed: [],
   executions: [],
   messages: [],
@@ -44,6 +50,7 @@ const snapshot = (
     lastError: null,
     ordersAsOf: AS_OF,
     receivedAt: AS_OF,
+    since: AS_OF,
     ...over.status,
   },
   summary: {
@@ -189,14 +196,50 @@ describe("feedProblem", () => {
     ).toBe("The IB gateway is starting; live account values are unknown.");
   });
 
-  it("refuses a paper or unknown account: only the live account answers", () => {
-    for (const mode of ["paper", "unknown"] as const) {
-      expect(feedProblem(snapshot({ account: { count: 1, mode } }), NOW)).toBe(
-        `The feed reports a ${mode} account, not the live account; live account values are unknown.`
+  it("refuses a paper account and an account-mode error: only the live account answers", () => {
+    const account = (
+      over: Partial<PortfolioMonitorOutput["account"]>
+    ): PortfolioMonitorOutput["account"] => ({
+      count: 1,
+      mode: "live",
+      modeConfirmedAt: AS_OF,
+      modeError: null,
+      modeSource: "confirmed",
+      ...over,
+    });
+    expect(
+      feedProblem(snapshot({ account: account({ mode: "paper" }) }), NOW)
+    ).toBe(
+      "The feed reports a paper account, not the live account; live account values are unknown."
+    );
+    for (const modeError of [
+      "mismatch",
+      "not-configured",
+      "not-reported",
+    ] as const) {
+      expect(
+        feedProblem(
+          snapshot({
+            account: account({ mode: null, modeError, modeSource: null }),
+          }),
+          NOW
+        )
+      ).toBe(
+        `The feed has an account-mode error (${modeError}), so it is not confirmed as the live account; live account values are withheld.`
       );
     }
+    // The configured mode alone (gateway session not confirmed yet) is still the live account.
     expect(
-      feedProblem(snapshot({ account: { count: 2, mode: "live" } }), NOW)
+      feedProblem(
+        snapshot({
+          account: account({
+            count: 2,
+            modeConfirmedAt: null,
+            modeSource: "configured",
+          }),
+        }),
+        NOW
+      )
     ).toBeNull();
   });
 

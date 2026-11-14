@@ -1,6 +1,10 @@
 "use client";
 
-import type { OptionsChainOutput } from "@darkfactory/api";
+import {
+  OPTIONS_CHAIN_SOURCE_LABELS,
+  type OptionsChainOutput,
+  type OptionsChainSourceStatus,
+} from "@darkfactory/api";
 import { cn, Panel, StatCard } from "@darkfactory/ui";
 import type { MouseEvent } from "react";
 import { useEffect, useId, useState } from "react";
@@ -92,13 +96,17 @@ const formatExpiry = (date: string): string =>
 const KpiRow = ({ chain }: { readonly chain: OptionsChainOutput | null }) => {
   const summary = chain === null ? null : chainSummary(chain);
   const quoteTime = chain?.quoteTime ?? null;
+  const spotSource = chain?.spotSource ?? null;
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-stock-kpis="">
       <StatCard
         className="px-4 py-4"
         description={
+          // The quote time when the source sends one, else the name of the source.
           quoteTime === null
-            ? "Spot from the options feed"
+            ? spotSource === null
+              ? "Spot from the options feed"
+              : `Spot from ${OPTIONS_CHAIN_SOURCE_LABELS[spotSource]}`
             : `Quote ${new Date(quoteTime).toUTCString().slice(5, 22)} UTC`
         }
         label="Last price"
@@ -130,6 +138,71 @@ const KpiRow = ({ chain }: { readonly chain: OptionsChainOutput | null }) => {
         label="Put/call OI"
         value={summary?.putCallOi?.toFixed(2) ?? "—"}
       />
+    </div>
+  );
+};
+
+const SOURCE_STATUS_LABELS: Readonly<
+  Record<OptionsChainSourceStatus["status"], string>
+> = { empty: "no data", failed: "failed", off: "off", used: "used" };
+
+const compactMoney = new Intl.NumberFormat("en-US", {
+  currency: "USD",
+  maximumFractionDigits: 1,
+  notation: "compact",
+  style: "currency",
+});
+
+/** Call and put premium of the order-flow prints of this expiry; null when no contract has flow. */
+export const chainFlow = (
+  chain: OptionsChainOutput
+): Readonly<{ call: number; put: number }> | null => {
+  const calls = chain.rows.flatMap((row) => row.call?.flow ?? []);
+  const puts = chain.rows.flatMap((row) => row.put?.flow ?? []);
+  if (calls.length + puts.length === 0) return null;
+  return {
+    call: calls.reduce((sum, flow) => sum + flow.premium, 0),
+    put: puts.reduce((sum, flow) => sum + flow.premium, 0),
+  };
+};
+
+// One line per fact under the KPI row: what each data source did (with the reason as visible
+// text, so touch and keyboard users read it too; long words break instead of overflowing), and
+// the flow when there is any.
+const SourceLines = ({ chain }: { readonly chain: OptionsChainOutput }) => {
+  const flow = chainFlow(chain);
+  return (
+    <div
+      className="space-y-1 break-words px-1 text-muted-foreground text-xs"
+      data-chain-sources=""
+    >
+      <p>
+        <span className="font-medium text-foreground">Sources</span>
+        {chain.sources.map((item) => (
+          <span
+            data-source={item.source}
+            data-status={item.status}
+            key={item.source}
+          >
+            {" · "}
+            {OPTIONS_CHAIN_SOURCE_LABELS[item.source]}:{" "}
+            {SOURCE_STATUS_LABELS[item.status]}
+            {item.message === null ? null : (
+              <span data-source-message=""> ({item.message})</span>
+            )}
+          </span>
+        ))}
+      </p>
+      {flow === null ? null : (
+        <p data-chain-flow="">
+          <span className="font-medium text-foreground">
+            {OPTIONS_CHAIN_SOURCE_LABELS.quantdata} flow
+          </span>
+          {" · "}call premium {compactMoney.format(flow.call)}
+          {" · "}put premium {compactMoney.format(flow.put)} (this expiry
+          {chain.flowFirstPageOnly ? ", first provider page only" : ""})
+        </p>
+      )}
     </div>
   );
 };
@@ -359,7 +432,10 @@ export const StockDetailWorkspace = ({
 
   return (
     <div className="space-y-6" data-stock-detail={symbol}>
-      <KpiRow chain={chain.type === "ready" ? chain.chain : null} />
+      <div className="space-y-2">
+        <KpiRow chain={chain.type === "ready" ? chain.chain : null} />
+        {chain.type === "ready" ? <SourceLines chain={chain.chain} /> : null}
+      </div>
       <nav aria-label={`${symbol} views`}>
         <ul className="flex flex-wrap gap-1 border-border border-b">
           {TABS.map(([tab, label]) => (
