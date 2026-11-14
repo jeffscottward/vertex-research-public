@@ -1,7 +1,7 @@
 # Single long option proxy in the allocation sensitivity study
 
 - **Author:** Jeff Scott Ward
-- **Status:** Approved
+- **Status:** Implemented. Study run on 2026-11-14: outcome `no` (see "Long option proxy" in `research/backtests/allocation/README.md`).
 - **Date:** 2026-11-14
 - **Card:** `vertex-single-long-option-form`
 
@@ -236,7 +236,8 @@ The concept brief of 2026-11-14 and the review reports are kept with the job rep
   - `restructure` with `longProxy`: a call and a put debit vertical keep `dte` and `longDelta` and get `widthSigma` 3.0; a put credit vertical is unchanged; portfolio legs are rewritten; the input definition is not mutated; two rewritten blocks do not share one override object.
   - `restructure` with `wideItm` gives `longDelta` 0.7 and `widthSigma` 2.0; an unknown structure name raises `ValueError`; a scenario without `structure` returns the same object.
   - The `longProxy` block of a debit candidate passes `book.parse_options`, and `allocation.owner_rule_trades` prices a synthetic one-symbol definition with it (data built with `pf.dataset_from_rows` and `tests.qc_ports_synthetic.trading_days`, as `test_idle_budget.py` does).
-  - `scenario_names(None)` leaves out `calibrated` and `longProxyCalibrated` and keeps the order; `scenario_names(Path("x"))` returns all ten names.
+  - `scenario_names(None)` leaves out `calibrated` and `longProxyCalibrated` and keeps the order; `scenario_names(Path("x"))` returns all ten names. The seven existing `SCENARIOS` entries equal their literal values, and `sizeSkips` is in `STAT_KEYS` (added after the code review).
+  - The expression behind the row flag `restructured`: `restructure(definition, proxy) != definition` is true for a definition with a debit vertical and false for a credit-only or option-free one.
   - `proxy_decision` on hand-built rows: `candidate`; `no` with three empty lists; `model-dependent` when only the no-cost or the calibrated scenario has a run; `incomplete` when a scenario is missing and nothing counts; a row is left out when it fails one G4 check, is a duplicate, has another role, or has `restructured` false; `failed` lists the other failed checks.
 
 #### 3. `services/research/tests/ci-suites.txt` (Modify)
