@@ -370,12 +370,18 @@ const answerSqlTerm = async (
     truncated: boolean;
     query: string;
   }[] = [];
-  for (const [index, attribute] of attributes.entries()) {
-    if (!attribute.certified) continue;
-    const result = await reader.run(attribute, values as DbParamValue[], {
-      rowLimit: SEMANTIC_QUERY_MAX_ROWS,
-      timeoutMs: SEMANTIC_SQL_TIMEOUT_MS,
-    });
+  const certified = [...attributes.entries()].filter(
+    ([, attribute]) => attribute.certified
+  );
+  // One reader connection for the whole term; a failed attribute is the last result.
+  const results = await reader.runAll(
+    certified.map(([, attribute]) => attribute),
+    values as DbParamValue[],
+    { rowLimit: SEMANTIC_QUERY_MAX_ROWS, timeoutMs: SEMANTIC_SQL_TIMEOUT_MS }
+  );
+  for (const [order, result] of results.entries()) {
+    // runAll gives one result per text, in order, up to the first failed one.
+    const [index, attribute] = certified[order] as (typeof certified)[number];
     if (result.status === "failed") {
       // No counts either: an unknown answer gives no value, and a row count is one.
       return {

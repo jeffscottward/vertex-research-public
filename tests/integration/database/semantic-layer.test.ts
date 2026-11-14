@@ -9,6 +9,7 @@ import {
   createSemanticLayerRepository,
   createSemanticReader,
   type Database,
+  SEMANTIC_READER_ROLE,
   type SemanticLayerRepository,
   type SemanticReader,
 } from "@darkfactory/db/server";
@@ -358,6 +359,78 @@ describe("semantic layer (Postgres)", () => {
     expect(
       await reader.run({ sql: "select id from strategies for update" }, [], RUN)
     ).toMatchObject({ status: "failed" });
+  });
+
+  it("keeps the texts of one batch apart on their shared connection", async () => {
+    // A session-level setting made by one text is rolled back with its transaction: the next text
+    // sees the defaults, the reader role, a read-only transaction and its own statement timeout.
+    const settings = await reader.runAll(
+      [
+        {
+          sql: "select set_config('search_path', 'pg_catalog', false) as path",
+        },
+        { sql: "select current_setting('search_path') as path" },
+        {
+          sql: "select set_config('statement_timeout', '0', false) as timeout",
+        },
+        {
+          sql: "select current_setting('statement_timeout') as timeout, current_setting('transaction_read_only') as read_only, current_user::text as role",
+        },
+      ],
+      [],
+      RUN
+    );
+    expect(settings.map(({ status }) => status)).toEqual([
+      "ok",
+      "ok",
+      "ok",
+      "ok",
+    ]);
+    expect(settings[0]).toMatchObject({ rows: [{ path: "pg_catalog" }] });
+    expect(settings[1]).toMatchObject({ rows: [{ path: '"$user", public' }] });
+    expect(settings[3]).toMatchObject({
+      rows: [{ read_only: "on", role: SEMANTIC_READER_ROLE, timeout: "5s" }],
+    });
+
+    // A session advisory lock survives a rollback; DISCARD ALL before the next text releases it (the
+    // lock count is what tests the reset). A custom setting's value is already undone by the rollback;
+    // its name survives both, which only tells a later certified text of the same query that the name
+    // was set. The texts share one backend, so this is the shared connection.
+    const session = await reader.runAll(
+      [
+        {
+          sql: "select pg_backend_pid() as pid, pg_advisory_lock(424242)::text as locked, set_config('probe.x', 'leaked', false) as probe",
+        },
+        {
+          sql: "select pg_backend_pid() as pid, (select count(*)::int from pg_locks where locktype = 'advisory' and pid = pg_backend_pid()) as held, coalesce(current_setting('probe.x', true), '') as probe",
+        },
+      ],
+      [],
+      RUN
+    );
+    expect(session.map(({ status }) => status)).toEqual(["ok", "ok"]);
+    expect(session[0]).toMatchObject({ rows: [{ probe: "leaked" }] });
+    expect(session[1]).toMatchObject({ rows: [{ held: 0, probe: "" }] });
+    // Both texts ran on one connection: the same backend pid.
+    const pids = session.map((result) =>
+      result.status === "ok" ? result.rows[0]?.["pid"] : undefined
+    );
+    expect(pids[0]).toEqual(expect.any(Number));
+    expect(pids[1]).toBe(pids[0]);
+
+    // A failed text ends the batch: nothing runs on the connection after it.
+    const refused = await reader.runAll(
+      [
+        { sql: "select count(*)::int as n from strategies" },
+        { sql: 'select email from "user"' },
+        { sql: "select count(*)::int as n from strategies" },
+      ],
+      [],
+      RUN
+    );
+    expect(refused.map(({ status }) => status)).toEqual(["ok", "failed"]);
+    expect(refused[0]).toMatchObject({ rows: [{ n: strategiesBefore }] });
+    expect(refused[1]).toMatchObject({ failure: "permission_denied" });
   });
 
   it("answers reader_unavailable for a missing or app-role connection, never falling back", async () => {

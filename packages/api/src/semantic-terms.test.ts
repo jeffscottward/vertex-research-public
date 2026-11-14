@@ -207,10 +207,24 @@ type RepositoryMock = ReturnType<typeof repositoryMock>;
 
 // The reader the handler builds from context.semanticDatabaseUrl runs the mock's runAttribute.
 let activeRun: RepositoryMock["runAttribute"] | null = null;
+const runText: SemanticReader["run"] = (...args) =>
+  (activeRun as unknown as SemanticReader["run"])(...args);
+// One runAll call stands for one reader connection. As in the real reader, each text runs in order
+// and a failed text ends the batch.
+const runInOrder =
+  (run: SemanticReader["run"]): SemanticReader["runAll"] =>
+  async (attributes, params, options) => {
+    const results: Awaited<ReturnType<SemanticReader["run"]>>[] = [];
+    for (const attribute of attributes) {
+      const result = await run(attribute, params, options);
+      results.push(result);
+      if (result.status === "failed") break;
+    }
+    return results;
+  };
+const runAll = vi.fn<SemanticReader["runAll"]>(runInOrder(runText));
 const fakeReader = vi.fn(
-  (_url: string | null): SemanticReader => ({
-    run: (...args) => (activeRun as unknown as SemanticReader["run"])(...args),
-  })
+  (_url: string | null): SemanticReader => ({ run: runText, runAll })
 );
 const seam = (
   options: Parameters<typeof setSemanticTermsDependenciesForTesting>[0] = {}
@@ -364,15 +378,14 @@ const run = (
   }) as Promise<unknown>;
 };
 
+// The same reader stand-in as the handler's: runAll (a spy) runs the repository mock's runAttribute.
 const queryContext = (
   repository: RepositoryMock,
   readFeed: () => Promise<PortfolioMonitorOutput> = async () => snapshot()
-) => ({
-  now: NOW,
-  reader: { run: repository.runAttribute },
-  readFeed,
-  repository,
-});
+) => {
+  activeRun = repository.runAttribute;
+  return { now: NOW, reader: { run: runText, runAll }, readFeed, repository };
+};
 
 const answer = (
   input: SemanticTermQueryInput,
@@ -1079,6 +1092,7 @@ describe("answerTerm", () => {
       expect((repository.runAttribute.mock.calls as unknown[][])[0]?.[0]).toBe(
         perStrategy
       );
+      expect(runAll.mock.lastCall?.[0]).toEqual([perStrategy]);
       expect(output).toMatchObject({
         answer:
           "Partial, not a complete answer. Checked: per strategy (engine runs linked to a strategy): no rows match. NOT checked: per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy: that SQL waits for owner certification on /semantic-terms, so rows of that grouping may exist and are not shown. Do not report that there are none. Sharpe of the latest succeeded engine run per strategy.",
@@ -1124,10 +1138,14 @@ describe("answerTerm", () => {
           status: "ok",
           truncated: false,
         });
+      runAll.mockClear();
       const output = await answer(
         { params: { strategy: "ORB" }, term: "backtest_sharpe" },
         repository
       );
+      // Both groupings run in one batch: one reader connection for the term.
+      expect(runAll).toHaveBeenCalledTimes(1);
+      expect(runAll.mock.lastCall?.[0]).toHaveLength(2);
       expect(repository.runAttribute).toHaveBeenCalledTimes(2);
       expect(
         (repository.runAttribute.mock.calls as unknown[][])[1]?.[1]
@@ -1179,6 +1197,33 @@ describe("answerTerm", () => {
         rows: [],
         status: "unknown",
       });
+    });
+
+    it("marks the failed grouping, not its position among the certified ones, when an uncertified grouping comes first", async () => {
+      const repository = repositoryMock();
+      repository.term.mockResolvedValue({
+        attributes: [
+          { ...perStrategy, ...certification(false) },
+          { ...perRunSpec, ...certification(true) },
+        ],
+        term: sharpeTerm,
+      });
+      repository.runAttribute.mockResolvedValueOnce({
+        failure: "timeout",
+        message: "The query ran past 5 s.",
+        query: "ran run-spec sql",
+        status: "failed",
+      });
+      const output = await answer({ term: "backtest_sharpe" }, repository);
+      // Only the certified run-spec SQL ran; it is the first result but the second grouping.
+      expect(repository.runAttribute).toHaveBeenCalledTimes(1);
+      expect(
+        output.groupings.map(({ grain, status }) => [grain, status])
+      ).toEqual([
+        ["strategy", "not_certified"],
+        ["run_spec", "unknown"],
+      ]);
+      expect(output).toMatchObject({ rows: [], status: "unknown" });
     });
 
     it("caps the combined rows at the query limit and marks them truncated", async () => {
