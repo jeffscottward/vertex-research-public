@@ -995,50 +995,74 @@ const usesBarRangeIndicator = (expr: AnyStrategyExpr): boolean =>
     )) ||
   strategyExprChildren(expr).some(usesBarRangeIndicator);
 
-/** Every condition side of a definition and its legs, and the selection score and tie break. */
-const definitionExprs = (
-  definition: Readonly<{
-    entry: {
-      all: readonly StrategyCondition[];
-      any?: readonly StrategyCondition[] | undefined;
-    };
-    exit?: { any: readonly StrategyCondition[] } | undefined;
-    portfolio?:
-      | Readonly<{
-          legs?:
-            | readonly Readonly<{
-                entry: {
-                  all: readonly StrategyCondition[];
-                  any?: readonly StrategyCondition[] | undefined;
-                };
-                exit?: { any: readonly StrategyCondition[] } | undefined;
-              }>[]
-            | undefined;
-          select?:
-            | Readonly<{
-                score: StrategyExpr;
-                tieBreak?: StrategyExpr | undefined;
-              }>
-            | undefined;
-        }>
-      | undefined;
-  }>
-): AnyStrategyExpr[] => {
+type IssuePath = (string | number)[];
+
+/** The conditions of a definition or of one portfolio leg. */
+type ConditionPart = Readonly<{
+  entry: {
+    all: readonly StrategyCondition[];
+    any?: readonly StrategyCondition[] | undefined;
+  };
+  exit?: { any: readonly StrategyCondition[] } | undefined;
+}>;
+
+/** Both sides of every condition of a definition or leg, each with its issue path below `path`. */
+const conditionSidePaths = (
+  path: IssuePath,
+  part: ConditionPart
+): [IssuePath, StrategyExpr][] => {
+  const groups: [IssuePath, readonly StrategyCondition[]][] = [
+    [["entry", "all"], part.entry.all],
+    [["entry", "any"], part.entry.any ?? []],
+    [["exit", "any"], part.exit?.any ?? []],
+  ];
+  return groups.flatMap(([group, conditions]) =>
+    conditions.flatMap((condition, index) =>
+      (["left", "right"] as const).map((side): [IssuePath, StrategyExpr] => [
+        [...path, ...group, index, side],
+        condition[side],
+      ])
+    )
+  );
+};
+
+/**
+ * Every condition side of a definition and of its legs, then the selection score and tie break,
+ * each with its issue path. The Python `_definition_exprs` (nautilus_backtest/signals.py) lists
+ * the same expressions in the same order.
+ */
+const definitionExprPaths = (
+  definition: ConditionPart &
+    Readonly<{
+      portfolio?:
+        | Readonly<{
+            legs?: readonly ConditionPart[] | undefined;
+            select?:
+              | Readonly<{
+                  score: StrategyExpr;
+                  tieBreak?: StrategyExpr | undefined;
+                }>
+              | undefined;
+          }>
+        | undefined;
+    }>
+): [IssuePath, StrategyExpr][] => {
   const select = definition.portfolio?.select;
   return [
-    ...[definition, ...(definition.portfolio?.legs ?? [])].flatMap((part) =>
-      [
-        ...part.entry.all,
-        ...(part.entry.any ?? []),
-        ...(part.exit?.any ?? []),
-      ].flatMap((condition) => [condition.left, condition.right])
+    ...conditionSidePaths([], definition),
+    ...(definition.portfolio?.legs ?? []).flatMap((leg, index) =>
+      conditionSidePaths(["portfolio", "legs", index], leg)
     ),
     ...(select === undefined
       ? []
-      : [
-          select.score,
-          ...(select.tieBreak === undefined ? [] : [select.tieBreak]),
-        ]),
+      : (["score", "tieBreak"] as const).flatMap(
+          (key): [IssuePath, StrategyExpr][] => {
+            const expr = select[key];
+            return expr === undefined
+              ? []
+              : [[["portfolio", "select", key], expr]];
+          }
+        )),
   ];
 };
 
@@ -1162,14 +1186,6 @@ const VolTargetSizingSchema = z
   })
   .strict();
 
-type DefinitionExprs = Readonly<{
-  entry: Readonly<{
-    all: readonly StrategyCondition[];
-    any?: readonly StrategyCondition[] | undefined;
-  }>;
-  exit: Readonly<{ any: readonly StrategyCondition[] }>;
-}>;
-
 /** The name of the first session indicator in an expression tree, if any. */
 const sessionIndicatorIn = (expr: StrategyExpr): string | undefined => {
   if (isSessionIndicator(expr)) return expr.name;
@@ -1178,27 +1194,6 @@ const sessionIndicatorIn = (expr: StrategyExpr): string | undefined => {
     if (name !== undefined) return name;
   }
   return undefined;
-};
-
-/** Paths and names of the session indicators in the entry and exit conditions. */
-const sessionIndicatorUses = (
-  definition: DefinitionExprs
-): [(string | number)[], string][] => {
-  const groups: [(string | number)[], readonly StrategyCondition[]][] = [
-    [["entry", "all"], definition.entry.all],
-    [["entry", "any"], definition.entry.any ?? []],
-    [["exit", "any"], definition.exit.any],
-  ];
-  return groups.flatMap(([path, conditions]) =>
-    conditions.flatMap((condition, index) =>
-      (["left", "right"] as const).flatMap(
-        (side): [(string | number)[], string][] => {
-          const name = sessionIndicatorIn(condition[side]);
-          return name === undefined ? [] : [[[...path, index, side], name]];
-        }
-      )
-    )
-  );
 };
 
 export const StrategyDefinitionSchema = z
@@ -1375,7 +1370,9 @@ export const StrategyDefinitionSchema = z
   .refine(
     (definition) =>
       definition.portfolio?.frame !== "monthly" ||
-      !definitionExprs(definition).some(usesBarRangeIndicator),
+      !definitionExprPaths(definition).some(([, expr]) =>
+        usesBarRangeIndicator(expr)
+      ),
     {
       message: STRATEGY_MONTHLY_INDICATOR_MESSAGE,
       path: ["portfolio", "frame"],
@@ -1412,12 +1409,15 @@ export const StrategyDefinitionSchema = z
   )
   .superRefine((definition, context) => {
     if (definition.intraday !== undefined) return;
-    for (const [path, name] of sessionIndicatorUses(definition))
-      context.addIssue({
-        code: "custom",
-        message: `${name} reads the intraday session; add an intraday block`,
-        path,
-      });
+    for (const [path, expr] of definitionExprPaths(definition)) {
+      const name = sessionIndicatorIn(expr);
+      if (name !== undefined)
+        context.addIssue({
+          code: "custom",
+          message: `${name} reads the intraday session; add an intraday block`,
+          path,
+        });
+    }
   });
 
 export type StrategyCondition = z.infer<typeof StrategyConditionSchema>;

@@ -4,9 +4,13 @@ Model (assumptions, not market data; there is no option chain in the public data
 - European Black-Scholes-Merton with continuous dividend yield q per symbol and
   the risk-free rate r from IRX (13-week T-bill, percent / 100). Time in
   calendar days / 365.
-- ATM implied vol = factor * IV index / 100: factor 0.9 for VIX, VXN, VXD and
-  RVX, 0.95 for GVZ, OVX and VXSLV (the indices sit above ATM vol by a variance
-  risk premium / convexity term).
+- ATM implied vol = factor * IV index / 100: factor 0.9 for VIX, VIX3M, VIX6M,
+  VXN, VXD and RVX, 0.95 for GVZ, OVX and VXSLV (the indices sit above ATM vol
+  by a variance risk premium / convexity term).
+- IV term structure (two-expiry structures): the ATM vol of each index at its
+  tenor (VIX 30 days, VIX3M 93 days, VIX6M 182 days); between two tenors the
+  total variance ATM^2 * T is linear in T, outside them the ATM vol of the
+  nearest tenor holds.
 - Skew: IV(K) = ATM * max(SKEW_FLOOR, 1 + slope * x) with standardized
   moneyness x = ln(K/S) / (ATM * sqrt(T)), clamped to [-3, 3]. Negative slope =
   equity put skew, positive = commodity call skew.
@@ -17,16 +21,20 @@ Model (assumptions, not market data; there is no option chain in the public data
 from __future__ import annotations
 
 import math
+from bisect import bisect_left
+from collections.abc import Sequence
 
 __all__ = [
     "ATM_FACTOR", "COMMISSION", "DIVIDEND_YIELD", "HALF_SPREAD_PCT", "MULTIPLIER", "SKEW", "SKEW_FLOOR",
-    "atm_iv", "bs_delta", "bs_price", "half_spread", "leg_cost", "norm_cdf", "smile_iv", "strike_step",
+    "atm_iv", "bs_delta", "bs_price", "half_spread", "intrinsic", "leg_cost", "norm_cdf", "smile_iv", "strike_step",
+    "term_atm_iv",
 ]
 
 MULTIPLIER = 100
 COMMISSION = 0.65
 MIN_HALF_SPREAD = 0.01
-ATM_FACTOR = {"VIX": 0.9, "VXN": 0.9, "VXD": 0.9, "RVX": 0.9, "GVZ": 0.95, "OVX": 0.95, "VXSLV": 0.95}
+ATM_FACTOR = {"VIX": 0.9, "VIX3M": 0.9, "VIX6M": 0.9, "VXN": 0.9, "VXD": 0.9, "RVX": 0.9, "GVZ": 0.95, "OVX": 0.95,
+              "VXSLV": 0.95}
 HALF_SPREAD_PCT = {"SPY": 0.01, "QQQ": 0.015, "IWM": 0.02, "DIA": 0.03, "GLD": 0.025, "SLV": 0.04, "USO": 0.04}
 DIVIDEND_YIELD = {"SPY": 0.015, "QQQ": 0.007, "DIA": 0.018, "IWM": 0.012}
 # IV change per standardized-moneyness unit, relative to ATM (model assumption).
@@ -109,6 +117,34 @@ def smile_iv(atm: float, spot: float, strike: float, t: float, slope: float) -> 
     x = math.log(strike / spot) / (atm * math.sqrt(t))
     x = max(-SKEW_CLAMP, min(SKEW_CLAMP, x))
     return atm * max(SKEW_FLOOR, 1 + slope * x)
+
+
+def term_atm_iv(points: Sequence[tuple[float, float]], days: float) -> float:
+    """ATM IV at `days` to expiry from (tenor days, ATM IV) points: linear in total variance between two tenors,
+    the ATM IV of the nearest tenor outside them."""
+    if not points:
+        raise ValueError("an IV term needs at least one point")
+    for tenor, atm in points:
+        _finite(tenor=tenor, atm=atm)
+        if not (tenor > 0 and atm > 0):
+            raise ValueError("IV term tenors and ATM IVs must be above 0")
+    _finite(days=days)
+    ordered = sorted(points)
+    if len({tenor for tenor, _ in ordered}) != len(ordered):
+        raise ValueError("IV term tenors must differ")
+    if days <= ordered[0][0]:
+        return ordered[0][1]
+    if days >= ordered[-1][0]:
+        return ordered[-1][1]
+    above = bisect_left([tenor for tenor, _ in ordered], days)
+    (t1, v1), (t2, v2) = ordered[above - 1], ordered[above]
+    total = v1 * v1 * t1 + (v2 * v2 * t2 - v1 * v1 * t1) * (days - t1) / (t2 - t1)
+    return math.sqrt(total / days)
+
+
+def intrinsic(right: str, spot: float, strike: float) -> float:
+    """Exercise value per share."""
+    return max(0.0, spot - strike) if right == "call" else max(0.0, strike - spot)
 
 
 def strike_step(spot: float) -> float:

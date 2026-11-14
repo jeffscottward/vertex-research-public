@@ -92,6 +92,29 @@ export const clock = (value: string | number | null | undefined): string => {
   });
 };
 
+// Start of a state ("since 01:13 EST"): browser-local hour and minute with the zone name, and the
+// date when it is not today. Null when the time is absent.
+export const sinceClock = (
+  value: string | number | null | undefined,
+  nowMs: number
+): string | null => {
+  const ms = parseTime(value);
+  if (ms === null) return null;
+  const at = new Date(ms);
+  const time = at.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+  if (localDayKey(at) === localDayKey(new Date(nowMs))) return time;
+  const day = at.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+  });
+  return `${day} ${time}`;
+};
+
 export const ageSeconds = (
   value: string | null | undefined,
   nowMs: number
@@ -196,12 +219,26 @@ export const monitorHealth = ({
     return { key: "loading", label: "Loading", tone: "neutral" };
   if (retrying) return { key: "updating", label: "Updating…", tone: "warning" };
   const { status } = snapshot;
+  // Not live: say which state, since when, and that the reader reconnects on its own.
+  const since = sinceClock(status.since, nowMs);
+  const sinceText = since === null ? "" : ` since ${since}`;
+  // The gateway serves accounts of the other mode: nothing from it is shown, whatever the connection.
+  if (snapshot.account.modeError === "mismatch")
+    return {
+      key: "mode-mismatch",
+      label: `Account data withheld${sinceText} · account mode mismatch`,
+      tone: "destructive",
+    };
   if (status.gateway === "starting")
-    return { key: "starting", label: "Gateway starting", tone: "warning" };
+    return {
+      key: "starting",
+      label: `Gateway connecting${sinceText} · retrying`,
+      tone: "warning",
+    };
   if (status.gateway !== "live" || !status.connected)
     return {
       key: "disconnected",
-      label: "Gateway disconnected",
+      label: `Gateway disconnected${sinceText} · retrying`,
       tone: "destructive",
     };
   const age = ageSeconds(status.dataAsOf, nowMs);
@@ -210,10 +247,72 @@ export const monitorHealth = ({
   return { key: "live", label: "Live", tone: "success" };
 };
 
-export const accountLabel = (mode: string): string => {
-  if (mode === "live") return "Live account · read-only";
-  if (mode === "paper") return "Paper account · read-only";
-  return "Account mode unknown";
+// ---------- account mode ----------
+
+export type AccountBadge = Readonly<{
+  // live | paper, or the name of the error (mismatch | not-configured | not-reported).
+  key: string;
+  label: string;
+  tone: "info" | "neutral" | "destructive";
+  // What to do about an error; null for live and paper.
+  next: string | null;
+}>;
+
+// The account mode is a configured fact: the badge is always Live or Paper, also while the gateway
+// is down (the health badge shows the connection). The other three are named errors.
+export const accountBadge = (
+  account: PortfolioMonitorOutput["account"]
+): AccountBadge => {
+  if (account.mode === "live")
+    return {
+      key: "live",
+      label: "Live account · read-only",
+      tone: "info",
+      next: null,
+    };
+  if (account.mode === "paper")
+    return {
+      key: "paper",
+      label: "Paper account · read-only",
+      tone: "neutral",
+      next: null,
+    };
+  if (account.modeError === "mismatch")
+    return {
+      key: "mismatch",
+      label: "Account mode mismatch · data withheld",
+      tone: "destructive",
+      next: "The IBKR gateway is configured for one mode (live or paper) but its account list is of the other. Account data is withheld until IBKR_TRADING_MODE and the gateway login agree.",
+    };
+  if (account.modeError === "not-configured")
+    return {
+      key: "not-configured",
+      label: "Account mode not configured",
+      tone: "destructive",
+      next: "Set IBKR_TRADING_MODE (live or paper) for the IBKR gateway on QuantVPS. The gateway has not connected yet, so its account list cannot confirm the mode either.",
+    };
+  return {
+    key: "not-reported",
+    label: "Account mode not reported",
+    tone: "destructive",
+    next: "The IBKR reader on QuantVPS runs a version that does not send the account mode. Deploy the current reader.",
+  };
+};
+
+// "Last confirmed 01:12 EST": when a gateway session last confirmed the mode with its account list.
+// Shown while the gateway is not live. Null when live, on an error, or never confirmed.
+export const modeConfirmedText = (
+  snapshot: PortfolioMonitorOutput,
+  nowMs: number
+): string | null => {
+  const { account, status } = snapshot;
+  if (account.mode === null) return null;
+  if (status.gateway === "live" && status.connected) return null;
+  const at = sinceClock(account.modeConfirmedAt, nowMs);
+  const name = account.mode === "live" ? "Live account" : "Paper account";
+  return at === null
+    ? `${name} from the gateway configuration; no session has confirmed it yet`
+    : `Last confirmed: ${name} ${at}`;
 };
 
 // ---------- summary ----------
@@ -866,6 +965,27 @@ export const donutArc = (
   return `M${f(x0)} ${f(y0)}A${outer} ${outer} 0 ${large} 1 ${f(x1)} ${f(y1)}L${f(x2)} ${f(y2)}A${inner} ${inner} 0 ${large} 0 ${f(x3)} ${f(y3)}Z`;
 };
 
+// One sentence that says why the account data of this snapshot is not shown, or null when the book
+// is complete and current. For every surface that reads positions, orders or fills: an empty list
+// in a withheld snapshot is not "none".
+export const accountDataWithheld = (
+  snapshot: Pick<PortfolioMonitorOutput, "account" | "status">
+): string | null => {
+  if (snapshot.account.modeError === "mismatch")
+    return "Account data is withheld: the IBKR gateway's account list does not match its configured mode (live or paper). The Portfolio page shows the fix.";
+  if (snapshot.status.gateway === "starting")
+    return "The IBKR gateway is connecting, so account data is not received yet. The reader retries on its own.";
+  if (snapshot.status.gateway !== "live" || !snapshot.status.connected)
+    return "The IBKR gateway is disconnected, so account data is withheld until it reconnects. The reader retries on its own.";
+  return null;
+};
+
+// True when the tables hold a complete, current book. Not on a mode mismatch: then the lists are
+// withheld, and an empty list must not read as "no positions".
 export const isGatewayLive = (snapshot: PortfolioMonitorOutput): boolean => {
-  return snapshot.status.gateway === "live" && snapshot.status.connected;
+  return (
+    snapshot.status.gateway === "live" &&
+    snapshot.status.connected &&
+    snapshot.account.modeError !== "mismatch"
+  );
 };

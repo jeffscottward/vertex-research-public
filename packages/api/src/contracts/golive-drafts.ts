@@ -11,12 +11,11 @@ import {
 // Go-live draft queue (card vertex-golive-draft-queue). Vertex computes what the allocation plan
 // wants today and drafts defined-risk vertical orders. The owner approves or rejects each draft.
 //
-// RECORDS ONLY. This contract has no send route and its service calls no order gateway: an
-// approval is a stored owner decision and nothing reaches a broker. This service never calls
-// vertexOrders.comboPreview / comboSubmit, and no screen offers a vertical ticket in live mode, so
-// an approved draft is not placed through Vertex today. A send route is a later change behind its
-// own flag; it must check the Nautilus arm state itself, because the order bridge checks only the
-// kill switch (docs/vertex-rebuild/golive-draft-queue.md).
+// This contract has no send route and its service calls no order gateway: an approval is a stored
+// owner decision. The draft page sends an approved entry through vertexOrders.comboPreview /
+// comboSubmit with goLiveDraftId (GO-LIVE 4), gated by golive-send-gate.ts (node armed, plan caps,
+// exact approved order) and only through an order bridge that runs engine policy v3 and the node
+// ARM record on every opening combo (docs/vertex-rebuild/golive-draft-queue.md).
 //
 // Access: plan and draft reads need an operator. approve and reject need the owner in a browser
 // session (agent API keys are refused). collect is the rig generator's write (operator write key).
@@ -81,6 +80,23 @@ export const GOLIVE_NOT_APPROVABLE_VALUES = [
   "DRAFT_NOT_PROPOSED",
   "DRAFT_EXPIRED",
 ] as const;
+// The send of an approved entry draft, read from the order intent store: not_sent (no send has
+// run), refused (the order bridge refused the last send before IBKR: nothing was sent), sent
+// (submitted at IBKR, or found there later), not_taken (the bridge answered with another state, for
+// example aborted: not placed, but no proof that nothing reached IBKR; not sent again here), unknown
+// (in flight or outcome unknown: it may still reach IBKR), not_found (an unknown outcome checked
+// later and not found at IBKR; not sent again here), unavailable (the store is missing or did not
+// answer).
+export const GOLIVE_SEND_STATE_VALUES = [
+  "not_sent",
+  "refused",
+  "sent",
+  "not_taken",
+  "unknown",
+  "not_found",
+  "unavailable",
+] as const;
+export const GOLIVE_SENDABLE_STATES = ["not_sent", "refused"] as const;
 export const GOLIVE_QUOTE_SOURCE_VALUES = [
   "ibkr_live",
   "yahoo_delayed_snapshot",
@@ -363,7 +379,9 @@ export const GoLiveSizingSchema = z
 
 export const GoLivePreCheckSchema = z
   .object({
-    // The engine policy in arm_gate.py is not part of the web order path and is not run here.
+    // The engine policy in arm_gate.py is not run in this dry pre-check. At send (go-live sends are on only
+    // with a bridge that reports v3), the order bridge runs it with the ARM check (card
+    // vertex-golive-exec-intake); the literal keeps its historical name for the contract.
     enginePolicy: z.literal("not_evaluated_not_in_web_order_path"),
     // The web final order gate, run dry on the sized order (packages/api final-order-gate.ts).
     // null when there is no sized order to check.
@@ -373,17 +391,6 @@ export const GoLivePreCheckSchema = z
 
 export const GoLiveDraftSchema = z
   .object({
-    createdAt: z.date(),
-    decidedAt: z.date().nullable(),
-    decidedBy: z.string().nullable(),
-    decisionNote: z.string().nullable(),
-    entryBasis: z.enum(GOLIVE_ENTRY_BASIS_VALUES).nullable(),
-    exitReason: z.enum(GOLIVE_EXIT_REASON_VALUES).nullable(),
-    exitRule: z.literal(GOLIVE_EXIT_RULE),
-    expiry: z.string(),
-    id: z.string().min(1),
-    kind: z.enum(GOLIVE_DRAFT_KIND_VALUES),
-    longStrike: z.number(),
     // The exact order the owner approved, stored with the decision. null unless state is approved.
     // sizing and order below are recomputed at every read and can differ from it later.
     approvedOrder: VertexComboInputSchema.nullable(),
@@ -398,6 +405,36 @@ export const GoLiveDraftSchema = z
       })
       .strict()
       .nullable(),
+    createdAt: z.date(),
+    decidedAt: z.date().nullable(),
+    decidedBy: z.string().nullable(),
+    decisionNote: z.string().nullable(),
+    entryBasis: z.enum(GOLIVE_ENTRY_BASIS_VALUES).nullable(),
+    exitReason: z.enum(GOLIVE_EXIT_REASON_VALUES).nullable(),
+    exitRule: z.literal(GOLIVE_EXIT_RULE),
+    // When the owner's standing exit rule (owner_standing_rule_v1) closes this position, for an
+    // approved entry draft: a loser closes on loserCloseDay (3 NYSE trading days before expiry),
+    // an open winner at winnerCloseAt (15:45 New York time on the expiry day). closeOrder is the
+    // combo that closes the approved order (every leg reversed, same quantity); its limit is set
+    // from the live quote when the exit draft is placed, so it is null here. null otherwise.
+    exitSchedule: z
+      .object({
+        closeOrder: z
+          .object({
+            legs: VertexComboInputSchema.shape.legs,
+            quantity: z.number().int().positive(),
+            symbol: z.string(),
+          })
+          .strict(),
+        loserCloseDay: CalendarDateSchema,
+        winnerCloseAt: z.date(),
+      })
+      .strict()
+      .nullable(),
+    expiry: z.string(),
+    id: z.string().min(1),
+    kind: z.enum(GOLIVE_DRAFT_KIND_VALUES),
+    longStrike: z.number(),
     // The node badge read when the owner approved. An approval never sends anything.
     nodeBadgeAtDecision: z.enum(GOLIVE_NODE_BADGE_VALUES).nullable(),
     notApprovable: z.array(z.enum(GOLIVE_NOT_APPROVABLE_VALUES)),
@@ -412,6 +449,10 @@ export const GoLiveDraftSchema = z
     // 1 when the draft is stored; every later write to it adds 1. approve sends the revision the
     // owner read and is refused when the draft has another one.
     revision: z.number().int().positive(),
+    // Where the send of an approved entry stands (the order intent rows of its fixed orderRef):
+    // not_sent and refused may be sent with "Send approved order"; the server decides again at
+    // send. null for any other draft and for API keys.
+    send: z.enum(GOLIVE_SEND_STATE_VALUES).nullable(),
     shortStrike: z.number(),
     signalFacts: z.array(z.string()),
     // Computed at read time from the live account; never stored.
@@ -445,6 +486,8 @@ export const GoLiveNodeSchema = z
 export const GoLiveQueueOutputSchema = z
   .object({
     account: GoLiveAccountSchema,
+    // True when this caller may approve and reject (owner in a browser session).
+    canDecide: z.boolean(),
     // Every draft of the trading day: collect keeps a day at or below this number.
     drafts: z.array(GoLiveDraftSchema).max(GOLIVE_DRAFT_LIST_MAX),
     // null: the generator has not reported for this trading day.
@@ -453,8 +496,6 @@ export const GoLiveQueueOutputSchema = z
     node: GoLiveNodeSchema,
     // null: no plan record exists.
     plan: GoLivePlanSchema.nullable(),
-    // True when this caller may approve and reject (owner in a browser session).
-    canDecide: z.boolean(),
     // Literal: this API cannot send an order.
     sendsOrders: z.literal(false),
     tradingDay: CalendarDateSchema,
@@ -505,6 +546,9 @@ export const GoLiveDraftApproveInputSchema = z
     note: z.string().max(1000).optional(),
     // The owner confirms the exact order shown: the server refuses when its own sized order differs.
     order: VertexComboInputSchema,
+    // Owner 2026-11-12 (GO-LIVE 4 step 6): a late entry (model_holds_account_does_not) may be
+    // approved only with this explicit acknowledgement that it is outside the tested entry rule.
+    outsideTestedEntryRule: z.literal(true).optional(),
     // The revision of the draft as the owner read it: the server refuses when the draft has
     // another one (a later generator run changed its quote, facts or entry basis). At most the
     // largest value the stored whole number (int4) holds.
@@ -576,6 +620,7 @@ export type GoLivePlanLimits = z.infer<typeof GoLivePlanLimitsSchema>;
 export type GoLiveDraftCandidate = z.infer<typeof GoLiveDraftCandidateSchema>;
 export type GoLiveDraftOutput = z.infer<typeof GoLiveDraftSchema>;
 export type GoLiveDraftState = z.infer<typeof GoLiveDraftStateSchema>;
+export type GoLiveSendState = (typeof GOLIVE_SEND_STATE_VALUES)[number];
 export type GoLiveSizing = z.infer<typeof GoLiveSizingSchema>;
 export type GoLiveQuote = z.infer<typeof GoLiveQuoteSchema>;
 export type GoLiveQueueOutput = z.infer<typeof GoLiveQueueOutputSchema>;

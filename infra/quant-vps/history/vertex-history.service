@@ -10,6 +10,8 @@ CacheDirectory=vertex-history
 ExecStartPre=+/opt/vertex-history/resolve-gateway.sh
 ExecStart=/opt/vertex-history/venv/bin/python -I -W ignore /opt/vertex-history/vertex_history.py
 EnvironmentFile=/opt/vertex-status/token.env
+# /option-chain (IB market data snapshots on the gateway the live engine shares) stays off unless the owner adds
+# Environment=VERTEX_HISTORY_OPTION_QUOTES=1 (drop-in) and restarts the service.
 DynamicUser=yes
 Restart=on-failure
 RestartSec=30

@@ -3,6 +3,9 @@ import { z } from "zod";
 
 import { appContract } from "../contract.ts";
 import {
+  PORTFOLIO_ACCOUNT_MODE_SOURCES,
+  PORTFOLIO_ACCOUNT_MODES,
+  type PortfolioMonitorAccount,
   PORTFOLIO_MONITOR_MAX_MESSAGES,
   PORTFOLIO_MONITOR_MAX_ROWS,
   PortfolioMonitorOutputSchema,
@@ -158,7 +161,14 @@ export const VertexPortfolioUpstreamSchema = z
     state: z.enum(["starting", "live", "disconnected"]),
     connected: z.boolean(),
     lastError: text(400).nullable(),
-    accountMode: z.enum(["live", "paper", "unknown"]),
+    // Service 1.1.0 always sends live or paper, or null with a modeError. Any other value comes
+    // from service 1.0.0 (no configured mode yet) and is read as "mode not reported".
+    accountMode: z.enum(PORTFOLIO_ACCOUNT_MODES).nullable().catch(null),
+    modeSource: z.enum(PORTFOLIO_ACCOUNT_MODE_SOURCES).nullable().optional(),
+    modeConfirmedAt: epoch.nullable().optional(),
+    modeError: z.enum(["mismatch", "not-configured"]).nullable().optional(),
+    // Start of the current connection state (live since / not live since).
+    stateSince: epoch.nullable().optional(),
     accountCount: z.number().int().nonnegative(),
     dataAsOf: epoch.nullable(),
     ordersAsOf: epoch.nullable(),
@@ -385,6 +395,75 @@ const mapExecution = (
   orderRef: scrubPortfolioText(execution.orderRef, 80),
 });
 
+type ReportedAccount = Readonly<{
+  // False for a reader version that sends no mode fields at all.
+  reported: boolean;
+  mode: string | null | undefined;
+  modeSource: string | null | undefined;
+  modeConfirmedAt: string | null;
+  modeError: string | null | undefined;
+  count: number;
+}>;
+
+// The account block of the view. It has a mode (live or paper) or a named error, never neither.
+export const toPortfolioAccount = (
+  input: ReportedAccount
+): PortfolioMonitorAccount => {
+  const none = {
+    mode: null,
+    modeSource: null,
+    modeConfirmedAt: null,
+    count: input.count,
+  };
+  if (!input.reported) {
+    // A reader without the mode fields that still names a mode read it from the account list of
+    // its current session: that is a confirmed mode. Anything else is "not reported".
+    return input.mode === "live" || input.mode === "paper"
+      ? {
+          mode: input.mode,
+          modeSource: "confirmed",
+          modeConfirmedAt: null,
+          modeError: null,
+          count: input.count,
+        }
+      : { ...none, modeError: "not-reported" };
+  }
+  if (input.modeError === "mismatch") return { ...none, modeError: "mismatch" };
+  if (input.mode !== "live" && input.mode !== "paper")
+    return { ...none, modeError: "not-configured" };
+  return {
+    mode: input.mode,
+    modeSource: input.modeSource === "confirmed" ? "confirmed" : "configured",
+    modeConfirmedAt: input.modeConfirmedAt,
+    modeError: null,
+    count: input.count,
+  };
+};
+
+// Configured mode and account list disagree: nothing from that account is shown as this account's
+// data. The readers already withhold it; this keeps the rule in one more place.
+export const withholdOnModeMismatch = (
+  output: PortfolioMonitorOutput
+): PortfolioMonitorOutput =>
+  output.account.modeError === "mismatch"
+    ? {
+        ...output,
+        // Not connected to the configured account: every consumer of `connected` fails closed.
+        status: {
+          ...output.status,
+          connected: false,
+          dataAsOf: null,
+          ordersAsOf: null,
+        },
+        summary: toSummary({}),
+        pnl: { daily: null, unrealized: null, realized: null },
+        positions: [],
+        orders: [],
+        completed: [],
+        executions: [],
+      }
+    : output;
+
 export const toPortfolioMonitorOutput = (
   raw: unknown,
   receivedAt: Date
@@ -415,12 +494,18 @@ export const toPortfolioMonitorOutput = (
         document.lastError === null
           ? null
           : scrubPortfolioText(document.lastError, 300),
+      since: isoOrNull(document.stateSince ?? null),
       clientId: 78,
     },
-    account: {
+    account: toPortfolioAccount({
+      reported:
+        document.modeSource !== undefined || document.modeError !== undefined,
       mode: document.accountMode,
+      modeSource: document.modeSource,
+      modeConfirmedAt: isoOrNull(document.modeConfirmedAt ?? null),
+      modeError: document.modeError,
       count: document.accountCount,
-    },
+    }),
     summary: toSummary(document.summary),
     pnl: {
       daily: nn(document.pnl.daily),
@@ -442,7 +527,7 @@ export const toPortfolioMonitorOutput = (
       })),
   };
   // Final guard: the browser contract is strict too.
-  return PortfolioMonitorOutputSchema.parse(output);
+  return PortfolioMonitorOutputSchema.parse(withholdOnModeMismatch(output));
 };
 
 // Reads at most maxBytes of a response body as UTF-8; `fail` builds the error to throw.

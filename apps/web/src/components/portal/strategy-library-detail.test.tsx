@@ -74,6 +74,7 @@ const strategy = (
   id: "s-1",
   kind: "python",
   latestBacktest: null,
+  vertexStudy: null,
   name: "Trend",
   params: [],
   presetCount: 0,
@@ -214,12 +215,18 @@ describe("StrategyDetail", () => {
       slug: "volume-spike-breakout",
       status: "backtested",
       tags: ["research-only", "backtest-study", "externally-pre-validated"],
+      vertexStudy: { kind: "strategy-backtest", verdict: "no-edge" },
     });
     const container = await mount(
       detailOf({ detail: { backtests: [], presets: [], strategy: claimed } })
     );
+    // The header shows Vertex's own study result before the source's claim.
     expect(badgeKeys(container)).toEqual([
       ["high-priority", "High priority"],
+      [
+        "vertex-result",
+        "Vertex study: No edge (Vertex research result, not a trading signal)",
+      ],
       [
         "externally-pre-validated",
         "Externally pre-validated (source claim, not validated by Vertex)",

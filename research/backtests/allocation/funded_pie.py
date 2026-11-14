@@ -141,7 +141,9 @@ def main() -> None:
     parser.add_argument("--trials", type=int, required=True)
     parser.add_argument("--trial-variance", type=float, required=True)
     parser.add_argument("--chain", type=Path, required=True)
+    parser.add_argument("--market-notes", action="store_true", help=base.MARKET_NOTES_HELP)
     args = parser.parse_args()
+    owner_notes = base.owner_market_notes() if args.market_notes else None
     document = {"pool": {key: {"sleeve": sleeve, "budgetPct": budget} for key, (sleeve, budget) in POOL.items()},
                 "limits": {"positionRiskPct": POSITION_RISK_PCT, "openRiskCapPct": OPEN_RISK_CAP_PCT, "nameRiskCapPct": NAME_RISK_CAP_PCT,
                            "cashPct": 100 - sum(budget for _sleeve, budget in POOL.values())},
@@ -151,6 +153,8 @@ def main() -> None:
                 for name in MODELS}
         for name, job in jobs.items():
             document["models"][name] = job.result()
+    if owner_notes is not None:
+        document["ownerMarketNotes"] = owner_notes
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(document, indent=1))
     for name, model in document["models"].items():
