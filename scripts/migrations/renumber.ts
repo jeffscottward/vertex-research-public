@@ -1,11 +1,13 @@
 // What: `pnpm db:renumber` moves this branch's new Drizzle migrations behind the base branch's
 // migrations after `git merge <base>`: next free numbers, strictly newer `when`, renamed SQL,
-// snapshot and rollback files, rewritten tag references, re-chained snapshot prevIds, all staged.
+// snapshot and rollback files, rewritten tag references, snapshots merged with the base's schema
+// changes and re-chained, all staged.
 // Two branches that each add migration NNNN conflict in meta/_journal.json and meta/NNNN_snapshot.json;
 // this resolves both (card vertex-migration-number-race, 2026-11-09).
 // Used by: scripts/db-renumber.ts.
 // See: CONVENTIONS.md (Migration numbers); packages/db/src/server/migration-journal.test.ts.
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
   readdirSync,
@@ -14,7 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
 import { z } from "zod";
 
 import { withoutGitRepositoryEnvironment } from "../lib/git-env.ts";
@@ -31,24 +33,32 @@ const PREV_ID = /"prevId": "[^"]*"/u;
 const USAGE = `Usage: pnpm db:renumber [--base <ref>]
 
 Run it after \`git merge <base>\` when both sides added migrations. It keeps the base's migrations
-as they are, moves this branch's new ones behind them and stages the result.
+as they are, moves this branch's new ones behind them and stages the result. It merges the base's
+schema changes into each snapshot it moves; run \`pnpm db:generate\` afterwards, which must report
+no schema changes.
 --base defaults to MERGE_HEAD during a merge, else to origin/HEAD.`;
 
 const EntrySchema = z.strictObject({
+  breakpoints: z.boolean(),
   idx: z.number().int().nonnegative(),
+  tag: z.string().regex(TAG),
   version: z.string(),
   when: z.number().int(),
-  tag: z.string().regex(TAG),
-  breakpoints: z.boolean(),
 });
 const JournalSchema = z.strictObject({
-  version: z.string(),
   dialect: z.string(),
   entries: z.array(EntrySchema),
+  version: z.string(),
 });
-const SnapshotSchema = z.object({ id: z.string(), prevId: z.string() });
+const SnapshotSchema = z.looseObject({ id: z.string(), prevId: z.string() });
+const LINE_WIDTH = 80;
 
 export type Journal = z.infer<typeof JournalSchema>;
+type Snapshot = z.infer<typeof SnapshotSchema>;
+export type SnapshotMerge = Readonly<{
+  value: unknown;
+  conflicts: readonly string[];
+}>;
 export type Move = Readonly<{ from: string; to: string }>;
 export type RenumberPlan = Readonly<{
   journal: Journal;
@@ -124,25 +134,111 @@ export const planRenumber = (
     const previous = ours.get(from);
     when = Math.max(previous?.when ?? 0, when + 1);
     const entry = {
+      breakpoints: previous?.breakpoints ?? true,
       idx,
+      tag: `${String(idx).padStart(4, "0")}${from.slice(4)}`,
       version: previous?.version ?? input.base.version,
       when,
-      tag: `${String(idx).padStart(4, "0")}${from.slice(4)}`,
-      breakpoints: previous?.breakpoints ?? true,
     };
-    return { from, entry };
+    return { entry, from };
   });
   return {
     journal: {
       ...input.base,
       entries: [...input.base.entries, ...appended.map(({ entry }) => entry)],
     },
-    own,
     moves: appended
       .filter(({ from, entry }) => from !== entry.tag)
       .map(({ from, entry }) => ({ from, to: entry.tag })),
+    own,
   };
 };
+
+const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * Three-way merge of JSON values; `undefined` means absent. A value that only one side changed comes
+ * from that side. Objects merge key by key (the branch's keys first, then the base's new ones).
+ * Anything else that both sides changed keeps the branch's value and is a conflict, named by its
+ * key path.
+ */
+export const mergeSnapshots = (
+  start: unknown,
+  base: unknown,
+  branch: unknown,
+  path: readonly string[] = []
+): SnapshotMerge => {
+  if (isDeepStrictEqual(branch, start)) {
+    return { conflicts: [], value: base };
+  }
+  if (isDeepStrictEqual(base, start) || isDeepStrictEqual(base, branch)) {
+    return { conflicts: [], value: branch };
+  }
+  if (!(isObject(start) && isObject(base) && isObject(branch))) {
+    return { conflicts: [path.join(" > ")], value: branch };
+  }
+  const merged = [
+    ...new Set([...Object.keys(branch), ...Object.keys(base)]),
+  ].map((key) => ({
+    key,
+    ...mergeSnapshots(start[key], base[key], branch[key], [...path, key]),
+  }));
+  return {
+    conflicts: merged.flatMap((each) => each.conflicts),
+    value: Object.fromEntries(
+      merged
+        .filter((each) => each.value !== undefined)
+        .map((each) => [each.key, each.value])
+    ),
+  };
+};
+
+/** `width` is the columns already used on the value's line, `tail` is 1 when a comma follows it. */
+const formatValue = (
+  value: unknown,
+  indent: string,
+  width: number,
+  tail: number
+): string => {
+  const inner = `${indent}  `;
+  if (Array.isArray(value)) {
+    const line = `[${value.map((each) => JSON.stringify(each)).join(", ")}]`;
+    const plain = value.every(
+      (each) => typeof each !== "object" || each === null
+    );
+    if (
+      value.length === 0 ||
+      (plain && width + line.length + tail <= LINE_WIDTH)
+    ) {
+      return line;
+    }
+    const items = value.map(
+      (each, index) =>
+        inner +
+        formatValue(each, inner, inner.length, index < value.length - 1 ? 1 : 0)
+    );
+    return `[\n${items.join(",\n")}\n${indent}]`;
+  }
+  if (isObject(value) && Object.keys(value).length > 0) {
+    const members = Object.entries(value).map(([key, each], index, all) => {
+      const name = `${inner}${JSON.stringify(key)}: `;
+      return (
+        name +
+        formatValue(each, inner, name.length, index < all.length - 1 ? 1 : 0)
+      );
+    });
+    return `{\n${members.join(",\n")}\n${indent}}`;
+  }
+  return JSON.stringify(value);
+};
+
+/**
+ * A snapshot as text in the format of the committed snapshots (Biome's JSON layout: an array of
+ * plain values stays on one line when it fits in 80 columns), so the pre-commit format check passes.
+ */
+export const formatSnapshot = (value: unknown): string =>
+  `${formatValue(value, "", 0, 0)}\n`;
 
 const lines = (text: string): string[] => text.split("\n").filter(Boolean);
 
@@ -162,12 +258,11 @@ const createGit = (root: string): Git => {
     }
     return {
       ok: result.status === 0,
-      stdout: result.stdout,
       stderr: result.stderr,
+      stdout: result.stdout,
     };
   };
   return {
-    run,
     output: (args) => {
       const result = run(args);
       if (!result.ok) {
@@ -177,6 +272,7 @@ const createGit = (root: string): Git => {
       }
       return result.stdout;
     },
+    run,
   };
 };
 
@@ -223,7 +319,7 @@ type Workspace = Readonly<{
 const openWorkspace = (git: Git, root: string, base: string): Workspace => {
   const absolute = (path: string): string => join(root, path);
   return {
-    git,
+    absolute,
     base,
     baseFiles: new Set(
       lines(
@@ -238,19 +334,19 @@ const openWorkspace = (git: Git, root: string, base: string): Workspace => {
         ])
       )
     ),
-    unmerged: new Set(
-      lines(git.output(["diff", "--name-only", "--diff-filter=U"]))
-    ),
-    absolute,
+    git,
     read: (path) =>
       existsSync(absolute(path))
         ? readFileSync(absolute(path), "utf8")
         : undefined,
+    stage: (number, path) => git.output(["show", `:${number}:${path}`]),
+    touched: new Set<string>(),
+    unmerged: new Set(
+      lines(git.output(["diff", "--name-only", "--diff-filter=U"]))
+    ),
     write: (path, text) => {
       writeFileSync(absolute(path), text);
     },
-    stage: (number, path) => git.output(["show", `:${number}:${path}`]),
-    touched: new Set<string>(),
   };
 };
 
@@ -312,19 +408,79 @@ const collectMoves = (
       const baseText = conflicted ? workspace.stage(3, from) : undefined;
       return text === undefined
         ? []
-        : [{ from, to, text: rewrite(text), baseText }];
+        : [{ baseText, from, text: rewrite(text), to }];
     });
   });
 };
 
+type Chained = Readonly<{
+  writes: Map<string, string>;
+  merged: string[];
+  checks: string[];
+}>;
+
+const contentOf = (snapshot: Snapshot): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(snapshot).filter(([key]) => key !== "id" && key !== "prevId")
+  );
+
 /**
- * The snapshot files after the moves, with each of the branch's snapshots pointing at the snapshot
- * before it (drizzle-kit reads this chain). Returns the texts to write.
+ * A branch snapshot holds the schema as the branch saw it. Behind the base's migrations it must also
+ * hold the base's changes: the three-way merge of `start` (the snapshot it was generated from),
+ * `before` (the snapshot that now precedes it) and itself. Returns the merged snapshot, with a new id
+ * so that nothing generated from the old content takes it for its start, or no snapshot when there is
+ * nothing to merge; `checks` name what a person must correct.
+ */
+const rebaseSnapshot = (
+  start: Snapshot | undefined,
+  before: Snapshot,
+  snapshot: Snapshot
+): Readonly<{ snapshot?: Snapshot; checks: string[] }> => {
+  if (start === undefined) {
+    return {
+      checks: [
+        `the snapshot with id ${snapshot.prevId} is not in this checkout; only prevId was updated`,
+      ],
+    };
+  }
+  const sameFormat = ["version", "dialect"].every(
+    (key) =>
+      isDeepStrictEqual(start[key], snapshot[key]) &&
+      isDeepStrictEqual(before[key], snapshot[key])
+  );
+  if (!sameFormat) {
+    return {
+      checks: [
+        "version or dialect differs from the snapshot before it; only prevId was updated",
+      ],
+    };
+  }
+  const merge = mergeSnapshots(
+    contentOf(start),
+    contentOf(before),
+    contentOf(snapshot)
+  );
+  const checks = merge.conflicts.map(
+    (key) => `${key} changed on both sides; kept this branch's value`
+  );
+  return isDeepStrictEqual(merge.value, contentOf(snapshot))
+    ? { checks }
+    : {
+        checks,
+        snapshot: { id: randomUUID(), prevId: before.id, ...merge.value },
+      };
+};
+
+/**
+ * The snapshot files after the moves. Each of the branch's snapshots gets the base's schema changes
+ * (`rebaseSnapshot`) and points at the snapshot before it (drizzle-kit reads this chain). A snapshot
+ * that already points at the snapshot before it is left alone. Returns the texts to write, the
+ * paths with merged content and the lines for a person to check.
  */
 const chainSnapshots = (
   workspace: Workspace,
   moving: readonly MovingFile[]
-): Map<string, string> => {
+): Chained => {
   const texts = new Map(
     readdirSync(workspace.absolute(META))
       .filter((name) => SNAPSHOT.test(name))
@@ -347,7 +503,7 @@ const chainSnapshots = (
     texts.set(file.to, file.text);
   }
   const ordered = [...texts.keys()].sort();
-  const ids = ordered.map((path) => {
+  const snapshots = ordered.map((path) => {
     const snapshot = SnapshotSchema.safeParse(
       parseJson(required(texts.get(path), path))
     );
@@ -358,18 +514,32 @@ const chainSnapshots = (
     }
     return snapshot.data;
   });
-  const writes = new Map<string, string>();
+  // The content before any merge: a branch snapshot's start can be an earlier branch snapshot.
+  const byId = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
+  const chained: Chained = { checks: [], merged: [], writes: new Map() };
+  let previous = snapshots[0];
   ordered.slice(1).forEach((path, offset) => {
-    const previous = required(ids[offset], "previous snapshot").id;
-    if (
-      !workspace.baseFiles.has(path) &&
-      required(ids[offset + 1], "snapshot").prevId !== previous
-    ) {
+    const before = required(previous, "previous snapshot");
+    const snapshot = required(snapshots[offset + 1], "snapshot");
+    previous = snapshot;
+    if (workspace.baseFiles.has(path) || snapshot.prevId === before.id) {
+      return;
+    }
+    const rebased = rebaseSnapshot(byId.get(snapshot.prevId), before, snapshot);
+    chained.checks.push(...rebased.checks.map((check) => `${path}: ${check}`));
+    if (rebased.snapshot === undefined) {
       const text = required(texts.get(path), path);
-      writes.set(path, text.replace(PREV_ID, `"prevId": "${previous}"`));
+      chained.writes.set(
+        path,
+        text.replace(PREV_ID, `"prevId": "${before.id}"`)
+      );
+    } else {
+      chained.writes.set(path, formatSnapshot(rebased.snapshot));
+      chained.merged.push(path);
+      previous = rebased.snapshot;
     }
   });
-  return writes;
+  return chained;
 };
 
 /** Rewrites tag references in tracked text files (tests, docs, the branch's own SQL and rollbacks). */
@@ -398,10 +568,14 @@ const rewriteReferences = (
   }
 };
 
-/** Prints what changed, lines that still name an old number, and conflicts left; returns the exit code. */
+/**
+ * Prints what changed, lines that still name an old number, conflicts left and the snapshots that a
+ * person must correct; returns the exit code.
+ */
 const report = (
   workspace: Workspace,
   moves: readonly Move[],
+  snapshots: Chained,
   io: RenumberIo
 ): number => {
   io.stdout(
@@ -413,6 +587,9 @@ const report = (
   );
   for (const move of moves) {
     io.stdout(`moved ${move.from} -> ${move.to}`);
+  }
+  for (const path of snapshots.merged) {
+    io.stdout(`merged the base's schema changes into ${path}`);
   }
   for (const path of moves.length === 0 ? [] : [...workspace.touched].sort()) {
     const text = path.endsWith("_snapshot.json")
@@ -443,8 +620,19 @@ const report = (
     );
     return 1;
   }
+  if (snapshots.checks.length > 0) {
+    for (const check of snapshots.checks) {
+      io.stderr(`check the snapshot: ${check}`);
+    }
+    io.stderr(
+      'db:renumber: correct the snapshots above by hand (CONVENTIONS.md, Migration numbers), then run pnpm db:generate; it must report "No schema changes".'
+    );
+    return 1;
+  }
   io.stdout(
-    "Next: resolve any other conflicts, `git commit` (or `git merge --continue`), then run the db tests."
+    snapshots.merged.length > 0
+      ? 'Next: resolve any other conflicts, run `pnpm db:generate` (it must report "No schema changes"), `git commit` (or `git merge --continue`), then run the db tests.'
+      : "Next: resolve any other conflicts, `git commit` (or `git merge --continue`), then run the db tests."
   );
   return 0;
 };
@@ -497,7 +685,7 @@ const renumber = (
     workspace.write(file.to, file.text);
     workspace.touched.add(file.to);
   }
-  for (const [path, text] of snapshots) {
+  for (const [path, text] of snapshots.writes) {
     workspace.write(path, text);
     workspace.touched.add(path);
   }
@@ -514,7 +702,7 @@ const renumber = (
     return 0;
   }
   git.output(["add", "-A", "--", ...workspace.touched]);
-  return report(workspace, plan.moves, io);
+  return report(workspace, plan.moves, snapshots, io);
 };
 
 /**
@@ -555,13 +743,13 @@ export const runRenumber = (
     let options: { base?: string | undefined; help?: boolean | undefined };
     try {
       options = parseArgs({
+        allowPositionals: false,
         args: [...argv],
         options: {
           base: { type: "string" },
-          help: { type: "boolean", short: "h" },
+          help: { short: "h", type: "boolean" },
         },
         strict: true,
-        allowPositionals: false,
       }).values;
     } catch (error) {
       throw new RenumberError(`${(error as Error).message}\n${USAGE}`);

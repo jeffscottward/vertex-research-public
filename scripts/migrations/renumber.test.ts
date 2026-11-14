@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -13,8 +14,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { withoutGitRepositoryEnvironment } from "../lib/git-env.ts";
 import {
+  formatSnapshot,
   JOURNAL,
   type Journal,
+  mergeSnapshots,
   planRenumber,
   RenumberError,
   readJournal,
@@ -29,15 +32,15 @@ const gitEnvironment = withoutGitRepositoryEnvironment(process.env);
 const journalOf = (
   entries: ReadonlyArray<readonly [string, number]>
 ): Journal => ({
-  version: "7",
   dialect: "postgresql",
   entries: entries.map(([tag, when], idx) => ({
+    breakpoints: true,
     idx,
+    tag,
     version: "7",
     when,
-    tag,
-    breakpoints: true,
   })),
+  version: "7",
 });
 
 describe("planRenumber", () => {
@@ -61,8 +64,8 @@ describe("planRenumber", () => {
       { from: "0003_later", to: "0004_later" },
     ]);
     expect(plan.journal.entries.slice(3)).toEqual([
-      { idx: 3, version: "7", when: 301, tag: "0003_mine", breakpoints: true },
-      { idx: 4, version: "7", when: 900, tag: "0004_later", breakpoints: true },
+      { breakpoints: true, idx: 3, tag: "0003_mine", version: "7", when: 301 },
+      { breakpoints: true, idx: 4, tag: "0004_later", version: "7", when: 900 },
     ]);
   });
 
@@ -76,7 +79,7 @@ describe("planRenumber", () => {
       ours,
       sqlTags: ["0000_a", "0001_mine"],
     });
-    expect(plan).toEqual({ journal: ours, own: ["0001_mine"], moves: [] });
+    expect(plan).toEqual({ journal: ours, moves: [], own: ["0001_mine"] });
   });
 
   it("orders migrations that share a number by name and fills in entries the branch journal lacks", () => {
@@ -132,10 +135,222 @@ describe("readJournal", () => {
   });
 });
 
+describe("mergeSnapshots", () => {
+  const table = (columns: Readonly<Record<string, string>>) => ({
+    columns: Object.fromEntries(
+      Object.entries(columns).map(([name, type]) => [name, { name, type }])
+    ),
+  });
+  const start = {
+    enums: { color: { values: ["red"] } },
+    tables: {
+      a: table({ id: "int", note: "text" }),
+      old: table({ id: "int" }),
+    },
+  };
+
+  it("takes the base's added table, column and enum when the branch did not change them", () => {
+    const base = {
+      enums: { ...start.enums, size: { values: ["s"] } },
+      tables: {
+        ...start.tables,
+        a: table({ extra: "int", id: "int", note: "text" }),
+        theirs: table({ id: "int" }),
+      },
+    };
+    expect(mergeSnapshots(start, base, start)).toEqual({
+      conflicts: [],
+      value: base,
+    });
+  });
+
+  it("takes the base's altered column in a table from before the branch split", () => {
+    const base = {
+      ...start,
+      tables: { ...start.tables, a: table({ id: "bigint", note: "text" }) },
+    };
+    const branch = {
+      ...start,
+      tables: { ...start.tables, mine: table({ id: "int" }) },
+    };
+    const merged = mergeSnapshots(start, base, branch);
+    expect(merged).toEqual({
+      conflicts: [],
+      value: {
+        ...base,
+        tables: { ...base.tables, ...branch.tables, a: base.tables.a },
+      },
+    });
+  });
+
+  it("puts the branch's keys first, then the keys that only the base has", () => {
+    const merged = mergeSnapshots(
+      JSON.parse('{"b":1,"a":1}'),
+      JSON.parse('{"c":1,"b":1,"a":1}'),
+      JSON.parse('{"b":1,"z":1,"a":1}')
+    );
+    expect(Object.keys(merged.value as object)).toEqual(["b", "z", "a", "c"]);
+  });
+
+  it("keeps the branch's added table and altered column when the base did not change them", () => {
+    const base = {
+      ...start,
+      tables: { ...start.tables, theirs: table({ id: "int" }) },
+    };
+    const branch = {
+      ...start,
+      tables: {
+        a: table({ id: "int", note: "varchar" }),
+        mine: table({ id: "int" }),
+        old: start.tables.old,
+      },
+    };
+    const merged = mergeSnapshots(start, base, branch);
+    expect(merged.conflicts).toEqual([]);
+    expect(Object.keys((merged.value as typeof base).tables).sort()).toEqual([
+      "a",
+      "mine",
+      "old",
+      "theirs",
+    ]);
+    expect((merged.value as typeof branch).tables.a).toEqual(branch.tables.a);
+  });
+
+  it("removes a key that one side removed and the other side left unchanged", () => {
+    const base = { ...start, tables: { a: start.tables.a } };
+    const branch = { tables: start.tables };
+    expect(mergeSnapshots(start, base, branch)).toEqual({
+      conflicts: [],
+      value: { tables: { a: start.tables.a } },
+    });
+  });
+
+  it("takes a value that both sides changed in the same way", () => {
+    const both = { ...start, enums: { color: { values: ["red", "blue"] } } };
+    expect(mergeSnapshots(start, { ...both, version: "7" }, both)).toEqual({
+      conflicts: [],
+      value: { ...both, version: "7" },
+    });
+  });
+
+  it("keeps the branch value and reports the key path when both sides changed one value", () => {
+    const base = {
+      enums: { color: { values: ["red", "green"] } },
+      tables: { ...start.tables, a: table({ id: "bigint", note: "text" }) },
+    };
+    const branch = {
+      enums: { color: { values: ["red", "blue"] } },
+      tables: { ...start.tables, a: table({ id: "uuid", note: "text" }) },
+    };
+    expect(mergeSnapshots(start, base, branch)).toEqual({
+      conflicts: ["enums > color > values", "tables > a > columns > id > type"],
+      value: branch,
+    });
+    expect(mergeSnapshots({ k: {} }, { k: { x: 1 } }, { k: "text" })).toEqual({
+      conflicts: ["k"],
+      value: { k: "text" },
+    });
+  });
+
+  it("reports a key that one side removed and the other changed", () => {
+    const changed = {
+      ...start,
+      tables: { ...start.tables, old: table({ id: "bigint" }) },
+    };
+    const removed = { ...start, tables: { a: start.tables.a } };
+    expect(mergeSnapshots(start, removed, changed)).toEqual({
+      conflicts: ["tables > old"],
+      value: changed,
+    });
+    expect(mergeSnapshots(start, changed, removed)).toEqual({
+      conflicts: ["tables > old"],
+      value: removed,
+    });
+  });
+
+  it("reports a key that both sides added with different content, as one conflict", () => {
+    const base = {
+      ...start,
+      tables: { ...start.tables, fresh: table({ a: "int" }) },
+    };
+    const branch = {
+      ...start,
+      tables: { ...start.tables, fresh: table({ b: "int" }) },
+    };
+    expect(mergeSnapshots(start, base, branch)).toEqual({
+      conflicts: ["tables > fresh"],
+      value: branch,
+    });
+  });
+});
+
+describe("formatSnapshot", () => {
+  it("prints nested objects, empty values and arrays of objects", () => {
+    expect(
+      formatSnapshot({
+        count: 2,
+        id: "a",
+        ok: true,
+        tables: {
+          t: { columns: {}, indexes: [], keys: [{ on: ["id"] }, null] },
+        },
+      })
+    ).toBe(
+      [
+        "{",
+        '  "count": 2,',
+        '  "id": "a",',
+        '  "ok": true,',
+        '  "tables": {',
+        '    "t": {',
+        '      "columns": {},',
+        '      "indexes": [],',
+        '      "keys": [',
+        "        {",
+        '          "on": ["id"]',
+        "        },",
+        "        null",
+        "      ]",
+        "    }",
+        "  }",
+        "}",
+        "",
+      ].join("\n")
+    );
+  });
+
+  it("keeps an array of plain values on one line up to 80 columns and breaks a longer one", () => {
+    // `  "values": ["…", "b"]` is 80 columns with a 59-character first value.
+    const fits = ["x".repeat(59), "b"];
+    const line = `  "values": ${JSON.stringify(fits).replace(",", ", ")}`;
+    expect(line).toHaveLength(80);
+    expect(formatSnapshot({ values: fits })).toBe(`{\n${line}\n}\n`);
+    // A following comma is part of the line.
+    expect(formatSnapshot({ values: fits, z: 1 })).toBe(
+      `{\n  "values": [\n    "${fits[0]}",\n    "b"\n  ],\n  "z": 1\n}\n`
+    );
+    expect(formatSnapshot([[`${fits[0]}xxxxxxxxxxxxx`, "b"]])).toBe(
+      `[\n  [\n    "${fits[0]}xxxxxxxxxxxxx",\n    "b"\n  ]\n]\n`
+    );
+  });
+
+  it("reproduces every committed snapshot", () => {
+    const meta = join(import.meta.dirname, "../../packages/db/migrations/meta");
+    const names = readdirSync(meta).filter((name) =>
+      name.endsWith("_snapshot.json")
+    );
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      const text = readFileSync(join(meta, name), "utf8");
+      expect(formatSnapshot(JSON.parse(text)) === text, name).toBe(true);
+    }
+  });
+});
+
 const directories: string[] = [];
 afterEach(() => {
   for (const directory of directories.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
+    rmSync(directory, { force: true, recursive: true });
   }
 });
 
@@ -188,6 +403,29 @@ const journalFile = (
 const snapshotFile = (id: string, prevId: string): string =>
   `{\n  "id": "${id}",\n  "prevId": "${prevId}",\n  "version": "7"\n}\n`;
 
+/** A snapshot with tables; `tables` maps a table name to its one column's type. */
+const tablesSnapshot = (
+  id: string,
+  prevId: string,
+  tables: Readonly<Record<string, string>>,
+  version = "7"
+): string =>
+  formatSnapshot({
+    dialect: "postgresql",
+    id,
+    prevId,
+    tables: Object.fromEntries(
+      Object.entries(tables).map(([name, type]) => [
+        `public.${name}`,
+        { columns: { id: { name: "id", type } }, name },
+      ])
+    ),
+    version,
+  });
+
+const tablesOf = (root: string, path: string): Record<string, unknown> =>
+  (JSON.parse(read(root, path)) as { tables: Record<string, unknown> }).tables;
+
 const BASE_ENTRIES = [
   ["0000_a", 100],
   ["0001_b", 200],
@@ -199,6 +437,8 @@ const createRepository = (
     conflictInB?: boolean;
     mineSnapshot?: boolean;
     sharedNumber?: boolean;
+    /** Full snapshot texts in place of the id-only ones; `more` adds a snapshot for 0003_more. */
+    snapshots?: { b?: string; mine?: string; more?: string; theirs?: string };
     theirsSnapshot?: boolean;
   } = {}
 ): string => {
@@ -208,11 +448,12 @@ const createRepository = (
   commit(
     root,
     {
-      "README.md": "readme\n",
       "packages/db/migrations/0000_a.sql": "CREATE TABLE a();\n",
       "packages/db/migrations/0001_b.sql": "CREATE TABLE b();\n",
+      "README.md": "readme\n",
       [`${META}/0000_snapshot.json`]: snapshotFile("A0", ZERO),
-      [`${META}/0001_snapshot.json`]: snapshotFile("B0", "A0"),
+      [`${META}/0001_snapshot.json`]:
+        options.snapshots?.b ?? snapshotFile("B0", "A0"),
       [JOURNAL]: journalFile(BASE_ENTRIES),
       "packages/db/rollback/0001_b.down.sql": "DROP TABLE b;\n",
     },
@@ -222,10 +463,10 @@ const createRepository = (
   commit(
     root,
     {
-      "README.md": "readme 0002_mine\n",
       "packages/db/migrations/0002_mine.sql":
         "-- 0002_mine adds mine\nCREATE TABLE mine();\n",
       "packages/db/migrations/0003_more.sql": "CREATE TABLE more();\n",
+      "README.md": "readme 0002_mine\n",
       ...(options.conflictInB
         ? { "packages/db/migrations/0001_b.sql": "CREATE TABLE b(x int);\n" }
         : {}),
@@ -234,18 +475,24 @@ const createRepository = (
         : {}),
       ...(options.mineSnapshot === false
         ? {}
-        : { [`${META}/0002_snapshot.json`]: snapshotFile("M0", "B0") }),
+        : {
+            [`${META}/0002_snapshot.json`]:
+              options.snapshots?.mine ?? snapshotFile("M0", "B0"),
+          }),
+      ...(options.snapshots?.more === undefined
+        ? {}
+        : { [`${META}/0003_snapshot.json`]: options.snapshots.more }),
       [JOURNAL]: journalFile([
         ...BASE_ENTRIES,
         ["0002_mine", 300],
         ["0003_more", 400],
       ]),
+      "assets/blob.bin": "0002_mine\u0000binary\n",
+      "docs/notes.md": "0002_mine_extra is another name\n",
       "packages/db/rollback/0002_mine.down.sql":
         "-- reverses 0002_mine\nDROP TABLE mine;\n",
       "src/mine.test.ts":
         'read("migrations/0002_mine.sql"); // migration 0002\n',
-      "docs/notes.md": "0002_mine_extra is another name\n",
-      "assets/blob.bin": "0002_mine\u0000binary\n",
     },
     "feature migrations"
   );
@@ -253,14 +500,17 @@ const createRepository = (
   commit(
     root,
     {
-      "README.md": "readme main\n",
       "packages/db/migrations/0002_theirs.sql": "CREATE TABLE theirs();\n",
+      "README.md": "readme main\n",
       ...(options.conflictInB
         ? { "packages/db/migrations/0001_b.sql": "CREATE TABLE b(y int);\n" }
         : {}),
       ...(options.theirsSnapshot === false
         ? {}
-        : { [`${META}/0002_snapshot.json`]: snapshotFile("T0", "B0") }),
+        : {
+            [`${META}/0002_snapshot.json`]:
+              options.snapshots?.theirs ?? snapshotFile("T0", "B0"),
+          }),
       [JOURNAL]: journalFile([...BASE_ENTRIES, ["0002_theirs", 350]]),
     },
     "base migration 0002"
@@ -283,10 +533,10 @@ const run = (root: string, ...argv: string[]) => {
   const stderr: string[] = [];
   const code = runRenumber(argv, {
     cwd: root,
-    stdout: (line) => stdout.push(line),
     stderr: (line) => stderr.push(line),
+    stdout: (line) => stdout.push(line),
   });
-  return { code, stdout, stderr };
+  return { code, stderr, stdout };
 };
 
 describe("runRenumber", () => {
@@ -352,6 +602,162 @@ describe("runRenumber", () => {
     expect(git(root, "status", "--porcelain")).toBe("");
   });
 
+  it("merges the base's table into the moved snapshot and gives it a new id", () => {
+    const root = createRepository({
+      snapshots: {
+        b: tablesSnapshot("B0", "A0", { b: "int" }),
+        mine: tablesSnapshot("M0", "B0", { b: "int", mine: "int" }),
+        theirs: tablesSnapshot("T0", "B0", { b: "bigint", theirs: "int" }),
+      },
+    });
+    mergeMain(root);
+
+    const result = run(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toEqual([]);
+    expect(result.stdout.slice(1)).toEqual([
+      "moved 0002_mine -> 0003_mine",
+      "moved 0003_more -> 0004_more",
+      `merged the base's schema changes into ${META}/0003_snapshot.json`,
+      'check the old number: src/mine.test.ts:1: read("migrations/0003_mine.sql"); // migration 0002',
+      "conflicts left: README.md",
+      'Next: resolve any other conflicts, run `pnpm db:generate` (it must report "No schema changes"), `git commit` (or `git merge --continue`), then run the db tests.',
+    ]);
+    expect(read(root, `${META}/0002_snapshot.json`)).toBe(
+      tablesSnapshot("T0", "B0", { b: "bigint", theirs: "int" })
+    );
+    const moved = JSON.parse(read(root, `${META}/0003_snapshot.json`)) as {
+      id: string;
+    };
+    expect(moved.id).toMatch(/^[0-9a-f-]{36}$/u);
+    // The base's altered column and new table, and the branch's table; the id is new.
+    expect(moved).toEqual(
+      JSON.parse(
+        tablesSnapshot(moved.id, "T0", {
+          b: "bigint",
+          mine: "int",
+          theirs: "int",
+        })
+      )
+    );
+    expect(read(root, `${META}/0003_snapshot.json`)).toBe(
+      formatSnapshot(moved)
+    );
+    expect(Object.keys(moved).slice(0, 2)).toEqual(["id", "prevId"]);
+
+    put(root, { "README.md": "readme main 0003_mine\n" });
+    git(root, "add", "README.md");
+    expect(run(root).stdout).toEqual([
+      "db:renumber: nothing to do; this branch's migrations already follow MERGE_HEAD.",
+    ]);
+    expect(git(root, "status", "--porcelain", "--", META)).not.toMatch(/^.M/mu);
+  });
+
+  it("merges the base's table into each of two branch snapshots and chains them", () => {
+    const root = createRepository({
+      snapshots: {
+        b: tablesSnapshot("B0", "A0", { b: "int" }),
+        mine: tablesSnapshot("M0", "B0", { b: "int", mine: "int" }),
+        more: tablesSnapshot("R0", "M0", { mine: "int", more: "int" }),
+        theirs: tablesSnapshot("T0", "B0", { b: "int", theirs: "int" }),
+      },
+    });
+    mergeMain(root);
+
+    const result = run(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(
+      `merged the base's schema changes into ${META}/0004_snapshot.json`
+    );
+    const moved = JSON.parse(read(root, `${META}/0003_snapshot.json`)) as {
+      id: string;
+    };
+    const more = JSON.parse(read(root, `${META}/0004_snapshot.json`)) as {
+      id: string;
+      prevId: string;
+    };
+    expect(more.prevId).toBe(moved.id);
+    expect(new Set([moved.id, more.id, "M0", "R0"]).size).toBe(4);
+    // 0003_more dropped table b; the base's table arrives in both snapshots.
+    expect(Object.keys(tablesOf(root, `${META}/0003_snapshot.json`))).toEqual([
+      "public.b",
+      "public.mine",
+      "public.theirs",
+    ]);
+    expect(Object.keys(tablesOf(root, `${META}/0004_snapshot.json`))).toEqual([
+      "public.mine",
+      "public.more",
+      "public.theirs",
+    ]);
+  });
+
+  it("exits 1 and names the key when both sides changed one snapshot value", () => {
+    const root = createRepository({
+      snapshots: {
+        b: tablesSnapshot("B0", "A0", { b: "int" }),
+        mine: tablesSnapshot("M0", "B0", { b: "text" }),
+        theirs: tablesSnapshot("T0", "B0", { b: "bigint" }),
+      },
+    });
+    mergeMain(root);
+
+    const result = run(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toEqual([
+      `check the snapshot: ${META}/0003_snapshot.json: tables > public.b > columns > id > type changed on both sides; kept this branch's value`,
+      'db:renumber: correct the snapshots above by hand (CONVENTIONS.md, Migration numbers), then run pnpm db:generate; it must report "No schema changes".',
+    ]);
+    expect(result.stdout.at(-1)).toBe("conflicts left: README.md");
+    // Nothing else to merge: the branch's text stays, with the new prevId.
+    expect(read(root, `${META}/0003_snapshot.json`)).toBe(
+      tablesSnapshot("M0", "T0", { b: "text" })
+    );
+  });
+
+  it("exits 1 and only re-chains when the start snapshot is not in the checkout", () => {
+    const root = createRepository({
+      snapshots: {
+        mine: tablesSnapshot("M0", "GONE", { mine: "int" }),
+        theirs: tablesSnapshot("T0", "B0", { theirs: "int" }),
+      },
+    });
+    mergeMain(root);
+
+    const result = run(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr[0]).toBe(
+      `check the snapshot: ${META}/0003_snapshot.json: the snapshot with id GONE is not in this checkout; only prevId was updated`
+    );
+    expect(read(root, `${META}/0003_snapshot.json`)).toBe(
+      tablesSnapshot("M0", "T0", { mine: "int" })
+    );
+  });
+
+  it("exits 1 and only re-chains when the snapshot version differs", () => {
+    const root = createRepository({
+      snapshots: {
+        b: tablesSnapshot("B0", "A0", { b: "int" }),
+        mine: tablesSnapshot("M0", "B0", { b: "int", mine: "int" }),
+        theirs: tablesSnapshot("T0", "B0", { b: "int", theirs: "int" }, "8"),
+      },
+    });
+    mergeMain(root);
+
+    const result = run(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr[0]).toBe(
+      `check the snapshot: ${META}/0003_snapshot.json: version or dialect differs from the snapshot before it; only prevId was updated`
+    );
+    expect(read(root, `${META}/0003_snapshot.json`)).toBe(
+      tablesSnapshot("M0", "T0", { b: "int", mine: "int" })
+    );
+  });
+
   it("checks against origin/HEAD outside a merge and repairs a broken or missing journal", () => {
     const root = createRepository();
     mergeMain(root);
@@ -374,11 +780,11 @@ describe("runRenumber", () => {
     put(root, { [JOURNAL]: "{ broken" });
     expect(run(root, "--base", "main")).toEqual({
       code: 0,
+      stderr: [],
       stdout: [
         "db:renumber: staged 1 paths (base main)",
         "Next: resolve any other conflicts, `git commit` (or `git merge --continue`), then run the db tests.",
       ],
-      stderr: [],
     });
     // Without the branch's own entries, `when` continues from the base's last entry.
     expect(
@@ -440,10 +846,10 @@ describe("runRenumber", () => {
     const root = createRepository();
     expect(run(root, "--base", "main")).toEqual({
       code: 1,
-      stdout: [],
       stderr: [
         "db:renumber: the base migrations 0002_theirs are not in this checkout; merge the base branch first",
       ],
+      stdout: [],
     });
   });
 
@@ -489,8 +895,8 @@ describe("runRenumber", () => {
       git(root, "status", "--porcelain=v1", "-uall") + git(root, "diff");
     expect(run(root, ...argv)).toEqual({
       code: 1,
-      stdout: [],
       stderr: [message],
+      stdout: [],
     });
     expect(
       git(root, "status", "--porcelain=v1", "-uall") + git(root, "diff")
