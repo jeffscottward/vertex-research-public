@@ -37,10 +37,10 @@ Exit status of `batch`:
       only). The status is returned after the document was written.
   3   nautilus-trader is missing; no document
   1   any other fault ends the batch without a document: the bars or the case list cannot be read
-      (`cases` must be a list of objects with a string id), ImportError, MemoryError, an exception
-      that is not an Exception (KeyboardInterrupt, a Rust panic of the engine, a case that calls
-      exit())
-  a signal, or none: the process was killed, aborted natively or timed out; no document
+      (`cases` must be a list of objects with a string id), ImportError, MemoryError, a Rust panic
+      of the engine (not an Exception), a case that calls exit()
+  a signal, or none: the process was killed or interrupted (KeyboardInterrupt), aborted natively
+      or timed out; no document
 
 A reader takes status 0 or 4 as a complete document and decides each case by its key (`crash` before
 `result`); every other status is a process failure.
