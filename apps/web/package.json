@@ -21,7 +21,7 @@
     "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
   },
   "dependencies": {
-    "@copilotkit/react-core": "1.83.0",
+    "@copilotkit/react-core": "1.85.0",
     "@darkfactory/academy": "workspace:*",
     "@darkfactory/analytics": "workspace:*",
     "@darkfactory/api": "workspace:*",
@@ -39,7 +39,7 @@
     "@tanstack/react-form": "catalog:",
     "@vinext/cloudflare": "catalog:",
     "cmdk": "catalog:",
-    "d3-scale": "4.0.2",
+    "d3-scale": "4.0.3",
     "klinecharts": "9.8.12",
     "lucide-react": "catalog:",
     "react": "catalog:",
