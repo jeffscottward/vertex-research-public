@@ -15,6 +15,7 @@ __all__ = ["render"]
 # an at-the-money option has a delta of about 0.5.
 OPTIONS_NDX_PER_QQQ = 41.0
 OPTIONS_DELTA = 0.5
+OPTIONS_MIN_COST = 1.00  # $0.01 per share x 100 shares: entering and leaving a one-cent-wide market
 EXTRA_STYLE = ".plot rect{shape-rendering:crispEdges}.verdict{font-size:18px;font-weight:600}"
 BAR_COLORS = ("#9aa3b2", "#60a5fa", "#f472b6")
 INDICATORS = (
@@ -248,9 +249,12 @@ def _lookahead(results: Mapping) -> str:
             "timing error, not a strategy, and it is never a library candidate.</p>"
             f"<p>Fees only, no slippage (the reel's setting): look-ahead <b>{k_la}/{n_la}</b> full years profitable, "
             f"net {usd(la['stats']['0']['netUsd'])}; honest P1 <b>{k_p1}/{n_p1}</b>, net "
-            f"{usd(p1['stats']['0']['netUsd'])}. A result like \"profitable every year\" appears only with the error. "
-            "This does not show that the reel's paid script has this error; it shows that this error alone can "
-            "produce such a record.</p>"
+            f"{usd(p1['stats']['0']['netUsd'])}. "
+            + ("A result like \"profitable every year\" appears only with the error. This does not show that the "
+               "reel's paid script has this error; it shows that this error alone can produce such a record."
+               if k_la == n_la and k_p1 < n_p1 else
+               "The look-ahead row does not separate from the honest rules here.")
+            + "</p>"
             + _year_bars("Fees only: look-ahead diagnostic vs honest P1, net dollars per year, 1 NQ",
                          [("look-ahead (invalid)", la0), ("P1 honest", p10)]))
 
@@ -264,14 +268,23 @@ def _options_form(results: Mapping) -> str:
     points = gross / study.POINT_USD
     qqq = points / OPTIONS_NDX_PER_QQQ
     per_option = qqq * OPTIONS_DELTA * 100
-    return ("<h2>Options form (options only, defined risk)</h2>"
-            f"<p>Not translated. P1's average gross move is {usd(gross)} per NQ contract per trade = {points:.2f} index "
-            f"points = about ${qqq:.4f} per QQQ share (NDX / QQQ about {OPTIONS_NDX_PER_QQQ:g}). A 0-1 DTE at-the-money "
-            f"QQQ option (delta about {OPTIONS_DELTA:g}) would gain about ${per_option:.2f} per contract on that move. "
-            "QQQ options are quoted in $0.01 steps, so even a one-cent-wide market costs at least $1.00 per contract "
-            "to enter and exit, before time decay over the hold. The futures result already fails after costs; the "
-            "per-trade move is smaller than the minimum option cost, so a 1-minute futures signal does not translate "
-            "into a defined-risk QQQ option position. No options backtest was run (decision record Q8).</p>")
+    passed = results["outcome"] == document.PASSED
+    facts = (f"P1's average gross move is {usd(gross)} per NQ contract per trade = {points:.2f} index points = about "
+             f"${qqq:.4f} per QQQ share (NDX / QQQ about {OPTIONS_NDX_PER_QQQ:g}). A 0-1 DTE at-the-money QQQ option "
+             f"(delta about {OPTIONS_DELTA:g}) would gain about ${per_option:.2f} per contract on that move. QQQ options "
+             "are quoted in $0.01 steps, so even a one-cent-wide market costs at least $1.00 per contract to enter and "
+             "exit, before time decay over the hold.")
+    if passed:
+        verdict = ("The futures test passed, so decision record Q8 calls for a separate options study on real QQQ "
+                   "quotes (a 0-1 DTE debit vertical, 2% maximum loss); it is not part of this run.")
+    elif per_option < OPTIONS_MIN_COST:
+        verdict = ("The futures result fails after costs and the per-trade move is smaller than the minimum option "
+                   "cost, so the signal does not translate into a defined-risk QQQ option position. No options "
+                   "backtest was run (decision record Q8).")
+    else:
+        verdict = ("The futures result fails after costs, so no options form is built (decision record Q8).")
+    return f"<h2>Options form (options only, defined risk)</h2><p>{'Studied separately' if passed else 'Not translated'}. " \
+        f"{facts} {verdict}</p>"
 
 
 def _indicators() -> str:

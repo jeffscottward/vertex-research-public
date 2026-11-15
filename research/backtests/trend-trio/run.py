@@ -2,12 +2,14 @@
 
 Places no orders and writes nothing to Postgres. Reads the rig data (every path is an option, defaults below)
 and writes to --out (a report work directory outside the repository): one JSON file per job (a restarted run
-skips finished jobs), `data.json` (datasets and the SHA-256 manifest of every input file), `results.json`,
-`study.json` (the research_studies document, kind "strategy-backtest") and `index.html` (the dark report).
+skips finished jobs of the same code commit and data), `data.json` (datasets and the SHA-256 manifest of every
+input file), `results.json`, `study.json` (the research_studies document, kind "strategy-backtest") and
+`index.html` (the dark report).
 
-The run starts with a one-year pilot (2024, in <out>/pilot) and stops before a tier whose projected time
-(pilot seconds x full sessions / pilot sessions) exceeds 8 core-hours; such a stop is a blocked job. It refuses
-to run when docs/specs/strategies/trend-trio.md (above "## Results") differs from rules.SPEC_SHA256.
+The run starts with a one-year pilot (2024, in <out>/pilot) and stops before a tier whose projected time (each
+job's pilot seconds x full / pilot sessions of its dataset) exceeds 8 core-hours; such a stop is a blocked job
+(outcome "blocked": results.json and index.html only, no study.json). It refuses to run when
+docs/specs/strategies/trend-trio.md (above "## Results") differs from rules.SPEC_SHA256.
 
 Run (rig, in the Nautilus venv):
   ~/.cache/vertex-academy-nautilus-venv/bin/python research/backtests/trend-trio/run.py \
@@ -20,6 +22,8 @@ Store the study document (after review):
 from __future__ import annotations
 
 import argparse
+import dataclasses
+import hashlib
 import json
 import multiprocessing
 import subprocess
@@ -36,6 +40,7 @@ sys.path.insert(0, str(ROOT / "services" / "research"))
 from strategies.trend_trio import document, report, rules, study
 
 TIER_BUDGET_CORE_HOURS = 8.0
+BLOCKED = "blocked"
 WATCHED = ("services/research", "research/backtests/trend-trio", "docs/specs/strategies/trend-trio.md")
 
 
@@ -91,12 +96,31 @@ def git_state() -> tuple[str, list[str]]:
     return commit, dirty.splitlines()
 
 
-def load(paths: study.DataPaths, years: study.Years | None) -> tuple[study.Datasets, dict]:
+def code_stamp(commit: str, dirty: Sequence[str]) -> str:
+    """The commit; with uncommitted study code (--allow-dirty) also a hash of the diff and the untracked files,
+    so job files of other uncommitted code are not reused."""
+    if not dirty:
+        return commit
+    git = ["git", "-C", str(ROOT)]
+    diff = subprocess.run([*git, "diff", "HEAD", "--", *WATCHED], capture_output=True, check=True).stdout
+    names = subprocess.run([*git, "ls-files", "--others", "--exclude-standard", "--", *WATCHED], capture_output=True,
+                           text=True, check=True).stdout.split()
+    digest = hashlib.sha256(diff)
+    for name in sorted(names):
+        digest.update(name.encode())
+        digest.update((ROOT / name).read_bytes())
+    return f"{commit}+dirty-{digest.hexdigest()[:16]}"
+
+
+def load(paths: study.DataPaths, years: study.Years | None, code: str | None) -> tuple[study.Datasets, dict]:
+    """Datasets stamped with the code (`code_stamp`) and the SHA-256 of the data manifest."""
     started = time.time()
     data = study.load_datasets(paths, years)
     manifest = study.data_manifest(data.files)
+    stamp = study.stamp_of(code, manifest, years)
+    data = dataclasses.replace(data, stamp=stamp)
     log(f"loaded data in {time.time() - started:.0f}s ({len(manifest)} files)")
-    info = {"datasets": dict(data.info), "files": manifest,
+    info = {"datasets": dict(data.info), "files": manifest, "stamp": stamp,
             "paths": {key: str(value) for key, value in vars(paths).items()}}
     return data, info
 
@@ -107,6 +131,7 @@ def print_plan(info: dict, jobs: Sequence[study.Job]) -> None:
     ok, text = spec_status()
     print(f"spec: {text}{'' if ok else ' (a real run would refuse)'}")
     print(f"jobs: {len(jobs)} = {len(graded)} graded rows + {len(extra)} diagnostics")
+    print(f"stamp: code {info['stamp']['commit']}, data manifest SHA-256 {info['stamp']['dataSha256']}")
     for tier in (1, 2, 3, 4):
         names = [job.name for job in jobs if job.tier == tier]
         print(f"  tier {tier} ({len(names)}): {' '.join(names)}")
@@ -150,24 +175,35 @@ def run_tiers(jobs: Sequence[study.Job], out: Path, workers: int, data: study.Da
     return None
 
 
-def pilot_projection(pilot_dir: Path, pilot_sessions: int,
-                     full_sessions: int) -> Callable[[Sequence[study.Job]], float]:
-    scale = full_sessions / max(1, pilot_sessions)
+# Dataset whose session count scales a job's pilot time (a5 and the MFI job read the CFD sessions).
+SESSIONS_OF = {"a": "a", "a5": "a", "a5c": "a", "b": "b", "c": "c"}
+
+
+def sessions_of(info: dict, dataset: str) -> int:
+    return int(info["datasets"].get(SESSIONS_OF.get(dataset, "a"), {}).get("sessions") or 0)
+
+
+def pilot_projection(pilot_dir: Path, pilot_info: dict,
+                     full_info: dict) -> Callable[[Sequence[study.Job]], float]:
+    """Projected core-hours of jobs: each job's pilot seconds x full sessions / pilot sessions of its dataset."""
 
     def project(jobs: Sequence[study.Job]) -> float:
         seconds = 0.0
         for job in jobs:
             path = pilot_dir / f"{job.name}.json"
             stored = json.loads(path.read_text()) if path.exists() else {}
-            seconds += float(stored.get("seconds") or 0.0)
-        return seconds * scale / 3600
+            scale = sessions_of(full_info, job.dataset) / max(1, sessions_of(pilot_info, job.dataset))
+            seconds += float(stored.get("seconds") or 0.0) * scale
+        return seconds / 3600
 
     return project
 
 
 def write_outputs(out: Path, results: dict) -> None:
     (out / "results.json").write_text(json.dumps(results, indent=1, allow_nan=False) + "\n")
-    if results["provenance"].get("dirtyFiles"):
+    if results.get("blocked"):
+        log(f"blocked at tier {results['blocked']['tier']}: study.json not written (the study is incomplete)")
+    elif results["provenance"].get("dirtyFiles"):
         log("uncommitted study code: study.json not written (the document would name a commit without the code)")
     else:
         doc = document.study_document(results)
@@ -179,6 +215,10 @@ def finish(out: Path, info: dict, provenance: dict, pilot: bool, blocked: dict |
     results = study.assemble(out, info, pilot=pilot)
     results["provenance"] = provenance
     results["blocked"] = blocked
+    if blocked:
+        # An incomplete study has no outcome: no deciding test, no study document.
+        results["outcome"] = BLOCKED
+        results["decidingTest"] = None
     write_outputs(out, results)
     return results
 
@@ -188,6 +228,7 @@ def run_study(args: argparse.Namespace, paths: study.DataPaths) -> None:
     if not ok:
         raise SystemExit(f"Refusing to run: {text}. Freeze the spec first (docs/specs/strategies/trend-trio.md).")
     commit, dirty = git_state()
+    code = code_stamp(commit, dirty)
     if dirty and not args.allow_dirty:
         raise SystemExit("Uncommitted study code (commit it first, or --allow-dirty for a diagnostic run):\n"
                          + "\n".join(dirty))
@@ -202,18 +243,17 @@ def run_study(args: argparse.Namespace, paths: study.DataPaths) -> None:
                 "specSha256": rules.SPEC_SHA256, "workers": args.workers, "pilot": pilot,
                 "seconds": round(time.time() - started)}
 
-    pilot_data, pilot_info = load(paths, study.PILOT_YEARS)
+    pilot_data, pilot_info = load(paths, study.PILOT_YEARS, code)
     (pilot_dir / "data.json").write_text(json.dumps(pilot_info, indent=1, allow_nan=False) + "\n")
     run_tiers(jobs, pilot_dir, args.workers, pilot_data, None)
     pilot_results = finish(pilot_dir, pilot_info, provenance(True), True, None)
     log(f"pilot: {pilot_results['outcome']}; wrote {pilot_dir}")
     if args.pilot:
         return
-    pilot_sessions = pilot_info["datasets"]["a"]["sessions"]
     del pilot_data
-    data, info = load(paths, None)
+    data, info = load(paths, None, code)
     (out / "data.json").write_text(json.dumps(info, indent=1, allow_nan=False) + "\n")
-    projection = pilot_projection(pilot_dir, pilot_sessions, info["datasets"]["a"]["sessions"])
+    projection = pilot_projection(pilot_dir, pilot_info, info)
     blocked = run_tiers(jobs, out, args.workers, data, projection)
     results = finish(out, info, provenance(False), False, blocked)
     log(f"{results['outcome']} (deciding {results['decidingTest']}); blocked {blocked}; wrote {out}")
@@ -223,7 +263,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     paths = data_paths(args)
     if args.dry_run:
-        _, info = load(paths, study.PILOT_YEARS if args.pilot else None)
+        commit, dirty = git_state()
+        _, info = load(paths, study.PILOT_YEARS if args.pilot else None, code_stamp(commit, dirty))
         print_plan(info, study.jobs())
         return
     if args.out is None:

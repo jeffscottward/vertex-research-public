@@ -6,11 +6,13 @@ on a three-session synthetic series. No network, broker or rig data.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import math
 import random
 from dataclasses import replace
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -187,11 +189,44 @@ def test_outcome_first_failing_test_decides():
 
 # --- jobs, assemble, document, report --------------------------------------------------------------------
 
-def synthetic_datasets() -> study.Datasets:
+MANIFEST = [{"path": "/data/x.csv", "bytes": 3, "sha256": "ab" * 32}]
+STAMP = study.stamp_of("a" * 40, MANIFEST)
+RUN_PY = Path(__file__).resolve().parents[3] / "research" / "backtests" / "trend-trio" / "run.py"
+
+
+def run_module():
+    spec = importlib.util.spec_from_file_location("trend_trio_run", RUN_PY)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def synthetic_datasets(stamp=STAMP) -> study.Datasets:
     a = synthetic_minutes()
     a5 = study.aggregate_minutes(a, 5)
     return study.Datasets({"a": a, "a5": a5, "b": a5, "c": a5, "a_full": None},
-                          {"a": {"sessions": 3}, "a_full": {"status": "not run", "reason": "Q-ETH: test"}}, ())
+                          {"a": {"sessions": 3}, "a_full": {"status": "not run", "reason": "Q-ETH: test"}}, (),
+                          stamp)
+
+
+def synthetic_info(stamp=STAMP) -> dict:
+    return {"datasets": {"a": {"sessions": 3, "spreadMedianPoints": 1.2}, "a_full": {"status": "not run"}},
+            "files": MANIFEST, "stamp": dict(stamp)}
+
+
+def write_nautilus(out_dir, data: study.Datasets, same: dict[str, bool]) -> None:
+    """Stored NautilusTrader check files (the engine check itself is test_trend_trio_nautilus.py)."""
+    by_name = {job.name: job for job in study.jobs()}
+    for row, ok in same.items():
+        name = f"nautilus-{row}-{study.BY_ROW[row].dataset}"
+        payload = {**study._job_header(by_name[name], data.stamp), "status": "ran",
+                   "engine": "nautilus-trader-1.227.0", "same": ok, "trades": 1, "booked": 1}
+        (out_dir / f"{name}.json").write_text(json.dumps(payload))
+
+
+def run_all(out_dir, monkeypatch, data: study.Datasets) -> None:
+    for job in fast_jobs(monkeypatch):
+        study.run_job(job, out_dir, data)
 
 
 def fast_jobs(monkeypatch) -> list[study.Job]:
@@ -217,16 +252,33 @@ def test_run_job_writes_one_file_and_resumes(tmp_path):
     assert v8["status"] == "not run"
 
 
+def test_job_file_of_another_commit_or_data_is_not_reused(tmp_path, monkeypatch):
+    data = synthetic_datasets()
+    job = study.Job("trades", "P1", "a", SHORT, 1)
+    study.run_job(job, tmp_path, data)
+    stored = json.loads((tmp_path / "P1-a.json").read_text())
+    assert (stored["commit"], stored["dataSha256"]) == (STAMP["commit"], STAMP["dataSha256"])
+    assert study.run_job(job, tmp_path, data)["skipped"]
+    other_commit = synthetic_datasets(study.stamp_of("b" * 40, MANIFEST))
+    assert not study.run_job(job, tmp_path, other_commit)["skipped"]
+    other_data = synthetic_datasets(study.stamp_of("b" * 40, [{**MANIFEST[0], "sha256": "cd" * 32}]))
+    assert not study.run_job(job, tmp_path, other_data)["skipped"]
+    assert study.stamp_of("b" * 40, MANIFEST, (2024, 2024)) != study.stamp_of("b" * 40, MANIFEST)
+    # assemble treats a job file of another stamp as missing.
+    run_all(tmp_path, monkeypatch, data)
+    fresh = study.assemble(tmp_path, synthetic_info())
+    assert next(r for r in fresh["rows"] if r["row"] == "P1")["status"] == "ran"
+    stale = study.assemble(tmp_path, synthetic_info(study.stamp_of("c" * 40, MANIFEST)))
+    assert next(r for r in stale["rows"] if r["row"] == "P1")["status"] == "missing"
+    assert stale["trials"]["ran"] == 0
+    assert stale["diagnostics"]["randomControl"] is None
+
+
 def test_assemble_document_and_report_end_to_end(tmp_path, monkeypatch):
     data = synthetic_datasets()
-    for job in fast_jobs(monkeypatch):
-        study.run_job(job, tmp_path, data)
-    for row in study.NAUTILUS_ROWS:  # the engine check itself is test_trend_trio_nautilus.py
-        (tmp_path / f"nautilus-{row}-{study.BY_ROW[row].dataset}.json").write_text(json.dumps(
-            {"status": "ran", "engine": "nautilus-trader-1.227.0", "same": True, "trades": 1, "booked": 1}))
-    info = {"datasets": {"a": {"sessions": 3, "spreadMedianPoints": 1.2}, "a_full": {"status": "not run"}},
-            "files": [{"path": "/data/x.csv", "bytes": 3, "sha256": "ab" * 32}]}
-    results = study.assemble(tmp_path, info)
+    run_all(tmp_path, monkeypatch, data)
+    write_nautilus(tmp_path, data, {"P1": True, "P2": False})  # P3: no file, so "not run"
+    results = study.assemble(tmp_path, synthetic_info())
     assert [t["id"] for t in results["tests"]] == [f"T{n}" for n in range(1, 8)]
     assert results["outcome"] == "reconstruction failed"  # three sessions: no full year, no walk-forward
     assert results["decidingTest"] is not None
@@ -242,6 +294,10 @@ def test_assemble_document_and_report_end_to_end(tmp_path, monkeypatch):
     assert doc["id"] == "trend-trio" and doc["spec"] == "docs/specs/strategies/trend-trio.md"
     assert doc["verdict"] in ("no-edge", "needs-more-data")
     assert doc["provenance"]["engine"] == "nautilus_trader 1.227.0"
+    nautilus = "fill prices vs the rule module: P1 same, P2 NOT the same, P3 not run."
+    assert nautilus in doc["notes"] and nautilus in doc["forms"][0]["description"]
+    check = next(item for item in doc["robustness"] if item["check"].startswith("NautilusTrader"))
+    assert check["pass"] is False and "P2 NOT the same" in check["result"]
     assert "P1 (a) net per year" in doc["notes"] and "$100,000" in doc["notes"]
     assert len(doc["equity"]) >= 2 and len(doc["robustness"]) <= 20
     assert all(run["maxDrawdown"] <= 0 and 0 <= run["exposure"] <= 1 for run in doc["forms"][0]["runs"])
@@ -264,3 +320,35 @@ def test_verdict_mapping():
     assert document.verdict_of(results("reconstruction passed", 100)) == "edge"
     assert document.verdict_of(results("reconstruction failed", 100)) == "no-edge"
     assert document.verdict_of(results("reconstruction failed", 5)) == "needs-more-data"
+
+
+def test_blocked_run_writes_no_study_document(tmp_path, monkeypatch):
+    run = run_module()
+    data = synthetic_datasets()
+    run_all(tmp_path, monkeypatch, data)
+    write_nautilus(tmp_path, data, {"P1": True, "P2": True, "P3": True})
+    blocked = {"tier": 3, "projectedCoreHours": 9.5, "jobs": ["S1-a"]}
+    provenance = {"commit": "a" * 40, "dirtyFiles": [], "ran": "2026-11-14"}
+    results = run.finish(tmp_path, synthetic_info(), provenance, False, blocked)
+    assert results["outcome"] == "blocked" and results["decidingTest"] is None and results["blocked"] == blocked
+    assert not (tmp_path / "study.json").exists()
+    assert json.loads((tmp_path / "results.json").read_text())["outcome"] == "blocked"
+    assert "blocked" in (tmp_path / "index.html").read_text()
+    with pytest.raises(ValueError):
+        document.study_document(results)
+    done = run.finish(tmp_path, synthetic_info(), provenance, False, None)
+    assert done["outcome"] == "reconstruction failed" and (tmp_path / "study.json").exists()
+
+
+def test_projection_scales_each_job_by_its_own_dataset(tmp_path):
+    run = run_module()
+    for name in ("P1-a", "P3-b", "NQ-c", "mfi-MFI-a5c"):
+        (tmp_path / f"{name}.json").write_text(json.dumps({"seconds": 36.0}))
+    pilot = {"datasets": {"a": {"sessions": 10}, "b": {"sessions": 20}, "c": {"sessions": 5}}}
+    full = {"datasets": {"a": {"sessions": 100}, "b": {"sessions": 400}, "c": {"sessions": 5}}}
+    project = run.pilot_projection(tmp_path, pilot, full)
+    jobs = {job.name: job for job in study.jobs()}
+    assert project([jobs["P1-a"]]) == pytest.approx(36 * 10 / 3600)
+    assert project([jobs["P3-b"]]) == pytest.approx(36 * 20 / 3600)
+    assert project([jobs["NQ-c"]]) == pytest.approx(36 / 3600)
+    assert project([jobs["mfi-MFI-a5c"], jobs["P1-a"]]) == pytest.approx(2 * 36 * 10 / 3600)
