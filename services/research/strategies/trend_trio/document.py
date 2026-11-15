@@ -15,7 +15,7 @@ from collections.abc import Mapping
 
 from . import study
 
-__all__ = ["SOURCE_URL", "SPEC", "STUDY_ID", "study_document", "usd", "verdict_of"]
+__all__ = ["SOURCE_URL", "SPEC", "STUDY_ID", "nautilus_text", "study_document", "usd", "verdict_of"]
 
 STUDY_ID = "trend-trio"
 SPEC = "docs/specs/strategies/trend-trio.md"
@@ -26,6 +26,7 @@ DATASET_SYMBOL = {"a": "NAS100 CFD 1m (a)", "b": "QQQ 5m in NDX points (b)", "c"
                   "a5": "NAS100 CFD 5m (bridge)"}
 MIN_TRADES = 30
 PASSED = "reconstruction passed"
+FAILED = "reconstruction failed"
 LIMITS = "Rules guessed; this tests a reconstruction, not the paid rules."
 
 RULES = (
@@ -144,11 +145,24 @@ def _robustness(results: Mapping) -> list[dict]:
                            f"{'n/a' if corr is None else f'{corr:.2f}'}, NQ {usd(tracking['left'])} vs "
                            f"QQQ {usd(tracking['right'])}")[:300]})
     nautilus = diag["nautilus"]
-    same = [row for row, item in nautilus.items() if item and item.get("same")]
-    out.append({"check": "NautilusTrader books the same fills (P1-P3)", "pass": len(same) == len(nautilus),
-                "result": f"same entry/exit bars and prices: {', '.join(same) or 'none'}"[:300]})
+    same = [row for row, item in nautilus.items() if _nautilus_state(item) == "same"]
+    out.append({"check": "NautilusTrader fill check (P1-P3)", "pass": len(same) == len(nautilus),
+                "result": nautilus_text(results)[:300]})
     out.append({"check": "Claim 16/16 years vs reconstruction", "pass": None, "result": _claim_text(results)[:300]})
     return out[:20]
+
+
+def _nautilus_state(item: Mapping | None) -> str:
+    """"same", "NOT the same" or "not run" for one row's NautilusTrader check."""
+    if not item or item.get("status") != "ran":
+        return "not run"
+    return "same" if item.get("same") else "NOT the same"
+
+
+def nautilus_text(results: Mapping) -> str:
+    """Per row: did NautilusTrader book the same entry/exit bars and fill prices as the rule module?"""
+    states = ", ".join(f"{row} {_nautilus_state(item)}" for row, item in results["diagnostics"]["nautilus"].items())
+    return f"NautilusTrader entry/exit bars and fill prices vs the rule module: {states or 'not run'}."
 
 
 def _engine(results: Mapping) -> str:
@@ -167,8 +181,8 @@ def _notes(results: Mapping) -> str:
         if row["status"] == "ran":
             parts.append(f"{label}: {_years_text(row)}.")
     parts.append("Returns and drawdowns are fractions of a $100,000 capital basis per contract (no compounding); "
-                 "not comparable with equity studies. Booked by the dollar ledger; NautilusTrader books the same "
-                 f"fills. {LIMITS} Research only: no order, no deployment.")
+                 f"not comparable with equity studies. Booked by the dollar ledger. {nautilus_text(results)} "
+                 f"{LIMITS} Research only: no order, no deployment.")
     return " ".join(parts)[:4000]
 
 
@@ -187,6 +201,8 @@ def study_document(results: Mapping) -> dict:
     provenance = results["provenance"]
     if provenance.get("dirtyFiles"):
         raise ValueError("The study ran with uncommitted code; its document names a commit without that code")
+    if results.get("blocked") or results["outcome"] not in (PASSED, FAILED):
+        raise ValueError(f"The study has no outcome ({results['outcome']}); a blocked study has no document")
     files = results["data"].get("files", [])
     data_hash = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
     tests = results["tests"]
@@ -200,8 +216,8 @@ def study_document(results: Mapping) -> dict:
                    for point in results["curve"]][-400:],
         "equityLabel": "Trend Trio P1 on the NAS100 CFD (a), 1 tick/side and fees, on $100,000 per contract",
         "forms": [{"description": ("1 NQ contract in index points, booked by the dollar ledger ($20 per point, $4.50 "
-                                   "fees, slippage per side) from the rule module's trades; NautilusTrader books the "
-                                   "same fills. Fractions of $100,000 per contract."),
+                                   "fees, slippage per side) from the rule module's trades. "
+                                   f"{nautilus_text(results)} Fractions of $100,000 per contract."),
                    "key": "underlying", "label": "1 NQ contract (proxies (a) and (b))", "runs": _runs(results)[:80]}],
         "gaps": [{"choice": choice, "gap": gap} for gap, choice in GAPS],
         "id": STUDY_ID,

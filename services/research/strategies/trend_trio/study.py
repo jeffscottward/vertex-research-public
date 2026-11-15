@@ -11,7 +11,8 @@ Datasets (every path is an argument of `DataPaths`; nothing is copied into the r
 - (c) real NQ 5-minute bars, front month by prior-session volume (tracking check, reported only).
 
 Jobs write one JSON file each (`<name>.json` in the output directory); a restarted run skips a job whose file
-names the same parameters and spec hash. `assemble(out_dir)` reads the files and builds the results document.
+names the same parameters, spec hash, code commit and data manifest hash (`Datasets.stamp`); `assemble` treats
+any other file as missing. `assemble(out_dir)` reads the files and builds the results document.
 """
 from __future__ import annotations
 
@@ -23,8 +24,8 @@ import random
 import statistics
 import time
 from array import array
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass, replace
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, date, datetime
 from datetime import time as clock_time
 from pathlib import Path
@@ -415,6 +416,8 @@ class Datasets:
     sets: Mapping[str, Minutes | None]  # "a", "a5", "b", "c", "a_full"
     info: Mapping[str, Any]
     files: tuple[Path, ...]
+    # {"commit", "dataSha256"} of this run (`stamp_of`); a job file with another stamp is not reused.
+    stamp: Mapping[str, Any] = field(default_factory=dict)
 
 
 LOADED: Datasets | None = None  # set by `use` before a forked pool starts (workers share it copy-on-write)
@@ -449,6 +452,15 @@ def file_sha256(path: Path) -> str:
         return hashlib.file_digest(fh, "sha256").hexdigest()
 
 
+STAMP_KEYS = ("commit", "dataSha256")
+
+
+def stamp_of(commit: str | None, manifest: Sequence[Mapping], years: Years | None = None) -> dict:
+    """Commit of the study code and SHA-256 of the data manifest (and the years read) of one run."""
+    text = json.dumps({"files": list(manifest), "years": None if years is None else list(years)}, sort_keys=True)
+    return {"commit": commit, "dataSha256": hashlib.sha256(text.encode()).hexdigest()}
+
+
 def data_manifest(files: Iterable[Path]) -> list[dict]:
     """Every input file with its size and SHA-256 (the data stay on the rig; the manifest makes them checkable)."""
     return [{"path": str(path), "bytes": path.stat().st_size, "sha256": file_sha256(path)} for path in files]
@@ -468,21 +480,26 @@ def trade_of(record: Mapping) -> Trade:
     return Trade(**{name: record[name] for name in Trade.__dataclass_fields__})
 
 
-def _job_header(job: Job) -> dict:
+def _job_header(job: Job, stamp: Mapping[str, Any]) -> dict:
     return {"schema": SCHEMA, "job": job.name, "kind": job.kind, "row": job.row, "dataset": job.dataset,
-            "params": asdict(job.params), "paramsKey": job.params.key(), "specSha256": rules.SPEC_SHA256}
+            "params": asdict(job.params), "paramsKey": job.params.key(), "specSha256": rules.SPEC_SHA256,
+            **{key: stamp.get(key) for key in STAMP_KEYS}}
 
 
-def _finished(path: Path, job: Job) -> dict | None:
-    """The stored output of `job`, or None when it is missing or from other parameters or another spec."""
+MATCH_KEYS = ("kind", "paramsKey", "specSha256", *STAMP_KEYS)
+
+
+def _finished(path: Path, job: Job, stamp: Mapping[str, Any]) -> dict | None:
+    """The stored output of `job`, or None when it is missing or from other parameters, another spec, another
+    commit of the study code or other data."""
     if not path.exists():
         return None
     try:
         stored = json.loads(path.read_text())
     except json.JSONDecodeError:
         return None
-    header = _job_header(job)
-    return stored if all(stored.get(key) == header[key] for key in ("kind", "paramsKey", "specSha256")) else None
+    header = _job_header(job, stamp)
+    return stored if all(stored.get(key) == header[key] for key in MATCH_KEYS) else None
 
 
 def _session_minutes(m: Minutes) -> int:
@@ -508,7 +525,8 @@ def _trades_job(job: Job, data: Datasets) -> dict:
 def _row_trades(out_dir: Path, row: str, dataset: str, data: Datasets) -> list[dict]:
     """The trades of a graded row from its job file, else computed now."""
     variant = BY_ROW[row]
-    stored = _finished(out_dir / f"{row}-{dataset}.json", Job("trades", row, dataset, variant.params, 1))
+    job = Job("trades", row, dataset, variant.params, 1)
+    stored = _finished(out_dir / f"{job.name}.json", job, data.stamp)
     if stored is not None and stored.get("status") == "ran":
         return stored["trades"]
     return trades_payload(data.sets[dataset], variant.params)["trades"]  # type: ignore[arg-type]
@@ -517,12 +535,12 @@ def _row_trades(out_dir: Path, row: str, dataset: str, data: Datasets) -> list[d
 def run_job(job: Job, out_dir: Path, data: Datasets | None = None) -> dict:
     """Runs one job unless its file is already there; returns {"job", "status", "seconds", "skipped"}."""
     path = out_dir / f"{job.name}.json"
-    stored = _finished(path, job)
-    if stored is not None:
-        return {"job": job.name, "status": stored.get("status"), "seconds": stored.get("seconds"), "skipped": True}
     data = data or LOADED
     if data is None:
         raise RuntimeError("no datasets loaded (call study.use first)")
+    stored = _finished(path, job, data.stamp)
+    if stored is not None:
+        return {"job": job.name, "status": stored.get("status"), "seconds": stored.get("seconds"), "skipped": True}
     started = time.time()
     if job.kind == "trades":
         payload = _trades_job(job, data)
@@ -535,7 +553,7 @@ def run_job(job: Job, out_dir: Path, data: Datasets | None = None) -> dict:
         payload = mfi_agreement(data.sets["a5"], data.sets["c"])  # type: ignore[arg-type]
     else:
         raise ValueError(f"unknown job kind {job.kind}")
-    payload = {**_job_header(job), **payload, "seconds": round(time.time() - started, 3)}
+    payload = {**_job_header(job, data.stamp), **payload, "seconds": round(time.time() - started, 3)}
     temp = path.with_suffix(".json.tmp")
     temp.write_text(json.dumps(payload, allow_nan=False, separators=(",", ":")))
     temp.replace(path)
@@ -913,25 +931,41 @@ def _by_day(stored: Mapping | None, tick: int = BASE_TICKS) -> dict[str, float]:
     return dict(zip(stored["days"], _session_series(stored, tick), strict=True))
 
 
-def diagnostics(out_dir: Path, rows: Mapping[str, Mapping], stored: Mapping[str, Mapping | None]) -> dict:
-    extra = {v.row: row_result(v, _load(out_dir, f"{v.row}-{v.dataset}")) for v in DIAGNOSTICS}
-    nq = _load(out_dir, "NQ-c")
+def diagnostics(rows: Mapping[str, Mapping], stored: Mapping[str, Mapping | None],
+                load: Callable[[str], dict | None]) -> dict:
+    """`load(job name)`: the job's stored output, None when missing or stale."""
+    extra = {v.row: row_result(v, load(f"{v.row}-{v.dataset}")) for v in DIAGNOSTICS}
+    nq = load("NQ-c")
     return {
         "rows": extra,
         "tracking": {"nqVsP3": _correlation(_by_day(nq), _by_day(stored.get("P3"))),
                      "nqVsP1": _correlation(_by_day(nq), _by_day(stored.get("P1")))},
-        "randomControl": _load(out_dir, "random-P1-a"),
-        "nautilus": {row: _load(out_dir, f"nautilus-{row}-{BY_ROW[row].dataset}") for row in NAUTILUS_ROWS},
-        "mfi": _load(out_dir, "mfi-MFI-a5c"),
+        "randomControl": load("random-P1-a"),
+        "nautilus": {row: load(f"nautilus-{row}-{BY_ROW[row].dataset}") for row in NAUTILUS_ROWS},
+        "mfi": load("mfi-MFI-a5c"),
         "v8": rows["V8"].get("status"),
     }
 
 
-def assemble(out_dir: Path, data_info: Mapping | None = None, *, pilot: bool = False) -> dict:
+def job_loader(out_dir: Path, stamp: Mapping[str, Any]) -> Callable[[str], dict | None]:
+    """Loads job files through `_finished`: a file of other parameters, spec, commit or data counts as missing."""
+    by_name = {job.name: job for job in jobs()}
+
+    def load(name: str) -> dict | None:
+        return _finished(out_dir / f"{name}.json", by_name[name], stamp)
+
+    return load
+
+
+def assemble(out_dir: Path, data_info: Mapping | None = None, *, pilot: bool = False,
+             stamp: Mapping[str, Any] | None = None) -> dict:
     """The results document: every row at 0, 1 and 2 ticks, walk-forward, tests T1-T7, outcome, diagnostics,
-    data manifest (`data.json` written by run.py, or `data_info`)."""
+    data manifest (`data.json` written by run.py, or `data_info`). Only job files of this run's `stamp`
+    (default: the "stamp" of the data info) count; others are treated as missing."""
     out_dir = Path(out_dir)
-    stored = {v.row: _load(out_dir, f"{v.row}-{v.dataset}") for v in VARIANTS}
+    info = data_info if data_info is not None else (_load(out_dir, "data") or {})
+    load = job_loader(out_dir, stamp if stamp is not None else info.get("stamp", {}))
+    stored = {v.row: load(f"{v.row}-{v.dataset}") for v in VARIANTS}
     rows = {v.row: row_result(v, stored[v.row]) for v in VARIANTS}
     ran = [row for row, result in rows.items() if result["status"] == "ran"]
     series = {row: _session_series(stored[row], BASE_TICKS) for row in ran}  # type: ignore[arg-type]
@@ -939,7 +973,7 @@ def assemble(out_dir: Path, data_info: Mapping | None = None, *, pilot: bool = F
               for row in ran if BY_ROW[row].dataset == "a"}
     available = rows["P1"].get("fullYears", [])
     wf = walk_forward(a_rows, available)
-    extra = diagnostics(out_dir, rows, stored)
+    extra = diagnostics(rows, stored, load)
     tests = grade(rows, series, wf, extra["randomControl"])
     outcome, deciding = outcome_of(tests)
     claim = {"years": CLAIM_YEARS, "window": list(CLAIM_WINDOW)}
@@ -948,7 +982,6 @@ def assemble(out_dir: Path, data_info: Mapping | None = None, *, pilot: bool = F
             claim[row] = {str(t): list(_years_profitable(rows[row], t)) for t in (0, BASE_TICKS)}
     if rows["P3"]["status"] == "ran":
         claim["P3window"] = {str(t): list(_years_profitable(rows["P3"], t, CLAIM_WINDOW)) for t in (0, BASE_TICKS)}
-    info = data_info if data_info is not None else (_load(out_dir, "data") or {})
     curve = (capital_curve(stored["P1"]["days"], series["P1"])["months"]  # type: ignore[index]
              if "P1" in series else [])
     return {

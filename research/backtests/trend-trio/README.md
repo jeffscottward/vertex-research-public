@@ -52,7 +52,9 @@ $PY research/backtests/trend-trio/run.py --out ~/Documents/reports/web/vertex-tr
 
 The run refuses to start when the spec above "## Results" differs from `rules.SPEC_SHA256`, and when the study
 code has uncommitted changes (`--allow-dirty` runs anyway as a diagnostic; `study.json` is then not written).
-Each job writes `<out>/<job>.json`; a restarted run skips jobs whose file has the same parameters and spec hash.
+Each job writes `<out>/<job>.json`; a restarted run skips jobs whose file has the same parameters, spec hash, code commit and data manifest hash
+(`assemble` treats any other job file as missing). A tier projected above the budget makes the outcome "blocked":
+only `results.json` and `index.html` are written.
 
 Outputs in `--out`: `data.json`, one JSON per job, `results.json`, `study.json`, `index.html`.
 
