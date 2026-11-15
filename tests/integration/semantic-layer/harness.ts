@@ -92,7 +92,7 @@ export const assertReaderRole = async (db: Database): Promise<void> => {
   );
   if (roles.rows.length === 0) {
     throw new Error(
-      "The test Postgres has no vertex_semantic_reader login: recreate it with scripts/ci/rig-postgres.sh up (bun run db:test:up)."
+      "The test Postgres has no vertex_semantic_reader login: it was created before the role existed. Recreate it with bun run db:test:down, then bun run db:test:up (CI: scripts/ci/rig-postgres.sh up)."
     );
   }
 };

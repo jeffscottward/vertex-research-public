@@ -99,6 +99,8 @@ Integration tests use `@darkfactory/testkit/postgres` to create an isolated data
 
 The browser lane (`bun run verify:browser`) needs the same two variables.
 
+Roles come from the init SQL in `infra/docker/postgres.compose.yml`, which runs only when the server is created. After a change to that file, recreate the server: `bun run db:test:down`, then `bun run db:test:up`. A change to `command` alone also makes `db:test:up` recreate it. Both ways drop every test database on that server, so first check that no other job runs integration tests or the pre-push gate on it. The server sets `max_locks_per_transaction=256` because parallel per-file migrations on a many-core host fill the default shared lock table ("out of shared memory", SQLSTATE 53200). `scripts/ci/rig-postgres.sh` sets the same `max_prepared_transactions` and `max_locks_per_transaction`.
+
 ## CI lanes
 
 | Lane | Script | What it proves |
