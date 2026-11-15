@@ -39,6 +39,7 @@ import itertools
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
+from nautilus_backtest.bars import InputError
 from quantlab.nautilus_engine import NAUTILUS_VERSION, NautilusUnavailable, require
 
 from .book import PricedTrade, contracts_for
@@ -123,7 +124,7 @@ def run_nautilus(trades: Sequence[PricedTrade], capital: float = DEFAULT_CAPITAL
         raise ValueError("capital must be above 0")
     days = timeline(trades, dates)
     if not days:
-        raise ValueError("Nothing to run: no dates")
+        raise InputError("Nothing to run: no dates")
     nt = _nautilus()
     USD, Money, Price, Quantity, OrderSide = nt["USD"], nt["Money"], nt["Price"], nt["Quantity"], nt["OrderSide"]
     venue = nt["Venue"](f"QCP{next(_RUN_COUNTER)}")
