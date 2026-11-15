@@ -721,6 +721,13 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
         "not stopped (kill switch engaged)",
       ],
       ["unknown", "start time not reported", "container not inspected"],
+      ["missing", "no container", "no container"],
+      ["unreadable", "Docker not readable", "Docker not readable"],
+      [
+        "unrecognised",
+        "container status not recognised",
+        "container status not recognised",
+      ],
     ] as const;
     for (const [state, started, stopped] of cases) {
       document.body.replaceChildren();
@@ -746,7 +753,93 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
       expect(field(shown, "stopped")).toBe(stopped);
       expect(field(shown, "heartbeat")).toBe("no heartbeat yet");
     }
-    return expect(cases).toHaveLength(4);
+    return expect(cases).toHaveLength(7);
+  });
+
+  it("names the session states without a usable container record and an unverified kill switch", async () => {
+    const base = v2Status();
+    const available = base.session as Extract<
+      DeploymentStatusOutput["session"],
+      { available: true }
+    >;
+    const chipText = async (
+      patch: Partial<typeof available>
+    ): Promise<string | null | undefined> => {
+      document.body.replaceChildren();
+      const shown = await mount(
+        <DeploymentsWorkspace
+          gateway={gatewayOf(async () =>
+            v2Status({ session: { ...available, ...patch } })
+          )}
+          now={() => now}
+        />
+      );
+      return shown.querySelector("[data-session-state]")?.textContent;
+    };
+    const since = "2026-10-03T11:02:00Z";
+    expect(await chipText({ state: "missing", state_since: since })).toBe(
+      "No nautilus-trader container on QuantVPS since 11:02 UTC"
+    );
+    expect(await chipText({ state: "unreadable", state_since: since })).toBe(
+      "Docker not readable since 11:02 UTC · read again every 30 s"
+    );
+    expect(await chipText({ state: "unreadable" })).toBe(
+      "Docker not readable · read again every 30 s"
+    );
+    expect(
+      await chipText({
+        raw_state: { ...available.raw_state, container_status: "frozen" },
+        state: "unrecognised",
+        state_since: since,
+      })
+    ).toBe("Container status 'frozen' not recognised since 11:02 UTC");
+    expect(
+      await chipText({
+        raw_state: { ...available.raw_state, container_status: null },
+        state: "unrecognised",
+        state_since: "not a time",
+      })
+    ).toBe("Docker gave no container status");
+    expect(await chipText({ state: "stopped", state_since: since })).toBe(
+      "stopped"
+    );
+    const risk = base.risk as Extract<
+      DeploymentStatusOutput["risk"],
+      { available: true }
+    >;
+    const killText = async (
+      patch: Partial<typeof risk>
+    ): Promise<string | null | undefined> => {
+      document.body.replaceChildren();
+      const shown = await mount(
+        <DeploymentsWorkspace
+          gateway={gatewayOf(async () =>
+            v2Status({ risk: { ...risk, ...patch } })
+          )}
+          now={() => now}
+        />
+      );
+      return shown.querySelector("[data-kill-switch]")?.textContent;
+    };
+    expect(
+      await killText({
+        kill_switch: "unverified",
+        kill_switch_indicators: [
+          { as_of: since, engaged: null, source: "file data/KILL_SWITCH" },
+          {
+            as_of: since,
+            engaged: false,
+            source: "file portfolio-ui/data/KILL_SWITCH",
+          },
+          { as_of: null, engaged: null, source: "watchdog live_flags" },
+        ],
+      })
+    ).toBe(
+      "Kill switch not verified: data/KILL_SWITCH not readable at 11:02 UTC · not treated as clear"
+    );
+    return expect(
+      await killText({ kill_switch: "unverified", kill_switch_indicators: [] })
+    ).toMatch(/^Kill switch not verified: a kill-switch file not readable/u);
   });
 
   it("falls back to v1 with the snapshot error and an engaged kill switch is prominent", async () => {
