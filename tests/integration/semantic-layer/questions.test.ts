@@ -43,8 +43,24 @@ describe("Q20 rubric", () => {
     "Sector momentum paper forward: alert (previously warn, not alert-muted).",
     "Sector momentum is at warn, not alert\n\nAlerting monitors:\n- ORB paper forward\n- Sector momentum paper forward",
     "Sector momentum is alerting, above warn, not alert.",
+    "Alert: ORB paper forward, Sector momentum paper forward (previously warn, not alert).",
+    "The monitors in alert are ORB paper forward and Sector momentum paper forward, which was at warn, not alert.",
+    "Two monitors are in alert: ORB paper forward and Sector momentum paper forward (it was at warn, not alert).",
+    "Also alerting: Sector momentum paper forward, which until today was at warn and not in alert.",
+    "ORB paper forward is in alert, so is Sector momentum paper forward (was warn, not alert).",
   ])("grades Sector Momentum in alert as wrong: %s", (sentence) => {
     expect(gradeAnswer(q20, `${ORB} ${sentence}`)).toBe("wrong");
+  });
+
+  // Known gap: the exempt form followed or filled by a claim that the pattern cannot see (no "alert" word,
+  // or a later sentence without the name). The rubric grades these correct; the independent grade is the
+  // check for them (wrong by either grade counts as wrong).
+  it.each([
+    "Sector momentum is at warn, not alert. Correction: it is now in alert as well.",
+    "Sector momentum paper forward has crossed its threshold too, having been at warn, not alert.",
+    "Sector momentum is in_alert; formerly warn, not alert.",
+  ])("does not catch a claim outside the pattern: %s", (sentence) => {
+    expect(gradeAnswer(q20, `${ORB} ${sentence}`)).toBe("correct");
   });
 
   // The gaps of the exempt form are bounded, so a long answer without a full stop is graded quickly.

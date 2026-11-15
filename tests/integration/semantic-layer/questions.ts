@@ -216,11 +216,13 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
   {
     // Wrong: Sector Momentum named as in alert (any "alert" after the name, up to the next full stop). One
     // form is exempt, because it states the reference: "Sector momentum ... warn ... not alert" (also "not in
-    // alert", "not at alert") where the negation ends the sentence, each gap is at most 120 characters, and
-    // no gap holds another monitor name or a word that starts with "alert".
+    // alert", "not at alert") where the negation ends the sentence, each gap is at most 120 characters, no
+    // gap holds another monitor name or a word that starts with "alert", and no "alert" stands before the
+    // name in the same sentence. The independent grade is the check for what a pattern cannot see (the
+    // "known gap" sentences in questions.test.ts).
     forbidden: [
       ...PAPER,
-      /sector momentum(?!(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b|\balert)[^.]){0,120}?\bwarn\b(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b|\balert)[^.]){0,120}?\bnot (?:in |at )?alert\b[\s)]*(?:\.|$))[^.]*\balert\b/i,
+      /sector momentum(?!(?<!alert[^.]*sector momentum)(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b|\balert)[^.]){0,120}?\bwarn\b(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b|\balert)[^.]){0,120}?\bnot (?:in |at )?alert\b[\s)]*(?:\.|$))[^.]*\balert\b/i,
     ],
     id: "Q20",
     kind: "research",
