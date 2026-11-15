@@ -89,11 +89,10 @@ describe("0075_semantic_terms_trend_dsl_names", () => {
         `SET "description" = left("description", length("description") - length('${appended}')), "updated_at" = now()\nWHERE "id" = '${id}';`
       );
     }
-    // The marks follow each other in one AND chain of the DO block.
+    // The marks are one AND chain inside the row count of the DO block.
     expect(rollback.replaceAll(/\s+/gu, " ")).toContain(
-      ROLLBACK_MARKS.join(" AND ")
+      `) AND ${ROLLBACK_MARKS.join(" AND ")} ) <> 3 THEN`
     );
-    expect(rollback).toContain(") <> 3 THEN");
     expect(rollback).toContain("refusing rollback");
     expect(rollback.match(/^UPDATE /gmu)).toHaveLength(3);
     expect(rollback).not.toMatch(/\bDELETE\b/u);
