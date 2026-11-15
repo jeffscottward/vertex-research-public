@@ -512,6 +512,20 @@
       "when": 1794593572441,
       "tag": "0072_market_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794707975811,
+      "tag": "0073_strategy_catalog_trend_trio",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794707977265,
+      "tag": "0074_semantic_terms_trend_indicators",
+      "breakpoints": true
     }
   ]
 }

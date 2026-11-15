@@ -128,3 +128,79 @@ trade in QQQ terms next to the cost of crossing a 0-1 DTE QQQ option spread twic
 - Study: `services/research/strategies/trend_trio/study.py`, `document.py`, `report.py`, `research/backtests/trend-trio/run.py`.
 
 ## Results
+
+Run 2026-11-14 on the rig, commit `04140d05`, spec SHA-256 `35b52eec`, 344 s with 8 workers. Report:
+`~/Documents/reports/web/vertex-trend-trio/index.html` (the rig tailnet report site, path /reports/vertex-trend-trio/;
+); full numbers in `run/results.json` next to it.
+
+### Verdict
+
+**Reconstruction failed.** T1 decides (P1 loses money); T2-T7 also fail. The reel's "16 of 16 years" does not reproduce
+with these public indicators and these guessed rules. A look-ahead mistake (diagnostic below) does reproduce "every year
+profitable"; the honest rules do not.
+
+| Test | Value | Result |
+| --- | --- | --- |
+| T1 | P1 net -$108,564 (2013-2026); walk-forward test years 2016-2025 +$98,953 | fail |
+| T2 | 95% interval of mean P&L per session [-$70.85, +$7.63] | fail |
+| T3 | P1 6/13 full years profitable; P3 8/21 | fail |
+| T4 | deflated Sharpe probability 0.001 (N = 33) | fail |
+| T5 | average gross per trade $4.14 on 10,480 trades | fail |
+| T6 | P1 net at 2 ticks -$213,364 | fail |
+| T7 | P1 mean net per trade -$10.36 vs random-entry 95th percentile -$2.19 | fail |
+
+### Claim vs reconstruction (full calendar years profitable)
+
+| Row | Fees only (reel setting) | 1 tick per side |
+| --- | --- | --- |
+| P1, (a) CFD 1-minute, 2013-2025 | 7/13 | 6/13 |
+| P3, (b) QQQ 15/5, 2005-2025 | 11/21 | 8/21 |
+| P3 in the reel's window 2010-2025 | 10/16 | 7/16 |
+| Look-ahead diagnostic, (a), 2013-2025 | 13/13 | 11/13 |
+| Reel claim | 16/16 | not stated |
+
+### Per year (P1, dataset (a), net dollars on 1 NQ)
+
+| Year | Fees only | 1 tick | Year | Fees only | 1 tick |
+| --- | --- | --- | --- | --- | --- |
+| 2013 | -1,180 | -6,140 | 2020 | -7,604 | -16,024 |
+| 2014 | -4,264 | -11,624 | 2021 | 25,002 | 17,092 |
+| 2015 | 3,417 | -4,363 | 2022 | 13,013 | 5,283 |
+| 2016 | 8,040 | 580 | 2023 | 7,988 | 88 |
+| 2017 | -4,017 | -11,637 | 2024 | -31,332 | -39,492 |
+| 2018 | 12,256 | 4,336 | 2025 | -11,805 | -19,425 |
+| 2019 | 11,313 | 3,773 | 2026 (to 11-06) | -24,590 | -31,010 |
+
+P1 totals: 10,480 trades (about 3 a day), gross +$43,396, fees $47,160, net -$3,764 fees only, -$108,564 at 1 tick,
+-$213,364 at 2 ticks; win rate 33.9%; max drawdown $117,244 at 1 tick; in the market 19.8% of regular-session minutes.
+
+### Variants and walk-forward
+
+- P2 (15-minute buckets): -$97,609 at 1 tick. P3 ((b) QQQ 15/5, 2004-12 to 2026-11): +$127,841 at 1 tick (+$67,591 at 2
+  ticks, max drawdown $36,969, 6,025 trades, $21.22 net per trade) but only 8 of 21 full years profitable; most of the gain is
+  2022, 2024 and 2026.
+- The slower exit helps: V4 (Chandelier on the signal buckets) +$114,458 at 1 tick on (a); every other (a) row loses at 1 tick
+  (best: S16, Chandelier multiple 4.2, -$8,719).
+- V7 gives the same trades as P1: each trio direction is +1 or -1, so "two agree and none against" means all three agree. It
+  still counts in N.
+- Walk-forward picks V4 in every test year; stitched 2016-2025 +$98,953, with 2025 at -$73,001.
+
+### Diagnostics (outside N)
+
+- Look-ahead (reads the forming 5-minute bucket): +$581,964 fees only, profitable in all 13 full years and in 2026; +$476,914 at
+  1 tick. A higher-timeframe request with look-ahead is enough to produce a reel-like record.
+- NautilusTrader booked P1, P2 and P3 with the same entry and exit bars and fill prices as the rule module (10,480, 4,608 and
+  6,025 trades).
+- NQ tracking (2024-08-29 to 2025-09-19, 246 sessions): P3 rules on real NQ vs on QQQ per session, correlation 0.95; vs CFD
+  P1, 0.34.
+- AlphaTrend MFI state, CFD tick volume vs NQ volume: 90.7% agree.
+- Bridge ("(b) 15/5" rules on (a) at 5 minutes): +$137,854 at 1 tick, close to P3, so the 1-minute execution with the
+  1-minute Chandelier, not the data source, makes P1 lose.
+- Data: (a) 3,409 sessions (5 dropped), 697 five-minute buckets with missing minutes; (b) 5,513 sessions (6 incomplete
+  sessions skipped by the shared loader); V8 full-session bars ran (165 months). CFD median spread 1.23 points, never charged.
+
+### Options form
+
+Not translated (decision record Q8). P1's average gross move is $4.14 per NQ per trade = 0.21 index points = about $0.005 per
+QQQ share; a 0-1 DTE at-the-money QQQ option (delta about 0.5) would gain about $0.25 per contract, while QQQ options trade
+in $0.01 steps, so entering and leaving costs at least $1.00 per contract before time decay.
