@@ -240,7 +240,7 @@ Tier 1: P1, P2, P3 (verdict inputs). Tier 2: V1-V8. Tier 3: S1-S22. Tier 4: walk
 
 ### Storage
 
-- `strategies` row (migration 0073) and five `semantic_terms` rows (migration 0074), written after the verdict.
+- `strategies` row (migration 0073), written after the verdict.
 - Study document (`kind: strategy-backtest`, `StrategyBacktestStudySchema` in `packages/api/src/contracts/research-studies.ts`) through `bun run vertex:research-studies:import`. Its returns and drawdowns are fractions of a $100,000 capital basis per contract (stated in its notes; not comparable with equity studies). The per-year net dollars of P1 and P3 go into the library description and the study notes.
 
 ### DSL (PR 2)
@@ -457,10 +457,10 @@ Python import root: `services/research` (pytest runs from it, `research/backtest
 #### 12. Migrations (Create unless marked)
 
 - `packages/db/migrations/0073_strategy_catalog_trend_trio.sql`: `INSERT ... ON CONFLICT ("slug") DO NOTHING` into `strategies` with `id` `strategy-seed-trend-trio`, `slug` `trend-trio`, `name` "Trend Trio (Vertex reconstruction, rules guessed): SuperTrend + Ultimate MA + AlphaTrend on NQ", `description` (claim, reconstruction outcome, per-year net dollars of P1 and P3, "Research only"), `kind` `python`, `status` `backtested`, `source_ref` `docs/specs/strategies/trend-trio.md`, `tags` as in G-LIB plus topic tags (`nq`, `intraday`, `trend-following`, `supertrend`, `alphatrend`, `chandelier-exit`), `section` `Reel ideas` (the section of the other reel rows), `params` `[]` (the defaults live in the spec and the study document; `strategies_json_check` needs an array), `priority` `normal`, `external_validation` in the shape of migration 0065 (`sourceUrl`, `sourceTitle`, `sourceAuthor`, `publishedOn`, `claimedMethod`, `claimedMetrics`).
-- `packages/db/migrations/0074_semantic_terms_trend_indicators.sql`: five `semantic_terms` rows (`supertrend`, `ultimate_ma`, `alphatrend`, `chandelier_exit`, `slingshot`): `source` `none`, not certified, description = definition, where to use it (script built-in or template, DSL form) and "Vertex has no stored series for it", synonyms (for example "Super Trend", "ST" / "UMA", "Ultimate Moving Average" / "Alpha Trend" / "Chandelier", "CE" / "Sling Shot", "EMA 38/62").
-- `packages/db/migrations/meta/_journal.json` (Modify), `packages/db/migrations/meta/0073_snapshot.json`, `packages/db/migrations/meta/0074_snapshot.json`.
-- `packages/db/rollback/0073_strategy_catalog_trend_trio.down.sql`, `packages/db/rollback/0074_semantic_terms_trend_indicators.down.sql` (guarded like the 0070 rollback).
-- `packages/db/src/server/strategy-catalog-trend-trio-migration.test.ts`, `packages/db/src/server/semantic-terms-trend-indicators-migration.test.ts`, `tests/integration/database/strategy-catalog-trend-trio.test.ts`.
+- Planned (deferred, see Implementation notes): migration 0074 with five `semantic_terms` rows (`supertrend`, `ultimate_ma`, `alphatrend`, `chandelier_exit`, `slingshot`): `source` `none`, not certified, description = definition, where to use it (script built-in or template, DSL form) and "Vertex has no stored series for it", synonyms (for example "Super Trend", "ST" / "UMA", "Ultimate Moving Average" / "Alpha Trend" / "Chandelier", "CE" / "Sling Shot", "EMA 38/62").
+- `packages/db/migrations/meta/_journal.json` (Modify), `packages/db/migrations/meta/0073_snapshot.json`.
+- `packages/db/rollback/0073_strategy_catalog_trend_trio.down.sql` (guarded like the 0070 rollback).
+- `packages/db/src/server/strategy-catalog-trend-trio-migration.test.ts`, `tests/integration/database/strategy-catalog-trend-trio.test.ts`.
 - If the base branch takes 0073 first, `pnpm db:renumber` renumbers these files (CONVENTIONS.md "Migration numbers").
 
 #### 13. `NOTICE` (Modify)
@@ -524,6 +524,11 @@ the code is the reference:
   `--render-only`, `--allow-dirty` and per-input path options.
 - A test that cannot be computed counts as not passed (it can decide the outcome).
 - The report also shows the look-ahead diagnostic next to P1 and the options-form arithmetic.
-- `0074` descriptions name the script built-in, template, chart study and, for Ultimate MA and Slingshot, the DSL
+- The planned 0074 descriptions name the script built-in, template, chart study and, for Ultimate MA and Slingshot, the DSL
   composition; the DSL names of SuperTrend, AlphaTrend and Chandelier Exit arrive with PR 2.
 - PR 2 (items 14-19) is not implemented yet.
+- Agent vocabulary: the five `semantic_terms` rows (planned migration 0074) are not in PR 1. Every new term enters the
+  catalog that the recorded semantic-layer eval (`tests/integration/semantic-layer/eval-recording.fixture.json`)
+  replays, so adding them needs a re-recording of that eval (Postgres and model calls); that is a follow-up card. The
+  agent reaches the indicators through `ta.supertrend` / `ta.mfi` and the script templates (`chart_script` tool) and,
+  with PR 2, the DSL names.

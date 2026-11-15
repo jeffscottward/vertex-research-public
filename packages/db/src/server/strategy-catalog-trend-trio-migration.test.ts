@@ -85,13 +85,9 @@ describe("0073_strategy_catalog_trend_trio", () => {
       (entry) => entry.tag === "0073_strategy_catalog_trend_trio"
     );
     expect(journal.entries[index]).toMatchObject({ idx: 73 });
-    expect(journal.entries[index - 1]).toMatchObject({
+    return expect(journal.entries[index - 1]).toMatchObject({
       idx: 72,
       tag: "0072_market_notes",
-    });
-    return expect(journal.entries[index + 1]).toMatchObject({
-      idx: 74,
-      tag: "0074_semantic_terms_trend_indicators",
     });
   });
 

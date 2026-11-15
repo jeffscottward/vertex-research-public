@@ -104,13 +104,11 @@ describe("semantic layer (Postgres)", () => {
       await dropPostgresTestDatabase(testDatabase);
   });
 
-  it("seeds ten certified terms, five uncertified indicator terms (0074), one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
+  it("seeds ten certified terms, one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
     const catalog = await repository.catalog();
     expect(catalog.terms.map((term) => [term.id, term.source])).toEqual([
-      ["alphatrend", "none"],
       ["backtest_max_drawdown", "postgres"],
       ["backtest_sharpe", "postgres"],
-      ["chandelier_exit", "none"],
       ["crown_copy_leg", "none"],
       ["deployment_request", "postgres"],
       ["drift_level", "postgres"],
@@ -118,28 +116,9 @@ describe("semantic layer (Postgres)", () => {
       ["open_risk", "feed"],
       ["pnl", "feed"],
       ["position", "feed"],
-      ["slingshot", "none"],
       ["strategy_gate_pass", "postgres"],
-      ["supertrend", "none"],
-      ["ultimate_ma", "none"],
     ]);
-    const indicatorTerms = new Set([
-      "alphatrend",
-      "chandelier_exit",
-      "slingshot",
-      "supertrend",
-      "ultimate_ma",
-    ]);
-    expect(
-      catalog.terms
-        .filter((term) => !indicatorTerms.has(term.id))
-        .every((term) => term.certified)
-    ).toBe(true);
-    expect(
-      catalog.terms
-        .filter((term) => indicatorTerms.has(term.id))
-        .some((term) => term.certified)
-    ).toBe(false);
+    expect(catalog.terms.every((term) => term.certified)).toBe(true);
     expect(
       catalog.attributes.map((attribute) => [
         attribute.id,
@@ -259,9 +238,9 @@ describe("semantic layer (Postgres)", () => {
       cost_bps: 1,
       date_from: "2021-01-01",
       date_to: "2026-09-30",
+      take_profit_pct: 0,
       engine_version: "vx-engine-1.5",
       strategy_on_run: null,
-      take_profit_pct: 0,
     });
     expect(
       (await okRows("backtest_sharpe", ["iwm"], "run_spec")).map(
@@ -511,8 +490,8 @@ describe("semantic layer (Postgres)", () => {
       })
     ).toBe("certified");
     expect((await repository.term("crown_copy_leg"))?.term).toMatchObject({
-      certificationNote: "Checked: still no data source.",
       certified: false,
+      certificationNote: "Checked: still no data source.",
     });
   });
 
