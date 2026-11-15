@@ -214,13 +214,13 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     set: "main",
   },
   {
-    // Wrong: Sector Momentum named as in alert. An "alert" that is negated right before it ("not alert",
-    // "not in alert", "not at alert") does not count: "is at warn, not alert" states the reference. After
-    // the name of another monitor in the sentence, every "alert" counts again (the negation may be about
-    // that monitor).
+    // Wrong: Sector Momentum named as in alert (any "alert" after the name, up to the next full stop). One
+    // form is exempt, because it states the reference: "Sector momentum ... warn ... not alert" (also "not in
+    // alert", "not at alert") with no other monitor name before the negation and no later "alert" in the
+    // sentence.
     forbidden: [
       ...PAPER,
-      /sector momentum[^.]*?(?:(?<!\bnot (?:in |at )?)\balert\b|\b(?:RSI MR|ORB|opening range breakout)\b[^.]*?\balert\b)/i,
+      /sector momentum(?!(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b)[^.])*?\bwarn\b(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b)[^.])*?\bnot (?:in |at )?alert\b(?![^.]*\balert\b))[^.]*\balert\b/i,
     ],
     id: "Q20",
     kind: "research",
