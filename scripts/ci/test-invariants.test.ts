@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import vitestConfig, { coverageThresholds } from "../../vitest.config.ts";
 import coverageBaseline from "./coverage-baseline.json" with { type: "json" };
+import { NATIVE_EVIDENCE_SHARDS } from "../lib/coverage-shards.ts";
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 
 type Manifest = Readonly<{ scripts?: Readonly<Record<string, string>> }>;
@@ -99,12 +100,15 @@ const isThinEntry = (source: string): boolean => {
 const SOURCE_ROOT = /^(?:apps\/[^/]+\/src\/|packages\/[^/]+\/src\/|scripts\/)/u;
 const SOURCE_EXTENSION = /\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/u;
 const TEST_FILE = /\.(?:test|spec)\.[^./]+$/u;
-const LOCAL_PROJECTS = [
+// The native-evidence files run in named CI coverage shards; pre-push still runs
+// them through the packages/api test:unit script.
+const LOCAL_PROJECTS: readonly string[] = [
   "unit",
   "contract",
   "operations",
   "e2e-helpers",
-] as const;
+  ...Object.keys(NATIVE_EVIDENCE_SHARDS),
+];
 
 const git = async (...arguments_: string[]): Promise<string[]> => {
   return (
@@ -470,7 +474,7 @@ describe("every Vitest test file runs in the gates", {
     );
   });
 
-  return it("runs every unit, contract, operations, and e2e-helpers file in verify:prepush", async () => {
+  return it("runs every unit, contract, operations, e2e-helpers and native-evidence file in verify:prepush", async () => {
     // One after the other: a failing list then leaves nothing running.
     const files = await allTestFiles();
     const counts = await executionCounts("verify:prepush");

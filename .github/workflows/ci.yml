@@ -111,7 +111,7 @@ jobs:
       fail-fast: false
       matrix:
         shard:
-          ["1/12", "2/12", "3/12", "4/12", "5/12", "6/12", "7/12", "8/12", "9/12", "10/12", "11/12", "12/12", acceptance]
+          ["1/12", "2/12", "3/12", "4/12", "5/12", "6/12", "7/12", "8/12", "9/12", "10/12", "11/12", "12/12", native-evidence-1, native-evidence-2, acceptance]
         # The acceptance shard (template init test, the longest job) runs on the nightly
         # run, on a manual run and when the init command changed; the changes job excludes
         # it otherwise (owner 2026-11-11). When it is planned, the coverage lane below
@@ -425,11 +425,12 @@ jobs:
           merge-multiple: true
 
       # Every planned shard must be present: a partial merge could pass on partial data.
-      # Twelve Vitest shards, plus the acceptance shard when the changes job planned it.
+      # Twelve hashed Vitest shards and the two native-evidence shards, plus the acceptance
+      # shard when the changes job planned it.
       - name: Require every planned coverage shard report
         shell: bash
         env:
-          EXPECTED: ${{ needs.changes.outputs.acceptance == 'true' && 13 || 12 }}
+          EXPECTED: ${{ needs.changes.outputs.acceptance == 'true' && 15 || 14 }}
         run: |
           count=$(find .vitest-reports -maxdepth 1 -type f | wc -l)
           echo "Coverage shard reports: ${count} of ${EXPECTED}"

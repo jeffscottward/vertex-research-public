@@ -2,6 +2,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
+import { NAMED_SHARDS } from "../lib/coverage-lane.ts";
+
 // Durable security and structure invariants for every GitHub workflow. Keep
 // this file free of step text, versions and shell snippets: those are free to
 // change without weakening the pipeline.
@@ -213,12 +215,26 @@ describe("GitHub workflow invariants", () => {
     expect(matrix?.["exclude"]).toBe(
       "${{ fromJSON(needs.changes.outputs.skip_shards) }}"
     );
-    // The merge counts the reports against the plan: 13 with the acceptance shard, else 12.
+    // The merge counts the reports against the plan: 12 hashed shards plus the
+    // named shards, plus the acceptance shard when it is planned.
     return expect(
       ciJobs["verification-coverage"]!.steps?.map((step) => step.env)
     ).toContainEqual({
-      EXPECTED: "${{ needs.changes.outputs.acceptance == 'true' && 13 || 12 }}",
+      EXPECTED: `\${{ needs.changes.outputs.acceptance == 'true' && ${12 + NAMED_SHARDS.length} || ${11 + NAMED_SHARDS.length} }}`,
     });
+  });
+
+  // Card orochi-impl: every named coverage shard of scripts/lib/coverage-lane.ts
+  // runs as its own matrix entry, so its files leave the hashed shards.
+  it("runs every named coverage shard as its own matrix entry", () => {
+    const ci = workflows.find(({ file }) => file === "ci.yml")!;
+    const ciJobs = ci.workflow.jobs as Record<string, Job>;
+    const shards = ciJobs["coverage-shards"]!.strategy?.matrix?.["shard"];
+    return expect(shards).toEqual([
+      ...Array.from({ length: 12 }, (_, index) => `${index + 1}/12`),
+      ...NAMED_SHARDS.filter((name) => name !== "acceptance"),
+      "acceptance",
+    ]);
   });
 
   // Card vertex-ci-queue-pathfilter (2026-11-02): one required check, a light lane

@@ -661,9 +661,22 @@ _INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo",
 _LEG_KEYS = frozenset({"entry", "exit", "filters", "options"})
 
 
-def _strict(value: Mapping[str, Any], keys: frozenset[str], where: str) -> None:
-    """TS .strict(): rejects keys the schema does not declare."""
-    unknown = sorted(set(value) - keys)
+def _object(value: Any, where: str) -> Mapping[str, Any]:
+    """TS z.object(): rejects a value that is not an object."""
+    if not isinstance(value, Mapping):
+        raise InputError(f"{where} must be an object")
+    return value
+
+
+def _block(definition: Mapping[str, Any], key: str) -> Mapping[str, Any] | None:
+    """An optional block of the definition: None when it is absent or null, else an object."""
+    value = definition.get(key)
+    return None if value is None else _object(value, key)
+
+
+def _strict(value: Any, keys: frozenset[str], where: str) -> None:
+    """TS z.object().strict(): an object without keys that the schema does not declare."""
+    unknown = sorted(set(_object(value, where)) - keys)
     if unknown:
         raise InputError(f"Unknown key in {where}: {unknown[0]}")
 
@@ -939,6 +952,8 @@ def _check_expr_limits(exprs: Sequence[Mapping[str, Any]]) -> None:
 
 def _normalize_condition(condition: Mapping[str, Any]) -> dict[str, Any]:
     _strict(condition, _CONDITION_KEYS, "condition")
+    if any(condition.get(key) is None for key in ("left", "op", "right")):
+        raise InputError("condition needs left, op and right")
     op = condition.get("op")
     if op not in OPERATORS:
         raise InputError(f"Unknown operator: {op}")
@@ -1043,7 +1058,7 @@ def _normalize_filter(item: Mapping[str, Any]) -> dict[str, Any]:
         series = item.get("series")
         if series not in SERIES_REFS:
             raise InputError(f"Unknown series: {series}")
-        raw = item["condition"]
+        raw = _object(item.get("condition"), "condition")
         if "oncePerLevel" in raw or any(
             isinstance(side, Mapping) and "timeframe" in side for side in (raw.get("left"), raw.get("right"))
         ):
@@ -1448,16 +1463,16 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     """Applies the StrategyDefinitionSchema defaults and rejects unknown names, operators and keys
     (the TS schema objects are strict; filter and options blocks keep their own checks)."""
     _strict(definition, _DEFINITION_KEYS, "definition")
-    entry = definition.get("entry") or {}
+    entry = _block(definition, "entry") or {}
     _strict(entry, frozenset({"all", "any"}), "entry")
     entry_all = entry.get("all") or []
     entry_any = entry.get("any") or []
     if len(entry_all) + len(entry_any) == 0:
         raise InputError("Entry needs at least one condition in entry.all or entry.any")
-    exit_ = definition.get("exit") or {}
+    exit_ = _block(definition, "exit") or {}
     _strict(exit_, frozenset({"any"}), "exit")
     exit_any = exit_.get("any") or []
-    sizing = definition.get("sizing") or {"mode": "allIn"}
+    sizing = _block(definition, "sizing") or {"mode": "allIn"}
     if sizing.get("mode") == "riskPct":
         _strict(sizing, frozenset({"mode", "riskPct", "maxLeverage"}), "sizing")
         max_leverage = sizing.get("maxLeverage")
@@ -1476,15 +1491,17 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     else:
         raise InputError(f"Unknown sizing mode: {sizing.get('mode')}")
     filters = [_normalize_filter(item) for item in definition.get("filters") or []]
-    stop_loss = _normalize_level(definition.get("stopLoss"))
-    take_profit = _normalize_level(definition.get("takeProfit"))
+    stop_loss = _normalize_level(_block(definition, "stopLoss"))
+    take_profit = _normalize_level(_block(definition, "takeProfit"))
     options = definition.get("options")
     if options is not None and not isinstance(options, Mapping):
         raise InputError("options must be an object")
     portfolio = definition.get("portfolio")
     normalized_portfolio = None if portfolio is None else _normalize_portfolio(portfolio)
-    session = definition.get("session")
-    management = _normalize_management(definition.get("management"))
+    session = _block(definition, "session")
+    if session is not None and (session.get("startUtc") is None or session.get("endUtc") is None):
+        raise InputError("session needs startUtc and endUtc")
+    management = _normalize_management(_block(definition, "management"))
     entry_conditions = [_normalize_condition(c) for c in entry_all]
     entry_any_conditions = [_normalize_condition(c) for c in entry_any]
     exit_conditions = [_normalize_condition(c) for c in exit_any]

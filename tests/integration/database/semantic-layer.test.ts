@@ -104,21 +104,28 @@ describe("semantic layer (Postgres)", () => {
       await dropPostgresTestDatabase(testDatabase);
   });
 
-  it("seeds ten certified terms, one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
+  it("seeds ten certified terms and the five uncertified trend indicator terms, one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
     const catalog = await repository.catalog();
-    expect(catalog.terms.map((term) => [term.id, term.source])).toEqual([
-      ["backtest_max_drawdown", "postgres"],
-      ["backtest_sharpe", "postgres"],
-      ["crown_copy_leg", "none"],
-      ["deployment_request", "postgres"],
-      ["drift_level", "postgres"],
-      ["net_liquidation", "feed"],
-      ["open_risk", "feed"],
-      ["pnl", "feed"],
-      ["position", "feed"],
-      ["strategy_gate_pass", "postgres"],
+    // Migration 0056 seeds ten certified terms; migration 0074 adds five uncertified ones with source none.
+    expect(
+      catalog.terms.map((term) => [term.id, term.source, term.certified])
+    ).toEqual([
+      ["alphatrend", "none", false],
+      ["backtest_max_drawdown", "postgres", true],
+      ["backtest_sharpe", "postgres", true],
+      ["chandelier_exit", "none", false],
+      ["crown_copy_leg", "none", true],
+      ["deployment_request", "postgres", true],
+      ["drift_level", "postgres", true],
+      ["net_liquidation", "feed", true],
+      ["open_risk", "feed", true],
+      ["pnl", "feed", true],
+      ["position", "feed", true],
+      ["slingshot", "none", false],
+      ["strategy_gate_pass", "postgres", true],
+      ["supertrend", "none", false],
+      ["ultimate_ma", "none", false],
     ]);
-    expect(catalog.terms.every((term) => term.certified)).toBe(true);
     expect(
       catalog.attributes.map((attribute) => [
         attribute.id,
