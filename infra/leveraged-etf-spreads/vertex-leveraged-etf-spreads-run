@@ -12,7 +12,8 @@ if [[ ! -x "$UV" ]]; then
   exit 127
 fi
 export PATH="/usr/local/bin:/usr/bin:/bin"
+UNIVERSE="${LEVERAGED_ETF_SPREADS_UNIVERSE:-$HOME/.local/share/vertex/leveraged-etf-spreads-universe.json}" # json-data-ignore: fund list input of the spread collector on the rig, outside the repo; the app never reads it
 exec "$UV" run --no-project --python 3.12 --with yfinance==0.2.66 --exclude-newer 2026-11-11T00:00:00Z \
   python research/backtests/leveraged-etf/spread_reads.py \
   --store "${LEVERAGED_ETF_SPREADS_STORE:-$HOME/.local/share/vertex/leveraged-etf-spreads}" \
-  --universe "${LEVERAGED_ETF_SPREADS_UNIVERSE:-$HOME/.local/share/vertex/leveraged-etf-spreads-universe.json}" "$@"
+  --universe "$UNIVERSE" "$@"
