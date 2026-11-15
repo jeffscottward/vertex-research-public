@@ -12,6 +12,10 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./indicators": {
+      "import": "./src/indicators/index.ts",
+      "default": "./src/indicators/index.ts"
+    },
     "./universes": {
       "import": "./src/universes/index.ts",
       "default": "./src/universes/index.ts"

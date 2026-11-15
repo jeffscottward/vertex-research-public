@@ -10,6 +10,7 @@ import {
   smma,
   stochastic,
 } from "./indicator-math.ts";
+import { TREND_STUDIES } from "./trend-studies.ts";
 
 // Vertex-computed chart studies registered as KLineCharts 9.8.12 custom
 // indicators. The math comes from indicator-math.ts, which mirrors the Python
@@ -26,6 +27,11 @@ export const VERTEX_STUDY_IDS = [
   "stoch",
   "adx",
   "rvol",
+  "supertrend",
+  "ultma",
+  "alphatrend",
+  "chandelier",
+  "slingshot",
 ] as const;
 export type VertexStudyId = (typeof VERTEX_STUDY_IDS)[number];
 
@@ -93,6 +99,7 @@ const line = (key: string, title: string): Figure => ({
 });
 
 export const VERTEX_STUDIES: Readonly<Record<VertexStudyId, VertexStudy>> = {
+  ...TREND_STUDIES,
   adx: {
     calc: (bars, params) =>
       zipRows(bars.length, adx(ohlc(bars), param(params, 0))),
