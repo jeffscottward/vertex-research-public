@@ -8,7 +8,9 @@
 // entry and keeps these files out of the unit project.
 // It does so in every start directory, and it gives the shard projects their
 // own sequence group (sequence.groupOrder), so pre-push never runs these files
-// at the same time as the unit project of packages/api.
+// at the same time as the unit project of packages/api. The shard projects
+// also match these files from every start directory: a start in another
+// package must select its projects.
 export const NATIVE_EVIDENCE_SHARDS = {
   "native-evidence-1": [
     "packages/api/src/server/vertex-research-chat-native-evidence.test.ts",

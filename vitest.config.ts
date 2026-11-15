@@ -58,11 +58,14 @@ const fsModuleCachePath = join(process.cwd(), "node_modules", ".vitest-cache");
 // The files of the named shards as absolute paths. Vitest resolves a relative
 // include or exclude entry against the directory it starts in. The
 // packages/api test:unit script starts it in packages/api, where a path
-// relative to the repository root matches no file.
+// relative to the repository root matches no file. With absolute paths the
+// shard projects match these files from every start directory, so a start in
+// another package must select its projects.
 const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
 // tinyglobby makes an absolute pattern relative to its escaped start
-// directory (escapePath). The prefix needs the same escaping to match;
-// escapeGlob also escapes + @ , ! and then matches no file in such a path.
+// directory. The prefix needs the same escaping to match, so this is the
+// POSIX escapePath of tinyglobby 0.2.17 (POSIX paths only). escapeGlob also
+// escapes + @ , ! and the patterns then fail in such a path.
 const shardFile = (file: string): string =>
   join(repositoryRoot, file).replace(/[\\()[\]{}*?|]|^!|[!+@](?=\()/gu, "\\$&");
 
@@ -141,8 +144,9 @@ export default defineConfig({
           include: include.map(shardFile),
           // The JavaScript main thread of the worker limits these tests.
           // Vitest runs the groups one after the other, so these files never
-          // run at the same time as the other projects of the same run. With
-          // more than one worker they start when those projects have ended.
+          // run at the same time as the projects of a lower group (every
+          // project but the shards). With more than one worker they start when
+          // those projects have ended.
           sequence: { groupOrder: 1 },
         },
       })),
