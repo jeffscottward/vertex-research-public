@@ -71,9 +71,12 @@ touches_init() {
 # stores, runtimes, contracts and tests), the Python debate adapter and its tests, a
 # shared module that the five-turn test spends most of its time in (authorization,
 # persistence core, policy store, transaction read cache, predecessor walk, the canonical
-# encoder), or the shard's own definition.
+# encoder), another module that the test file imports (worker contract, Python test
+# support, timeout scale), or a file that defines or plans the shard (this script, the
+# shard list, the coverage lane, the Vitest config, the workflow). The first group is
+# not anchored on purpose: each research-chat file counts, in any package.
 touches_debate() {
-  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^scripts/lib/coverage-shards\.ts$'
+  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale)\.ts$|^scripts/ci/ci-changes\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
 }
 
 changed_paths() {

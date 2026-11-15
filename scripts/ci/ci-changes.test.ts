@@ -265,7 +265,10 @@ describe("ci-changes.sh", () => {
           "packages/db/src/server/vertex-research-store.ts",
           "packages/db/src/server/vertex-authorization.test.ts",
           "packages/shared/src/vertex/index.test.ts",
-          "scripts/lib/coverage-lane.ts",
+          "scripts/lib/coverage-lane.test.ts",
+          "scripts/ci/ci-changes.test.ts",
+          ".github/workflows/codeql.yml",
+          "packages/api/src/contracts/vertex-worker.test.ts",
         ].join("\n")
       );
       expect(out).toContain("heavy=true");
@@ -290,6 +293,13 @@ describe("ci-changes.sh", () => {
       ["packages/db/src/server/vertex-transaction-read-cache.ts"],
       ["packages/shared/src/vertex/index.ts"],
       ["scripts/lib/coverage-shards.ts"],
+      ["scripts/lib/coverage-lane.ts"],
+      ["scripts/lib/test-timeout-scale.ts"],
+      ["scripts/ci/ci-changes.sh"],
+      ["vitest.config.ts"],
+      [".github/workflows/ci.yml"],
+      ["packages/api/src/contracts/vertex-worker.ts"],
+      ["packages/api/src/server/research-python.test-support.ts"],
       ["README.md\napps/web/src/features/experience/research-chat-debate.ts"],
     ])("plans the shard for a pull request that changes %s", (files) => {
       const { out } = planPullRequest("false", "false", files);
