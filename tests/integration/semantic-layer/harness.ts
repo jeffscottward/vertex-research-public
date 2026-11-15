@@ -178,7 +178,7 @@ export type RecordedCompletion = Readonly<{
  * prompt, the question and every tool result, in order. The replay compares it with the recording, so a changed prompt, question
  * or tool result (the semantic layer above all) makes the recording stale.
  */
-export const inputDigest = (
+const inputDigest = (
   request: Pick<AssistantCompletionRequest, "messages" | "tools">
 ): string => {
   const hash = createHash("sha256");
@@ -191,9 +191,7 @@ export const inputDigest = (
   return hash.digest("hex");
 };
 
-export const toCompletion = (
-  recorded: RecordedCompletion
-): AssistantCompletion => ({
+const toCompletion = (recorded: RecordedCompletion): AssistantCompletion => ({
   content: recorded.content,
   finishReason: recorded.toolCalls.length > 0 ? "tool_calls" : "stop",
   inputTokens: 0,
@@ -248,4 +246,50 @@ export const runTrial = async (
     now: () => EVAL_NOW,
   });
   return { answer: result.content, completions, trace: result.trace };
+};
+
+/**
+ * Replays one recorded trial against the built layer, with the recorded model replies in order.
+ * Null when the trial replays unchanged; else the first difference (the trial is stale: record it again).
+ * The replay test and the recorder's `stale` selection both use this one definition.
+ */
+export const staleReason = async (
+  backend: EvalBackend,
+  question: EvalQuestion,
+  recorded: Readonly<{
+    answer: string;
+    completions: readonly RecordedCompletion[];
+  }>
+): Promise<string | null> => {
+  let call = 0;
+  let reason: string | null = null;
+  const replay = async (
+    request: AssistantCompletionRequest
+  ): Promise<AssistantCompletion> => {
+    const next = recorded.completions[call];
+    if (next === undefined) {
+      reason ??= `the turn asked for more than the ${recorded.completions.length} recorded model calls`;
+      throw new Error(reason);
+    }
+    if (inputDigest(request) !== next.inputDigest) {
+      reason ??= `the input of model call ${call} changed (tool definitions, system prompt, question or a tool result)`;
+      throw new Error(reason);
+    }
+    call += 1;
+    return toCompletion(next);
+  };
+  let answer: string;
+  try {
+    answer = (await runTrial(backend, question, replay)).answer;
+  } catch (error) {
+    if (reason === null) throw error;
+    return reason;
+  }
+  if (reason !== null) return reason;
+  if (call !== recorded.completions.length) {
+    return `the turn made ${call} of the ${recorded.completions.length} recorded model calls`;
+  }
+  return answer === recorded.answer
+    ? null
+    : "the final answer differs from the recorded answer";
 };
