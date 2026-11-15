@@ -2055,7 +2055,9 @@ MUTATION_BASES: dict[str, dict[str, Any]] = {
     },
 }
 # 10**400 is an int above the float range (JSON.parse reads such a literal as Infinity).
-JUNK: list[Any] = [None, True, False, 0, 5, -1, 1.5, 1e9, 10**400, "", "x", [], [1], {}, {"x": 1}]
+# json.loads also reads the literals NaN and Infinity.
+JUNK: list[Any] = [None, True, False, 0, 5, -1, 1.5, 1e9, 10**400, math.nan, math.inf, "", "x", [], [1], {},
+                   {"x": 1}]
 # Numbers just outside the ranges of the schema (tried where the valid value is a number) and texts near
 # valid ones (tried where the valid value is a text).
 EDGES: list[Any] = [-11, 0.01, 1, 2, 10.5, 11, 13, 19, 21, 51, 99.5, 100.5, 101, 201, 401, 501, 1001, 1e13, -1e13]
@@ -2125,6 +2127,8 @@ def test_a_single_change_of_a_valid_definition_never_raises_anything_but_an_inpu
     for label, definition in mutations:
         try:
             sig.normalize_definition(definition)
+            if definition.get("portfolio") is not None:
+                sig.ts_portfolio(definition["portfolio"])  # reads the raw block after the validator
         except InputError:
             pass
         except (Exception, RecursionError) as error:  # noqa: BLE001
@@ -2133,41 +2137,14 @@ def test_a_single_change_of_a_valid_definition_never_raises_anything_but_an_inpu
     assert crashes == []
 
 
-def _with_stop(**level: Any) -> dict[str, Any]:
-    return _entry(_one(ALWAYS), stopLoss=level)
+DEFINITION_ACCEPTANCES = golden()["definitionAcceptances"]
 
 
-@pytest.mark.parametrize(
-    "definition",
-    [
-        _with_stop(kind="pct", pct=99),
-        _with_stop(kind="atr", length=1000, multiple=100),
-        _entry(_one(ALWAYS), sizing={"mode": "riskPct", "riskPct": 100, "maxLeverage": 50}, **WITH_STOP),
-        _entry(_one({**ALWAYS, "right": {"type": "const", "value": 1e12}})),
-        _entry(_one({**ALWAYS, "right": {"type": "const", "value": -1e12}})),
-        _entry(_one({**ALWAYS, "left": {"type": "indicator", "name": "sma", "length": 1000}})),
-        _entry(_one({**ALWAYS, "left": {"type": "indicator", "name": "rvol", "length": 100}})),
-        _entry(_one({**ALWAYS, "left": {"type": "indicator", "name": "zscore", "length": 2}})),
-        _entry({"all": [ALWAYS] * 8, "any": [ALWAYS] * 8}, exit={"any": [ALWAYS] * 8}),
-        _entry(_one(ALWAYS), session={"startUtc": "00:00", "endUtc": "23:59"}),
-        _entry(_one(ALWAYS), name="n" * 120, description="d" * 2000),
-        # zod counts code points, and JavaScript trim keeps U+001F.
-        _entry(_one(ALWAYS), name="\U0001f600" * 120, description="\U0001f600" * 2000),
-        _entry(_one(ALWAYS), name="\x1f"),
-        _filtered({"type": "ivRank", "length": 20, "min": 0, "max": 0},
-                  {"type": "ivRank", "length": 1000, "min": 100, "max": 100},
-                  {"type": "vixTermStructure", "minRatio": 10, "maxRatio": 10},
-                  {"type": "volRegime", "maxVix": 200, "maxTermRatio": 10, "trendLength": 1000}),
-        _filtered({"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -10, "toDay": 10},
-                  {"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -1, "toDay": 1},
-                  {"type": "calendarWindow", "window": "months", "months": list(range(1, 13))},
-                  {"type": "sectorQuadrant", "sector": "XLRE", "timeframe": "daily",
-                   "quadrants": ["leading", "weakening", "lagging", "improving"]}),
-    ],
-)
-def test_a_value_on_the_bound_of_its_range_is_accepted(definition: dict[str, Any]) -> None:
-    """The TypeScript ranges include their bounds (the `field:*` refusal cases are just outside them)."""
-    normalized = sig.normalize_definition(definition)
+@pytest.mark.parametrize("case", DEFINITION_ACCEPTANCES, ids=_ids(DEFINITION_ACCEPTANCES, "id"))
+def test_a_value_on_the_bound_of_its_range_is_accepted(case: dict[str, Any]) -> None:
+    """scripts/research/nautilus-golden.ts definitionAcceptanceCases: the TypeScript schema accepts each
+    definition (the `field:*` refusal cases are just outside the same bounds)."""
+    normalized = sig.normalize_definition(case["definition"])
     assert sig.normalize_definition(normalized) == normalized
 
 
@@ -2187,14 +2164,8 @@ def test_empty_filters_and_null_optional_fields_keep_their_meaning() -> None:
     for an optional key means that the key is absent, and an absent list of conditions is the empty list."""
     assert sig.normalize_definition(_entry(_one(ALWAYS), filters=[]))["filters"] == []
     assert sig.normalize_definition(_entry(_one(ALWAYS), filters=None))["filters"] == []
-    filters = sig.normalize_definition(_filtered(
-        {"type": "ivRank", "length": None, "min": 10, "max": None},
-        {"type": "volRegime", "maxVix": 30, "maxTermRatio": 1, "trendLength": None},
-        {"type": "sectorQuadrant", "sector": "XLK", "quadrants": ["leading"], "timeframe": None},
-    ))["filters"]
+    filters = sig.normalize_definition(_filtered({"type": "ivRank", "min": 10, "max": None}))["filters"]
     assert filters[0] == {"type": "ivRank", "length": 252, "min": 10.0}
-    assert filters[1]["trendLength"] == 200
-    assert filters[2]["timeframe"] == "weekly"
     any_only = sig.normalize_definition({"entry": {"any": [ALWAYS]}})
     assert any_only["entry"]["all"] == [] and len(any_only["entry"]["any"]) == 1
     assert (any_only["name"], sig.normalize_definition(any_only)) == (None, any_only)

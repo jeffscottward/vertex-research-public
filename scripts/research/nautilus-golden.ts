@@ -2292,13 +2292,40 @@ const fieldRefusals: readonly (readonly [
     "expression must be an object",
   ],
 ];
-const fieldRefusalCases: readonly DefinitionRefusalCase[] = fieldRefusals.map(
-  ([id, edit, python]) => ({
-    definition: { ...plainDefinition, ...edit },
-    id: `field:${id}`,
-    ...(python === undefined ? {} : { python }),
-  })
-);
+const nullFieldRefusals: typeof fieldRefusals = [
+  [
+    "ivRankLengthNull",
+    { filters: [{ length: null, min: 10, type: "ivRank" }] },
+    "ivRank length must be a whole number from 20 to 1000",
+  ],
+  [
+    "volRegimeTrendNull",
+    {
+      filters: [
+        { maxTermRatio: 1, maxVix: 30, trendLength: null, type: "volRegime" },
+      ],
+    },
+    "volRegime trendLength must be a whole number from 1 to 1000",
+  ],
+  [
+    "filterTimeframeNull",
+    sectorFilter({ timeframe: null }),
+    "Unknown filter timeframe: None",
+  ],
+  [
+    "legExitAnyAbsent",
+    legOf({ entry: { all: [always] }, exit: {}, options: OPTIONS_BLOCK }),
+    "portfolio leg exit.any must be a list",
+  ],
+];
+const fieldRefusalCases: readonly DefinitionRefusalCase[] = [
+  ...fieldRefusals,
+  ...nullFieldRefusals,
+].map(([id, edit, python]) => ({
+  definition: { ...plainDefinition, ...edit },
+  id: `field:${id}`,
+  ...(python === undefined ? {} : { python }),
+}));
 
 const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
   // One cross-field check alone, in schema order.
@@ -3069,6 +3096,126 @@ export const definitionRefusalJson = ({
   return { definition, id, message: python };
 };
 
+/**
+ * Definitions with a value on each inclusive bound of a range (card
+ * vertex-dsl-python-validator-field-guards). The schema must accept each one, and so must the Python
+ * normalize_definition (test_a_value_on_the_bound_of_its_range_is_accepted). With the `field:*`
+ * refusal cases just outside the bounds, a changed bound of the schema stops the generator.
+ */
+const filtersOf = (...filters: Json[]) => ({ ...plainDefinition, filters });
+const definitionAcceptanceCases: readonly Readonly<{
+  definition: Json;
+  id: string;
+}>[] = [
+  {
+    definition: { ...plainDefinition, stopLoss: { kind: "pct", pct: 99 } },
+    id: "bound:stopLossPct",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      stopLoss: { kind: "atr", length: 1000, multiple: 100 },
+    },
+    id: "bound:stopLossAtr",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      sizing: { maxLeverage: 50, mode: "riskPct", riskPct: 100 },
+      stopLoss: pctStop,
+    },
+    id: "bound:riskPct",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: {
+        all: [
+          { ...always, right: { type: "const", value: 1e12 } },
+          { ...always, right: { type: "const", value: -1e12 } },
+          { ...always, left: { length: 1000, name: "sma", type: "indicator" } },
+          { ...always, left: { length: 100, name: "rvol", type: "indicator" } },
+          { ...always, left: { length: 2, name: "zscore", type: "indicator" } },
+        ],
+      },
+    },
+    id: "bound:expressions",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: {
+        all: new Array(8).fill(always),
+        any: new Array(8).fill(always),
+      },
+      exit: { any: new Array(8).fill(always) },
+    },
+    id: "bound:conditionCounts",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      session: { endUtc: "23:59", startUtc: "00:00" },
+    },
+    id: "bound:session",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      description: "d".repeat(2000),
+      name: "n".repeat(120),
+    },
+    id: "bound:textLengths",
+  },
+  // zod counts the characters of a text as code points, and JavaScript trim keeps U+001F.
+  {
+    definition: {
+      ...plainDefinition,
+      description: "😀".repeat(2000),
+      name: "😀".repeat(120),
+    },
+    id: "bound:textCodePoints",
+  },
+  { definition: { ...plainDefinition, name: "\u001f" }, id: "bound:nameTrim" },
+  {
+    definition: filtersOf(
+      { length: 20, max: 0, min: 0, type: "ivRank" },
+      { length: 1000, max: 100, min: 100, type: "ivRank" },
+      { maxRatio: 10, minRatio: 10, type: "vixTermStructure" },
+      { maxTermRatio: 10, maxVix: 200, trendLength: 1000, type: "volRegime" }
+    ),
+    id: "bound:seriesFilters",
+  },
+  {
+    definition: filtersOf(
+      { ...opexWeek, fromDay: -10, toDay: 10, window: "turnOfMonth" },
+      { ...opexWeek, fromDay: -1, toDay: 1, window: "turnOfMonth" },
+      {
+        ...opexWeek,
+        months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        window: "months",
+      },
+      {
+        quadrants: ["leading", "weakening", "lagging", "improving"],
+        sector: "XLRE",
+        timeframe: "daily",
+        type: "sectorQuadrant",
+      }
+    ),
+    id: "bound:calendarAndSectorFilters",
+  },
+];
+
+/** One definitionAcceptances entry; throws when the schema refuses the definition. */
+export const definitionAcceptanceJson = ({
+  definition,
+  id,
+}: Readonly<{ definition: Json; id: string }>): Json => {
+  if (!StrategyDefinitionSchema.safeParse(definition).success)
+    throw new Error(`${id}: the schema refuses the definition`);
+  return { definition, id };
+};
+
 /** 2d. Definition refusals (StrategyDefinitionSchema / normalize_definition). */
 export const buildDefinitionRefusals = (
   refinements = StrategyDefinitionSchema._zod.def.checks?.length
@@ -3748,6 +3895,9 @@ const buildGolden = (io: GoldenIo): string => {
     calendars: calendars(),
     compiled,
     costs,
+    definitionAcceptances: definitionAcceptanceCases.map(
+      definitionAcceptanceJson
+    ),
     definitionRefusals: buildDefinitionRefusals(),
     engine,
     engineRefusals,

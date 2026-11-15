@@ -1105,7 +1105,7 @@ def _normalize_sector_quadrant(item: Mapping[str, Any]) -> dict[str, Any]:
             raise InputError(f"Unknown quadrant: {quadrant}")
     if len(set(quadrants)) != len(quadrants):
         raise InputError("Quadrants must not repeat")
-    timeframe = "weekly" if item.get("timeframe") is None else item["timeframe"]
+    timeframe = item.get("timeframe", "weekly")
     if timeframe not in FILTER_TIMEFRAMES:
         raise InputError(f"Unknown filter timeframe: {timeframe}")
     return {"type": "sectorQuadrant", "sector": item["sector"], "quadrants": quadrants, "timeframe": timeframe}
@@ -1144,11 +1144,10 @@ def _normalize_filter(item: Any) -> dict[str, Any]:
     if kind == "sectorQuadrant":
         return _normalize_sector_quadrant(item)
     if kind == "ivRank":
-        length = item.get("length")
         return {
             "type": "ivRank",
-            "length": IV_RANK_DEFAULT_LENGTH if length is None
-            else _whole(length, "ivRank length", IV_RANK_MIN_LENGTH, MAX_LENGTH),
+            "length": _whole(item.get("length", IV_RANK_DEFAULT_LENGTH), "ivRank length", IV_RANK_MIN_LENGTH,
+                             MAX_LENGTH),
             **_bounds(item, kind, ("min", "max"), lambda value, name: _between(value, name, 0, 100)),
         }
     if kind == "vixTermStructure":
@@ -1157,13 +1156,12 @@ def _normalize_filter(item: Any) -> dict[str, Any]:
             **_bounds(item, kind, ("minRatio", "maxRatio"), lambda value, name: _positive(value, name, MAX_RATIO)),
         }
     if kind == "volRegime":
-        trend_length = item.get("trendLength")
         return {
             "type": "volRegime",
             "maxVix": _positive(item.get("maxVix"), "volRegime maxVix", MAX_VIX),
             "maxTermRatio": _positive(item.get("maxTermRatio"), "volRegime maxTermRatio", MAX_RATIO),
-            "trendLength": VOL_REGIME_DEFAULT_TREND_LENGTH if trend_length is None
-            else _whole(trend_length, "volRegime trendLength", 1, MAX_LENGTH),
+            "trendLength": _whole(item.get("trendLength", VOL_REGIME_DEFAULT_TREND_LENGTH),
+                                  "volRegime trendLength", 1, MAX_LENGTH),
         }
     if kind == "series":
         series = item.get("series")
@@ -1247,6 +1245,8 @@ def _normalize_leg(leg: Mapping[str, Any]) -> dict[str, Any]:
     }
     if leg.get("exit") is not None:
         _strict(leg["exit"], frozenset({"any"}), "portfolio leg exit")
+        if leg["exit"].get("any") is None:  # ts_portfolio reads the raw list; the TS schema requires it
+            raise InputError("portfolio leg exit.any must be a list")
         normalized["exit"] = {
             "any": _condition_list(leg["exit"].get("any"), "portfolio leg exit.any", "A leg exit", 0)
         }
@@ -1343,12 +1343,13 @@ def ts_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
     if "legs" in out:
         legs = []
         for leg in out["legs"]:
-            ts_leg = dict(leg)
+            # A null exit or filters of a leg means that the key is absent (normalize_definition).
+            ts_leg = {key: value for key, value in leg.items() if value is not None}
             ts_leg["options"] = dict(leg["options"])
             ts_leg["entry"] = {"all": [_with_condition_defaults(c) for c in leg["entry"]["all"]]}
-            if "exit" in leg:
+            if "exit" in ts_leg:
                 ts_leg["exit"] = {"any": [_with_condition_defaults(c) for c in leg["exit"]["any"]]}
-            if "filters" in leg:
+            if "filters" in ts_leg:
                 ts_leg["filters"] = [_with_filter_defaults(item) for item in leg["filters"]]
             legs.append(ts_leg)
         out["legs"] = legs
