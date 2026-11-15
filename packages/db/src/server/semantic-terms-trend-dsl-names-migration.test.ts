@@ -14,13 +14,21 @@ const rollback = read(
 );
 
 const TERM_IDS = ["supertrend", "alphatrend", "chandelier_exit"];
-const MARKS = [
-  '"updated_by" IS NULL',
-  'NOT "certified"',
-  '"certified_at" IS NULL',
-  '"certified_by" IS NULL',
-  '"certification_note" IS NULL',
-];
+/** The five operator-mark conditions as [text before the column, column, text after it]. */
+const MARK_PARTS = [
+  ["", "updated_by", " IS NULL"],
+  ["NOT ", "certified", ""],
+  ["", "certified_at", " IS NULL"],
+  ["", "certified_by", " IS NULL"],
+  ["", "certification_note", " IS NULL"],
+] as const;
+/** The conditions as the migration writes them (`"column"`) and as the rollback does (`t."column"`). */
+const MARKS = MARK_PARTS.map(
+  ([before, column, after]) => `${before}"${column}"${after}`
+);
+const ROLLBACK_MARKS = MARK_PARTS.map(
+  ([before, column, after]) => `${before}t."${column}"${after}`
+);
 
 const md5 = (text: string) => createHash("md5").update(text).digest("hex");
 
@@ -81,8 +89,10 @@ describe("0075_semantic_terms_trend_dsl_names", () => {
         `SET "description" = left("description", length("description") - length('${appended}')), "updated_at" = now()\nWHERE "id" = '${id}';`
       );
     }
-    for (const mark of MARKS)
-      expect(rollback).toContain(mark.replace('"', 't."'));
+    // The marks follow each other in one AND chain of the DO block.
+    expect(rollback.replaceAll(/\s+/gu, " ")).toContain(
+      ROLLBACK_MARKS.join(" AND ")
+    );
     expect(rollback).toContain(") <> 3 THEN");
     expect(rollback).toContain("refusing rollback");
     expect(rollback.match(/^UPDATE /gmu)).toHaveLength(3);
