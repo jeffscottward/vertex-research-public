@@ -125,6 +125,12 @@ const expire = (deadline = false) =>
     } where status = 'running'`
   );
 
+/** Moves only the deadline of the running run into the past; its lease stays as it is. */
+const passDeadline = () =>
+  database().execute(
+    "update research_screen_runs set deadline_at = now() - interval '1 second' where status = 'running'"
+  );
+
 describe("research screen repository (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
@@ -595,9 +601,7 @@ describe("research screen repository (Postgres)", () => {
     // The lease passed, the deadline did not.
     await expect(repository.closeExpiredRun(run.id)).resolves.toBe(false);
     await repository.takeLease(run.id, "request-2");
-    await database().execute(
-      "update research_screen_runs set deadline_at = now() - interval '1 second' where status = 'running'"
-    );
+    await passDeadline();
     // The deadline passed, the lease is live.
     await expect(repository.closeExpiredRun(run.id)).resolves.toBe(false);
 
@@ -620,6 +624,98 @@ describe("research screen repository (Postgres)", () => {
         total: 2,
       })
     ).resolves.not.toBeNull();
+  });
+
+  it("does not interrupt a run past its deadline whose lease was released, and hands its lease on", async () => {
+    const repository = createResearchScreenRepository(database());
+    const run = await claim(SLOT_1);
+    await repository.writeRow(run.id, 1, good());
+    await expect(repository.releaseLease(run.id, 1)).resolves.toBe(true);
+    await passDeadline();
+    const released = await storedRun(run.id);
+    expect(released.leaseExpiresAt).toBeNull();
+    expect(released.deadlineAt.getTime()).toBeLessThan(Date.now());
+
+    // A released lease is not an expired one: no holder vanished.
+    await expect(repository.closeExpiredRun(run.id)).resolves.toBe(false);
+    expect(await storedRun(run.id)).toMatchObject({
+      finishedAt: null,
+      leaseExpiresAt: null,
+      notReached: 0,
+      status: "running",
+    });
+
+    // The next share takes the lease and ends the run by its counts.
+    await expect(
+      repository.takeLease(run.id, "request-2")
+    ).resolves.toMatchObject({
+      fence: 2,
+      id: run.id,
+      leaseOwner: "request-2",
+      status: "running",
+      succeeded: 1,
+    });
+    await expect(
+      repository.finishRun(run.id, 2, "partial", "1 of 2 reports screened", 1)
+    ).resolves.toBe(true);
+    expect(await storedRun(run.id)).toMatchObject({
+      notReached: 1,
+      status: "partial",
+      succeeded: 1,
+      total: 2,
+    });
+  });
+
+  it("interrupts a run past its deadline whose lease is set and expired, with the reports not reached", async () => {
+    const repository = createResearchScreenRepository(database());
+    const run = await claim(SLOT_1, "request-1", 5);
+    await repository.writeRow(run.id, 1, good());
+    await repository.writeRow(
+      run.id,
+      1,
+      failed({ providerSymbol: SECOND, reportId: SECOND })
+    );
+    await expire(true);
+    const abandoned = await storedRun(run.id);
+    expect(abandoned.leaseOwner).toBe("request-1");
+    expect(abandoned.leaseExpiresAt?.getTime()).toBeLessThan(Date.now());
+
+    await expect(repository.closeExpiredRun(run.id)).resolves.toBe(true);
+
+    const closed = await storedRun(run.id);
+    expect(closed).toMatchObject({
+      failed: 1,
+      leaseExpiresAt: null,
+      leaseOwner: null,
+      // 5 claimed - 1 succeeded - 1 failed.
+      notReached: 3,
+      status: "interrupted",
+      succeeded: 1,
+      total: 5,
+    });
+    expect(closed.finishedAt).toBeInstanceOf(Date);
+    await expect(repository.findActiveRun()).resolves.toBeNull();
+    // An ended run takes no lease.
+    await expect(repository.takeLease(run.id, "request-2")).resolves.toBeNull();
+  });
+
+  it("does not interrupt a run past its deadline whose lease is still live", async () => {
+    const repository = createResearchScreenRepository(database());
+    const run = await claim(SLOT_1);
+    await passDeadline();
+    const held = await storedRun(run.id);
+    expect(held.leaseExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+
+    await expect(repository.closeExpiredRun(run.id)).resolves.toBe(false);
+
+    expect(await storedRun(run.id)).toMatchObject({
+      finishedAt: null,
+      leaseOwner: "request-1",
+      status: "running",
+    });
+    // The holder still works: its writes are accepted and no other tick gets the lease.
+    await expect(repository.takeLease(run.id, "request-2")).resolves.toBeNull();
+    await expect(repository.writeRow(run.id, 1, good())).resolves.toBe(true);
   });
 
   it("removes the row and the bars of a report that leaves the catalog", async () => {
