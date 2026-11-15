@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Runs one leveraged ETF spread run (research only: public Cboe and Yahoo option quotes into local
+# files; no orders, no account, no secret) from its own runner worktree. uv (the mise shim) provides
+# Python 3.12 and the pinned yfinance; --exclude-newer keeps its dependencies at the versions of the
+# day the pin was tested. The exit code of the collector is the unit state: an incomplete run exits 0
+# (its record says so); 1 marks a fault.
+set -euo pipefail
+cd "${LEVERAGED_ETF_SPREADS_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-spreads-runner}"
+UV="${LEVERAGED_ETF_SPREADS_UV:-$HOME/.local/share/mise/shims/uv}"
+if [[ ! -x "$UV" ]]; then
+  echo "vertex-leveraged-etf-spreads-run: uv is not installed ($UV); run mise use -g uv" >&2
+  exit 127
+fi
+export PATH="/usr/local/bin:/usr/bin:/bin"
+UNIVERSE="${LEVERAGED_ETF_SPREADS_UNIVERSE:-$HOME/.local/share/vertex/leveraged-etf-spreads-universe.json}" # json-data-ignore: fund list input of the spread collector on the rig, outside the repo; the app never reads it
+exec "$UV" run --no-project --python 3.12 --with yfinance==0.2.66 --exclude-newer 2026-11-11T00:00:00Z \
+  python research/backtests/leveraged-etf/spread_reads.py \
+  --store "${LEVERAGED_ETF_SPREADS_STORE:-$HOME/.local/share/vertex/leveraged-etf-spreads}" \
+  --universe "$UNIVERSE" "$@"
