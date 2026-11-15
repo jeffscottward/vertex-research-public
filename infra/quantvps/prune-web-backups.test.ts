@@ -13,14 +13,15 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 // The retention rule for the web build backups on QuantVPS. No test reaches QuantVPS: the remote
 // runner is `bash -c`, so every remote command (listing, rename, delete) runs against a temp
-// folder on the test machine.
+// folder on the test machine. Each test starts several processes, so the groups get a 30 s
+// timeout, like the process tests of the restart script.
 const script = fileURLToPath(
   new URL("./prune-web-backups.sh", import.meta.url)
 );
@@ -42,6 +43,9 @@ const stamp = (n: number): string =>
 const stamps = (from: number, count: number): string[] =>
   Array.from({ length: count }, (_, n) => stamp(from + n));
 const web = (): string => join(dir, "web");
+/** The folder as the script prints it: a user name in /home/<user>/ is shown as *. */
+const shown = (path: string): string =>
+  path.replace(/^\/home\/[^/]+\//, "/home/*/");
 
 const addPair = (ts: string, sha = ""): void => {
   mkdirSync(join(web(), `dist.bak-${ts}`, "server"), { recursive: true });
@@ -53,8 +57,8 @@ const addPair = (ts: string, sha = ""): void => {
 };
 
 /** A sandbox apps/web folder with a live build and `pairs` backup pairs. */
-const sandbox = (pairs: number): void => {
-  dir = mkdtempSync(join(tmpdir(), "prune-web-backups-"));
+const sandbox = (pairs: number, root = tmpdir()): void => {
+  dir = mkdtempSync(join(root, "prune-web-backups-"));
   mkdirSync(join(web(), "dist", "server"), { recursive: true });
   mkdirSync(join(web(), ".wrangler", "deploy"), { recursive: true });
   writeFileSync(join(web(), "dist", "server", "live.js"), "live");
@@ -115,7 +119,7 @@ const of = (lines: string[], kind: string): string[] =>
     .filter((line) => line.startsWith(`${kind} `))
     .map((line) => line.slice(kind.length + 1));
 
-describe("rule (--plan)", () => {
+describe("rule (--plan)", { timeout: 30_000 }, () => {
   it("keeps every pair when there are 10 or fewer", () => {
     const lines = plan(pairLines(4));
     expect(of(lines, "keep")).toEqual(stamps(0, 4));
@@ -248,7 +252,7 @@ describe("rule (--plan)", () => {
   });
 });
 
-describe("preview", () => {
+describe("preview", { timeout: 30_000 }, () => {
   it("prints the plan and changes nothing", () => {
     sandbox(14);
     addPair(stamp(14));
@@ -257,7 +261,7 @@ describe("preview", () => {
     expect(result.status).toBe(0);
     expect(result.last).toBe("PREVIEW: nothing deleted");
     expect(result.lines[0]).toBe(
-      `prune-web-backups: mode=preview folder=${web()} keep=10 limit=3`
+      `prune-web-backups: mode=preview folder=${shown(web())} keep=10 limit=3`
     );
     expect(result.stdout).toMatch(
       new RegExp(`^delete ${stamp(0)} abcdef000000 \\d+ MiB$`, "m")
@@ -279,6 +283,16 @@ describe("preview", () => {
     expect(existsSync(join(dir, "state"))).toBe(false);
   });
 
+  it.skipIf(!homedir().startsWith("/home/"))(
+    "prints a folder under /home without the user name",
+    () => {
+      sandbox(1, homedir());
+      const first = run().lines[0] ?? "";
+      expect(first).toMatch(/ folder=\/home\/\*\//);
+      expect(first).not.toContain(homedir());
+    }
+  );
+
   it("accepts --dry-run as the preview", () => {
     sandbox(12);
     const before = names();
@@ -297,7 +311,7 @@ describe("preview", () => {
   });
 });
 
-describe("--apply", () => {
+describe("--apply", { timeout: 30_000 }, () => {
   it("deletes the oldest pair of 11 and writes the record", () => {
     sandbox(11);
     const result = run(["--apply"]);
@@ -458,7 +472,7 @@ describe("--apply", () => {
     mkdirSync(join(web(), `.wrangler.prune-${stamp(0)}`));
     const first = run(["--apply"]);
     expect(first.status).toBe(0);
-    expect(first.stdout).toContain(`blocked ${stamp(0)} (a renamed folder`);
+    expect(first.stdout).toContain(`blocked ${stamp(0)} (a renamed name`);
     expect(first.last).toBe(
       "PRUNED: 1 pairs; 1 blocked pair(s) need a person (see the blocked lines)"
     );
@@ -470,6 +484,43 @@ describe("--apply", () => {
     );
     expect(names()).toContain(`.wrangler.prune-${stamp(0)}`);
     expect(pairStamps()).toEqual([stamp(0), ...stamps(2, 10)]);
+  });
+
+  it.each(["file", "symlink"])(
+    "blocks a pair whose rename target is a %s and renames nothing of it",
+    (kind) => {
+      sandbox(13);
+      const target = join(web(), `.wrangler.prune-${stamp(0)}`);
+      if (kind === "file") {
+        writeFileSync(target, "x");
+      } else {
+        symlinkSync("missing", target);
+      }
+      for (const _ of [1, 2]) {
+        expect(run(["--apply"]).status).toBe(0);
+      }
+      expect(pairStamps()).toEqual([stamp(0), ...stamps(3, 10)]);
+      expect(renamed()).toEqual([`.wrangler.prune-${stamp(0)}`]);
+    }
+  );
+
+  it("does not count a renamed folder that it cannot delete toward the limit", () => {
+    sandbox(14);
+    for (const ts of [
+      "20261001T000000Z",
+      "20261002T000000Z",
+      "20261003T000000Z",
+    ]) {
+      mkdirSync(join(web(), `dist.prune-${ts}`));
+      writeFileSync(join(web(), `.wrangler.bak-${ts}`), "x");
+    }
+    const result = run(["--apply"]);
+    expect(result.status).toBe(0);
+    expect(result.last).toContain("PRUNED: 3 pairs; more remain (1 over");
+    expect(pairStamps().filter((ts) => ts.startsWith("202611"))).toEqual(
+      stamps(3, 11)
+    );
+    expect(renamed()).toHaveLength(3);
   });
 
   it("never treats a folder name with a blank or a newline as a pair", () => {
@@ -525,7 +576,7 @@ describe("--apply", () => {
   });
 });
 
-describe("remote call failures", () => {
+describe("remote call failures", { timeout: 30_000 }, () => {
   // A remote runner that fails the n-th call of one command (FAIL="<marker>:<n>") and runs every
   // other command against the sandbox.
   const RUNNER = `#!/usr/bin/env bash
@@ -583,7 +634,7 @@ exec bash -c "$cmd"
   });
 });
 
-describe("preconditions and usage", () => {
+describe("preconditions and usage", { timeout: 30_000 }, () => {
   it("is an executable file", () => {
     expect(() => accessSync(script, constants.X_OK)).not.toThrow();
   });
@@ -621,7 +672,7 @@ describe("preconditions and usage", () => {
   });
 });
 
-describe("contract with restart-when-idle.sh", () => {
+describe("contract with restart-when-idle.sh", { timeout: 30_000 }, () => {
   // A remote runner for the restart script's dry run: its `candidate` command runs against the
   // sandbox, and every other command answers nothing.
   const RUNNER = `#!/usr/bin/env bash

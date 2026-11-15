@@ -57,7 +57,7 @@
 #   (never touched); `S <TS> <kB> <sha|none>` for each complete pair; `U <kB> <name>` for each
 #   unmanaged or renamed folder; `@@END` as the last line.
 #   Plan (from the rule): `keep <TS>`, `delete <TS>`, `blocked <TS>` (a complete pair that cannot
-#   be renamed because a renamed folder with its timestamp exists), `finish <TS>`,
+#   be renamed because a `*.prune-<TS>` name with its timestamp exists), `finish <TS>`,
 #   `leftover <name>`, `skip <name> <reason>`, `unmanaged <name>`, `strange <n>` (the number of B
 #   lines and of N lines with a wrong form), `waiting <n>` (renamed pairs that a run can delete),
 #   `over <n>` (complete pairs over the keep count), `error <text>`, and `plan-ok` as the last
@@ -85,10 +85,12 @@ $1 != "N" { next }
 NF != 3 || $0 != "N " $2 " " $3 || $3 !~ /^[A-Za-z0-9._-]+$/ { strange++; next }
 {
   type = $2; name = $3
+  # taken, takenw and wany hold a timestamp for a name of any type; dist, wr, pd and gone only
+  # for a directory.
   if (name ~ /^dist\.bak-/) { t = substr(name, 10); if (note(name, type, t)) dist[t] = 1 }
-  else if (name ~ /^\.wrangler\.bak-/) { t = substr(name, 15); if (note(name, type, t)) wr[t] = 1 }
-  else if (name ~ /^dist\.prune-/) { t = substr(name, 12); if (note(name, type, t)) { pd[t] = 1; left[name] = 1; gone[t] = 1 } }
-  else if (name ~ /^\.wrangler\.prune-/) { t = substr(name, 17); if (note(name, type, t)) { pw[t] = 1; left[name] = 1; gone[t] = 1 } }
+  else if (name ~ /^\.wrangler\.bak-/) { t = substr(name, 15); if (strict(t)) wany[t] = 1; if (note(name, type, t)) wr[t] = 1 }
+  else if (name ~ /^dist\.prune-/) { t = substr(name, 12); if (strict(t)) taken[t] = 1; if (note(name, type, t)) { pd[t] = 1; left[name] = 1; gone[t] = 1 } }
+  else if (name ~ /^\.wrangler\.prune-/) { t = substr(name, 17); if (strict(t)) { taken[t] = 1; takenw[t] = 1 }; if (note(name, type, t)) { left[name] = 1; gone[t] = 1 } }
   else if (name ~ /^(dist|\.wrangler)\.(failed|undeployed)-/) unmanaged[name] = 1
 }
 END {
@@ -100,11 +102,11 @@ END {
   waiting = 0
   for (t in wr) {
     if (t in dist) continue
-    if ((t in pd) && !(t in pw)) { fin[t] = 1; waiting++ }
-    else if (t in gone) odd[".wrangler.bak-" t] = "a renamed folder with this timestamp exists; remove one by hand"
+    if ((t in pd) && !(t in takenw)) { fin[t] = 1; waiting++ }
+    else if (t in taken) odd[".wrangler.bak-" t] = "a renamed name with this timestamp exists; remove one by hand"
     else odd[".wrangler.bak-" t] = "no dist.bak pair"
   }
-  for (t in gone) if (!(t in wr)) waiting++
+  for (t in gone) if (!(t in wany)) waiting++
   for (i = 2; i <= n; i++) {
     v = pairs[i]
     for (j = i - 1; j >= 1 && (pairs[j] "") > (v ""); j--) pairs[j + 1] = pairs[j]
@@ -121,7 +123,7 @@ END {
   dels = 0; keeps = 0; maxdel = ""; minkeep = ""
   for (i = 1; i <= n; i++) {
     t = pairs[i]
-    if (i < first_keep && (t in gone)) { out[i] = "blocked " t; continue }
+    if (i < first_keep && (t in taken)) { out[i] = "blocked " t; continue }
     if (i < first_keep && dels < budget) { out[i] = "delete " t; dels++; maxdel = t }
     else { out[i] = "keep " t; keeps++; if (minkeep == "") minkeep = t }
   }
@@ -200,7 +202,7 @@ for d in dist.failed-* .wrangler.failed-* dist.undeployed-* .wrangler.undeployed
 
 # Runs while the rig holds the restart lock. It lists and plans again on the host, so the renames
 # never come from an earlier listing. Before the first rename it checks that every kept pair is on
-# disk. A rename stops when its target name exists, and the loop stops after 45 s, before the
+# disk. A rename stops when a target name exists, and the loop stops after 30 s, before the
 # local 60 s timeout releases the lock.
 RENAME=": prune-rename; $GUARD; start=\$(date +%s);
 plan=\$($NAMES | awk -v keep=$KEEP -v limit=$LIMIT -v mode=apply '$PLAN_AWK') || exit 3;
@@ -217,11 +219,11 @@ log=\"\${XDG_STATE_HOME:-\$HOME/.local/state}/vertex-web-prune.log\"; mkdir -p \
 while read -r kind t rest; do
   case \"\$kind\" in delete|finish) ;; *) continue ;; esac;
   case \"\$t\" in $TS_GLOB) ;; *) rc=1; break ;; esac;
-  [ \$(( \$(date +%s) - start )) -le 45 ] || { rc=1; break; };
+  [ \$(( \$(date +%s) - start )) -le 30 ] || { rc=1; break; };
   sha=;
   if [ \"\$kind\" = delete ]; then d=\"dist.bak-\$t\";
     [ -d \"\$d\" ] && [ ! -L \"\$d\" ] && [ -d \".wrangler.bak-\$t\" ] && [ ! -L \".wrangler.bak-\$t\" ] || { rc=1; break; };
-    [ ! -e \"dist.prune-\$t\" ] && [ ! -L \"dist.prune-\$t\" ] || { rc=1; break; };
+    [ ! -e \"dist.prune-\$t\" ] && [ ! -L \"dist.prune-\$t\" ] && [ ! -e \".wrangler.prune-\$t\" ] && [ ! -L \".wrangler.prune-\$t\" ] || { rc=1; break; };
     sha=\$($SHA_OF); mv -T -- \"\$d\" \"dist.prune-\$t\" || { rc=1; break; }; fi;
   [ ! -e \".wrangler.prune-\$t\" ] && [ ! -L \".wrangler.prune-\$t\" ] && mv -T -- \".wrangler.bak-\$t\" \".wrangler.prune-\$t\" || { rc=1; break; };
   if [ \"\$kind\" = delete ]; then n=\$((n + 1)); echo \"renamed \$t \${sha:-none}\"; else echo \"finished \$t\"; fi;
@@ -258,6 +260,7 @@ read_listing() {
   DIR="$(sed -n 's/^@@DIR //p' <<<"$LISTING" | head -n 1)"
   LIVE="$(sed -n 's/^@@LIVE //p' <<<"$LISTING" | head -n 1)"
   DF_USED="$(sed -n 's/^@@DF //p' <<<"$LISTING" | head -n 1)"
+  [[ "$DF_USED" =~ ^[0-9]+$ ]] || DF_USED=0
   SIZE=(); SHA=(); OTHER=()
   local tag a b c
   while read -r tag a b c; do
@@ -276,7 +279,7 @@ print_plan() {
   local kind name rest live
   while read -r kind name rest; do
     case "$kind" in
-      blocked) echo "blocked $name (a renamed folder with this timestamp exists; remove one of them by hand)" ;;
+      blocked) echo "blocked $name (a renamed name with this timestamp exists; remove one of them by hand)" ;;
       strange) echo "skip: $name name(s) with a blank or another unusual character (never touched)" ;;
       keep | delete)
         live=""
