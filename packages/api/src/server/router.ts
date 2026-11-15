@@ -82,6 +82,7 @@ import { optionsChainRouter } from "./options-chain.ts";
 import { optimizationsRouter } from "./optimizations.ts";
 import { quantLabRouter } from "./quant-lab.ts";
 import { researchReportsRouter } from "./research-reports.ts";
+import { researchScreenRouter } from "./research-screen.ts";
 import { researchStudiesRouter } from "./research-studies.ts";
 import { flowRouter } from "./flow.ts";
 import { semanticTermsRouter } from "./semantic-terms.ts";
@@ -1734,6 +1735,7 @@ export const appRouter = api.router({
   agentOps: { ...agentOpsRouter, optimizations: optimizationsRouter },
   quantLab: quantLabRouter,
   researchReports: researchReportsRouter,
+  researchScreen: researchScreenRouter,
   researchStudies: researchStudiesRouter,
   flow: flowRouter,
   semanticTerms: semanticTermsRouter,
