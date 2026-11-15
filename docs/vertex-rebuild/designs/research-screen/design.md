@@ -38,7 +38,7 @@ The screen is research only. It is not a backtest and not a trading path: it sen
 
 - Old workspace: the private repository jeffscottward/vertex-research, branch wip/vertex-research-local-20261016, commit 67e4268c. Files under apps/server/src: research-refresh.ts (194 lines), research-calendar.ts (196), research-screen.ts (197), research-lock.ts (57), swinglytics.ts (434); apps/web/src/lib/research-refresh.ts (63); scripts/collect-workspace-market.mjs (323). Total 1,464 lines. The implementer may read them; no data is copied.
 - Migration requirement: `docs/vertex-rebuild/migration-matrix.json`, entry "Durable screening-worker semantics".
-- Owner decision of 2026-11-10 on price sources (card vertex-yahoo-terms-decision): merge, do not replace; the live paths read IBKR first and Yahoo for the gaps. Recorded in [data sources](../../../data-sources-and-platform-roles.md) and [the source review](../../data-sources/reel-de8mrtzrrpy.md). [Decision message](https://discord.com/channels/1511468532876185770/1569795002035605644/1569803065438240782).
+- Owner decision of 2026-11-10 on price sources (card vertex-yahoo-terms-decision): merge, do not replace; the live paths read IBKR first and Yahoo for the gaps. Recorded in [data sources](../../../data-sources-and-platform-roles.md) and [the source review](../../data-sources/reel-de8mrtzrrpy.md).
 - Owner decisions of 2026-11-15 for this design are listed in "Decisions".
 - The concept brief and the review reports of this design are kept outside the repository, in the report folder of the card.
 - NYSE holidays and early closes: <https://www.nyse.com/markets/hours-calendars>, read on 2026-11-15 (years 2026 to 2028).
@@ -78,10 +78,10 @@ The old design leaves 3 points open that a platform job must settle: how the pla
 
 ## Decisions
 
-| Id | Decision | By | Record |
+| Id | Decision | By | Record (owner answers in the job channel of the card) |
 | --- | --- | --- | --- |
-| D1 | Bars: IBKR first. Completed daily bars are read from IBKR once per session and stored; a report with no stored bars is read on the miss. Yahoo fills what IBKR lacks. | Owner, 2026-11-15 | [first choice](https://discord.com/channels/1511468532876185770/1571547188851642491/1571564385946697949) (IBKR bars in each run), changed after the review: [second choice](https://discord.com/channels/1511468532876185770/1571547188851642491/1571611102465368238) |
-| D2 | Port the Swinglytics parser in this slice. | Owner, 2026-11-15 | [choice](https://discord.com/channels/1511468532876185770/1571547188851642491/1571569473352241244) |
+| D1 | Bars: IBKR first. Completed daily bars are read from IBKR once per session and stored; a report with no stored bars is read on the miss. Yahoo fills what IBKR lacks. | Owner, 2026-11-15 | first choice (IBKR bars in each run), changed after the review: second choice |
+| D2 | Port the Swinglytics parser in this slice. | Owner, 2026-11-15 | choice |
 | D3 | The run executes in the web app in bounded shares that the timer script requests; no separate worker process. | Author | "Place of the run" |
 | D4 | The timer fires every 5 minutes; the server alone decides what is due. | Author | "Cadence" |
 
@@ -725,7 +725,7 @@ Each step ends with `bun run typecheck` and the named tests green.
 ### Rollout
 
 1. After the merge and the final migration number, on QuantVPS: apply the one SQL file as in [the go-live draft queue runbook](../../golive-draft-queue.md) (`psql -v ON_ERROR_STOP=1 --single-transaction`, the production database URL from the private vars file). Pass: the 5 tables exist and `has_table_privilege('vertex_research', <table>, 'SELECT, INSERT, UPDATE')` is true for each.
-2. Deploy the web build as `infra/quantvps/README.md` describes, through `infra/quantvps/restart-when-idle.sh`. The deploying agent first takes the coordination claim `deploy:quantvps-vertex-web` with the tracker tool `fm claim`, which is outside this repository.
+2. Deploy the web build as `infra/quantvps/README.md` describes, through `infra/quantvps/restart-when-idle.sh`. The deploying agent first takes the deploy claim for the web app in the job tracker, which is outside this repository.
 3. Run the install script from the deployed commit. It needs `/opt/vertex-autopilot/bin/node` and `/etc/vertex-autopilot/autopilot.env` with `VERTEX_ORIGIN` and `VERTEX_AGENT_API_KEY`; both exist for the sector-rotation unit. The first tick claims the newest due slot (cold start: every report reads its IBKR bars in the first run).
 
 ### Rollback
