@@ -155,3 +155,5 @@ tests/test_trend_trio_dsl.py
 tests/test_trend_trio_rules.py
 tests/test_trend_trio_study.py
 tests/test_trend_trio_nautilus.py
+tests/test_prediction_markets.py
+tests/test_distribution_days.py
