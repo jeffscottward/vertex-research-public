@@ -22,7 +22,7 @@ import sys
 import tempfile
 import time
 
-COLLECTOR_VERSION = "2.1.0"
+COLLECTOR_VERSION = "2.2.0"
 # v2 (session/account blocks) is built only when VERTEX_STATUS_V2=1 (or --v2). Default OFF: the user's
 # condition for publishing account data is token + source-IP allow-list, and no stable source exists yet.
 V2_ENV = "VERTEX_STATUS_V2"
