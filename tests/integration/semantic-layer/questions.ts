@@ -3,6 +3,8 @@
 // fixtures.ts). Grades:
 // - correct: every `required` pattern matches and no `forbidden` pattern matches;
 // - wrong: a `forbidden` pattern matches (a value from the wrong source or a wrong value);
+//   the `forbidden` patterns run on the answer without its `allowed` lines (exact lines that state the
+//   reference and that a `forbidden` pattern would match);
 // - declined: anything else (no wrong value, but the required value is missing).
 // Paper exec-node values (deployment_status) are forbidden in every answer: an account answer must come
 // from the live account, and quoting the paper value next to it invites the error this layer prevents.
@@ -18,6 +20,8 @@ export type EvalQuestion = Readonly<{
   reference: string;
   required: readonly RegExp[];
   forbidden: readonly RegExp[];
+  /** Exact whole lines (global, multiline patterns) that are removed before the `forbidden` check. */
+  allowed?: readonly RegExp[];
 }>;
 
 export type Grade = "correct" | "wrong" | "declined";
@@ -214,16 +218,11 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     set: "main",
   },
   {
-    // Wrong: Sector Momentum named as in alert (any "alert" after the name, up to the next full stop). One
-    // form is exempt, because it states the reference: "Sector momentum ... warn ... not alert" (also "not in
-    // alert", "not at alert") where the negation ends the sentence, each gap is at most 120 characters, no
-    // gap holds another monitor name or a word that starts with "alert", and no "alert" stands before the
-    // name in the same sentence. The independent grade is the check for what a pattern cannot see (the
-    // "known gap" sentences in questions.test.ts).
-    forbidden: [
-      ...PAPER,
-      /sector momentum(?!(?<!alert[^.]*sector momentum)(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b|\balert)[^.]){0,120}?\bwarn\b(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b|\balert)[^.]){0,120}?\bnot (?:in |at )?alert\b[\s)]*(?:\.|$))[^.]*\balert\b/i,
+    // One exact line states the reference although the forbidden pattern matches it; nothing else is exempt.
+    allowed: [
+      /^[ \t]*(?:[-*][ \t]+)?Sector momentum paper forward is at warn, not alert\.[ \t]*$/gm,
     ],
+    forbidden: [...PAPER, /sector momentum[^.]*\balert\b/i],
     id: "Q20",
     kind: "research",
     question: "Which drift monitors are in alert?",
@@ -348,7 +347,11 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
 ];
 
 export const gradeAnswer = (question: EvalQuestion, answer: string): Grade => {
-  if (question.forbidden.some((pattern) => pattern.test(answer)))
+  const checked = (question.allowed ?? []).reduce(
+    (text, pattern) => text.replace(pattern, ""),
+    answer
+  );
+  if (question.forbidden.some((pattern) => pattern.test(checked)))
     return "wrong";
   if (question.required.every((pattern) => pattern.test(answer)))
     return "correct";
