@@ -129,7 +129,7 @@ trade in QQQ terms next to the cost of crossing a 0-1 DTE QQQ option spread twic
 
 ## Results
 
-Run 2026-11-14 on the rig, commit `04140d05`, spec SHA-256 `35b52eec`, 344 s with 8 workers. Report:
+Run 2026-11-14 on the rig, commit `5f2a2721` (results identical to the first run on the pre-rebase commit), spec SHA-256 `35b52eec`, 286 s with 8 workers. Report:
 `~/Documents/reports/web/vertex-trend-trio/index.html` (tailnet:
 <https://omarchy-rig.roadrunner-gopher.ts.net/reports/vertex-trend-trio/>); full numbers in `run/results.json` next to it.
 
