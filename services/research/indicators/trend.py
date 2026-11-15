@@ -334,10 +334,10 @@ def alphatrend(high: Sequence[float], low: Sequence[float], close: Sequence[floa
         prev = _nz(previous)
         if mom[i] >= 50:
             up_t = low[i] - band[i] * mult
-            value = prev if up_t < prev else up_t
+            value = prev if up_t < prev else up_t  # noqa: FURB136 (same branch order as trend.ts; nan stays nan)
         else:
             down_t = high[i] + band[i] * mult
-            value = prev if down_t > prev else down_t
+            value = prev if down_t > prev else down_t  # noqa: FURB136 (same branch order as trend.ts)
         line[i] = value
         previous = value
     direction = [NAN] * size

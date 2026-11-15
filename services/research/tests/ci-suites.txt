@@ -152,3 +152,5 @@ tests/test_triple_rsi_nautilus.py
 tests/test_allocation_sensitivity.py
 tests/test_trend_indicators.py
 tests/test_trend_trio_rules.py
+tests/test_trend_trio_study.py
+tests/test_trend_trio_nautilus.py

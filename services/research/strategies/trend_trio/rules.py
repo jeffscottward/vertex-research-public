@@ -51,7 +51,7 @@ class Minutes:
     t: Sequence[int]
     o: Sequence[float]
     h: Sequence[float]
-    l: Sequence[float]  # noqa: E741 (low, as in the other bar columns)
+    l: Sequence[float]
     c: Sequence[float]
     v: Sequence[float]
     bar_ms: int
@@ -110,7 +110,7 @@ class Buckets:
 
     o: list[float]
     h: list[float]
-    l: list[float]  # noqa: E741
+    l: list[float]
     c: list[float]
     v: list[float]
     end_ms: list[int]
@@ -149,10 +149,8 @@ def buckets(t: Sequence[int], o: Sequence[float], h: Sequence[float], low: Seque
             first.append(s is not None and s != last_session)
             last_session = s
         else:
-            if h[i] > bh[-1]:
-                bh[-1] = h[i]
-            if low[i] < bl[-1]:
-                bl[-1] = low[i]
+            bh[-1] = max(bh[-1], h[i])
+            bl[-1] = min(bl[-1], low[i])
             bc[-1] = c[i]
             bv[-1] += v[i]
     readers = t if read_at is None else read_at
