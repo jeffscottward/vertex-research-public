@@ -176,6 +176,8 @@ afterEach(() => {
 });
 
 const setup = (files: Record<string, string>) => {
+  // A test can call setup more than once: remove the folder of the call before.
+  if (dir) rmSync(dir, { force: true, recursive: true });
   dir = mkdtempSync(join(tmpdir(), "vertex-restart-"));
   writeFileSync(join(dir, "fake.sh"), FAKE);
   chmodSync(join(dir, "fake.sh"), 0o755);
@@ -295,28 +297,39 @@ describe("restart flow", () => {
     expect(changed.status).toBe(9);
     expect(changed.pauseSeen).toHaveLength(2);
     expect(changed.pauseLeft).toBe(false);
-    // Stopped while it waits for idle: the TERM trap exits through the EXIT trap.
+    // Stopped while it waits for idle: the TERM trap exits through the EXIT trap. The first probe
+    // sends the signal to the PID in the pause file. The script writes that file after it sets
+    // its traps, so the signal cannot arrive before them, however slow the start is. With no
+    // signal the script gives up at the first busy probe (limit 0) and exits with 4.
     setup({ probe: BUSY });
-    const started = Date.now();
-    const stopped = spawnSync("bash", [script], {
-      encoding: "utf8",
-      env: {
-        ...HERMETIC_GIT,
-        FAKE_DIR: dir,
-        PATH: process.env["PATH"] ?? "/usr/bin:/bin",
-        VERTEX_RESTART_ALERT: join(dir, "alert.sh"),
-        VERTEX_RESTART_LOCK: join(dir, "lock"),
-        VERTEX_RESTART_POLL: "0.2",
-        VERTEX_WEB_SSH: join(dir, "fake.sh"),
-        VERTEX_WORKER_PAUSE_FILE: join(dir, "state", "worker.pause"),
-      },
-      killSignal: "SIGTERM",
-      timeout: 2000,
+    writeFileSync(
+      join(dir, "term-on-probe.sh"),
+      `#!/usr/bin/env bash
+"$FAKE_DIR/fake.sh" "$@" || exit
+case "$1" in ": probe;"*) read -r _ pid <"$VERTEX_WORKER_PAUSE_FILE" && kill -TERM "$pid" ;; esac
+`
+    );
+    chmodSync(join(dir, "term-on-probe.sh"), 0o755);
+    const stopped = run([], {
+      VERTEX_RESTART_GIVE_UP_AFTER: "0",
+      VERTEX_WEB_SSH: join(dir, "term-on-probe.sh"),
     });
-    expect(Date.now() - started).toBeLessThan(10_000);
-    expect(stopped.status).toBe(143);
-    expect(existsSync(join(dir, "pause-seen"))).toBe(true);
-    expect(existsSync(join(dir, "state", "worker.pause"))).toBe(false);
+    // One object, so that a failure shows every field and the output of the script.
+    expect({
+      callsFromFirstProbe: stopped.calls.slice(stopped.calls.indexOf("probe")),
+      pauseLeft: stopped.pauseLeft,
+      pauseSeen: stopped.pauseSeen.length,
+      signal: stopped.signal,
+      status: stopped.status,
+      stdout: stopped.stdout,
+    }).toEqual({
+      callsFromFirstProbe: ["probe"],
+      pauseLeft: false,
+      pauseSeen: 2,
+      signal: null,
+      status: 143,
+      stdout: expect.stringContaining("worker paused: "),
+    });
   });
 
   it("does not pause the worker before the gates pass, and a dry run leaves the file alone", () => {
