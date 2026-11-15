@@ -288,6 +288,36 @@
         // The verifier runner executes under Bun.
         "globals": ["Bun"]
       }
+    },
+    {
+      // Import boundary (owner 2026-11-14, card orochi-gitlab, D3): UI components never import
+      // server-only modules. They reach the server through API routes. The `browser` export
+      // condition (`src/server/unsupported.ts`) throws at run time; this rule fails at lint time.
+      "includes": ["apps/web/src/components/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@darkfactory/api/server": "UI components reach orders and risk only through API routes (card orochi-gitlab, D3).",
+                  "@darkfactory/db/server": "UI components reach orders and risk only through API routes (card orochi-gitlab, D3)."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "@darkfactory/*/server/**",
+                      "**/packages/*/src/server/**"
+                    ],
+                    "message": "UI components reach orders and risk only through API routes (card orochi-gitlab, D3)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

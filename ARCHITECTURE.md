@@ -23,7 +23,7 @@ Role rules, enforced by `ALLOWED_BRICK_DEPENDENCIES` in `scripts/docs/docs.ts`:
 
 Other boundary rules:
 
-- Server-only code sits behind a `./server` or `./server/<name>` export. Its `browser` condition resolves to an `unsupported` stub that throws, so a server module cannot be bundled into client code by accident.
+- Server-only code sits behind a `./server` or `./server/<name>` export. Its `browser` condition resolves to an `unsupported` stub that throws, so a server module cannot be bundled into client code by accident. Biome also fails a server-only import in `apps/web/src/components/**` (`style/noRestrictedImports` in `biome.jsonc`, tested by `scripts/ci/lint-boundary.test.ts`): UI components reach the server only through API routes.
 - Vendor SDKs are imported only in adapter files (`resend` in `packages/email/src/server/`, OpenTelemetry exporters in `packages/observability/src/server/otel.ts`); `pg` only in `packages/db` and `packages/testkit`. PostHog and Groq adapters call their HTTP APIs with an injectable `fetch`.
 
 ## Request flow
