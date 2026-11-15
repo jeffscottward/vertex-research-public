@@ -18,6 +18,7 @@ import {
   type ThemeAuthority,
   type ThemeCookieStatus,
 } from "../lib/theme.ts";
+import { scriptNonceFromCsp } from "../security-headers.ts";
 import "./globals.css";
 
 export const metadata = {
@@ -53,6 +54,7 @@ export interface RootDocumentProps {
   readonly children: ReactNode;
   readonly cookieStatus?: ThemeCookieStatus;
   readonly initialTheme: Readonly<AnonymousThemePreference>;
+  readonly scriptNonce?: string | undefined;
   readonly themeAuthority?: ThemeAuthority;
 }
 
@@ -60,6 +62,7 @@ export const RootDocument = ({
   cookieStatus = "missing",
   children,
   initialTheme,
+  scriptNonce,
   themeAuthority = "anonymous",
 }: RootDocumentProps) => {
   return (
@@ -70,7 +73,7 @@ export const RootDocument = ({
     >
       <head>
         {/* biome-ignore lint/performance/noSyncScripts: the theme bootstrap must run before first paint to avoid a theme flash. */}
-        <script src={THEME_BOOTSTRAP_PATH} />
+        <script nonce={scriptNonce} src={THEME_BOOTSTRAP_PATH} />
       </head>
       <body>
         <ThemeController
@@ -105,6 +108,9 @@ const trustedAppUrl = (): URL => {
 
 export default async function RootLayout({ children }: RootLayoutProps) {
   const requestHeaders = await headers();
+  const scriptNonce = scriptNonceFromCsp(
+    requestHeaders.get("content-security-policy")
+  );
   const resolvedTheme = await resolveRequestTheme({
     cookieHeader: requestHeaders.get("cookie"),
     loadTrustedPreference: () =>
@@ -121,6 +127,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
     <RootDocument
       cookieStatus={resolvedTheme.cookie.status}
       initialTheme={resolvedTheme.preference}
+      scriptNonce={scriptNonce}
       themeAuthority={resolvedTheme.authority}
     >
       {children}
