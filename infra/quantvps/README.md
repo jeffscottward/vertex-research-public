@@ -52,7 +52,7 @@ Nautilus backtests never run on QuantVPS (owner decision 2026-11-05): `vertex-we
 
 ## Deploy a new web build
 
-1. On the rig, build the merged SHA in a worktree: `pnpm install --frozen-lockfile && bun run build`, then record it: `git rev-parse HEAD > apps/web/dist/DEPLOYED_SHA`.
+1. On the rig, build the merged SHA in a worktree: `pnpm install --frozen-lockfile && bun run build`, then record it: `git rev-parse HEAD > apps/web/dist/DEPLOYED_SHA`. Use `bun run build`, not a bare `turbo run build`: the root script sets `VERTEX_BUILD_SHA` to `HEAD`, and the web build's turbo cache key includes it, so a new commit never replays a cached bundle with the previous commit's click-log SHA (fixed 2026-11-07).
 2. On QuantVPS, keep a rollback copy in `apps/web`: `TS=$(date -u +%Y%m%dT%H%M%SZ); cp -a dist dist.bak-$TS && cp -a .wrangler .wrangler.bak-$TS`. The backup keeps its own `DEPLOYED_SHA`.
 3. Copy `apps/web/dist/` and `apps/web/.wrangler/deploy/config.json` from the rig into that `apps/web/` (rsync over the `quantvps` alias). Copy both together.
 4. Run `infra/quantvps/restart-when-idle.sh` from an up-to-date rig checkout (`git fetch` first). Its rollback source is the backup from step 2.

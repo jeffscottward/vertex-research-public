@@ -139,6 +139,10 @@ tests/test_deploy_rehearsal.py
 tests/test_idle_budget.py
 tests/test_paper_path_rehearsal.py
 tests/test_leveraged_etf_universe.py
+tests/test_leveraged_etf_spread_gate.py
+tests/test_leveraged_etf_spread_gate_parity.py
+tests/test_leveraged_etf_spread_reads.py
+tests/test_leveraged_etf_gate_v2.py
 tests/test_leveraged_etf_study.py
 tests/test_leveraged_etf_study_forms.py
 tests/test_leveraged_etf_study_run.py
