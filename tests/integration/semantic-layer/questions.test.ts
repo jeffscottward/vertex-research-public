@@ -16,7 +16,8 @@ describe("Q20 rubric", () => {
 
   // Rows 1 to 5: the rows of the two exact allowed lines of the earlier rubric (the recorded lines). Row 6: a
   // changed figure on the clause line; the rubric does not check figures, so the answer is correct. Rows 7 to
-  // 14: one line for each form of the Sector momentum line in the answers measured on 2026-11-15.
+  // 14: one line for each form of the Sector momentum line in the answers measured on 2026-11-15. Row 15: two
+  // tails on two lines; the pattern is global and removes both.
   it.each([
     "Sector momentum paper forward is at warn, not alert.",
     "- Sector momentum paper forward is at warn, not alert.",
@@ -32,6 +33,7 @@ describe("Q20 rubric", () => {
     "For context, also from drift_status: Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08), and RSI MR paper forward is ok.",
     "The forward sample is small at 13 trades. Sector momentum paper forward is at warn, not alert. This is paper data only.",
     "Sector momentum paper forward is at warn, not alert: max drawdown is 24.37% forward vs 22.50% baseline (ratio 1.08). RSI MR paper forward is ok.",
+    "Sector momentum paper forward is at warn, not alert.\nFor context, drift_status also shows Sector momentum paper forward at warn (not alert) and RSI MR paper forward at ok.",
   ])(
     "removes the tail after the clause and grades the answer as correct: %s",
     (line) => {
