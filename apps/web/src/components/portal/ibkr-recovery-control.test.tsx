@@ -22,12 +22,14 @@ import {
   createBrowserIbkrRecoveryGateway,
 } from "./ibkr-recovery-client.ts";
 import {
+  loginStateNotReadText,
   RECENT_RESULT_MS,
   pollIntervalMs,
   recoveryView,
 } from "./ibkr-recovery-model.ts";
 import { AccountGlance } from "./account-glance.tsx";
 import { fixtureSnapshot } from "./portfolio-monitor-fixture.ts";
+import { sinceClock } from "./portfolio-monitor-model.ts";
 
 const testGlobal = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -354,6 +356,80 @@ describe("recoveryView", () => {
   });
 });
 
+describe("loginStateNotReadText", () => {
+  const nowMs = Date.parse("2026-10-28T15:01:00.000Z");
+  const failure = {
+    code: "UNAVAILABLE",
+    message: "no answer",
+    sinceMs: nowMs - 30_000,
+  };
+  const lead = `IBKR login state not read since ${sinceClock(nowMs - 30_000, nowMs)} (UNAVAILABLE: no answer)`;
+  const checked = sinceClock("2026-10-28T15:00:00.000Z", nowMs);
+  const withLogin = (
+    loginState: IbkrRecoveryStatusOutput["gateway"]["loginState"],
+    feedsMissing = false
+  ) =>
+    status({
+      gateway: {
+        feedsMissing,
+        loginState,
+        needsLogin: false,
+        reason: "x",
+        since: null,
+      },
+    });
+
+  it("names the failure, since when and the next try when no state was read", () =>
+    expect(loginStateNotReadText({ failure, nowMs, status: null })).toBe(
+      `${lead} · no login state read since this page opened · retrying every 15 s`
+    ));
+
+  it("names the last known state and when the server checked it", () =>
+    expect(loginStateNotReadText({ failure, nowMs, status: status() })).toBe(
+      `${lead} · last known: logged out, checked ${checked} · retrying every 15 s`
+    ));
+
+  it("names missing account feeds only for a logged-in gateway", () => {
+    expect(
+      loginStateNotReadText({
+        failure,
+        nowMs,
+        status: withLogin("logged-in", true),
+      })
+    ).toContain(
+      `last known: logged in, account feeds missing, checked ${checked}`
+    );
+    return expect(
+      loginStateNotReadText({
+        failure,
+        nowMs,
+        status: withLogin("stopped", true),
+      })
+    ).toContain(`last known: gateway stopped, checked ${checked}`);
+  });
+
+  it("leaves out the check time when it is not a time", () =>
+    expect(
+      loginStateNotReadText({
+        failure,
+        nowMs,
+        status: status({ checkedAt: "not a time" }),
+      })
+    ).toBe(`${lead} · last known: logged out · retrying every 15 s`));
+
+  it("names every other login state", () => {
+    for (const [loginState, name] of [
+      ["awaiting-2fa", "waiting for 2FA approval"],
+      ["logged-in", "logged in"],
+      ["starting", "gateway starting"],
+      ["unknown", "not decided by the VPS"],
+    ] as const)
+      expect(
+        loginStateNotReadText({ failure, nowMs, status: withLogin(loginState) })
+      ).toContain(`last known: ${name}, checked ${checked}`);
+  });
+});
+
 describe("IbkrRecoveryControl in the Mission control account card", () => {
   it("sends nothing and shows nothing when not configured", async () => {
     const gateway = gatewayOf(status());
@@ -516,8 +592,9 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
     return expect(gateway.status).toHaveBeenCalledOnce();
   });
 
-  it("reports an unavailable service and polls again", async () => {
+  it("reports a login state that was never read and polls again", async () => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-28T15:00:35.000Z"));
     const gateway = gatewayOf(
       { code: "UNAVAILABLE", message: "IBKR recovery service unavailable" },
       status({ request: request(), canRequest: false }),
@@ -530,12 +607,16 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
     expect(
       document.querySelector("[data-ibkr-recovery-failure]")?.textContent
     ).toBe(
-      "IBKR login state unavailable (UNAVAILABLE: IBKR recovery service unavailable)."
+      `IBKR login state not read since ${sinceClock(Date.now(), Date.now())} (UNAVAILABLE: IBKR recovery service unavailable) · no login state read since this page opened · retrying every 15 s`
     );
+    // No state was read yet, so there is no badge and no progress to mark.
+    expect(document.querySelector("[data-ibkr-login]")).toBeNull();
+    expect(document.querySelector("[data-ibkr-recovery]")).toBeNull();
     await act(async () => {
       vi.advanceTimersByTime(15_000);
       await flush();
     });
+    expect(document.querySelector("[data-ibkr-recovery-failure]")).toBeNull();
     expect(
       document.querySelector("[data-ibkr-recovery-state]")?.textContent
     ).toContain("Waiting for approval on your phone");
@@ -548,6 +629,63 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
     ).toContain("Login completed; checking the account snapshot");
     expect(text()).toContain("IBC reported login");
     return expect(gateway.status).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the first failure time and marks the old state as last known", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-28T15:00:35.000Z"));
+    const waiting = status({ request: request(), canRequest: false });
+    const gateway = gatewayOf(
+      waiting,
+      { code: "UNAVAILABLE", message: "no answer" },
+      { code: "UPSTREAM_ERROR", message: "slow" },
+      waiting
+    );
+    const badge = () =>
+      document.querySelector("[data-ibkr-login]")?.textContent;
+    const progress = () =>
+      document.querySelector("[data-ibkr-recovery-state] p")?.textContent;
+    const line = () => document.querySelector("[data-ibkr-recovery-failure]");
+    await mount(monitor(gateway));
+    expect(badge()).toBe("Status:IBKR login: logged out");
+    expect(progress()).toBe("Waiting for approval on your phone");
+    expect(line()).toBeNull();
+    // The request is active, so the second poll runs after 3 s; it fails.
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+      await flush();
+    });
+    const firstFailMs = Date.parse("2026-10-28T15:00:38.000Z");
+    const checked = sinceClock("2026-10-28T15:00:00.000Z", Date.now());
+    expect(line()?.textContent).toBe(
+      `IBKR login state not read since ${sinceClock(firstFailMs, Date.now())} (UNAVAILABLE: no answer) · last known: logged out, checked ${checked} · retrying every 15 s`
+    );
+    expect(
+      document.querySelector("[data-ibkr-recovery]")?.firstElementChild
+    ).toBe(line());
+    expect(badge()).toBe("Status:IBKR login: logged out (last known)");
+    expect(progress()).toBe("Waiting for approval on your phone (last known)");
+    // The next failed poll runs in a later minute: the since time stays at the first failure.
+    vi.setSystemTime(new Date("2026-10-28T15:02:00.000Z"));
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+      await flush();
+    });
+    expect(sinceClock(firstFailMs, Date.now())).not.toBe(
+      sinceClock(Date.now(), Date.now())
+    );
+    expect(line()?.textContent).toBe(
+      `IBKR login state not read since ${sinceClock(firstFailMs, Date.now())} (UPSTREAM_ERROR: slow) · last known: logged out, checked ${checked} · retrying every 15 s`
+    );
+    // A successful poll ends the run: the line and the marks go away.
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+      await flush();
+    });
+    expect(line()).toBeNull();
+    expect(badge()).toBe("Status:IBKR login: logged out");
+    expect(progress()).toBe("Waiting for approval on your phone");
+    return expect(gateway.status).toHaveBeenCalledTimes(4);
   });
 
   it("uses the browser client by default and sends nothing while not configured", async () => {

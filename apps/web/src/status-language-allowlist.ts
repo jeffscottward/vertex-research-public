@@ -1153,14 +1153,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Not displayed: Discriminator value; text comes from sendOutcomeText.",
   },
   {
-    file: "components/portal/ibkr-recovery-control.tsx",
-    text: "IBKR login state unavailable (${}: ${}).",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Lead with the definite state: "IBKR login state not read (<code>: <message>) since HH:MM · last known: <state>"; needs last-known state kept in the model.',
-    open: true,
-  },
-  {
     file: "components/portal/instant-backtest-workspace.tsx",
     text: "n/a",
     count: 2,
