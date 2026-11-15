@@ -1142,10 +1142,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=zyESydYaySE"
     },
     {
-      "kb": "fredy-sarmiento",
-      "recordId": "fredy-sarmiento:entry:3",
-      "statement": "Build setups from maximum confluence between order flow and GEX rather than from a single level.",
-      "url": null
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:12",
+      "statement": "Get the strongest read when options net drift and futures cumulative delta push the same way.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
     }
   ],
   "C024": [
@@ -1180,6 +1180,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=UtZbnQfN7r8"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:risk:12",
+      "statement": "When the regime changes, adjust size, stops and targets to the new volatility; do not change your entry edge or analysis.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    },
+    {
       "kb": "deltatrendtrading",
       "recordId": "deltatrendtrading:exit:1",
       "statement": "Feature-study baseline exits used 1.5 ATR take-profit and 1 ATR stop-loss.",
@@ -1190,12 +1196,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "brandon-kioseff:exit:3",
       "statement": "Default pullback system exits: target 4.5x ATR, stop 2.5x ATR.",
       "url": "https://www.youtube.com/watch?v=46fQ5tXaMnE"
-    },
-    {
-      "kb": "enrico-stucchi",
-      "recordId": "enrico-stucchi:risk:5",
-      "statement": "Avoid tiny fixed intraday stops (e.g., 0.3%); intraday is erratic, so size stops to volatility.",
-      "url": "https://www.youtube.com/watch?v=Rb3-FN41WOE"
     }
   ],
   "C025": [
@@ -1330,16 +1330,16 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=kira_aQDbSI"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:9",
+      "statement": "Subtract: one strategy, one session, one asset; every added element makes consistency harder.",
+      "url": "https://www.youtube.com/watch?v=1MvJHzcDzuw"
+    },
+    {
       "kb": "dumbmoneyhunter",
       "recordId": "dumbmoneyhunter:wisdom:4",
       "statement": "Complicated methods like Elliott Wave may work briefly but not for years; simplicity wins.",
       "url": "https://www.youtube.com/watch?v=2PMH_nL5iS4"
-    },
-    {
-      "kb": "ericnomics",
-      "recordId": "ericnomics:indicator:3",
-      "statement": "Focus on a select handful of Greeks/metrics: delta, beta, implied volatility, volume and open interest; ignore the rest as noise.",
-      "url": "https://www.youtube.com/watch?v=U98eZWE1-Xw"
     }
   ],
   "C028": [
@@ -2340,6 +2340,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=7RfYOo4TJ2k"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:exit:8",
+      "statement": "After price leaves value and comes back into it, set the first target at the opposite value-area edge, per auction market theory.",
+      "url": "https://www.youtube.com/watch?v=sFra3uePCKU"
+    },
+    {
       "kb": "brandon-kioseff",
       "recordId": "brandon-kioseff:exit:1",
       "statement": "In the value-area reversion model, target the prior day's point of control.",
@@ -2356,6 +2362,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "tom-vorwald:exit:4",
       "statement": "Use the prior week's point of control as a swing target.",
       "url": "https://www.youtube.com/watch?v=ecb2RJ7X_4M"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:exit:9",
+      "statement": "After a test of the value area low and a reclaim of the POC, expect a run to at least the value area high.",
+      "url": "https://www.youtube.com/watch?v=aXwezQINBmI"
     }
   ],
   "C050": [
@@ -2390,6 +2402,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=K1eoO9UIzXI"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:exit:7",
+      "statement": "While in a position, trail the stop behind the deep effort zones that form in your favor.",
+      "url": "https://www.youtube.com/watch?v=sFra3uePCKU"
+    },
+    {
       "kb": "dumbmoneyhunter",
       "recordId": "dumbmoneyhunter:exit:4",
       "statement": "Once the trade moves in your favor, trail the stop.",
@@ -2400,12 +2418,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "smbcapital:exit:11",
       "statement": "Enter on a higher high, add above key SMAs, and trail the stop with the 10-day SMA.",
       "url": "https://www.instagram.com/p/DUBdw23j5_t/"
-    },
-    {
-      "kb": "dumbmoneyhunter",
-      "recordId": "dumbmoneyhunter:exit:6",
-      "statement": "Trail the stop behind a new consolidation/level once price moves to the next level, so a pullback still leaves some profit.",
-      "url": "https://www.youtube.com/watch?v=19BAx12rjAM"
     }
   ],
   "C051": [
@@ -2438,6 +2450,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "fabio-valentini:sizing:3",
       "statement": "On a drawdown day, scale in only after the stop on the existing position can be moved to zero risk.",
       "url": "https://www.youtube.com/watch?v=jasv3L-d8ZE"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:sizing:10",
+      "statement": "Add to a position only while the flow behind the move continues; take the momentum while the flow supports it.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
     }
   ],
   "C052": [
@@ -2754,6 +2772,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=CE7AFSF5A7k"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:4",
+      "statement": "Treat random-looking intraday drifts as mechanical dealer re-hedging (price, volatility and time), not as someone hunting stops.",
+      "url": "https://www.youtube.com/watch?v=GE4JISxYuXY"
+    },
+    {
       "kb": "patrick-nill",
       "recordId": "patrick-nill:wisdom:5",
       "statement": "Ignore stop-hunting stories in deep markets like S&P or crude; focus on what price, speed and volume show.",
@@ -2834,6 +2858,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "inthemoneyadam:exit:12",
       "statement": "Take profit at or just below resistance.",
       "url": "https://www.youtube.com/watch?v=UtZbnQfN7r8"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:22",
+      "statement": "Take entries and targets only from gamma exposure levels and plan each trade as a move from one level to the next.",
+      "url": "https://www.youtube.com/watch?v=9sainXzuOXM"
     },
     {
       "kb": "junnyyang",
@@ -2926,6 +2956,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=0WTDz5L2UE4"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:12",
+      "statement": "Backtest one setup over at least 100 historical data points before trading it live.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
+    },
+    {
       "kb": "matteo-conti",
       "recordId": "matteo-conti:wisdom:13",
       "statement": "Always test before going live and never deviate from your rules.",
@@ -2936,6 +2972,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge:wisdom:10",
       "statement": "Don't spend real money just to see if a strategy works; test it first, then commit.",
       "url": "https://www.youtube.com/watch?v=oZaVeJGxWf4"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:13",
+      "statement": "Validate the edge before real capital: check outside research, then backtest or forward test it yourself.",
+      "url": "https://www.youtube.com/watch?v=7s2xaIQsEAQ"
     },
     {
       "kb": "worldclassedge",
@@ -3248,10 +3290,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=cUTsoU-15Tc"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:13",
+      "statement": "Build every trade in a fixed order: context first, location second, net premium flow third, and order flow last as the trigger, never as the starting point.",
+      "url": "https://www.youtube.com/watch?v=sFra3uePCKU"
+    },
+    {
       "kb": "fabio-valentini",
       "recordId": "fabio-valentini:wisdom:1",
       "statement": "Organize every trade by Direction (bias), Location (area), then Aggression/confirmation in order flow.",
       "url": null
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:14",
+      "statement": "Require context, location and confirmation for every trade; if one of the three is missing, there is no trade.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     }
   ],
   "C075": [
@@ -3298,6 +3352,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge-creators:entry:4",
       "statement": "[Fabio Valentini] Filter fake IVB breakouts by requiring a strong delta bar with aggressive buyers (ideally one large MBO participant), and place the stop below that aggression.",
       "url": "https://www.youtube.com/watch?v=TjEYZH4u7d0"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:28",
+      "statement": "After reclaiming the key level with aligned options flow, enter only when deep trades and deep effort zones show buyers stepping in and price breaks the level with aggression.",
+      "url": "https://www.youtube.com/watch?v=aXwezQINBmI"
     },
     {
       "kb": "worldclassedge-creators",
@@ -3608,16 +3668,16 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=0fQNbbIqC0U"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:sizing:7",
+      "statement": "Move position size opposite to volatility: trade smaller (for example micros) when volatility is high and carry more when it is genuinely low.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    },
+    {
       "kb": "nicholas-crown",
       "recordId": "nicholas-crown:sizing:3",
       "statement": "Paid source: statement withheld.",
       "url": null
-    },
-    {
-      "kb": "quantfinancetogo",
-      "recordId": "quantfinancetogo:sizing:4",
-      "statement": "Shrink positions when the GARCH volatility forecast rises, since high-volatility days arrive in clusters.",
-      "url": "https://www.instagram.com/p/DfPHPULRYE7/"
     }
   ],
   "C087": [
@@ -3879,15 +3939,21 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
     },
     {
       "kb": "trading-verrillo-aleks",
-      "recordId": "trading-verrillo-aleks:indicator:5",
-      "statement": "Large positive gamma strikes act as magnets and ceilings; rallies grind into them and stall.",
-      "url": "https://www.youtube.com/watch?v=o89Z7LyLkkE"
+      "recordId": "trading-verrillo-aleks:indicator:19",
+      "statement": "Treat call resistance and put support as macro boundaries (weekly or monthly range); 0DTE levels are tighter and react more intraday.",
+      "url": "https://www.youtube.com/watch?v=XfUAMnLPUUk"
     },
     {
       "kb": "worldclassedge",
       "recordId": "worldclassedge:indicator:1",
       "statement": "Use 0DTE option flow levels (call wall, put wall) and the gamma regime to time intraday direction.",
       "url": "https://www.youtube.com/watch?v=-jnyZnqb0AI"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:5",
+      "statement": "Large positive gamma strikes act as magnets and ceilings; rallies grind into them and stall.",
+      "url": "https://www.youtube.com/watch?v=o89Z7LyLkkE"
     }
   ],
   "C096": [
@@ -4038,6 +4104,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "patrick-nill:wisdom:2",
       "statement": "Choose a style matching your character; high-win-rate scalping does not suit everyone.",
       "url": "https://www.youtube.com/watch?v=KuTNovwR2KE"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:22",
+      "statement": "Write a one-page profile of your trader type (holding style, risk parameters, hours, routine) and trade to fit it.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     }
   ],
   "C102": [
@@ -4078,6 +4150,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "fredy-sarmiento:exit:5",
       "statement": "When price nears a call wall after your long, move the stop to breakeven.",
       "url": "https://www.youtube.com/watch?v=35cyqDz-ej8"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:exit:10",
+      "statement": "When price reaches a positive gamma level near your target, start trailing the stop very aggressively.",
+      "url": "https://www.youtube.com/watch?v=JCSxHqdg_to"
     }
   ],
   "C104": [
@@ -4212,6 +4290,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "deltatrendtrading:sizing:1",
       "statement": "For prop-firm challenges with zero-EV strategies, higher win rate / lower R:R (wider stop, tighter target) raises pass probability; tight-stop high-R:R is the opposite of optimal.",
       "url": "https://www.youtube.com/watch?v=BiTqwX-4rNw"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:risk:15",
+      "statement": "In a prop evaluation, use a high-win-rate geometry (target 55-65% wins, about 1:1 to 1:1.5 R:R base hits); once funded, accept a 40-50% win rate and let winners run to 1:1.5-1:2.5 or more.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     }
   ],
   "C108": [
@@ -4590,6 +4674,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=SLv4xx2iQeI"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:24",
+      "statement": "In a market crash, buy assets cheaply from people selling only out of panic.",
+      "url": "https://www.youtube.com/watch?v=xTeIJ8DnOEs"
+    },
+    {
       "kb": "jaymo-callsbyjmo",
       "recordId": "jaymo-callsbyjmo:entry:5",
       "statement": "Buy high-conviction names capitulating at 52-week lows (he used 2x leverage on margin — high risk).",
@@ -4630,6 +4720,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=35cyqDz-ej8"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:3",
+      "statement": "Read index futures order flow as a consequence of dealers hedging SPX, QQQ and NDX options in ES and NQ; look at options flow for the cause.",
+      "url": "https://www.youtube.com/watch?v=mtByBLQJbFI"
+    },
+    {
       "kb": "enrico-stucchi",
       "recordId": "enrico-stucchi:wisdom:6",
       "statement": "Study who the market players are; options market makers hedging in futures influence the underlying.",
@@ -4640,6 +4736,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "fredy-sarmiento:wisdom:6",
       "statement": "Knowing where dealer hedging flows push lets you avoid fighting them: do not trade against the hedging.",
       "url": "https://www.youtube.com/watch?v=35cyqDz-ej8"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:35",
+      "statement": "Focus on the second-order Greeks: first-order Greeks describe the dealer book, while gamma (price) and charm (time) force the re-hedging flow that moves futures.",
+      "url": "https://www.youtube.com/watch?v=RNMkeIVExR4"
     }
   ],
   "C124": [
@@ -4706,6 +4808,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "skydweller:indicator:5",
       "statement": "Expected daily move ≈ VIX ÷ 16 percent; mark it above and below the open.",
       "url": null
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:21",
+      "statement": "Use the implied range from 0DTE at-the-money implied volatility as the likely session range on quiet days.",
+      "url": "https://www.youtube.com/watch?v=o89Z7LyLkkE"
     },
     {
       "kb": "jay-medrow",
@@ -4846,6 +4954,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=9PaoiuW0dR0"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:risk:13",
+      "statement": "Take only one trade per day and per session: after a stop-out or a take-profit you are done, with no revenge or extra trades.",
+      "url": "https://www.youtube.com/watch?v=1MvJHzcDzuw"
+    },
+    {
       "kb": "worldclassedge-creators",
       "recordId": "worldclassedge-creators:time_filter:1",
       "statement": "[Fabio Valentini] Decision quality declines after the first hour of scalping; limit discretionary scalping duration.",
@@ -4862,6 +4976,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:risk:5",
       "statement": "Stop trading for the day once a take profit is hit.",
       "url": "https://www.youtube.com/watch?v=Hv8bGY2TQ3Y"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:risk:14",
+      "statement": "As soon as the day's trade is closed and journaled, turn off the computer and walk away.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     },
     {
       "kb": "worldclassedge-creators",
@@ -4964,6 +5084,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "skydweller:entry:1",
       "statement": "Do not trade unless price is at a pre-mapped level; the market being open is not a reason to trade.",
       "url": null
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:23",
+      "statement": "Mark gamma exposure levels before the session and trade only from those pre-mapped levels on the underlying.",
+      "url": "https://www.youtube.com/watch?v=9sainXzuOXM"
     },
     {
       "kb": "junnyyang",
@@ -5152,6 +5278,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "junnyyang:risk:16",
       "statement": "Do not act on a bear thesis too early; a bear case can be right eventually and still cost you money.",
       "url": "https://www.youtube.com/watch?v=q9Ug500qKp0"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:21",
+      "statement": "When net drift climbs with a real slope and price moves with it, trade in that direction and do not fade the move or try to call the top.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
     },
     {
       "kb": "smbcapital",
@@ -5558,6 +5690,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "imre-gams:indicator:4",
       "statement": "Use bearish RSI divergence (new price highs, falling RSI) as an advance warning, not confirmation.",
       "url": null
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:13",
+      "statement": "Watch for cumulative delta moving while price sits still in a consolidation; act on it only when price breaks the range with aggression and net drift agrees.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
     }
   ],
   "C160": [
@@ -5758,6 +5896,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:wisdom:55",
       "statement": "Become profitable in one market and master it before adding others.",
       "url": "https://www.youtube.com/watch?v=s8c2-sRd_vs"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:11",
+      "statement": "Pick one setup and focus on it, eliminating everything else.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     }
   ],
   "C170": [
@@ -5803,6 +5947,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
     }
   ],
   "C173": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:20",
+      "statement": "Prefer real-time intraday gamma exposure over end-of-day levels, because intraday strikes can gain large exposure during the session.",
+      "url": "https://www.youtube.com/watch?v=lS2R2qHt0VA"
+    },
     {
       "kb": "andrea-cimitan",
       "recordId": "andrea-cimitan:indicator:3",
@@ -5950,6 +6100,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:wisdom:43",
       "statement": "Give your full trade journal to an AI and ask for the number one emotional, psychological and mechanical cause of your losses.",
       "url": "https://www.youtube.com/watch?v=8dQtwi7HAJQ"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:15",
+      "statement": "Journal every trade: entry trigger, time of day, structural validity of the stop, emotions, idea and maximum adverse excursion.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     },
     {
       "kb": "inthemoneyadam",
@@ -6130,6 +6286,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge:wisdom:12",
       "statement": "Order flow is a precision execution tool, not a trend signal; direction comes from higher-level analysis.",
       "url": "https://www.youtube.com/watch?v=Hpwi0FObUe0"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:5",
+      "statement": "Do not trade order flow alone; it needs context such as options flow, auction market theory or a proven edge like ORB.",
+      "url": "https://www.youtube.com/watch?v=DoXxDzB4O2M"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:34",
+      "statement": "Use options flow to explain order flow: footprint shows trapped buyers or sellers, while dealer positioning at the level shows why they got trapped.",
+      "url": "https://www.youtube.com/watch?v=RNMkeIVExR4"
     }
   ],
   "C191": [
@@ -6520,6 +6688,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "quantfinancetogo:wisdom:11",
       "statement": "Look for a small positive edge you can repeat many times, and size so you survive the swings along the way.",
       "url": "https://www.instagram.com/p/Ddqpd2CCPjW/"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:21",
+      "statement": "Accept that losses are inevitable and build a consistent process instead of searching for a perfect strategy.",
+      "url": "https://www.youtube.com/watch?v=O44U80CPyzU"
     },
     {
       "kb": "quantfinancetogo",
@@ -6920,6 +7094,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=doG-8L72QME"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:14",
+      "statement": "Count any trade that deviates from the plan as a failure, whether it made or lost money.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
+    },
+    {
       "kb": "imre-gams",
       "recordId": "imre-gams:entry:6",
       "statement": "Use a four-step checklist: trend, pattern, momentum confirmation, then timeframe/entry/stop/target; proceed only if each answer is clear.",
@@ -7014,6 +7194,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "lars-schmeldtenkopf:indicator:3",
       "statement": "Check the VIX futures term structure daily; backwardation (near futures above far) is an early stress warning.",
       "url": null
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:11",
+      "statement": "Treat VIX above VIX3M (backwardation) as a stress signal; VIX below VIX3M (contango) is the normal state.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
     },
     {
       "kb": "lars-schmeldtenkopf",
@@ -7324,6 +7510,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-verrillo-aleks:entry:10",
       "statement": "Go with the flow: a long setup is confirmed when net drift turns bullish at put support; short when it rolls over at call resistance.",
       "url": "https://www.youtube.com/watch?v=lS2R2qHt0VA"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:12",
+      "statement": "Use gamma levels for location and net drift for direction: take longs when drift builds higher and price pulls back into a marked level; fade a level when drift falls and price rallies into it from below.",
+      "url": "https://www.youtube.com/watch?v=osaWnhNeITk"
     },
     {
       "kb": "trading-verrillo-aleks",
@@ -7844,6 +8036,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:wisdom:51",
       "statement": "Do not switch strategies while unprofitable, because switching resets your progress.",
       "url": "https://www.youtube.com/watch?v=NuSZQnKNVRk"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:8",
+      "statement": "Do not strategy-hop: add a new variable (for example gamma exposure) by refining your existing strategy with your own data, not by replacing it.",
+      "url": "https://www.youtube.com/watch?v=6NSdT791Ldo"
     }
   ],
   "C289": [
@@ -8110,6 +8308,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-verrillo-aleks:sizing:2",
       "statement": "Check computed size against remaining daily loss capacity, buying power, and overnight margin before entry.",
       "url": null
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:sizing:11",
+      "statement": "Set up position sizing before the session starts so that correct risk is effortless during execution.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     }
   ],
   "C317": [
@@ -8118,6 +8322,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "deltatrendtrading:wisdom:11",
       "statement": "If results disappoint, examine the strategy's validity before blaming psychology or risk management.",
       "url": "https://www.youtube.com/watch?v=-gaQ9KDB2FI"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:23",
+      "statement": "When results are poor, look at the edge first; profits come from understanding market mechanics, not from psychology alone.",
+      "url": "https://www.youtube.com/watch?v=GE4JISxYuXY"
     }
   ],
   "C318": [
@@ -8622,6 +8832,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:wisdom:7",
       "statement": "Count evaluation costs against payouts when judging results; payouts are not profit.",
       "url": "https://www.youtube.com/watch?v=CwzM9vNDWf8"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:risk:16",
+      "statement": "Treat prop evaluation fees as an investment and judge them by return: fee divided by pass rate is the cost per funded account, and one payout can cover many failed accounts.",
+      "url": "https://www.youtube.com/watch?v=7s2xaIQsEAQ"
     }
   ],
   "C372": [
@@ -8690,6 +8906,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "dumbmoneyhunter:regime:2",
       "statement": "On FOMC days markets often range until the release then spike; a hard dump into FOMC often continues back into the major trend.",
       "url": "https://www.youtube.com/watch?v=0XOSwVpOO_g"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:time_filter:3",
+      "statement": "Before FOMC, expect range-bound, choppy trade and be cautious with breakouts.",
+      "url": "https://www.youtube.com/watch?v=JCSxHqdg_to"
     }
   ],
   "C379": [
@@ -8842,6 +9064,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "imre-gams:time_filter:2",
       "statement": "Fix a routine with set market-review hours and consistent sleep to reduce decisions and support discipline.",
       "url": null
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:16",
+      "statement": "Protect decision quality: sleep at least 7.5 hours, avoid excess caffeine before the open and exercise regularly.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     }
   ],
   "C395": [
@@ -9300,6 +9528,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
   ],
   "C442": [
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:exit:13",
+      "statement": "When VIX is low (about 15-16 or below), expect few continuation moves: take quick base hits of about 1.5-2R and accept a fast stop-out.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    },
+    {
       "kb": "enrico-stucchi",
       "recordId": "enrico-stucchi:regime:4",
       "statement": "Most trading systems work best in high volatility; when VIX is compressed (below ~15) systematic edges suffer.",
@@ -9479,6 +9713,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "kb": "trading-verrillo-aleks",
       "recordId": "trading-verrillo-aleks:indicator:4",
       "statement": "Use net drift (real-time net premium flow): rising positive = bullish dealer hedging flow; falling negative = bearish.",
+      "url": "https://www.youtube.com/watch?v=lS2R2qHt0VA"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:14",
+      "statement": "Treat a net drift crossover (one side's premium line crossing the other, the losing side going below zero) as the moment control changes; trade only with the new dominant side.",
       "url": "https://www.youtube.com/watch?v=lS2R2qHt0VA"
     }
   ],
@@ -10904,6 +11144,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "smbcapital:regime:7",
       "statement": "Adjust your playbook to the VIX level and record VIX for every playbook trade.",
       "url": "https://www.instagram.com/p/CTFr4-THzl1/"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:exit:12",
+      "statement": "When VIX is around 20 (a healthy market), hold runners and trail stops; when it is near 15 or lower, do not be greedy with take-profits.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:25",
+      "statement": "Before the session, run the volatility checklist (VIX level, gamma nodes, SPX gamma surface sign, IV rank, IV surface) and set the day's playbook from it.",
+      "url": "https://www.youtube.com/watch?v=WgdPUnMN4OE"
     }
   ],
   "C616": [
@@ -10928,6 +11180,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "smbcapital:sizing:5",
       "statement": "Grade each trade from C to A-plus and size up only on A and A-plus setups.",
       "url": "https://www.instagram.com/p/DK2YKcwp2Oh/"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:sizing:8",
+      "statement": "Trade full size only when all five factors align: regime matches, net drift agrees, a big trade is present, the footprint confirms, and price is at a gamma level.",
+      "url": "https://www.youtube.com/watch?v=sFra3uePCKU"
     }
   ],
   "C619": [
@@ -12008,6 +12266,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "quantfinancetogo:wisdom:13",
       "statement": "Do not trade chart patterns on the belief that they predict; no pattern rule has survived an honest test for data snooping and costs.",
       "url": "https://www.instagram.com/p/DdRP_zWCn6b/"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:28",
+      "statement": "Do not rely on classic technical-analysis books or chart patterns; they do not describe real market flows.",
+      "url": "https://www.youtube.com/watch?v=Vgww6WKIBj0"
     }
   ],
   "C718": [
@@ -12450,10 +12714,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=XLMG6-SATRk"
     },
     {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:time_filter:4",
+      "statement": "Trade only the New York open, for at most about 90 minutes, to keep decision quality high.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
+    },
+    {
       "kb": "not-a-lil-fish",
       "recordId": "not-a-lil-fish:time_filter:12",
       "statement": "Trade the New York session only and drop Asia: over three months of live funded trading his Asia win rate was 26% (net -$4,522) against over 50% in New York.",
       "url": "https://www.youtube.com/watch?v=GDdQNneG7yg"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:time_filter:5",
+      "statement": "Trade the first 90 minutes of the New York session, the cleanest window for gamma and vanna flows before charm matters.",
+      "url": "https://www.youtube.com/watch?v=GE4JISxYuXY"
     },
     {
       "kb": "not-a-lil-fish",
@@ -12538,6 +12814,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:wisdom:4",
       "statement": "Hide your P&L while trading if you catch yourself chasing dollars.",
       "url": "https://www.youtube.com/watch?v=LE6DIiJJVuc"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:20",
+      "statement": "Switch from a P&L-based to a process-based mindset, because watching P&L triggers the fear response; in the moment, use slow box breathing.",
+      "url": "https://www.youtube.com/watch?v=YkZIMpHpGJM"
     }
   ],
   "C770": [
@@ -13436,6 +13718,302 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "jay-medrow:wisdom:34",
       "statement": "Judge sovereign debt by nominal growth versus borrowing costs, primary balance, maturity profile and currency, not the debt ratio alone.",
       "url": "https://www.instagram.com/p/DeXTY7DoaWq/"
+    }
+  ],
+  "C865": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:20",
+      "statement": "Take continuation plays only, in the direction of the side in control in both futures (deep trades) and options (net drift).",
+      "url": "https://www.instagram.com/p/Dd1F3t_AeUL/"
+    }
+  ],
+  "C866": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:25",
+      "statement": "Give top priority to compounded levels, where the QQQ and NDX gamma maps show large exposure in the same zone at the same time.",
+      "url": "https://www.youtube.com/watch?v=osaWnhNeITk"
+    }
+  ],
+  "C867": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:26",
+      "statement": "During a long pre-FOMC consolidation, watch net premium flow: a large one-sided build (for example puts) signals the likely direction of the break.",
+      "url": "https://www.instagram.com/p/Dd1F3t_AeUL/"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:entry:27",
+      "statement": "On FOMC day, use the session-long SPX net drift accumulation as conviction for the trade direction, then time the entry with trapped traders and aggressive orders at a gamma level.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
+    }
+  ],
+  "C868": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:7",
+      "statement": "Read VIX bands for session quality: below 15 is low-probability, 15-20 normal, 20-30 elevated.",
+      "url": "https://www.youtube.com/watch?v=_csqceiyluA"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:8",
+      "statement": "Treat VIX between about 15 and 25 as a normal, healthy range for intraday trading; above 25-30 is fear and usually short-lived.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    }
+  ],
+  "C869": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:9",
+      "statement": "Mark positive gamma nodes on VIX: they tend to hold as support and resistance, and VIX moves opposite to SPX, so a VIX rejection lower supports higher indices.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:10",
+      "statement": "When VIX rejects lower from its main negative-gamma strike in your plan, expect indices to rise.",
+      "url": "https://www.youtube.com/watch?v=aXwezQINBmI"
+    }
+  ],
+  "C870": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:12",
+      "statement": "Use IV rank to set the day's style: high IV rank (with negative gamma) favors continuation trades; low IV rank favors small base hits without runners.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    }
+  ],
+  "C871": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:13",
+      "statement": "Watch the put skew: when downside puts get more expensive relative to calls, fear is building even if price still looks fine.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    }
+  ],
+  "C872": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:14",
+      "statement": "Check VIX each morning before NQ: falling VIX forces dealer buying (vanna), so lean long; rising VIX makes longs riskier.",
+      "url": "https://www.youtube.com/watch?v=GE4JISxYuXY"
+    }
+  ],
+  "C873": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:18",
+      "statement": "Expect charm to pull NQ toward the nearest key gamma level in the afternoon; in the first 90 minutes charm barely matters.",
+      "url": "https://www.youtube.com/watch?v=GE4JISxYuXY"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:19",
+      "statement": "Use the charm surface for the day's lean (supportive or suppressive) and its strength; charm supports or suppresses a move but never triggers a trade.",
+      "url": "https://www.youtube.com/watch?v=o89Z7LyLkkE"
+    }
+  ],
+  "C874": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:20",
+      "statement": "Use SPX CBOE-tagged gamma as the higher-time-frame regime and gravity context when trading NQ, but do not execute on NQ because of SPX gamma alone.",
+      "url": "https://www.youtube.com/watch?v=XlUROzIzAYU"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:21",
+      "statement": "In the first 10-15 minutes of the New York open, weight SPX net premium flow above QQQ and NDX, because SPX tends to lead.",
+      "url": "https://www.youtube.com/watch?v=e_Kd8kw_vOc"
+    }
+  ],
+  "C875": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:22",
+      "statement": "When the call and put net drift lines are flat and tangled, there is no conviction: take no setups.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
+    }
+  ],
+  "C876": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:23",
+      "statement": "When a working setup suddenly gets chopped up, first check whether the market regime (volatility) changed before blaming yourself or tweaking the strategy.",
+      "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    }
+  ],
+  "C877": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:regime:24",
+      "statement": "Expect 0DTE options to drive sharp futures moves without news, because gamma peaks on expiration day and dealer delta snaps rather than drifts.",
+      "url": "https://www.youtube.com/watch?v=lS2R2qHt0VA"
+    }
+  ],
+  "C878": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:6",
+      "statement": "Read a gamma exposure level as a place where price will react if it arrives, not as a forecast that price will go there.",
+      "url": "https://www.youtube.com/watch?v=osaWnhNeITk"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:7",
+      "statement": "Do not read gamma sign as a trade direction: negative gamma is not a sell signal and positive gamma is not a buy signal; positive gamma pins only at the biggest strikes, negative gamma accelerates.",
+      "url": "https://www.youtube.com/watch?v=f04iNUEQR10"
+    }
+  ],
+  "C879": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:8",
+      "statement": "Pick GEX data by product: CBOE-tagged data has real signs but covers only SPX and VIX; consolidated multi-exchange data covers QQQ, NDX and stocks but with assumed signs and more noise.",
+      "url": "https://www.youtube.com/watch?v=XlUROzIzAYU"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:9",
+      "statement": "As an NQ trader, build the level map from open-interest gamma on QQQ and NDX (complete coverage) and use SPX tagged data for broad context; ES traders should use SPX tagged data directly.",
+      "url": "https://www.youtube.com/watch?v=osaWnhNeITk"
+    }
+  ],
+  "C880": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:10",
+      "statement": "Set net drift filters to out-of-the-money premium only and exclude complex, tied, floor and cancelled trades; otherwise the drift is noise.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:11",
+      "statement": "For NQ, read QQQ net drift first, then NDX to confirm or disprove it; before the open only SPX net drift is available.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
+    }
+  ],
+  "C881": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:15",
+      "statement": "Build the daily bias from dealer delta exposure and its put/call ratio before using gamma levels for location.",
+      "url": "https://www.youtube.com/watch?v=9sainXzuOXM"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:16",
+      "statement": "Read net delta for dealer positioning first, then the gamma surface (positive mean-reverting, negative amplifying) and charm surface (supportive or suppressive), and only then add gamma levels.",
+      "url": "https://www.youtube.com/watch?v=ZvnkbRQ7YA8"
+    }
+  ],
+  "C882": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:17",
+      "statement": "Keep order flow to three tools: deep (big) trades, the footprint chart and speed of tape; cumulative delta is optional.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
+    }
+  ],
+  "C883": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:18",
+      "statement": "Use the top-ranked gamma strikes (GEX 1-10) as targets and confirmation, and build the trade narrative from the main levels (all-expiry and 0DTE call resistance, put support, HVL, gamma wall).",
+      "url": "https://www.youtube.com/watch?v=XfUAMnLPUUk"
+    }
+  ],
+  "C884": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:indicator:22",
+      "statement": "Treat a gamma exposure level as a zone, not an exact price.",
+      "url": "https://www.youtube.com/watch?v=JCSxHqdg_to"
+    }
+  ],
+  "C885": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:7",
+      "statement": "Use options-flow data derived from multiple exchanges; cheap, low-quality data misleads.",
+      "url": "https://www.youtube.com/watch?v=f04iNUEQR10"
+    }
+  ],
+  "C886": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:17",
+      "statement": "Spend about 15 minutes before every session on macro context, earnings, the options matrix, gamma and delta exposure shifts and key levels; know the plan before the bell.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:18",
+      "statement": "Write the pre-market plan down daily and later check whether what you expected actually happened.",
+      "url": "https://www.youtube.com/watch?v=7s2xaIQsEAQ"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:19",
+      "statement": "Build the trade narrative from several price drivers (gamma levels, volatility, macro, sectors) and plan two or three scenarios before the open.",
+      "url": "https://www.youtube.com/watch?v=JCSxHqdg_to"
+    }
+  ],
+  "C887": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:25",
+      "statement": "Combine discretionary order-flow reading with statistics and backtesting rather than relying on either alone.",
+      "url": "https://www.youtube.com/watch?v=DGTlRfepNIU"
+    }
+  ],
+  "C888": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:26",
+      "statement": "Replace FVG and order-block points of interest with gamma levels, and liquidity-magnet ideas with net premium flow.",
+      "url": "https://www.youtube.com/watch?v=AbDjg15y8E4"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:27",
+      "statement": "Do not rely on drawn liquidity zones and FVG closes; there is no data that institutions trade these concepts.",
+      "url": "https://www.youtube.com/watch?v=GE4JISxYuXY"
+    }
+  ],
+  "C889": [
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:29",
+      "statement": "Claim, not a rule: Aleks Rosme says he averaged an 80% win rate from early September (2026) with continuation-only order-flow plus net-drift trades; unverified.",
+      "url": "https://www.instagram.com/p/Dd1F3t_AeUL/"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:30",
+      "statement": "Claim, not a rule: Aleks Rosme says a one-year study found the market opened up about 61% of the time after a positive SPX pre-market net drift; unverified.",
+      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:31",
+      "statement": "Claim, not a rule: Aleks Rosme says pre-market SPX net premium flow predicted the first 5-10 minutes with a 72% hit rate, and an MVC-reclaim plus net-drift study beat the benchmark over 250 QQQ sessions; unverified.",
+      "url": "https://www.youtube.com/watch?v=XlUROzIzAYU"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:32",
+      "statement": "Claim, not a rule: Aleks Rosme says a high-win-rate prop geometry cuts simulated maximum drawdown by 73% and risk of ruin from 50% to 1%; unverified.",
+      "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
+    },
+    {
+      "kb": "trading-verrillo-aleks",
+      "recordId": "trading-verrillo-aleks:wisdom:33",
+      "statement": "Claim, not a rule: Aleks Rosme reports single trades such as 120 NQ points across 10 funded accounts; trade-recap results are unverified.",
+      "url": "https://www.youtube.com/watch?v=aXwezQINBmI"
     }
   ]
 };
