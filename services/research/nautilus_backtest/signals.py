@@ -1202,8 +1202,6 @@ def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any
         normalized["breakevenR"] = _management_level(management["breakevenR"], "breakevenR")
     if "trail" in management:
         trail = management["trail"]
-        if not isinstance(trail, Mapping):
-            raise InputError("management trail must be an object")
         _strict(trail, frozenset({"activateR", "length", "multiple"}), "management trail")
         length = _whole(trail.get("length"), "management trail length", 1, MAX_LENGTH)
         normalized["trail"] = {
@@ -1289,9 +1287,7 @@ _SELECT_KEYS = frozenset({"score", "tieBreak", "top"})
 def _check_keys(block: Any, known: frozenset[str], name: str) -> None:
     """zod .strict() object with optional (not nullable) keys: an object, no unknown keys, no
     null values."""
-    if not isinstance(block, Mapping):
-        raise InputError(f"{name} must be an object")
-    for key, value in block.items():
+    for key, value in _object(block, name).items():
         if key not in known:
             raise InputError(f"Unknown {name} key: {key}")
         if value is None:
@@ -1442,8 +1438,6 @@ def _normalize_intraday(intraday: Any) -> dict[str, Any] | None:
     """TS StrategyIntradaySchema; None without a block."""
     if intraday is None:
         return None
-    if not isinstance(intraday, Mapping):
-        raise InputError("intraday must be an object")
     _strict(intraday, _INTRADAY_KEYS, "intraday")
     if intraday.get("timezone") != INTRADAY_TIMEZONE:
         raise InputError(f'intraday timezone must be "{INTRADAY_TIMEZONE}"')
@@ -1649,9 +1643,7 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     filters = [] if raw_filters is None else _filter_list(raw_filters, "filters", "A definition", 0)
     stop_loss = _normalize_level(_block(definition, "stopLoss"), "stopLoss")
     take_profit = _normalize_level(_block(definition, "takeProfit"), "takeProfit")
-    options = definition.get("options")
-    if options is not None and not isinstance(options, Mapping):
-        raise InputError("options must be an object")
+    options = _block(definition, "options")
     portfolio = definition.get("portfolio")
     normalized_portfolio = None if portfolio is None else _normalize_portfolio(portfolio)
     session = _block(definition, "session")
