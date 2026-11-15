@@ -526,6 +526,13 @@
       "when": 1794721926873,
       "tag": "0074_semantic_terms_trend_indicators",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1794772543713,
+      "tag": "0075_research_screen",
+      "breakpoints": true
     }
   ]
 }
