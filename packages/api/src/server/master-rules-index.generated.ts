@@ -11382,8 +11382,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "SPX dealer data as context for NQ",
       "rule": "Use SPX dealer gamma and SPX net premium flow as the higher-time-frame context for NQ, especially in the first minutes of the open, but do not execute on NQ from SPX data alone.",
       "kind": "regime",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "cls": "C",
+      "reason": "Needs: signed options premium flow (Quant Data Net Drift).",
       "consensus": 1,
       "kbs": [
         "trading-verrillo-aleks"
@@ -11550,8 +11550,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Dealer data instead of ICT liquidity concepts",
       "rule": "Use gamma levels and net premium flow as points of interest and bias instead of FVGs, order blocks and liquidity-magnet narratives.",
       "kind": "wisdom",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "cls": "C",
+      "reason": "Needs: signed options premium flow (Quant Data Net Drift).",
       "consensus": 1,
       "kbs": [
         "trading-verrillo-aleks"

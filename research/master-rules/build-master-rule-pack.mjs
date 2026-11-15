@@ -442,6 +442,18 @@ const OVERRIDES = {
   C885: {
     cls: "C",
     reason: "Needs: multi-exchange (OPRA) options trade feed.",
+    feature: "Multi-exchange (OPRA) options trade feed",
+    effort: "M",
+  },
+  C874: {
+    cls: "C",
+    reason: "Needs: signed options premium flow (Quant Data Net Drift).",
+    feature: "Signed options premium flow (net call vs put premium)",
+    effort: "M",
+  },
+  C888: {
+    cls: "C",
+    reason: "Needs: signed options premium flow (Quant Data Net Drift).",
     feature: "Signed options premium flow (net call vs put premium)",
     effort: "M",
   },

@@ -3,10 +3,10 @@
   "clusters": 889,
   "debates": 12,
   "counts": {
-    "C": 74,
+    "C": 76,
     "A": 110,
     "D": 355,
-    "B": 362
+    "B": 360
   },
   "method": "A = 3+ knowledge bases or a won debate, and fits our style. B = fits and needs no missing data. C = needs a missing feature or data feed. D = style conflict. Keyword and scope heuristics; research input only.",
   "kbTiers": {
@@ -12836,32 +12836,6 @@
       ]
     },
     {
-      "id": "C874",
-      "cls": "B",
-      "title": "SPX dealer data as context for NQ",
-      "rule": "Use SPX dealer gamma and SPX net premium flow as the higher-time-frame context for NQ, especially in the first minutes of the open, but do not execute on NQ from SPX data alone.",
-      "kind": "regime",
-      "consensus": 1,
-      "target": "research-report-regime",
-      "debate": null,
-      "candidateHardGate": false,
-      "mode": "advisory",
-      "sources": [
-        {
-          "kb": "trading-verrillo-aleks",
-          "recordId": "trading-verrillo-aleks:regime:20",
-          "statement": "Use SPX CBOE-tagged gamma as the higher-time-frame regime and gravity context when trading NQ, but do not execute on NQ because of SPX gamma alone.",
-          "url": "https://www.youtube.com/watch?v=XlUROzIzAYU"
-        },
-        {
-          "kb": "trading-verrillo-aleks",
-          "recordId": "trading-verrillo-aleks:regime:21",
-          "statement": "In the first 10-15 minutes of the New York open, weight SPX net premium flow above QQQ and NDX, because SPX tends to lead.",
-          "url": "https://www.youtube.com/watch?v=e_Kd8kw_vOc"
-        }
-      ]
-    },
-    {
       "id": "C878",
       "cls": "B",
       "title": "Gamma is not a direction call",
@@ -12988,32 +12962,6 @@
           "recordId": "trading-verrillo-aleks:wisdom:19",
           "statement": "Build the trade narrative from several price drivers (gamma levels, volatility, macro, sectors) and plan two or three scenarios before the open.",
           "url": "https://www.youtube.com/watch?v=JCSxHqdg_to"
-        }
-      ]
-    },
-    {
-      "id": "C888",
-      "cls": "B",
-      "title": "Dealer data instead of ICT liquidity concepts",
-      "rule": "Use gamma levels and net premium flow as points of interest and bias instead of FVGs, order blocks and liquidity-magnet narratives.",
-      "kind": "wisdom",
-      "consensus": 1,
-      "target": "committee-checklist",
-      "debate": null,
-      "candidateHardGate": false,
-      "mode": "advisory",
-      "sources": [
-        {
-          "kb": "trading-verrillo-aleks",
-          "recordId": "trading-verrillo-aleks:wisdom:26",
-          "statement": "Replace FVG and order-block points of interest with gamma levels, and liquidity-magnet ideas with net premium flow.",
-          "url": "https://www.youtube.com/watch?v=AbDjg15y8E4"
-        },
-        {
-          "kb": "trading-verrillo-aleks",
-          "recordId": "trading-verrillo-aleks:wisdom:27",
-          "statement": "Do not rely on drawn liquidity zones and FVG closes; there is no data that institutions trade these concepts.",
-          "url": "https://www.youtube.com/watch?v=GE4JISxYuXY"
         }
       ]
     },
