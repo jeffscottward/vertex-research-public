@@ -3,6 +3,7 @@
 -- Each UPDATE appends one sentence (joined by one space) to the 0074 text. Guard: the row still has the 0074 text
 -- (md5) and no operator mark (edit, certification or certification note); other rows are left alone, so a second
 -- run changes nothing. updated_at moves, so a certify call from a page that loaded the old text is refused.
+-- A certification that was removed again with no note leaves no mark; such a row has the 0074 text and is updated.
 UPDATE "semantic_terms"
 SET "description" = "description" || ' In the strategy DSL it is the indicator "supertrend" with length (the ATR length), multiple (the factor) and output "line" or "direction", where direction is +1 in an up trend and -1 in a down trend (the opposite of the chart script sign): {"type": "indicator", "name": "supertrend", "length": 10, "multiple": 3, "output": "direction"}. For now it runs only in research runs on the rig (a server backtest refuses it), and frame monthly bars do not have it.', "updated_at" = now()
 WHERE "id" = 'supertrend' AND md5("description") = '1e753394be20acfaaacaa94dc8426e32'

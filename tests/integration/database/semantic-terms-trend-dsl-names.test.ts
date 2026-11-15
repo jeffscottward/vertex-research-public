@@ -77,6 +77,16 @@ const GUARDS = [
     unset: "certified = false, certified_at = null, certified_by = null",
   },
   {
+    name: "a certification time",
+    set: "certified_at = now()",
+    unset: "certified_at = null",
+  },
+  {
+    name: "a certifier",
+    set: "certified_by = 'u_owner'",
+    unset: "certified_by = null",
+  },
+  {
     name: "a certification note",
     set: "certification_note = 'declined: wording'",
     unset: "certification_note = null",
@@ -179,5 +189,11 @@ describe("0075 trend indicator DSL names (Postgres)", () => {
     expect((await rows()).find((row) => row.id === "alphatrend")).toEqual(
       changed
     );
+    // Reset: remove the note; the update then applies to the row.
+    await postgres().query(
+      "update semantic_terms set description = left(description, length(description) - length(' Local note.')) where id = 'alphatrend'"
+    );
+    await postgres().query(migrationSql);
+    expect(await withSentence()).toBe(3);
   });
 });

@@ -55,6 +55,7 @@ describe("0075_semantic_terms_trend_dsl_names", () => {
   });
 
   it("updates a row only while it has the 0074 text and no operator mark", () => {
+    expect(updates).toHaveLength(3);
     for (const { guard, hash, id } of updates) {
       expect(hash).toBe(md5(seededDescription(id)));
       expect(guard.replaceAll(/\s+/gu, " ")).toBe(MARKS.join(" AND "));
@@ -62,6 +63,7 @@ describe("0075_semantic_terms_trend_dsl_names", () => {
   });
 
   it("keeps each description within the schema check", () => {
+    expect(updates).toHaveLength(3);
     for (const { appended, id } of updates) {
       const length = (seededDescription(id) + appended).length;
       expect(length).toBeGreaterThan(seededDescription(id).length);
@@ -70,6 +72,7 @@ describe("0075_semantic_terms_trend_dsl_names", () => {
   });
 
   it("has a rollback that removes the same sentence and refuses unless all three rows are in the 0075 state", () => {
+    expect(updates).toHaveLength(3);
     for (const { appended, id } of updates) {
       expect(rollback).toContain(
         `(t."id" = '${id}' AND md5(t."description") = '${md5(seededDescription(id) + appended)}')`
