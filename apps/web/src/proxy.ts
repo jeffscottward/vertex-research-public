@@ -3,7 +3,11 @@ import {
   LEGACY_ROUTE_REDIRECTS,
   SETTINGS_HOME_PATH,
 } from "./lib/navigation.ts";
-import { applySecurityHeaders } from "./security-headers";
+import {
+  applySecurityHeaders,
+  createScriptNonce,
+  scriptCsp,
+} from "./security-headers";
 
 // Alias routes answer a real 307 here. Their page files still call redirect(),
 // but a loading.tsx boundary streams those pages, which turns redirect() into a
@@ -30,12 +34,18 @@ export function proxy(request: NextRequest) {
         : pathname
     ];
   let response: NextResponse;
+  let nonce: string | undefined;
   if (aliasTarget === undefined) {
+    nonce = createScriptNonce();
     const headers = new Headers(request.headers);
     headers.set(
       "x-pathname",
       `${request.nextUrl.pathname}${request.nextUrl.search}`
     );
+    // vinext and the root layout read the script nonce from this request
+    // header; it overwrites any client-supplied value.
+    headers.set("content-security-policy", scriptCsp(nonce));
+    headers.delete("content-security-policy-report-only");
     response = NextResponse.next({ request: { headers } });
   } else {
     // A relative Location, as redirect() sends, keeps the query string.
@@ -47,7 +57,8 @@ export function proxy(request: NextRequest) {
   applySecurityHeaders(
     response.headers,
     request.nextUrl.protocol,
-    request.headers.get("x-forwarded-proto")
+    request.headers.get("x-forwarded-proto"),
+    nonce
   );
   return response;
 }
