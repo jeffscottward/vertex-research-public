@@ -268,6 +268,9 @@ describe("ci-changes.sh", () => {
           "scripts/lib/coverage-lane.test.ts",
           "scripts/ci/ci-changes.test.ts",
           ".github/workflows/codeql.yml",
+          "vitest.config.ts.bak",
+          "packages/db/src/server/vertex-authorization.tsx",
+          "services/research/nautilus_backtest/signal.py",
           "packages/api/src/contracts/vertex-worker.test.ts",
         ].join("\n")
       );
@@ -296,6 +299,11 @@ describe("ci-changes.sh", () => {
       ["scripts/lib/coverage-lane.ts"],
       ["scripts/lib/test-timeout-scale.ts"],
       ["scripts/ci/ci-changes.sh"],
+      ["scripts/ci/test-python.sh"],
+      ["services/research/adapters/chat_consumer.py"],
+      ["services/research/adapters/tests/test_chat_output.py"],
+      ["services/research/agents/types.py"],
+      ["services/research/requirements-sdk-linux-py312.lock"],
       ["vitest.config.ts"],
       [".github/workflows/ci.yml"],
       ["packages/api/src/contracts/vertex-worker.ts"],

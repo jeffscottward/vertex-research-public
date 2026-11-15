@@ -68,7 +68,8 @@ touches_init() {
 }
 
 # Succeeds when a changed path on stdin is a debate file: a research-chat file (the debate
-# stores, runtimes, contracts and tests), the Python debate adapter and its tests, a
+# stores, runtimes, contracts and tests), the Python adapters that the test runs as its
+# native consumer (services/research/adapters, with their interpreter script and lock), a
 # shared module that the five-turn test spends most of its time in (authorization,
 # persistence core, policy store, transaction read cache, predecessor walk, the canonical
 # encoder), another module that the test file imports (worker contract, Python test
@@ -76,7 +77,7 @@ touches_init() {
 # shard list, the coverage lane, the Vitest config, the workflow). The first group is
 # not anchored on purpose: each research-chat file counts, in any package.
 touches_debate() {
-  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale)\.ts$|^scripts/ci/ci-changes\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
+  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale)\.ts$|^services/research/(adapters/|agents/types\.py$|requirements-sdk-linux-py312\.lock$)|^scripts/ci/(ci-changes|test-python)\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
 }
 
 changed_paths() {
