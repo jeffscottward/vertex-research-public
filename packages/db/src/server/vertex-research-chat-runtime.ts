@@ -41,6 +41,10 @@ export type {
   ResearchChatSourceRecheck,
   ResearchChatSourceRequest,
 } from "./vertex-research-chat-source-ports.ts";
+export {
+  reusePredecessorRead,
+  withPredecessorWalk,
+} from "./vertex-research-chat-predecessor-walk.ts";
 export { createResearchChatOperations } from "./vertex-research-chat-store.ts";
 export {
   createResearchChatWorkerOperations,
