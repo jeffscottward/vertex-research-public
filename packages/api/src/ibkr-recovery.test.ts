@@ -648,6 +648,28 @@ describe("ibkrRecovery.request", () => {
     return expect(JSON.stringify(events)).not.toContain(TOKEN);
   });
 
+  it("says the login cannot be decided for the undecided states", async () => {
+    for (const loginState of ["gateway-unreadable", "no-login-evidence"]) {
+      routes.status = () =>
+        json(
+          upstreamStatus({
+            gateway: {
+              lastKnown: null,
+              loginState,
+              needsLogin: false,
+              reason: "docker-error",
+              since: null,
+            },
+          })
+        );
+      const error = await expectCode(send(), "NOT_NEEDED", 409);
+      expect(error).toMatchObject({
+        message: `The IBKR gateway login state is ${loginState}; the login cannot be decided, so no 2FA request is sent`,
+      });
+    }
+    return expect(postCalls()).toHaveLength(0);
+  });
+
   it("refuses without an audit record and never calls the VPS", async () => {
     await expectCode(send({ events: null }), "AUDIT_UNAVAILABLE", 503);
     await expectCode(send({ emitFails: true }), "AUDIT_UNAVAILABLE", 503);

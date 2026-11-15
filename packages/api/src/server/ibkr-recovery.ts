@@ -91,6 +91,13 @@ const UpstreamRequestSchema = z
   })
   .strict();
 
+// The VPS cannot decide the login in these states (card vertex-status-b1-quantvps).
+const UNDECIDED_LOGIN_STATES: ReadonlySet<string> = new Set([
+  "no-login-evidence",
+  "gateway-unreadable",
+  "unknown",
+]);
+
 const UpstreamStatusSchema = z
   .object({
     cooldown: z
@@ -428,7 +435,9 @@ const refusalBeforeSend = (
   if (!recoveryNeeded(upstream))
     return new IbkrRecoveryError(
       "NOT_NEEDED",
-      `The IBKR gateway login state is ${upstream.gateway.loginState}; no 2FA request is needed`
+      UNDECIDED_LOGIN_STATES.has(upstream.gateway.loginState)
+        ? `The IBKR gateway login state is ${upstream.gateway.loginState}; the login cannot be decided, so no 2FA request is sent`
+        : `The IBKR gateway login state is ${upstream.gateway.loginState}; no 2FA request is needed`
     );
   return null;
 };
