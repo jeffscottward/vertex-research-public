@@ -1,14 +1,15 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { NATIVE_EVIDENCE_SHARDS } from "./coverage-shards.ts";
 import type { TestEnvironmentDependencies } from "./test-env.ts";
 
 // The coverage lane is one Vitest run at 100% thresholds. A 2-vCPU CI runner
 // cannot finish it within the job limit, so CI splits it:
 //
-// - COVERAGE_SHARD=k/n runs shard k of n of every project except acceptance;
-//   COVERAGE_SHARD=acceptance runs only the acceptance project. Each writes a
-//   blob report to COVERAGE_REPORTS_DIR and checks no threshold
-//   (VITEST_COVERAGE_THRESHOLDS=off, read by vitest.config.ts).
+// - COVERAGE_SHARD=k/n runs shard k of n of every project except the named
+//   shards; COVERAGE_SHARD=<name> runs only the project of that named shard
+//   (NAMED_SHARDS). Each writes a blob report to COVERAGE_REPORTS_DIR and checks
+//   no threshold (VITEST_COVERAGE_THRESHOLDS=off, read by vitest.config.ts).
 // - COVERAGE_MERGE_DIR=<dir> merges those blob reports and enforces the
 //   thresholds from vitest.config.ts on the combined coverage.
 // - With neither set (local `bun run verify`), the command runs unchanged.
@@ -48,7 +49,12 @@ const relocateBlobs = async (
 };
 
 const SHARD = /^([1-9]\d?)\/([1-9]\d?)$/u;
-const ACCEPTANCE = "acceptance";
+
+/** Shards that run exactly one project, named like the shard. */
+export const NAMED_SHARDS: readonly string[] = [
+  "acceptance",
+  ...Object.keys(NATIVE_EVIDENCE_SHARDS),
+];
 
 /** The arguments with each `--project <name>` pair kept only if `keep(name)`. */
 const withoutProjects = (
@@ -80,16 +86,15 @@ export const shardArguments = (
   reportsDirectory: string
 ): string[] | null => {
   const match = SHARD.exec(shard);
-  const isAcceptance = shard === ACCEPTANCE;
-  if (!(isAcceptance || (match && Number(match[1]) <= Number(match[2]))))
-    return null;
+  const named = NAMED_SHARDS.includes(shard);
+  if (!(named || (match && Number(match[1]) <= Number(match[2])))) return null;
   const selected = withoutProjects(arguments_, (project) =>
-    isAcceptance ? project === ACCEPTANCE : project !== ACCEPTANCE
+    named ? project === shard : !NAMED_SHARDS.includes(project)
   );
-  const name = isAcceptance ? ACCEPTANCE : shard.replace("/", "-of-");
+  const name = named ? shard : shard.replace("/", "-of-");
   return [
     ...selected,
-    ...(isAcceptance ? [] : [`--shard=${shard}`]),
+    ...(named ? [] : [`--shard=${shard}`]),
     "--reporter=default",
     "--reporter=blob",
     `--outputFile.blob=${reportsDirectory}/${name}.json`,
@@ -143,7 +148,7 @@ export const runCoverageLane = async (
     const sharded = shardArguments(rest, shard, reportsDirectory);
     if (sharded === null) {
       dependencies.error(
-        `COVERAGE_SHARD must be k/n (1 <= k <= n < 100) or ${ACCEPTANCE}.`
+        `COVERAGE_SHARD must be k/n (1 <= k <= n < 100) or one of: ${NAMED_SHARDS.join(", ")}.`
       );
       return 2;
     }
