@@ -233,9 +233,17 @@ This repository follows the Claude Code team's review practice ([How the Claude 
   - The required checks passed on the exact head commit.
   - A fresh-context agent reviewed the full diff at that head, not only the newest review round.
   - No review finding is open.
-  - If the change alters what an owner setting in the list below allows, the owner decided it.
+  - If the change alters what an item in the owner-decision list below allows (for example a risk gate, cap, size limit or kill switch), the owner decided it before the merge.
 - No merge waits for a person to read code. A job never asks the owner to review code or a diff. Ask the owner only for a decision that only the owner can make. Ask it as one plain-English question about the effect (what changes for trading, money, risk, security or access), without implementation details.
-- The owner decides these, whatever the review result: arming trading; placing or changing live orders; risk settings (sizes, caps, gates, kill switches), including a code change that changes what one of them allows; starting, stopping or reconfiguring live trading units; trading-engine deploys; money movement; security and access changes. An agent review never authorizes one of them. A PR that changes one of them does not merge before the owner decides.
+- Owner-decision list. The owner decides these, whatever the review result:
+  - Arming trading.
+  - Placing or changing live orders.
+  - Risk settings (sizes, caps, gates, kill switches), including a code change that changes what one of them allows.
+  - Starting, stopping or reconfiguring live trading units.
+  - Trading-engine deploys.
+  - Money movement.
+  - Security and access changes.
+- An agent review never authorizes an item in the owner-decision list. A PR that changes one of them does not merge before the owner decides.
 - Approvals that branch protection or rulesets require still apply ("Lifecycle gates").
 - Keep changes small, and state in the PR how to test and how to revert them.
 

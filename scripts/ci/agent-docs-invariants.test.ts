@@ -38,15 +38,25 @@ describe("agent entry points", () => {
     expect(agents).not.toMatch(
       /person's review|a person reviews it|person owns the outcome/u
     );
-    expect(agents).not.toMatch(/\b(?:person|human)\b[^.\n]*\breview/iu);
+    // A person or human as the reviewer or approver of code, a diff or a PR.
+    expect(agents).not.toMatch(
+      /\b(?:person|human)(?:'s)?\s+(?:code\s+)?review\b|\breview(?:ed)?\s+by\s+a\s+(?:person|human)\b|\b(?:person|human)\s+(?:must\s+|should\s+|to\s+)?(?:review|approve)s?\s+(?:the\s+|each\s+|every\s+)?(?:code|diff|PR)\b/iu
+    );
     const section = /## Code review practice\n([\s\S]*?)\n## /u.exec(
       agents
     )?.[1];
     expect(section, "Code review practice section").toBeDefined();
-    expect(section).toContain("No merge waits for a person to read code");
-    expect(section).toContain("does not merge before the owner decides");
-    for (const gate of ["arming trading", "live orders", "kill switches"]) {
-      expect(section, gate).toContain(gate);
+    for (const rule of [
+      "No merge waits for a person to read code",
+      "the owner decided it before the merge",
+      "including a code change that changes what one of them allows",
+      "does not merge before the owner decides",
+      "Arming trading",
+      "live orders",
+      "Risk settings",
+      "kill switches",
+    ]) {
+      expect(section, rule).toContain(rule);
     }
   });
 
