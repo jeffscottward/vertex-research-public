@@ -186,6 +186,19 @@ def test_server_refusal_matches_typescript(case: dict[str, Any]) -> None:
     assert str(refusal) == case["refusal"]["message"]
 
 
+DEFINITION_REFUSALS = golden()["definitionRefusals"]
+
+
+@pytest.mark.parametrize("case", DEFINITION_REFUSALS, ids=_ids(DEFINITION_REFUSALS, "id"))
+def test_definition_refusal_matches_typescript(case: dict[str, Any]) -> None:
+    """scripts/research/nautilus-golden.ts definitionRefusalCases: the first TypeScript issue, or the
+    Python text of a field error or of an options definition."""
+    with pytest.raises(InputError) as failed:
+        sig.normalize_definition(case["definition"])
+    assert not isinstance(failed.value, StrategyUnsupportedError)
+    assert str(failed.value) == case["message"]
+
+
 REFUSALS = golden()["engineRefusals"]
 
 
@@ -1785,70 +1798,6 @@ def test_the_first_session_indicator_in_the_typescript_walk_order_is_raised() ->
     for definition, name in cases:
         with pytest.raises(InputError, match=f"^{name} reads the intraday session; add an intraday block$"):
             sig.normalize_definition(definition)
-
-
-_SHIFTED = {"policy": "window", "shift": 2, "symbols": ["SPY"]}
-_VOL_TARGET = {"mode": "volTarget", "targetPct": 10, "length": 20, "maxLeverage": 2}
-_VOL_TARGET_MESSAGE = "Option strategies size by options.maxLossPct; remove the volTarget sizing"
-
-
-@pytest.mark.parametrize(
-    ("definition", "message"),
-    [
-        # Management without a stop loss before a portfolio without options.
-        ({"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, "management": {"breakevenR": 1},
-          "portfolio": {"policy": "roll", "symbols": ["SPY"]}},
-         "management moves the stop loss; add a stop loss"),
-        # The management checks before a shifted window. TypeScript lists the stop-loss issue first;
-        # with an options block _normalize_management raises the options message on purpose.
-        (_portfolio_definition(_SHIFTED, exit={"any": [ALWAYS]}, management={"breakevenR": 1}),
-         "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"),
-        # volTarget sizing before a shifted window.
-        (_portfolio_definition(_SHIFTED, exit={"any": [ALWAYS]}, sizing=_VOL_TARGET), _VOL_TARGET_MESSAGE),
-        # volTarget sizing before the monthly frame.
-        (_portfolio_definition(
-            {"policy": "roll", "frame": "monthly", "symbols": ["SPY"]},
-            entry={"all": [{**ALWAYS, "left": {"type": "indicator", "name": "atr", "length": 5}}]},
-            sizing=_VOL_TARGET,
-        ), _VOL_TARGET_MESSAGE),
-        # A portfolio without options before a short side with management.
-        ({"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, "management": {"breakevenR": 1},
-          "portfolio": {"policy": "roll", "symbols": ["SPY"]}, "side": "short", "stopLoss": {"kind": "pct", "pct": 5}},
-         "A portfolio block trades option verticals; add an options block"),
-        # A shifted window before a short side with options.
-        (_portfolio_definition(_SHIFTED, exit={"any": [ALWAYS]}, side="short"),
-         "A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only"),
-        # The monthly frame before a short side with options.
-        (_portfolio_definition(
-            {"policy": "roll", "frame": "monthly", "symbols": ["SPY"]},
-            entry={"all": [{**ALWAYS, "left": {"type": "indicator", "name": "atr", "length": 5}}]},
-            side="short",
-        ), sig.MONTHLY_INDICATOR_MESSAGE),
-    ],
-)
-def test_cross_field_checks_raise_in_the_typescript_order(definition: dict[str, Any], message: str) -> None:
-    """strategy-dsl.test.ts "lists %s": the first TypeScript issue of the same definition."""
-    with pytest.raises(InputError, match=f"^{re.escape(message)}$"):
-        sig.normalize_definition(definition)
-
-
-@pytest.mark.parametrize(
-    "definition",
-    [
-        {"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, "portfolio": {"policy": "roll", "symbols": ["SPY"]}},
-        _portfolio_definition(
-            {"policy": "roll", "frame": "monthly", "symbols": ["SPY"]},
-            entry={"all": [{**ALWAYS, "left": {"type": "indicator", "name": "atr", "length": 5}}]},
-        ),
-    ],
-)
-def test_field_errors_come_before_the_portfolio_checks(definition: dict[str, Any]) -> None:
-    """strategy-dsl.test.ts "lists only an unknown side for %s": zod runs the cross-field checks only
-    when every field is valid."""
-    with pytest.raises(InputError):
-        sig.normalize_definition(definition)
-    with pytest.raises(InputError, match="^Unknown side: sideways$"):
-        sig.normalize_definition({**definition, "side": "sideways"})
 
 
 @pytest.mark.parametrize(
