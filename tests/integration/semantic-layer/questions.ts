@@ -218,9 +218,10 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     set: "main",
   },
   {
-    // One exact line states the reference although the forbidden pattern matches it; nothing else is exempt.
+    // Each exact line states the reference although the forbidden pattern matches it; nothing else is exempt.
     allowed: [
       /^[ \t]*(?:[-*][ \t]+)?Sector momentum paper forward is at warn, not alert\.[ \t]*$/gm,
+      /^[ \t]*(?:[-*][ \t]+)?Sector momentum paper forward is at warn, not alert \(max drawdown 24\.37% forward vs 22\.50% baseline, ratio 1\.08\)\. This is paper data only\.[ \t]*$/gm,
     ],
     forbidden: [...PAPER, /sector momentum[^.]*\balert\b/i],
     id: "Q20",

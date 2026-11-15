@@ -938,22 +938,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/deployments-workspace.tsx",
-    text: "—",
-    count: 6,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Split by caller: "never started", "no log line yet"; callers know which field.',
-    open: true,
-  },
-  {
-    file: "components/portal/deployments-workspace.tsx",
-    text: "unknown",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "status not reported by Docker"; add the snapshot time already in scope.',
-    open: true,
-  },
-  {
     file: "components/portal/engine-comparison.tsx",
     text: "· engine time n/a (${})",
     count: 1,
@@ -1400,14 +1384,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "–",
     count: 1,
     reason: "Kept: En dash separates two real values.",
-  },
-  {
-    file: "components/portal/order-flow-views.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: side -> 'Unsigned (no quote at print time)'; spread -> 'One-sided book' or 'No depth received'; venue/conditions -> 'Not reported by feed'. bookState and counts already in scope; side label is a text change.",
-    open: true,
   },
   {
     file: "components/portal/owner-market-notes-card.tsx",
