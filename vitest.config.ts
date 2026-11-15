@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config";
 import coverageBaseline from "./scripts/ci/coverage-baseline.json" with {
   type: "json",
 };
+import { NATIVE_EVIDENCE_SHARDS } from "./scripts/lib/coverage-shards.ts";
 import {
   resolveTimeoutScale,
   TIMEOUT_SCALE_ENV,
@@ -117,9 +118,15 @@ export default defineConfig({
             "**/scripts/**",
             // Git-ignored local evidence keeps preimage copies of test files.
             "private/**",
+            // Named coverage shards (scripts/lib/coverage-shards.ts) run these.
+            ...Object.values(NATIVE_EVIDENCE_SHARDS).flat(),
           ],
         },
       },
+      ...Object.entries(NATIVE_EVIDENCE_SHARDS).map(([name, include]) => ({
+        extends: true,
+        test: { name, include: [...include] },
+      })),
       {
         extends: true,
         test: {
