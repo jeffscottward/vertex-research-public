@@ -127,7 +127,7 @@ The numbers below are the agent's choice, not a knowledge-base pick. They are st
 
 - **Given**: A run is reading Yahoo.
 - **When**: Yahoo answers a rate limit ("Too Many Requests").
-- **Then**: The collector sends no more Yahoo request in this run, stores what it has, writes `run.json` with `complete` false and the cause, and exits 1.
+- **Then**: The collector sends no more Yahoo request in this run, stores what it has, writes `run.json` with `complete` false and the cause, and exits 0. The unit does not fail, so no automatic retry sends requests again after the rate limit.
 
 ## Technical Plan (Architecture)
 
@@ -177,14 +177,14 @@ All clock rules use New York time.
 
 ### One run of the collector
 
-1. Stop with exit 0 and no file when the clock is outside 09:45 to the close of a NYSE session.
+1. Stop with exit 0 and no file when the clock is outside 09:45 to the close of a NYSE session. Then read the universe file: a file that cannot be read is a fault (exit 1).
 2. Market check: read the SPY chain of Yahoo. It has three results. Live (an option trade in the last 45 minutes): the run goes on. Closed (the chain was read and has no such trade): stop with exit 0 and no file. Unreadable (3 attempts failed): the run goes on without Yahoo: it reads Cboe only, and `run.json` gets `complete` false. A Cboe observation counts by its own file timestamp, so a Cboe-only run on a closed market cannot add a counted read.
-3. Cboe control: read the SPY chain of Cboe. When it cannot be read, a missing file of a fund does not mean "no options" now: write `run.json` with `complete` false and exit 1.
+3. Cboe control: read the SPY chain of Cboe. When it cannot be read, a missing file of a fund does not mean "no options" now: write `run.json` with `complete` false and end the run.
 4. Fund list: every fund of the universe file that has listed options (458 on 2026-11-12). The run reads the Cboe chain of each and finds its own candidates. A run does not depend on an earlier run.
 5. Cboe: 4 workers, 1 second per worker and request, HTTP 429 makes every worker wait (the version 1 pace). The body of a candidate is stored gzip-compressed. For a fund that is no candidate only its facts go into `run.json`.
 6. Yahoo, for each candidate: one fund at a time, 1 second between funds, the chain of the session expiry. `yfinance` sends 2 HTTP requests per fund. The first rate limit stops all further Yahoo requests of the run.
 7. A fund whose read fails after 3 attempts is named in `run.json` with the reason. The run goes on.
-8. `run.json` is written at the start of the run with `finishedAt` null, and written again after the Cboe phase and at the end. A run that is killed leaves its record and the data that it stored. `complete` is false when the market check was unreadable, when the Cboe control of step 3 failed, when more than 20% of the Cboe reads failed, when more than 20% of the Yahoo reads of the candidates failed, or when Yahoo limited the requests. Exit code 1 when `complete` is false, else 0.
+8. `run.json` is written at the start of the run with `finishedAt` null, and written again after the Cboe phase and at the end. A run that is killed leaves its record and the data that it stored. `complete` is false when the market check was unreadable, when the Cboe control of step 3 failed, when more than 20% of the Cboe reads failed, when more than 20% of the Yahoo reads of the candidates failed, or when Yahoo limited the requests. An incomplete run exits 0, as a complete run does: its causes are outside the host, and a failed unit would get an automatic retry that sends the same requests again. Exit code 1 is for a fault of the host or of the input (the universe file cannot be read, the store cannot be written, an error that the code did not expect).
 9. Each run deletes run folders that are more than 45 days old.
 
 Request volume, from the data of 2026-11-12 (458 funds with listed options, 87 candidates): a run sends about 460 Cboe requests and about 180 Yahoo requests (2 per candidate). A session is about 1,380 Cboe and 540 Yahoo requests.
@@ -200,7 +200,7 @@ Store size, measured on the saved chains of 2026-11-12: the 87 candidate chains 
 **Counted read.** Observations are taken in time order.
 
 - A Cboe observation counts when the time of its quotes (file timestamp minus 15 minutes) is inside the entry hours of the session day, and no earlier run in the store has the same file timestamp for the fund.
-- A Yahoo observation counts when its fetch time is at least 15 minutes after the start of the entry hours and not after their end; the fund price time of the snapshot is on the session day and at most 30 minutes before the fetch time; and the bids and asks of its measured contracts are not all equal to those of the last counted Yahoo observation of the fund in the session. The 15 minutes matter for a run that a person starts early by hand; the timer runs are later.
+- A Yahoo observation counts when its fetch time is at least 15 minutes after the start of the entry hours and not after their end; the fund price time of the snapshot is on the session day and at most 30 minutes before the fetch time (a fund price time up to 5 minutes after the fetch time is accepted: two clocks); and the bids and asks of its measured contracts are not all equal to those of the last counted Yahoo observation of the fund in the session. The 15 minutes matter for a run that a person starts early by hand; the timer runs are later.
 
 A counted read is quotable when it has at least 3 two-sided quotes. A counted read that is not quotable is kept: the market showed no usable quote at that time.
 
@@ -213,7 +213,7 @@ A counted read is quotable when it has at least 3 two-sided quotes. A counted re
 | Fewer than 2 counted reads | not judged |
 | 2 or more counted reads, fewer than 2 quotable, and no counted read has a two-sided quote | fail reason `no-two-sided-quote` |
 | 2 or more counted reads, fewer than 2 quotable, else | fail reason `too-few-two-sided-quotes` |
-| 2 or more quotable reads | value = median of their half spreads. Limit = 4%. Value above the limit: fail reason `spread-above-maximum`. Else: inside the limit. Reported with it, and not part of the label: cheap = the median of their median mid prices is below 1 USD; inside the cheap band = cheap and the value is at most 8% |
+| 2 or more quotable reads | value = median of their half spreads. Limit = 4%. Value above the limit: fail reason `spread-above-maximum`. Else: inside the limit. Reported with it, and not part of the label: cheap = the median of their median mid prices is below 1 USD; in the cheap band = cheap and the value is above 4% and at most 8% |
 
 **Label of a fund**, in this order:
 
@@ -229,7 +229,7 @@ A `pass` means: on each of 2 sessions at least 2 reads of one source inside the 
 
 ### The result
 
-`gate-v2.json` holds the build time, the constants, the universe file, every run folder (used, or skipped with the reason) and one entry per fund: label, reasons, the open-interest facts, and the judged sessions with every counted read. `gate-v2.md` holds the counts by label and reason, the count of funds in the cheap band (cheap options, and a `fail` only because the spread of a session was between 4% and 8%), the counted reads by source, and one row per fund with a judged session. The field lists are in the implementation plan. Both files are local research data and are not committed.
+`gate-v2.json` holds the build time, the constants, the universe file, every run folder of the lookback (used, or skipped with the reason) and one entry per fund: label, reasons, the open-interest facts, and the judged sessions with every counted read. `gate-v2.md` holds the counts by label and reason, the count of funds in the cheap band (cheap options, and a `fail` only because the spread of a session was between 4% and 8%), the counted reads by source, and one row per fund with a judged session. The field lists are in the implementation plan. Both files are local research data and are not committed.
 
 ### Operation
 
@@ -237,7 +237,7 @@ A `pass` means: on each of 2 sessions at least 2 reads of one source inside the 
 - The wrapper runs from its own detached worktree of the repository at the merged commit, default `~/Github/trading/vertex-research-public-spreads-runner`. The shared runner checkout of the other timers is detached at a commit of 2026-11-09 and is used by four other wrappers; moving it would change the code that they run.
 - The timer is installed after the merge and green CI on the exact commit. Install and rollback steps are in "Rollout & Rollback".
 - Store: `~/.local/share/vertex/leveraged-etf-spreads/`. Universe file: `~/.local/share/vertex/leveraged-etf-spreads-universe.json`, outside the store. It is the output of the version 1 fetcher (`python3 research/backtests/leveraged-etf/universe.py > <file>`, about 25 minutes, see [leveraged-etf-universe.md](../../vertex-rebuild/leveraged-etf-universe.md)). The install copies the newest such file of the rig to this path; a person renews it when new funds must be found. `run.json` holds its age, and the collector prints a warning when it is more than 30 days old.
-- A failed run is a failed unit. The harness step that checks failed units on the rig (`unitheal`) opens a card for it.
+- An incomplete run does not fail the unit. Its record says so (`complete` false with `incompleteReasons`), the journal of the unit holds one line per run, and the build lists each run with its state. A fault (exit 1) fails the unit; the harness step that checks failed units on the rig (`unitheal`) then opens a card.
 - Stop condition: after 10 sessions of runs the stage 2 design decides if the timer stays, changes or is removed. Until that decision is written down the timer keeps running; the 45 days of retention limit the store.
 
 ### Entry criteria of stage 2
@@ -248,9 +248,9 @@ Stage 2 starts when all are true: the store has runs of at least 2 sessions; a f
 
 | Risk | Mitigation |
 | --- | --- |
-| Yahoo is down or unreadable | The run reads Cboe only and fails the unit; the record of the run exists. Funds then stay `spread-not-measured`; they do not become `fail` by a Yahoo outage |
+| Yahoo is down or unreadable | The run reads Cboe only and its record says that it is incomplete. Funds then stay `spread-not-measured`; they do not become `fail` by a Yahoo outage |
 | Yahoo judges most sessions (89% of the candidates had no fresh Cboe quote on 2026-11-12), and Yahoo has no quote time per option. A stale Yahoo quote can give a wrong label | Three checks of a Yahoo observation (fetch time, fund price time, changed quotes). The other source is stored per session, so the gap is measured. The label is research output; no engine reads it |
-| The new Yahoo requests (about 540 per session) use the same address as the existing option-chain collector, whose store the go-live draft queue reads. A rate limit could make its 12:30 or 15:30 run fail | One Yahoo request at a time with a pause; the first rate limit stops Yahoo for the run and fails the unit. Rollback trigger: when the option-chain unit fails on a day on which a spread run saw a rate limit, the spread timer is disabled first and the cause is found after |
+| The new Yahoo requests (about 540 per session) use the same address as the existing option-chain collector, whose store the go-live draft queue reads. A rate limit could make its 12:30 or 15:30 run fail | One Yahoo request at a time with a pause; the first rate limit stops Yahoo for the run, and the run exits 0, so the failed-unit check does not start it again. Rollback trigger: when the option-chain unit fails on a day on which a spread run saw a rate limit, the spread timer is disabled first and the cause is found after |
 | The label changes with the weekday, because the session expiry is 3 to 10 days out | Each session shows its expiry; a label needs 2 sessions; no smoothing in stage 1 |
 | A `pass` can rest on 4 counted reads | The result shows the count per session; "Open Questions" |
 | The cheap numbers (1 USD, 8%) have no data behind them yet | They decide no label. The cheap band is a list in the result; the first 2 sessions show if it is useful |
@@ -359,7 +359,7 @@ Stage 2 starts when all are true: the store has runs of at least 2 sessions; a f
 | A7 | A spread label needs 2 judged sessions; each session has its own expiry; every label and reason has a test |
 | A8 | A `pass` needs 4% for every fund; the result marks cheap options (median mid price below 1 USD) and lists the funds in the cheap band (4% to 8%) |
 | A9 | The collector reads Yahoo and keeps raw data for the candidates only, tolerates a failed fund, stops Yahoo at the first rate limit, and always writes `run.json` |
-| A10 | The build uses no network and lists every run folder as used or skipped |
+| A10 | The build uses no network and lists every run folder of the lookback as used or skipped |
 | A11 | One real run outside the session into a scratch store reads both sources; the build on it counts no read and gives no `pass` |
 | A12 | The required CI checks are green on the head of the pull request; a fresh-context review has no open finding; the drift report has no open drift |
 | A13 | After the merge the timer is installed; its unit file holds the three times; its next start is the first of them on the next session; one start on the weekend exits 0 and writes nothing |
@@ -397,7 +397,7 @@ All paths are relative to the repository root. No file outside this list changes
   - `cboe_observation(chain: Mapping, symbol: str, expiry: date, run_id: str, fetched_at: datetime) -> CboeObservation | liquidity.NoOptions`: checks the symbol of the chain as `liquidity.measure` does, uses `liquidity.quote_time`, `liquidity.contracts_of`, `liquidity.spot_of` and `liquidity.expiry_measure`. It returns `liquidity.NO_STANDARD_CONTRACT` when no standard contract expires on or after the New York day of the file timestamp. A chain that cannot be read raises `ValueError`, `KeyError` or `TypeError`, as in version 1; the callers catch these three.
   - `yahoo_observation(snapshot: Mapping, run_id: str) -> YahooObservation | None`: from a stored Yahoo file (file 3). None when every row has a bid of 0 or null and an ask of 0 or null. The measure uses `fundPrice` as the fund price.
   - `counted_reads(session_day: date, cboe: Sequence[CboeObservation], yahoo: Sequence[YahooObservation], seen_file_timestamps: frozenset[datetime]) -> tuple[list[Read], list[Read]]`: the counted Cboe reads and the counted Yahoo reads of one fund in one session, by the rules of "Counted read". `seen_file_timestamps` are the file timestamps of the fund in the runs before this session.
-  - `session_result(day: date, expiry: date, cboe_reads: Sequence[Read], yahoo_reads: Sequence[Read]) -> SessionResult`: picks the session source and applies the table of "Result of a session". The table is one list of (condition, result) pairs in the code, not nested branches. The value is rounded to 4 decimals before it is compared. A value equal to the limit is inside the limit. `limit_pct` is `maxHalfSpreadPct` for every judged session. `cheap` is true when the median mid price is below 1 (exactly 1 is not cheap). `in_cheap_band` is true when `cheap` is true and the value is above 4 and at most 8. The three are None for a session without 2 quotable reads.
+  - `session_result(day: date, expiry: date, cboe_reads: Sequence[Read], yahoo_reads: Sequence[Read]) -> SessionResult`: picks the session source and applies the table of "Result of a session". The table is one list of (condition, result) pairs in the code, not nested branches. The value is rounded to 4 decimals before it is compared. A value equal to the limit is inside the limit. `limit_pct` is `maxHalfSpreadPct` for every judged session and None for a session that is not judged. `cheap` is true when the median mid price is below 1 (exactly 1 is not cheap). `in_cheap_band` is true when `cheap` is true and the value is above 4 and at most 8. `value_pct`, `cheap`, `in_cheap_band` and `median_mid` are None for a session without 2 quotable reads.
   - `fund_label(listed: bool, universe_reasons: Sequence[str], facts: FundFacts | None, sessions: Sequence[SessionResult], build_day: date) -> tuple[str, list[str]]`: the five steps of "Label of a fund". `sessions` are all sessions of the fund in the lookback, any order; the function takes the 2 newest that are judged. `stale-chain` compares `file_timestamp` with the New York day of `fetched_at`. The reasons of a `fail` are in the order of `REASONS_V2`, each one once.
 
 #### 3. `research/backtests/leveraged-etf/spread_reads.py` (Create)
@@ -450,7 +450,7 @@ All paths are relative to the repository root. No file outside this list changes
      "rows": [{"strike": 57.5, "call": true, "bid": 1.1, "ask": 1.16, "lastTradeAt": "2026-11-16T15:40:03Z"}]}
     ```
 
-  - Exit codes: 0 for a complete run and for a run that is skipped outside the session or on a closed market; 1 when `complete` is false or the universe file cannot be read; 2 for wrong arguments.
+  - Exit codes: 0 for a complete run, for an incomplete run (`complete` false in `run.json`) and for a run that is skipped outside the session or on a closed market; 1 for a fault (the universe file cannot be read or is refused, the store cannot be written, an error that the code did not expect); 2 for wrong arguments.
 
 #### 4. `research/backtests/leveraged-etf/gate_v2.py` (Create)
 
@@ -495,7 +495,7 @@ All paths are relative to the repository root. No file outside this list changes
     ```
 
     The sample is shortened: a judged session has at least 2 entries in `reads`, and a `pass` has 2 judged sessions. `gate` holds every key of `GATE_V2`. `funds` are sorted by symbol, one per fund of the universe file. `facts` is null for a fund without listed options and for a fund with no Cboe fact in the store. `sessions` holds every session of the lookback in which the fund has an observation, newest first. `otherSource` is null when the other source has no counted read. A fund is in the cheap band (`inCheapBand` true, counted in `counts.cheapBand`) when its label is `fail`, its only reason is `spread-above-maximum`, and each of its 2 sessions is inside the limit or in the cheap band.
-  - `gate-v2.md`: a heading with the build day; a table "Runs" (run, used, skip reason, complete); a table "Counts" (label, count; then the funds in the cheap band; then each reason); a table "Sessions by source"; and a table "Funds" with one row per fund that has a judged session, sorted by symbol: symbol, label, reasons, and per session: day, expiry, source, counted reads, value, limit, other source value.
+  - `gate-v2.md`: a heading with the build day; a table "Runs" (run, used, skip reason, complete); a table "Counts" (label, count; then the funds in the cheap band; then each reason); a line "Cheap band:" with the symbols of the funds in the cheap band, or "none"; a table "Sessions by source"; and a table "Funds" with one row per fund that has a judged session, sorted by symbol: symbol, label, reasons, and per session: day, expiry, source, counted reads, value, limit, other source value.
 
 #### 5. `services/research/tests/test_leveraged_etf_spread_gate.py` (Create)
 
@@ -521,14 +521,14 @@ All paths are relative to the repository root. No file outside this list changes
 - **Proposed Changes**: expected results:
   - a run with 6 funds (2 candidates) requests all 6 from Cboe and the 2 candidates from Yahoo, stores 2 `.json.gz` and 2 Yahoo files, `complete` true, exit 0; a second run of the day requests all 6 again;
   - the Cboe requests carry the `USER_AGENT` of the collector;
-  - a fund whose Cboe read raises gets `cboe.status` `failed` and the run goes on: with 1 of 6 failed `complete` is true, with 2 of 6 failed (more than 20%) `complete` is false and the exit code is 1;
+  - a fund whose Cboe read raises gets `cboe.status` `failed` and the run goes on: with 1 of 6 failed `complete` is true, with 2 of 6 failed (more than 20%) `complete` is false and the exit code is 0;
   - a universe file that is no JSON: exit 1 and no folder;
   - `NoFile` gives `no-file`;
-  - a Yahoo error with "Too Many Requests" on the first candidate: no further `ticker_for` call, the other candidates are `not-requested`, `yahooRateLimited` true, exit 1;
+  - a Yahoo error with "Too Many Requests" on the first candidate: no further `ticker_for` call, the other candidates are `not-requested`, `yahooRateLimited` true, `complete` false, exit 0;
   - a Yahoo chain of only 0 quotes gives `no-quotes`;
   - a clock outside the session, and a live clock with a SPY chain without a trade in 45 minutes: no folder, exit 0;
-  - an unreadable SPY chain of Yahoo: Cboe files are stored, every Yahoo status is `not-requested`, `probe.state` `unreadable`, exit 1;
-  - a failed Cboe control: `run.json` with `complete` false, no fund read, exit 1;
+  - an unreadable SPY chain of Yahoo: Cboe files are stored, every Yahoo status is `not-requested`, `probe.state` `unreadable`, `complete` false, exit 0;
+  - a failed Cboe control: `run.json` with `complete` false, no fund read, exit 0;
   - `run.json` exists with `finishedAt` null when `fetch_cboe` raises `KeyboardInterrupt` in the Cboe phase;
   - a run deletes a day folder of 46 days before and keeps one of 45 days before;
   - `main` with a missing argument exits 2, and with fakes makes one run.
@@ -554,7 +554,7 @@ All paths are relative to the repository root. No file outside this list changes
 #### 11. `infra/leveraged-etf-spreads/units.test.ts` (Create)
 
 - **Type / Scope**: vitest file of the `unit` project, after `infra/option-chain/units.test.ts`.
-- **Proposed Changes**: the wrapper against a fake `uv` in a temporary home prints the expected arguments and working folder for the defaults and for each of the four environment variables (`LEVERAGED_ETF_SPREADS_RUNNER_DIR`, `_UV`, `_STORE`, `_UNIVERSE`), exits 127 when `uv` is missing, and passes the exit code of the collector through (exit 1 marks an incomplete run); the timer has exactly the three `OnCalendar` lines and `Persistent=false`; the service runs the wrapper with `NoNewPrivileges=yes` and `TimeoutStartSec=900`.
+- **Proposed Changes**: the wrapper against a fake `uv` in a temporary home prints the expected arguments and working folder for the defaults and for each of the four environment variables (`LEVERAGED_ETF_SPREADS_RUNNER_DIR`, `_UV`, `_STORE`, `_UNIVERSE`), exits 127 when `uv` is missing, and passes the exit code of the collector through (exit 1 marks a fault); the timer has exactly the three `OnCalendar` lines and `Persistent=false`; the service runs the wrapper with `NoNewPrivileges=yes` and `TimeoutStartSec=900`.
 
 #### 12. `docs/specs/research/leveraged-etf-option-gate-v2.md` and `docs/specs/research/leveraged-etf-option-gate-v2-{before-after,data-flow,spread-vs-limit}.png` (Create)
 
@@ -581,6 +581,28 @@ All paths are relative to the repository root. No file outside this list changes
 - **Type / Scope**: the version 1 fetcher. One optional argument; its behavior without the argument stays the same.
 - **Why**: `http_get` sends the `USER_AGENT` of the fetcher, which says "one run per day". The collector makes 3 runs per session and must say so to the source.
 - **Proposed Changes**: `http_get(url: str, pace: Pace, user_agent: str = USER_AGENT) -> bytes`. The tests of the fetcher stay green without an edit.
+
+### Implementation notes
+
+Details that the implementation fixed and the drift check of 2026-11-14 recorded. They are part of the contract.
+
+- Order of a run: clock check, universe file, market check, Cboe control, Cboe phase, Yahoo phase. A universe file that cannot be read is a fault (exit 1) also on a closed market.
+- The universe file is refused (exit 1) when a symbol does not match `^[A-Z][A-Z0-9.]{0,9}$` or is there twice: a symbol becomes a file name in the store. The build refuses a symbol that is there twice.
+- The market check reads the SPY chain of Yahoo at the session expiry. An empty chain is a failed attempt, not a closed market (as in `snapshot.py`). A rate limit there gives `unreadable` at once, sets `yahooRateLimited` and gives both reasons.
+- The Cboe control also fails when the SPY chain was read and lists no option.
+- `incompleteReasons` holds these texts: `market-check-unreadable`, `cboe-control-failed: <error>`, `cboe-failed-above-20-percent`, `yahoo-failed-above-20-percent`, `yahoo-rate-limited`.
+- `counts.cboeOk` counts the status `ok` and `no-standard-contract`. `counts.yahooNotRequested` counts candidates only.
+- With the real fetcher, `sleep` is the wait of the shared `Pace`, so an HTTP 429 back-off of Cboe also holds the waits of the Yahoo phase.
+- A Yahoo file without a positive `fundPrice` gives an observation with an empty measure; it never counts. A stored Yahoo file whose `expiry` is not the session expiry of the current rule gives no observation; the facts of a candidate use the session expiry of the current rule.
+- `SessionResult.source` (and `source` in the result) is None when no source has a counted read. `limit_pct` is None only for a session that is not judged. `value_pct`, `cheap`, `in_cheap_band` and `median_mid` are None for a session without 2 quotable reads. The value of the other source is the median of its quotable counted reads.
+- A fund without listed options whose universe entry gives no reason gets `no-listed-options`. `facts.spot` is null for a fund whose chain has no standard contract.
+- `runs` of the result holds the run folders of the days from the oldest lookback session to the build day. `runs[].complete` is null when `run.json` is missing, unreadable or of an unknown schema. `unreadable` also covers a `run.json` whose `runId` or `sessionDay` does not match its folder and a stored file that is missing or has another shape. A `run.json` without `outsideSession: false` is skipped as `outside-session`.
+- Public functions of the rule module that the build uses, besides the ones above: `is_session`, `quotable`, `judged_sessions`.
+- The unit files also have `After=network-online.target` (service) and `WantedBy=timers.target` (timer), as the option-chain units.
+- Yahoo statuses: `no-expiry` only when Yahoo lists expiries and the session expiry is not among them. A reply that is no JSON, an empty list of expiries and an empty chain are failed attempts; after 3 of them the status is `failed`. `no-quotes` is a chain with rows whose bids and asks are all 0 or null. A rate limit is seen by the text "Too Many Requests", by the whole number 429 or by the error class of `yfinance` for it.
+- A malformed Cboe body gives `cboe.status` `failed` for that fund; the run goes on.
+- The universe file is also refused when it has more than 2000 funds with listed options (`liquidity.MAX_FUNDS`). A day folder is a folder whose name is a date in the form YYYY-MM-DD; the 45 day rule touches no other folder. The build reads the stored files of valid symbols only; a `run.json` with another key, or with a stored file of the wrong shape, is skipped as `unreadable`.
+- The fixture of the build test has 7 funds: the seventh has no listed options, with the reason `no-standard-contract`.
 
 ### Order of work and commits
 
