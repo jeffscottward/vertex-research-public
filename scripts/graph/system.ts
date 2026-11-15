@@ -1101,11 +1101,13 @@ const isPresent = async (path: string): Promise<boolean> => {
   }
 };
 
-// Best effort: a leftover that cannot be inspected or removed (another run
-// removed it first, or it is not ours to delete) stays.
+// Best effort: a cache directory that cannot be listed is not swept, and a
+// leftover that cannot be inspected or removed (another run removed it first,
+// or it is not ours to delete) stays.
 const removeLeftovers = async (cacheRoot: string): Promise<void> => {
   const cutoff = Date.now() - LEFTOVER_AGE_MS;
-  for (const name of await readdir(cacheRoot)) {
+  const names = await readdir(cacheRoot).catch((): string[] => []);
+  for (const name of names) {
     if (!(name.startsWith(STAGING_PREFIX) || name.startsWith(DISCARD_PREFIX)))
       continue;
     const path = join(cacheRoot, name);
