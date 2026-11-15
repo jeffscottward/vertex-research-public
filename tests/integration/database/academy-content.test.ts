@@ -72,6 +72,42 @@ describe("academy content repository (Postgres)", () => {
       await dropPostgresTestDatabase(testDatabase);
   });
 
+  it("counts a lesson that one transaction creates and then changes as created, then updated", async () => {
+    class Rollback extends Error {}
+    const source = sourceOf(firstSpec);
+    const results: unknown[] = [];
+    // One transaction: both imports see the same now(), so the two timestamps of a changed row stay
+    // equal. The rollback leaves the course empty for the tests below.
+    await expect(
+      database().transaction(async (transaction) => {
+        const repository = createAcademyContentRepository(transaction);
+        results.push(
+          await repository.importCourse({
+            course: "quantfinancetogo",
+            prune: false,
+            sources: [source],
+            specs: [firstSpec],
+          })
+        );
+        results.push(
+          await repository.importCourse({
+            course: "quantfinancetogo",
+            prune: false,
+            sources: [{ ...source, caption: "A changed caption" }],
+            specs: [{ ...firstSpec, title: "A changed lesson title" }],
+          })
+        );
+        throw new Rollback();
+      })
+    ).rejects.toBeInstanceOf(Rollback);
+    const created = { created: 1, deleted: 0, unchanged: 0, updated: 0 };
+    const updated = { created: 0, deleted: 0, unchanged: 0, updated: 1 };
+    expect(results).toEqual([
+      { course: "quantfinancetogo", sources: created, specs: created },
+      { course: "quantfinancetogo", sources: updated, specs: updated },
+    ]);
+  });
+
   it("imports the QuantFinanceToGo course, then leaves an unchanged re-import alone", async () => {
     const repository = createAcademyContentRepository(database());
     const [first] = await importAcademyCourses(repository, {

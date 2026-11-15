@@ -365,8 +365,10 @@ const canonicalizeHyperedge = (
 // random snapshot directory (system.ts: `darkfactory-graph-<hash16>-<random6>`
 // then `active/`); the rest is the stable repository path and name. Anchoring
 // on that directory keeps an `active` path segment or name in the scope.
+// Graphify joins path segments with `_`, so the directory name starts the id
+// or follows `_`; text glued in front of it belongs to another directory.
 const SNAPSHOT_ID_PREFIX =
-  /darkfactory_graph_[0-9a-f]{16}_[0-9a-z]{6}_active_/i;
+  /(?:^|_)darkfactory_graph_[0-9a-f]{16}_[0-9a-z]{6}_active_/i;
 
 const graphifyAstPlaceholderScope = (
   node: Readonly<Record<string, unknown>>,
