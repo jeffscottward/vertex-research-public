@@ -9,7 +9,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import vitestConfig, { coverageThresholds } from "../../vitest.config.ts";
 import coverageBaseline from "./coverage-baseline.json" with { type: "json" };
-import { NATIVE_EVIDENCE_SHARDS } from "../lib/coverage-shards.ts";
+import { FILE_SHARDS } from "../lib/coverage-shards.ts";
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 
 type Manifest = Readonly<{ scripts?: Readonly<Record<string, string>> }>;
@@ -100,14 +100,14 @@ const isThinEntry = (source: string): boolean => {
 const SOURCE_ROOT = /^(?:apps\/[^/]+\/src\/|packages\/[^/]+\/src\/|scripts\/)/u;
 const SOURCE_EXTENSION = /\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/u;
 const TEST_FILE = /\.(?:test|spec)\.[^./]+$/u;
-// The native-evidence files run in named CI coverage shards; pre-push still runs
-// them through the packages/api test:unit script.
+// The native-evidence and five-turn debate files run in named CI coverage shards;
+// pre-push still runs them through the packages/api test:unit script.
 const LOCAL_PROJECTS: readonly string[] = [
   "unit",
   "contract",
   "operations",
   "e2e-helpers",
-  ...Object.keys(NATIVE_EVIDENCE_SHARDS),
+  ...Object.keys(FILE_SHARDS),
 ];
 
 const git = async (...arguments_: string[]): Promise<string[]> => {

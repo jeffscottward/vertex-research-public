@@ -4,8 +4,9 @@
 #   ci-changes.sh classify   Read changed paths on stdin; print "docs" or "code".
 #   ci-changes.sh plan       Used by the `changes` job in ci.yml. Writes the outputs
 #                            heavy=true|false, draft=true|false,
-#                            exclude=<matrix exclude JSON>, acceptance=true|false and
-#                            skip_shards=<matrix exclude JSON> to GITHUB_OUTPUT.
+#                            exclude=<matrix exclude JSON>, acceptance=true|false,
+#                            debate=true|false, skip_shards=<matrix exclude JSON> and
+#                            shard_reports=<number of planned shards> to GITHUB_OUTPUT.
 #
 # The light lane (core) always runs. The full lane (coverage shards, coverage merge,
 # integration, browser) runs when code changed, except on a pull request that is a
@@ -17,7 +18,17 @@
 # path is scripts/init.ts, under scripts/init/ or scripts/lib/git-env.ts (init and its
 # acceptance test import it), and when the changed files are unknown or the list is empty
 # (owner 2026-11-11, card vertex-code-stewardship).
+#
+# The five-turn debate shard (debate-five-turn in scripts/lib/coverage-shards.ts, one
+# test of 10 to 15 minutes) follows the same rule with its own paths: the nightly run, a
+# manual run (the exact-SHA run before a deploy), a change to a debate file (see
+# touches_debate), and an unknown or empty list of changed files (owner 2026-11-15, card
+# vertex-debate-5turn-ci-speed).
 set -euo pipefail
+
+# The coverage shards that every full lane runs: twelve hashed Vitest shards and the two
+# native-evidence shards. The acceptance and debate-five-turn shards add one each.
+BASE_SHARD_REPORTS=14
 
 # A path is documentation when it is a Markdown file anywhere, or a non-code file
 # under docs/, research/ or plans/. Code and data files under those folders
@@ -54,6 +65,15 @@ classify() {
 # Succeeds when a changed path on stdin belongs to the template init command.
 touches_init() {
   grep -q -E '^scripts/(init(\.ts$|/)|lib/git-env\.ts$)'
+}
+
+# Succeeds when a changed path on stdin is a debate file: a research-chat file (the debate
+# stores, runtimes, contracts and tests), the Python debate adapter and its tests, a
+# shared module that the five-turn test spends most of its time in (authorization,
+# persistence core, policy store, transaction read cache, predecessor walk, the canonical
+# encoder), or the shard's own definition.
+touches_debate() {
+  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^scripts/lib/coverage-shards\.ts$'
 }
 
 changed_paths() {
@@ -97,13 +117,14 @@ draft_now() {
 }
 
 plan() {
-  local kind heavy exclude draft paths acceptance=true skip_shards
+  local kind heavy exclude draft paths acceptance=true debate=true skip_shards shard_reports
   if [[ "${EVENT}" == "workflow_dispatch" || "${EVENT}" == "schedule" ]]; then
     kind=code
   elif paths="$(changed_paths)"; then
     kind="$(classify <<<"${paths}")"
     # An empty list is unknown input (classify reads it as code): keep the shard.
     if [[ -n "${paths//[[:space:]]/}" ]] && ! touches_init <<<"${paths}"; then acceptance=false; fi
+    if [[ -n "${paths//[[:space:]]/}" ]] && ! touches_debate <<<"${paths}"; then debate=false; fi
   else
     echo "Could not list the changed files; taking the full lane."
     kind=code
@@ -117,19 +138,27 @@ plan() {
   if [[ "${heavy}" != "true" || "${BROWSER_TESTS:-}" != "on" ]]; then lanes+=('{"lane":"browser"}'); fi
   exclude="[$(IFS=,; echo "${lanes[*]}")]"
 
-  # No shard runs outside the full lane, so the acceptance shard is not planned there.
-  if [[ "${heavy}" != "true" ]]; then acceptance=false; fi
-  skip_shards='[{"shard":"acceptance"}]'
-  if [[ "${acceptance}" == "true" ]]; then skip_shards='[]'; fi
+  # No shard runs outside the full lane, so the two path-planned shards are not planned there.
+  if [[ "${heavy}" != "true" ]]; then
+    acceptance=false
+    debate=false
+  fi
+  local skipped=()
+  shard_reports="${BASE_SHARD_REPORTS}"
+  if [[ "${acceptance}" == "true" ]]; then shard_reports=$((shard_reports + 1)); else skipped+=('{"shard":"acceptance"}'); fi
+  if [[ "${debate}" == "true" ]]; then shard_reports=$((shard_reports + 1)); else skipped+=('{"shard":"debate-five-turn"}'); fi
+  skip_shards="[$(IFS=,; echo "${skipped[*]}")]"
 
-  echo "Event ${EVENT}, draft in the event ${DRAFT:-false}, draft now ${draft}, changes ${kind}: heavy=${heavy}, exclude=${exclude}, acceptance=${acceptance}"
+  echo "Event ${EVENT}, draft in the event ${DRAFT:-false}, draft now ${draft}, changes ${kind}: heavy=${heavy}, exclude=${exclude}, acceptance=${acceptance}, debate=${debate}"
   {
     echo "kind=${kind}"
     echo "heavy=${heavy}"
     echo "draft=${draft}"
     echo "exclude=${exclude}"
     echo "acceptance=${acceptance}"
+    echo "debate=${debate}"
     echo "skip_shards=${skip_shards}"
+    echo "shard_reports=${shard_reports}"
   } >>"${GITHUB_OUTPUT}"
 }
 
