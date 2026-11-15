@@ -70,6 +70,7 @@ describe("web component import boundary (biome.jsonc)", () => {
     "@darkfactory/api/server",
     "@darkfactory/db/server",
     "@darkfactory/api/server/vertex-trading",
+    "../../../../../packages/api/src/server",
     "../../../../../packages/api/src/server/orders.ts",
   ])(
     "rejects %s in a UI component",

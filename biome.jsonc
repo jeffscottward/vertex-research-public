@@ -308,6 +308,7 @@
                   {
                     "group": [
                       "@darkfactory/*/server/**",
+                      "**/packages/*/src/server",
                       "**/packages/*/src/server/**"
                     ],
                     "message": "UI components reach orders and risk only through API routes (card orochi-gitlab, D3)."
