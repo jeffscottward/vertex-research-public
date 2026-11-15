@@ -250,7 +250,10 @@ const RowsTable = ({
       <TableBody>
         {rows.map((row) => (
           <TableRow data-research-screen-row={row.id} key={row.id}>
-            <TableHead className="font-medium" scope="row">
+            <TableHead
+              className="h-auto whitespace-normal font-medium"
+              scope="row"
+            >
               {row.symbol}
             </TableHead>
             <TableCell>
@@ -324,7 +327,10 @@ const SnapshotBody = ({
             <TableBody>
               {snapshot.themes.map((theme) => (
                 <TableRow key={theme.name}>
-                  <TableHead className="font-normal" scope="row">
+                  <TableHead
+                    className="h-auto whitespace-normal font-normal"
+                    scope="row"
+                  >
                     {theme.name}
                   </TableHead>
                   <TableCell numeric>{theme.change}</TableCell>
@@ -360,7 +366,10 @@ const SnapshotBody = ({
                 <TableRow
                   key={`${setup.ticker}-${setup.direction}-${setup.pattern}`}
                 >
-                  <TableHead className="font-normal" scope="row">
+                  <TableHead
+                    className="h-auto whitespace-normal font-normal"
+                    scope="row"
+                  >
                     {setup.ticker}
                   </TableHead>
                   <TableCell>{setup.direction}</TableCell>
