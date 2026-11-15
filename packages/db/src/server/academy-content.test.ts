@@ -84,10 +84,8 @@ const SPECS = [specOf(first), specOf(second)];
 const SOURCES = [first.source, second.source];
 const INPUT = { course: COURSE, sources: SOURCES, specs: SPECS };
 
-const AT = new Date("2026-11-08T12:00:00.000Z");
-const LATER = new Date("2026-11-08T12:05:00.000Z");
-const created = { createdAt: AT, updatedAt: AT };
-const updated = { createdAt: AT, updatedAt: LATER };
+const created = { inserted: true };
+const updated = { inserted: false };
 
 describe("canonicalJson and academyLessonSpecHash", () => {
   it("sorts keys at every depth and drops undefined members", () => {

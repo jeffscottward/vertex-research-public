@@ -149,7 +149,7 @@ describe("research study repository", () => {
 
   it("inserts a new study and reports it as created", async () => {
     const double = createDouble([
-      { createdAt: AT, id: RECORD.id, updatedAt: AT },
+      { id: RECORD.id, inserted: true, updatedAt: AT },
     ]);
     const repository = createResearchStudyRepository(double.database);
     await expect(repository.upsert(INPUT)).resolves.toEqual({
@@ -171,7 +171,7 @@ describe("research study repository", () => {
 
   it("reports a replaced study as not created", async () => {
     const double = createDouble([
-      { createdAt: AT, id: RECORD.id, updatedAt: LATER },
+      { id: RECORD.id, inserted: false, updatedAt: LATER },
     ]);
     await expect(
       createResearchStudyRepository(double.database).upsert(INPUT)
@@ -252,8 +252,8 @@ describe("research study repository upsertMany", () => {
 
   it("writes every study in one transaction and returns results in input order", async () => {
     const double = transactional([
-      [{ createdAt: AT, id: INPUT.id, updatedAt: LATER }],
-      [{ createdAt: AT, id: SECOND.id, updatedAt: AT }],
+      [{ id: INPUT.id, inserted: false, updatedAt: LATER }],
+      [{ id: SECOND.id, inserted: true, updatedAt: AT }],
     ]);
     await expect(
       createResearchStudyRepository(double.database).upsertMany([INPUT, SECOND])
@@ -294,7 +294,7 @@ describe("research study repository upsertMany", () => {
     await expect(
       createResearchStudyRepository(
         transactional([
-          [{ createdAt: AT, id: INPUT.id, updatedAt: AT }],
+          [{ id: INPUT.id, inserted: true, updatedAt: AT }],
           postgresError("23514", "research_studies_summary_check"),
         ]).database
       ).upsertMany([INPUT, SECOND])
