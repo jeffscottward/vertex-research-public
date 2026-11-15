@@ -28,7 +28,7 @@ export const createOpenbbFetcherSpawn =
     let overflow = false;
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => {
-      if (overflow) return;
+      // `bytes` only grows, so each chunk after the cap takes the overflow branch again.
       bytes += chunk.length;
       if (bytes > maxStdoutBytes) {
         overflow = true;
