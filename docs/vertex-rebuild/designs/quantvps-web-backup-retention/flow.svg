@@ -1,25 +1,488 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" font-family="Public Sans,DejaVu Sans,sans-serif">
-<defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d4a843"/></marker></defs>
-<rect width="1200" height="640" fill="#0e1116"/>
-<text x="40" y="56" font-size="28" font-weight="700" fill="#fff">Where the prune sits in a web deploy</text>
-<text x="40" y="86" font-size="16" fill="#9aa3b2">The prune is a separate script and the last step. The restart script still deletes nothing.</text>
-<text x="40" y="130" font-size="15" fill="#9aa3b2">DEPLOY STEPS (infra/quantvps/README.md)</text>
-<rect x="40" y="150" width="135" height="70" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="107.5" y="185.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">1 build</text><text x="107.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">on the rig</text><line x1="177" y1="185" x2="199" y2="185" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/><rect x="203" y="150" width="135" height="70" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="270.5" y="185.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">2 backup</text><text x="270.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">+1 pair</text><line x1="340" y1="185" x2="362" y2="185" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/><rect x="366" y="150" width="135" height="70" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="433.5" y="185.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">3 copy</text><text x="433.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">new build</text><line x1="503" y1="185" x2="525" y2="185" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/><rect x="529" y="150" width="135" height="70" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="596.5" y="185.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">4 stage</text><text x="596.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">runtime tree</text><line x1="666" y1="185" x2="688" y2="185" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/><rect x="692" y="150" width="135" height="70" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="759.5" y="185.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">5 restart</text><text x="759.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">when idle</text><line x1="829" y1="185" x2="851" y2="185" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/><rect x="855" y="150" width="135" height="70" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="922.5" y="185.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">6-7 checks</text><text x="922.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">proxy, CSP</text><line x1="992" y1="185" x2="1014" y2="185" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/><rect x="1018" y="150" width="135" height="70" rx="10" fill="#2a2410" stroke="#d4a843" stroke-width="2"/><text x="1085.5" y="185.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">8 prune</text><text x="1085.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">new step</text>
-<text x="40" y="290" font-size="15" fill="#9aa3b2">WHAT ONE --apply RUN DOES</text>
-<rect x="40" y="310" width="255" height="90" rx="10" fill="#12202b" stroke="#3b82c4" stroke-width="2"/><text x="167.5" y="355.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">list</text><text x="167.5" y="377.0" text-anchor="middle" font-size="13" fill="#9aa3b2">read only</text>
-<rect x="330" y="310" width="255" height="90" rx="10" fill="#2a2410" stroke="#d4a843" stroke-width="2"/><text x="457.5" y="355.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">rename</text><text x="457.5" y="377.0" text-anchor="middle" font-size="13" fill="#9aa3b2">up to 3 pairs, lock held</text>
-<rect x="620" y="310" width="255" height="90" rx="10" fill="#2a1614" stroke="#e5534b" stroke-width="2"/><text x="747.5" y="355.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">delete</text><text x="747.5" y="377.0" text-anchor="middle" font-size="13" fill="#9aa3b2">renamed folders, no lock</text>
-<rect x="910" y="310" width="250" height="90" rx="10" fill="#12251a" stroke="#3fb950" stroke-width="2"/><text x="1035.0" y="355.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">list again</text><text x="1035.0" y="377.0" text-anchor="middle" font-size="13" fill="#9aa3b2">reports what is left</text>
-<line x1="297" y1="355" x2="326" y2="355" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/><line x1="587" y1="355" x2="616" y2="355" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/><line x1="877" y1="355" x2="906" y2="355" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/>
-<text x="40" y="455" font-size="15" fill="#9aa3b2">NEVER DELETED</text>
-<g font-size="16" fill="#c9d1d9">
-<rect x="40" y="472" width="16" height="16" rx="3" fill="#d4a843"/><text x="66" y="486">the newest 10 pairs (rollback sources)</text>
-<rect x="420" y="472" width="16" height="16" rx="3" fill="#3fb950"/><text x="446" y="486">live dist and .wrangler</text>
-<rect x="690" y="472" width="16" height="16" rx="3" fill="#6e7681"/><text x="716" y="486">dist.failed-*, dist.undeployed-*, other names</text>
-</g>
-<text x="40" y="545" font-size="15" fill="#9aa3b2">ROLLOUT ORDER</text>
-<rect x="40" y="560" width="250" height="56" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="165.0" y="594.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">1. script merged</text><line x1="292" y1="588" x2="316" y2="588" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/>
-<rect x="320" y="560" width="290" height="56" rx="10" fill="#2a2410" stroke="#d4a843" stroke-width="2"/><text x="465.0" y="594.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">2. owner approves first deletion</text><line x1="612" y1="588" x2="636" y2="588" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/>
-<rect x="640" y="560" width="220" height="56" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="750.0" y="594.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">3. first deletion</text><line x1="862" y1="588" x2="886" y2="588" stroke="#d4a843" stroke-width="3" marker-end="url(#a)"/>
-<rect x="890" y="560" width="270" height="56" rx="10" fill="#1b2230" stroke="#30363d" stroke-width="2"/><text x="1025.0" y="594.0" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">4. deploy step 8 added</text>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="640"
+  font-family="Public Sans,DejaVu Sans,sans-serif"
+>
+  <title>
+    The prune is the last deploy step; it lists, renames, deletes and lists
+    again
+  </title>
+  <defs>
+    <marker
+      id="a"
+      markerWidth="8"
+      markerHeight="8"
+      refX="6"
+      refY="4"
+      orient="auto"
+    >
+      <path d="M0,0 L8,4 L0,8 z" fill="#d4a843" />
+    </marker>
+  </defs>
+  <rect width="1200" height="640" fill="#0e1116" />
+  <text x="40" y="56" font-size="28" font-weight="700" fill="#fff">
+    Where the prune sits in a web deploy
+  </text>
+  <text x="40" y="86" font-size="16" fill="#9aa3b2">
+    The prune is a separate script and the last step. The restart script still
+    deletes nothing.
+  </text>
+  <text x="40" y="130" font-size="15" fill="#9aa3b2">
+    DEPLOY STEPS (infra/quantvps/README.md)
+  </text>
+  <rect
+    x="40"
+    y="150"
+    width="135"
+    height="70"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="107.5"
+    y="185.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    1 build
+  </text>
+  <text x="107.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    on the rig
+  </text>
+  <line
+    x1="177"
+    y1="185"
+    x2="199"
+    y2="185"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="203"
+    y="150"
+    width="135"
+    height="70"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="270.5"
+    y="185.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    2 backup
+  </text>
+  <text x="270.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    +1 pair
+  </text>
+  <line
+    x1="340"
+    y1="185"
+    x2="362"
+    y2="185"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="366"
+    y="150"
+    width="135"
+    height="70"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="433.5"
+    y="185.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    3 copy
+  </text>
+  <text x="433.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    new build
+  </text>
+  <line
+    x1="503"
+    y1="185"
+    x2="525"
+    y2="185"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="529"
+    y="150"
+    width="135"
+    height="70"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="596.5"
+    y="185.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    4 stage
+  </text>
+  <text x="596.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    runtime tree
+  </text>
+  <line
+    x1="666"
+    y1="185"
+    x2="688"
+    y2="185"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="692"
+    y="150"
+    width="135"
+    height="70"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="759.5"
+    y="185.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    5 restart
+  </text>
+  <text x="759.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    when idle
+  </text>
+  <line
+    x1="829"
+    y1="185"
+    x2="851"
+    y2="185"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="855"
+    y="150"
+    width="135"
+    height="70"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="922.5"
+    y="185.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    6-7 checks
+  </text>
+  <text x="922.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    proxy, CSP
+  </text>
+  <line
+    x1="992"
+    y1="185"
+    x2="1014"
+    y2="185"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="1018"
+    y="150"
+    width="135"
+    height="70"
+    rx="10"
+    fill="#2a2410"
+    stroke="#d4a843"
+    stroke-width="2"
+  />
+  <text
+    x="1085.5"
+    y="185.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    8 prune
+  </text>
+  <text x="1085.5" y="207.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    new step
+  </text>
+  <text x="40" y="290" font-size="15" fill="#9aa3b2">
+    WHAT ONE --apply RUN DOES
+  </text>
+  <rect
+    x="40"
+    y="310"
+    width="255"
+    height="90"
+    rx="10"
+    fill="#12202b"
+    stroke="#3b82c4"
+    stroke-width="2"
+  />
+  <text
+    x="167.5"
+    y="355.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    list
+  </text>
+  <text x="167.5" y="377.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    read only
+  </text>
+  <rect
+    x="330"
+    y="310"
+    width="255"
+    height="90"
+    rx="10"
+    fill="#2a2410"
+    stroke="#d4a843"
+    stroke-width="2"
+  />
+  <text
+    x="457.5"
+    y="355.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    rename
+  </text>
+  <text x="457.5" y="377.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    up to 3 pairs, lock held
+  </text>
+  <rect
+    x="620"
+    y="310"
+    width="255"
+    height="90"
+    rx="10"
+    fill="#2a1614"
+    stroke="#e5534b"
+    stroke-width="2"
+  />
+  <text
+    x="747.5"
+    y="355.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    delete
+  </text>
+  <text x="747.5" y="377.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    renamed folders, no lock
+  </text>
+  <rect
+    x="910"
+    y="310"
+    width="250"
+    height="90"
+    rx="10"
+    fill="#12251a"
+    stroke="#3fb950"
+    stroke-width="2"
+  />
+  <text
+    x="1035.0"
+    y="355.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    list again
+  </text>
+  <text x="1035.0" y="377.0" text-anchor="middle" font-size="13" fill="#9aa3b2">
+    reports what is left
+  </text>
+  <line
+    x1="297"
+    y1="355"
+    x2="326"
+    y2="355"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <line
+    x1="587"
+    y1="355"
+    x2="616"
+    y2="355"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <line
+    x1="877"
+    y1="355"
+    x2="906"
+    y2="355"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <text x="40" y="455" font-size="15" fill="#9aa3b2">NEVER DELETED</text>
+  <g font-size="16" fill="#c9d1d9">
+    <rect x="40" y="472" width="16" height="16" rx="3" fill="#d4a843" />
+    <text x="66" y="486">the newest 10 pairs (rollback sources)</text>
+    <rect x="420" y="472" width="16" height="16" rx="3" fill="#3fb950" />
+    <text x="446" y="486">live dist and .wrangler</text>
+    <rect x="690" y="472" width="16" height="16" rx="3" fill="#6e7681" />
+    <text x="716" y="486">dist.failed-*, dist.undeployed-*, other names</text>
+  </g>
+  <text x="40" y="545" font-size="15" fill="#9aa3b2">ROLLOUT ORDER</text>
+  <rect
+    x="40"
+    y="560"
+    width="250"
+    height="56"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="165.0"
+    y="594.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    1. script merged
+  </text>
+  <line
+    x1="292"
+    y1="588"
+    x2="316"
+    y2="588"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="320"
+    y="560"
+    width="290"
+    height="56"
+    rx="10"
+    fill="#2a2410"
+    stroke="#d4a843"
+    stroke-width="2"
+  />
+  <text
+    x="465.0"
+    y="594.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    2. owner approves first deletion
+  </text>
+  <line
+    x1="612"
+    y1="588"
+    x2="636"
+    y2="588"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="640"
+    y="560"
+    width="220"
+    height="56"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="750.0"
+    y="594.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    3. first deletion
+  </text>
+  <line
+    x1="862"
+    y1="588"
+    x2="886"
+    y2="588"
+    stroke="#d4a843"
+    stroke-width="3"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="890"
+    y="560"
+    width="270"
+    height="56"
+    rx="10"
+    fill="#1b2230"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="1025.0"
+    y="594.0"
+    text-anchor="middle"
+    font-size="17"
+    font-weight="700"
+    fill="#fff"
+  >
+    4. deploy step 8 added
+  </text>
 </svg>
