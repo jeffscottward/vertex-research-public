@@ -10,6 +10,7 @@ import {
   type ResearchScreenSwinglyticsRecord,
   type ResearchScreenWorkItem,
 } from "@darkfactory/db/server";
+import type { SemanticEvent } from "@darkfactory/observability/port";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
@@ -65,6 +66,10 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 /** How far ahead the status looks for its next slots (the grid alone gives 18 in 3 days). */
 const NEXT_SLOTS_WINDOW_MS = 3 * DAY_MS;
+/** Characters the message of a context failure event may hold. */
+const CONTEXT_FAILURE_MESSAGE_MAX = 240;
+export const RESEARCH_SCREEN_CONTEXT_FAILED_EVENT =
+  "research.screen.context.failed";
 /** Stored bars of one report: the newest sessions that are kept. */
 const STORED_BARS_MAX = 300;
 
@@ -82,6 +87,11 @@ export type ResearchScreenEngine = Readonly<{
   marketHistory: DeployStatusConfig | null | undefined;
   now: () => Date;
   readers: ResearchScreenReaders;
+  /**
+   * Reports that the Swinglytics context of a run could not be read or stored (the reader threw or
+   * the write failed). Must not throw: the run goes on.
+   */
+  reportContextFailure: (message: string) => Promise<void>;
   repository: ResearchScreenRepository;
   requestId: string;
 }>;
@@ -428,6 +438,14 @@ const busy = async (
   });
 };
 
+/** The failure of the context step as one line of at most 240 characters without URLs. */
+export const contextFailureMessage = (error: unknown): string =>
+  String(error)
+    .replace(/https?:\/\/\S+/giu, "[url]")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, CONTEXT_FAILURE_MESSAGE_MAX);
+
 /** The Swinglytics context of a run. Isolated: no failure here changes the run. */
 const collectSwinglytics = async (
   engine: ResearchScreenEngine
@@ -443,8 +461,9 @@ const collectSwinglytics = async (
           }
         : { kind: "error", message: read.error }
     );
-  } catch {
-    // The next run reads the page again; the stored context keeps its last state.
+  } catch (error) {
+    // The run goes on: the next run reads the page again. The failure is reported, not hidden.
+    await engine.reportContextFailure(contextFailureMessage(error));
   }
 };
 
@@ -724,6 +743,47 @@ export const statusOf = (
   };
 };
 
+/**
+ * The reporter of a context failure for one request: one semantic event
+ * `research.screen.context.failed`. Without an event port it reports nothing.
+ */
+export const contextFailureReporter =
+  (
+    context: Pick<
+      ApiContext,
+      "requestId" | "semanticEvents" | "span" | "waitUntil"
+    >
+  ) =>
+  async (message: string): Promise<void> => {
+    if (context.semanticEvents === undefined) return;
+    const event: SemanticEvent = {
+      action: "collect-context",
+      attributes: { message },
+      correlation: {
+        ...context.span?.correlation,
+        procedure: "researchScreen.tick",
+        requestId: context.requestId,
+        route: "/api/research-screen/tick",
+      },
+      entityType: "research-screen-context",
+      eventId: crypto.randomUUID(),
+      name: RESEARCH_SCREEN_CONTEXT_FAILED_EVENT,
+      occurredAt: researchScreenNow().toISOString(),
+      outcome: "failure",
+      source: "api",
+    };
+    try {
+      await context.semanticEvents.emit(event, {
+        ...(context.span === undefined ? {} : { span: context.span }),
+        ...(context.waitUntil === undefined
+          ? {}
+          : { waitUntil: context.waitUntil }),
+      });
+    } catch {
+      // The event port is the last place a failure can be reported; the run goes on without it.
+    }
+  };
+
 const api = implement(appContract).$context<ApiContext>();
 type Errors = Readonly<{ STORAGE_ERROR: () => Error }>;
 
@@ -756,6 +816,7 @@ const tick = api.researchScreen.tick
         marketHistory: context.marketHistory,
         now: researchScreenNow,
         readers: { readChart, readIbkrBars, readSwinglytics },
+        reportContextFailure: contextFailureReporter(context),
         repository,
         requestId: context.requestId,
       })

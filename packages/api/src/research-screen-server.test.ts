@@ -16,6 +16,7 @@ import {
   type ResearchScreenSwinglyticsResult,
   type ResearchScreenWorkItem,
 } from "@darkfactory/db/server";
+import type { SemanticEventPort } from "@darkfactory/observability/port";
 import { ORPCError } from "@orpc/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -40,8 +41,11 @@ import {
 import { resetIbkrPacing } from "./server/merged-bars.ts";
 import {
   chooseBars,
+  contextFailureMessage,
+  contextFailureReporter,
   countWrite,
   ibkrNotServed,
+  RESEARCH_SCREEN_CONTEXT_FAILED_EVENT,
   type ResearchScreenEngine,
   runTick,
   storedBarsCurrent,
@@ -380,6 +384,7 @@ const clientFor = (
     /** The session user; null is an anonymous caller. */
     user?: string | null;
     marketHistory?: DeployStatusConfig;
+    semanticEvents?: SemanticEventPort;
   }>
 ) => {
   const repositories: Repositories = {
@@ -427,6 +432,9 @@ const clientFor = (
         operatorEmails: ["owner@domain.test"],
         repositories,
         requestId: "request-1",
+        ...(options.semanticEvents === undefined
+          ? {}
+          : { semanticEvents: options.semanticEvents }),
         requireRole: async () => {
           throw denied();
         },
@@ -1130,8 +1138,39 @@ describe("researchScreen.tick stop rules and bars", () => {
       new DatabasePersistenceError("research screen")
     );
 
-    const answer = await scheduler(repository).researchScreen.tick({});
+    const emit = vi.fn<SemanticEventPort["emit"]>(
+      async () =>
+        ({
+          accepted: true,
+        }) as never
+    );
+    const answer = await clientFor({
+      apiKey: PLAINTEXT,
+      repository,
+      semanticEvents: { emit },
+    }).researchScreen.tick({});
 
+    expect(emit).toHaveBeenCalledExactlyOnceWith(
+      {
+        action: "collect-context",
+        attributes: {
+          message:
+            "DatabasePersistenceError: Database operation failed: research screen",
+        },
+        correlation: {
+          procedure: "researchScreen.tick",
+          requestId: "request-1",
+          route: "/api/research-screen/tick",
+        },
+        entityType: "research-screen-context",
+        eventId: expect.any(String),
+        name: "research.screen.context.failed",
+        occurredAt: NOW.toISOString(),
+        outcome: "failure",
+        source: "api",
+      },
+      expect.any(Object)
+    );
     expect(seen.pages).toHaveLength(1);
     expect(answer).toMatchObject({
       decision: "claimed",
@@ -1171,6 +1210,7 @@ describe("research screen engine", () => {
       readSwinglytics: async () => ({ error: "synthetic", ok: false }),
       ...readers,
     },
+    reportContextFailure: async () => undefined,
     repository,
     requestId: "request-9",
   });
@@ -1218,6 +1258,64 @@ describe("research screen engine", () => {
     expect(state.swinglytics).toStrictEqual([
       { generatedAt, kind: "ok", snapshot },
     ]);
+  });
+
+  it("reports a reader that throws and goes on with the run", async () => {
+    const { repository, state } = fakeRepository();
+    const reported: string[] = [];
+
+    const answer = await runTick({
+      ...engineOf(repository, {
+        readSwinglytics: async () => {
+          throw new Error(
+            `Synthetic defect at https://example.test/page?x=1\n${"x".repeat(400)}`
+          );
+        },
+      }),
+      reportContextFailure: async (message) => {
+        reported.push(message);
+      },
+    });
+
+    expect(answer).toMatchObject({ decision: "claimed", runStatus: "failed" });
+    expect(state.swinglytics).toStrictEqual([]);
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toHaveLength(240);
+    expect(reported[0]).toMatch(/^Error: Synthetic defect at \[url\] x+$/u);
+    expect(contextFailureMessage("  plain\ttext ")).toBe("plain text");
+  });
+
+  it("emits the context failure through the event port, best-effort", async () => {
+    useFetch();
+    const emit = vi.fn<SemanticEventPort["emit"]>(async () => {
+      throw new Error("port down");
+    });
+    const span = { correlation: { traceId: "trace-1" } } as never;
+    const waitUntil = vi.fn();
+
+    await contextFailureReporter({ requestId: "request-9" })("unreported");
+    await expect(
+      contextFailureReporter({
+        requestId: "request-9",
+        semanticEvents: { emit },
+        span,
+        waitUntil,
+      })("Synthetic failure")
+    ).resolves.toBeUndefined();
+
+    expect(emit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        attributes: { message: "Synthetic failure" },
+        correlation: {
+          procedure: "researchScreen.tick",
+          requestId: "request-9",
+          route: "/api/research-screen/tick",
+          traceId: "trace-1",
+        },
+        name: RESEARCH_SCREEN_CONTEXT_FAILED_EVENT,
+      }),
+      { span, waitUntil }
+    );
   });
 
   it("tells a report that IBKR cannot serve from a read that failed", () => {
