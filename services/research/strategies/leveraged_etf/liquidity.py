@@ -24,7 +24,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import statistics
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -92,6 +92,15 @@ class OptionsMeasure:
     band_open_interest: int | None  # None exactly when window_expiry is None
     half_spread_pct: float | None  # None exactly when there is no two-sided quote
     two_sided_quotes: int | None  # the quotes behind half_spread_pct; None exactly when window_expiry is None
+
+
+@dataclass(frozen=True)
+class ExpiryMeasure:
+    """The measure of one expiry of a chain; gate version 1 and version 2 both use it."""
+    band_open_interest: int
+    two_sided_quotes: int
+    half_spread_pct: float | None  # None exactly when there is no two-sided quote
+    median_mid: float | None  # the median mid price of the same quotes; None exactly when there is none
 
 
 @dataclass(frozen=True)
@@ -177,6 +186,33 @@ def session_of(quoted_at: datetime, generated_at: datetime) -> str:
     return "regular" if close is not None and SESSION_START <= described.time() < close else "closed"
 
 
+def spot_of(chain: Mapping) -> float:
+    """The fund price of the chain: `current_price`, else `close` (no trade yet today: the last close).
+    Raises ValueError when neither is above 0."""
+    data = chain["data"]
+    spot = _number(data.get("current_price")) or _number(data.get("close"))
+    if not spot > 0:
+        raise ValueError("the chain has no positive price")
+    return spot
+
+
+def expiry_measure(contracts: Sequence[Contract], spot: float, expiry: date) -> ExpiryMeasure:
+    """The measure of one expiry: the open interest in the band around `spot`, and the two-sided quotes at the
+    SPREAD_STRIKES strikes nearest to `spot` with the median of their half spreads and of their mid prices."""
+    rows = [contract for contract in contracts if contract.expiry == expiry]
+    band = sum(contract.open_interest for contract in rows
+               if abs(contract.strike / spot - 1) * 100 <= GATE["bandPct"] + 1e-9)
+    strikes = sorted({contract.strike for contract in rows}, key=lambda strike: (abs(strike - spot), strike))
+    nearest = set(strikes[:SPREAD_STRIKES])
+    quoted = [contract for contract in rows if contract.strike in nearest and two_sided(contract)]
+    spreads = [half_spread_pct(contract) for contract in quoted]
+    mids = [(contract.bid + contract.ask) / 2 for contract in quoted]
+    return ExpiryMeasure(
+        band_open_interest=band, two_sided_quotes=len(quoted),
+        half_spread_pct=round(statistics.median(spreads), 4) if spreads else None,
+        median_mid=round(statistics.median(mids), 4) if mids else None)
+
+
 def measure(chain: Mapping, symbol: str, today: date | None = None) -> OptionsMeasure | NoOptions:
     """Liquidity of the chain of `symbol`. `today` is the quote day; None = the New York day of the chain
     timestamp. NO_STANDARD_CONTRACT when the chain lists no standard contract that expires on or after the
@@ -193,28 +229,19 @@ def measure(chain: Mapping, symbol: str, today: date | None = None) -> OptionsMe
     contracts = [contract for contract in contracts_of(chain, symbol) if contract.expiry >= today]
     if not contracts:
         return NO_STANDARD_CONTRACT
-    spot = _number(data.get("current_price")) or _number(data.get("close"))  # no trade yet today: the last close
-    if not spot > 0:
-        raise ValueError("the chain has no positive price")
+    spot = spot_of(chain)
     expiries = sorted({contract.expiry for contract in contracts})
     window = next((expiry for expiry in expiries
                    if GATE["minWindowDays"] <= (expiry - today).days <= GATE["maxWindowDays"]), None)
-    band = spread = quotes = None
-    if window is not None:
-        rows = [contract for contract in contracts if contract.expiry == window]
-        band = sum(contract.open_interest for contract in rows
-                   if abs(contract.strike / spot - 1) * 100 <= GATE["bandPct"] + 1e-9)
-        strikes = sorted({contract.strike for contract in rows}, key=lambda strike: (abs(strike - spot), strike))
-        nearest = set(strikes[:SPREAD_STRIKES])
-        spreads = [half_spread_pct(contract) for contract in rows if contract.strike in nearest and two_sided(contract)]
-        quotes = len(spreads)
-        spread = round(statistics.median(spreads), 4) if spreads else None
+    measured = expiry_measure(contracts, spot, window) if window is not None else None
     return OptionsMeasure(
         quoted_at=quoted_at, spot=spot,
         nearest_expiries=tuple(expiry.isoformat() for expiry in expiries[:NEAREST_EXPIRIES]),
         window_expiry=window.isoformat() if window is not None else None,
         total_open_interest=sum(contract.open_interest for contract in contracts),
-        band_open_interest=band, half_spread_pct=spread, two_sided_quotes=quotes)
+        band_open_interest=measured.band_open_interest if measured else None,
+        half_spread_pct=measured.half_spread_pct if measured else None,
+        two_sided_quotes=measured.two_sided_quotes if measured else None)
 
 
 def gate(measured: OptionsMeasure | NoOptions, generated_at: datetime) -> tuple[str, list[str]]:
