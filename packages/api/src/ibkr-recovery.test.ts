@@ -649,7 +649,11 @@ describe("ibkrRecovery.request", () => {
   });
 
   it("says the login cannot be decided for the undecided states", async () => {
-    for (const loginState of ["gateway-unreadable", "no-login-evidence"]) {
+    for (const loginState of [
+      "gateway-unreadable",
+      "no-login-evidence",
+      "unknown",
+    ]) {
       routes.status = () =>
         json(
           upstreamStatus({

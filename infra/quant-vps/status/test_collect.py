@@ -317,7 +317,7 @@ class DefiniteStateTest(unittest.TestCase):
         self.assertIsNone(risk["kill_switch_indicators"][0]["engaged"])
         # The web names the unread files by this source format ("file <path>"); keep it.
         files = [i["source"] for i in risk["kill_switch_indicators"][:len(collect.KILL_SWITCH_FILES)]]
-        self.assertEqual(files, ["file " + p.replace(collect.ROOT + "/", "") for p in collect.KILL_SWITCH_FILES])
+        self.assertEqual(files, ["file data/KILL_SWITCH", "file portfolio-ui/data/KILL_SWITCH"])
 
 
 if __name__ == "__main__":
