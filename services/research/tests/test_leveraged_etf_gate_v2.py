@@ -263,6 +263,20 @@ def test_markdown_has_one_row_per_fund_with_a_judged_session(store, universe_pat
     assert "| spread-above-maximum | 2 |" in lines and "| yahoo | 5 | 14 |" in lines
 
 
+def test_markdown_lists_the_funds_in_the_cheap_band(store, universe_path):
+    document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
+    lines = gate_v2.markdown(document).splitlines()
+    assert "Cheap band: BBB" in lines
+    assert lines.index("## Counts") < lines.index("Cheap band: BBB") < lines.index("## Sessions by source")
+    fund(document, "CCC")["inCheapBand"] = True
+    fund(document, "AAA")["inCheapBand"] = True
+    document["funds"].reverse()
+    assert "Cheap band: AAA, BBB, CCC" in gate_v2.markdown(document).splitlines()  # in symbol order
+    for item in document["funds"]:
+        item["inCheapBand"] = False
+    assert "Cheap band: none" in gate_v2.markdown(document).splitlines()
+
+
 def test_main_writes_the_two_files(store, universe_path, tmp_path, capsys):
     out = tmp_path / "out" / "result"
     arguments = ["--store", str(store), "--universe", str(universe_path), "--out", str(out), "--as-of", "2026-11-17"]

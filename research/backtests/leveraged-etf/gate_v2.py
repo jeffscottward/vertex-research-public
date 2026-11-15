@@ -266,8 +266,8 @@ def _table(header: list[str], rows: list[list]) -> list[str]:
 
 
 def markdown(document: dict) -> str:
-    """The result as tables: the runs, the counts, the sessions by source, and one row per fund that has a
-    judged session (its sessions newest first, one line per session in a cell)."""
+    """The result as tables: the runs, the counts with the list of the funds in the cheap band, the sessions
+    by source, and one row per fund that has a judged session (its sessions newest first, one line per session in a cell)."""
     counts = document["counts"]
     lines = [f"# Leveraged ETF option gate version 2: {document['buildDay']}", "",
              f"Built at {document['builtAt']} from the universe file of {document['universe']['generatedAt']}. "
@@ -279,6 +279,8 @@ def markdown(document: dict) -> str:
                     [[label, count] for label, count in counts["byLabel"].items()]
                     + [["funds in the cheap band", counts["cheapBand"]]]
                     + [[reason, count] for reason, count in counts["byReason"].items()])
+    cheap = sorted(fund["symbol"] for fund in document["funds"] if fund["inCheapBand"])
+    lines += [f"Cheap band: {', '.join(cheap) or 'none'}", ""]
     lines += ["## Sessions by source", ""]
     lines += _table(["Source", "Judged sessions", "Counted reads"],
                     [[source, counts["judgedSessionsBySource"][source], counts["countedReadsBySource"][source]]

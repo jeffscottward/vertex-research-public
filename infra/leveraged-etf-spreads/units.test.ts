@@ -72,7 +72,7 @@ const runWrapper = (
       ...env,
     },
   });
-  // The unit state is the exit code of the collector: 1 marks an incomplete run.
+  // The unit state is the exit code of the collector: 1 marks a fault.
   expect(result.status).toBe(exitCode);
   return result.stdout.trim();
 };

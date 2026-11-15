@@ -32,9 +32,12 @@ A fund that fails is named in run.json with the reason, and the run goes on. The
 --outside-session skips the clock check and the market check and writes `"outsideSession": true`. It is for a
 test of the plumbing; the build never counts such a run.
 
-Exit 0: a complete run, or a skipped one. Exit 1: `complete` is false in run.json (the market check was
-unreadable, the Cboe control failed, more than 20% of the Cboe reads or of the Yahoo reads failed, or Yahoo
-limited the requests), or the universe file cannot be read. Exit 2: wrong arguments.
+Exit 0: a complete run, a skipped one, and an incomplete one: `complete` is false in run.json and
+`incompleteReasons` says why (the market check was unreadable, the Cboe control failed, more than 20% of the
+Cboe reads or of the Yahoo reads failed, or Yahoo limited the requests). These causes are outside the host,
+and a failed unit would get a retry that sends the same requests again. Exit 1: a fault of the host or of the
+input: the universe file cannot be read or is refused, the store cannot be written, or an error that the code
+did not expect (the last two end the run with a traceback). Exit 2: wrong arguments.
 """
 from __future__ import annotations
 
@@ -255,7 +258,8 @@ def collect(fetch_cboe, ticker_for, now, sleep, store: Path, universe_path: Path
             log=print, workers: int = 4, cboe_delay: float = 1.0, yahoo_delay: float = 1.0) -> int:
     """One run. `fetch_cboe(url)` returns the body of a chain file and raises universe.NoFile for a missing
     one; `ticker_for(symbol)` returns a yfinance-like ticker; `now()` is the UTC clock; `sleep(seconds)`
-    waits. Returns the exit code."""
+    waits. Returns the exit code: 0 for a run that is complete, incomplete or skipped, 1 when the universe file
+    cannot be read. Raises OSError when the store cannot be written."""
     started = now()
     local = started.astimezone(liquidity.NEW_YORK)
     session_day = local.date()
@@ -311,7 +315,7 @@ def collect(fetch_cboe, ticker_for, now, sleep, store: Path, universe_path: Path
         log(f"run {run_id}: {len(record['candidates'])} candidates of {len(record['funds'])} funds, "
             f"Cboe failed {counted['cboeFailed']}, Yahoo ok {counted['yahooOk']}, failed {counted['yahooFailed']}; "
             + ("complete" if not reasons else "not complete: " + ", ".join(reasons)))
-        return 0 if not reasons else 1
+        return 0  # also for an incomplete run: its record says so
 
     write_json(out / "run.json", record)
     try:

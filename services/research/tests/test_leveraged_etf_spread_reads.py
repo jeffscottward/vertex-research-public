@@ -196,10 +196,11 @@ def test_one_failed_cboe_read_of_6_keeps_the_run_complete(tmp_path):
 
 
 def test_two_failed_cboe_reads_of_6_make_the_run_incomplete(tmp_path):
-    code, *_ = run(tmp_path, cboe=Cboe({**CBOE, "CCC": OSError("connection reset"), "DDD": b"<html>"}))
+    code, log, *_ = run(tmp_path, cboe=Cboe({**CBOE, "CCC": OSError("connection reset"), "DDD": b"<html>"}))
     record = record_of(tmp_path)
-    assert code == 1 and record["complete"] is False
+    assert code == 0 and record["complete"] is False
     assert record["incompleteReasons"] == ["cboe-failed-above-20-percent"]
+    assert log[-1].endswith("not complete: cboe-failed-above-20-percent")
     assert record["funds"]["DDD"]["cboe"]["status"] == "failed"  # a body that is no chain
     assert stored(tmp_path, "yahoo") == ["AAA.json", "BBB.json"]
 
@@ -225,7 +226,7 @@ def test_the_first_yahoo_rate_limit_ends_the_yahoo_phase(tmp_path):
     yahoo = Yahoo({"AAA": RuntimeError("Too Many Requests. Rate limited. Try after a while.")})
     code, _, _, _, yahoo = run(tmp_path, cboe=Cboe({"CCC": CBOE["CCC"]}), yahoo=yahoo)  # 5 candidates
     record = record_of(tmp_path)
-    assert code == 1 and yahoo.symbols == ["SPY", "AAA"]  # no further ticker_for call
+    assert code == 0 and yahoo.symbols == ["SPY", "AAA"]  # no further ticker_for call
     assert record["funds"]["AAA"]["yahoo"]["status"] == "failed"
     assert {record["funds"][symbol]["yahoo"]["status"] for symbol in ("BBB", "DDD", "EEE", "FFF")} == {"not-requested"}
     assert record["counts"]["yahooRateLimited"] is True and record["counts"]["yahooNotRequested"] == 4
@@ -252,7 +253,9 @@ def test_yahoo_statuses_of_a_candidate(tmp_path):
 
 def test_more_than_20_percent_failed_yahoo_reads_make_the_run_incomplete(tmp_path):
     code, *_ = run(tmp_path, yahoo=Yahoo({"BBB": [RuntimeError("timeout")] * 3}))  # 1 of 2 candidates
-    assert code == 1 and record_of(tmp_path)["incompleteReasons"] == ["yahoo-failed-above-20-percent"]
+    record = record_of(tmp_path)
+    assert code == 0 and record["complete"] is False
+    assert record["incompleteReasons"] == ["yahoo-failed-above-20-percent"]
 
 
 @pytest.mark.parametrize("now, words", [
@@ -279,7 +282,7 @@ def test_an_unreadable_spy_chain_of_yahoo_gives_a_cboe_only_run(tmp_path):
     empty = SimpleNamespace(calls=Frame([]), puts=Frame([]), underlying={})
     code, _, waits, _, yahoo = run(tmp_path, yahoo=Yahoo({"SPY": [RuntimeError("no data"), empty, RuntimeError("no data")]}))
     record = record_of(tmp_path)
-    assert code == 1 and yahoo.symbols == ["SPY"] * 3 and waits[:2] == [5, 10]
+    assert code == 0 and yahoo.symbols == ["SPY"] * 3 and waits[:2] == [5, 10]
     assert record["probe"] == {"symbol": "SPY", "state": "unreadable", "latestOptionTradeAt": None}
     assert stored(tmp_path, "cboe") == ["AAA.json.gz", "BBB.json.gz"] and stored(tmp_path, "yahoo") == []
     assert {fund["yahoo"]["status"] for fund in record["funds"].values()} == {"not-requested"}
@@ -290,7 +293,7 @@ def test_an_unreadable_spy_chain_of_yahoo_gives_a_cboe_only_run(tmp_path):
 def test_a_rate_limit_at_the_market_check_ends_yahoo_for_the_run(tmp_path):
     code, _, _, _, yahoo = run(tmp_path, yahoo=Yahoo({"SPY": RuntimeError("HTTP Error 429")}))
     record = record_of(tmp_path)
-    assert code == 1 and yahoo.symbols == ["SPY"] and record["probe"]["state"] == "unreadable"
+    assert code == 0 and yahoo.symbols == ["SPY"] and record["probe"]["state"] == "unreadable"
     assert record["incompleteReasons"] == ["market-check-unreadable", "yahoo-rate-limited"]
 
 
@@ -298,7 +301,7 @@ def test_a_rate_limit_at_the_market_check_ends_yahoo_for_the_run(tmp_path):
 def test_a_failed_cboe_control_reads_no_fund(tmp_path, answer):
     code, _, _, cboe, yahoo = run(tmp_path, cboe=Cboe({"SPY": answer}))
     record = record_of(tmp_path)
-    assert code == 1 and cboe.symbols == ["SPY"] and yahoo.symbols == ["SPY"]
+    assert code == 0 and cboe.symbols == ["SPY"] and yahoo.symbols == ["SPY"]
     assert record["complete"] is False and record["funds"] == {} and record["candidates"] == []
     assert len(record["incompleteReasons"]) == 1 and record["incompleteReasons"][0].startswith("cboe-control-failed: ")
     assert record["finishedAt"] == "2026-11-16T15:45:01Z"
@@ -333,6 +336,16 @@ def test_main_with_a_missing_argument_exits_2(tmp_path, capsys):
     assert reads.main(["--store", str(tmp_path / "store")], fetch_cboe=Cboe(), ticker_for=Yahoo()) == 2
     assert reads.main(["--store", str(tmp_path), "--universe", "u.json", "--funds", "TQQQ"], Cboe(), Yahoo()) == 2
     assert "--universe" in capsys.readouterr().err and not (tmp_path / "store").exists()
+
+
+def test_a_store_that_cannot_be_written_is_a_fault(tmp_path):
+    """No handling in the collector: the OSError ends the process with a traceback and exit 1."""
+    (tmp_path / "store").write_text("a file, no folder")
+    arguments = ["--store", str(tmp_path / "store"), "--universe", str(universe_file(tmp_path)), "--outside-session"]
+    cboe, yahoo = Cboe(CBOE), Yahoo()
+    with pytest.raises(OSError):
+        reads.main(arguments, fetch_cboe=cboe, ticker_for=yahoo)
+    assert cboe.symbols == [] and yahoo.symbols == []  # before any request
 
 
 def test_main_with_fakes_makes_one_run(tmp_path, monkeypatch, capsys):
