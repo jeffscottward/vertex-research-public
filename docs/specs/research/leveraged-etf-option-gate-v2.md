@@ -517,11 +517,11 @@ All paths are relative to the repository root. No file outside this list changes
 #### 6. `services/research/tests/test_leveraged_etf_spread_gate_parity.py` (Create)
 
 - **Type / Scope**: pytest file, numeric lane.
-- **Proposed Changes**: one test: `session_expiry(day)` equals `strategies.volspike.options.weekly_expiry(day, 3)` for every session of 2026 and 2027. When the study module cannot be imported (it needs numpy and pydantic) the test is skipped, except when `VERTEX_REQUIRE_NUMERIC` is `1`: then it fails (the pattern of `tests/test_quant_replay_event_study.py`).
+- **Proposed Changes**: one test: `session_expiry(day)` equals `strategies.volspike.options.weekly_expiry(day, 3)` for every session of 2026 and 2027. When the study module cannot be imported (it needs numpy and pydantic) the test is skipped, except when `VERTEX_REQUIRE_NUMERIC` is `1`: then it fails (the pattern of `services/research/tests/test_quant_replay_event_study.py`).
 
 #### 7. `services/research/tests/test_leveraged_etf_spread_reads.py` (Create)
 
-- **Type / Scope**: pytest file of the collector, with fake `fetch_cboe`, `ticker_for`, `now` and `sleep`. Loads file 3 by path (`importlib.util.spec_from_file_location`, as `tests/test_option_chain.py`).
+- **Type / Scope**: pytest file of the collector, with fake `fetch_cboe`, `ticker_for`, `now` and `sleep`. Loads file 3 by path (`importlib.util.spec_from_file_location`, as `services/research/tests/test_option_chain.py`).
 - **Proposed Changes**: expected results:
   - a run with 6 funds (2 candidates) requests all 6 from Cboe and the 2 candidates from Yahoo, stores 2 `.json.gz` and 2 Yahoo files, `complete` true, exit 0; a second run of the day has the scope `candidates`, names the first run in `candidatesFrom` and requests only the 2 candidates from Cboe; a run after a scan with more than 20% failed reads, after a scan with no funds, or after an outside-session run scans all funds again; a Cboe phase that passes its budget and a Yahoo phase that passes the run budget end with their reasons, a `finishedAt` and exit 0;
   - the Cboe requests carry the `USER_AGENT` of the collector;
@@ -545,7 +545,7 @@ All paths are relative to the repository root. No file outside this list changes
 #### 9. `services/research/tests/ci-suites.txt` and `services/research/tests/ci-suites-numeric.txt` (Modify)
 
 - **Type / Scope**: lists of the pytest files of the CI lane.
-- **Proposed Changes**: `ci-suites.txt` gets the four new test files after `tests/test_leveraged_etf_universe.py`. `ci-suites-numeric.txt` gets `tests/test_leveraged_etf_spread_gate_parity.py`. Each line is added in the commit that adds its file. Why: the lane fails when a `test_*.py` file is not in `ci-suites.txt`; the numeric lane has numpy and sets `VERTEX_REQUIRE_NUMERIC=1`, so the parity test runs there.
+- **Proposed Changes**: `ci-suites.txt` gets the four new test files after `services/research/tests/test_leveraged_etf_universe.py`. `ci-suites-numeric.txt` gets `services/research/tests/test_leveraged_etf_spread_gate_parity.py`. Each line is added in the commit that adds its file. Why: the lane fails when a `test_*.py` file is not in `ci-suites.txt`; the numeric lane has numpy and sets `VERTEX_REQUIRE_NUMERIC=1`, so the parity test runs there.
 
 #### 10. `infra/leveraged-etf-spreads/vertex-leveraged-etf-spreads-run`, `vertex-leveraged-etf-spreads.service`, `vertex-leveraged-etf-spreads.timer` (Create)
 
