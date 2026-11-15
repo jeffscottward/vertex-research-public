@@ -22,6 +22,7 @@ from datetime import date
 from statistics import NormalDist
 
 from backtesting.optimizer import deflated_sharpe_ratio
+from nautilus_backtest.bars import InputError
 
 from .ledger import LedgerResult
 
@@ -91,7 +92,7 @@ def summarize(result: LedgerResult, n_trials: int, sharpe_variance: float | None
         raise ValueError("n_trials must be an integer >= 1")
     dates, equity = result.dates, result.equity
     if len(equity) < 2:
-        raise ValueError("Need at least two run days")
+        raise InputError("Need at least two run days")
     years = (_ordinal(dates[-1]) - _ordinal(dates[0])) / DAYS_PER_YEAR
     returns = [equity[i] / equity[i - 1] - 1 for i in range(1, len(equity))]
     trades = result.trades

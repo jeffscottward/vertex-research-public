@@ -6,11 +6,11 @@
 // ubuntu-latest has 4 for public repositories) (card orochi-impl). This leaf module has no imports, so
 // vitest.config.ts can read it. vitest.config.ts builds one project per
 // entry and keeps these files out of the unit project.
-// It does so in every start directory, and it gives the shard projects their
-// own sequence group (sequence.groupOrder), so pre-push never runs these files
-// at the same time as the unit project of packages/api. The shard projects
-// also match these files from every start directory: a start in another
-// package must select its projects.
+// It does so in every start directory, and it gives the native-evidence shard
+// projects their own sequence group (sequence.groupOrder), so pre-push never
+// runs these files at the same time as the unit project of packages/api. The
+// shard projects also match these files from every start directory: a start in
+// another package must select its projects.
 export const NATIVE_EVIDENCE_SHARDS = {
   "native-evidence-1": [
     "packages/api/src/server/vertex-research-chat-native-evidence.test.ts",
@@ -21,3 +21,28 @@ export const NATIVE_EVIDENCE_SHARDS = {
     "packages/api/src/server/vertex-research-chat-native-evidence-final.test.ts",
   ],
 } as const;
+
+// The five-turn debate acceptance test is one test of 10 to 15 minutes on a
+// GitHub-hosted runner (3.1 million SQL reads of security rechecks), the
+// longest pull-request job. Owner decision 2026-11-15 (card
+// vertex-debate-5turn-ci-speed): it is its own named shard. The nightly run,
+// a manual run (the exact-SHA run before a deploy) and a pull request or push
+// that changes a debate file run it (scripts/ci/ci-changes.sh). Pre-push still
+// selects it through the packages/api test:unit script; the project stays in
+// the sequence group of the unit project. As before the split, the test runs
+// there only with a parity interpreter (VERTEX_TEST_PYTHON or
+// private/tools/research-py312) and skips without one
+// (packages/api/src/server/research-python.test-support.ts).
+const DEBATE_FIVE_TURN_SHARD = "debate-five-turn";
+const DEBATE_FIVE_TURN_SHARDS = {
+  [DEBATE_FIVE_TURN_SHARD]: [
+    "packages/api/src/server/vertex-research-chat-debate-five-turn.test.ts",
+  ],
+} as const;
+
+// Every named shard that is a fixed list of files: one Vitest project each,
+// kept out of the unit project.
+export const FILE_SHARDS: Readonly<Record<string, readonly string[]>> = {
+  ...NATIVE_EVIDENCE_SHARDS,
+  ...DEBATE_FIVE_TURN_SHARDS,
+};

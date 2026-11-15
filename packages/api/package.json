@@ -52,7 +52,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit --project native-evidence-1 --project native-evidence-2 .",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit --project native-evidence-1 --project native-evidence-2 --project debate-five-turn .",
     "openapi:generate": "bun scripts/openapi.ts --write",
     "openapi:check": "bun scripts/openapi.ts"
   },
