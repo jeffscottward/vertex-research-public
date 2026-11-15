@@ -1915,6 +1915,8 @@ const plainDefinition = {
   version: 1,
 };
 const optionsDefinition = { ...plainDefinition, options: OPTIONS_BLOCK };
+const conditionWithout = (key: "left" | "op" | "right") =>
+  Object.fromEntries(Object.entries(always).filter(([name]) => name !== key));
 const riskPctSizing = { mode: "riskPct", riskPct: 1 };
 const volTargetSizing = {
   length: 20,
@@ -2178,6 +2180,82 @@ const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
     },
     id: "field:side+monthly:atr",
     python: "Unknown side: sideways",
+  },
+  // A block or a condition that is not an object, a session without its times and a condition
+  // without a side or an operator. Each definition also has the error of the cross-field check
+  // that its id names after "+"; Python must raise the field error, because it runs the field
+  // checks first.
+  {
+    definition: { ...plainDefinition, entry: 5, sizing: riskPctSizing },
+    id: "field:entryType+riskPct:noStop",
+    python: "entry must be an object",
+  },
+  {
+    definition: { ...plainDefinition, exit: 5, management },
+    id: "field:exitType+management:noStop",
+    python: "exit must be an object",
+  },
+  {
+    definition: { ...plainDefinition, management: 5, sizing: riskPctSizing },
+    id: "field:managementType+riskPct:noStop",
+    python: "management must be an object",
+  },
+  {
+    definition: { ...plainDefinition, session: 5, sizing: riskPctSizing },
+    id: "field:sessionType+riskPct:noStop",
+    python: "session must be an object",
+  },
+  {
+    definition: { ...plainDefinition, session: {}, sizing: riskPctSizing },
+    id: "field:sessionKeys+riskPct:noStop",
+    python: "session needs startUtc and endUtc",
+  },
+  {
+    definition: { ...plainDefinition, management, sizing: 5 },
+    id: "field:sizingType+management:noStop",
+    python: "sizing must be an object",
+  },
+  {
+    definition: { ...optionsDefinition, sizing: riskPctSizing, stopLoss: 5 },
+    id: "field:stopLossType+options:riskPct",
+    python: "stopLoss must be an object",
+  },
+  {
+    definition: { ...plainDefinition, management, takeProfit: 5 },
+    id: "field:takeProfitType+management:noStop",
+    python: "takeProfit must be an object",
+  },
+  {
+    definition: { ...plainDefinition, exit: { any: [5] }, management },
+    id: "field:conditionType+management:noStop",
+    python: "condition must be an object",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: { all: [conditionWithout("left")] },
+      management,
+    },
+    id: "field:conditionLeft+management:noStop",
+    python: "condition needs left, op and right",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: { all: [always], any: [conditionWithout("op")] },
+      management,
+    },
+    id: "field:conditionOp+management:noStop",
+    python: "condition needs left, op and right",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      exit: { any: [conditionWithout("right")] },
+      management,
+    },
+    id: "field:conditionRight+management:noStop",
+    python: "condition needs left, op and right",
   },
 ];
 
