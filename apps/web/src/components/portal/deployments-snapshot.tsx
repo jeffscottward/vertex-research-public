@@ -283,6 +283,31 @@ const MissingSide = () => {
   );
 };
 
+// A missing price applies only when the order type uses it; otherwise the type has none.
+const missingPrice = (
+  type: string | null | undefined,
+  uses: string,
+  none: string
+): string => {
+  if (type === null || type === undefined) return NOT_REPORTED;
+  return type.toUpperCase().includes(uses) ? NOT_REPORTED : none;
+};
+
+const STOPPED_STATES: ReadonlySet<DeploySessionState> = new Set([
+  "stopping",
+  "stopped",
+  "error",
+  "halted",
+]);
+
+const startedMissing = (state: DeploySessionState): string => {
+  return state === "starting" ? "not started" : "start time not reported";
+};
+
+const stoppedMissing = (state: DeploySessionState): string => {
+  return STOPPED_STATES.has(state) ? "stop time not reported" : "not stopped";
+};
+
 type Block =
   | Readonly<{ available: true } & AvailableMeta>
   | DeployBlockUnavailable;
@@ -527,10 +552,7 @@ export const OrdersPanel = ({
                       key={`${item.order_id_masked ?? "order"}-${index}`}
                     >
                       <TableCell className={td}>
-                        {item.order_id_masked ??
-                          (item.status === null || item.status === undefined
-                            ? "order id not reported"
-                            : "no id yet")}
+                        {item.order_id_masked ?? "order id not reported"}
                       </TableCell>
                       <TableCell className={td}>{item.symbol}</TableCell>
                       <TableCell className={td}>
@@ -549,20 +571,28 @@ export const OrdersPanel = ({
                         {formatNumber(item.remaining, 4)}
                       </TableCell>
                       <TableCell className={tdNum}>
-                        {formatNumber(item.price, 4)}
+                        {formatNumber(
+                          item.price,
+                          4,
+                          missingPrice(item.type, "LMT", "no limit price")
+                        )}
                       </TableCell>
                       <TableCell className={tdNum}>
-                        {formatNumber(item.stop, 4)}
+                        {formatNumber(
+                          item.stop,
+                          4,
+                          missingPrice(item.type, "STP", "no stop price")
+                        )}
                       </TableCell>
                       <TableCell className={tdNum}>
-                        {formatNumber(item.aux_price, 4)}
+                        {formatNumber(item.aux_price, 4, "no aux price")}
                       </TableCell>
                       <TableCell className={td}>
                         {item.tif ?? "TIF not reported"}
                       </TableCell>
                       <TableCell className={td}>
                         {item.status ??
-                          `status not reported by IBKR since ${formatUtc(block.as_of, "last read")}`}
+                          `status not reported as of ${formatUtc(block.as_of, "last read")}`}
                       </TableCell>
                       <TableCell className={`${td} text-warning-foreground`}>
                         {item.warning ?? ""}
@@ -824,13 +854,13 @@ export const StatusStrip = ({
         <Field label="Started" name="started">
           {formatUtc(
             live?.started_at,
-            live === null ? notRead(session, data) : "not started"
+            live === null ? notRead(session, data) : startedMissing(live.state)
           )}
         </Field>
         <Field label="Stopped" name="stopped">
           {formatUtc(
             live?.stopped_at,
-            live === null ? notRead(session, data) : "not stopped"
+            live === null ? notRead(session, data) : stoppedMissing(live.state)
           )}
         </Field>
         <Field label="Last heartbeat" name="heartbeat">
@@ -944,7 +974,7 @@ export const RiskPanel = ({
                             {key}
                           </TableCell>
                           <TableCell className={`${td} text-xs`}>
-                            {formatValue(value, "no limit configured")}
+                            {formatValue(value, "set but not readable")}
                           </TableCell>
                         </TableRow>
                       );
@@ -1009,7 +1039,7 @@ export const RiskPanel = ({
                       tone={watchdog.status === "ok" ? "success" : "warning"}
                     >
                       {watchdog.status ??
-                        `status not reported since ${formatUtc(risk.as_of, "last read")}`}
+                        `status not reported as of ${formatUtc(watchdog.as_of, "watchdog time not reported")}`}
                     </Chip>
                     <span className="font-mono">
                       safe mode {formatValue(watchdog.safe_mode)} · orders{" "}

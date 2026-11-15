@@ -535,7 +535,7 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
         tif: null,
         status: null,
       },
-      { ...order, symbol: "ACKD", order_id_masked: null },
+      { ...order, symbol: "LMTX", type: "LMT", price: null, stop: null },
     ] as typeof orders.items;
     const fills = structuredClone(base.fills) as Extract<
       DeploymentStatusOutput["fills"],
@@ -561,6 +561,10 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
       { available: true }
     >;
     risk.watchdog = { ...risk.watchdog!, status: null } as typeof risk.watchdog;
+    risk.limits = {
+      ...risk.limits,
+      nautilus_risk_max_order_quantity: null,
+    } as typeof risk.limits;
     const container = await mount(
       <DeploymentsWorkspace
         gateway={gatewayOf(async () =>
@@ -575,8 +579,11 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
     const watchdog = container.querySelector("[data-watchdog-status]");
     expect(watchdog?.getAttribute("data-watchdog-status")).toBe("not-reported");
     expect(watchdog?.textContent).toBe(
-      "status not reported since 2026-10-03 11:18:30 UTC"
+      "status not reported as of 2026-10-03 11:18:26 UTC"
     );
+    expect(
+      container.querySelector("[data-risk-limits]")?.textContent
+    ).toContain("set but not readable");
     await clickTab(container, "orders");
     const missing = container.querySelector("[data-order-row='ORCL']");
     expect(missing?.textContent).toContain("order id not reported");
@@ -585,11 +592,12 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
     );
     expect(missing?.textContent).toContain("TIF not reported");
     expect(missing?.textContent).toMatch(
-      /status not reported by IBKR since \d{4}-\d{2}-\d{2} [\d:]{8} UTC/
+      /status not reported as of \d{4}-\d{2}-\d{2} [\d:]{8} UTC/
     );
-    expect(
-      container.querySelector("[data-order-row='ACKD']")?.textContent
-    ).toContain("no id yet");
+    const limit = container.querySelector("[data-order-row='LMTX']");
+    expect(limit?.textContent).toContain("no stop price");
+    expect(limit?.textContent).not.toContain("no limit price");
+    expect(limit?.textContent).toContain("no aux price");
     await clickTab(container, "fills");
     const fill = container.querySelector("[data-fill-row='AMZN']");
     expect(fill?.querySelector("[data-missing-side]")).not.toBeNull();
@@ -614,26 +622,35 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
     for (const name of ["strategies", "symbols", "account", "started"])
       expect(field(blocked, name)).toBe("not read: withheld: leak pattern");
     const base = v2Status();
-    const session = {
-      ...(base.session as Extract<
-        DeploymentStatusOutput["session"],
-        { available: true }
-      >),
-      account_masked: null,
-      started_at: null,
-      stopped_at: null,
-      last_heartbeat_at: null,
-    } as DeploymentStatusOutput["session"];
-    const running = await mount(
-      <DeploymentsWorkspace
-        gateway={gatewayOf(async () => v2Status({ session }))}
-        now={() => now}
-      />
-    );
-    expect(field(running, "account")).toBe("account not reported");
-    expect(field(running, "started")).toBe("not started");
-    expect(field(running, "stopped")).toBe("not stopped");
-    return expect(field(running, "heartbeat")).toBe("no heartbeat yet");
+    const cases = [
+      ["starting", "not started", "not stopped"],
+      ["stopped", "start time not reported", "stop time not reported"],
+    ] as const;
+    for (const [state, started, stopped] of cases) {
+      document.body.replaceChildren();
+      const session = {
+        ...(base.session as Extract<
+          DeploymentStatusOutput["session"],
+          { available: true }
+        >),
+        state,
+        account_masked: null,
+        started_at: null,
+        stopped_at: null,
+        last_heartbeat_at: null,
+      } as DeploymentStatusOutput["session"];
+      const shown = await mount(
+        <DeploymentsWorkspace
+          gateway={gatewayOf(async () => v2Status({ session }))}
+          now={() => now}
+        />
+      );
+      expect(field(shown, "account")).toBe("account not reported");
+      expect(field(shown, "started")).toBe(started);
+      expect(field(shown, "stopped")).toBe(stopped);
+      expect(field(shown, "heartbeat")).toBe("no heartbeat yet");
+    }
+    return expect(cases).toHaveLength(2);
   });
 
   it("falls back to v1 with the snapshot error and an engaged kill switch is prominent", async () => {

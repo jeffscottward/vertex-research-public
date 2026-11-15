@@ -114,7 +114,7 @@ const TaskDetail = ({ detail }: { readonly detail: AgentTaskGetOutput }) => {
         )}
         <p className="text-muted-foreground text-xs">
           Started {formatTimestamp(detail.task.startedAt, "not started")} ·
-          finished {formatTimestamp(detail.task.finishedAt, "running")} ·
+          finished {formatTimestamp(detail.task.finishedAt, "not finished")} ·
           created {formatTimestamp(detail.task.createdAt)}
         </p>
       </section>

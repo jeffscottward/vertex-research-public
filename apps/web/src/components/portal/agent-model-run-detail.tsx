@@ -165,7 +165,7 @@ const RunFields = ({ run }: { readonly run: AgentModelRunOutput }) => {
     ["Memory", run.memory ? "on" : "off"],
     ["Data source", run.dataSource ?? "—"],
     ["Started", formatTimestamp(run.startedAt, "not started")],
-    ["Finished", formatTimestamp(run.finishedAt, "running")],
+    ["Finished", formatTimestamp(run.finishedAt, "not finished")],
   ];
   return (
     <div className="space-y-3">
