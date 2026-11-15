@@ -1,4 +1,4 @@
--- Reversal of 0075_research_screen only.
+-- Reversal of 0076_research_screen only.
 -- No emptiness guard, on purpose: every row here is derived. The rows, the stored bars and the
 -- Swinglytics snapshot are filled again by the next runs. The history of runs and the last tick
 -- are lost, which is accepted for a rollback.

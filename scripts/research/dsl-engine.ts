@@ -12,6 +12,7 @@ import {
   type Batch,
   batchInput,
   DEFAULT_CAPITAL,
+  NAUTILUS_CRASH_STATUS,
   relDiff,
   TOLERANCES,
 } from "./nautilus-parity.ts";
@@ -151,7 +152,8 @@ const runBatch = (
     ["-m", "nautilus_backtest", "batch", input, output],
     join(io.root, "services/research")
   );
-  if (run.status !== 0) {
+  // Exit 4: the document is complete and at least one case crashed; its entry names the crash.
+  if (run.status !== 0 && run.status !== NAUTILUS_CRASH_STATUS) {
     // The last stderr line names the cause (a Python traceback ends with the exception).
     const detail =
       run.error?.message ??
@@ -188,6 +190,11 @@ const runBatch = (
     if (key === undefined || equity.has(key))
       throw new NautilusBatchError(
         `nautilus batch returned an unknown or repeated case ${entry.id}`,
+        false
+      );
+    if (entry.crash !== undefined)
+      throw new NautilusBatchError(
+        `nautilus case ${entry.id} crashed (${entry.crash})`,
         false
       );
     if (entry.result === undefined)

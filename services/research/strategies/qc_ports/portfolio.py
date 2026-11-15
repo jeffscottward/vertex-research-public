@@ -32,6 +32,7 @@ from datetime import date
 
 from nautilus_backtest import signals as sig
 from nautilus_backtest.bars import Bars as DslBars
+from nautilus_backtest.bars import InputError
 
 from .book import PricedTrade, SignalEvent, build_book
 from .data import (
@@ -109,7 +110,7 @@ def _rows_view(rows: Mapping[str, Mapping[str, Sequence]]) -> tuple[dict[str, Ba
         dates = list(row["dates"])
         closes = [_finite(value) for value in row["close"]]
         if len(closes) != len(dates):
-            raise ValueError(f"{series_id}: close and dates differ in length")
+            raise InputError(f"{series_id}: close and dates differ in length")
         series[series_id] = {day: value for day, value in zip(dates, closes) if value is not None}
         if series_id not in ETF_SYMBOLS:
             continue
@@ -120,7 +121,7 @@ def _rows_view(rows: Mapping[str, Mapping[str, Sequence]]) -> tuple[dict[str, Ba
                                                                for key in ("open", "high", "low")),
                    tuple(closes[k] for k in kept), tuple(columns["adjClose"][k] for k in kept))
         if any(later <= earlier for earlier, later in zip(bar.dates, bar.dates[1:])):
-            raise ValueError(f"{series_id}: dates must be strictly increasing")
+            raise InputError(f"{series_id}: dates must be strictly increasing")
         bars[series_id] = bar
     return bars, series
 
@@ -139,7 +140,7 @@ def dataset_from_rows(rows: Mapping[str, Mapping[str, Sequence]]) -> Dataset:
     """
     bars, series = _rows_view(rows)
     if CALENDAR_SYMBOL not in bars:
-        raise ValueError(f"The market calendar needs {CALENDAR_SYMBOL} bars")
+        raise InputError(f"The market calendar needs {CALENDAR_SYMBOL} bars")
     return _with_total_return(bars, series)
 
 
@@ -157,6 +158,23 @@ def _slice(data: Dataset, end: str | None) -> Dataset:
     return Dataset(bars, series)
 
 
+def _refuse_market_values(iv: Sequence[float | None], rate: Sequence[float | None],
+                          term: Sequence[tuple[str, Sequence[float | None]]]) -> None:
+    """Refuses the row values that data.Market refuses (same order, same messages) as the request's fault.
+    data.py stays free of this import: scripts/market-series/parity.py loads it from its file."""
+    def wrong(values: Sequence[float | None], zero: bool) -> bool:
+        return any(value is not None and not (math.isfinite(value) and (value >= 0 if zero else value > 0))
+                   for value in values)
+
+    if wrong(iv, False):
+        raise InputError("Market IV index values must be None or finite and above 0")
+    if wrong(rate, True):
+        raise InputError("Market rates must be None or finite and not negative")
+    for index_id, levels in term:
+        if wrong(levels, False):
+            raise InputError(f"Market IV term {index_id} values must be None or finite and above 0")
+
+
 def market_of(data: Dataset, symbol: str) -> Market:
     """The options book's view of one symbol (data.load_market): IV index, IV term and IRX aligned to its bars."""
     if symbol not in IV_INDEX:
@@ -164,7 +182,9 @@ def market_of(data: Dataset, symbol: str) -> Market:
     bar = data.bars[symbol]
     iv = align(data.series[IV_INDEX[symbol]], bar.dates, MAX_FILL_DAYS)
     rate = [None if value is None else value / 100 for value in align(data.series["IRX"], bar.dates, MAX_FILL_DAYS)]
-    return Market(symbol, bar.dates, bar.close, tuple(iv), tuple(rate), term_columns(symbol, data.series, bar.dates))
+    term = term_columns(symbol, data.series, bar.dates)
+    _refuse_market_values(iv, rate, term)
+    return Market(symbol, bar.dates, bar.close, tuple(iv), tuple(rate), term)
 
 
 def dsl_bars(dates: Sequence[str], open_: Sequence[float], high: Sequence[float], low: Sequence[float],
@@ -217,7 +237,7 @@ def _portfolio(definition: Mapping, symbol: str | None) -> Mapping:
     if block is not None:
         return block
     if symbol is None:
-        raise ValueError("A definition without a portfolio block needs the run symbol")
+        raise InputError("A definition without a portfolio block needs the run symbol")
     return {"symbols": [symbol], "policy": "flat", "cadence": "daily"}
 
 

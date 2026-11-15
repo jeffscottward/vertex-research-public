@@ -13,7 +13,11 @@ from typing import Any
 
 
 class InputError(ValueError):
-    """Bad backtest input. Same messages as the TypeScript InstantBacktestInputError."""
+    """Bad backtest input: the request is at fault. Same messages as the TypeScript InstantBacktestInputError.
+
+    The options runner (strategies/qc_ports) raises it for a request that it refuses (the options block,
+    the spec or the rows), with the message of the TypeScript options runner where that runner has the
+    same check. A caller of those modules that has no request can treat it as a ValueError."""
 
 
 class SectorQuadrantDataError(InputError):
@@ -170,11 +174,13 @@ class Bars:
 
 def is_finite_number(value: Any) -> bool:
     """JS Number.isFinite: a real number that is not NaN or infinite (bool is not a number)."""
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        # An int above the float range: JSON.parse reads such a literal as Infinity.
+        return False
 
 
 def is_integer(value: Any) -> bool:

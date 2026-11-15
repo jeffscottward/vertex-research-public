@@ -27,13 +27,13 @@ const dropOrder = [
   "research_screen_swinglytics",
 ];
 
-describe("0075_research_screen migration", () => {
+describe("0076_research_screen migration", () => {
   const migration = readFileSync(
-    new URL("../../migrations/0075_research_screen.sql", import.meta.url),
+    new URL("../../migrations/0076_research_screen.sql", import.meta.url),
     "utf8"
   );
   const rollback = readFileSync(
-    new URL("../../rollback/0075_research_screen.down.sql", import.meta.url),
+    new URL("../../rollback/0076_research_screen.down.sql", import.meta.url),
     "utf8"
   );
   const journal = JSON.parse(
@@ -115,7 +115,7 @@ describe("0075_research_screen migration", () => {
 
   it("is journaled as idx 75 after 0074", () => {
     const index = journal.entries.findIndex(
-      (entry) => entry.tag === "0075_research_screen"
+      (entry) => entry.tag === "0076_research_screen"
     );
     expect(journal.entries[index]).toMatchObject({ idx: 75 });
     expect(journal.entries[index - 1]).toMatchObject({

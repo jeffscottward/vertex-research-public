@@ -3,6 +3,8 @@
 // fixtures.ts). Grades:
 // - correct: every `required` pattern matches and no `forbidden` pattern matches;
 // - wrong: a `forbidden` pattern matches (a value from the wrong source or a wrong value);
+//   the `forbidden` patterns run on the answer without its `allowed` lines (exact lines that state the
+//   reference and that a `forbidden` pattern would match);
 // - declined: anything else (no wrong value, but the required value is missing).
 // Paper exec-node values (deployment_status) are forbidden in every answer: an account answer must come
 // from the live account, and quoting the paper value next to it invites the error this layer prevents.
@@ -18,6 +20,8 @@ export type EvalQuestion = Readonly<{
   reference: string;
   required: readonly RegExp[];
   forbidden: readonly RegExp[];
+  /** Exact whole lines (global, multiline patterns) that are removed before the `forbidden` check. */
+  allowed?: readonly RegExp[];
 }>;
 
 export type Grade = "correct" | "wrong" | "declined";
@@ -214,6 +218,11 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     set: "main",
   },
   {
+    // Each exact line states the reference although the forbidden pattern matches it; nothing else is exempt.
+    allowed: [
+      /^[ \t]*(?:[-*][ \t]+)?Sector momentum paper forward is at warn, not alert\.[ \t]*$/gm,
+      /^[ \t]*(?:[-*][ \t]+)?Sector momentum paper forward is at warn, not alert \(max drawdown 24\.37% forward vs 22\.50% baseline, ratio 1\.08\)\. This is paper data only\.[ \t]*$/gm,
+    ],
     forbidden: [...PAPER, /sector momentum[^.]*\balert\b/i],
     id: "Q20",
     kind: "research",
@@ -339,7 +348,11 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
 ];
 
 export const gradeAnswer = (question: EvalQuestion, answer: string): Grade => {
-  if (question.forbidden.some((pattern) => pattern.test(answer)))
+  const checked = (question.allowed ?? []).reduce(
+    (text, pattern) => text.replace(pattern, ""),
+    answer
+  );
+  if (question.forbidden.some((pattern) => pattern.test(checked)))
     return "wrong";
   if (question.required.every((pattern) => pattern.test(answer)))
     return "correct";

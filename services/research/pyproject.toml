@@ -21,6 +21,8 @@ exclude = ["tests", "tests.*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]
 backtesting = ["AI_HEDGE_FUND_LICENSE.txt"]
+providers = ["PREDICTION_MARKET_ANALYSIS_LICENSE.txt"]
+strategies = ["TRADERMONTY_LICENSE.txt"]
 quantlab = ["topics.json", "drafts/*.json"]
 
 # Approved source plan. CI (scripts/ci/research-python.sh, numeric run) installs this lock with

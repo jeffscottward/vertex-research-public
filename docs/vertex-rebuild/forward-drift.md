@@ -68,4 +68,4 @@ External delivery is not wired. The Vertex ntfy and email notification path acce
 
 - Paper data comes from the operator or an agent through `record`, or from the paper forward runner ([paper-forward.md](paper-forward.md)). `record` returns `CONFLICT` while the runner is running.
 - Statistics use the recorded points, not every bar. The baseline Sharpe uses the run's sampled equity series.
-- Thresholds are per monitor and fixed at creation.
+- Thresholds are per monitor and fixed at creation. `create` is their only writer; it stores all five and validates them, and the list contract requires all five. Before a second writer is added (an import, a backfill), add a database check constraint for this shape; a default on read is not used, because it would hide a damaged row.
