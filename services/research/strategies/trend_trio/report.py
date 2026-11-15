@@ -11,6 +11,10 @@ from .document import usd
 
 __all__ = ["render"]
 
+# Options-form arithmetic (decision record Q8): NDX / QQQ of the Yahoo daily closes was 39.6 to 41.6 over 2004-2026;
+# an at-the-money option has a delta of about 0.5.
+OPTIONS_NDX_PER_QQQ = 41.0
+OPTIONS_DELTA = 0.5
 EXTRA_STYLE = ".plot rect{shape-rendering:crispEdges}.verdict{font-size:18px;font-weight:600}"
 BAR_COLORS = ("#9aa3b2", "#60a5fa", "#f472b6")
 INDICATORS = (
@@ -104,6 +108,10 @@ def _header(results: Mapping) -> str:
     if "P3window" in claim:
         window = claim["P3window"][str(study.BASE_TICKS)]
         counts.append(f"<li>(b) in the claim's window 2010-2025: <b>{window[0]}/{window[1]}</b> at 1 tick</li>")
+    la, p1 = results["diagnostics"]["rows"].get("LA", {}), _row(results, "P1")
+    if la.get("status") == "ran" and p1["status"] == "ran":
+        k, n = _years_up(_per_year(la, 0), p1["fullYears"])
+        counts.append(f"<li>Look-ahead diagnostic (invalid timing, outside the tests): <b>{k}/{n}</b> at 0 tick</li>")
     deciding = f" (first failing test {_e(results['decidingTest'])})" if results["decidingTest"] else ""
     pilot = "<p class='note'>Pilot run (2024 only): timing check, not the graded study.</p>" if results["pilot"] else ""
     return (f"<h1>Trend Trio: a test of the \"16 of 16 years\" claim</h1>"
@@ -220,6 +228,52 @@ def _diagnostics(results: Mapping) -> str:
     return "<h2>Diagnostics (outside N)</h2>" + _table(["Check", "Result"], items, text=True)
 
 
+def _years_up(per_year: Mapping[str, float], full: Sequence[int]) -> tuple[int, int]:
+    years = [str(year) for year in full if str(year) in per_year]
+    return sum(1 for year in years if per_year[year] > 0), len(years)
+
+
+def _lookahead(results: Mapping) -> str:
+    """The look-ahead diagnostic next to P1, fees only (the reel's cost setting): what a timing error does."""
+    la, p1 = results["diagnostics"]["rows"]["LA"], _row(results, "P1")
+    if la["status"] != "ran" or p1["status"] != "ran":
+        return ""
+    full = p1["fullYears"]
+    la0, p10 = _per_year(la, 0), _per_year(p1, 0)
+    k_la, n_la = _years_up(la0, full)
+    k_p1, n_p1 = _years_up(p10, full)
+    return ("<h2>What a look-ahead mistake does (diagnostic, outside the tests)</h2>"
+            "<p>The look-ahead row uses the same rules as P1 but lets each 1-minute bar read the 5-minute bucket that "
+            "is still forming (on TradingView: a higher-timeframe request with look-ahead on and no offset). It is a "
+            "timing error, not a strategy, and it is never a library candidate.</p>"
+            f"<p>Fees only, no slippage (the reel's setting): look-ahead <b>{k_la}/{n_la}</b> full years profitable, "
+            f"net {usd(la['stats']['0']['netUsd'])}; honest P1 <b>{k_p1}/{n_p1}</b>, net "
+            f"{usd(p1['stats']['0']['netUsd'])}. A result like \"profitable every year\" appears only with the error. "
+            "This does not show that the reel's paid script has this error; it shows that this error alone can "
+            "produce such a record.</p>"
+            + _year_bars("Fees only: look-ahead diagnostic vs honest P1, net dollars per year, 1 NQ",
+                         [("look-ahead (invalid)", la0), ("P1 honest", p10)]))
+
+
+def _options_form(results: Mapping) -> str:
+    """Decision record Q8: no options form unless the futures test passes; the arithmetic for P1."""
+    p1 = _row(results, "P1")
+    if p1["status"] != "ran":
+        return ""
+    gross = p1["stats"]["0"]["grossPerTrade"]
+    points = gross / study.POINT_USD
+    qqq = points / OPTIONS_NDX_PER_QQQ
+    per_option = qqq * OPTIONS_DELTA * 100
+    return ("<h2>Options form (options only, defined risk)</h2>"
+            f"<p>Not translated. P1's average gross move is {usd(gross)} per NQ contract per trade = {points:.2f} index "
+            f"points = about ${qqq:.4f} per QQQ share (NDX / QQQ about {OPTIONS_NDX_PER_QQQ:g}). A 0-1 DTE at-the-money "
+            f"QQQ option (delta about {OPTIONS_DELTA:g}) would gain about ${per_option:.2f} per contract on that move. "
+            "QQQ options are quoted in $0.01 steps, so even a one-cent-wide market costs at least $1.00 per contract "
+            "to enter and exit, before time decay over the hold. The futures result already fails after costs; the "
+            "per-trade move is smaller than the minimum option cost, so a 1-minute futures signal does not translate "
+            "into a defined-risk QQQ option position. No options backtest was run (decision record Q8).</p>")
+
+
 def _indicators() -> str:
     rows = [[_e(name), f"{_e(text)} <a href='{_e(url)}' style='color:#60a5fa'>source</a>"]
             for name, text, url in INDICATORS]
@@ -241,8 +295,8 @@ def _data(results: Mapping) -> str:
 
 
 def render(results: Mapping) -> str:
-    body = [_header(results), _charts(results), _costs(results), _tests(results), _variants(results),
-            _diagnostics(results), _indicators(),
+    body = [_header(results), _charts(results), _lookahead(results), _costs(results), _tests(results),
+            _variants(results), _options_form(results), _diagnostics(results), _indicators(),
             "<h2>Limits</h2><ul>" + "".join(f"<li>{_e(text)}</li>" for text in LIMITS) + "</ul>", _data(results)]
     return ("<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' "
             "content='width=device-width,initial-scale=1'><title>Trend Trio: Vertex reconstruction</title>"

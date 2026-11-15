@@ -200,3 +200,52 @@ def test_params_key_is_stable() -> None:
 def test_spec_is_frozen() -> None:
     """The rules above "## Results" in docs/specs/strategies/trend-trio.md are the frozen ones."""
     assert rules.spec_sha256() == rules.SPEC_SHA256
+
+
+def _full_session(days: list[date], seed: int = 21) -> Minutes:
+    """Bars around the clock (00:00 to 23:59 New York) for the full-session variant V8."""
+    rng = random.Random(seed)
+    t, o, h, low, c, v, session, minute = [], [], [], [], [], [], [], []
+    price = 100.0
+    for s, day in enumerate(days):
+        for m in range(-OPEN, 24 * 60 - OPEN):
+            close_price = price + rng.gauss(0.0, 0.3)
+            t.append(ms(day, m)); o.append(price); c.append(close_price)
+            h.append(max(price, close_price) + 0.1); low.append(min(price, close_price) - 0.1)
+            v.append(50.0); session.append(s); minute.append(m)
+            price = close_price
+    return Minutes(t, o, h, low, c, v, MINUTE_MS, session, minute, [390] * len(days), [1.0] * len(days),
+                   [d.isoformat() for d in days])
+
+
+def test_full_session_variant_reads_full_session_buckets() -> None:
+    days = [d for d, _, _ in _sessions(4)]
+    full = _full_session(days)
+    keep = [i for i in range(len(full.t)) if 0 <= full.minute[i] < 390]
+    m = Minutes([full.t[i] for i in keep], [full.o[i] for i in keep], [full.h[i] for i in keep],
+                [full.l[i] for i in keep], [full.c[i] for i in keep], [full.v[i] for i in keep], MINUTE_MS,
+                [full.session[i] for i in keep], [full.minute[i] for i in keep], full.close_minute, full.scale,
+                full.day)
+    v8 = Params(**{**SMALL.__dict__, "full_session": True})
+    regular = rules.trades(m, SMALL)
+    extended = rules.trades(m, v8, full=full)
+    assert extended and [(x.entry_bar, x.side) for x in extended] != [(x.entry_bar, x.side) for x in regular]
+    assert all(m.session[x.entry_bar] == m.session[x.exit_bar] for x in extended)
+    b = rules.buckets(full.t, full.o, full.h, full.l, full.c, full.v, MINUTE_MS, 5, read_at=m.t)
+    marked = rules._mark_session_first(b, m)
+    first_rth_read = [marked.read[i] for i in range(len(m.t)) if m.minute[i] == 4]
+    assert all(marked.session_first[r] for r in first_rth_read)  # the 09:30-09:35 bucket starts each session
+
+
+def test_entry_window_end_and_signal_bucket_exits() -> None:
+    m = minutes(_sessions(8), seed=11)
+    early = rules.trades(m, Params(**{**SMALL.__dict__, "entry_end_minute": 300}))
+    assert early and all(m.minute[x.entry_bar] <= 301 for x in early)
+    bucket_exits = rules.trades(m, Params(**{**SMALL.__dict__, "ce_on_signal": True}))
+    for x in bucket_exits:
+        if x.exit_reason == "chandelier":
+            assert (m.minute[x.exit_bar - 1] + 1) % 5 == 0  # decided at a bucket close
+    voters = rules.trades(m, Params(**{**SMALL.__dict__, "exit_on_voters": True}))
+    assert any(x.exit_reason == "voters" for x in voters)
+    mfi = rules.trades(m, Params(**{**SMALL.__dict__, "at_momentum": "mfi"}))
+    assert [(x.entry_bar, x.side) for x in mfi] != [(x.entry_bar, x.side) for x in rules.trades(m, SMALL)]

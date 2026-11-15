@@ -254,7 +254,7 @@ def test_assemble_document_and_report_end_to_end(tmp_path, monkeypatch):
     assert html.startswith("<!doctype html>") and "http://" not in html and "<script" not in html
     assert "<link" not in html and "src=" not in html
     assert "16 of 16" in html and "rules guessed; this tests a reconstruction" in html.lower()
-    for text in ("T1", "T7", "Costs", "Variants", "Indicators added", "Limits", "<svg"):
+    for text in ("T1", "T7", "Costs", "Variants", "Options form", "Indicators added", "Limits", "<svg"):
         assert text in html
 
 
