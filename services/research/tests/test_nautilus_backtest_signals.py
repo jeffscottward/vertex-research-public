@@ -1837,3 +1837,98 @@ def test_price_and_indicator_offsets_are_validated(kind: str, offset: Any) -> No
     assert sig.normalize_definition(
         _definition_of([{**ALWAYS, "left": {**leaf, "offset": 3.0}}])
     )["entry"]["all"][0]["left"]["offset"] == 3
+
+
+NOT_OBJECTS = [5, "x", [], [1], True, False, 0, ""]
+GUARDED_BLOCKS = ["entry", "exit", "management", "session", "sizing", "stopLoss", "takeProfit"]
+# Definitions around the malformed part; three have a cross-field error of their own (riskPct or
+# management without a stop loss, options with a stop loss). The guard must give its message first
+# in each of them.
+GUARD_CONTEXTS = {
+    "plain": {},
+    "stop": WITH_STOP,
+    "riskPct, no stop": {"sizing": {"mode": "riskPct", "riskPct": 1}},
+    "management, no stop": {"management": {"breakevenR": 1}},
+    "options": {"options": OPTIONS},
+    "options + stop": {"options": OPTIONS, **WITH_STOP},
+    "options + portfolio": {"options": OPTIONS, "portfolio": {"policy": "roll", "symbols": ["SPY"]}},
+    "intraday": {"intraday": INTRADAY},
+    "short": {"side": "short"},
+}
+INCOMPLETE_CONDITION = "condition needs left, op and right"
+INCOMPLETE_SESSION = "session needs startUtc and endUtc"
+
+
+def _malformed_blocks() -> list[Any]:
+    """(changed keys, message) for each malformed block, session and condition of the definition."""
+    cases: list[tuple[str, dict[str, Any], str]] = []
+    for block in GUARDED_BLOCKS:
+        cases += [(f"{block}: {value!r}", {block: value}, f"{block} must be an object") for value in NOT_OBJECTS]
+    cases += [(f"condition: {value!r}", {"entry": {"all": [value]}}, "condition must be an object")
+              for value in NOT_OBJECTS]
+    session = {"startUtc": "09:30", "endUtc": "16:00"}
+    cases.append(("session: {}", {"session": {}}, INCOMPLETE_SESSION))
+    for key in session:
+        absent = {name: value for name, value in session.items() if name != key}
+        cases.append((f"session without {key}", {"session": absent}, INCOMPLETE_SESSION))
+        cases.append((f"session {key}: null", {"session": {**absent, key: None}}, INCOMPLETE_SESSION))
+    for key in ("left", "op", "right"):
+        absent = {name: value for name, value in ALWAYS.items() if name != key}
+        for state, condition in (("absent", absent), ("null", {**absent, key: None})):
+            cases.append((f"entry.all {key} {state}", {"entry": {"all": [condition]}}, INCOMPLETE_CONDITION))
+            cases.append((f"entry.any {key} {state}", {"entry": {"all": [ALWAYS], "any": [condition]}},
+                          INCOMPLETE_CONDITION))
+            cases.append((f"exit.any {key} {state}", {"exit": {"any": [condition]}}, INCOMPLETE_CONDITION))
+    return [pytest.param(change, message, id=label) for label, change, message in cases]
+
+
+@pytest.mark.parametrize("context", GUARD_CONTEXTS.values(), ids=GUARD_CONTEXTS.keys())
+@pytest.mark.parametrize(("change", "message"), _malformed_blocks())
+def test_a_malformed_block_is_an_input_error_in_every_definition(
+    context: dict[str, Any], change: dict[str, Any], message: str
+) -> None:
+    """Card vertex-dsl-python-validator-type-guards: these inputs raised TypeError, KeyError or
+    AttributeError, or were accepted. The TS schema refuses each one (zod writes the text)."""
+    with pytest.raises(InputError) as raised:
+        sig.normalize_definition({**_entry(_one(ALWAYS)), **context, **change})
+    assert str(raised.value) == message
+
+
+@pytest.mark.parametrize(
+    ("definition", "message"),
+    [
+        (5, "definition must be an object"),
+        (_portfolio_definition({"policy": "roll", "symbols": ["SPY"],
+                                "legs": [{"entry": 5, "options": OPTIONS}]}),
+         "portfolio leg entry must be an object"),
+        (_portfolio_definition({"policy": "roll", "symbols": ["SPY"],
+                                "legs": [{"entry": {"all": [ALWAYS]}, "exit": 5, "options": OPTIONS}]}),
+         "portfolio leg exit must be an object"),
+        (_portfolio_definition({"policy": "roll", "symbols": ["SPY"],
+                                "legs": [{"entry": {"all": [{"op": ">", "right": ZERO}]}, "options": OPTIONS}]}),
+         INCOMPLETE_CONDITION),
+        (_entry(_one(ALWAYS), filters=[{"type": "series", "series": "VIX", "condition": {"left": CLOSE, "op": ">"}}]),
+         INCOMPLETE_CONDITION),
+        (_entry(_one(ALWAYS), filters=[{"type": "series", "series": "VIX", "condition": 5}]),
+         "condition must be an object"),
+        (_entry(_one(ALWAYS), filters=[{"type": "series", "series": "VIX"}]), "condition must be an object"),
+    ],
+)
+def test_the_object_and_condition_guards_cover_the_other_strict_objects(definition: Any, message: str) -> None:
+    """_strict and _normalize_condition are shared: the definition, the portfolio legs and a series filter."""
+    with pytest.raises(InputError) as raised:
+        sig.normalize_definition(definition)
+    assert str(raised.value) == message
+
+
+@pytest.mark.parametrize("sizing", [None, {}])
+def test_a_null_block_and_an_empty_sizing_keep_their_defaults(sizing: Any) -> None:
+    """Python callers write None for "no block", and the normalized form holds None for session,
+    management and options: both stay accepted."""
+    normalized = sig.normalize_definition(_entry(_one(ALWAYS), exit=None, sizing=sizing, session=None,
+                                                 management=None, options=None, stopLoss=None, takeProfit=None))
+    assert normalized["exit"] == {"any": []}
+    assert normalized["sizing"] == {"mode": "allIn"}
+    assert normalized["stopLoss"] == {"kind": "none"} == normalized["takeProfit"]
+    assert (normalized["session"], normalized["management"], normalized["options"]) == (None, None, None)
+    assert sig.normalize_definition(normalized) == normalized
