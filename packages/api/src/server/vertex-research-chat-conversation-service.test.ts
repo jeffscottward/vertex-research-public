@@ -243,8 +243,13 @@ describe("private chat HTTP caching applies to both actual transports", () => {
         publicResponse
       )
     ).toBe(publicResponse);
-    return expect(publicResponse.headers.get("Cache-Control")).toBe(
-      "max-age=60"
-    );
+    expect(publicResponse.headers.get("Cache-Control")).toBe("max-age=60");
+    const shortResponse = new Response("short");
+    return expect(
+      researchChatResponse(
+        new Request("https://test.invalid/api"),
+        shortResponse
+      )
+    ).toBe(shortResponse);
   });
 });

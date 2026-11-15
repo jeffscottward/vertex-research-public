@@ -110,7 +110,7 @@ describe("CandleCanvas optional studies and markers", () => {
     expect(renderer.replace).toHaveBeenCalledWith(candles);
     expect(renderer.setStudies).toHaveBeenLastCalledWith(studiesA);
     expect(renderer.setMarkers).toHaveBeenLastCalledWith(markersA);
-    const canvas = container.querySelector<HTMLElement>(".vx-chart-canvas");
+    const canvas = container.querySelector<HTMLElement>("[data-chart-canvas]");
     expect(canvas?.style.getPropertyValue("--vx-chart-sub-panes")).toBe("0");
     await render(studiesB, []);
     expect(renderer.setStudies).toHaveBeenLastCalledWith(studiesB);
@@ -147,7 +147,7 @@ describe("CandleCanvas optional studies and markers", () => {
       );
       return await flush();
     });
-    const canvas = container.querySelector<HTMLElement>(".vx-chart-canvas");
+    const canvas = container.querySelector<HTMLElement>("[data-chart-canvas]");
     expect(canvas?.style.getPropertyValue("--vx-chart-sub-panes")).toBe("3");
   });
 
@@ -304,5 +304,29 @@ describe("CandleCanvas optional studies and markers", () => {
     expect(container.textContent).toContain("Display values are approximate.");
     await act(async () => root.unmount());
     return expect(renderer.dispose).toHaveBeenCalled();
+  });
+});
+
+describe("ChartRendererBoundary", () => {
+  it("replaces a child that throws while rendering with the table note", async () => {
+    const Broken = (): never => {
+      throw new Error("renderer exploded");
+    };
+    const caught = vi.fn();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container, { onCaughtError: caught });
+    roots.push(root);
+    await act(async () =>
+      root.render(
+        <ChartRendererBoundary>
+          <Broken />
+        </ChartRendererBoundary>
+      )
+    );
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "could not display the selected data"
+    );
+    return expect(caught).toHaveBeenCalledOnce();
   });
 });

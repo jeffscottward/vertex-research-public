@@ -2274,3 +2274,96 @@ describe("unavailable response receipt integrity and boundary fences", () => {
     return expect(responseMutations(h)).toEqual([]);
   });
 });
+
+describe("research-chat stored record integrity", () => {
+  it("rejects a stored thread whose request, receipt, head or identity no longer bind", async () => {
+    const f = await createFixture();
+    const altered = { ...f.result, title: "Altered stored title" };
+    const cases = [
+      // The stored createThread request names another idempotency key.
+      { row: { ...f.row, idempotency_key: "create-other" } },
+      // The original receipt was replaced and rehashed.
+      {
+        row: {
+          ...f.row,
+          response: altered,
+          response_hash: await hash(altered),
+        },
+        accepted: altered,
+      },
+      // The row head moved without the hashed current payload.
+      { row: { ...f.row, revision: "2", last_sequence: "1" } },
+      // A valid row returned for a different requested thread id.
+      { row: f.row, threadId: "chat-other" },
+    ];
+    for (const { row, accepted, threadId = f.threadId } of cases) {
+      const h = harness([threadRead(row)]);
+      acceptCreate(h, f);
+      if (accepted) h.accept("ResearchChatThread", accepted);
+      h.accept("readThread", { ...scope, threadId });
+      await expect(
+        h.store.readResearchChatThread(principal, scope, threadId)
+      ).rejects.toMatchObject({ code: "integrity" });
+    }
+  });
+
+  return it("rejects a transcript message whose stored request or acknowledgement no longer binds", async () => {
+    const first = await sendFixture();
+    const captured = await createFixture("2");
+    const rerequest = async (input: Record<string, unknown>) => {
+      const request = { ...first.row.request, input };
+      return {
+        row: { ...first.row, request, request_hash: await hash(request) },
+        command: input,
+      };
+    };
+    const acknowledgement = {
+      ...first.result,
+      response: {
+        status: "unavailable",
+        runId: null,
+        jobId: null,
+        reasonCodes: ["research-chat-agent-admission-unavailable"],
+      },
+    };
+    const cases: {
+      row: Record<string, unknown>;
+      command?: Record<string, unknown>;
+      acknowledgement?: Record<string, unknown>;
+    }[] = [
+      // The stored request names another thread.
+      await rerequest({ ...first.command, threadId: "chat-other" }),
+      // The stored request asks for a participant the thread never selected.
+      await rerequest({
+        ...first.command,
+        requestedParticipantIds: ["not-selected"],
+      }),
+      // The acknowledgement claims a request that the stored request never made.
+      {
+        row: {
+          ...first.row,
+          response: acknowledgement,
+          response_hash: await hash(acknowledgement),
+        },
+        acknowledgement,
+      },
+    ];
+    for (const { row, command, acknowledgement: output } of cases) {
+      const h = harness([threadRead(captured.row), messageRead(row)]);
+      acceptSend(h, first);
+      acceptCreate(h, captured);
+      if (command) h.accept("sendMessage", command);
+      if (output) h.accept("ResearchChatSendMessageOutput", output);
+      acceptTranscript(h, captured.threadId, 100, null);
+      await expect(
+        h.store.readResearchChatTranscriptPage(
+          principal,
+          scope,
+          captured.threadId,
+          { limit: 100, cursor: null }
+        )
+      ).rejects.toMatchObject({ code: "integrity" });
+      expect(h.lifecycle).toEqual(["begin", "rollback"]);
+    }
+  });
+});

@@ -1,0 +1,286 @@
+{
+  "schema": "leveraged-etf-universe-v1",
+  "generatedAt": "2026-11-12T02:39:56Z",
+  "gate": {
+    "version": 1,
+    "minWindowDays": 5,
+    "maxWindowDays": 21,
+    "bandPct": 10,
+    "minBandOpenInterest": 1000,
+    "maxHalfSpreadPct": 4,
+    "minTwoSidedQuotes": 3
+  },
+  "funds": [
+    {
+      "symbol": "NVDL",
+      "name": "GraniteShares 2x Long NVDA Daily ETF",
+      "productType": "etf",
+      "leverage": 2,
+      "underlying": "NVDA",
+      "listingExchange": "NASDAQ",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-11T19:47:36Z",
+        "session": "regular",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-20"],
+        "windowExpiry": "2026-11-20",
+        "totalOpenInterest": 2400,
+        "bandOpenInterest": 2400,
+        "halfSpreadPct": 9.0909,
+        "twoSidedQuotes": 4
+      },
+      "optionGate": "fail",
+      "optionGateReasons": ["spread-above-maximum"]
+    },
+    {
+      "symbol": "NVDS",
+      "name": "Tradr 1.5X Short NVDA Daily ETF",
+      "productType": "etf",
+      "leverage": -1.5,
+      "underlying": "NVDA",
+      "listingExchange": "NASDAQ",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-11T19:47:36Z",
+        "session": "regular",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-20"],
+        "windowExpiry": "2026-11-20",
+        "totalOpenInterest": 2400,
+        "bandOpenInterest": 2400,
+        "halfSpreadPct": 0.9901,
+        "twoSidedQuotes": 2
+      },
+      "optionGate": "fail",
+      "optionGateReasons": ["too-few-two-sided-quotes"]
+    },
+    {
+      "symbol": "NVDW",
+      "name": "Roundhill NVDA WeeklyPay ETF",
+      "productType": "etf",
+      "leverage": 1.2,
+      "underlying": "NVDA",
+      "listingExchange": "Cboe BZX",
+      "optionsListed": false,
+      "options": null,
+      "optionGate": "fail",
+      "optionGateReasons": ["no-standard-contract"]
+    },
+    {
+      "symbol": "PUR",
+      "name": "Defiance Daily Target 2X Long PURR ETF",
+      "productType": "etf",
+      "leverage": 2,
+      "underlying": "PURR",
+      "listingExchange": "NASDAQ",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-09-30T19:09:46Z",
+        "session": "closed",
+        "spot": 33.3,
+        "nearestExpiries": [
+          "2026-10-16",
+          "2026-11-20",
+          "2027-02-19",
+          "2027-05-21"
+        ],
+        "windowExpiry": "2026-10-16",
+        "totalOpenInterest": 29,
+        "bandOpenInterest": 2,
+        "halfSpreadPct": 35.8101,
+        "twoSidedQuotes": 8
+      },
+      "optionGate": "fail",
+      "optionGateReasons": ["stale-chain"]
+    },
+    {
+      "symbol": "SOXL",
+      "name": "Direxion Daily Semiconductor Bull 3X ETF",
+      "productType": "etf",
+      "leverage": 3,
+      "underlying": "SOXX",
+      "listingExchange": "NYSE Arca",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-12T01:55:07Z",
+        "session": "closed",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-20"],
+        "windowExpiry": "2026-11-20",
+        "totalOpenInterest": 2400,
+        "bandOpenInterest": 2400,
+        "halfSpreadPct": 0.9901,
+        "twoSidedQuotes": 4
+      },
+      "optionGate": "spread-not-measured",
+      "optionGateReasons": ["market-closed-at-quote"]
+    },
+    {
+      "symbol": "SOXS",
+      "name": "Direxion Daily Semiconductor Bear 3X ETF",
+      "productType": "etf",
+      "leverage": -3,
+      "underlying": "SOXX",
+      "listingExchange": "NYSE Arca",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-12T01:55:07Z",
+        "session": "closed",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-13", "2026-12-18"],
+        "windowExpiry": null,
+        "totalOpenInterest": 4800,
+        "bandOpenInterest": null,
+        "halfSpreadPct": null,
+        "twoSidedQuotes": null
+      },
+      "optionGate": "fail",
+      "optionGateReasons": ["no-window-expiry"]
+    },
+    {
+      "symbol": "SPYU",
+      "name": "MAX S&P 500 4X Leveraged ETNs due October 30, 2043",
+      "productType": "etn",
+      "leverage": 4,
+      "underlying": "SPY",
+      "listingExchange": "NYSE Arca",
+      "optionsListed": false,
+      "options": null,
+      "optionGate": "fail",
+      "optionGateReasons": ["no-listed-options"]
+    },
+    {
+      "symbol": "SQQQ",
+      "name": "ProShares UltraPro Short QQQ",
+      "productType": "etf",
+      "leverage": -3,
+      "underlying": "QQQ",
+      "listingExchange": "NASDAQ",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-11T19:47:36Z",
+        "session": "regular",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-20"],
+        "windowExpiry": "2026-11-20",
+        "totalOpenInterest": 400,
+        "bandOpenInterest": 400,
+        "halfSpreadPct": 0.9901,
+        "twoSidedQuotes": 4
+      },
+      "optionGate": "fail",
+      "optionGateReasons": ["open-interest-below-minimum"]
+    },
+    {
+      "symbol": "TQQQ",
+      "name": "ProShares UltraPro QQQ",
+      "productType": "etf",
+      "leverage": 3,
+      "underlying": "QQQ",
+      "listingExchange": "NASDAQ",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-11T19:47:36Z",
+        "session": "regular",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-20"],
+        "windowExpiry": "2026-11-20",
+        "totalOpenInterest": 2400,
+        "bandOpenInterest": 2400,
+        "halfSpreadPct": 0.9901,
+        "twoSidedQuotes": 4
+      },
+      "optionGate": "pass",
+      "optionGateReasons": []
+    },
+    {
+      "symbol": "TSLL",
+      "name": "Direxion Daily TSLA Bull 2X ETF",
+      "productType": "etf",
+      "leverage": 2,
+      "underlying": "TSLA",
+      "listingExchange": "NASDAQ",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-11T19:47:36Z",
+        "session": "regular",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-20"],
+        "windowExpiry": "2026-11-20",
+        "totalOpenInterest": 2400,
+        "bandOpenInterest": 2400,
+        "halfSpreadPct": null,
+        "twoSidedQuotes": 0
+      },
+      "optionGate": "fail",
+      "optionGateReasons": ["no-two-sided-quote"]
+    },
+    {
+      "symbol": "TSLQ",
+      "name": "Tradr 2X Short TSLA Daily ETF",
+      "productType": "etf",
+      "leverage": -2,
+      "underlying": "TSLA",
+      "listingExchange": "NASDAQ",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-07T21:00:00Z",
+        "session": "closed",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-13"],
+        "windowExpiry": "2026-11-13",
+        "totalOpenInterest": 2400,
+        "bandOpenInterest": 2400,
+        "halfSpreadPct": 0.9901,
+        "twoSidedQuotes": 4
+      },
+      "optionGate": "spread-not-measured",
+      "optionGateReasons": ["market-closed-at-quote"]
+    },
+    {
+      "symbol": "TSLZ",
+      "name": "T-Rex 2X Inverse Tesla Daily Target ETF",
+      "productType": "etf",
+      "leverage": -2,
+      "underlying": "TSLA",
+      "listingExchange": "Cboe BZX",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-06T21:30:00Z",
+        "session": "closed",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-13"],
+        "windowExpiry": "2026-11-13",
+        "totalOpenInterest": 2400,
+        "bandOpenInterest": 2400,
+        "halfSpreadPct": 0.9901,
+        "twoSidedQuotes": 4
+      },
+      "optionGate": "fail",
+      "optionGateReasons": ["stale-chain"]
+    },
+    {
+      "symbol": "UVXY",
+      "name": "ProShares Ultra VIX Short Term Futures ETF",
+      "productType": "etf",
+      "leverage": 1.5,
+      "underlying": null,
+      "listingExchange": "Cboe BZX",
+      "optionsListed": true,
+      "options": {
+        "quotedAt": "2026-11-11T19:47:36Z",
+        "session": "regular",
+        "spot": 100.0,
+        "nearestExpiries": ["2026-11-13", "2026-12-18"],
+        "windowExpiry": null,
+        "totalOpenInterest": 4800,
+        "bandOpenInterest": null,
+        "halfSpreadPct": null,
+        "twoSidedQuotes": null
+      },
+      "optionGate": "fail",
+      "optionGateReasons": ["no-window-expiry", "no-two-sided-quote"]
+    }
+  ]
+}

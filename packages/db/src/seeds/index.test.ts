@@ -9,6 +9,7 @@ const convergence = vi.hoisted(() => ({
   profiles: vi.fn(),
   preferences: vi.fn(),
   content: vi.fn(),
+  plays: vi.fn(),
 }));
 
 vi.mock("./profiles.ts", () => ({
@@ -19,6 +20,9 @@ vi.mock("./preferences.ts", () => ({
 }));
 vi.mock("./content.ts", () => ({
   convergeDevelopmentContent: convergence.content,
+}));
+vi.mock("./plays.ts", () => ({
+  convergeDevelopmentPlays: convergence.plays,
 }));
 
 import {
@@ -175,9 +179,14 @@ beforeEach(() => {
   convergence.profiles.mockReset();
   convergence.preferences.mockReset();
   convergence.content.mockReset();
-  convergence.profiles.mockResolvedValue(undefined);
-  convergence.preferences.mockResolvedValue(undefined);
-  return convergence.content.mockResolvedValue(undefined);
+  convergence.plays.mockReset();
+  convergence.plays.mockResolvedValue(undefined);
+  convergence.profiles.mockResolvedValue(3);
+  convergence.preferences.mockResolvedValue(3);
+  return convergence.content.mockResolvedValue({
+    addresses: 3,
+    featureItems: 3,
+  });
 });
 
 describe("development seed orchestration", () => {
@@ -203,14 +212,20 @@ describe("development seed orchestration", () => {
     const double = createSeedDatabase(allExistingOutcomes());
     const identity = preparedIdentity();
     const applicationOrder: string[] = [];
-    convergence.profiles.mockImplementation(async () =>
-      applicationOrder.push("profiles")
-    );
-    convergence.preferences.mockImplementation(async () =>
-      applicationOrder.push("preferences")
-    );
-    convergence.content.mockImplementation(async () =>
-      applicationOrder.push("content")
+    convergence.profiles.mockImplementation(async () => {
+      applicationOrder.push("profiles");
+      return 4;
+    });
+    convergence.preferences.mockImplementation(async () => {
+      applicationOrder.push("preferences");
+      return 5;
+    });
+    convergence.content.mockImplementation(async () => {
+      applicationOrder.push("content");
+      return { addresses: 6, featureItems: 7 };
+    });
+    convergence.plays.mockImplementation(async () =>
+      applicationOrder.push("plays")
     );
 
     const result = await seedDevelopment(double.database, {
@@ -231,7 +246,13 @@ describe("development seed orchestration", () => {
         return transaction === double.transactionExecutor;
       })
     ).toBe(true);
-    expect(applicationOrder).toEqual(["profiles", "preferences", "content"]);
+    expect(applicationOrder).toEqual([
+      "profiles",
+      "preferences",
+      "content",
+      "plays",
+    ]);
+    expect(convergence.plays).toHaveBeenCalledWith(double.transactionExecutor);
     expect(convergence.profiles).toHaveBeenCalledWith(
       double.transactionExecutor
     );
@@ -249,10 +270,10 @@ describe("development seed orchestration", () => {
     expect(result).toEqual({
       identitiesCreated: 0,
       usersConverged: 3,
-      profilesConverged: 3,
-      preferencesConverged: 3,
-      addressesConverged: 3,
-      featureItemsConverged: 3,
+      profilesConverged: 4,
+      preferencesConverged: 5,
+      addressesConverged: 6,
+      featureItemsConverged: 7,
     });
     expect(Object.isFrozen(result)).toBe(true);
     return expect(double.lifecycle).toEqual(["begin", "commit"]);

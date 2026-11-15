@@ -322,6 +322,12 @@ describe("backtest record schema", () => {
 
   it("rejects client drawdown, non-finite numbers, disorder and overflow", () => {
     expect(
+      BacktestRecordInputSchema.safeParse({
+        ...validRecord(),
+        runConfig: { engine: "e".repeat(65) },
+      }).success
+    ).toBe(false);
+    expect(
       BacktestRecordInputSchema.safeParse({ ...validRecord(), drawdown: [] })
         .success
     ).toBe(false);
@@ -495,7 +501,10 @@ describe("agentOps.backtests procedures", () => {
       agentOps: memoryAgentOps([task()]),
       backtestResults: backtests,
     });
-    const recorded = await client.agentOps.backtests.record(validRecord());
+    const recorded = await client.agentOps.backtests.record({
+      ...validRecord(),
+      runConfig: { timeframe: "1d", engine: "nautilus-trader-1.227.0" },
+    });
     expect(recorded.maxDrawdown).toBeCloseTo(-0.1, 10);
     expect(recorded.drawdown).toHaveLength(4);
     const listed = await client.agentOps.backtests.list({});
@@ -511,6 +520,10 @@ describe("agentOps.backtests procedures", () => {
     const detail = await client.agentOps.backtests.get({ id: recorded.id });
     expect(detail.task?.id).toBe("task-1");
     expect(detail.backtest.folds[0]?.label).toBe("f1");
+    expect(detail.backtest.runConfig).toEqual({
+      timeframe: "1d",
+      engine: "nautilus-trader-1.227.0",
+    });
     expect(detail.backtest.analytics.multipleTesting?.ledger).toMatchObject({
       scope: "task",
       key: "task-1",
@@ -943,6 +956,20 @@ describe("papers.addFromArxiv", () => {
     expect(
       await client.papers.addFromArxiv({ arxiv: "2402.05272" })
     ).toMatchObject({ created: false, paper: { id: "paper-jump" } });
+    return expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a stored bare-id row for a versioned request without fetching", async () => {
+    const fetch = vi.fn();
+    setArxivFetchOptionsForTesting({ fetch });
+    const client = clientFor(session("operator"), {
+      researchPapers: memoryPapers([
+        paper({ id: "paper-bare", identifier: "arXiv:2402.05272" }),
+      ]),
+    });
+    expect(
+      await client.papers.addFromArxiv({ arxiv: "arXiv:2402.05272v3" })
+    ).toMatchObject({ created: false, paper: { id: "paper-bare" } });
     return expect(fetch).not.toHaveBeenCalled();
   });
 });

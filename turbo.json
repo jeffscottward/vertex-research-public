@@ -15,7 +15,7 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**", ".wrangler/deploy/**"]
     },
     "typecheck": {
       "dependsOn": ["^typecheck"],

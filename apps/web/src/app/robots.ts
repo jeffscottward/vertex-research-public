@@ -1,7 +1,6 @@
 export default function robots() {
   return {
     rules: {
-      userAgent: "*",
       allow: "/",
       disallow: [
         "/account",
@@ -27,6 +26,7 @@ export default function robots() {
         "/journal",
         "/baskets",
         "/pick-lists",
+        "/plays",
         "/todos",
         "/papers",
         "/library",
@@ -49,8 +49,11 @@ export default function robots() {
         "/optimizations",
         "/autopilot",
         "/charts",
+        "/flow",
         "/deployments",
+        "/drafts",
         "/engines",
+        "/semantic-terms",
         "/forgot-password",
         "/reset-password",
         "/settings",
@@ -58,6 +61,7 @@ export default function robots() {
         "/sign-in",
         "/sign-up",
       ],
+      userAgent: "*",
     },
   };
 }

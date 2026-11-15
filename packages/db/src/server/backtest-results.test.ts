@@ -401,6 +401,7 @@ describe("backtest normalization", () => {
         slippagePercent: 0.01,
         timeframe: "15m",
         fillModel: "tick",
+        engine: " nautilus-trader-1.227.0 ",
       },
       benchmark: {
         label: "SPY",
@@ -424,6 +425,7 @@ describe("backtest normalization", () => {
       slippagePercent: 0.01,
       timeframe: "15m",
       fillModel: "tick",
+      engine: "nautilus-trader-1.227.0",
     });
     expect(normalized.benchmark?.points).toHaveLength(2);
     expect(
@@ -445,6 +447,15 @@ describe("backtest normalization", () => {
     expect(() =>
       normalizeBacktestResult({ ...base, runConfig: { initialCapital: 0 } })
     ).toThrow(/initialCapital/);
+    expect(() =>
+      normalizeBacktestResult({ ...base, runConfig: { engine: 1 } })
+    ).toThrow(/runConfig\.engine must be a string/);
+    expect(() =>
+      normalizeBacktestResult({
+        ...base,
+        runConfig: { engine: "e".repeat(65) },
+      })
+    ).toThrow(/runConfig\.engine must not exceed 64/);
     expect(() =>
       normalizeBacktestResult({ ...base, runConfig: { broker: "x" } })
     ).toThrow(/not a recognized field/);

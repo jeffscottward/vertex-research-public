@@ -89,7 +89,7 @@ const AsOf = ({
 
 const GexRow = ({ row }: Readonly<{ row: GexIndexRow }>) => (
   <TableRow data-gex={row.symbol}>
-    <TableHead scope="row">
+    <TableHead className="h-auto whitespace-normal" scope="row">
       <TickerLink symbol={row.symbol} />
     </TableHead>
     <TableCell className="tabular-nums">{num(row.spot)}</TableCell>
@@ -232,7 +232,7 @@ const MacroSection = ({
             <TableBody>
               {macro.series.map((series) => (
                 <TableRow data-macro={series.id} key={series.id}>
-                  <TableHead className="whitespace-normal" scope="row">
+                  <TableHead className="h-auto whitespace-normal" scope="row">
                     {series.sourceUrl === null ? (
                       series.label
                     ) : (

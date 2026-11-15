@@ -2,12 +2,20 @@ import {
   type BacktestRunSubmitInput,
   type BacktestRunSummary,
   type InstantBacktestSeries,
+  isSessionIndicator,
+  STRATEGY_EVENT_OPERATORS,
   type STRATEGY_INDICATORS,
   STRATEGY_TEMPLATES,
   type StrategyCondition,
   type StrategyDefinition,
   StrategyDefinitionSchema,
   type StrategyExpr,
+  type StrategyFilter,
+  type StrategyIndicatorExpr,
+  type StrategyOptions,
+  type StrategyPortfolio,
+  type StrategySeriesRef,
+  type StrategySessionIndicatorExpr,
   type StrategyTemplateId,
 } from "@darkfactory/api";
 
@@ -25,7 +33,16 @@ export const templateDefinition = (
 export const definitionText = (definition: StrategyDefinition): string =>
   JSON.stringify(definition, null, 2);
 
-export const defaultExpr = (type: StrategyExpr["type"]): StrategyExpr => {
+/** Expressions the visual builder edits; every other type is shown read-only and kept as is. */
+export type EditableExpr = Extract<
+  StrategyExpr,
+  { type: "price" | "const" | "indicator" }
+>;
+
+export const isEditableExpr = (expr: StrategyExpr): expr is EditableExpr =>
+  expr.type === "price" || expr.type === "const" || expr.type === "indicator";
+
+export const defaultExpr = (type: EditableExpr["type"]): EditableExpr => {
   if (type === "price") return { field: "close", type: "price" };
   if (type === "const") return { type: "const", value: 0 };
   return { length: 20, name: "sma", source: "close", type: "indicator" };
@@ -51,11 +68,84 @@ export const INDICATOR_LABELS: Readonly<Record<StrategyIndicator, string>> = {
 export const usesSource = (name: StrategyIndicator): boolean =>
   name !== "atr" && name !== "adx" && name !== "rvol";
 
-/** rvol length counts previous sessions; every other length counts bars. */
-export const lengthUnit = (name: StrategyIndicator): string =>
-  name === "rvol" ? "sessions" : "bars";
+/** rvol length counts previous sessions, a 1d indicator's length days, every other length bars. */
+export const lengthUnit = (
+  name: StrategyIndicator,
+  timeframe?: string
+): string => {
+  if (name === "rvol") return "sessions";
+  return timeframe === "1d" ? "days" : "bars";
+};
 
-type ShiftableExpr = Exclude<StrategyExpr, { type: "const" }>;
+/** Changes the indicator; rvol takes no timeframe, so switching to it drops the timeframe. */
+export const withIndicator = (
+  expr: StrategyIndicatorExpr,
+  name: StrategyIndicator
+): StrategyIndicatorExpr => {
+  const { timeframe: _timeframe, ...rest } = expr;
+  return name === "rvol" ? { ...rest, name } : { ...expr, name };
+};
+
+/** Changes the operator; oncePerLevel works only with crosses and breaks, so others drop it. */
+export const withOperator = (
+  condition: StrategyCondition,
+  op: StrategyCondition["op"]
+): StrategyCondition => {
+  const { oncePerLevel: _once, ...rest } = condition;
+  return STRATEGY_EVENT_OPERATORS.includes(op)
+    ? { ...condition, op }
+    : { ...rest, op };
+};
+
+/**
+ * Fields of the definition the visual builder does not edit (it keeps them): entry.any,
+ * management, oncePerLevel, an indicator timeframe, maxLeverage, side, the intraday block, the
+ * session indicators and volTarget sizing. Edit them in the JSON text.
+ */
+export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
+  const conditions = [
+    ...definition.entry.all,
+    ...(definition.entry.any ?? []),
+    ...definition.exit.any,
+  ];
+  const sides = conditions.flatMap((condition) => [
+    condition.left,
+    condition.right,
+  ]);
+  const used: [string, boolean][] = [
+    ["entry.any", definition.entry.any !== undefined],
+    ["management", definition.management !== undefined],
+    [
+      "oncePerLevel",
+      conditions.some((condition) => condition.oncePerLevel !== undefined),
+    ],
+    [
+      "timeframe",
+      sides.some(
+        (expr) =>
+          expr.type === "indicator" &&
+          !isSessionIndicator(expr) &&
+          expr.timeframe !== undefined
+      ),
+    ],
+    [
+      "maxLeverage",
+      definition.sizing.mode === "riskPct" &&
+        definition.sizing.maxLeverage !== undefined,
+    ],
+    ["side", definition.side !== undefined],
+    ["intraday", definition.intraday !== undefined],
+    ["session indicators", sides.some((expr) => isSessionIndicator(expr))],
+    ["volTarget", definition.sizing.mode === "volTarget"],
+  ];
+  return used.filter(([, present]) => present).map(([field]) => field);
+};
+
+/** Expressions with a bars-ago offset (prices and classic indicators). */
+export type ShiftableExpr = Exclude<
+  Extract<StrategyExpr, { type: "price" | "indicator" }>,
+  StrategySessionIndicatorExpr
+>;
 
 /**
  * Sets the bars-ago offset from the input text. Empty or 0 removes the key, so the definition JSON
@@ -77,6 +167,103 @@ export const defaultCondition = (): StrategyCondition => ({
   op: ">",
   right: { length: 20, name: "sma", source: "close", type: "indicator" },
 });
+
+const MATH_SYMBOLS: Readonly<Record<"add" | "sub" | "mul" | "div", string>> = {
+  add: "+",
+  div: "/",
+  mul: "*",
+  sub: "-",
+};
+
+// "[n]" for an expression read n bars ago; nothing for the current bar.
+const barsAgo = (offset: number | undefined): string =>
+  offset === undefined || offset === 0 ? "" : `[${offset}]`;
+
+/**
+ * A compact text form of an expression, for example `change(series $future, 252)` or
+ * `sma(close, 20)[1]` (one bar ago). Read-only display of expressions the builder does not edit.
+ */
+export const describeExpr = (expr: StrategyExpr): string => {
+  switch (expr.type) {
+    case "price":
+      return `${expr.field}${barsAgo(expr.offset)}`;
+    case "const":
+      return String(expr.value);
+    case "indicator":
+      if (expr.name === "vwap") return "vwap";
+      if (expr.name === "sessionReturn")
+        return `sessionReturn(${expr.from}, ${expr.to})`;
+      if (expr.name === "noiseBand")
+        return `noiseBand(${expr.band}, ${expr.length}${expr.multiple === undefined ? "" : `, ${expr.multiple}`})`;
+      return `${expr.name}(${usesSource(expr.name) ? `${expr.source}, ` : ""}${expr.length})${barsAgo(expr.offset)}`;
+    case "series":
+      return `series ${expr.series}${barsAgo(expr.offset)}`;
+    case "math":
+      return `(${describeExpr(expr.left)} ${MATH_SYMBOLS[expr.op]} ${describeExpr(expr.right)})`;
+    case "change":
+      return `change(${describeExpr(expr.of)}, ${expr.length})${barsAgo(expr.offset)}`;
+    case "returnStdev":
+      return `returnStdev(${describeExpr(expr.of)}, ${expr.length})`;
+    case "regression":
+      return `regression(${describeExpr(expr.y)} on ${describeExpr(expr.x)}, ${expr.length}, lag ${expr.lag})`;
+    case "seasonal":
+      return `seasonal(${describeExpr(expr.of)}, ${expr.monthsAhead} months ahead, min ${expr.minCount})`;
+  }
+};
+
+export const describeCondition = (condition: StrategyCondition): string =>
+  `${describeExpr(condition.left)} ${condition.op} ${describeExpr(condition.right)}`;
+
+/** A filter in one line: a series filter by its condition, any other by its settings. */
+export const describeFilter = (filter: StrategyFilter): string => {
+  if (filter.type === "series")
+    return `series ${filter.series}: ${describeCondition(filter.condition)}`;
+  const { type, ...settings } = filter;
+  return `${type} ${JSON.stringify(settings)}`;
+};
+
+/** Plain labels of the relative series refs; series ids are shown as they are. */
+const RELATIVE_SERIES_LABELS: Readonly<Record<string, string>> = {
+  $future: "$future (futures twin of the traded symbol)",
+  $iv: "$iv (IV index of the traded symbol)",
+  $tr: "$tr (total return of the traded symbol)",
+};
+
+export const seriesRefLabel = (ref: StrategySeriesRef): string =>
+  RELATIVE_SERIES_LABELS[ref] ??
+  (ref.endsWith(":TR") ? `${ref} (${ref.slice(0, -3)} total return)` : ref);
+
+/** The option vertical in one line, its optional settings appended as written. */
+export const describeOptions = (options: StrategyOptions): string => {
+  const { dte, maxLossPct, structure, widthSigma, ...rest } = options;
+  return [
+    `${structure}, DTE ${dte.min} to ${dte.target}, max loss ${maxLossPct}% of equity, width ${widthSigma} sigma`,
+    ...Object.entries(rest).map(([name, value]) => `${name} ${value}`),
+  ].join(", ");
+};
+
+/** The portfolio block as lines: policy, symbols, the selection and each further leg. */
+export const describePortfolio = (
+  portfolio: StrategyPortfolio
+): readonly string[] => {
+  const { legs = [], policy, select, symbols, ...rest } = portfolio;
+  return [
+    [
+      `Policy ${policy}`,
+      ...Object.entries(rest).map(([name, value]) => `${name} ${value}`),
+    ].join(", "),
+    `Symbols ${symbols.join(", ")}`,
+    ...(select === undefined
+      ? []
+      : [
+          `Each month-end, the top ${select.top} by ${describeExpr(select.score)}${select.tieBreak === undefined ? "" : `, then ${describeExpr(select.tieBreak)}`}`,
+        ]),
+    ...legs.map(
+      (leg, index) =>
+        `Leg ${index + 2}: enter when ${leg.entry.all.map(describeCondition).join(" and ")}; ${describeOptions(leg.options)}`
+    ),
+  ];
+};
 
 export const replaceAt = <T>(
   items: readonly T[],

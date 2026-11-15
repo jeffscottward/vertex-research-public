@@ -102,7 +102,7 @@ const GateBadge = ({
       title={`${GATE_LABELS[gate]}: ${detail}`}
     >
       <Icon aria-hidden="true" className="size-4" />
-      <span className="sr-only">{`${GATE_LABELS[gate]} ${verdict}: ${detail}`}</span>
+      <span className="sr-only">{`${GATE_LABELS[gate]} ${ok === null ? "not evaluated" : verdict}: ${detail}`}</span>
     </span>
   );
 };
@@ -131,7 +131,10 @@ const MemberRow = ({
   screened: PickListScreenMemberOutput | undefined;
 }>) => (
   <TableRow>
-    <TableHead className="font-medium font-mono" scope="row">
+    <TableHead
+      className="h-auto whitespace-normal font-medium font-mono"
+      scope="row"
+    >
       <span title={member.thesis ?? undefined}>{member.symbol}</span>
     </TableHead>
     <TableCell className="text-right">{member.rank ?? "—"}</TableCell>

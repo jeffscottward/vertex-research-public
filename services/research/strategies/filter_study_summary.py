@@ -1,17 +1,20 @@
-"""Write the compact filter-study summary that the /backtests page shows.
+"""Print the compact filter-study document that the /backtests page shows.
 
 Reads the raw outputs of adx_filter_run and rvol_intraday and keeps only display values, rounded.
-Research only: reads and writes local files.
+The document goes to stdout; pipe it into the import CLI, which checks it and stores it in Postgres
+(research_studies, read by researchStudies.get). Research only: reads local files, writes stdout.
 
-Usage (from services/research):
-  python -m strategies.filter_study_summary --daily results.json --intraday rvol_intraday.json \
-      --ran 2026-10-31 --out ../../apps/web/src/features/research-studies/adx-filter-study.json
-Then run `bunx --bun --no-install biome format --write` on the output before you commit it.
+Usage (from the repository root):
+  (cd services/research && python -m strategies.filter_study_summary \
+      --daily <adx_filter_run output> --intraday <rvol_intraday output> --ran 2026-10-31) \
+    | DATABASE_URL=postgres://... bun run vertex:research-studies:import
+Add --out <path> to also keep a local copy for inspection; the app never reads it.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 
@@ -86,11 +89,14 @@ def main() -> None:
     parser.add_argument("--daily", required=True)
     parser.add_argument("--intraday", required=True)
     parser.add_argument("--ran", required=True)
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--out", help="also write the document to this path (local inspection only)")
     args = parser.parse_args()
     daily = json.loads(Path(args.daily).expanduser().read_text())
     intraday = json.loads(Path(args.intraday).expanduser().read_text())
-    Path(args.out).write_text(json.dumps(summarize(daily, intraday, args.ran), indent=2) + "\n")
+    document = json.dumps(summarize(daily, intraday, args.ran), indent=2) + "\n"
+    if args.out:
+        Path(args.out).expanduser().write_text(document)
+    sys.stdout.write(document)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getPortalSession,
   type PortalSessionFetch,
+  PortalSessionUnavailableError,
   parsePortalSession,
   portalSignInHref,
   resolvePortalAppUrl,
@@ -11,14 +12,14 @@ import {
 } from "./server-session.ts";
 
 const activeSession = {
+  session: {
+    expiresAt: "2030-01-01T00:00:00.000Z",
+  },
   user: {
     id: "user-1",
     name: "Example Member",
     role: "member",
     status: "active",
-  },
-  session: {
-    expiresAt: "2030-01-01T00:00:00.000Z",
   },
 };
 // Failed session checks write one stderr line; keep test output quiet and inspectable.
@@ -68,12 +69,12 @@ describe("parsePortalSession", () => {
     expect(
       parsePortalSession(activeSession, new Date("2029-01-01T00:00:00.000Z"))
     ).toEqual({
-      userId: "user-1",
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+      isOperator: false,
       name: "Example Member",
       role: "member",
       status: "active",
-      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
-      isOperator: false,
+      userId: "user-1",
     }));
 
   it("marks only an active, verified, listed email as operator", () => {
@@ -179,15 +180,15 @@ describe("getPortalSession", () => {
 
     await expect(
       getPortalSession({
-        cookieHeader: "better-auth.session_token=opaque",
         cfConnectingIp: "203.0.113.42",
+        cookieHeader: "better-auth.session_token=opaque",
         fetch: fetchSession,
         now: new Date("2029-01-01T00:00:00.000Z"),
       })
     ).resolves.toMatchObject({
-      userId: "user-1",
-      role: "member",
       isOperator: false,
+      role: "member",
+      userId: "user-1",
     });
 
     return expect(fetchSession).toHaveBeenCalledOnce();
@@ -310,23 +311,23 @@ describe("getPortalSession", () => {
     return expect(
       parsePortalSession(
         {
+          session: { expiresAt },
           user: {
             id: "admin-1",
             name: "  Example Admin  ",
             role: "admin",
             status: "active",
           },
-          session: { expiresAt },
         },
         new Date("2029-01-01T00:00:00.000Z")
       )
     ).toEqual({
-      userId: "admin-1",
+      expiresAt,
+      isOperator: false,
       name: "Example Admin",
       role: "admin",
       status: "active",
-      expiresAt,
-      isOperator: false,
+      userId: "admin-1",
     });
   });
 
@@ -381,9 +382,9 @@ describe("getPortalSession", () => {
     ).toBeNull();
 
     const fallbackHeaders = new Headers({
-      "x-pathname": "/public",
-      "x-invoke-path": "/account/security?tab=sessions",
       "next-url": "/dashboard",
+      "x-invoke-path": "/account/security?tab=sessions",
+      "x-pathname": "/public",
     });
     expect(resolvePortalCallbackPath(fallbackHeaders)).toBe(
       "/account/security?tab=sessions"
@@ -453,8 +454,8 @@ describe("getPortalSession", () => {
           timeoutMs,
         })
       ).resolves.toMatchObject({
-        userId: "user-1",
         role: "member",
+        userId: "user-1",
       });
     }
   });
@@ -468,7 +469,7 @@ describe("getPortalSession", () => {
           cookieHeader: "better-auth.session_token=opaque",
           now: new Date("2029-01-01T00:00:00.000Z"),
         })
-      ).resolves.toMatchObject({ userId: "user-1", role: "member" });
+      ).resolves.toMatchObject({ role: "member", userId: "user-1" });
       return expect(fetchSession).toHaveBeenCalledOnce();
     } finally {
       vi.unstubAllGlobals();
@@ -532,8 +533,8 @@ describe("getPortalSession failure log", () => {
 
   const check = (fetchSession: PortalSessionFetch, timeoutMs = 3000) =>
     getPortalSession({
-      cookieHeader: "better-auth.session_token=opaque-secret",
       cfConnectingIp: "203.0.113.42",
+      cookieHeader: "better-auth.session_token=opaque-secret",
       fetch: fetchSession,
       now,
       timeoutMs,
@@ -550,6 +551,99 @@ describe("getPortalSession failure log", () => {
     );
     return expect(lines[0]).not.toMatch(privateValues);
   };
+
+  const capacityResponse = () =>
+    new Response(null, { headers: { "retry-after": "1" }, status: 503 });
+
+  it("retries a capacity 503 and returns the session that follows", async () => {
+    vi.useFakeTimers();
+    try {
+      const responses = [
+        capacityResponse(),
+        new Response(JSON.stringify(activeSession), { status: 200 }),
+      ];
+      const fetchSession = vi.fn(async () => responses.shift()!);
+      const pending = check(fetchSession);
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(pending).resolves.toMatchObject({ userId: "user-1" });
+      expect(fetchSession).toHaveBeenCalledTimes(2);
+      return expect(loggedLines()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never signs out on persistent capacity: throws unavailable after three attempts", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchSession = vi.fn(async () => capacityResponse());
+      const pending = check(fetchSession, 10_000);
+      const outcome = expect(pending).rejects.toBeInstanceOf(
+        PortalSessionUnavailableError
+      );
+      await vi.advanceTimersByTimeAsync(2000);
+      await outcome;
+      expect(fetchSession).toHaveBeenCalledTimes(3);
+      return expectOneFailureLine("reason=http status=503 capacity=true");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("throws unavailable, not signed out, when the deadline ends a capacity wait", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchSession = vi.fn(async () => capacityResponse());
+      const pending = check(fetchSession, 500);
+      const outcome = expect(pending).rejects.toBeInstanceOf(
+        PortalSessionUnavailableError
+      );
+      await vi.advanceTimersByTimeAsync(500);
+      await outcome;
+      expect(fetchSession).toHaveBeenCalledOnce();
+      return expectOneFailureLine("reason=timeout deadlineMs=500");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("throws unavailable when the deadline aborts the retry after a capacity 503", async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const fetchSession = vi.fn((request: Request) => {
+        calls += 1;
+        if (calls === 1) return Promise.resolve(capacityResponse());
+        return new Promise<Response>((_resolve, reject) => {
+          request.signal.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError"))
+          );
+        });
+      });
+      const pending = check(fetchSession, 1500);
+      const outcome = expect(pending).rejects.toBeInstanceOf(
+        PortalSessionUnavailableError
+      );
+      await vi.advanceTimersByTimeAsync(1500);
+      await outcome;
+      expect(fetchSession).toHaveBeenCalledTimes(2);
+      return expectOneFailureLine("reason=timeout deadlineMs=1500");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("throws unavailable when the deadline already passed before the capacity wait", async () => {
+    const fetchSession = vi.fn(async (request: Request) => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(request.signal.aborted).toBe(true);
+      return capacityResponse();
+    });
+    await expect(check(fetchSession, 1)).rejects.toBeInstanceOf(
+      PortalSessionUnavailableError
+    );
+    return expectOneFailureLine("reason=timeout deadlineMs=1");
+  });
 
   it("denies and logs the deadline when the session request hangs", async () => {
     vi.useFakeTimers();
@@ -596,17 +690,12 @@ describe("getPortalSession failure log", () => {
 
   it.each([
     [
-      () =>
-        new Response(null, { status: 503, headers: { "retry-after": "1" } }),
-      "reason=http status=503 capacity=true",
-    ],
-    [
       () => new Response(null, { status: 503 }),
       "reason=http status=503 capacity=false",
     ],
     [
       () =>
-        new Response(null, { status: 500, headers: { "retry-after": "1" } }),
+        new Response(null, { headers: { "retry-after": "1" }, status: 500 }),
       "reason=http status=500 capacity=false",
     ],
     [

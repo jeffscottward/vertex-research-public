@@ -5,10 +5,7 @@ import {
   type PriceAlertRuleState,
   type WatchlistRepository,
 } from "@darkfactory/db/server";
-import {
-  createNtfyNotificationAdapter,
-  type NotificationFetch,
-} from "@darkfactory/notifications/server";
+import type { NotificationFetch } from "@darkfactory/notifications/server";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
@@ -21,6 +18,7 @@ import {
   evaluatePriceAlert,
   formatPriceAlertPrice,
   PRICE_ALERT_NOTIFICATION,
+  type PriceAlertBar,
   type PriceAlertQuote,
   type PriceAlertQuoteResult,
   planPriceAlertRun,
@@ -28,8 +26,21 @@ import {
   quoteFromYahooChart,
 } from "../price-alerts.ts";
 import type { ApiContext } from "./context.ts";
-import type { DeployStatusFetch } from "./deploy-status.ts";
+import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
+import {
+  FallbackFailure,
+  historyFetchedAt,
+  historyInstrument,
+  LIVE_HISTORY_TIMEOUT_MS,
+  loadMergedBars,
+  sessionOpen,
+  settle,
+} from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
+import {
+  type PriceAlertsNtfyDelivery,
+  sendPriceAlertsNtfy,
+} from "./price-alerts-ntfy.ts";
 import { fetchBoundedJson } from "./research-lenses.ts";
 import type { PriceAlertsNtfyConfig } from "./service-config.ts";
 
@@ -38,9 +49,10 @@ import { signalAlertsRouter } from "./signal-alerts.ts";
 
 // Price alert procedures (priceAlerts.*). Operator-only: a session operator manages their own rules
 // and runs check; an operator agent write key runs tick for every owner (scripts/price-alerts). A run
-// quotes each watched symbol once from Yahoo (public GET, bounded), evaluates the active rules,
+// quotes each watched symbol once (IBKR 5-minute history first within merged-bars.ts's per-isolate
+// budget; public Yahoo for the rest), evaluates the active rules,
 // triggers each rule at most once and sends one fixed-text ntfy notification per owner with a
-// trigger. The topic and token never leave this module and are never logged. No order path.
+// trigger (price-alerts-ntfy.ts; the topic and token are never logged). No order path.
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -49,10 +61,6 @@ const YAHOO_USER_AGENT =
 const YAHOO_MAX_BYTES = 2 * 1024 * 1024;
 const QUOTE_TIMEOUT_MS = 8000;
 const QUOTE_CONCURRENCY = 5;
-const NTFY_TIMEOUT_MS = 10_000;
-const NOTIFICATION_TENANT = "vertex";
-const NOTIFICATION_RECIPIENT = "price-alerts";
-const NOTIFICATION_CONFIGURATION = "price-alerts-ntfy";
 
 /** Configured only when both the origin and the topic are set. */
 export const resolvePriceAlertsNtfyConfig = (
@@ -65,7 +73,7 @@ export const resolvePriceAlertsNtfyConfig = (
     : { origin, token: token ?? null, topic };
 
 export type PriceAlertsOptions = Readonly<{
-  /** Yahoo quote fetch. */
+  /** Yahoo quote and IBKR history fetch. */
   fetch?: DeployStatusFetch;
   /** ntfy publish fetch. */
   notify?: NotificationFetch;
@@ -79,7 +87,9 @@ export const setPriceAlertsOptionsForTesting = (
   priceAlertsOptions = options;
 };
 
-type Delivery = "sent" | "not-configured" | "failed";
+const currentTime = (): Date =>
+  (priceAlertsOptions.now ?? (() => new Date()))();
+
 type QuoteError = Readonly<{ symbol: string; reason: string }>;
 type ActiveRule = PriceAlertRuleRecord &
   Readonly<{ state: Extract<PriceAlertRuleState, { status: "active" }> }>;
@@ -88,10 +98,13 @@ type RunResult = Readonly<{
   checked: number;
   triggered: PriceAlertRuleRecord[];
   quoteErrors: QuoteError[];
-  deliveries: ReadonlyMap<string, Delivery>;
+  deliveries: ReadonlyMap<string, PriceAlertsNtfyDelivery>;
 }>;
 
-const fetchQuote = async (symbol: string): Promise<PriceAlertQuoteResult> => {
+/** Yahoo's last price and today's 5-minute bars. */
+const fetchYahooQuote = async (
+  symbol: string
+): Promise<PriceAlertQuoteResult> => {
   try {
     const raw = await fetchBoundedJson(
       {
@@ -114,69 +127,92 @@ const fetchQuote = async (symbol: string): Promise<PriceAlertQuoteResult> => {
   }
 };
 
-const sha256Hex = async (text: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text)
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-};
+/**
+ * An IBKR copy fetched longer ago than this is not a quote. The owner wants IBKR first, but the
+ * service caches 5-minute bars for up to 300 s, so most checks find an older copy and fall back to
+ * Yahoo under this limit; IBKR serves the checks that land shortly after a fresh fetch.
+ */
+const QUOTE_MAX_AGE_MS = 60_000;
+
+// IBKR bars keep their close: the newest one is the last price.
+type QuoteBar = PriceAlertBar & Readonly<{ close?: number }>;
 
 /**
- * One ntfy message through the notifications package, sent to the price alert ntfy destination
- * (also used by sectorRotation.collect). The idempotency key is the SHA-256 of `idempotencySource`.
+ * Today's 5-minute bars and the last price: IBKR first (5 mins, 1 D; a stale copy or one fetched
+ * more than QUOTE_MAX_AGE_MS ago is not used), Yahoo for the whole quote when IBKR fails or has no
+ * request slot, and Yahoo for the bars before IBKR's first bar when IBKR starts after `needsFrom` (the
+ * earliest window of the symbol's rules, at most back to today's 09:30 New York open: Yahoo's
+ * range=1d has nothing older either). An IBKR quote carries `asOf` = min(now, fetch time): its rules
+ * are marked checked only up to the time the copy covers, so a touch between the fetch and the check
+ * is evaluated on the next check.
  */
-export const sendPriceAlertsNtfy = async (
-  config: PriceAlertsNtfyConfig | null,
-  message: Readonly<{ title: string; body: string }>,
-  idempotencySource: string,
-  at: Date,
-  notify?: NotificationFetch
-): Promise<Delivery> => {
-  if (config === null) return "not-configured";
-  const fetcher =
-    notify ?? ((url: string, init: RequestInit) => globalThis.fetch(url, init));
-  const adapter = createNtfyNotificationAdapter({
-    enabled: true,
-    fetcher,
-    resolveConfiguration: async () => ({
-      bearerToken: config.token,
-      enabled: true,
-      origin: config.origin,
-      recipientKey: NOTIFICATION_RECIPIENT,
-      tenantKey: NOTIFICATION_TENANT,
-      topic: config.topic,
-    }),
-    timeoutMs: NTFY_TIMEOUT_MS,
+const fetchQuote = (
+  symbol: string,
+  config: DeployStatusConfig | null,
+  needsFrom: Date
+): Promise<PriceAlertQuoteResult> => {
+  const now = currentTime();
+  const instrument = historyInstrument(symbol);
+  const open = sessionOpen(now);
+  let yahoo: PriceAlertQuoteResult | null = null;
+  return settle(async (): Promise<PriceAlertQuoteResult> => {
+    const merged = await loadMergedBars<QuoteBar>({
+      site: "price-alerts",
+      config,
+      request:
+        instrument === null
+          ? null
+          : {
+              ...instrument,
+              barSize: "5 mins",
+              duration: "1 D",
+            },
+      options: {
+        ...(priceAlertsOptions.fetch === undefined
+          ? {}
+          : { fetch: priceAlertsOptions.fetch }),
+        now: () => now,
+        timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
+      },
+      rejectStale: true,
+      maxAgeMs: QUOTE_MAX_AGE_MS,
+      fillBefore: new Date(
+        Math.max(needsFrom.getTime(), open.getTime())
+      ).toISOString(),
+      fromIbkr: (bar) =>
+        Math.min(bar.h, bar.l, bar.c) > 0
+          ? {
+              close: bar.c,
+              high: bar.h,
+              low: bar.l,
+              start: new Date(bar.t * 1000),
+            }
+          : null,
+      yahoo: async () => {
+        const result = await fetchYahooQuote(symbol);
+        yahoo = result;
+        if (!result.ok) throw new FallbackFailure(result.reason, result);
+        return result.quote.bars;
+      },
+      keyOf: (bar) => bar.start.toISOString(),
+    });
+    const read = yahoo as PriceAlertQuoteResult | null;
+    if (merged.history === null) return read as PriceAlertQuoteResult;
+    const newest = merged.bars.filter((bar) => bar.source === "ibkr").at(-1);
+    const { close, start } = newest as QuoteBar;
+    return {
+      ok: true,
+      quote: {
+        bars: merged.bars,
+        last: close as number,
+        asOf: new Date(
+          Math.min(now.getTime(), historyFetchedAt(merged.history).getTime())
+        ),
+        lastAt: new Date(Math.min(now.getTime(), start.getTime() + 5 * 60_000)),
+        symbol,
+      },
+    };
   });
-  const signal = new AbortController().signal;
-  const preparation = await adapter.prepare(
-    {
-      authenticated: true,
-      channel: "phone",
-      configurationRef: NOTIFICATION_CONFIGURATION,
-      cooldownMs: 1000,
-      enabled: true,
-      expiresAt: at.getTime() + 10 * 60_000,
-      purpose: "market-alert",
-      recipientKey: NOTIFICATION_RECIPIENT,
-      recipientRef: NOTIFICATION_RECIPIENT,
-      tenantKey: NOTIFICATION_TENANT,
-    },
-    signal
-  );
-  if (preparation.status !== "ready") return "failed";
-  const outcome = await preparation.send(
-    {
-      body: message.body,
-      providerIdempotencyKey: await sha256Hex(idempotencySource),
-      title: message.title,
-    },
-    signal
-  );
-  return outcome.acceptance === "accepted" ? "sent" : "failed";
 };
 
 const isActive = (rule: PriceAlertRuleRecord): rule is ActiveRule =>
@@ -184,7 +220,9 @@ const isActive = (rule: PriceAlertRuleRecord): rule is ActiveRule =>
 
 /** Quotes each symbol once, a few requests at a time. */
 const fetchQuotes = async (
-  symbols: readonly string[]
+  symbols: readonly string[],
+  config: DeployStatusConfig | null,
+  needsFrom: ReadonlyMap<string, Date>
 ): Promise<
   Readonly<{ quotes: Map<string, PriceAlertQuote>; errors: QuoteError[] }>
 > => {
@@ -194,7 +232,8 @@ const fetchQuotes = async (
     const batch = symbols.slice(start, start + QUOTE_CONCURRENCY);
     const results = await Promise.all(
       batch.map(async (symbol) => ({
-        result: await fetchQuote(symbol),
+        // Every planned symbol has a rule, so it has a window start.
+        result: await fetchQuote(symbol, config, needsFrom.get(symbol) as Date),
         symbol,
       }))
     );
@@ -216,7 +255,7 @@ const notifyOwners = async (
   const owners = new Map<string, string[]>();
   for (const rule of triggered)
     owners.set(rule.userId, [...(owners.get(rule.userId) ?? []), rule.id]);
-  const deliveries = new Map<string, Delivery>();
+  const deliveries = new Map<string, PriceAlertsNtfyDelivery>();
   const settled = new Map<string, PriceAlertRuleRecord>();
   for (const [userId, ids] of owners) {
     const delivery = await sendPriceAlertsNtfy(
@@ -244,16 +283,30 @@ const notifyOwners = async (
 const runPriceAlerts = async (
   repository: PriceAlertRepository,
   config: PriceAlertsNtfyConfig | null,
+  history: DeployStatusConfig | null,
   candidates: readonly PriceAlertRuleRecord[]
 ): Promise<RunResult> => {
-  const now = (priceAlertsOptions.now ?? (() => new Date()))();
+  const now = currentTime();
   const plan = planPriceAlertRun(
     candidates.filter(isActive),
     PRICE_ALERT_MAX_SYMBOLS_PER_RUN
   );
-  const { errors, quotes } = await fetchQuotes(plan.symbols);
+  // The oldest bar each symbol's rules may use: the earliest last check (or creation) of its rules.
+  const needsFrom = new Map<string, Date>();
+  for (const rule of plan.rules) {
+    const from = rule.state.lastCheckedAt ?? rule.createdAt;
+    const earliest = needsFrom.get(rule.symbol);
+    if (earliest === undefined || from < earliest)
+      needsFrom.set(rule.symbol, from);
+  }
+  const { errors, quotes } = await fetchQuotes(
+    plan.symbols,
+    history,
+    needsFrom
+  );
   let checked = 0;
-  const untouched: string[] = [];
+  // Untouched rules by the time their quote covers (IBKR: its fetch time; Yahoo: now).
+  const untouched = new Map<number, string[]>();
   const unquoted: string[] = [];
   const triggered: PriceAlertRuleRecord[] = [];
   for (const rule of plan.rules) {
@@ -273,7 +326,8 @@ const runPriceAlerts = async (
       quote
     );
     if (!evaluation.hit) {
-      untouched.push(rule.id);
+      const at = (quote.asOf ?? now).getTime();
+      untouched.set(at, [...(untouched.get(at) ?? []), rule.id]);
       continue;
     }
     const record = await repository.trigger({
@@ -284,7 +338,8 @@ const runPriceAlerts = async (
     if (record !== null) triggered.push(record);
   }
   const notified = await notifyOwners(repository, config, triggered, now);
-  await repository.markChecked(untouched, now);
+  for (const [at, ids] of untouched)
+    await repository.markChecked(ids, new Date(at));
   await repository.markAttempted(unquoted);
   return { checked, quoteErrors: errors, ...notified };
 };
@@ -396,6 +451,7 @@ const check = api.priceAlerts.check
     const result = await runPriceAlerts(
       rules,
       context.priceAlertsNtfy ?? null,
+      context.marketHistory ?? null,
       await rules.listActiveByUser(userId)
     );
     return {
@@ -421,6 +477,7 @@ const tick = api.priceAlerts.tick
     const result = await runPriceAlerts(
       rules,
       context.priceAlertsNtfy ?? null,
+      context.marketHistory ?? null,
       await rules.listActive(PRICE_ALERT_TICK_MAX_RULES, context.operatorEmails)
     );
     const outcomes = [...result.deliveries.values()];

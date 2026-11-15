@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "cboe-option-iv",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "option_iv_term",
+      "rows": [
+        {
+          "asOf": "2026-11-06",
+          "underlying": "SPY",
+          "expiration": "2026-11-21",
+          "dte": 15,
+          "atmStrike": 590.0,
+          "atmIv": 0.149,
+          "callOi": 412345,
+          "putOi": 612345,
+          "callVolume": 123456,
+          "putVolume": 154321
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

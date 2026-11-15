@@ -45,7 +45,7 @@ const isCloudflareRuntime = (): boolean => {
     return navigator.userAgent === "Cloudflare-Workers";
   }
   if (typeof Response !== "function") return false;
-  const probeOptions = { status: 200, cf: { thing: true } };
+  const probeOptions = { cf: { thing: true }, status: 200 };
   const response = new Response(null, probeOptions);
   return (
     "cf" in response &&
@@ -118,10 +118,10 @@ export const createNodeDatabase = (
   });
 
   return {
-    db: drizzleDatabase(pool),
     close: async () => {
       await pool.end();
     },
+    db: drizzleDatabase(pool),
   };
 };
 
@@ -182,6 +182,42 @@ const assertSafeRequestConnectionString = (connectionString: string): void => {
 
 let activeRequestConnections = 0;
 
+/** How long createRequestDatabase waits for a released slot before RequestDatabaseCapacityError. */
+export const REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS = 2000;
+
+/** FIFO waiters for a request slot; a release hands its slot straight to the first one. */
+const requestSlotWaiters: Array<() => void> = [];
+
+const releaseRequestSlot = (): void => {
+  const next = requestSlotWaiters.shift();
+  if (next === undefined) {
+    activeRequestConnections -= 1;
+    return;
+  }
+  // The slot passes to the waiter: activeRequestConnections stays unchanged.
+  next();
+};
+
+/** Resolves true once this caller owns a slot, false when the wait timed out. */
+const acquireRequestSlot = (): Promise<boolean> => {
+  if (activeRequestConnections < REQUEST_DATABASE_POOL_MAX_CONNECTIONS) {
+    activeRequestConnections += 1;
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    const waiter = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      const index = requestSlotWaiters.indexOf(waiter);
+      requestSlotWaiters.splice(index, 1);
+      resolve(false);
+    }, REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS);
+    requestSlotWaiters.push(waiter);
+  });
+};
+
 const endWithinCloseTimeout = async (client: Client): Promise<void> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -221,7 +257,7 @@ const closeRequestDatabaseClient = (
         throw error;
       } finally {
         // Release on every path: a rejected or hung end() used to leak the slot for the isolate's lifetime.
-        activeRequestConnections -= 1;
+        releaseRequestSlot();
       }
     })();
     return closePromise;
@@ -240,15 +276,14 @@ export const createRequestDatabase = async (
   options: RequestDatabaseOptions
 ): Promise<DatabaseResource> => {
   assertSafeRequestConnectionString(options.connectionString);
-  if (activeRequestConnections >= REQUEST_DATABASE_POOL_MAX_CONNECTIONS) {
-    throw new RequestDatabaseCapacityError();
-  }
-
   const diagnosticSink = options.diagnosticSink;
   const connectionString = normalizePlanetScaleSystemRoot(
     options.connectionString
   );
   assertSupportedRuntimeNegotiation(connectionString);
+  if (!(await acquireRequestSlot())) {
+    throw new RequestDatabaseCapacityError();
+  }
   const connectionTimeoutMillis =
     options.connectionTimeoutMillis ??
     DEFAULT_REQUEST_CONNECTION_TIMEOUT_MILLISECONDS;
@@ -257,14 +292,23 @@ export const createRequestDatabase = async (
     connectionTimeoutMillis,
     query_timeout: REQUEST_QUERY_TIMEOUT_MILLISECONDS,
   });
+  let closing = false;
   client.on("error", () => {
+    // The listener stays attached (an unhandled "error" event throws). Once this
+    // request ends its own client, socket errors are teardown noise: on Workers
+    // (pg-cloudflare 1.4.1), the read loop rejects "This socket has been closed." after
+    // every end(). A real close failure is reported as CLIENT_CLOSE_ERROR instead.
+    if (closing) return;
     return emitRequestDatabaseDiagnostic(
       diagnosticSink,
       REQUEST_DATABASE_CLIENT_ERROR_DIAGNOSTIC
     );
   });
-  activeRequestConnections += 1;
-  const close = closeRequestDatabaseClient(client, diagnosticSink);
+  const endClient = closeRequestDatabaseClient(client, diagnosticSink);
+  const close = (): Promise<void> => {
+    closing = true;
+    return endClient();
+  };
   try {
     await client.connect();
   } catch (error) {
@@ -278,8 +322,8 @@ export const createRequestDatabase = async (
 
   try {
     return {
-      db: drizzleDatabase(client),
       close,
+      db: drizzleDatabase(client),
     };
   } catch (error) {
     await close().catch(() => undefined);

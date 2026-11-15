@@ -1,0 +1,1665 @@
+{
+  "job": "fed-regime",
+  "today": "2026-11-08",
+  "argv": ["fed-regime"],
+  "env": {},
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "http:https://fred.stlouisfed.org/graph/fredgraph.csv?id=NFCI&cosd=2025-10-04",
+      "result": "observation_date,NFCI\n2026-05-15,-0.508\n2026-05-22,-0.507\n2026-05-29,-0.506\n2026-06-05,-0.505\n2026-06-12,-0.504\n2026-06-19,-0.506\n2026-06-26,-0.509\n2026-07-03,-0.515\n2026-07-10,-0.521\n2026-07-17,-0.527\n2026-07-24,-0.533\n2026-07-31,-0.538\n2026-08-07,-0.542\n2026-08-14,-0.546\n2026-08-21,-0.547\n2026-08-28,-0.545\n2026-09-04,-0.540\n2026-09-11,-0.532\n2026-09-18,-0.522\n2026-09-25,-0.510\n2026-10-02,-0.498\n2026-10-09,-0.487\n2026-10-16,-0.477\n2026-10-23,-0.467\n2026-10-30,-0.459\n"
+    },
+    {
+      "key": "http:https://fred.stlouisfed.org/graph/fredgraph.csv?id=ANFCI&cosd=2025-10-04",
+      "result": "observation_date,ANFCI\n2026-05-15,-0.476\n2026-05-22,-0.480\n2026-05-29,-0.490\n2026-06-05,-0.506\n2026-06-12,-0.520\n2026-06-19,-0.531\n2026-06-26,-0.538\n2026-07-03,-0.542\n2026-07-10,-0.545\n2026-07-17,-0.549\n2026-07-24,-0.554\n2026-07-31,-0.558\n2026-08-07,-0.560\n2026-08-14,-0.558\n2026-08-21,-0.552\n2026-08-28,-0.541\n2026-09-04,-0.528\n2026-09-11,-0.514\n2026-09-18,-0.500\n2026-09-25,-0.487\n2026-10-02,-0.474\n2026-10-09,-0.464\n2026-10-16,-0.454\n2026-10-23,-0.443\n2026-10-30,-0.435\n"
+    },
+    {
+      "key": "fetcher:federal_reserve:FederalReserveKansasCityFinancialStress:{\"end_date\":\"2026-11-08\",\"start_date\":\"2025-10-04\"}",
+      "result": [
+        {
+          "date": "2025-11-01",
+          "kcfsi": -0.724131927203842
+        },
+        {
+          "date": "2025-12-01",
+          "kcfsi": -0.70010238557162
+        },
+        {
+          "date": "2026-01-01",
+          "kcfsi": -0.6507588000279
+        },
+        {
+          "date": "2026-02-01",
+          "kcfsi": -0.558261407059205
+        },
+        {
+          "date": "2026-03-01",
+          "kcfsi": -0.579746756615965
+        },
+        {
+          "date": "2026-04-01",
+          "kcfsi": -0.71871255921147
+        },
+        {
+          "date": "2026-05-01",
+          "kcfsi": -0.87726605150823
+        },
+        {
+          "date": "2026-06-01",
+          "kcfsi": -0.759797516226279
+        },
+        {
+          "date": "2026-07-01",
+          "kcfsi": -0.838530739116719
+        },
+        {
+          "date": "2026-08-01",
+          "kcfsi": -0.942109151125804
+        },
+        {
+          "date": "2026-09-01",
+          "kcfsi": -0.987545923271923
+        },
+        {
+          "date": "2026-10-01",
+          "kcfsi": -0.885047676863641
+        }
+      ]
+    },
+    {
+      "key": "fetcher:federal_reserve:FederalReserveNewYorkNowcast:{\"end_date\":\"2026-11-08\",\"start_date\":\"2025-10-04\"}",
+      "result": [
+        {
+          "date": "2025-10-10",
+          "reference_quarter": "2025:Q4",
+          "backcast": 2.34,
+          "nowcast": 2.23
+        },
+        {
+          "date": "2025-10-17",
+          "reference_quarter": "2025:Q4",
+          "backcast": 2.34,
+          "nowcast": 2.25
+        },
+        {
+          "date": "2025-10-24",
+          "reference_quarter": "2025:Q4",
+          "backcast": 2.35,
+          "nowcast": 2.26
+        },
+        {
+          "date": "2025-10-31",
+          "reference_quarter": "2025:Q4",
+          "backcast": 2.35,
+          "nowcast": 2.26
+        },
+        {
+          "date": "2025-11-07",
+          "reference_quarter": "2025:Q4",
+          "backcast": 2.31,
+          "nowcast": 2.1
+        },
+        {
+          "date": "2025-11-14",
+          "reference_quarter": "2025:Q4",
+          "backcast": 2.31,
+          "nowcast": 2.1
+        },
+        {
+          "date": "2025-11-21",
+          "reference_quarter": "2025:Q4",
+          "backcast": 2.31,
+          "nowcast": 2.31
+        },
+        {
+          "date": "2025-11-28",
+          "reference_quarter": "2025:Q4",
+          "backcast": 2.31,
+          "nowcast": 2.33,
+          "forecast": 2.66
+        },
+        {
+          "date": "2025-12-05",
+          "reference_quarter": "2025:Q4",
+          "nowcast": 1.73,
+          "forecast": 2.22
+        },
+        {
+          "date": "2025-12-12",
+          "reference_quarter": "2025:Q4",
+          "nowcast": 1.81,
+          "forecast": 2.24
+        },
+        {
+          "date": "2025-12-19",
+          "reference_quarter": "2025:Q4",
+          "nowcast": 1.71,
+          "forecast": 2.11
+        },
+        {
+          "date": "2025-12-26",
+          "reference_quarter": "2025:Q4",
+          "nowcast": 2.07,
+          "forecast": 2.17
+        },
+        {
+          "date": "2026-01-02",
+          "reference_quarter": "2026:Q1",
+          "backcast": 2.07,
+          "nowcast": 2.17
+        },
+        {
+          "date": "2026-01-09",
+          "reference_quarter": "2026:Q1",
+          "backcast": 2.62,
+          "nowcast": 2.61
+        },
+        {
+          "date": "2026-01-16",
+          "reference_quarter": "2026:Q1",
+          "backcast": 2.71,
+          "nowcast": 2.75
+        },
+        {
+          "date": "2026-01-23",
+          "reference_quarter": "2026:Q1",
+          "backcast": 2.74,
+          "nowcast": 2.73
+        },
+        {
+          "date": "2026-01-30",
+          "reference_quarter": "2026:Q1",
+          "backcast": 2.74,
+          "nowcast": 2.73
+        },
+        {
+          "date": "2026-02-06",
+          "reference_quarter": "2026:Q1",
+          "backcast": 2.69,
+          "nowcast": 2.59
+        },
+        {
+          "date": "2026-02-13",
+          "reference_quarter": "2026:Q1",
+          "backcast": 2.71,
+          "nowcast": 2.63
+        },
+        {
+          "date": "2026-02-20",
+          "reference_quarter": "2026:Q1",
+          "backcast": 2.73,
+          "nowcast": 2.37
+        },
+        {
+          "date": "2026-02-27",
+          "reference_quarter": "2026:Q1",
+          "nowcast": 2.38
+        },
+        {
+          "date": "2026-03-06",
+          "reference_quarter": "2026:Q1",
+          "nowcast": 2.23
+        },
+        {
+          "date": "2026-03-13",
+          "reference_quarter": "2026:Q1",
+          "nowcast": 2.09,
+          "forecast": 2.68
+        },
+        {
+          "date": "2026-03-20",
+          "reference_quarter": "2026:Q1",
+          "nowcast": 2.07,
+          "forecast": 2.67
+        },
+        {
+          "date": "2026-03-27",
+          "reference_quarter": "2026:Q1",
+          "nowcast": 2.09,
+          "forecast": 2.68
+        },
+        {
+          "date": "2026-04-03",
+          "reference_quarter": "2026:Q2",
+          "backcast": 2.41,
+          "nowcast": 2.82
+        },
+        {
+          "date": "2026-04-10",
+          "reference_quarter": "2026:Q2",
+          "backcast": 2.31,
+          "nowcast": 2.6
+        },
+        {
+          "date": "2026-04-17",
+          "reference_quarter": "2026:Q2",
+          "backcast": 2.31,
+          "nowcast": 2.75
+        },
+        {
+          "date": "2026-04-24",
+          "reference_quarter": "2026:Q2",
+          "backcast": 2.36,
+          "nowcast": 2.81
+        },
+        {
+          "date": "2026-05-01",
+          "reference_quarter": "2026:Q2",
+          "backcast": 2.35,
+          "nowcast": 2.52
+        },
+        {
+          "date": "2026-05-08",
+          "reference_quarter": "2026:Q2",
+          "nowcast": 2.59
+        },
+        {
+          "date": "2026-05-15",
+          "reference_quarter": "2026:Q2",
+          "nowcast": 2.61
+        },
+        {
+          "date": "2026-05-22",
+          "reference_quarter": "2026:Q2",
+          "nowcast": 2.61
+        },
+        {
+          "date": "2026-05-29",
+          "reference_quarter": "2026:Q2",
+          "nowcast": 2.5,
+          "forecast": 2.36
+        },
+        {
+          "date": "2026-06-05",
+          "reference_quarter": "2026:Q2",
+          "nowcast": 2.67,
+          "forecast": 2.47
+        },
+        {
+          "date": "2026-06-12",
+          "reference_quarter": "2026:Q2",
+          "nowcast": 2.7,
+          "forecast": 2.46
+        },
+        {
+          "date": "2026-06-19",
+          "reference_quarter": "2026:Q2",
+          "nowcast": 2.68,
+          "forecast": 2.45
+        },
+        {
+          "date": "2026-06-26",
+          "reference_quarter": "2026:Q2",
+          "nowcast": 2.7,
+          "forecast": 2.42
+        },
+        {
+          "date": "2026-07-03",
+          "reference_quarter": "2026:Q3",
+          "backcast": 2.74,
+          "nowcast": 2.37
+        },
+        {
+          "date": "2026-07-10",
+          "reference_quarter": "2026:Q3",
+          "backcast": 2.73,
+          "nowcast": 2.36
+        },
+        {
+          "date": "2026-07-17",
+          "reference_quarter": "2026:Q3",
+          "backcast": 2.8,
+          "nowcast": 2.6
+        },
+        {
+          "date": "2026-07-24",
+          "reference_quarter": "2026:Q3",
+          "backcast": 2.82,
+          "nowcast": 2.62
+        },
+        {
+          "date": "2026-07-31",
+          "reference_quarter": "2026:Q3",
+          "backcast": 2.85,
+          "nowcast": 2.52
+        },
+        {
+          "date": "2026-08-07",
+          "reference_quarter": "2026:Q3",
+          "nowcast": 2.24
+        },
+        {
+          "date": "2026-08-14",
+          "reference_quarter": "2026:Q3",
+          "nowcast": 2.14
+        },
+        {
+          "date": "2026-08-21",
+          "reference_quarter": "2026:Q3",
+          "nowcast": 2.27
+        },
+        {
+          "date": "2026-08-28",
+          "reference_quarter": "2026:Q3",
+          "nowcast": 2.22
+        },
+        {
+          "date": "2026-09-04",
+          "reference_quarter": "2026:Q3",
+          "nowcast": 2.26,
+          "forecast": 2.51
+        },
+        {
+          "date": "2026-09-11",
+          "reference_quarter": "2026:Q3",
+          "nowcast": 2.26,
+          "forecast": 2.51
+        },
+        {
+          "date": "2026-09-18",
+          "reference_quarter": "2026:Q3",
+          "nowcast": 2.33,
+          "forecast": 2.6
+        },
+        {
+          "date": "2026-09-25",
+          "reference_quarter": "2026:Q3",
+          "nowcast": 2.33,
+          "forecast": 2.6
+        },
+        {
+          "date": "2026-10-02",
+          "reference_quarter": "2026:Q4",
+          "backcast": 2.46,
+          "nowcast": 2.54
+        },
+        {
+          "date": "2026-10-09",
+          "reference_quarter": "2026:Q4",
+          "backcast": 2.65,
+          "nowcast": 2.83
+        },
+        {
+          "date": "2026-10-16",
+          "reference_quarter": "2026:Q4",
+          "backcast": 2.67,
+          "nowcast": 2.82
+        },
+        {
+          "date": "2026-10-23",
+          "reference_quarter": "2026:Q4",
+          "backcast": 2.67,
+          "nowcast": 2.81
+        },
+        {
+          "date": "2026-10-30",
+          "reference_quarter": "2026:Q4",
+          "backcast": 2.67,
+          "nowcast": 2.9
+        },
+        {
+          "date": "2026-11-06",
+          "reference_quarter": "2026:Q4",
+          "nowcast": 2.94
+        }
+      ]
+    },
+    {
+      "key": "fetcher:federal_reserve:FederalReserveNewYorkSupplyChain:{\"end_date\":\"2026-11-08\",\"start_date\":\"2025-10-04\"}",
+      "result": [
+        {
+          "date": "2025-10-31",
+          "gscpi": -0.08417017117567405
+        },
+        {
+          "date": "2025-11-30",
+          "gscpi": -0.1452427949891833
+        },
+        {
+          "date": "2025-12-31",
+          "gscpi": 0.5545759824796691
+        },
+        {
+          "date": "2026-01-31",
+          "gscpi": 0.4297175466813913
+        },
+        {
+          "date": "2026-02-28",
+          "gscpi": 0.5331020025541632
+        },
+        {
+          "date": "2026-03-31",
+          "gscpi": 0.6419637587697538
+        },
+        {
+          "date": "2026-04-30",
+          "gscpi": 1.8055316194783029
+        },
+        {
+          "date": "2026-05-31",
+          "gscpi": 1.8016769744038679
+        },
+        {
+          "date": "2026-06-30",
+          "gscpi": 1.2025615909384029
+        },
+        {
+          "date": "2026-07-31",
+          "gscpi": 0.9511299684565387
+        },
+        {
+          "date": "2026-08-31",
+          "gscpi": 1.271031150860317
+        },
+        {
+          "date": "2026-09-30",
+          "gscpi": 1.3611804462976467
+        },
+        {
+          "date": "2026-10-31",
+          "gscpi": 1.2619111813086497
+        }
+      ]
+    },
+    {
+      "key": "fetcher:federal_reserve:FederalReserveNewYorkCorporateDistress:{\"end_date\":\"2026-11-08\",\"start_date\":\"2025-10-04\"}",
+      "result": [
+        {
+          "date": "2025-10-10",
+          "market": 0.06,
+          "investment_grade": 0.1,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2025-10-17",
+          "market": 0.11,
+          "investment_grade": 0.15,
+          "high_yield": 0.07
+        },
+        {
+          "date": "2025-10-24",
+          "market": 0.1,
+          "investment_grade": 0.12,
+          "high_yield": 0.09
+        },
+        {
+          "date": "2025-10-31",
+          "market": 0.12,
+          "investment_grade": 0.12,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2025-11-07",
+          "market": 0.1,
+          "investment_grade": 0.13,
+          "high_yield": 0.09
+        },
+        {
+          "date": "2025-11-14",
+          "market": 0.11,
+          "investment_grade": 0.13,
+          "high_yield": 0.06
+        },
+        {
+          "date": "2025-11-21",
+          "market": 0.12,
+          "investment_grade": 0.12,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2025-11-28",
+          "market": 0.1,
+          "investment_grade": 0.11,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2025-12-05",
+          "market": 0.11,
+          "investment_grade": 0.12,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2025-12-12",
+          "market": 0.12,
+          "investment_grade": 0.15,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2025-12-19",
+          "market": 0.13,
+          "investment_grade": 0.15,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2025-12-26",
+          "market": 0.11,
+          "investment_grade": 0.14,
+          "high_yield": 0.06
+        },
+        {
+          "date": "2026-01-02",
+          "market": 0.11,
+          "investment_grade": 0.14,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-01-09",
+          "market": 0.13,
+          "investment_grade": 0.11,
+          "high_yield": 0.07
+        },
+        {
+          "date": "2026-01-16",
+          "market": 0.09,
+          "investment_grade": 0.11,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-01-23",
+          "market": 0.07,
+          "investment_grade": 0.11,
+          "high_yield": 0.06
+        },
+        {
+          "date": "2026-01-30",
+          "market": 0.11,
+          "investment_grade": 0.12,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2026-02-06",
+          "market": 0.13,
+          "investment_grade": 0.11,
+          "high_yield": 0.09
+        },
+        {
+          "date": "2026-02-13",
+          "market": 0.1,
+          "investment_grade": 0.09,
+          "high_yield": 0.07
+        },
+        {
+          "date": "2026-02-20",
+          "market": 0.09,
+          "investment_grade": 0.09,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-02-27",
+          "market": 0.12,
+          "investment_grade": 0.21,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-03-06",
+          "market": 0.14,
+          "investment_grade": 0.21,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-03-13",
+          "market": 0.17,
+          "investment_grade": 0.29,
+          "high_yield": 0.12
+        },
+        {
+          "date": "2026-03-20",
+          "market": 0.16,
+          "investment_grade": 0.28,
+          "high_yield": 0.12
+        },
+        {
+          "date": "2026-03-27",
+          "market": 0.14,
+          "investment_grade": 0.25,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-04-03",
+          "market": 0.14,
+          "investment_grade": 0.22,
+          "high_yield": 0.12
+        },
+        {
+          "date": "2026-04-10",
+          "market": 0.16,
+          "investment_grade": 0.23,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-04-17",
+          "market": 0.16,
+          "investment_grade": 0.19,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2026-04-24",
+          "market": 0.14,
+          "investment_grade": 0.2,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-05-01",
+          "market": 0.15,
+          "investment_grade": 0.23,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-05-08",
+          "market": 0.13,
+          "investment_grade": 0.21,
+          "high_yield": 0.09
+        },
+        {
+          "date": "2026-05-15",
+          "market": 0.14,
+          "investment_grade": 0.23,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-05-22",
+          "market": 0.18,
+          "investment_grade": 0.26,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-05-29",
+          "market": 0.19,
+          "investment_grade": 0.25,
+          "high_yield": 0.09
+        },
+        {
+          "date": "2026-06-05",
+          "market": 0.16,
+          "investment_grade": 0.23,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-06-12",
+          "market": 0.16,
+          "investment_grade": 0.26,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-06-19",
+          "market": 0.13,
+          "investment_grade": 0.23,
+          "high_yield": 0.06
+        },
+        {
+          "date": "2026-06-26",
+          "market": 0.16,
+          "investment_grade": 0.25,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-07-03",
+          "market": 0.14,
+          "investment_grade": 0.23,
+          "high_yield": 0.06
+        },
+        {
+          "date": "2026-07-10",
+          "market": 0.17,
+          "investment_grade": 0.3,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2026-07-17",
+          "market": 0.18,
+          "investment_grade": 0.33,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2026-07-24",
+          "market": 0.15,
+          "investment_grade": 0.3,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-07-31",
+          "market": 0.19,
+          "investment_grade": 0.27,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2026-08-07",
+          "market": 0.21,
+          "investment_grade": 0.29,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-08-14",
+          "market": 0.19,
+          "investment_grade": 0.24,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-08-21",
+          "market": 0.21,
+          "investment_grade": 0.27,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-08-28",
+          "market": 0.18,
+          "investment_grade": 0.25,
+          "high_yield": 0.09
+        },
+        {
+          "date": "2026-09-04",
+          "market": 0.17,
+          "investment_grade": 0.27,
+          "high_yield": 0.08
+        },
+        {
+          "date": "2026-09-11",
+          "market": 0.17,
+          "investment_grade": 0.25,
+          "high_yield": 0.04
+        },
+        {
+          "date": "2026-09-18",
+          "market": 0.17,
+          "investment_grade": 0.23,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-09-25",
+          "market": 0.2,
+          "investment_grade": 0.25,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2026-10-02",
+          "market": 0.22,
+          "investment_grade": 0.28,
+          "high_yield": 0.1
+        },
+        {
+          "date": "2026-10-09",
+          "market": 0.26,
+          "investment_grade": 0.31,
+          "high_yield": 0.11
+        },
+        {
+          "date": "2026-10-16",
+          "market": 0.25,
+          "investment_grade": 0.28,
+          "high_yield": 0.19
+        },
+        {
+          "date": "2026-10-23",
+          "market": 0.25,
+          "investment_grade": 0.25,
+          "high_yield": 0.16
+        }
+      ]
+    },
+    {
+      "key": "fetcher:federal_reserve:FederalReserveClevelandInflationNowcast:{\"end_date\":\"2026-11-08\",\"frequency\":\"month\",\"start_date\":\"2025-10-04\"}",
+      "result": [
+        {
+          "date": "2025-11-01",
+          "Actual CPI Inflation": 0.0211040487848813,
+          "Actual Core CPI Inflation": -0.0893891793114721,
+          "Actual Core PCE Inflation": 0.160354667,
+          "Actual PCE Inflation": 0.207309823,
+          "CPI Inflation": 0.321542190082161,
+          "Core CPI Inflation": 0.247317052243088,
+          "Core PCE Inflation": 0.0516121511633146,
+          "PCE Inflation": 0.0665944970398888
+        },
+        {
+          "date": "2025-12-01",
+          "Actual CPI Inflation": 0.307355298417678,
+          "Actual Core CPI Inflation": 0.239225778389951,
+          "Actual Core PCE Inflation": 0.355391676146399,
+          "Actual PCE Inflation": 0.355835784906633,
+          "CPI Inflation": 0.204578066144145,
+          "Core CPI Inflation": 0.215750382490006,
+          "Core PCE Inflation": 0.233256262280197,
+          "PCE Inflation": 0.26378274508451
+        },
+        {
+          "date": "2026-01-01",
+          "Actual CPI Inflation": 0.170842649932057,
+          "Actual Core CPI Inflation": 0.295044814263412,
+          "Actual Core PCE Inflation": 0.36348286940413,
+          "Actual PCE Inflation": 0.275240057536053,
+          "CPI Inflation": 0.134978853983875,
+          "Core CPI Inflation": 0.218198776570535,
+          "Core PCE Inflation": 0.270732531615342,
+          "PCE Inflation": 0.198517922663262
+        },
+        {
+          "date": "2026-02-01",
+          "Actual CPI Inflation": 0.267003074209704,
+          "Actual Core CPI Inflation": 0.216050217402408,
+          "Actual Core PCE Inflation": 0.366856715580899,
+          "Actual PCE Inflation": 0.375295622843419,
+          "CPI Inflation": 0.248613384458881,
+          "Core CPI Inflation": 0.207033634112613,
+          "Core PCE Inflation": 0.231658387470621,
+          "PCE Inflation": 0.247886112195233
+        },
+        {
+          "date": "2026-03-01",
+          "Actual CPI Inflation": 0.865143834361448,
+          "Actual Core CPI Inflation": 0.195795053851144,
+          "Actual Core PCE Inflation": 0.293248306840121,
+          "Actual PCE Inflation": 0.664174724290256,
+          "CPI Inflation": 0.844071623167513,
+          "Core CPI Inflation": 0.203809045102978,
+          "Core PCE Inflation": 0.230240663398332,
+          "PCE Inflation": 0.583417802058228
+        },
+        {
+          "date": "2026-04-01",
+          "Actual CPI Inflation": 0.64003778463364,
+          "Actual Core CPI Inflation": 0.376460730477457,
+          "Actual Core PCE Inflation": 0.238940311318347,
+          "Actual PCE Inflation": 0.399598100950271,
+          "CPI Inflation": 0.448127134166122,
+          "Core CPI Inflation": 0.21436431146589,
+          "Core PCE Inflation": 0.29471945306219,
+          "PCE Inflation": 0.491295393007518
+        },
+        {
+          "date": "2026-05-01",
+          "Actual CPI Inflation": 0.472914228641397,
+          "Actual Core CPI Inflation": 0.208095449626278,
+          "Actual Core PCE Inflation": 0.320050591129584,
+          "Actual PCE Inflation": 0.449831217828289,
+          "CPI Inflation": 0.459027462852829,
+          "Core CPI Inflation": 0.225855170695322,
+          "Core PCE Inflation": 0.236651206096291,
+          "PCE Inflation": 0.376293571647688
+        },
+        {
+          "date": "2026-06-01",
+          "Actual CPI Inflation": -0.422481653038065,
+          "Actual Core CPI Inflation": -0.0166606668431823,
+          "Actual Core PCE Inflation": 0.132212092794437,
+          "Actual PCE Inflation": -0.108716311247958,
+          "CPI Inflation": -0.0612913952296244,
+          "Core CPI Inflation": 0.232322464774341,
+          "Core PCE Inflation": 0.187030847713643,
+          "PCE Inflation": -0.123176603475239
+        },
+        {
+          "date": "2026-07-01",
+          "Actual CPI Inflation": 0.0736691443554482,
+          "Actual Core CPI Inflation": 0.215434514156487,
+          "Actual Core PCE Inflation": 0.245515505838667,
+          "Actual PCE Inflation": 0.155948088304636,
+          "CPI Inflation": 0.0865130552949185,
+          "Core CPI Inflation": 0.211432281705678,
+          "Core PCE Inflation": 0.247223944856928,
+          "PCE Inflation": 0.154589352365425
+        },
+        {
+          "date": "2026-08-01",
+          "Actual CPI Inflation": 0.396018184385816,
+          "Actual Core CPI Inflation": 0.289795688101457,
+          "Actual Core PCE Inflation": 0.247439158399487,
+          "Actual PCE Inflation": 0.310279632848487,
+          "CPI Inflation": 0.359180537639179,
+          "Core CPI Inflation": 0.203341742698412,
+          "Core PCE Inflation": 0.274409309156788,
+          "PCE Inflation": 0.342798456247959
+        },
+        {
+          "date": "2026-09-01",
+          "Actual CPI Inflation": 0.648548024577189,
+          "Actual Core CPI Inflation": 0.334848193270476,
+          "Actual Core PCE Inflation": 0.316501774095879,
+          "Actual PCE Inflation": 0.490840431270945,
+          "CPI Inflation": 0.530663236714369,
+          "Core CPI Inflation": 0.201681228472037,
+          "Core PCE Inflation": 0.27564074403495,
+          "PCE Inflation": 0.466785883157557
+        },
+        {
+          "date": "2026-10-01",
+          "CPI Inflation": 0.242106165709167,
+          "Core CPI Inflation": 0.211437433436468,
+          "Core PCE Inflation": 0.256482490833176,
+          "PCE Inflation": 0.26522733807117
+        },
+        {
+          "date": "2026-11-01",
+          "CPI Inflation": 0.188147928143953,
+          "Core CPI Inflation": 0.204076307515469,
+          "Core PCE Inflation": 0.263085273897593,
+          "PCE Inflation": 0.245409888768775
+        }
+      ]
+    },
+    {
+      "key": "fetcher:federal_reserve:CentralBankHoldings:{\"summary\":true}",
+      "result": [
+        {
+          "date": "2025-09-17",
+          "bills": 195492926700.0,
+          "frn": 12575703600.0,
+          "notes_and_bonds": 3572148691000.0,
+          "tips": 309452193800.0,
+          "mbs": 2094885411093.6,
+          "cmbs": 7897668782.5,
+          "agencies": 2347000000.0,
+          "total": 6194799594976.1,
+          "tips_inflation_compensation": 111394691870.25
+        },
+        {
+          "date": "2025-09-24",
+          "bills": 195492926700.0,
+          "frn": 12575703600.0,
+          "notes_and_bonds": 3572148691000.0,
+          "tips": 309452193800.0,
+          "mbs": 2091317008393.0,
+          "cmbs": 7897668782.5,
+          "agencies": 2347000000.0,
+          "total": 6191231192275.5,
+          "tips_inflation_compensation": 111542913512.62
+        },
+        {
+          "date": "2025-10-01",
+          "bills": 195492926700.0,
+          "frn": 12575703600.0,
+          "notes_and_bonds": 3566099541800.0,
+          "tips": 310501343000.0,
+          "mbs": 2078092682731.9,
+          "cmbs": 7890514236.3,
+          "agencies": 2347000000.0,
+          "total": 6172999712068.2,
+          "tips_inflation_compensation": 111715428255.08
+        },
+        {
+          "date": "2025-10-08",
+          "bills": 195492926700.0,
+          "frn": 12575703600.0,
+          "notes_and_bonds": 3566099541800.0,
+          "tips": 310501343000.0,
+          "mbs": 2078092682731.9,
+          "cmbs": 7890514236.3,
+          "agencies": 2347000000.0,
+          "total": 6172999712068.2,
+          "tips_inflation_compensation": 111989058546.9
+        },
+        {
+          "date": "2025-10-15",
+          "bills": 195492926700.0,
+          "frn": 12575703600.0,
+          "notes_and_bonds": 3568308575000.0,
+          "tips": 308198180300.0,
+          "mbs": 2078105457242.3,
+          "cmbs": 7890514236.3,
+          "agencies": 2347000000.0,
+          "total": 6172918357078.6,
+          "tips_inflation_compensation": 111694543079.78
+        },
+        {
+          "date": "2025-10-22",
+          "bills": 195492926700.0,
+          "frn": 12575703600.0,
+          "notes_and_bonds": 3568233575000.0,
+          "tips": 308198180300.0,
+          "mbs": 2074717007000.2,
+          "cmbs": 7888689494.8,
+          "agencies": 2347000000.0,
+          "total": 6169453082095.0,
+          "tips_inflation_compensation": 111966546576.05
+        },
+        {
+          "date": "2025-10-29",
+          "bills": 195492926700.0,
+          "frn": 12575703600.0,
+          "notes_and_bonds": 3568233575000.0,
+          "tips": 308198180300.0,
+          "mbs": 2062093057414.7,
+          "cmbs": 7869787845.3,
+          "agencies": 2347000000.0,
+          "total": 6156810230860.0,
+          "tips_inflation_compensation": 112238701908.16
+        },
+        {
+          "date": "2025-11-05",
+          "bills": 195492926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3560730145000.0,
+          "tips": 309716153400.0,
+          "mbs": 2062093057414.7,
+          "cmbs": 7869787845.3,
+          "agencies": 2347000000.0,
+          "total": 6152547435360.0,
+          "tips_inflation_compensation": 112505175322.92
+        },
+        {
+          "date": "2025-11-12",
+          "bills": 195492926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3560730145000.0,
+          "tips": 309716153400.0,
+          "mbs": 2062093057414.7,
+          "cmbs": 7869787845.3,
+          "agencies": 2347000000.0,
+          "total": 6152547435360.0,
+          "tips_inflation_compensation": 112755737592.04
+        },
+        {
+          "date": "2025-11-19",
+          "bills": 195492926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3558424762700.0,
+          "tips": 309716153400.0,
+          "mbs": 2062040358224.7,
+          "cmbs": 7866384420.8,
+          "agencies": 2347000000.0,
+          "total": 6150185950445.5,
+          "tips_inflation_compensation": 113006371280.14
+        },
+        {
+          "date": "2025-11-26",
+          "bills": 195492926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3558424762700.0,
+          "tips": 309716153400.0,
+          "mbs": 2045824659652.1,
+          "cmbs": 7840642989.2,
+          "agencies": 2347000000.0,
+          "total": 6133944510441.3,
+          "tips_inflation_compensation": 113292460106.48
+        },
+        {
+          "date": "2025-12-03",
+          "bills": 195492926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3555730144900.0,
+          "tips": 309716153400.0,
+          "mbs": 2045824659652.1,
+          "cmbs": 7840642989.2,
+          "agencies": 2347000000.0,
+          "total": 6131249892641.3,
+          "tips_inflation_compensation": 113500974592.45
+        },
+        {
+          "date": "2025-12-10",
+          "bills": 195492926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3555730144900.0,
+          "tips": 309716153400.0,
+          "mbs": 2045824659652.1,
+          "cmbs": 7840642989.2,
+          "agencies": 2347000000.0,
+          "total": 6131249892641.3,
+          "tips_inflation_compensation": 113737279848.0
+        },
+        {
+          "date": "2025-12-17",
+          "bills": 210460926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3555730144900.0,
+          "tips": 309716153400.0,
+          "mbs": 2045638704812.8,
+          "cmbs": 7837683456.7,
+          "agencies": 2347000000.0,
+          "total": 6146028978269.5,
+          "tips_inflation_compensation": 113973762966.08
+        },
+        {
+          "date": "2025-12-24",
+          "bills": 233591926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3555730144900.0,
+          "tips": 309716153400.0,
+          "mbs": 2042736862233.9,
+          "cmbs": 7837683456.7,
+          "agencies": 2347000000.0,
+          "total": 6166258135690.6,
+          "tips_inflation_compensation": 114243935241.01
+        },
+        {
+          "date": "2025-12-31",
+          "bills": 233591926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3553172344200.0,
+          "tips": 312273954100.0,
+          "mbs": 2031271929825.0,
+          "cmbs": 7751629891.8,
+          "agencies": 2347000000.0,
+          "total": 6154707149716.8,
+          "tips_inflation_compensation": 114463989084.4
+        },
+        {
+          "date": "2026-01-07",
+          "bills": 241756926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3553172344200.0,
+          "tips": 312273954100.0,
+          "mbs": 2031271929825.0,
+          "cmbs": 7751629891.8,
+          "agencies": 2347000000.0,
+          "total": 6162872149716.8,
+          "tips_inflation_compensation": 114024929542.93
+        },
+        {
+          "date": "2026-01-14",
+          "bills": 249921926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3553172344200.0,
+          "tips": 312273954100.0,
+          "mbs": 2031271929825.0,
+          "cmbs": 7751629891.8,
+          "agencies": 2347000000.0,
+          "total": 6171037149716.8,
+          "tips_inflation_compensation": 113586876243.5
+        },
+        {
+          "date": "2026-01-21",
+          "bills": 258227926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3587810287700.0,
+          "tips": 288705855700.0,
+          "mbs": 2028094389618.6,
+          "cmbs": 7745526990.5,
+          "agencies": 2347000000.0,
+          "total": 6187229351709.1,
+          "tips_inflation_compensation": 102113865630.95
+        },
+        {
+          "date": "2026-01-28",
+          "bills": 273451926700.0,
+          "frn": 14298365000.0,
+          "notes_and_bonds": 3587810287700.0,
+          "tips": 288705855700.0,
+          "mbs": 2016004496066.2,
+          "cmbs": 7705522194.8,
+          "agencies": 2347000000.0,
+          "total": 6190323453361.0,
+          "tips_inflation_compensation": 101710935611.34
+        },
+        {
+          "date": "2026-02-04",
+          "bills": 288676926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3585696264400.0,
+          "tips": 288705855700.0,
+          "mbs": 2016004496066.2,
+          "cmbs": 7705522195.8,
+          "agencies": 2347000000.0,
+          "total": 6205548453362.0,
+          "tips_inflation_compensation": 101526669446.26
+        },
+        {
+          "date": "2026-02-11",
+          "bills": 305284926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3585696264400.0,
+          "tips": 288705855700.0,
+          "mbs": 2016004496066.2,
+          "cmbs": 7705522195.8,
+          "agencies": 2347000000.0,
+          "total": 6222156453362.0,
+          "tips_inflation_compensation": 101506137424.66
+        },
+        {
+          "date": "2026-02-18",
+          "bills": 313295926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3585696264400.0,
+          "tips": 288705855700.0,
+          "mbs": 2016025326940.4,
+          "cmbs": 7701605635.5,
+          "agencies": 2347000000.0,
+          "total": 6230184367675.9,
+          "tips_inflation_compensation": 101485662085.23
+        },
+        {
+          "date": "2026-02-25",
+          "bills": 329315926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3585696264400.0,
+          "tips": 288705855700.0,
+          "mbs": 2002731040862.5,
+          "cmbs": 7686829889.8,
+          "agencies": 2347000000.0,
+          "total": 6232895305852.3,
+          "tips_inflation_compensation": 101465575184.54
+        },
+        {
+          "date": "2026-03-04",
+          "bills": 344075926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3585696264400.0,
+          "tips": 288705855700.0,
+          "mbs": 2002731040862.5,
+          "cmbs": 7686829889.8,
+          "agencies": 2347000000.0,
+          "total": 6247655305852.3,
+          "tips_inflation_compensation": 101642647815.81
+        },
+        {
+          "date": "2026-03-11",
+          "bills": 358761926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3585696264400.0,
+          "tips": 288705855700.0,
+          "mbs": 2002731040862.5,
+          "cmbs": 7686829889.8,
+          "agencies": 2347000000.0,
+          "total": 6262341305852.3,
+          "tips_inflation_compensation": 101968355864.78
+        },
+        {
+          "date": "2026-03-18",
+          "bills": 365487926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3585696264400.0,
+          "tips": 288705855700.0,
+          "mbs": 2002687420992.0,
+          "cmbs": 7682465258.4,
+          "agencies": 2347000000.0,
+          "total": 6269019321350.4,
+          "tips_inflation_compensation": 102294226183.57
+        },
+        {
+          "date": "2026-03-25",
+          "bills": 381629926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3585696264400.0,
+          "tips": 288705855700.0,
+          "mbs": 1989008552431.1,
+          "cmbs": 7671726234.7,
+          "agencies": 2347000000.0,
+          "total": 6271471713765.8,
+          "tips_inflation_compensation": 102619789740.45
+        },
+        {
+          "date": "2026-04-01",
+          "bills": 396426926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3583733004300.0,
+          "tips": 290669115800.0,
+          "mbs": 1989008552431.1,
+          "cmbs": 7671726234.7,
+          "agencies": 2347000000.0,
+          "total": 6286268713765.8,
+          "tips_inflation_compensation": 102962868802.92
+        },
+        {
+          "date": "2026-04-08",
+          "bills": 412568926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3583733004300.0,
+          "tips": 290669115800.0,
+          "mbs": 1989008552431.1,
+          "cmbs": 7671726234.7,
+          "agencies": 2347000000.0,
+          "total": 6302410713765.8,
+          "tips_inflation_compensation": 103395460587.46
+        },
+        {
+          "date": "2026-04-15",
+          "bills": 412568926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3602253322400.0,
+          "tips": 275768943500.0,
+          "mbs": 1988805939370.5,
+          "cmbs": 7671726234.7,
+          "agencies": 2347000000.0,
+          "total": 6305828246505.2,
+          "tips_inflation_compensation": 100205190608.43
+        },
+        {
+          "date": "2026-04-22",
+          "bills": 425213926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3602253322400.0,
+          "tips": 275768943500.0,
+          "mbs": 1985616303800.4,
+          "cmbs": 7660059489.0,
+          "agencies": 2347000000.0,
+          "total": 6315271944189.4,
+          "tips_inflation_compensation": 100618056320.82
+        },
+        {
+          "date": "2026-04-29",
+          "bills": 430271926700.0,
+          "frn": 16412388300.0,
+          "notes_and_bonds": 3602253322400.0,
+          "tips": 275768943500.0,
+          "mbs": 1973437803251.6,
+          "cmbs": 7622211743.0,
+          "agencies": 2347000000.0,
+          "total": 6308113595894.6,
+          "tips_inflation_compensation": 101030234110.68
+        },
+        {
+          "date": "2026-05-06",
+          "bills": 437856926700.0,
+          "frn": 18357825800.0,
+          "notes_and_bonds": 3597035598200.0,
+          "tips": 279041230200.0,
+          "mbs": 1973437803251.6,
+          "cmbs": 7622211743.0,
+          "agencies": 2347000000.0,
+          "total": 6315698595894.6,
+          "tips_inflation_compensation": 101869315825.46
+        },
+        {
+          "date": "2026-05-13",
+          "bills": 453030926700.0,
+          "frn": 18357825800.0,
+          "notes_and_bonds": 3597035598200.0,
+          "tips": 279041230200.0,
+          "mbs": 1973437803251.6,
+          "cmbs": 7622211743.0,
+          "agencies": 2347000000.0,
+          "total": 6330872595894.6,
+          "tips_inflation_compensation": 102769690456.36
+        },
+        {
+          "date": "2026-05-20",
+          "bills": 459606926700.0,
+          "frn": 18357825800.0,
+          "notes_and_bonds": 3597035598200.0,
+          "tips": 279041230200.0,
+          "mbs": 1970040695527.8,
+          "cmbs": 7619857248.3,
+          "agencies": 2347000000.0,
+          "total": 6334049133676.1,
+          "tips_inflation_compensation": 103670101660.21
+        },
+        {
+          "date": "2026-05-27",
+          "bills": 462895926700.0,
+          "frn": 18357825800.0,
+          "notes_and_bonds": 3597035598200.0,
+          "tips": 279041230200.0,
+          "mbs": 1957187501265.1,
+          "cmbs": 7598700119.7,
+          "agencies": 2347000000.0,
+          "total": 6324463782284.8,
+          "tips_inflation_compensation": 104570610142.22
+        },
+        {
+          "date": "2026-06-03",
+          "bills": 469471926700.0,
+          "frn": 18357825800.0,
+          "notes_and_bonds": 3597010598200.0,
+          "tips": 279041230200.0,
+          "mbs": 1957187501265.1,
+          "cmbs": 7598700119.7,
+          "agencies": 2347000000.0,
+          "total": 6331014782284.8,
+          "tips_inflation_compensation": 105411554928.19
+        },
+        {
+          "date": "2026-06-10",
+          "bills": 479335926700.0,
+          "frn": 18357825800.0,
+          "notes_and_bonds": 3597010598200.0,
+          "tips": 279041230200.0,
+          "mbs": 1957187501265.1,
+          "cmbs": 7598700119.7,
+          "agencies": 2347000000.0,
+          "total": 6340878782284.8,
+          "tips_inflation_compensation": 106173822396.37
+        },
+        {
+          "date": "2026-06-17",
+          "bills": 485973926700.0,
+          "frn": 18357825800.0,
+          "notes_and_bonds": 3597010598200.0,
+          "tips": 279041230200.0,
+          "mbs": 1957204085112.8,
+          "cmbs": 7593648571.3,
+          "agencies": 2347000000.0,
+          "total": 6347528314584.1,
+          "tips_inflation_compensation": 106935316171.72
+        },
+        {
+          "date": "2026-06-24",
+          "bills": 485973926700.0,
+          "frn": 18382825800.0,
+          "notes_and_bonds": 3597010598200.0,
+          "tips": 279041230200.0,
+          "mbs": 1953996337974.4,
+          "cmbs": 7593648571.3,
+          "agencies": 2347000000.0,
+          "total": 6344345567445.7,
+          "tips_inflation_compensation": 107697166543.73
+        },
+        {
+          "date": "2026-07-01",
+          "bills": 489292926700.0,
+          "frn": 18382825800.0,
+          "notes_and_bonds": 3593418008900.0,
+          "tips": 282633819500.0,
+          "mbs": 1940863715777.0,
+          "cmbs": 7533878406.1,
+          "agencies": 2347000000.0,
+          "total": 6334472175083.1,
+          "tips_inflation_compensation": 108507711327.19
+        },
+        {
+          "date": "2026-07-08",
+          "bills": 499248926700.0,
+          "frn": 18382825800.0,
+          "notes_and_bonds": 3593418008900.0,
+          "tips": 282633819500.0,
+          "mbs": 1940863715777.0,
+          "cmbs": 7533878406.1,
+          "agencies": 2347000000.0,
+          "total": 6344428175083.1,
+          "tips_inflation_compensation": 109065609408.32
+        },
+        {
+          "date": "2026-07-15",
+          "bills": 505885926700.0,
+          "frn": 18382825800.0,
+          "notes_and_bonds": 3605789260700.0,
+          "tips": 273754527000.0,
+          "mbs": 1940803306434.3,
+          "cmbs": 7533878406.1,
+          "agencies": 2347000000.0,
+          "total": 6354496725040.4,
+          "tips_inflation_compensation": 106128651704.32
+        },
+        {
+          "date": "2026-07-22",
+          "bills": 511065926700.0,
+          "frn": 18382825800.0,
+          "notes_and_bonds": 3605789260700.0,
+          "tips": 273754527000.0,
+          "mbs": 1937256962541.1,
+          "cmbs": 7531350684.1,
+          "agencies": 2347000000.0,
+          "total": 6356127853425.2,
+          "tips_inflation_compensation": 106668680927.5
+        },
+        {
+          "date": "2026-07-29",
+          "bills": 514518926700.0,
+          "frn": 18382825800.0,
+          "notes_and_bonds": 3605789260700.0,
+          "tips": 273754527000.0,
+          "mbs": 1923337226040.6,
+          "cmbs": 7517477244.4,
+          "agencies": 2347000000.0,
+          "total": 6345647243485.0,
+          "tips_inflation_compensation": 107208811368.59
+        },
+        {
+          "date": "2026-08-05",
+          "bills": 524876926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3601804749000.0,
+          "tips": 276076310700.0,
+          "mbs": 1923337226040.6,
+          "cmbs": 7517477244.4,
+          "agencies": 2347000000.0,
+          "total": 6356005243485.0,
+          "tips_inflation_compensation": 107154932207.04
+        },
+        {
+          "date": "2026-08-12",
+          "bills": 533508926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3601804749000.0,
+          "tips": 276076310700.0,
+          "mbs": 1923337226040.6,
+          "cmbs": 7517477244.4,
+          "agencies": 2347000000.0,
+          "total": 6364637243485.0,
+          "tips_inflation_compensation": 106852470067.88
+        },
+        {
+          "date": "2026-08-19",
+          "bills": 537751926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3601804749000.0,
+          "tips": 276076310700.0,
+          "mbs": 1923213096802.5,
+          "cmbs": 7514450437.3,
+          "agencies": 2347000000.0,
+          "total": 6368753087439.8,
+          "tips_inflation_compensation": 106549630280.56
+        },
+        {
+          "date": "2026-08-26",
+          "bills": 541994926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3601804749000.0,
+          "tips": 276076310700.0,
+          "mbs": 1906167222266.4,
+          "cmbs": 7417391127.5,
+          "agencies": 2347000000.0,
+          "total": 6355853153593.9,
+          "tips_inflation_compensation": 106247367774.74
+        },
+        {
+          "date": "2026-09-02",
+          "bills": 548359926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3600776303200.0,
+          "tips": 277104756500.0,
+          "mbs": 1906167222266.4,
+          "cmbs": 7417391127.5,
+          "agencies": 2347000000.0,
+          "total": 6362218153593.9,
+          "tips_inflation_compensation": 106060067435.8
+        },
+        {
+          "date": "2026-09-09",
+          "bills": 548359926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3600776303200.0,
+          "tips": 277104756500.0,
+          "mbs": 1906167222266.4,
+          "cmbs": 7417391127.5,
+          "agencies": 2347000000.0,
+          "total": 6362218153593.9,
+          "tips_inflation_compensation": 106050464415.74
+        },
+        {
+          "date": "2026-09-16",
+          "bills": 550481926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3600776303200.0,
+          "tips": 277104756500.0,
+          "mbs": 1906108916224.0,
+          "cmbs": 7413899692.0,
+          "agencies": 2347000000.0,
+          "total": 6364278356116.0,
+          "tips_inflation_compensation": 106041426332.15
+        },
+        {
+          "date": "2026-09-23",
+          "bills": 554372926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3600776303200.0,
+          "tips": 277104756500.0,
+          "mbs": 1902994781300.6,
+          "cmbs": 7413899692.0,
+          "agencies": 2347000000.0,
+          "total": 6365055221192.6,
+          "tips_inflation_compensation": 106032683447.84
+        },
+        {
+          "date": "2026-09-30",
+          "bills": 560210926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3597915855200.0,
+          "tips": 279965204500.0,
+          "mbs": 1890705863534.6,
+          "cmbs": 7383594145.6,
+          "agencies": 2347000000.0,
+          "total": 6358573997880.2,
+          "tips_inflation_compensation": 106023076291.86
+        },
+        {
+          "date": "2026-10-07",
+          "bills": 562156926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3597915855200.0,
+          "tips": 279965204500.0,
+          "mbs": 1890705863534.6,
+          "cmbs": 7383594145.6,
+          "agencies": 2347000000.0,
+          "total": 6360519997880.2,
+          "tips_inflation_compensation": 106300118348.37
+        },
+        {
+          "date": "2026-10-14",
+          "bills": 566047926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3597915855200.0,
+          "tips": 279965204500.0,
+          "mbs": 1890776861668.5,
+          "cmbs": 7383594145.6,
+          "agencies": 2347000000.0,
+          "total": 6364481996014.1,
+          "tips_inflation_compensation": 106577211709.72
+        },
+        {
+          "date": "2026-10-21",
+          "bills": 567874926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3600742227800.0,
+          "tips": 277655585900.0,
+          "mbs": 1887796043930.7,
+          "cmbs": 7380719396.0,
+          "agencies": 2347000000.0,
+          "total": 6363842057526.7,
+          "tips_inflation_compensation": 106335599031.88
+        },
+        {
+          "date": "2026-10-28",
+          "bills": 571527926700.0,
+          "frn": 20045553800.0,
+          "notes_and_bonds": 3600742227800.0,
+          "tips": 277655585900.0,
+          "mbs": 1876203782906.7,
+          "cmbs": 7318049754.5,
+          "agencies": 2347000000.0,
+          "total": 6355840126861.2,
+          "tips_inflation_compensation": 106611083624.33
+        },
+        {
+          "date": "2026-11-04",
+          "bills": 573354926700.0,
+          "frn": 22873047100.0,
+          "notes_and_bonds": 3597864734500.0,
+          "tips": 277655585900.0,
+          "mbs": 1876203782906.7,
+          "cmbs": 7318049754.5,
+          "agencies": 2347000000.0,
+          "total": 6357617126861.2,
+          "tips_inflation_compensation": 107028643513.54
+        }
+      ]
+    }
+  ]
+}

@@ -177,7 +177,12 @@ const detail = (): BacktestGetOutput => ({
         metrics: { sharpe: 0.4 },
       },
     ],
-    runConfig: { initialCapital: 10_000, timeframe: "1D", fillModel: "bar" },
+    runConfig: {
+      initialCapital: 10_000,
+      timeframe: "1D",
+      fillModel: "bar",
+      engine: "nautilus-trader-1.227.0",
+    },
     benchmark: null,
     ratingSeries: null,
     ratingEvaluation: null,
@@ -259,7 +264,7 @@ describe("backtests workspace", () => {
       section.querySelector('[data-provenance="agent-reported"]')?.textContent
     ).toContain("agent-reported");
     expect(section.querySelector("[data-run-config]")?.textContent).toBe(
-      "capital 10,000 · timeframe 1D · fills bar"
+      "capital 10,000 · timeframe 1D · fills bar · engine nautilus-trader-1.227.0"
     );
     expect(section.textContent).toContain("No equity series reported.");
     expect(
@@ -268,6 +273,11 @@ describe("backtests workspace", () => {
     expect(
       section.querySelector('[data-stat="Win rate"]')?.textContent
     ).toContain("0.0%");
+    // Monte Carlo runs for every backtest and shows on the overview without a toggle.
+    expect(section.querySelector("#backtest-mc-overview")).not.toBeNull();
+    expect(
+      section.querySelector('[data-stat="Size scale (sized from worst run)"]')
+    ).not.toBeNull();
     expect(window.location.search).toBe("?id=bt-1");
 
     await clickButton("Trades");

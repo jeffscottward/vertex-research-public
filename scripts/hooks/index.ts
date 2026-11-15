@@ -2,6 +2,10 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, readSync } from "node:fs";
 import { extname } from "node:path";
 import { inspectBunRuntime } from "../ci/bun-runtime.ts";
+import {
+  DEPENDENCY_INSTALL,
+  installDependencies,
+} from "../lib/dependencies.ts";
 import { withoutGitRepositoryEnvironment } from "../lib/git-env.ts";
 
 const BIOME_EXTENSIONS = new Set([
@@ -217,6 +221,14 @@ interface PushDependencies {
 const runPrePushScripts: BunScriptRunner = (scripts) =>
   runBunScripts(scripts, [], withoutGitRepositoryEnvironment(process.env));
 
+// Returns 0, or the failed install's exit code after reporting it.
+function refreshDependencies(): number {
+  const result = installDependencies();
+  return result.error || result.signal || result.status !== 0
+    ? failureExitCode("pnpm", DEPENDENCY_INSTALL, result)
+    : 0;
+}
+
 function readPushInput(): string {
   const buffer = Buffer.alloc(MAX_PUSH_INPUT_BYTES + 1);
   let length = 0;
@@ -398,6 +410,21 @@ export function runPrePush(
       return checkoutStatus;
     }
     warnBunRuntime();
+    // pnpm-workspace.yaml sets verifyDepsBeforeRun: error, so after a
+    // lockfile-changing pull a `pnpm run`/`pnpm exec` stops on the stale tree
+    // instead of each parallel turbo task starting its own install into the
+    // same node_modules (ERR_PNPM_ENOTEMPTY, "Failed to create bin"). The hook
+    // installs before the lanes so that a failed install blocks the push with
+    // a clear message; the lanes' own install step is then a ~0.6 s no-op
+    // (cards vertex-prepush-stale-deps-parallel-install,
+    // vertex-manual-turbo-stale-deps-race).
+    const installStatus = refreshDependencies();
+    if (installStatus !== 0) {
+      console.error(
+        "[hook] dependency install failed; local lanes not run on stale dependencies"
+      );
+      return installStatus;
+    }
     for (const script of PRE_PUSH_SCRIPTS) {
       const status = (dependencies.runScripts ?? runPrePushScripts)([script]);
       if (status !== 0) {
@@ -412,4 +439,47 @@ export function runPrePush(
     );
     return 1;
   }
+}
+
+const INSTALLED_LOCKFILE = "node_modules/.pnpm/lock.yaml";
+
+function readOptionalText(path: string): string | undefined {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+// OMP's `worktree.clone` setting turns `git worktree add` in its bash tool into
+// a copy-on-write clone of the source checkout, ignored files included, and
+// then runs this hook in the new worktree. The copied node_modules matches the
+// source checkout's lockfile, not this commit's: knip then reports unlisted
+// binaries, and each `pnpm run`/`pnpm exec` stops on the stale tree
+// (verifyDepsBeforeRun: error). One install here prevents both (card
+// vitest-cache-copy-race, 2026-11-08). OMP shows the hook output only after
+// the install ends. A plain `git worktree add` also runs this hook, but its
+// new worktree has no node_modules, so the hook leaves the install to its
+// owner.
+export function runPostCheckout(argv: readonly string[]): number {
+  // Git passes the null object id as the previous HEAD only for a new checkout.
+  if (!ZERO_ID.test(argv[0] ?? "")) {
+    return 0;
+  }
+  const installed = readOptionalText(INSTALLED_LOCKFILE);
+  if (
+    installed === undefined ||
+    installed === readOptionalText("pnpm-lock.yaml")
+  ) {
+    return 0;
+  }
+  console.error(
+    "[hook] node_modules was copied from another checkout and does not match pnpm-lock.yaml; installing"
+  );
+  if (refreshDependencies() !== 0) {
+    console.error(
+      "[hook] WARNING: dependencies are stale; run `pnpm install --frozen-lockfile` before you test or push"
+    );
+  }
+  return 0;
 }

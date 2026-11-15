@@ -3,11 +3,15 @@
 // client-supplied numbers never change a gate verdict. Rule conflicts need the owner's password
 // (Better Auth step-up) and an explanation naming each rule, recorded in audit_records.
 import {
+  academyStrategySlug,
   type BacktestResult,
   checkOverride,
+  courseOf,
   evaluateDeployGates,
   type GateResult,
+  isAcademyStrategySlug,
   type Lesson,
+  lessonSpecPath,
   payoffSummary,
   realizedVol,
   resolveRules,
@@ -24,11 +28,14 @@ import {
   DeploymentRequestStateError,
   InvalidRepositoryInputError,
   type MarketBarColumns,
+  type MarketBarSeries,
   type MarketBarsRepository,
 } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
 
+import { academyEngineResult } from "../academy-engine-result.ts";
 import { returnStats } from "../backtest-analytics.ts";
+import { sliceColumnsByDate } from "../bar-slice.ts";
 import { appContract } from "../contract.ts";
 import {
   ACADEMY_EQUITY_MAX_POINTS,
@@ -38,10 +45,20 @@ import {
   type AcademyDeployRequestParsedInput,
   type AcademyGateOutput,
 } from "../contracts/academy.ts";
+import type { EngineComparisonTiming } from "../contracts/engine-comparison.ts";
+import {
+  barDate,
+  comparisonGroupId,
+  measureWall,
+  typescriptSide,
+  type WallTime,
+} from "../engine-comparison.ts";
 import { downsampleIndexes } from "../instant-backtest-engine.ts";
 import { OWNER_RISK_CAPS } from "../risk-allocator.ts";
+import { academyContentRouter } from "./academy-content.ts";
 import type { ApiContext } from "./context.ts";
-import { ACADEMY_STRATEGY_PREFIX } from "./deployment-requests.ts";
+import { comparisonQueueFor } from "./engine-comparison.ts";
+import { COMPARISON_QUEUE_ERROR } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   PASSWORD_FAILURE_LIMIT,
@@ -55,7 +72,6 @@ import {
 
 const api = implement(appContract).$context<ApiContext>();
 
-const ACADEMY_STRATEGY_SECTION = "Define Your Risk Academy";
 const NLV_MAX_AGE_MS = 15 * 60_000;
 const NLV_MAX_FUTURE_SKEW_MS = 60_000;
 const WARMUP_BARS = 30;
@@ -129,13 +145,117 @@ const iso = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 const loadDaily = async (
   repository: MarketBarsRepository,
   ticker: string
-): Promise<{ columns: MarketBarColumns; source: string } | null> => {
+): Promise<{
+  columns: MarketBarColumns;
+  series: MarketBarSeries;
+  source: string;
+} | null> => {
   const series = await repository.getSeries(ticker, "1d");
   if (series === null) return null;
   return {
     columns: await repository.loadColumns(series.id),
+    series,
     source: series.source,
   };
+};
+
+/** What one Academy backtest ran on: the bars it read (warm-up included) and its inputs. */
+export type AcademyRun = Readonly<{
+  capital: number;
+  closes: readonly number[];
+  iv: readonly number[] | undefined;
+  rules: Readonly<Record<string, number>>;
+  series: MarketBarSeries;
+  /** Every stored bar of the series (the worker's bars are cut from these by date). */
+  columns: MarketBarColumns;
+  /** The VIX series when it supplied `iv`. */
+  ivSeries: MarketBarSeries | undefined;
+  structure: StructureId;
+  times: readonly number[];
+}>;
+
+/**
+ * Queues the Academy backtest on Nautilus when engine comparison is on (dual run, switch plan step
+ * 6): the same structure, rules, capital and implied volatility on the same daily closes, as a
+ * backtest run with an `academy` rule for the research worker. The TypeScript result is mapped to
+ * the engine result shape (academy-engine-result.ts) for the stored comparison. Returns the timing
+ * for the answer, or undefined when off or when the result cannot be mapped. A queue failure never
+ * changes the backtest.
+ */
+export const queueAcademyComparison = async (
+  context: ApiContext & Readonly<{ principal: { userId: string } }>,
+  run: AcademyRun,
+  result: BacktestResult,
+  wall: WallTime
+): Promise<EngineComparisonTiming | undefined> => {
+  const queue = comparisonQueueFor(context, context.principal.userId, {
+    agentViewerMayQueue: true,
+  });
+  if (queue === null) return undefined;
+  const closes = Float64Array.from(run.closes);
+  const mapped = academyEngineResult(
+    result,
+    {
+      c: closes,
+      h: closes,
+      l: closes,
+      o: closes,
+      t: Float64Array.from(run.times),
+    },
+    run.capital
+  );
+  if (mapped === null) return undefined;
+  const from = barDate(run.times[0] as number);
+  const to = barDate(run.times.at(-1) as number);
+  // The worker gets the stored bars of the date range. With two bars on one UTC date at an end of
+  // the range that is not the window this run read: no like-for-like run exists, queue nothing.
+  if (sliceColumnsByDate(run.columns, from, to).t.length !== run.times.length)
+    return undefined;
+  const timing = { host: queue.host, ...wall };
+  const spec = {
+    costBps: 0,
+    from,
+    initialCapital: run.capital,
+    rule: {
+      // JSON has no NaN: a missing implied volatility is null (the engine then models it).
+      ...(run.iv === undefined
+        ? {}
+        : {
+            iv: run.iv.map((value) => (Number.isFinite(value) ? value : null)),
+          }),
+      kind: "academy" as const,
+      rules: { ...run.rules },
+      structure: run.structure,
+    },
+    stopLossPct: 0,
+    symbol: run.series.symbol,
+    takeProfitPct: 0,
+    timeframe: run.series.timeframe,
+    to,
+  };
+  try {
+    // As the instant backtest: an identical request reuses its group; a new one replaces the older
+    // queued Academy runs of this user.
+    const enqueued = await queue.enqueue({
+      feature: "academy",
+      groupId: await comparisonGroupId("academy", {
+        ivSha256: run.ivSeries?.sourceSha256 ?? null,
+        seriesSha256: run.series.sourceSha256,
+        spec,
+      }),
+      latest: true,
+      runs: [
+        {
+          label: `${run.series.symbol} 1d academy ${run.structure}`,
+          spec,
+          typescript: typescriptSide(mapped, wall, queue.host),
+        },
+      ],
+    });
+    return { ...timing, ...enqueued };
+  } catch {
+    return { ...timing, error: COMPARISON_QUEUE_ERROR, groupId: null };
+  }
 };
 
 const tickers = api.academy.tickers
@@ -201,6 +321,7 @@ const backtest = api.academy.backtest
       const closes = Array.from(c.subarray(first, last + 1));
       // SPY uses the VIX index as its implied volatility when stored; other tickers use the RV model.
       let iv: number[] | undefined;
+      let ivSeries: MarketBarSeries | undefined;
       if (input.ticker === "SPY") {
         const vix = await loadDaily(repository, "^VIX");
         if (vix !== null) {
@@ -213,23 +334,52 @@ const backtest = api.academy.backtest
           if (
             aligned.filter((value) => Number.isFinite(value)).length >
             aligned.length * 0.9
-          )
+          ) {
             iv = aligned;
+            ivSeries = vix.series;
+          }
         }
       }
       let result: BacktestResult;
+      let wall: WallTime;
       try {
-        result = runOptionsBacktest({
-          bars: { c: closes, t: times, ...(iv === undefined ? {} : { iv }) },
-          capital: input.capital,
-          rules,
-          structure: preset.structure,
-        });
+        const { value, ...measured } = measureWall(
+          () => performance.now(),
+          () =>
+            runOptionsBacktest({
+              bars: {
+                c: closes,
+                t: times,
+                ...(iv === undefined ? {} : { iv }),
+              },
+              capital: input.capital,
+              rules,
+              structure: preset.structure,
+            })
+        );
+        result = value;
+        wall = measured;
       } catch (error) {
         throw factories(errors).BAD_REQUEST({
           message: error instanceof Error ? error.message : "Backtest failed",
         });
       }
+      const comparison = await queueAcademyComparison(
+        context,
+        {
+          capital: input.capital,
+          closes,
+          columns: daily.columns,
+          iv,
+          ivSeries,
+          rules,
+          series: daily.series,
+          structure: preset.structure,
+          times,
+        },
+        result,
+        wall
+      );
       const stats = returnStats(result.equity);
       let peak = 0;
       let benchmarkDrawdown = 0;
@@ -244,6 +394,7 @@ const backtest = api.academy.backtest
       return {
         assumptions: [...result.assumptions],
         benchmark: pick(result.benchmark),
+        ...(comparison === undefined ? {} : { comparison }),
         data: {
           bars: times.length,
           // first <= last, so the window holds at least one bar.
@@ -370,7 +521,8 @@ const openAllocations = async (
         message: `${DEPLOYMENT_REQUESTS_MAX_LISTED}+ ${status} deployment requests: the Academy allocation total cannot be verified; close old requests first`,
       });
     for (const row of rows) {
-      if (!row.strategySlug.startsWith(ACADEMY_STRATEGY_PREFIX)) continue;
+      // The Academy allocation cap counts the requests of every course.
+      if (!isAcademyStrategySlug(row.strategySlug)) continue;
       if (row.strategySlug === strategySlug && row.symbol === ticker)
         duplicateOpen = true;
       const value = Number(row.params?.["allocationPct"]);
@@ -407,7 +559,7 @@ const evaluate = async (
   );
   const open = await openAllocations(
     context,
-    `${ACADEMY_STRATEGY_PREFIX}${lesson.slug}`,
+    academyStrategySlug(lesson),
     input.ticker,
     errors
   );
@@ -517,7 +669,8 @@ const ensureStrategy = async (
     throw factories(errors).STORAGE_ERROR({
       message: "Strategy library unavailable",
     });
-  const slug = `${ACADEMY_STRATEGY_PREFIX}${lesson.slug}`;
+  const course = courseOf(lesson);
+  const slug = academyStrategySlug(lesson);
   const existing = (await library.list({ limit: 20, search: slug })).find(
     (row) => row.slug === slug
   );
@@ -525,15 +678,15 @@ const ensureStrategy = async (
   return await library.create({
     description: lesson.summary.slice(0, 2000),
     kind: "external",
-    name: `DYR: ${lesson.title}`.slice(0, 200),
+    name: `${course.shortTitle}: ${lesson.title}`.slice(0, 200),
     params: strategyParams(structure, rules),
-    section: ACADEMY_STRATEGY_SECTION,
+    section: course.librarySection,
     slug,
     // The library requires a repository-relative source; the Instagram URL stays on the lesson page.
-    sourceRef: `packages/academy/src/lessons/specs/${lesson.slug}.json`,
+    sourceRef: lessonSpecPath(lesson),
     status: "idea",
     tags: [
-      "define-your-risk",
+      course.strategyTag,
       structure.replace(/_/gu, "-"),
       ...lesson.tags.instruments,
     ].slice(0, 12),
@@ -877,6 +1030,7 @@ const deployRequest = api.academy.deployRequest
   );
 
 export const academyRouter = {
+  ...academyContentRouter,
   backtest,
   deployPreview,
   deployRequest,

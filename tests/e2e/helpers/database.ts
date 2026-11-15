@@ -22,10 +22,12 @@ const RESET_ATTEMPTS = 3;
 // resets; Postgres then aborts one side and rolls its transaction back, so the reset runs again.
 const DEADLOCK_DETECTED = "40P01";
 
-const pgCode = (error: unknown): unknown => {
-  if (typeof error !== "object" || error === null) return undefined;
+/** The driver error code, looking through at most a few `cause` links (cycles end). */
+const pgCode = (error: unknown, depth = 0): unknown => {
+  if (depth > 5 || typeof error !== "object" || error === null)
+    return undefined;
   const { cause, code } = error as { cause?: unknown; code?: unknown };
-  return code ?? pgCode(cause);
+  return code ?? pgCode(cause, depth + 1);
 };
 
 const retryOnDeadlock = async <T>(work: () => Promise<T>): Promise<T> => {

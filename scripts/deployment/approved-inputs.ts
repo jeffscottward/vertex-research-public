@@ -382,6 +382,8 @@ const validateDependencyAuthority = (files: readonly SourceFile[]): void => {
           "catalog",
           "catalogs",
           "minimumReleaseAgeExclude",
+          "enableGlobalVirtualStore",
+          "verifyDepsBeforeRun",
         ].includes(key)
     )
   )
@@ -400,6 +402,20 @@ const validateDependencyAuthority = (files: readonly SourceFile[]): void => {
       workspace["minimumReleaseAgeExclude"].some(
         (value) => !registryVersion(value)
       ))
+  )
+    inputFailure("unsupported-lock-acquisition");
+  // `false` keeps the project-local virtual store that pnpm uses anyway; the
+  // pin only makes CI and local shells record the same workspace state.
+  if (
+    workspace["enableGlobalVirtualStore"] !== undefined &&
+    workspace["enableGlobalVirtualStore"] !== false
+  )
+    inputFailure("unsupported-lock-acquisition");
+  // `error` makes `pnpm run`/`pnpm exec` stop on stale dependencies instead of
+  // installing, so it adds no acquisition path.
+  if (
+    workspace["verifyDepsBeforeRun"] !== undefined &&
+    workspace["verifyDepsBeforeRun"] !== "error"
   )
     inputFailure("unsupported-lock-acquisition");
   // Only the three reviewed build scripts may be approved. An explicit

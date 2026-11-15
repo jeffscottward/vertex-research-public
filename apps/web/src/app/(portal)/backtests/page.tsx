@@ -1,10 +1,7 @@
 import { PageHeader } from "@darkfactory/ui";
 
 import { BacktestsWorkspace } from "../../../components/portal/backtests-workspace.tsx";
-import {
-  FILTER_STUDY_MODEL,
-  FilterStudiesPanel,
-} from "../../../components/portal/filter-studies-panel.tsx";
+import { FilterStudiesSection } from "../../../components/portal/filter-studies-section.tsx";
 import { QuantLabPanel } from "../../../components/portal/quant-lab-panel.tsx";
 
 export const metadata = { title: "Backtests" };
@@ -15,7 +12,7 @@ export default function BacktestsPage() {
       <PageHeader title="Backtests" />
       <BacktestsWorkspace />
       <QuantLabPanel />
-      <FilterStudiesPanel model={FILTER_STUDY_MODEL} />
+      <FilterStudiesSection />
     </div>
   );
 }

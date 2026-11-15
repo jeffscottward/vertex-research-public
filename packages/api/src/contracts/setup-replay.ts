@@ -1,6 +1,8 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
+import { EngineComparisonTimingSchema } from "./engine-comparison.ts";
+
 // Setup replay ("time machine"): every past occurrence of one long-only daily setup in one stored
 // bar series, each with its outcome (target, stop or time exit), plus a seeded bootstrap Monte
 // Carlo over those outcomes. A simulation over past bars, not a prediction. Research only; no
@@ -137,6 +139,8 @@ export const SetupReplayMonteCarloSchema = z
 
 export const SetupReplayRunOutputSchema = z
   .object({
+    /** Engine comparison on: where the TypeScript run ran and the queued Nautilus repeat. */
+    comparison: EngineComparisonTimingSchema.optional(),
     /** Null when the setup never occurred. */
     monteCarlo: SetupReplayMonteCarloSchema.nullable(),
     occurrences: z

@@ -79,4 +79,16 @@ describe("loadSectorQuadrants", () => {
       loadSectorQuadrants({ listPoints: async () => [] }, filtered, firstBar)
     ).rejects.toThrow("Sector quadrant data is not available for XLK (weekly)");
   });
+
+  it("loads nothing for filters that are not sector filters", async () => {
+    const listPoints = vi.fn();
+    const calendar = StrategyDefinitionSchema.parse({
+      ...STRATEGY_TEMPLATES.smaCross,
+      filters: [{ type: "calendarWindow", window: "opexWeek" }],
+    });
+    expect(
+      await loadSectorQuadrants({ listPoints }, calendar, firstBar)
+    ).toEqual({});
+    expect(listPoints).not.toHaveBeenCalled();
+  });
 });

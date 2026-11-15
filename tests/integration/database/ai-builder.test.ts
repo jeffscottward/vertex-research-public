@@ -94,10 +94,10 @@ describe("assistant actions and strategy definition revisions on real Postgres",
       (await definitions.history("def-a", 10)).map((row) => row.revision)
     ).toEqual([2, 1]);
     expect(
-      (await definitions.listLatest(10)).map((row) => [
-        row.definitionId,
-        row.revision,
-      ])
+      // Migration 0061 seeds the qc-port definitions; this test checks its own rows.
+      (await definitions.listLatest(50))
+        .filter((row) => row.definitionId.startsWith("def-"))
+        .map((row) => [row.definitionId, row.revision])
     ).toEqual([
       ["def-a", 2],
       ["def-b", 1],

@@ -93,8 +93,13 @@ const intercept = async (context: ApiContext, path: string) => {
   return { result, ran: next.mock.calls.length === 1 };
 };
 
-// Owner decision 2026-11-05: a viewer may start its own threads and chat (Plan mode only).
-const VIEWER_CHAT = new Set(["assistant.threads.create", "assistant.send"]);
+// Owner decisions: a viewer may start its own threads and chat in Plan mode (2026-11-05) and run
+// Academy backtests, which are modeled and place no orders (2026-11-10).
+const VIEWER_CHAT = new Set([
+  "assistant.threads.create",
+  "assistant.send",
+  "academy.backtest",
+]);
 
 describe("agent viewer read-only gate", () => {
   it("refuses every write procedure for a viewer and lets every read through", async () => {
@@ -109,7 +114,9 @@ describe("agent viewer read-only gate", () => {
         expect(
           method === "GET" ||
             path === "agentModelRuns.list" ||
-            path === "agentModelRuns.search"
+            path === "agentModelRuns.search" ||
+            path === "masterRules.search" ||
+            path === "semanticTerms.query"
         ).toBe(true);
       } else {
         expect(ran, path).toBe(false);
@@ -150,6 +157,9 @@ describe("agent viewer read-only gate", () => {
     "autopilot.campaigns.setStatus",
     // Confirm cards stay operator-only
     "assistant.actions.decide",
+    // Academy paper deployment stays operator-only (backtest is allowed)
+    "academy.deployPreview",
+    "academy.deployRequest",
   ])("refuses %s for a viewer", async (path) => {
     expect(isAgentViewerReadProcedure(path.split("."))).toBe(false);
     const { ran, result } = await intercept(contextFor(VIEWER), path);
@@ -213,6 +223,8 @@ describe("agent viewer read-only gate", () => {
 });
 
 const REVIEWED_READS: readonly string[] = [
+  "academy.lesson",
+  "academy.lessons",
   "academy.tickers",
   "account.addresses.list",
   "account.profile.get",
@@ -245,6 +257,7 @@ const REVIEWED_READS: readonly string[] = [
   "backtestRuns.list",
   "baskets.list",
   "baskets.valuation",
+  "breadth90.get",
   "clickLog.query",
   "congressTrades.feed",
   "dashboard.summary",
@@ -253,6 +266,8 @@ const REVIEWED_READS: readonly string[] = [
   "engines.status",
   "featureItems.get",
   "featureItems.list",
+  "flow.snapshot",
+  "goLiveDrafts.queue",
   "ibkrMonitor.roundHandles",
   "ibkrMonitor.snapshot",
   "ibkrMonitor.volatility",
@@ -265,13 +280,25 @@ const REVIEWED_READS: readonly string[] = [
   "marketData.depth",
   "marketData.ticks",
   "marketNews.watchlist",
+  "marketNotes.get",
+  "marketNotes.list",
+  "masterRules.search",
   "nautilusArm.status",
+  "openbb.cot",
+  "openbb.events",
+  "openbb.factors",
+  "openbb.macro",
+  "openbb.sec",
+  "openbb.shorts",
+  "openbb.status",
+  "openbb.volContext",
   "optionsAnalytics.snapshot",
   "optionsChain.chain",
   "optionsChain.expiries",
   "papers.list",
   "pickLists.list",
   "pickLists.proposal",
+  "plays.list",
   "portfolioMonitor.snapshot",
   "preferences.get",
   "preferences.theme.get",
@@ -285,8 +312,12 @@ const REVIEWED_READS: readonly string[] = [
   "researchReports.companyResearch",
   "researchReports.dataset",
   "researchReports.list",
+  "researchStudies.get",
   "riskAllocator.caps",
   "sectorRotation.snapshot",
+  "semanticTerms.catalog",
+  "semanticTerms.list",
+  "semanticTerms.query",
   "setupReplay.presets",
   "strategyLibrary.get",
   "strategyLibrary.list",

@@ -1,6 +1,6 @@
 // What: Idempotent seeding of named custom baskets for one user, through the basket repository.
 // Used by: scripts/baskets/seed.ts (`bun run vertex:baskets:seed`).
-// See: packages/db/src/server/basket-repository.ts; research/baskets/owner-baskets.json.
+// See: packages/db/src/server/basket-repository.ts; docs/vertex-rebuild/baskets.md (Seed).
 import { eq, sql } from "drizzle-orm";
 
 import { users } from "../schema/index.ts";

@@ -207,6 +207,26 @@ const exactVersion =
     return parsedVersion(value) === expected;
   };
 
+// bun run graph:* never runs a PATH graphify: it runs graphifyy from a
+// hash-locked venv (scripts/graph/requirements.lock) that it builds with uv on
+// first use and rebuilds when broken.
+const inspectGraphify = async (
+  dependencies: DoctorDependencies
+): Promise<DoctorCheck> => {
+  const uv = await safeRun(dependencies, "uv", ["--version"]);
+  return uv.exitCode === 0 && parsedVersion(uv.stdout.trim())
+    ? check(
+        "Graphify",
+        "pass",
+        "Graphify runs from the hash-locked venv that bun run graph:* builds with uv"
+      )
+    : check(
+        "Graphify",
+        "fail",
+        "Graphify needs uv to build its hash-locked venv"
+      );
+};
+
 const inspectBun = async (
   dependencies: DoctorDependencies
 ): Promise<DoctorCheck> => {
@@ -430,15 +450,7 @@ const PROBE_CHECKS: Readonly<
     // scripts/dev/serve.ts#runDevServer.
     await inspectTrust(dependencies),
   ],
-  graphify: async (dependencies) => [
-    await toolCheck(
-      dependencies,
-      "Graphify",
-      "graphify",
-      ["--version"],
-      exactVersion("0.9.2")
-    ),
-  ],
+  graphify: async (dependencies) => [await inspectGraphify(dependencies)],
 };
 
 // An unreadable manifest probes everything so the report stays complete.

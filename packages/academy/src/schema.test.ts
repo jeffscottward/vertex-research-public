@@ -34,6 +34,18 @@ describe("LessonSpecSchema refinements", () => {
     expect(messages(concept)).toEqual([]);
   });
 
+  it("defaults the course to dyr and accepts a registered course only", () => {
+    expect(strategy["course"]).toBeUndefined();
+    expect(LessonSpecSchema.parse(strategy).course).toBe("dyr");
+    expect(
+      LessonSpecSchema.parse({ ...clone(concept), course: "quantfinancetogo" })
+        .course
+    ).toBe("quantfinancetogo");
+    expect(
+      LessonSpecSchema.safeParse({ ...clone(concept), course: "nope" }).success
+    ).toBe(false);
+  });
+
   it("rejects duplicate param ids", () => {
     const raw = clone(strategy);
     raw.params = [...raw.params, ...raw.params.slice(0, 1)];

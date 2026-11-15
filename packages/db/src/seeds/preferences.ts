@@ -62,14 +62,17 @@ const matchesPreferences = (
   );
 };
 
+/** Returns the number of preference rows left in the seeded state. */
 export const convergeDevelopmentPreferences = async (
-  database: DatabaseExecutor
-): Promise<void> => {
+  database: DatabaseExecutor,
+  seedPreferences: readonly UpsertUserPreferencesInput[] = DEVELOPMENT_PREFERENCES
+): Promise<number> => {
   const repository = createUserPreferencesRepository(database);
-  for (const preferences of DEVELOPMENT_PREFERENCES) {
+  for (const preferences of seedPreferences) {
     const current = await repository.findByUserId(preferences.userId);
     if (!(current && matchesPreferences(current, preferences))) {
       await repository.upsert(preferences);
     }
   }
+  return seedPreferences.length;
 };

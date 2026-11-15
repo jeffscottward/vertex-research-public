@@ -224,8 +224,12 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/optimizations",
   "/autopilot",
   "/charts",
+  "/flow",
   "/deployments",
+  "/drafts",
   "/engines",
+  "/semantic-terms",
+  "/plays",
   "/journal",
   "/calendar",
 ] as const;

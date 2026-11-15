@@ -1,0 +1,179 @@
+{
+  "job": "oecd-cli",
+  "today": "2026-11-08",
+  "argv": ["oecd-cli"],
+  "env": {},
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "fetcher:oecd:CompositeLeadingIndicator:{\"country\":\"united_states\",\"end_date\":\"2026-11-08\",\"start_date\":\"2023-11-09\"}",
+      "result": [
+        {
+          "date": "2024-01-01",
+          "value": 99.09195,
+          "country": "United States"
+        },
+        {
+          "date": "2024-02-01",
+          "value": 99.19873,
+          "country": "United States"
+        },
+        {
+          "date": "2024-03-01",
+          "value": 99.28094,
+          "country": "United States"
+        },
+        {
+          "date": "2024-04-01",
+          "value": 99.31683,
+          "country": "United States"
+        },
+        {
+          "date": "2024-05-01",
+          "value": 99.31429,
+          "country": "United States"
+        },
+        {
+          "date": "2024-06-01",
+          "value": 99.30333,
+          "country": "United States"
+        },
+        {
+          "date": "2024-07-01",
+          "value": 99.31796,
+          "country": "United States"
+        },
+        {
+          "date": "2024-08-01",
+          "value": 99.37421,
+          "country": "United States"
+        },
+        {
+          "date": "2024-09-01",
+          "value": 99.47209,
+          "country": "United States"
+        },
+        {
+          "date": "2024-10-01",
+          "value": 99.58716,
+          "country": "United States"
+        },
+        {
+          "date": "2024-11-01",
+          "value": 99.6934,
+          "country": "United States"
+        },
+        {
+          "date": "2024-12-01",
+          "value": 99.75657,
+          "country": "United States"
+        },
+        {
+          "date": "2025-01-01",
+          "value": 99.75335,
+          "country": "United States"
+        },
+        {
+          "date": "2025-02-01",
+          "value": 99.68948,
+          "country": "United States"
+        },
+        {
+          "date": "2025-03-01",
+          "value": 99.5894,
+          "country": "United States"
+        },
+        {
+          "date": "2025-04-01",
+          "value": 99.49651,
+          "country": "United States"
+        },
+        {
+          "date": "2025-05-01",
+          "value": 99.45961,
+          "country": "United States"
+        },
+        {
+          "date": "2025-06-01",
+          "value": 99.47252,
+          "country": "United States"
+        },
+        {
+          "date": "2025-07-01",
+          "value": 99.50542,
+          "country": "United States"
+        },
+        {
+          "date": "2025-08-01",
+          "value": 99.54735,
+          "country": "United States"
+        },
+        {
+          "date": "2025-09-01",
+          "value": 99.60722,
+          "country": "United States"
+        },
+        {
+          "date": "2025-10-01",
+          "value": 99.69538,
+          "country": "United States"
+        },
+        {
+          "date": "2025-11-01",
+          "value": 99.82158,
+          "country": "United States"
+        },
+        {
+          "date": "2025-12-01",
+          "value": 99.97923,
+          "country": "United States"
+        },
+        {
+          "date": "2026-01-01",
+          "value": 100.1517,
+          "country": "United States"
+        },
+        {
+          "date": "2026-02-01",
+          "value": 100.3057,
+          "country": "United States"
+        },
+        {
+          "date": "2026-03-01",
+          "value": 100.4315,
+          "country": "United States"
+        },
+        {
+          "date": "2026-04-01",
+          "value": 100.5444,
+          "country": "United States"
+        },
+        {
+          "date": "2026-05-01",
+          "value": 100.65,
+          "country": "United States"
+        },
+        {
+          "date": "2026-06-01",
+          "value": 100.763,
+          "country": "United States"
+        },
+        {
+          "date": "2026-07-01",
+          "value": 100.8691,
+          "country": "United States"
+        },
+        {
+          "date": "2026-08-01",
+          "value": 100.9464,
+          "country": "United States"
+        },
+        {
+          "date": "2026-09-01",
+          "value": 100.9993,
+          "country": "United States"
+        }
+      ]
+    }
+  ]
+}

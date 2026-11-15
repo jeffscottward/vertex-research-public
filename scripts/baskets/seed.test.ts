@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type * as DbServer from "@darkfactory/db/server";
@@ -129,27 +129,6 @@ describe("parseBasketSeeds", () => {
     ],
   ])("rejects %j", (seed, message) => {
     expect(() => parseBasketSeeds(JSON.stringify(seed))).toThrow(message);
-  });
-
-  it("accepts the committed owner seed file", () => {
-    const seeds = parseBasketSeeds(
-      readFileSync(
-        new URL("../../research/baskets/owner-baskets.json", import.meta.url),
-        "utf8"
-      )
-    );
-    expect(seeds.map((seed) => seed.symbol)).toEqual([
-      "TITY",
-      "UW10Y",
-      "UW5Y",
-      "UW2Y",
-      "UW1Y",
-    ]);
-    expect(seeds[0]?.members.map((member) => member.symbol)).toEqual([
-      "VSXY",
-      "ESTA",
-      "AVTR",
-    ]);
   });
 });
 

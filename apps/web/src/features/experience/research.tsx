@@ -100,7 +100,10 @@ export const ResearchWorkspace = ({
               {scope === null ? null : (
                 <Suspense
                   fallback={
-                    <p className="vx-caption" role="status">
+                    <p
+                      className="text-muted-foreground text-sm leading-relaxed"
+                      role="status"
+                    >
                       Loading research chat…
                     </p>
                   }
@@ -113,7 +116,7 @@ export const ResearchWorkspace = ({
                 </Suspense>
               )}
             </section>
-            <p className="vx-caption">
+            <p className="text-muted-foreground text-sm leading-relaxed">
               <a className="vx-text-link" href="/assistant">
                 Open the research assistant
               </a>

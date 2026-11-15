@@ -1,0 +1,12 @@
+#!/bin/sh
+# Git may run this file from another checkout with the new worktree as the
+# working directory. A worktree on a commit from before this hook has no script.
+# The hook only helps: it must never fail a checkout, because callers such as
+# fm-spawn treat a non-zero `git worktree add` as a failed spawn.
+[ -f scripts/hooks/post-checkout.ts ] || exit 0
+if ! command -v bun >/dev/null 2>&1; then
+  echo "[hook] bun not found; dependency check skipped" >&2
+  exit 0
+fi
+bun scripts/hooks/post-checkout.ts "$@" ||
+  echo "[hook] post-checkout failed; run pnpm install --frozen-lockfile if dependencies are stale" >&2

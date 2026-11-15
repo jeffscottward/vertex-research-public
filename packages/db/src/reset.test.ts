@@ -48,7 +48,7 @@ describe("development database reset", () => {
 
       const result = await resetDevelopment(double.database, { environment });
 
-      expect(result).toEqual({ tablesCleared: 15 });
+      expect(result).toEqual({ tablesCleared: 19 });
       expect(Object.isFrozen(result)).toBe(true);
       expect(double.lifecycle).toEqual(["begin", "commit"]);
       expect(double.transaction).toHaveBeenCalledOnce();
@@ -71,6 +71,7 @@ describe("development database reset", () => {
         "pick_lists",
         "pick_list_snapshots",
         "pick_list_members",
+        "plays",
         "contact_rate_limits",
         "audit_records",
         "user",

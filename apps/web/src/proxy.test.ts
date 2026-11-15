@@ -41,6 +41,13 @@ describe("proxy", () => {
     expect(response.headers.get("Strict-Transport-Security")).toBeNull();
   });
 
+  it("redirects an alias with one trailing slash and leaves the root alone", () => {
+    const response = proxy(new NextRequest("http://app.test/terms/"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("Location")).toBe("/legal/terms");
+    expect(proxy(new NextRequest("http://app.test/")).status).not.toBe(307);
+  });
+
   it("passes any other path on with a trusted x-pathname", () => {
     const response = proxy(
       new NextRequest("http://app.test/legal/privacy?tab=1", {

@@ -9,12 +9,12 @@ import {
 } from "./server.ts";
 
 const validCoreEnv = (): Record<string, string> => ({
-  DATABASE_URL:
-    "postgresql://database.pg.psdb.cloud:6432/darkfactory_test?sslmode=verify-full",
-  // Production postgres requires an explicitly reviewed host allow-list.
-  DATABASE_ALLOWED_HOSTS: "database.pg.psdb.cloud,db.example.com",
   BETTER_AUTH_SECRET: "a".repeat(32),
   CONTACT_THROTTLE_SECRET: "c".repeat(32),
+  // Production postgres requires an explicitly reviewed host allow-list.
+  DATABASE_ALLOWED_HOSTS: "database.pg.psdb.cloud,db.example.com",
+  DATABASE_URL:
+    "postgresql://database.pg.psdb.cloud:6432/darkfactory_test?sslmode=verify-full",
 });
 
 const captureValidationError = (
@@ -39,8 +39,8 @@ const productionEnv = (): Record<string, string> => ({
   ...validCoreEnv(),
   APP_ENV: "production",
   APP_URL: "https://vertex.example.test",
-  BETTER_AUTH_URL: "https://vertex.example.test",
   BETTER_AUTH_SECRET: "independent-fixture-authentication-key-32",
+  BETTER_AUTH_URL: "https://vertex.example.test",
   CONTACT_THROTTLE_SECRET: "independent-fixture-contact-throttle-key-32",
   EMAIL_PROVIDER: "disabled",
   EMAIL_TRANSPORT: "disabled",
@@ -58,8 +58,8 @@ describe("parseServerEnv", () => {
           });
           expect(error.issues).toEqual([
             {
-              path: name,
               message: `${name} cannot use a development or public-template secret in production`,
+              path: name,
             },
           ]);
           expect(error.message).not.toContain(secret);
@@ -99,8 +99,8 @@ describe("parseServerEnv", () => {
         });
         expect(error.issues).toEqual([
           {
-            path: name,
             message: `${name} cannot use a development or public-template secret on a non-local APP_URL`,
+            path: name,
           },
         ]);
         expect(error.message).not.toContain(secret);
@@ -124,8 +124,8 @@ describe("parseServerEnv", () => {
     (name) => {
       const error = captureValidationError({ ...productionEnv(), [name]: "" });
       return expect(error.issues).toContainEqual({
-        path: name,
         message: `${name} is required`,
+        path: name,
       });
     }
   );
@@ -150,15 +150,15 @@ describe("parseServerEnv", () => {
   it("keeps the Vertex baseline read-only with no runtime readiness claims", () => {
     const env = parseServerEnv(validCoreEnv());
     expect(env).toMatchObject({
-      VERTEX_MODE: "research",
-      VERTEX_ACCESS_MODE: "read-only",
-      VERTEX_ORDER_SUBMISSION: "disabled",
-      NAUTILUS_TRADING_MODE: "paper",
-      IBKR_TRADING_MODE: "paper",
       IBKR_READ_ONLY: "true",
       IBKR_RECOVERY_POLICY: "human-trigger-only",
+      IBKR_TRADING_MODE: "paper",
+      NAUTILUS_TRADING_MODE: "paper",
       NOTIFICATION_PROVIDER: "disabled",
       STORAGE_ENABLED: false,
+      VERTEX_ACCESS_MODE: "read-only",
+      VERTEX_MODE: "research",
+      VERTEX_ORDER_SUBMISSION: "disabled",
     });
     const states = Object.entries(env).filter(([key]) =>
       key.endsWith("_RUNTIME_STATE")
@@ -215,6 +215,176 @@ describe("parseServerEnv", () => {
     }
   });
 
+  it("accepts an optional PostgreSQL SEMANTIC_DATABASE_URL", () => {
+    expect(
+      parseServerEnv(validCoreEnv()).SEMANTIC_DATABASE_URL
+    ).toBeUndefined();
+    expect(
+      parseServerEnv({ ...validCoreEnv(), SEMANTIC_DATABASE_URL: "" })
+        .SEMANTIC_DATABASE_URL
+    ).toBeUndefined();
+    expect(
+      parseServerEnv({
+        ...validCoreEnv(),
+        SEMANTIC_DATABASE_URL:
+          " postgresql://vertex_semantic_reader:x@127.0.0.1:55582/db ",
+      }).SEMANTIC_DATABASE_URL
+    ).toBe("postgresql://vertex_semantic_reader:x@127.0.0.1:55582/db");
+    const error = captureValidationError({
+      ...validCoreEnv(),
+      SEMANTIC_DATABASE_URL: "https://example.com",
+    });
+    expect(error.message).toContain(
+      "SEMANTIC_DATABASE_URL must be a PostgreSQL URL"
+    );
+  });
+
+  it.each([
+    ["postgresql://postgres:x@127.0.0.1:5433/db", "authenticate as"],
+    ["postgresql://127.0.0.1:5433/db", "authenticate as"],
+    ["postgresql://%E0:x@127.0.0.1:5433/db", "authenticate as"],
+    [
+      "postgresql://vertex_semantic_reader@127.0.0.1:5433/db?user=postgres",
+      "must not carry user or password query parameters",
+    ],
+    [
+      "postgresql://vertex_semantic_reader@127.0.0.1:5433/db?password=x",
+      "must not carry user or password query parameters",
+    ],
+  ])("rejects SEMANTIC_DATABASE_URL %s", (value, message) => {
+    const result = serverEnvSchema.safeParse({
+      ...validCoreEnv(),
+      SEMANTIC_DATABASE_URL: value,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(message),
+        path: ["SEMANTIC_DATABASE_URL"],
+      }),
+    ]);
+  });
+
+  it("reports only the PostgreSQL shape error for an unparseable SEMANTIC_DATABASE_URL", () => {
+    const result = serverEnvSchema.safeParse({
+      ...validCoreEnv(),
+      SEMANTIC_DATABASE_URL: "not a url",
+    });
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual([
+      "SEMANTIC_DATABASE_URL must be a PostgreSQL URL",
+      "SEMANTIC_DATABASE_URL must authenticate as vertex_semantic_reader",
+    ]);
+  });
+
+  it("accepts a local SEMANTIC_DATABASE_URL beside a local DATABASE_URL in development (QuantVPS)", () => {
+    const env = parseServerEnv({
+      ...validCoreEnv(),
+      APP_ENV: "development",
+      DATABASE_URL: "postgresql://vertex:x@127.0.0.1:5433/vertex",
+      SEMANTIC_DATABASE_URL:
+        "postgresql://vertex_semantic_reader:x@127.0.0.1:5433/vertex",
+    });
+    expect(env.SEMANTIC_DATABASE_URL).toBe(
+      "postgresql://vertex_semantic_reader:x@127.0.0.1:5433/vertex"
+    );
+  });
+
+  describe("production SEMANTIC_DATABASE_URL endpoint", () => {
+    const reader = (host: string, query = "?sslmode=verify-full") =>
+      `postgresql://vertex_semantic_reader:x@${host}/darkfactory${query}`;
+    const semanticIssues = (overrides: Record<string, string>) => {
+      const result = serverEnvSchema.safeParse({
+        ...productionEnv(),
+        ...overrides,
+      });
+      return result.success
+        ? []
+        : result.error.issues.filter(
+            (issue) => issue.path[0] === "SEMANTIC_DATABASE_URL"
+          );
+    };
+
+    it("accepts an allowed verified host", () => {
+      expect(
+        semanticIssues({
+          SEMANTIC_DATABASE_URL: reader("database.pg.psdb.cloud:6432"),
+        })
+      ).toEqual([]);
+      expect(
+        semanticIssues({
+          DATABASE_PROVIDER: "postgres",
+          SEMANTIC_DATABASE_URL: reader("db.example.com:5432"),
+        })
+      ).toEqual([]);
+    });
+
+    it.each([
+      ["a local host", { SEMANTIC_DATABASE_URL: reader("127.0.0.1:6432") }],
+      [
+        "a host outside the allow-list",
+        {
+          DATABASE_PROVIDER: "postgres",
+          SEMANTIC_DATABASE_URL: reader("other.example.com:5432"),
+        },
+      ],
+      [
+        "missing TLS verification",
+        {
+          SEMANTIC_DATABASE_URL: reader(
+            "database.pg.psdb.cloud:6432",
+            "?sslmode=require"
+          ),
+        },
+      ],
+      [
+        "hyperdrive with a non-allowed host",
+        {
+          DATABASE_PROVIDER: "hyperdrive",
+          DATABASE_URL: "",
+          SEMANTIC_DATABASE_URL: reader("other.example.com:5432"),
+        },
+      ],
+    ])("rejects %s", (_label, overrides) => {
+      const issues = semanticIssues(overrides);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.message).toContain("SEMANTIC_DATABASE_URL");
+    });
+
+    it("validates hyperdrive deployments against the postgres profile", () => {
+      expect(
+        semanticIssues({
+          DATABASE_PROVIDER: "hyperdrive",
+          DATABASE_URL: "",
+          SEMANTIC_DATABASE_URL: reader("db.example.com:5432"),
+        })
+      ).toEqual([]);
+    });
+
+    it("does not convert unexpected validator failures", () => {
+      const unexpected = new Error("unexpected semantic validator failure");
+      const original = database.validateRequestDatabaseEndpoint;
+      const validate = vi
+        .spyOn(database, "validateRequestDatabaseEndpoint")
+        .mockImplementation((configuration) => {
+          if (
+            configuration.connectionString?.includes("vertex_semantic_reader")
+          )
+            throw unexpected;
+          return original(configuration);
+        });
+      try {
+        expect(() =>
+          parseServerEnv({
+            ...productionEnv(),
+            SEMANTIC_DATABASE_URL: reader("database.pg.psdb.cloud:6432"),
+          })
+        ).toThrow(unexpected);
+      } finally {
+        validate.mockRestore();
+      }
+    });
+  });
+
   it("defaults the backtest runs engine to typescript and accepts nautilus", () => {
     expect(parseServerEnv(validCoreEnv()).VERTEX_BACKTEST_RUNS_ENGINE).toBe(
       "typescript"
@@ -250,8 +420,8 @@ describe("parseServerEnv", () => {
     );
     const overlap = captureValidationError({
       ...validCoreEnv(),
-      VERTEX_OPERATOR_EMAILS: "op@domain.test",
       VERTEX_AGENT_VIEWER_EMAILS: "OP@domain.test",
+      VERTEX_OPERATOR_EMAILS: "op@domain.test",
     });
     expect(
       overlap.issues.some(({ path }) => path === "VERTEX_AGENT_VIEWER_EMAILS")
@@ -271,8 +441,8 @@ describe("parseServerEnv", () => {
       const env = parseServerEnv({
         ...validCoreEnv(),
         QUANT_RUNTIME_STATE: runtimeState,
-        QUANT_VPS_API_URL: "https://quant.example.test",
         QUANT_VPS_API_TOKEN: "fictional-token",
+        QUANT_VPS_API_URL: "https://quant.example.test",
       });
       expect(env.QUANT_RUNTIME_STATE).toBe(runtimeState);
       expect(env.VERTEX_ORDER_SUBMISSION).toBe("disabled");
@@ -283,15 +453,15 @@ describe("parseServerEnv", () => {
   it("keeps configured provider names and local corpus paths out of client output", () => {
     const env = parseServerEnv({
       ...validCoreEnv(),
-      QUANTDATA_API_KEY: "fictional-market-key",
+      AGNO_API_TOKEN: "fictional-research-token",
       FINANCIAL_DATASETS_API_KEY: "fictional-financial-data-key",
       IBKR_ACCOUNT_ID: "fictional-paper-account",
-      AGNO_API_TOKEN: "fictional-research-token",
-      NTFY_TOPIC: "fictional-private-topic",
       JEV_API_TOKEN: "fictional-browser-token",
+      NTFY_TOPIC: "fictional-private-topic",
+      QUANT_VPS_API_TOKEN: "",
+      QUANTDATA_API_KEY: "fictional-market-key",
       RESEARCH_CORPUS_ROOT: "/private/example/corpora",
       SSRN_CORPUS_PATH: "/private/example/papers",
-      QUANT_VPS_API_TOKEN: "",
     });
     expect(env.QUANTDATA_API_KEY).toBe("fictional-market-key");
     expect(env.QUANT_VPS_API_TOKEN).toBeUndefined();
@@ -308,8 +478,8 @@ describe("parseServerEnv", () => {
   it("requires every R2 key when storage is enabled", () => {
     const error = captureValidationError({
       ...validCoreEnv(),
-      STORAGE_ENABLED: "true",
       R2_BUCKET: "vertex-artifacts",
+      STORAGE_ENABLED: "true",
     });
     expect(error.issues.map(({ path }) => path)).toEqual([
       "R2_ACCOUNT_ID",
@@ -331,10 +501,10 @@ describe("parseServerEnv", () => {
         APP_ENV: "production",
         APP_URL: "https://vertex.example.test",
         BETTER_AUTH_URL: "https://vertex.example.test",
-        EMAIL_PROVIDER: "disabled",
-        EMAIL_TRANSPORT: "disabled",
         DATABASE_URL:
           "postgresql://other.example.com:5432/vertex?sslmode=verify-full",
+        EMAIL_PROVIDER: "disabled",
+        EMAIL_TRANSPORT: "disabled",
       },
       "DATABASE_URL",
     ],
@@ -368,9 +538,9 @@ describe("parseServerEnv", () => {
     const shortAuthSecret = "s".repeat(8);
     const shortContactSecret = "c".repeat(8);
     const error = captureValidationError({
-      DATABASE_URL: invalidDatabaseUrl,
       BETTER_AUTH_SECRET: shortAuthSecret,
       CONTACT_THROTTLE_SECRET: shortContactSecret,
+      DATABASE_URL: invalidDatabaseUrl,
     });
 
     expect(error.message).toContain("DATABASE_URL must be a PostgreSQL URL");
@@ -389,16 +559,16 @@ describe("parseServerEnv", () => {
     const env = parseServerEnv(validCoreEnv());
 
     expect(env).toMatchObject({
-      APP_ENV: "development",
-      APP_URL: CANONICAL_APP_URL,
-      APP_NAME: "Vertex Research",
-      DATABASE_PROVIDER: "postgres",
-      BETTER_AUTH_URL: CANONICAL_APP_URL,
       AI_PROVIDER: "groq",
+      ANALYTICS_PROVIDER: "posthog",
+      APP_ENV: "development",
+      APP_NAME: "Vertex Research",
+      APP_URL: CANONICAL_APP_URL,
+      BETTER_AUTH_URL: CANONICAL_APP_URL,
+      DATABASE_PROVIDER: "postgres",
+      EMAIL_FROM: "Vertex Research <noreply@domain.test>",
       EMAIL_PROVIDER: "resend",
       EMAIL_TRANSPORT: "preview",
-      EMAIL_FROM: "Vertex Research <noreply@domain.test>",
-      ANALYTICS_PROVIDER: "posthog",
       OTEL_ENABLED: true,
       OTEL_SERVICE_NAME: "darkfactory-web",
     });
@@ -437,9 +607,9 @@ describe("parseServerEnv", () => {
     });
 
     expect(error.issues).toContainEqual({
-      path: "CONTACT_EMAIL_TO",
       message:
         "CONTACT_EMAIL_TO must be a valid email address of at most 254 characters",
+      path: "CONTACT_EMAIL_TO",
     });
     return expect(error.message).not.toContain(value);
   });
@@ -465,8 +635,8 @@ describe("parseServerEnv", () => {
       EMAIL_FROM: injected,
     });
     expect(error.issues).toContainEqual({
-      path: "EMAIL_FROM",
       message: "EMAIL_FROM must be a header-safe mailbox or display mailbox",
+      path: "EMAIL_FROM",
     });
     return expect(error.message).not.toContain(injected);
   });
@@ -484,8 +654,8 @@ describe("parseServerEnv", () => {
     });
 
     expect(error.issues).toContainEqual({
-      path: "EMAIL_FROM",
       message: "EMAIL_FROM must be a header-safe mailbox or display mailbox",
+      path: "EMAIL_FROM",
     });
     return expect(error.message).not.toContain(value);
   });
@@ -500,8 +670,8 @@ describe("parseServerEnv", () => {
     });
 
     expect(error.issues).toContainEqual({
-      path: "DATABASE_URL",
       message: "DATABASE_URL must be a PostgreSQL URL",
+      path: "DATABASE_URL",
     });
     return expect(error.message).not.toContain(value);
   });
@@ -521,8 +691,8 @@ describe("parseServerEnv", () => {
       });
 
       expect(error.issues).toContainEqual({
-        path: name,
         message: `${name} must be a valid URL`,
+        path: name,
       });
       expect(error.message).not.toContain(malformedUrl);
       return expect(JSON.stringify(error.issues)).not.toContain(
@@ -545,8 +715,8 @@ describe("parseServerEnv", () => {
         OTEL_ENABLED: "enabled",
       }).issues
     ).toContainEqual({
-      path: "OTEL_ENABLED",
       message: "OTEL_ENABLED must be true or false",
+      path: "OTEL_ENABLED",
     });
   });
 
@@ -558,8 +728,8 @@ describe("parseServerEnv", () => {
         BETTER_AUTH_URL: "http://app.domain.test",
       }).issues
     ).toContainEqual({
-      path: "APP_URL",
       message: "APP_URL must use HTTPS",
+      path: "APP_URL",
     }));
   it("keeps provider capabilities disabled when required variables are absent", () => {
     const env = parseServerEnv({
@@ -570,8 +740,8 @@ describe("parseServerEnv", () => {
 
     expect(getProviderCapabilities(env)).toEqual({
       ai: false,
-      emailDelivery: false,
       analytics: false,
+      emailDelivery: false,
       telemetryExport: false,
     });
     expect(env.GROQ_MODEL).toBeUndefined();
@@ -585,9 +755,9 @@ describe("parseServerEnv", () => {
       APP_ENV: "production",
       APP_URL: "https://staging.darkfactory.test",
       BETTER_AUTH_URL: "https://staging.darkfactory.test",
+      EMAIL_FROM: "DarkFactory Staging <noreply@darkfactory.test>",
       EMAIL_PROVIDER: "disabled",
       EMAIL_TRANSPORT: "disabled",
-      EMAIL_FROM: "DarkFactory Staging <noreply@darkfactory.test>",
     });
 
     expect(env.RESEND_API_KEY).toBeUndefined();
@@ -617,27 +787,27 @@ describe("parseServerEnv", () => {
     });
 
     return expect(error.issues).toContainEqual({
-      path: "EMAIL_TRANSPORT",
       message: "EMAIL_PROVIDER and EMAIL_TRANSPORT must be disabled together",
+      path: "EMAIL_TRANSPORT",
     });
   });
 
   it("enables provider capabilities only after complete configuration", () => {
     const env = parseServerEnv({
       ...validCoreEnv(),
+      EMAIL_TRANSPORT: "resend",
       GROQ_API_KEY: "g".repeat(32),
       GROQ_MODEL: "provider-model",
-      EMAIL_TRANSPORT: "resend",
-      RESEND_API_KEY: "r".repeat(32),
-      POSTHOG_KEY: "p".repeat(32),
-      POSTHOG_HOST: "https://analytics.invalid",
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://telemetry.invalid/v1/traces",
+      POSTHOG_HOST: "https://analytics.invalid",
+      POSTHOG_KEY: "p".repeat(32),
+      RESEND_API_KEY: "r".repeat(32),
     });
 
     return expect(getProviderCapabilities(env)).toEqual({
       ai: true,
-      emailDelivery: true,
       analytics: true,
+      emailDelivery: true,
       telemetryExport: true,
     });
   });
@@ -646,23 +816,23 @@ describe("parseServerEnv", () => {
     const env = parseServerEnv(validCoreEnv());
     expect(getProviderCapabilities(env)).toEqual({
       ai: false,
-      emailDelivery: false,
       analytics: false,
+      emailDelivery: false,
       telemetryExport: false,
     });
 
     const incompleteRuntimeEnv = {
       ...env,
       GROQ_MODEL: "configured-model",
-      POSTHOG_HOST: "https://analytics.invalid",
       OTEL_ENABLED: false,
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://telemetry.invalid/v1/traces",
+      POSTHOG_HOST: "https://analytics.invalid",
       RESEND_API_KEY: "r".repeat(32),
     };
     return expect(getProviderCapabilities(incompleteRuntimeEnv)).toEqual({
       ai: false,
-      emailDelivery: false,
       analytics: false,
+      emailDelivery: false,
       telemetryExport: false,
     });
   });
@@ -670,50 +840,50 @@ describe("parseServerEnv", () => {
   it.each([
     {
       label: "an APP_URL with a trailing slash",
+      message: "APP_URL must not have a trailing slash",
       overrides: { APP_URL: `${CANONICAL_APP_URL}/` },
       path: "APP_URL",
-      message: "APP_URL must not have a trailing slash",
     },
     {
       label: "a BETTER_AUTH_URL with a trailing slash",
+      message: "BETTER_AUTH_URL must not have a trailing slash",
       overrides: { BETTER_AUTH_URL: `${CANONICAL_APP_URL}/` },
       path: "BETTER_AUTH_URL",
-      message: "BETTER_AUTH_URL must not have a trailing slash",
     },
     {
       label: "an authentication URL that differs from the application URL",
+      message: "BETTER_AUTH_URL must match APP_URL",
       overrides: {
         BETTER_AUTH_URL: "https://auth.darkfactory.localhost",
       },
       path: "BETTER_AUTH_URL",
-      message: "BETTER_AUTH_URL must match APP_URL",
     },
     {
       label: "an APP_URL with a path",
+      message: "APP_URL must be a clean HTTPS origin",
       overrides: { APP_URL: `${CANONICAL_APP_URL}/callback` },
       path: "APP_URL",
-      message: "APP_URL must be a clean HTTPS origin",
     },
     {
       label: "an authentication URL with a query",
+      message: "BETTER_AUTH_URL must be a clean HTTPS origin",
       overrides: {
         APP_URL: `${CANONICAL_APP_URL}?return=dashboard`,
         BETTER_AUTH_URL: `${CANONICAL_APP_URL}?return=dashboard`,
       },
       path: "BETTER_AUTH_URL",
-      message: "BETTER_AUTH_URL must be a clean HTTPS origin",
     },
     {
       label: "remote email without its provider key",
+      message: "RESEND_API_KEY is required when EMAIL_TRANSPORT is resend",
       overrides: { EMAIL_TRANSPORT: "resend" },
       path: "RESEND_API_KEY",
-      message: "RESEND_API_KEY is required when EMAIL_TRANSPORT is resend",
     },
     {
       label: "the preview email transport in production",
+      message: "EMAIL_TRANSPORT cannot use preview in production",
       overrides: { APP_ENV: "production" },
       path: "EMAIL_TRANSPORT",
-      message: "EMAIL_TRANSPORT cannot use preview in production",
     },
   ])("rejects $label", ({ overrides, path, message }) => {
     const error = captureValidationError({
@@ -721,7 +891,7 @@ describe("parseServerEnv", () => {
       ...overrides,
     });
 
-    return expect(error.issues).toContainEqual({ path, message });
+    return expect(error.issues).toContainEqual({ message, path });
   });
 
   it.each([
@@ -748,8 +918,8 @@ describe("parseServerEnv", () => {
     });
 
     return expect(error.issues).toContainEqual({
-      path: "APP_URL",
       message: "APP_URL cannot use a local origin in production",
+      path: "APP_URL",
     });
   });
 
@@ -775,8 +945,8 @@ describe("parseServerEnv", () => {
       });
 
       return expect(error.issues).toContainEqual({
-        path: "DATABASE_URL",
         message: "DATABASE_URL must use sslmode=verify-full in production",
+        path: "DATABASE_URL",
       });
     }
   );
@@ -788,17 +958,17 @@ describe("parseServerEnv", () => {
     const error = captureValidationError({
       ...validCoreEnv(),
       APP_ENV: "production",
-      DATABASE_PROVIDER: "planetscale",
       APP_URL: applicationUrl,
       BETTER_AUTH_URL: applicationUrl,
+      DATABASE_PROVIDER: "planetscale",
       DATABASE_URL: directDatabaseUrl,
       EMAIL_TRANSPORT: "resend",
       RESEND_API_KEY: "r".repeat(32),
     });
 
     expect(error.issues).toContainEqual({
-      path: "DATABASE_URL",
       message: expect.stringMatching(/PgBouncer endpoint on port 6432/),
+      path: "DATABASE_URL",
     });
     expect(error.message).not.toContain(directDatabaseUrl);
     return expect(error.message).not.toContain("private-password");
@@ -806,38 +976,40 @@ describe("parseServerEnv", () => {
 
   it.each([
     {
+      issue: undefined,
       label: "hyperdrive without DATABASE_URL in production",
       overrides: {
         APP_ENV: "production",
         DATABASE_PROVIDER: "hyperdrive",
         DATABASE_URL: undefined,
       },
-      issue: undefined,
     },
     {
+      issue: undefined,
       label: "hyperdrive with a blank DATABASE_URL in production",
       overrides: {
         APP_ENV: "production",
         DATABASE_PROVIDER: "hyperdrive",
         DATABASE_URL: "  ",
       },
-      issue: undefined,
     },
     {
+      issue: undefined,
       label: "hyperdrive without DATABASE_URL in development",
       overrides: { DATABASE_PROVIDER: "hyperdrive", DATABASE_URL: undefined },
-      issue: undefined,
     },
     {
+      issue: undefined,
       label: "a remote verified postgres host in production",
       overrides: {
         APP_ENV: "production",
         DATABASE_URL:
           "postgresql://db.example.com:5432/darkfactory?sslmode=verify-full",
       },
-      issue: undefined,
     },
     {
+      issue:
+        "DATABASE_URL must be absent in production when DATABASE_PROVIDER=hyperdrive; the HYPERDRIVE binding supplies the connection",
       label: "hyperdrive beside a direct DATABASE_URL in production",
       overrides: {
         APP_ENV: "production",
@@ -845,27 +1017,25 @@ describe("parseServerEnv", () => {
         DATABASE_URL:
           "postgresql://db.example.com:5432/darkfactory?sslmode=verify-full",
       },
-      issue:
-        "DATABASE_URL must be absent in production when DATABASE_PROVIDER=hyperdrive; the HYPERDRIVE binding supplies the connection",
     },
     {
+      issue:
+        "Production postgres DATABASE_URL must use a non-local host; loopback, *.localhost, unspecified and link-local addresses are rejected",
       label: "a loopback postgres host in production",
       overrides: {
         APP_ENV: "production",
         DATABASE_URL: "postgresql://127.1:5432/darkfactory?sslmode=verify-full",
       },
-      issue:
-        "Production postgres DATABASE_URL must use a non-local host; loopback, *.localhost, unspecified and link-local addresses are rejected",
     },
     {
+      issue: "DATABASE_URL is required",
       label: "postgres without DATABASE_URL",
       overrides: { DATABASE_PROVIDER: "postgres", DATABASE_URL: undefined },
-      issue: "DATABASE_URL is required",
     },
     {
+      issue: "DATABASE_URL is required",
       label: "planetscale with a blank DATABASE_URL",
       overrides: { DATABASE_PROVIDER: "planetscale", DATABASE_URL: " " },
-      issue: "DATABASE_URL is required",
     },
   ])("applies the database profile to $label", ({ overrides, issue }) => {
     const applicationUrl = "https://app.darkfactory.example";
@@ -881,7 +1051,7 @@ describe("parseServerEnv", () => {
       return expect(() => parseServerEnv(source)).not.toThrow();
     }
     return expect(captureValidationError(source).issues).toEqual([
-      { path: "DATABASE_URL", message: issue },
+      { message: issue, path: "DATABASE_URL" },
     ]);
   });
 
@@ -924,8 +1094,8 @@ describe("parseServerEnv", () => {
     });
 
     expect(error.issues).toContainEqual({
-      path: "DATABASE_URL",
       message: "DATABASE_URL must be a PostgreSQL URL",
+      path: "DATABASE_URL",
     });
     expect(error.message).not.toContain(malformedDatabaseUrl);
     return expect(JSON.stringify(error.issues)).not.toContain(
@@ -955,9 +1125,9 @@ describe("toClientEnv", () =>
     const authSecret = "a".repeat(32);
     const providerSecret = "g".repeat(32);
     const env = parseServerEnv({
-      DATABASE_URL: databaseUrl,
       BETTER_AUTH_SECRET: authSecret,
       CONTACT_THROTTLE_SECRET: "c".repeat(32),
+      DATABASE_URL: databaseUrl,
       GROQ_API_KEY: providerSecret,
       GROQ_MODEL: "provider-model",
     });
@@ -967,8 +1137,8 @@ describe("toClientEnv", () =>
 
     expect(clientEnv).toEqual({
       APP_ENV: "development",
-      APP_URL: CANONICAL_APP_URL,
       APP_NAME: "Vertex Research",
+      APP_URL: CANONICAL_APP_URL,
     });
     expect(Object.keys(clientEnv)).toEqual(["APP_ENV", "APP_URL", "APP_NAME"]);
     expect(serializedClientEnv).not.toContain(databaseUrl);
@@ -1046,7 +1216,7 @@ describe("development email capture", () => {
     ["outside development", { APP_ENV: "test" }, "DEV_EMAIL_PREVIEW_ENDPOINT"],
     [
       "a non-preview transport",
-      { EMAIL_TRANSPORT: "disabled", EMAIL_PROVIDER: "disabled" },
+      { EMAIL_PROVIDER: "disabled", EMAIL_TRANSPORT: "disabled" },
       "DEV_EMAIL_PREVIEW_ENDPOINT",
     ],
     [

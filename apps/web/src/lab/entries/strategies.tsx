@@ -8,6 +8,7 @@ import {
   ACADEMY_MEDIA,
   ACADEMY_SOURCES,
   lessonSummaries,
+  sourceCounts,
   withAcademyMediaBaseUrl,
 } from "@darkfactory/academy/lessons";
 import { PageHeader } from "@darkfactory/ui";
@@ -27,9 +28,9 @@ import type {
 } from "../../components/portal/agent-ops-client.tsx";
 import { BacktestsWorkspace } from "../../components/portal/backtests-workspace.tsx";
 import {
-  FILTER_STUDY_MODEL,
-  FilterStudiesPanel,
-} from "../../components/portal/filter-studies-panel.tsx";
+  FilterStudiesSection,
+  type ResearchStudyGateway,
+} from "../../components/portal/filter-studies-section.tsx";
 import { OptimizationsWorkspace } from "../../components/portal/optimizations-workspace.tsx";
 import {
   type QuantLabGateway,
@@ -51,6 +52,7 @@ import {
   LAB_ACADEMY_TICKERS,
   LAB_BACKTEST_ROWS,
   LAB_EXPERIENCE_SCOPES,
+  LAB_FILTER_STUDY,
   LAB_OPTIMIZATION_ROWS,
   LAB_QUANT_LAB,
   LAB_STRATEGY_ROWS,
@@ -80,6 +82,10 @@ const labBacktestsGateway: BacktestsGateway = {
 
 const labQuantLabGateway: QuantLabGateway = {
   list: () => Promise.resolve(LAB_QUANT_LAB),
+};
+
+const labResearchStudyGateway: ResearchStudyGateway = {
+  get: () => Promise.resolve(LAB_FILTER_STUDY),
 };
 
 const labOptimizationsGateway: OptimizationsGateway = {
@@ -186,6 +192,23 @@ export const STRATEGIES_LAB_ENTRIES: readonly LabEntry[] = [
   },
   {
     group: GROUP,
+    id: "academy-course",
+    // One course's gallery: Define Your Risk. QuantFinanceToGo lessons live in Postgres (read through
+    // academy.lessons), out of the lab's reach; the lab shows the packaged course.
+    render: (params) => (
+      <AcademyGallery
+        course="dyr"
+        initialQuery={readAcademyGalleryQuery(Object.fromEntries(params))}
+        lessons={lessonSummaries().filter((lesson) => lesson.course === "dyr")}
+        media={academyMedia}
+        sourceCount={sourceCounts().dyr}
+      />
+    ),
+    route: "/academy/c/[course]",
+    title: "Academy course",
+  },
+  {
+    group: GROUP,
     id: "academy-lesson",
     render: renderLesson,
     route: "/academy/[slug]",
@@ -212,7 +235,7 @@ export const STRATEGIES_LAB_ENTRIES: readonly LabEntry[] = [
         <PageHeader title="Backtests" />
         <BacktestsWorkspace gateway={labBacktestsGateway} />
         <QuantLabPanel gateway={labQuantLabGateway} />
-        <FilterStudiesPanel model={FILTER_STUDY_MODEL} />
+        <FilterStudiesSection gateway={labResearchStudyGateway} />
       </div>
     ),
     route: "/backtests",

@@ -21,7 +21,14 @@ const ROUTE_ALIAS_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
 // Any client-supplied x-pathname is overwritten; server-session.ts still
 // validates the value against the allowed portal roots.
 export function proxy(request: NextRequest) {
-  const aliasTarget = ROUTE_ALIAS_REDIRECTS[request.nextUrl.pathname];
+  // "/terms/" is the same alias as "/terms" (one trailing slash, never the root).
+  const pathname = request.nextUrl.pathname;
+  const aliasTarget =
+    ROUTE_ALIAS_REDIRECTS[
+      pathname.length > 1 && pathname.endsWith("/")
+        ? pathname.slice(0, -1)
+        : pathname
+    ];
   let response: NextResponse;
   if (aliasTarget === undefined) {
     const headers = new Headers(request.headers);

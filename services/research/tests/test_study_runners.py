@@ -65,7 +65,7 @@ def test_rvol_runner_end_to_end(tmp_path, monkeypatch, capsys):
     assert len(capsys.readouterr().out.splitlines()) == 2
 
 
-def test_summary_keeps_display_values(tmp_path, monkeypatch):
+def test_summary_keeps_display_values(tmp_path, monkeypatch, capsys):
     for index, symbol in enumerate(adx_filter_run.UNIVERSE):
         write_daily(tmp_path, symbol, index)
     daily = tmp_path / "results.json"
@@ -84,11 +84,16 @@ def test_summary_keeps_display_values(tmp_path, monkeypatch):
     }
     intraday_path = tmp_path / "rvol.json"
     intraday_path.write_text(json.dumps(intraday))
-    out = tmp_path / "summary.json"
-    monkeypatch.setattr(sys, "argv", ["run", "--daily", str(daily), "--intraday", str(intraday_path), "--ran",
-                                      "2026-10-31", "--out", str(out)])
+    capsys.readouterr()
+    argv = ["run", "--daily", str(daily), "--intraday", str(intraday_path), "--ran", "2026-10-31"]
+    monkeypatch.setattr(sys, "argv", argv)
     filter_study_summary.main()
-    summary = json.loads(out.read_text())
+    printed = capsys.readouterr().out
+    summary = json.loads(printed)
+    out = tmp_path / "summary.json"
+    monkeypatch.setattr(sys, "argv", [*argv, "--out", str(out)])
+    filter_study_summary.main()
+    assert out.read_text() == printed == capsys.readouterr().out
     assert summary["ran"] == "2026-10-31" and len(summary["daily"]["variants"]) == 13
     assert summary["daily"]["variants"][0]["deflatedProbability"] is None
     assert summary["daily"]["variants"][0]["verdict"] is None and summary["daily"]["variants"][1]["verdict"]

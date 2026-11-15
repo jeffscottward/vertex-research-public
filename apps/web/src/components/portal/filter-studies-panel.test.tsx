@@ -3,10 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import BacktestsPage from "../../app/(portal)/backtests/page.tsx";
-import {
-  FILTER_STUDY_MODEL,
-  FilterStudiesPanel,
-} from "./filter-studies-panel.tsx";
+import seeded from "../../features/research-studies/fixtures/adx-filter-study.json";
+import { toFilterStudyViewModel } from "../../features/research-studies/view-model.ts";
+import { FilterStudiesPanel } from "./filter-studies-panel.tsx";
+
+const FILTER_STUDY_MODEL = toFilterStudyViewModel(seeded);
 
 const render = (markup: string): HTMLElement => {
   const container = document.createElement("div");

@@ -529,13 +529,14 @@ export const consumeNativeEvidence = async (
             // The privacy owner rejoins every reviewer grant on each worker
             // prepare/read, so independent phase-two authority must exist
             // before the worker submits the first phase-two candidate.
-            if (scenario !== "missing-authority")
-              for (const operation of ["model-tokenize", "model-completion"])
-                await f.grant(
-                  f.privacyReviewer.actorId,
-                  `research-chat-model-privacy:${f.responseRequestId}:phase-2:${operation}`,
-                  ["review"]
-                );
+            for (const operation of scenario === "missing-authority"
+              ? []
+              : ["model-tokenize", "model-completion"])
+              await f.grant(
+                f.privacyReviewer.actorId,
+                `research-chat-model-privacy:${f.responseRequestId}:phase-2:${operation}`,
+                ["review"]
+              );
           }
           if (message.method === "prepareModelPrivacyReview")
             requests.push(message.value);

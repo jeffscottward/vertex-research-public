@@ -1,5 +1,6 @@
-// What: UI lab fixtures for the strategy pages: library, backtests, Quant Lab, optimizations, Academy
-// gate and Vertex strategy specs. Fictional and deterministic (seeded from LAB_NOW).
+// What: UI lab fixtures for the strategy pages: library, backtests, Quant Lab, filter studies,
+// optimizations, Academy gate and Vertex strategy specs. Fictional and deterministic (seeded from
+// LAB_NOW).
 // Used by: apps/web/src/lab/entries/strategies.tsx.
 import {
   type AcademyDeployInput,
@@ -10,10 +11,12 @@ import {
   type BacktestGetOutput,
   type BacktestResultSummaryOutput,
   computeOptimizationAnalytics,
+  type FilterStudy,
   type OptimizationGetOutput,
   type OptimizationRunOutput,
   type OptimizationSummaryOutput,
   type QuantLabListOutput,
+  type ResearchStudy,
   type StrategyGetOutput,
   type StrategyPresetOutput,
   type StrategySummaryOutput,
@@ -305,6 +308,9 @@ type LabStrategySeed = Readonly<{
   section: string | null;
   favorite: boolean;
   tags: readonly string[];
+  // Defaults: normal priority and no external claim.
+  priority?: StrategySummaryOutput["priority"];
+  externalValidation?: StrategySummaryOutput["externalValidation"];
 }>;
 
 const STRATEGY_SEEDS: NonEmpty<LabStrategySeed> = [
@@ -339,6 +345,30 @@ const STRATEGY_SEEDS: NonEmpty<LabStrategySeed> = [
     section: "Options",
     status: "idea",
     tags: ["options"],
+  },
+  // High priority and externally pre-validated: a fictional third-party claim (never a Vertex validation).
+  {
+    externalValidation: {
+      claimedMethod:
+        "Fictional claim: 1,000 demo strategies on 4 demo markets, ranked by total net R with no correction for the number of strategies tried.",
+      claimedMetrics: [
+        { label: "Rank", value: "1 of 1,000 by total net R" },
+        { label: "Trades", value: "412" },
+        { label: "Win rate", value: "18%" },
+        { label: "Max drawdown", value: "44R" },
+      ],
+      publishedOn: "2026-09-24",
+      sourceAuthor: "Demo channel, video site",
+      sourceTitle: "Demo video: the best of 1,000 backtested strategies",
+      sourceUrl: "https://video.example.test/demo-volume-spike",
+    },
+    favorite: false,
+    id: "s-demo-volume-spike",
+    name: "Demo volume spike breakout",
+    priority: "high",
+    section: "Reel ideas",
+    status: "backtested",
+    tags: ["research-only", "externally-pre-validated", "breakout"],
   },
 ];
 
@@ -391,12 +421,16 @@ const labStrategySummary = (
     name: seed.name,
     params: strategyParams,
     presetCount: 1,
+    priority: seed.priority ?? "normal",
+    externalValidation: seed.externalValidation ?? null,
     section: seed.section,
     slug: seed.id.slice(2),
     sourceRef: `demo/strategies/${seed.id.slice(2)}.py`,
     status: seed.status,
     tags: [...seed.tags],
     updatedAt: labDate(1 + index),
+    // No lab seed has a study tag, so no row has a Vertex study verdict.
+    vertexStudy: null,
   };
 };
 
@@ -513,6 +547,95 @@ export const LAB_QUANT_LAB: QuantLabListOutput = {
       strategy: null,
     },
   ],
+};
+
+// ---------------------------------------------------------------------------
+// Filter studies
+
+const labFilterMetrics = (
+  sharpe: number,
+  halves: readonly [number, number],
+  tradesPerYear: number
+) => ({
+  cagr: roundTo(sharpe * 0.09, 4),
+  maxDrawdown: roundTo(0.12 + (1 - sharpe) * 0.1, 4),
+  sharpe,
+  sharpeHalves: [halves[0], halves[1]] as [number, number],
+  trades: Math.round(tradesPerYear * 20),
+  tradesPerYear,
+});
+
+/** A fictional filter study (demo numbers, not a research result), shaped like researchStudies.get. */
+const LAB_FILTER_STUDY_DOCUMENT: FilterStudy = {
+  daily: {
+    costBpsPerSide: 5,
+    trials: 4,
+    universe: ["DEMO", "TEST", "LAB"],
+    variants: [
+      {
+        ...labFilterMetrics(0.62, [0.58, 0.66], 48),
+        deflatedProbability: 0.71,
+        filter: "none",
+        strategy: "breakout_20",
+        verdict: null,
+      },
+      {
+        ...labFilterMetrics(0.74, [0.7, 0.79], 36),
+        deflatedProbability: 0.83,
+        filter: "adx_above",
+        strategy: "breakout_20",
+        verdict: "KEEP",
+      },
+      {
+        ...labFilterMetrics(0.41, [0.52, 0.3], 22),
+        deflatedProbability: 0.4,
+        filter: "adx_below",
+        strategy: "breakout_20",
+        verdict: "DROP (trade floor)",
+      },
+      {
+        ...labFilterMetrics(0.55, [0.6, 0.49], 31),
+        deflatedProbability: 0.55,
+        filter: "adx_falling",
+        strategy: "rsi2_dip",
+        verdict: "KEEP (not significant)",
+      },
+    ],
+    window: {
+      days: 5000,
+      end: "2026-10-30",
+      secondHalfStart: "2016-11-01",
+      start: "2006-11-01",
+    },
+  },
+  id: "lab-demo-filters",
+  intraday: {
+    barMinutes: 5,
+    costBpsPerSide: 1,
+    sensitivity: { costBpsPerSide: 5, verdict: "DROP (cost)" },
+    spearman: { firstHalf: 0.08, secondHalf: 0.05 },
+    symbol: "DEMO",
+    variants: [
+      { ...labFilterMetrics(0.2, [0.25, 0.15], 200), filter: "none" },
+      { ...labFilterMetrics(0.31, [0.34, 0.28], 120), filter: "rvol_above_1" },
+    ],
+    verdict: "KEEP",
+    window: {
+      end: "2026-10-30",
+      secondHalfStart: "2018-05-01",
+      sessions: 3000,
+      start: "2014-11-03",
+    },
+  },
+  ran: "2026-10-31",
+  spec: "docs/specs/research/adx-filter.md",
+};
+
+/** researchStudies.get output for the lab: the fictional study above. */
+export const LAB_FILTER_STUDY: ResearchStudy = {
+  id: LAB_FILTER_STUDY_DOCUMENT.id,
+  study: LAB_FILTER_STUDY_DOCUMENT,
+  updatedAt: labDate(7),
 };
 
 // ---------------------------------------------------------------------------

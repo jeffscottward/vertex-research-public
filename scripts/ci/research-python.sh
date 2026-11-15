@@ -45,6 +45,13 @@
 # and cryptography). ci-suites-services.txt must list every test_*.py file in those
 # services, with the same completeness check as the base manifest.
 #
+# Sixth run: the OpenBB fetcher suites in services/research/tests/ci-suites-openbb.txt
+# (services/openbb/tests) run in a separate virtual environment from
+# services/openbb/requirements-openbb-linux-py312.lock (openbb-core 2.0.1, the provider packages
+# and pytest) with PYTHONPATH=services/openbb only. ci-suites-openbb.txt must list every test_*.py
+# file under services/openbb (same completeness check). The tests replay recorded upstream
+# payloads and block sockets: no network.
+#
 # Interpreter: VERTEX_RESEARCH_PYTHON, else python3.12 on PATH. The lock holds
 # CPython 3.12 Linux x86_64 wheels only, so any other version stops the run.
 #
@@ -103,6 +110,7 @@ require_listed() {
 require_listed tests/ci-suites.txt . ../execution/tests -path '*/tests/*'
 service_roots=(../contracts/python ../control-client ../gateway ../host ../kernel-bridge ../market-data ../vibe-trading)
 require_listed tests/ci-suites-services.txt "${service_roots[@]}"
+require_listed tests/ci-suites-openbb.txt ../openbb
 if [[ "${missing}" -ne 0 ]]; then
   exit 1
 fi
@@ -144,3 +152,5 @@ run_suites tests/ci-suites-gsquant.txt "${research}/requirements-gsquant-linux-p
   VERTEX_REQUIRE_GSQUANT=1
 run_suites tests/ci-suites-services.txt "${research}/requirements-services-linux-py312.lock" \
   PYTHONPATH="${pythonpath}:${root}/services/kernel-bridge/python:${root}/services/vibe-trading/driver"
+run_suites tests/ci-suites-openbb.txt "${root}/services/openbb/requirements-openbb-linux-py312.lock" \
+  PYTHONPATH="${root}/services/openbb"

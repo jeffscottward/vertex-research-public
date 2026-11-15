@@ -1,5 +1,5 @@
 // What: UI lab entries for Markets & Research: research chat, dossiers, watchlist, price alerts,
-// news, baskets, pick lists and papers. Each renders the real page body with fake gateways.
+// news, baskets, pick lists, flow, plays and papers. Each renders the real page body with fake gateways.
 // Used by: apps/web/src/lab/entries/index.ts.
 "use client";
 
@@ -10,6 +10,10 @@ import { BasketWatchlistSection } from "../../components/portal/basket-watchlist
 import type { BasketGateway } from "../../components/portal/baskets-client.ts";
 import { BasketsWorkspace } from "../../components/portal/baskets-workspace.tsx";
 import { CalendarWorkspace } from "../../components/portal/calendar-workspace.tsx";
+import {
+  type FlowGateway,
+  FlowWorkspace,
+} from "../../components/portal/flow-workspace.tsx";
 import type { MarketDataGateway } from "../../components/portal/market-data-client.ts";
 import type { MarketFeedsGateway } from "../../components/portal/market-feeds-workspace.tsx";
 import type { MarketNewsGateway } from "../../components/portal/market-news-client.ts";
@@ -17,6 +21,10 @@ import { MarketNewsWorkspace } from "../../components/portal/market-news-workspa
 import { PapersWorkspace } from "../../components/portal/papers-workspace.tsx";
 import type { PickListGateway } from "../../components/portal/pick-lists-client.ts";
 import { PickListsWorkspace } from "../../components/portal/pick-lists-workspace.tsx";
+import {
+  type PlaysGateway,
+  PlaysWorkspace,
+} from "../../components/portal/plays-workspace.tsx";
 import type { PortfolioMonitorGateway } from "../../components/portal/portfolio-monitor-client.ts";
 import type { PriceAlertsGateway } from "../../components/portal/price-alerts-client.ts";
 import { PriceAlertsWorkspace } from "../../components/portal/price-alerts-workspace.tsx";
@@ -38,6 +46,7 @@ import {
   ExperienceProvider,
 } from "../../features/experience/shared.tsx";
 import { labReadOnly } from "../fixtures/core.ts";
+import { labFlowSnapshot } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
 import { LAB_MARKET_CONTEXT } from "../fixtures/lenses.ts";
 import { labBarsOutput } from "../fixtures/market.ts";
 import {
@@ -157,6 +166,50 @@ const labPapersGateway: PapersGateway = {
   update: labReadOnly,
 };
 
+const labFlowGateway: FlowGateway = {
+  snapshot: ({ minutes, symbol }) =>
+    Promise.resolve(labFlowSnapshot(symbol, minutes)),
+};
+
+const labPlaysGateway: PlaysGateway = {
+  list: () =>
+    Promise.resolve({
+      plays: [
+        {
+          createdAt: "2026-01-02T12:00:00.000Z",
+          definedRisk: true,
+          exitRule: "Close at 50% loss or 3 days before the front expiry",
+          id: "mockx-cal-50",
+          legs: [
+            {
+              expiry: "2099-12-18",
+              quantity: 1,
+              right: "call",
+              side: "sell",
+              strike: 50,
+            },
+            {
+              expiry: "2100-01-15",
+              quantity: 1,
+              right: "call",
+              side: "buy",
+              strike: 50,
+            },
+          ],
+          maxLossUsd: 300,
+          notes: null,
+          sourceUrl: null,
+          status: "idea",
+          structure: "call calendar",
+          thesis: "Fictional lab example: range-bound into earnings",
+          ticker: "MOCKX",
+          trigger: "MOCKX trades near 50",
+          updatedAt: "2026-01-02T12:00:00.000Z",
+        },
+      ],
+    }),
+};
+
 export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
@@ -272,6 +325,30 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/pick-lists",
     title: "Pick lists",
+  },
+  {
+    group: GROUP,
+    id: "flow",
+    render: () => (
+      <div className="space-y-8">
+        <PageHeader title="Flow" />
+        <FlowWorkspace gateway={labFlowGateway} />
+      </div>
+    ),
+    route: "/flow",
+    title: "Flow",
+  },
+  {
+    group: GROUP,
+    id: "plays",
+    render: () => (
+      <div className="space-y-8">
+        <PageHeader title="Plays" />
+        <PlaysWorkspace gateway={labPlaysGateway} />
+      </div>
+    ),
+    route: "/plays",
+    title: "Plays",
   },
   {
     group: GROUP,
