@@ -6,6 +6,11 @@
 // ubuntu-latest has 4 for public repositories) (card orochi-impl). This leaf module has no imports, so
 // vitest.config.ts can read it. vitest.config.ts builds one project per
 // entry and keeps these files out of the unit project.
+// It does so in every start directory, and it gives the native-evidence shard
+// projects their own sequence group (sequence.groupOrder), so pre-push never
+// runs these files at the same time as the unit project of packages/api. The
+// shard projects also match these files from every start directory: a start in
+// another package must select its projects.
 export const NATIVE_EVIDENCE_SHARDS = {
   "native-evidence-1": [
     "packages/api/src/server/vertex-research-chat-native-evidence.test.ts",
@@ -23,7 +28,8 @@ export const NATIVE_EVIDENCE_SHARDS = {
 // vertex-debate-5turn-ci-speed): it is its own named shard. The nightly run,
 // a manual run (the exact-SHA run before a deploy) and a pull request or push
 // that changes a debate file run it (scripts/ci/ci-changes.sh). Pre-push still
-// runs it through the packages/api test:unit script.
+// runs it through the packages/api test:unit script, which selects its
+// project; the project stays in the sequence group of the unit project.
 const DEBATE_FIVE_TURN_SHARD = "debate-five-turn";
 const DEBATE_FIVE_TURN_SHARDS = {
   [DEBATE_FIVE_TURN_SHARD]: [

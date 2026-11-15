@@ -9,7 +9,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import vitestConfig, { coverageThresholds } from "../../vitest.config.ts";
 import coverageBaseline from "./coverage-baseline.json" with { type: "json" };
-import { FILE_SHARDS } from "../lib/coverage-shards.ts";
+import { FILE_SHARDS, NATIVE_EVIDENCE_SHARDS } from "../lib/coverage-shards.ts";
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 
 type Manifest = Readonly<{ scripts?: Readonly<Record<string, string>> }>;
@@ -101,7 +101,9 @@ const SOURCE_ROOT = /^(?:apps\/[^/]+\/src\/|packages\/[^/]+\/src\/|scripts\/)/u;
 const SOURCE_EXTENSION = /\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/u;
 const TEST_FILE = /\.(?:test|spec)\.[^./]+$/u;
 // The native-evidence and five-turn debate files run in named CI coverage shards;
-// pre-push still runs them through the packages/api test:unit script.
+// pre-push runs the same shard projects through the packages/api test:unit
+// script. The native-evidence projects never run at the same time as the unit
+// project.
 const LOCAL_PROJECTS: readonly string[] = [
   "unit",
   "contract",
@@ -191,7 +193,9 @@ const expandVitestRuns = async (
   return runs;
 };
 
-const listFiles = async (run: VitestRun): Promise<string[]> => {
+// Lists the files a Vitest run would execute, each with its project. The first
+// argument is the script's `run` subcommand; this always runs `vitest list`.
+const listProjectFiles = async (run: VitestRun): Promise<ListedFile[]> => {
   const [subcommand, ...rest] = run.arguments_;
   expect(subcommand).toBe("run");
   listCount += 1;
@@ -210,8 +214,15 @@ const listFiles = async (run: VitestRun): Promise<string[]> => {
   const tracked = await trackedFiles;
   // Untracked or ignored local files never count; only committed tests reach CI.
   return listed
-    .map(({ file }) => relative(root, file))
-    .filter((file) => tracked.has(file));
+    .map(({ file, projectName }) => ({
+      file: relative(root, file),
+      projectName,
+    }))
+    .filter(({ file }) => tracked.has(file));
+};
+
+const listFiles = async (run: VitestRun): Promise<string[]> => {
+  return (await listProjectFiles(run)).map(({ file }) => file);
 };
 
 const allTestFiles = async (): Promise<ListedFile[]> => {
@@ -472,6 +483,60 @@ describe("every Vitest test file runs in the gates", {
     return expect(Object.fromEntries(counts)).toEqual(
       Object.fromEntries(expected)
     );
+  });
+
+  it("runs the named shard files in their own projects from packages/api", async () => {
+    const api = join(root, "packages/api");
+    const shardFiles: readonly string[] = Object.values(FILE_SHARDS).flat();
+    const inShards = (listed: readonly ListedFile[]): ListedFile[] => {
+      return listed
+        .filter(({ file }) => shardFiles.includes(file))
+        .sort((a, b) => a.file.localeCompare(b.file));
+    };
+    // One after the other: a failing list then leaves nothing running.
+    const unit = await listProjectFiles({
+      arguments_: [
+        "run",
+        "--config",
+        "../../vitest.config.ts",
+        "--project",
+        "unit",
+        ".",
+      ],
+      cwd: api,
+    });
+    expect(unit.length).toBeGreaterThan(0);
+    expect(inShards(unit)).toEqual([]);
+    const runs = await expandVitestRuns("test:unit", api);
+    expect(runs).toHaveLength(1);
+    const shards: [string, readonly string[]][] = Object.entries(FILE_SHARDS);
+    return expect(inShards(await listProjectFiles(runs[0]!))).toEqual(
+      shards
+        .flatMap(([projectName, files]) =>
+          files.map((file) => ({ file, projectName }))
+        )
+        .sort((a, b) => a.file.localeCompare(b.file))
+    );
+  });
+
+  it("gives the native-evidence shard projects a higher sequence.groupOrder than every other project", () => {
+    const orders = new Map<string, number>();
+    for (const project of vitestConfig.test?.projects ?? []) {
+      if (typeof project !== "object" || !("test" in project)) {
+        continue;
+      }
+      const name = project.test?.name;
+      if (typeof name === "string") {
+        orders.set(name, project.test?.sequence?.groupOrder ?? 0);
+      }
+    }
+    const shards: readonly string[] = Object.keys(NATIVE_EVIDENCE_SHARDS);
+    const others = [...orders].filter(([name]) => !shards.includes(name));
+    expect(others.length).toBeGreaterThan(0);
+    const last = Math.max(...others.map(([, order]) => order));
+    for (const shard of shards) {
+      expect(orders.get(shard), shard).toBeGreaterThan(last);
+    }
   });
 
   return it("runs every unit, contract, operations, e2e-helpers and native-evidence file in verify:prepush", async () => {

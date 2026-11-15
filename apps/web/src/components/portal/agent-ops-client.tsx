@@ -259,7 +259,7 @@ export const describeAgentApiKeyFailure = (error: unknown): string => {
       return "Rejected: name must be 1-64 characters.";
     }
     case "UNAVAILABLE": {
-      return "Agent API keys unavailable (503).";
+      return "Agent API key service did not respond (503). No key was changed. Retry.";
     }
     default: {
       return "Request failed. Apply migration 0016 if the apikey table is missing, then retry.";
@@ -469,9 +469,12 @@ export const labelFor = (
   return labels[value] ?? value.replaceAll("_", " ");
 };
 
-export const formatTimestamp = (value: Date | null): string => {
+export const formatTimestamp = (
+  value: Date | null,
+  missing = "not recorded"
+): string => {
   return value === null
-    ? "—"
+    ? missing
     : value.toISOString().slice(0, 16).replace("T", " ");
 };
 
@@ -479,7 +482,7 @@ export const formatDuration = (
   task: Pick<AgentTaskOutput, "startedAt" | "finishedAt">,
   now = new Date()
 ): string => {
-  if (task.startedAt === null) return "—";
+  if (task.startedAt === null) return "not started";
   const end = task.finishedAt ?? now;
   const seconds = Math.max(
     0,
@@ -495,7 +498,7 @@ export const formatMetrics = (
   limit = 4
 ): string => {
   const entries = Object.entries(metrics);
-  if (entries.length === 0) return "—";
+  if (entries.length === 0) return "no metrics reported";
   const shown = entries
     .slice(0, limit)
     .map(([key, value]) => `${key}=${value}`);

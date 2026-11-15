@@ -125,14 +125,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/deployments/error.tsx",
-    text: "Deployments unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/drafts/error.tsx",
     text: "Order drafts unavailable",
     count: 1,
@@ -616,22 +608,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/agent-ops-client.tsx",
-    text: "—",
-    count: 3,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: One dash covers "not started", "still running", "never used". Add a second parameter for the null label and pass it at each call site ("not started", "running", "never").',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-ops-client.tsx",
-    text: "Agent API keys unavailable (503).",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: No cause and no next step. Replace with "Agent API key service did not respond (503). No key was changed. Retry."; if the gateway can tell "key store not configured" from "store down", the API must return that reason.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-ops-client.tsx",
     text: "Agent operations storage unavailable (503). Apply migrations 0015 and 0017 if the tables are missing.",
     count: 1,
     reason:
@@ -941,7 +917,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/portal/deployments-snapshot.tsx",
     text: "—",
-    count: 22,
+    count: 6,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Split by caller: "not started", "not reported by VPS"; block.available/reason in scope gives the cause where the block is down.',
     open: true,
@@ -956,25 +932,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/portal/deployments-snapshot.tsx",
     text: "unknown",
-    count: 6,
+    count: 4,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Split: "Kill switch state not read: <risk.reason> · last confirmed <state> at <as_of>" vs "risk not configured"; reason exists on the block, last confirmed value needs the API to add it.',
-    open: true,
-  },
-  {
-    file: "components/portal/deployments-workspace.tsx",
-    text: "—",
-    count: 6,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Split by caller: "never started", "no log line yet"; callers know which field.',
-    open: true,
-  },
-  {
-    file: "components/portal/deployments-workspace.tsx",
-    text: "unknown",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "status not reported by Docker"; add the snapshot time already in scope.',
     open: true,
   },
   {

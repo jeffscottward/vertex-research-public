@@ -70,8 +70,8 @@ const errorCode = (error: unknown): string | null => {
   return typeof value === "string" ? value : null;
 };
 
-const formatUtc = (value: string | null): string => {
-  if (value === null) return "—";
+const formatUtc = (value: string | null, missing = "not reported"): string => {
+  if (value === null) return missing;
   const time = Date.parse(value);
   if (!Number.isFinite(time)) return value;
   return `${new Date(time).toISOString().slice(0, 19).replace("T", " ")} UTC`;
@@ -91,7 +91,7 @@ const secondsBetween = (from: string, to: Date): number => {
 
 const stateDetail = (service: DeployServiceStatusOutput): string => {
   if (!service.present) return "container missing";
-  const status = service.status ?? "unknown";
+  const status = service.status ?? "not reported by Docker";
   if (service.startedAt === null) return `status ${status}, never started`;
   const exit =
     service.exitCode === null ? "" : `, exit code ${service.exitCode}`;
@@ -142,7 +142,7 @@ export const upSinceText = (
   service: DeployServiceStatusOutput,
   now: Date
 ): string => {
-  if (!service.present) return "—";
+  if (!service.present) return "container missing";
   if (service.running && service.startedAt !== null) {
     return `${formatUtc(service.startedAt)} (${formatAge(secondsBetween(service.startedAt, now))})`;
   }
@@ -152,9 +152,33 @@ export const upSinceText = (
     : `stopped ${formatUtc(service.finishedAt)}`;
 };
 
+// Docker creates State.Health only when a container starts, so a null health on a
+// never-started container says nothing about its healthcheck.
+const healthMissingText = (service: DeployServiceStatusOutput): string => {
+  if (!service.present) return "container missing";
+  if (service.startedAt === null) return "container never started";
+  return "no healthcheck configured";
+};
+
+// The status collector reads logs only for these services (collect.py service_item).
+const LOGGED_SERVICES: ReadonlySet<string> = new Set([
+  "nautilus-trader",
+  "ib-gateway",
+]);
+
+// Why no log was read: the container is gone, stopped, or its log was not returned.
+const noLogText = (service: DeployServiceStatusOutput): string => {
+  if (!service.present) return "no log read: container missing";
+  if (service.startedAt === null) return "no log read: container never started";
+  if (!service.running) return "no log read: container stopped";
+  if (!LOGGED_SERVICES.has(service.service))
+    return "no log read: logs not collected for this service";
+  return "no log read: not returned";
+};
+
 const stateText = (service: DeployServiceStatusOutput): string => {
   if (!service.present) return "missing";
-  const base = service.status ?? "unknown";
+  const base = service.status ?? "status not reported";
   const exit =
     !service.running && service.exitCode !== null && service.startedAt !== null
       ? ` (exit ${service.exitCode})`
@@ -281,22 +305,26 @@ const ServicesTable = ({
                   {stateText(service)}
                 </TableCell>
                 <TableCell className={`${cell} font-mono`}>
-                  {service.health ?? "—"}
+                  {service.health ?? healthMissingText(service)}
                 </TableCell>
                 <TableCell className={`${cell} font-mono text-xs`}>
                   {upSinceText(service, current)}
                 </TableCell>
                 <TableCell className={`${cell} text-right font-mono`}>
-                  {service.restartCount ?? "—"}
+                  {service.restartCount ??
+                    (service.present ? "not reported" : "container missing")}
                 </TableCell>
                 <TableCell className={`${cell} font-mono text-xs`}>
                   {service.log === null
-                    ? "—"
-                    : formatUtc(service.log.lastLineAt)}
+                    ? noLogText(service)
+                    : formatUtc(
+                        service.log.lastLineAt,
+                        "no timestamped log line returned"
+                      )}
                 </TableCell>
                 <TableCell className={`${cell} text-right font-mono`}>
                   {service.log === null
-                    ? "—"
+                    ? noLogText(service)
                     : `${service.log.errorLines} / ${service.log.warnLines}`}
                 </TableCell>
               </TableRow>

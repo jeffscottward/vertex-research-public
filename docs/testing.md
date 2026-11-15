@@ -126,6 +126,8 @@ The core lane also runs `scripts/ci/native-rust.sh`. It runs `cargo test --locke
 
 TS-side Python tests: every `packages/api` test that starts a Python child uses one interpreter, `VERTEX_TEST_PYTHON` (`packages/api/src/server/research-python.test-support.ts`). Each coverage shard makes it with `scripts/ci/test-python.sh` from `services/research/requirements-sdk-linux-py312.lock` (the services lock plus the research SDK stack: `agno==1.7.12`, `openai==1.93.0`, `httpx==0.28.1` and their closure). In GitHub Actions (`GITHUB_ACTIONS=true`) the interpreter-only suites (`vertex-runtime-composite`, `-hmm` and `-jump`) fail when the variable is missing; locally they skip. `turbo.json` passes `VERTEX_TEST_PYTHON` through to `test:unit`. Local run: `export VERTEX_TEST_PYTHON="$(bash scripts/ci/test-python.sh /tmp/vertex-test-python | tail -1)"`.
 
+Pre-push never runs the four native-evidence files at the same time as the `unit` project of `packages/api`: the `test:unit` script of `packages/api` also selects the two native-evidence shard projects, and these have `sequence.groupOrder: 1`. Vitest runs the groups one after the other; the native-evidence files start after the `unit` project when the run has more than one worker. One of these tests took 47 s alone and 180 s when it ran at the same time as the 32 workers of the `unit` project (measured on the rig, 2026-11-15, one test). The script also selects the `debate-five-turn` project. That project keeps group 0 (the default), so the five-turn debate file runs at the same time as the `unit` project, as it did before it had its own project.
+
 ## Writing good tests
 
 - Use fakes from each brick's `./test` export instead of mocking SDKs.

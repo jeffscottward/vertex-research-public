@@ -20,6 +20,22 @@
 #  5. Check that every container from the baseline keeps its start time (one-off `*-run-<hex>`
 #     compose containers may vanish; new containers are ignored) and that vertex-web restarted.
 #
+# Runtime tree: the tracked files and node_modules of the checkout on QuantVPS. RUNTIME_SHA in the
+# checkout root names their commit. stage-runtime.sh (rig) copies the tree of a build commit to
+# .runtime-next/ in the checkout. Runtime guard (step 1c, after the version guard):
+#  - RUNTIME_SHA equals the new build SHA: plain restart.
+#  - Else a complete stage for the new build SHA exists: the restart command first moves every path
+#    in .runtime-next/PATHS from the checkout to .runtime-bak-<TS>/ and the staged path into its place
+#    (renames, one remote command with the restart). A failed move puts the finished paths back and
+#    the restart command is not sent; the old process keeps serving (exit 3).
+#  - Else, or with no answer, an unknown build SHA or an unfinished earlier swap (a .runtime-bak-* or
+#    .runtime-failed-* directory with neither COMPLETE nor UNDONE): no restart (exit 12).
+#    --allow-stale-runtime <reason> restarts on a tree at another commit, with one #omp-alerts
+#    notice. It never skips the "no answer" and "unfinished swap" refusals.
+# After a swap, a failed health check also moves the new runtime tree to .runtime-failed-<now>/ and
+# the saved one back, in the rollback command. No health answer over ssh: no rollback, the swapped
+# tree stays (exit 6). No directory is ever deleted here.
+#
 # Idle signal (all must hold; the quiet window is VERTEX_RESTART_QUIET seconds, default 30):
 #  - The last vertex-web journal line is older than the quiet window. `vite preview` logs every
 #    completed request ("GET /path 200 OK (12ms)"), so this means no request finished recently.
@@ -48,10 +64,13 @@
 # Lock: one fixed path for every caller, ${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock.
 #
 # Usage: infra/quantvps/restart-when-idle.sh [--dry-run] [--backup <TS>] [--allow-older <reason>]
+#          [--allow-stale-runtime <reason>]
 #   --dry-run  print the idle decision, current health, rollback candidate and start times; no
 #              restart, no lock, no alert. Exit 0 = idle, 10 = busy.
 #   --allow-older  deploy a build that is older than (or not provably newer than) the deployed SHA,
 #              for a deliberate rollback or the first recorded deploy. The reason is printed.
+#   --allow-stale-runtime  restart although the runtime tree is not at the new build SHA (emergency
+#              only). The reason is printed and sent to #omp-alerts.
 #   --backup   rollback source timestamp (dist.bak-<TS> and .wrangler.bak-<TS>), default newest pair.
 # Exit codes: 0 restarted and healthy; 2 usage; 3 gate or probe failed, or the vertex-web start time
 #   did not change (no restart happened); 4 gave up (busy); 5 health failed, rolled back and healthy;
@@ -59,7 +78,9 @@
 #   7 restarted and healthy, but a container start time changed or could not be checked;
 #   8 another restart waiter holds the lock (this run did nothing);
 #   9 version guard refused: the new build is older than the deployed one, or a SHA is unknown;
-#   11 the lock file could not be opened or flock failed (this run did nothing).
+#   11 the lock file could not be opened or flock failed (this run did nothing);
+#   12 runtime guard refused: the runtime tree is not at the new build SHA and no stage for it
+#   exists, or QuantVPS gave no answer about it, or an earlier swap is unfinished.
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR,
 #   VERTEX_RESTART_SLEEP, VERTEX_RESTART_ALERT (alert command, gets the text), VERTEX_RESTART_LOCK,
 #   VERTEX_RESTART_POLL, VERTEX_RESTART_QUIET, VERTEX_RESTART_GIVE_UP_AFTER,
@@ -77,6 +98,8 @@ if [ -n "${VERTEX_WEB_DIR:-}" ]; then
 else
   WEB_CD="cd \"\$(systemctl show $UNIT -p WorkingDirectory --value)/../../apps/web\""
 fi
+# The checkout root on QuantVPS: apps/web is two levels below it.
+ROOT_CD="$WEB_CD && cd ../.."
 
 # Pure idle decision. Input: probe text (see PROBE). Prints "idle" or "busy", then reason lines.
 decide() {
@@ -136,6 +159,7 @@ fi
 DRY=0
 BACKUP=""
 ALLOW_OLDER=""
+ALLOW_STALE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
@@ -147,7 +171,11 @@ while [ $# -gt 0 ]; do
       shift
       [ -n "${1:-}" ] && [[ "$1" != --* ]] || { echo "--allow-older needs a reason" >&2; exit 2; }
       ALLOW_OLDER="$1" ;;
-    *) echo "usage: $0 [--dry-run] [--backup <TS>] [--allow-older <reason>]" >&2; exit 2 ;;
+    --allow-stale-runtime)
+      shift
+      [ -n "${1:-}" ] && [[ "$1" != --* ]] || { echo "--allow-stale-runtime needs a reason" >&2; exit 2; }
+      ALLOW_STALE="$1" ;;
+    *) echo "usage: $0 [--dry-run] [--backup <TS>] [--allow-older <reason>] [--allow-stale-runtime <reason>]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -200,6 +228,95 @@ record_new() { remote ": record; $WEB_CD && if [ \"\$(cat dist/DEPLOYED_SHA 2>/d
 CHECKED_SHA=""
 RECORD=": record; $WEB_CD && if [ -f dist/DEPLOYED_SHA ]; then cp dist/DEPLOYED_SHA DEPLOYED_SHA.tmp && mv DEPLOYED_SHA.tmp DEPLOYED_SHA; else rm -f DEPLOYED_SHA; fi"
 GIT_DIR_CHECK="${VERTEX_DEPLOY_GIT_DIR:-$(cd "$(dirname "$0")" && git rev-parse --show-toplevel 2>/dev/null || echo .)}"
+
+# Runtime swap. Shell text that runs on QuantVPS in the checkout root (sh with GNU mv: `mv -T`
+# never moves a path into an existing directory of the same name).
+# swap_paths <from> <to> [strict]: for each path in <from>/PATHS, the live path moves to <to>/ and the
+# path in <from>/ moves into its place. strict: every listed path must exist in <from>. <to> gets a
+# PATHS copy (it drives a later swap back), DONE (the moved paths) and COMPLETE. A failed move puts
+# the finished paths back and returns 1; <to> gets UNDONE only when every path is back in place.
+read -r -d '' SWAP_LIB <<'EOS' || true
+has() { [ -e "$1" ] || [ -L "$1" ]; }
+# Every refusal before the first move ends with the line "swap: nothing moved", and a finished undo
+# with "swap: undone": the caller treats any other ending as an unknown state.
+nomove() { echo "swap: $1"; echo "swap: nothing moved"; return 1; }
+swap_paths() {
+  from="$1"; to="$2"; strict="${3:-}"
+  [ -f "$from/PATHS" ] || { nomove "$from/PATHS is missing"; return 1; }
+  if has "$to"; then nomove "$to exists"; return 1; fi
+  while IFS= read -r p; do
+    case "$p" in '' | /* | .. | ../* | */.. | */../*) nomove "bad path '$p' in $from/PATHS"; return 1 ;; esac
+    if [ -n "$strict" ] && ! has "$from/$p"; then nomove "$from/$p is missing"; return 1; fi
+  done <"$from/PATHS"
+  mkdir "$to" && cp "$from/PATHS" "$to/PATHS" && : >"$to/DONE" || { : 2>/dev/null >"$to/UNDONE"; nomove "cannot prepare $to"; return 1; }
+  while IFS= read -r p; do
+    if { ! has "$p" || { mkdir -p "$to/$(dirname "$p")" && mv -T "$p" "$to/$p"; }; } &&
+      { ! has "$from/$p" || { mkdir -p "$(dirname "$p")" && mv -T "$from/$p" "$p"; }; }; then
+      printf '%s\n' "$p" >>"$to/DONE"
+      continue
+    fi
+    echo "swap: move failed at $p; putting the finished paths back"
+    undo=ok
+    if has "$to/$p" && ! has "$p"; then mv -T "$to/$p" "$p" || { undo=failed; echo "swap: could not restore $p"; }; fi
+    while IFS= read -r q; do
+      if has "$q"; then mv -T "$q" "$from/$q" || { undo=failed; echo "swap: could not put back $from/$q"; continue; }; fi
+      if has "$to/$q"; then mv -T "$to/$q" "$q" || { undo=failed; echo "swap: could not restore $q"; }; fi
+    done <"$to/DONE"
+    if [ "$undo" = ok ] && : >"$to/UNDONE"; then echo "swap: undone"; else echo "swap: the undo did not finish; $to stays unfinished"; fi
+    return 1
+  done <"$from/PATHS"
+  : >"$to/COMPLETE"
+  echo "swapped $(wc -l <"$to/DONE" | tr -d ' ') paths: $from -> live, live -> $to"
+}
+EOS
+# Runtime tree state: the live commit, the staged commit, and the first swap directory that an
+# interrupted swap left without COMPLETE or UNDONE.
+RUNTIME=": runtime; $ROOT_CD || exit 1
+echo \"live \$(cat RUNTIME_SHA 2>/dev/null || echo none)\"
+echo \"staged \$(cat .runtime-next/RUNTIME_SHA 2>/dev/null || echo none)\"
+inc=none; for d in .runtime-bak-* .runtime-failed-*; do
+  if [ -d \"\$d\" ] && [ ! -f \"\$d/COMPLETE\" ] && [ ! -f \"\$d/UNDONE\" ]; then inc=\"\$d\"; break; fi; done
+echo \"incomplete \$inc\""
+
+# Two commit names are the same commit when one is a prefix of the other (7 to 40 hex digits):
+# RUNTIME_SHA always holds a full name, dist/DEPLOYED_SHA may hold a short one.
+same_sha() {
+  [[ "$1" =~ ^[0-9a-f]{7,40}$ ]] && [[ "$2" =~ ^[0-9a-f]{7,40}$ ]] && { [[ "$1" == "$2"* ]] || [[ "$2" == "$1"* ]]; }
+}
+# Runtime guard (call it after version_guard: it uses CHECKED_SHA). Prints one decision line and sets
+# RUNTIME_ACTION to none or swap (and RT_STAGED to the staged commit); returns 0 = allowed, 1 = refused.
+RUNTIME_ACTION=none
+RT_STAGED=""
+runtime_guard() {
+  local out live staged inc cause
+  out="$(remote "$RUNTIME" 2>/dev/null)"
+  live="$(sed -n 's/^live //p' <<<"$out" | head -n 1)"
+  staged="$(sed -n 's/^staged //p' <<<"$out" | head -n 1)"
+  inc="$(sed -n 's/^incomplete //p' <<<"$out" | head -n 1)"
+  RUNTIME_ACTION=none
+  if [ -z "$live" ] || [ -z "$inc" ]; then
+    cause="no answer from QuantVPS about the runtime tree. Check ssh, then run this script again."
+  elif [ "$inc" != none ]; then
+    cause="an earlier runtime swap did not finish ($inc has no COMPLETE file). Repair it first: infra/quantvps/README.md, \"Repair an unfinished runtime swap\"."
+  elif same_sha "$live" "$CHECKED_SHA"; then
+    echo "runtime: live runtime tree is at build $CHECKED_SHA"; return 0
+  elif same_sha "$staged" "$CHECKED_SHA"; then
+    RUNTIME_ACTION=swap
+    RT_STAGED="$staged"
+    echo "runtime: the staged tree of build $CHECKED_SHA will be swapped in at the restart (live: $live)"; return 0
+  elif [ -n "$ALLOW_STALE" ]; then
+    # The override covers only a tree at another commit, never a failed read or an unfinished swap.
+    echo "runtime: WARNING guard skipped (runtime tree at $live, build ${CHECKED_SHA:-unknown}): $ALLOW_STALE"
+    [ "$DRY" = 1 ] || alert "⚠️ **vertex-web restart with the runtime guard skipped** (QuantVPS): runtime tree at $live, build ${CHECKED_SHA:-unknown}. Reason: $ALLOW_STALE"
+    return 0
+  elif [ -z "$CHECKED_SHA" ]; then
+    cause="the new build SHA is unknown, so the runtime tree cannot be compared with it."
+  else
+    cause="the runtime tree is at $live, the build is $CHECKED_SHA, and no complete stage for this build exists (staged: $staged). Run infra/quantvps/stage-runtime.sh in the build worktree, then run this script again."
+  fi
+  echo "NOT RESTARTED: runtime guard: $cause"
+  return 1
+}
 
 # Version guard. Prints one decision line; returns 0 = allowed, 1 = refused.
 version_guard() {
@@ -264,6 +381,9 @@ if [ "$DRY" = 1 ]; then
   echo "rollback source: $(remote "$CANDIDATE" 2>/dev/null || echo none) (dist.bak-<TS> + .wrangler.bak-<TS>)"
   echo "start times:"; remote "$STARTS" 2>&1 | sed 's/^/  /'
   version_guard | sed 's/^NOT RESTARTED: /version guard would refuse: /'
+  # A pipe runs its left side in a subshell: call version_guard again here so CHECKED_SHA is set.
+  version_guard >/dev/null
+  runtime_guard | sed 's/^NOT RESTARTED: runtime guard: /runtime guard would refuse: /'
   echo "dry run: no restart"
   [ "$(head -n 1 <<<"$d")" = idle ] && exit 0
   exit 10
@@ -303,6 +423,7 @@ if ! source_ts="$(remote "$CANDIDATE" 2>/dev/null)" || ! [[ "$source_ts" =~ ^[0-
 fi
 echo "gate: build output ok; rollback source $source_ts"
 version_guard || exit 9
+runtime_guard || exit 12
 
 # Worker pause for the idle wait and the restart (see "Worker pause" above). A pause file that
 # cannot be written is only a warning: the wait may then give up while the worker polls.
@@ -349,8 +470,11 @@ fi
 
 # 0 = vertex-web restarted and every container start time is unchanged; 1 = a container start time
 # changed or could not be read; 2 = the vertex-web start time did not change (no restart happened).
+# WEB_RESTARTED: yes, no, or unknown (the probe failed). It does not depend on the container result.
+WEB_RESTARTED=unknown
 check_starts() {
   local after changed web_before web_after
+  WEB_RESTARTED=unknown
   if ! after="$(remote "$STARTS" 2>/dev/null)"; then
     echo "protected containers: start-time check FAILED (probe error); check \`docker ps\` on QuantVPS"
     return 1
@@ -371,6 +495,7 @@ check_starts() {
   web_before="$(grep "^$UNIT " <<<"$before" | cut -d' ' -f2-)"
   web_after="$(grep "^$UNIT " <<<"$after" | cut -d' ' -f2-)"
   echo "$UNIT ActiveEnterTimestamp: $web_before -> $web_after"
+  if [ "$web_before" != "$web_after" ]; then WEB_RESTARTED=yes; else WEB_RESTARTED=no; fi
   if [ -n "$changed" ]; then
     echo "protected containers: START TIME CHANGED"; echo "$changed"
     alert "⚠️ **vertex-web restart** (QuantVPS): a container start time changed during the restart window. Check \`docker ps\` on QuantVPS."
@@ -386,25 +511,73 @@ if ! before="$(remote "$STARTS" 2>/dev/null)"; then
   echo "NOT RESTARTED: start-time probe failed (systemctl or docker on QuantVPS, or ssh)"
   exit 3
 fi
+RT_TS="$(date -u +%Y%m%dT%H%M%SZ)"
+RT_NOTE=""
+if [ "$RUNTIME_ACTION" = swap ]; then
+  # One remote command: the swap and the restart cannot be split by a lost connection between two
+  # calls. The stage is checked again, because the idle wait can be long.
+  RESTART=": restart; $ROOT_CD || exit 1
+$SWAP_LIB
+[ \"\$(cat .runtime-next/RUNTIME_SHA 2>/dev/null)\" = '$RT_STAGED' ] || { echo 'swap: the staged runtime tree changed after the guard'; echo 'swap: nothing moved'; exit 1; }
+swap_paths .runtime-next .runtime-bak-$RT_TS strict && systemctl restart $UNIT"
+  UNSWAP=": unswap; $ROOT_CD || exit 1
+$SWAP_LIB
+if [ -f .runtime-bak-$RT_TS/COMPLETE ]; then swap_paths .runtime-bak-$RT_TS .runtime-failed-$RT_TS
+elif [ -d .runtime-bak-$RT_TS ] && [ ! -f .runtime-bak-$RT_TS/UNDONE ]; then echo 'the swap into .runtime-bak-$RT_TS is unfinished; repair it (infra/quantvps/README.md)'; exit 1
+else echo 'the runtime tree was not swapped'; fi"
+fi
 echo "restarting $UNIT"
 # ExecStartPre waits up to 120 s for Postgres, so the restart call gets 300 s.
-remote "$RESTART" 300 2>&1 || echo "warning: restart command failed (exit $?); checking health"
+restart_out="$(remote "$RESTART" 300 2>&1)"; restart_rc=$?
+[ -z "$restart_out" ] || printf '%s\n' "$restart_out"
+[ "$restart_rc" = 0 ] || echo "warning: restart command failed (exit $restart_rc); checking health"
+# SWAPPED: yes = the swap reported its last move; no = the swap refused or put its moves back;
+# unknown = neither line arrived (for example a lost connection), so the tree can be in any state.
+SWAPPED=no
+if [ "$RUNTIME_ACTION" = swap ]; then
+  if grep -q '^swapped .* live -> \.runtime-bak-' <<<"$restart_out"; then
+    SWAPPED=yes
+    RT_NOTE=" Runtime files of $CHECKED_SHA stay swapped in (previous: .runtime-bak-$RT_TS)."
+  elif grep -qx 'swap: nothing moved' <<<"$restart_out" || grep -qx 'swap: undone' <<<"$restart_out"; then
+    RT_NOTE=" The runtime tree was not swapped."
+  else
+    SWAPPED=unknown
+    RT_NOTE=" Runtime tree state unknown: check .runtime-next and .runtime-bak-$RT_TS in the checkout on QuantVPS."
+  fi
+fi
 if h="$(wait_healthy)"; then
   echo "healthy: $h"
   check_starts; rc=$?
-  if [ "$rc" = 2 ]; then
+  if [ "$rc" = 2 ] || [ "$WEB_RESTARTED" = no ]; then
+    # The old process must not keep serving from a swapped tree: move the saved tree back.
+    if [ "$RUNTIME_ACTION" = swap ] && [ "$SWAPPED" = no ]; then echo "runtime:$RT_NOTE"
+    elif [ "$SWAPPED" != no ]; then
+      if unswap_out="$(remote "$UNSWAP" 120 2>&1)"; then echo "runtime: $(tail -n 1 <<<"$unswap_out")"
+      else
+        [ -z "$unswap_out" ] || printf '%s\n' "$unswap_out"
+        echo "runtime: WARNING the swap back failed.$RT_NOTE"
+        alert "⚠️ **vertex-web restart did not happen and the runtime swap back failed** (QuantVPS).$RT_NOTE The old process still serves. Check the checkout by hand."
+      fi
+    fi
     echo "NOT RESTARTED: $UNIT ActiveEnterTimestamp did not change; the old process still serves"
     exit 3
   fi
   if [ -z "$CHECKED_SHA" ]; then echo "warning: new build SHA unknown; DEPLOYED_SHA not recorded"
   elif ! record_new >/dev/null 2>&1; then echo "warning: DEPLOYED_SHA not recorded (dist/DEPLOYED_SHA no longer $CHECKED_SHA, or ssh failed)"
   else echo "recorded DEPLOYED_SHA $CHECKED_SHA"; fi
+  case "$RUNTIME_ACTION:$SWAPPED" in
+    swap:yes) echo "runtime: files of $CHECKED_SHA are live; previous files kept in .runtime-bak-$RT_TS" ;;
+    swap:*) echo "runtime: WARNING$RT_NOTE" ;;
+  esac
+  if [ "$RUNTIME_ACTION" = swap ] && { [ "$SWAPPED" != yes ] || [ "$WEB_RESTARTED" != yes ]; }; then
+    alert "⚠️ **vertex-web restart with a runtime swap needs a check** (QuantVPS): the web app is healthy, but the swap or the restart is not confirmed (swap: $SWAPPED, restart seen: $WEB_RESTARTED).$RT_NOTE"
+  fi
   [ "$rc" = 0 ] || exit 7
   exit 0
 fi
 if [ "$h" = "no health answer" ]; then
-  echo "HEALTH UNKNOWN: no health answer over ssh; no rollback"
-  alert "⚠️ **vertex-web restart: state unknown** (QuantVPS): the health check got no answer over ssh, so no rollback was done. Check vertex-web on QuantVPS by hand."
+  echo "HEALTH UNKNOWN: no health answer over ssh; no rollback.$RT_NOTE"
+  alert "⚠️ **vertex-web restart: state unknown** (QuantVPS): the health check got no answer over ssh, so no rollback was done. Check vertex-web on QuantVPS by hand.$RT_NOTE"
   exit 6
 fi
 echo "UNHEALTHY after restart: $h"
@@ -412,14 +585,35 @@ NOW="$(date -u +%Y%m%dT%H%M%SZ)"
 ROLLBACK=": rollback; $WEB_CD && test -d dist.bak-$source_ts && test -d .wrangler.bak-$source_ts &&
 mv dist dist.failed-$NOW && mv .wrangler .wrangler.failed-$NOW &&
 cp -a dist.bak-$source_ts dist && cp -a .wrangler.bak-$source_ts .wrangler && systemctl restart $UNIT"
-if remote "$ROLLBACK" 300 2>&1 && h2="$(wait_healthy)"; then
-  echo "rolled back to $source_ts: $h2 (failed build kept as dist.failed-$NOW)"
-  alert "⚠️ **vertex-web restart failed its health check** (QuantVPS: $h). Rolled back to build $source_ts; the web app is healthy again ($h2). The failed build is kept as dist.failed-$NOW."
+if [ "$RUNTIME_ACTION" = swap ]; then
+  # The saved runtime tree goes back first (when the swap finished), in the same remote command as
+  # the build rollback and the restart. A failed swap back is reported; the build rollback still runs.
+  ROLLBACK=": rollback; $ROOT_CD || exit 1
+$SWAP_LIB
+if [ -f .runtime-bak-$RT_TS/COMPLETE ]; then swap_paths .runtime-bak-$RT_TS .runtime-failed-$NOW || echo 'warning: runtime files were not restored'; fi
+${ROLLBACK#: rollback; }"
+fi
+rb_out="$(remote "$ROLLBACK" 300 2>&1)"; rb_rc=$?
+[ -z "$rb_out" ] || printf '%s\n' "$rb_out"
+if [ "$RUNTIME_ACTION" = swap ]; then
+  if grep -q "^swapped .* paths: .runtime-bak-$RT_TS -> live" <<<"$rb_out"; then
+    RT_NOTE=" Runtime files of the previous deploy were restored (failed ones: .runtime-failed-$NOW)."
+  elif grep -q '^swap: the undo did not finish' <<<"$rb_out"; then
+    RT_NOTE=" Runtime tree state unknown: the swap back did not finish and its undo did not finish either (.runtime-failed-$NOW is unfinished; previous: .runtime-bak-$RT_TS)."
+  elif grep -q "^warning: runtime files were not restored" <<<"$rb_out"; then
+    RT_NOTE=" Runtime files were NOT restored: the runtime tree of $CHECKED_SHA is still live (previous: .runtime-bak-$RT_TS)."
+  elif [ "$SWAPPED" != no ]; then
+    RT_NOTE=" Runtime tree state unknown: check .runtime-bak-$RT_TS and .runtime-failed-$NOW in the checkout on QuantVPS."
+  fi
+fi
+if [ "$rb_rc" = 0 ] && h2="$(wait_healthy)"; then
+  echo "rolled back to $source_ts: $h2 (failed build kept as dist.failed-$NOW).$RT_NOTE"
+  alert "⚠️ **vertex-web restart failed its health check** (QuantVPS: $h). Rolled back to build $source_ts; the web app is healthy again ($h2). The failed build is kept as dist.failed-$NOW.$RT_NOTE"
   remote "$RECORD" 2>/dev/null || echo "warning: could not record DEPLOYED_SHA on QuantVPS"
   check_starts
   exit 5
 fi
 echo "ROLLBACK FAILED: ${h2:-rollback command failed}"
-alert "❌ **vertex-web is down** (QuantVPS): the restart failed its health check ($h) and the rollback to $source_ts did not recover it (${h2:-rollback command failed}). It needs a manual fix."
+alert "❌ **vertex-web is down** (QuantVPS): the restart failed its health check ($h) and the rollback to $source_ts did not recover it (${h2:-rollback command failed}). It needs a manual fix.$RT_NOTE"
 check_starts
 exit 6

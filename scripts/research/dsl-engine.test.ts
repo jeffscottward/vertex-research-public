@@ -163,6 +163,51 @@ describe("nautilusRunner", () => {
       },
     });
     expect(() => nautilus.readText("/none")).toThrow("no file /none");
+    // Exit 4: the document is complete and names the crashed case; no setup hint.
+    const crashed = (results: readonly object[]) => ({
+      ...answering(results),
+      spawn: (python: string, args: readonly string[], cwd: string) => ({
+        ...answering(results).spawn(python, args, cwd),
+        stderr: `Traceback\ncase "0" crashed: KeyError: 'spec'\n`,
+        status: 4,
+      }),
+    });
+    const keyError = [{ crash: "KeyError: 'spec'", id: "0" }];
+    expect(() => nautilusRunner(jobs, crashed(keyError))).toThrow(
+      /^nautilus case 0 crashed \(KeyError: 'spec'\)$/u
+    );
+    expect(hint(crashed(keyError).spawn, crashed(keyError))).toBe(false);
+    // A crash wins over a result in the same entry; entries are read in document order.
+    expect(() =>
+      nautilusRunner(
+        jobs,
+        crashed([
+          { crash: "ValueError: nan", id: "0", result: { equity: [1] } },
+        ])
+      )
+    ).toThrow("nautilus case 0 crashed (ValueError: nan)");
+    expect(() =>
+      nautilusRunner(
+        jobs,
+        crashed([
+          { error: "series too short", id: "0" },
+          { crash: "KeyError: 'spec'", id: "1" },
+        ])
+      )
+    ).toThrow("nautilus input error: series too short");
+    // Exit 4 with a clean document is read as usual; without a document it is unreadable.
+    expect(
+      nautilusRunner(
+        jobs.slice(0, 1),
+        crashed([{ id: "0", result: { equity: [1], stats: {}, trades: [] } }])
+      )(a, definition, 10)
+    ).toEqual([1]);
+    expect(() =>
+      nautilusRunner(jobs, {
+        ...io(),
+        spawn: () => ({ status: 4, stderr: "" }),
+      })
+    ).toThrow("nautilus batch output unreadable (no file ");
     expect(() => nautilusRunner(jobs, answering([{ id: "0" }]))).toThrow(
       "nautilus input error: no result"
     );
