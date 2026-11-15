@@ -1,0 +1,14 @@
+# Fires the research screen tick every 5 minutes. The server decides what is due; the tick script
+# holds no calendar. The service is a oneshot unit, so systemd does not start it again while a run
+# is in progress. Persistent=false: a missed tick is not repeated after the machine wakes, because
+# the next tick does the same work.
+[Unit]
+Description=Vertex research screen tick timer (research only)
+
+[Timer]
+OnCalendar=*:0/5
+RandomizedDelaySec=20
+Persistent=false
+
+[Install]
+WantedBy=timers.target
