@@ -533,6 +533,13 @@
       "when": 1794749412523,
       "tag": "0075_semantic_terms_trend_dsl_names",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1794772543713,
+      "tag": "0076_research_screen",
+      "breakpoints": true
     }
   ]
 }
