@@ -237,4 +237,16 @@ describe("argument errors", () => {
       alphaTrend([1], [1], [1], null, 14, 1, "cci" as Momentum)
     ).toThrow(new RangeError("momentum must be mfi or rsi"));
   });
+
+  it("is a leaf: index.ts re-exports only ./trend.ts and trend.ts imports nothing, so broker-isolation guards may allow it", () => {
+    const index = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+    const specifiers = [...index.matchAll(/\bfrom\s+"([^"]+)"/gu)].map(
+      (match) => match[1]
+    );
+    expect(new Set(specifiers)).toEqual(new Set(["./trend.ts"]));
+    const trend = readFileSync(new URL("./trend.ts", import.meta.url), "utf8");
+    expect(trend).not.toMatch(/^\s*(?:import|export)[^;]*\bfrom\s/mu);
+    expect(trend).not.toMatch(/\bimport\s*\(/u);
+    return expect(trend).not.toMatch(/\brequire\s*\(/u);
+  });
 });

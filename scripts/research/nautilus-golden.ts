@@ -35,9 +35,11 @@ import {
   StrategyDefinitionSchema,
   type StrategyExprInput,
   StrategyExprSchema,
+  type StrategyIndicatorExpr,
   type StrategyIntraday,
   type StrategyServerSupport,
   type StrategySessionIndicatorExpr,
+  type StrategyTrendIndicatorExpr,
   serverStrategyRefusal,
 } from "../../packages/api/src/strategy-dsl.ts";
 import {
@@ -47,6 +49,7 @@ import {
   evaluateStrategyExpression,
   exponentialMean,
   type IntradaySessions,
+  intradayIndicatorSeries,
   intradaySessions,
   nyseHolidays,
   realizedVolatility,
@@ -411,6 +414,55 @@ const sessionBars = (): BarColumns => {
       columns.h.push(high);
       columns.l.push(low);
       columns.c.push(close);
+      columns.v.push(volume);
+    }
+  }
+  return toBars(columns);
+};
+
+/** Sessions of TREND_MINUTE_DAYS: [New York date, regular close minute after midnight, missing bar minutes]. */
+const TREND_MINUTE_DAYS: readonly (readonly [
+  string,
+  number,
+  readonly number[],
+])[] = [
+  ["2023-03-09", 16 * 60, [10 * 60 + 1]],
+  ["2023-03-10", 16 * 60, []],
+  ["2023-03-13", 16 * 60, []],
+  ["2023-07-03", 13 * 60, []],
+  ["2023-07-05", 16 * 60, []],
+];
+
+/**
+ * 1-minute bars for the trend indicator and timeline cases: five sessions with five pre-market bars
+ * from 09:25 and, on full days, five after-hours bars to 16:05; 2023-03-09 lacks its 10:01 bar,
+ * 2023-03-13 is the first session after the March DST change and 2023-07-03 closes at 13:00 (no
+ * after-hours bars). Prices have 2 decimals.
+ */
+const trendMinuteBars = (): BarColumns => {
+  const random = randomFrom(2311);
+  const round = (value: number) => Math.round(value * 100) / 100;
+  const columns: Columns = { c: [], h: [], l: [], o: [], t: [], v: [] };
+  let price = 12_000;
+  for (const [iso, close, missing] of TREND_MINUTE_DAYS) {
+    const day = Date.parse(`${iso}T00:00:00Z`);
+    const behindUtc = day >= EDT_FROM && day < EDT_TO ? 4 : 5;
+    const end = close === 16 * 60 ? close + 5 : close;
+    const drift = (random() - 0.5) * 0.0002;
+    for (let minute = 9 * 60 + 25; minute < end; minute += 1) {
+      const open = price;
+      const next = round(open * (1 + drift + (random() - 0.5) * 0.002));
+      const high = round(Math.max(open, next) * (1 + random() * 0.0005));
+      const low = round(Math.min(open, next) * (1 - random() * 0.0005));
+      const regular = minute >= 9 * 60 + 30 && minute < close;
+      const volume = Math.floor((regular ? 2000 : 200) * (1 + random()));
+      price = next;
+      if (missing.includes(minute)) continue;
+      columns.t.push(day + (minute + behindUtc * 60) * MINUTE_MS);
+      columns.o.push(open);
+      columns.h.push(high);
+      columns.l.push(low);
+      columns.c.push(next);
       columns.v.push(volume);
     }
   }
@@ -2181,6 +2233,27 @@ const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
     id: "field:side+monthly:atr",
     python: "Unknown side: sideways",
   },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: {
+        all: [
+          {
+            ...always,
+            left: {
+              length: 10,
+              multiple: 3,
+              name: "supertrend",
+              output: "direction",
+              type: "indicator",
+            },
+          },
+        ],
+      },
+      portfolio: monthlyPortfolio,
+    },
+    id: "monthly:supertrend",
+  },
   // A block or a condition that is not an object, a session without its times and a condition
   // without a side or an operator. Each definition also has the error of the cross-field check
   // that its id names after "+"; Python must raise the field error, because it runs the field
@@ -2652,7 +2725,7 @@ const buildServerRefusals = (): Json[] =>
  * Number of top-level refinements of StrategyDefinitionSchema. Each one has a case in
  * definitionRefusalCases; buildDefinitionRefusals compares the count only.
  */
-const DEFINITION_REFINEMENT_COUNT = 14;
+const DEFINITION_REFINEMENT_COUNT = 15;
 
 /**
  * One definitionRefusals entry: the definition and the message that normalize_definition raises.
@@ -3108,6 +3181,172 @@ const buildSessionIndicators = (
   ];
 };
 
+type TrendExpr = StrategyIndicatorExpr | StrategyTrendIndicatorExpr;
+const supertrendExpr = (
+  multiple: number,
+  output: "line" | "direction",
+  extra: Partial<StrategyTrendIndicatorExpr> = {}
+): TrendExpr =>
+  ({
+    length: 10,
+    multiple,
+    name: "supertrend",
+    output,
+    type: "indicator",
+    ...extra,
+  }) as TrendExpr;
+const alphaTrendExpr = (
+  momentum: "mfi" | "rsi",
+  output: "line" | "direction",
+  extra: Partial<StrategyTrendIndicatorExpr> = {}
+): TrendExpr =>
+  ({
+    length: 14,
+    momentum,
+    multiple: 1,
+    name: "alphaTrend",
+    output,
+    type: "indicator",
+    ...extra,
+  }) as TrendExpr;
+const chandelierExpr = (
+  output: "longStop" | "shortStop" | "direction",
+  extra: Partial<StrategyTrendIndicatorExpr> = {}
+): TrendExpr =>
+  ({
+    length: 22,
+    multiple: 3,
+    name: "chandelierExit",
+    output,
+    type: "indicator",
+    ...extra,
+  }) as TrendExpr;
+const classicExpr = (
+  name: StrategyIndicatorExpr["name"],
+  length: number,
+  source: StrategyIndicatorExpr["source"],
+  timeframe: StrategyIndicatorExpr["timeframe"],
+  offset = 0
+): TrendExpr => ({
+  length,
+  name,
+  offset,
+  source,
+  timeframe,
+  type: "indicator",
+});
+
+/**
+ * 8. Trend indicators (supertrend, alphaTrend, chandelierExit) and the 5m / 15m indicator
+ * timeframes under an intraday block (intradayIndicatorSeries; offsets applied).
+ * timeline-boundaries reads the bucket closes, highs and lows of the completed-bar timeline table
+ * (docs/specs/strategies/trend-trio-design.md).
+ */
+const buildTrendIndicators = (datasets: Record<string, BarColumns>): Json[] => {
+  const intraday: StrategyIntraday = {
+    ...NEW_YORK_SESSION,
+    entryFrom: "09:35",
+    entryTo: "15:50",
+    timezone: "America/New_York",
+  };
+  const minutes = datasets["trendMinutes"] as BarColumns;
+  const cases: [string, string, TrendExpr[]][] = [
+    [
+      "supertrend-direction-5m",
+      "trendMinutes",
+      [supertrendExpr(3, "direction", { timeframe: "5m" })],
+    ],
+    [
+      "supertrend-line-1m",
+      "trendMinutes",
+      [supertrendExpr(3, "line"), supertrendExpr(3, "line", { offset: 3 })],
+    ],
+    [
+      "supertrend-two-multiples",
+      "session",
+      [
+        supertrendExpr(1.5, "direction", { timeframe: "15m" }),
+        supertrendExpr(3, "direction", { timeframe: "15m" }),
+        supertrendExpr(3, "line", { offset: 1, timeframe: "15m" }),
+        supertrendExpr(2, "direction", {
+          length: 5,
+          offset: 1,
+          timeframe: "1d",
+        }),
+      ],
+    ],
+    [
+      "alphatrend-mfi-15m",
+      "trendMinutes",
+      [
+        alphaTrendExpr("mfi", "line", { timeframe: "15m" }),
+        alphaTrendExpr("mfi", "direction", { timeframe: "15m" }),
+      ],
+    ],
+    [
+      "alphatrend-rsi-5m",
+      "trendMinutes",
+      [
+        alphaTrendExpr("rsi", "line", { timeframe: "5m" }),
+        alphaTrendExpr("rsi", "direction", { offset: 1, timeframe: "5m" }),
+        alphaTrendExpr("rsi", "direction"),
+      ],
+    ],
+    [
+      "chandelier-direction-1m",
+      "trendMinutes",
+      [chandelierExpr("direction"), chandelierExpr("direction", { offset: 2 })],
+    ],
+    [
+      "chandelier-stops-5m",
+      "trendMinutes",
+      [
+        chandelierExpr("longStop", { timeframe: "5m" }),
+        chandelierExpr("shortStop", { timeframe: "5m" }),
+        chandelierExpr("direction", { timeframe: "5m" }),
+      ],
+    ],
+    [
+      "uma-offset-buckets-5m",
+      "trendMinutes",
+      [
+        classicExpr("sma", 20, "close", "5m"),
+        classicExpr("sma", 20, "close", "5m", 2),
+        classicExpr("ema", 38, "close", "5m"),
+        classicExpr("highest", 3, "high", "5m"),
+        classicExpr("lowest", 3, "low", "15m", 1),
+        classicExpr("atr", 5, "close", "15m"),
+      ],
+    ],
+    [
+      "timeline-boundaries",
+      "trendMinutes",
+      [
+        classicExpr("sma", 1, "close", "5m"),
+        classicExpr("sma", 1, "close", "15m"),
+        classicExpr("highest", 1, "high", "5m"),
+        classicExpr("lowest", 1, "low", "5m"),
+      ],
+    ],
+  ];
+  return cases.map(([id, symbol, exprs]) => {
+    const bars =
+      symbol === "session"
+        ? head(datasets["session"] as BarColumns, SESSION_INDICATOR_BARS)
+        : minutes;
+    return {
+      bars: bars.c.length,
+      exprs,
+      id,
+      intraday,
+      symbol,
+      values: exprs.map((expr) =>
+        list(intradayIndicatorSeries(bars, intraday, expr))
+      ),
+    };
+  });
+};
+
 /** 6. Server engine refusals: runStrategyDefinition (TS) and plan_run (Python) refuse alike. */
 const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
   [
@@ -3163,6 +3402,7 @@ const buildGolden = (io: GoldenIo): string => {
     QQQ: readCsv(csv("QQQ-1d.csv"), BAR_COUNT),
     SPY: readCsv(csv("SPY-1d.csv"), BAR_COUNT),
     session: sessionBars(),
+    trendMinutes: trendMinuteBars(),
   };
 
   // 2. Compiled DSL definitions.
@@ -3207,6 +3447,7 @@ const buildGolden = (io: GoldenIo): string => {
     series,
     serverRefusals,
     sessionIndicators: buildSessionIndicators(datasets),
+    trendIndicators: buildTrendIndicators(datasets),
   };
 
   return `${JSON.stringify(golden)}\n`;

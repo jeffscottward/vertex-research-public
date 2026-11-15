@@ -18,8 +18,11 @@ describe("autopilot broker isolation", () => {
   ];
   const FORBIDDEN = /broker|ibkr|order|execution|quant-?vps|native|gateway/iu;
   // `@darkfactory/shared/universes` is constants only: its own test proves it imports nothing.
+  // `@darkfactory/shared/indicators` is pure indicator math: its own test (trend.test.ts) proves it is a leaf; the
+  // strategy DSL compiler reads its SuperTrend, AlphaTrend and Chandelier Exit kernels.
   const ALLOWED_PACKAGES = new Set([
     "@darkfactory/db/server",
+    "@darkfactory/shared/indicators",
     "@darkfactory/shared/universes",
     "@orpc/contract",
     "zod",

@@ -2,9 +2,14 @@
 
 Spec: docs/specs/strategies/trend-trio.md ("DSL definition"). The DSL enters whenever the book is flat and the
 condition holds, so these definitions equal variant V1 (re-entry), not P1. The names `supertrend`, `alphaTrend`,
-`chandelierExit` and the intraday indicator timeframes "5m" / "15m" arrive with the DSL change (design PR 2,
-docs/specs/strategies/trend-trio-design.md items 14-19); until then these dicts are data only and no engine accepts
-them. Ultimate MA (default SMA type) and Slingshot are written with the existing `sma` / `ema` and `offset`.
+`chandelierExit` and the intraday indicator timeframes "5m" / "15m" come from the DSL change (design PR 2,
+docs/specs/strategies/trend-trio-design.md items 14-19); the engines run them only with the `intradayIndicators`
+support (research runs; the server paths refuse them). Ultimate MA (default SMA type) and Slingshot are written with
+the existing `sma` / `ema` and `offset`. tests/test_trend_trio_dsl.py checks that the long and short definitions
+decide on the same bars as rules.trades with Params(entry="reentry"). One difference remains on early-close days:
+V1 stops entries 10 minutes before the early close, the DSL entryTo is a fixed 15:50 New York. The DSL `ema`
+(x - value step) and indicators.trend `ema` (Slingshot; weighted sum) round differently, which can flip the
+filter only when the two averages are equal to within rounding.
 """
 from __future__ import annotations
 

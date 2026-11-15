@@ -182,8 +182,8 @@ describe("definitionRefusalJson", () => {
 
 describe("buildDefinitionRefusals", () => {
   it("stops when the schema has another number of refinements", () => {
-    expect(() => buildDefinitionRefusals(15)).toThrow(
-      "StrategyDefinitionSchema has 15 refinements, not 14"
+    expect(() => buildDefinitionRefusals(16)).toThrow(
+      "StrategyDefinitionSchema has 16 refinements, not 15"
     );
   });
 });

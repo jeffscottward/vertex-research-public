@@ -85,9 +85,38 @@ export const STRATEGY_EVENT_OPERATORS: readonly string[] = [
 ];
 /**
  * Indicator timeframes. "1d" computes the indicator on daily bars built from the signal bars (a
- * session day starts at 17:00 New York); a signal bar reads only days before its own.
+ * session day starts at 17:00 New York); a signal bar reads only days before its own. "5m" and
+ * "15m" need an intraday block: they compute the indicator on buckets of the regular-session bars
+ * keyed by floor(bar time / bucket length) in UTC ms (09:30 New York is such a multiple), and a
+ * signal bar that closes at T reads the newest bucket that ends at or before T (the completed-bar
+ * rule of services/research/strategies/trend_trio/rules.py buckets). Their offset counts buckets.
  */
-export const STRATEGY_INDICATOR_TIMEFRAMES = ["1d"] as const;
+export const STRATEGY_INDICATOR_TIMEFRAMES = ["1d", "5m", "15m"] as const;
+/** Indicator timeframes that need an intraday block, with their bucket length in minutes. */
+export const STRATEGY_INTRADAY_INDICATOR_MINUTES: Readonly<
+  Record<string, number>
+> = { "5m": 5, "15m": 15 };
+export const STRATEGY_INTRADAY_TIMEFRAME_MESSAGE =
+  "5m and 15m indicator timeframes need an intraday block";
+
+/**
+ * Trend indicators (TradingView Pine conventions; kernels in @darkfactory/shared/indicators;
+ * direction +1 up, -1 down). Every field is required except `offset` and `timeframe` (no
+ * defaults, so stored definitions keep their canonical JSON).
+ * - supertrend: hl2 -/+ multiple x ATR(length) bands; output line or direction.
+ * - alphaTrend: SMA(true range, length) x multiple band below the low (momentum >= 50, MFI of hlc3
+ *   with volume or RSI of close) or above the high; output line or direction.
+ * - chandelierExit: highest high - multiple x ATR (longStop), lowest low + multiple x ATR
+ *   (shortStop), and the direction between them.
+ */
+export const STRATEGY_TREND_INDICATORS = [
+  "supertrend",
+  "alphaTrend",
+  "chandelierExit",
+] as const;
+export const STRATEGY_TREND_MAX_LENGTH = 500;
+export const STRATEGY_TREND_MULTIPLE_MIN = 0.1;
+export const STRATEGY_TREND_MULTIPLE_MAX = 20;
 
 /**
  * Indicators of the intraday session: they need an `intraday` block (StrategyIntradaySchema) and
@@ -254,7 +283,8 @@ const IndicatorExprSchema = z
     source: z.enum(STRATEGY_PRICE_FIELDS).default("close"),
     /**
      * Optional with no default. "1d": the indicator runs on daily bars built from the signal
-     * bars (see STRATEGY_INDICATOR_TIMEFRAMES); `length` counts days. Not for rvol.
+     * bars (see STRATEGY_INDICATOR_TIMEFRAMES); `length` counts days. "5m" and "15m": on buckets
+     * of the regular-session bars; `length` and `offset` count buckets. Not for rvol.
      */
     timeframe: z.enum(STRATEGY_INDICATOR_TIMEFRAMES).optional(),
     type: z.literal("indicator"),
@@ -281,6 +311,54 @@ const IndicatorExprSchema = z
       path: ["length"],
     }
   );
+
+const TrendLengthSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(STRATEGY_TREND_MAX_LENGTH);
+const TrendMultipleSchema = z
+  .number()
+  .min(STRATEGY_TREND_MULTIPLE_MIN)
+  .max(STRATEGY_TREND_MULTIPLE_MAX);
+const TimeframeSchema = z.enum(STRATEGY_INDICATOR_TIMEFRAMES).optional();
+
+const SuperTrendExprSchema = z
+  .object({
+    length: TrendLengthSchema,
+    multiple: TrendMultipleSchema,
+    name: z.literal("supertrend"),
+    offset: OffsetSchema,
+    output: z.enum(["line", "direction"]),
+    timeframe: TimeframeSchema,
+    type: z.literal("indicator"),
+  })
+  .strict();
+
+const AlphaTrendExprSchema = z
+  .object({
+    length: TrendLengthSchema,
+    momentum: z.enum(["mfi", "rsi"]),
+    multiple: TrendMultipleSchema,
+    name: z.literal("alphaTrend"),
+    offset: OffsetSchema,
+    output: z.enum(["line", "direction"]),
+    timeframe: TimeframeSchema,
+    type: z.literal("indicator"),
+  })
+  .strict();
+
+const ChandelierExitExprSchema = z
+  .object({
+    length: TrendLengthSchema,
+    multiple: TrendMultipleSchema,
+    name: z.literal("chandelierExit"),
+    offset: OffsetSchema,
+    output: z.enum(["longStop", "shortStop", "direction"]),
+    timeframe: TimeframeSchema,
+    type: z.literal("indicator"),
+  })
+  .strict();
 
 /** Session indicators (STRATEGY_SESSION_INDICATORS) take no length, source, offset or timeframe. */
 const VwapExprSchema = z
@@ -359,14 +437,20 @@ type LeafExpr =
   | z.output<typeof IndicatorExprSchema>
   | z.output<typeof VwapExprSchema>
   | z.output<typeof SessionReturnExprSchema>
-  | z.output<typeof NoiseBandExprSchema>;
+  | z.output<typeof NoiseBandExprSchema>
+  | z.output<typeof SuperTrendExprSchema>
+  | z.output<typeof AlphaTrendExprSchema>
+  | z.output<typeof ChandelierExitExprSchema>;
 type LeafExprInput =
   | z.input<typeof PriceExprSchema>
   | z.input<typeof ConstExprSchema>
   | z.input<typeof IndicatorExprSchema>
   | z.input<typeof VwapExprSchema>
   | z.input<typeof SessionReturnExprSchema>
-  | z.input<typeof NoiseBandExprSchema>;
+  | z.input<typeof NoiseBandExprSchema>
+  | z.input<typeof SuperTrendExprSchema>
+  | z.input<typeof AlphaTrendExprSchema>
+  | z.input<typeof ChandelierExitExprSchema>;
 export type StrategyExpr = StrategyExprTree<LeafExpr>;
 export type StrategyExprInput = StrategyExprTree<LeafExprInput>;
 
@@ -380,6 +464,9 @@ export const StrategyExprSchema: z.ZodType<StrategyExpr, StrategyExprInput> =
         VwapExprSchema,
         SessionReturnExprSchema,
         NoiseBandExprSchema,
+        SuperTrendExprSchema,
+        AlphaTrendExprSchema,
+        ChandelierExitExprSchema,
       ]),
       z
         .object({
@@ -444,7 +531,37 @@ export type StrategySessionIndicatorExpr =
   | z.infer<typeof SessionReturnExprSchema>
   | z.infer<typeof NoiseBandExprSchema>;
 
+/** supertrend, alphaTrend or chandelierExit (STRATEGY_TREND_INDICATORS). */
+export type StrategyTrendIndicatorExpr =
+  | z.infer<typeof SuperTrendExprSchema>
+  | z.infer<typeof AlphaTrendExprSchema>
+  | z.infer<typeof ChandelierExitExprSchema>;
+
 const SESSION_INDICATOR_NAMES: readonly string[] = STRATEGY_SESSION_INDICATORS;
+const TREND_INDICATOR_NAMES: readonly string[] = STRATEGY_TREND_INDICATORS;
+
+/** True for supertrend, alphaTrend and chandelierExit. */
+export const isTrendIndicator = (
+  expr: StrategyExpr
+): expr is StrategyTrendIndicatorExpr =>
+  expr.type === "indicator" && TREND_INDICATOR_NAMES.includes(expr.name);
+
+/** True for an indicator on a 5m or 15m timeframe (it needs an intraday block). */
+const isIntradayTimeframeIndicator = (expr: StrategyExpr): boolean =>
+  expr.type === "indicator" &&
+  "timeframe" in expr &&
+  expr.timeframe !== undefined &&
+  Object.hasOwn(STRATEGY_INTRADAY_INDICATOR_MINUTES, expr.timeframe);
+
+/** Whether `expr` or a sub-expression satisfies `test`. */
+const someExpr = (
+  expr: StrategyExpr,
+  test: (node: StrategyExpr) => boolean
+): boolean =>
+  test(expr) ||
+  strategyExprChildren(expr).some((child) =>
+    someExpr(child as StrategyExpr, test)
+  );
 
 /** True for vwap, sessionReturn and noiseBand (they need an intraday block). */
 export const isSessionIndicator = (
@@ -709,7 +826,7 @@ const closeOnly = (expr: StrategyExpr): boolean => {
   if (expr.type === "const") return true;
   if (expr.type === "price") return expr.field === "close";
   // Session indicators read a regular session of intraday bars, which a series does not have.
-  if (isSessionIndicator(expr)) return false;
+  if (isSessionIndicator(expr) || isTrendIndicator(expr)) return false;
   if (expr.type === "indicator")
     return expr.source === "close" && NON_CLOSE_INDICATORS[expr.name] !== true;
   return false;
@@ -985,15 +1102,29 @@ export const STRATEGY_MONTHLY_UNSUPPORTED_INDICATORS = [
 ] as const;
 export const STRATEGY_MONTHLY_INDICATOR_MESSAGE =
   "frame monthly bars have high = low = close and no volume: atr, adx and rvol are not available";
+/** Trend indicators read highs, lows and ATR (alphaTrend's mfi also volume): not monthly either. */
+export const STRATEGY_MONTHLY_TREND_INDICATORS = [
+  "supertrend",
+  "chandelierExit",
+  "alphaTrend",
+] as const;
+export const STRATEGY_MONTHLY_TREND_MESSAGE =
+  "frame monthly bars have high = low = close and no volume: supertrend, chandelierExit and alphaTrend are not available";
 
-const usesBarRangeIndicator = (expr: AnyStrategyExpr): boolean =>
-  (expr.type === "indicator" &&
-    "name" in expr &&
-    typeof expr.name === "string" &&
-    (STRATEGY_MONTHLY_UNSUPPORTED_INDICATORS as readonly string[]).includes(
-      expr.name
-    )) ||
-  strategyExprChildren(expr).some(usesBarRangeIndicator);
+const usesIndicatorIn =
+  (names: readonly string[]) =>
+  (expr: AnyStrategyExpr): boolean =>
+    (expr.type === "indicator" &&
+      "name" in expr &&
+      typeof expr.name === "string" &&
+      names.includes(expr.name)) ||
+    strategyExprChildren(expr).some(usesIndicatorIn(names));
+const usesBarRangeIndicator = usesIndicatorIn(
+  STRATEGY_MONTHLY_UNSUPPORTED_INDICATORS
+);
+const usesMonthlyTrendIndicator = usesIndicatorIn(
+  STRATEGY_MONTHLY_TREND_INDICATORS
+);
 
 type IssuePath = (string | number)[];
 
@@ -1384,6 +1515,17 @@ export const StrategyDefinitionSchema = z
   )
   .refine(
     (definition) =>
+      definition.portfolio?.frame !== "monthly" ||
+      !definitionExprPaths(definition).some(([, expr]) =>
+        usesMonthlyTrendIndicator(expr)
+      ),
+    {
+      message: STRATEGY_MONTHLY_TREND_MESSAGE,
+      path: ["portfolio", "frame"],
+    }
+  )
+  .refine(
+    (definition) =>
       definition.side !== "short" || definition.options === undefined,
     {
       message:
@@ -1419,6 +1561,12 @@ export const StrategyDefinitionSchema = z
         context.addIssue({
           code: "custom",
           message: `${name} reads the intraday session; add an intraday block`,
+          path,
+        });
+      if (someExpr(expr, isIntradayTimeframeIndicator))
+        context.addIssue({
+          code: "custom",
+          message: STRATEGY_INTRADAY_TIMEFRAME_MESSAGE,
           path,
         });
     }
@@ -1468,6 +1616,9 @@ export const STRATEGY_INTRADAY_DAILY_UNSUPPORTED =
 /** Refusal code: an intraday time or decisionEvery is not a whole multiple of the bar duration. */
 export const STRATEGY_INTRADAY_GRID_MISALIGNED =
   "STRATEGY_INTRADAY_GRID_MISALIGNED";
+/** Refusal code: 5m/15m indicator timeframes and the trend indicators run in research runs only. */
+export const STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED =
+  "STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED";
 
 export type StrategyRefusal = Readonly<{
   code:
@@ -1476,7 +1627,8 @@ export type StrategyRefusal = Readonly<{
     | typeof STRATEGY_SERIES_FILTERS_UNSUPPORTED
     | typeof STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED
     | typeof STRATEGY_INTRADAY_DAILY_UNSUPPORTED
-    | typeof STRATEGY_INTRADAY_GRID_MISALIGNED;
+    | typeof STRATEGY_INTRADAY_GRID_MISALIGNED
+    | typeof STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED;
   message: string;
 }>;
 
@@ -1498,6 +1650,11 @@ export const STRATEGY_CALENDAR_INTRADAY_REFUSAL: StrategyRefusal = {
 export const STRATEGY_INTRADAY_DAILY_REFUSAL: StrategyRefusal = {
   code: STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
   message: `${STRATEGY_INTRADAY_DAILY_UNSUPPORTED}: the intraday block needs intraday bars (two or more bars on one New York date); a daily or weekly run refuses it.`,
+};
+
+export const STRATEGY_INTRADAY_INDICATORS_REFUSAL: StrategyRefusal = {
+  code: STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED,
+  message: `${STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED}: intraday indicator timeframes (5m, 15m) and the supertrend, alphaTrend and chandelierExit indicators run only in research runs on the rig for now.`,
 };
 
 /** Refusal: `field` (an HH:MM time or decisionEvery) is off the grid of `durationMs` bars. */
@@ -1599,18 +1756,52 @@ export const resolveStrategySeries = (
     : table[symbol];
 };
 
-/** What a server path loads for a run: daily series, and the options runner. */
+/** What a server path loads for a run: daily series, the options runner, intraday indicators. */
 export type StrategyServerSupport = Readonly<{
+  /** 5m/15m indicator timeframes and the trend indicators (no server path sets it yet). */
+  intradayIndicators?: boolean;
   options?: boolean;
   series?: boolean;
 }>;
+
+/**
+ * Whether a definition (its conditions, its legs' conditions and its selection score and tie
+ * break) reads a 5m or 15m indicator timeframe or a trend indicator.
+ */
+const usesIntradayIndicators = (definition: StrategySeriesReader): boolean => {
+  const intraday = (expr: StrategyExpr): boolean =>
+    someExpr(
+      expr,
+      (node) => isTrendIndicator(node) || isIntradayTimeframeIndicator(node)
+    );
+  const parts: StrategySeriesReader[] = [
+    definition,
+    ...(definition.portfolio?.legs ?? []),
+  ];
+  const select = definition.portfolio?.select;
+  return (
+    parts.some((part) =>
+      [
+        ...(part.entry?.all ?? []),
+        ...(part.entry?.any ?? []),
+        ...(part.exit?.any ?? []),
+      ].some(
+        (condition) => intraday(condition.left) || intraday(condition.right)
+      )
+    ) ||
+    (select !== undefined &&
+      (intraday(select.score) ||
+        (select.tieBreak !== undefined && intraday(select.tieBreak))))
+  );
+};
 
 /**
  * Why a server path cannot run a definition or a campaign filter list, or undefined when it can.
  * `support` says what the path loads: without `options` it refuses an options block, without
  * `series` it refuses every filter or expression that reads a daily series (ivRank,
  * vixTermStructure, volRegime, series). Options run on `1d` only. With a `timeframe` that is not
- * daily, calendarWindow filters are refused, and with a daily one an intraday block.
+ * daily, calendarWindow filters are refused, and with a daily one an intraday block. Without
+ * `intradayIndicators` it refuses 5m/15m indicator timeframes and the trend indicators.
  * sectorQuadrant filters work everywhere.
  */
 export const serverStrategyRefusal = (
@@ -1623,6 +1814,8 @@ export const serverStrategyRefusal = (
     if (timeframe !== undefined && timeframe !== "1d")
       return STRATEGY_OPTIONS_TIMEFRAME_REFUSAL;
   }
+  if (support.intradayIndicators !== true && usesIntradayIndicators(definition))
+    return STRATEGY_INTRADAY_INDICATORS_REFUSAL;
   if (support.series !== true && strategySeriesRefs(definition).length > 0) {
     const filters = definition.filters ?? [];
     const types = [
