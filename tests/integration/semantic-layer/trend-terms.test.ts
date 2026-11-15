@@ -1,3 +1,7 @@
+import {
+  STRATEGY_TREND_INDICATORS,
+  StrategyExprSchema,
+} from "@darkfactory/api";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type EvalBackend, startEvalBackend } from "./harness.ts";
@@ -10,6 +14,13 @@ const TREND_TERMS = [
   "slingshot",
   "supertrend",
   "ultimate_ma",
+] as const;
+
+/** Term id -> strategy DSL indicator name (migration 0075 puts a JSON example in each description). */
+const DSL_INDICATORS = [
+  ["supertrend", "supertrend"],
+  ["alphatrend", "alphaTrend"],
+  ["chandelier_exit", "chandelierExit"],
 ] as const;
 
 type ListedTerm = Readonly<{
@@ -42,6 +53,21 @@ describe("trend indicator terms", () => {
         .sort()
     ).toEqual(TREND_TERMS.map((id) => [id, "none", false]));
   });
+
+  it.each(DSL_INDICATORS)(
+    "gives %s a strategy DSL example that the schema accepts as %s",
+    (id, name) => {
+      const description = terms.find((term) => term.id === id)?.description;
+      const example = /\{"type": "indicator"[^}]*\}/u.exec(description ?? "");
+      // A DSL field or enum change that makes the stored example invalid fails here.
+      const parsed = StrategyExprSchema.parse(
+        JSON.parse(example?.[0] ?? "null")
+      );
+      expect(parsed).toMatchObject({ name, type: "indicator" });
+      expect(STRATEGY_TREND_INDICATORS).toContain(name);
+      expect(description).toContain(`the indicator "${name}"`);
+    }
+  );
 
   it.each(TREND_TERMS)(
     "answers %s with its description and no value",

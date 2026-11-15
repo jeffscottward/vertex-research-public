@@ -458,6 +458,7 @@ Python import root: `services/research` (pytest runs from it, `research/backtest
 
 - `packages/db/migrations/0073_strategy_catalog_trend_trio.sql`: `INSERT ... ON CONFLICT ("slug") DO NOTHING` into `strategies` with `id` `strategy-seed-trend-trio`, `slug` `trend-trio`, `name` "Trend Trio (Vertex reconstruction, rules guessed): SuperTrend + Ultimate MA + AlphaTrend on NQ", `description` (claim, reconstruction outcome, per-year net dollars of P1 and P3, "Research only"), `kind` `python`, `status` `backtested`, `source_ref` `docs/specs/strategies/trend-trio.md`, `tags` as in G-LIB plus topic tags (`nq`, `intraday`, `trend-following`, `supertrend`, `alphatrend`, `chandelier-exit`), `section` `Reel ideas` (the section of the other reel rows), `params` `[]` (the defaults live in the spec and the study document; `strategies_json_check` needs an array), `priority` `normal`, `external_validation` in the shape of migration 0065 (`sourceUrl`, `sourceTitle`, `sourceAuthor`, `publishedOn`, `claimedMethod`, `claimedMetrics`).
 - `packages/db/migrations/0074_semantic_terms_trend_indicators.sql` (added by card `vertex-trend-semantic-terms`, see Implementation notes): five `semantic_terms` rows (`supertrend`, `ultimate_ma`, `alphatrend`, `chandelier_exit`, `slingshot`): `source` `none`, not certified, description = definition, where to use it (script built-in or template, chart study, DSL form) and "Vertex stores no series for it", synonyms (for example "Super Trend" / "UMA", "Ultimate Moving Average" / "Alpha Trend" / "Chandelier" / "Sling Shot", "EMA 38/62"). With it: `packages/db/migrations/meta/0074_snapshot.json`, `packages/db/rollback/0074_semantic_terms_trend_indicators.down.sql` (guarded), `packages/db/src/server/semantic-terms-trend-indicators-migration.test.ts`, `tests/integration/database/semantic-terms-trend-indicators.test.ts` and `tests/integration/semantic-layer/trend-terms.test.ts`.
+- `packages/db/migrations/0075_semantic_terms_trend_dsl_names.sql` (added by card `vertex-trend-terms-dsl-names`, see Implementation notes): a guarded `UPDATE` that appends the strategy DSL sentence to the descriptions of `supertrend`, `alphatrend` and `chandelier_exit`. With it: `packages/db/migrations/meta/0075_snapshot.json`, `packages/db/rollback/0075_semantic_terms_trend_dsl_names.down.sql` (guarded), `packages/db/src/server/semantic-terms-trend-dsl-names-migration.test.ts`, `tests/integration/database/semantic-terms-trend-dsl-names.test.ts` and the DSL example check in `tests/integration/semantic-layer/trend-terms.test.ts`.
 - `packages/db/migrations/meta/_journal.json` (Modify), `packages/db/migrations/meta/0073_snapshot.json`.
 - `packages/db/rollback/0073_strategy_catalog_trend_trio.down.sql` (guarded like the 0070 rollback).
 - `packages/db/src/server/strategy-catalog-trend-trio-migration.test.ts`, `tests/integration/database/strategy-catalog-trend-trio.test.ts`.
@@ -525,9 +526,16 @@ the code is the reference:
 - A test that cannot be computed counts as not passed (it can decide the outcome).
 - The report also shows the look-ahead diagnostic next to P1 and the options-form arithmetic.
 - The 0074 descriptions name the script built-in, template, chart study and, for Ultimate MA and Slingshot, the DSL
-  composition; the DSL names of SuperTrend, AlphaTrend and Chandelier Exit arrive with PR 2 (a later migration then
-  updates the three descriptions and the eval is recorded again).
-- PR 2 (items 14-19) is not implemented yet.
+  composition. The DSL names of SuperTrend, AlphaTrend and Chandelier Exit arrived with PR 2 (PR #244). Migration
+  `0075_semantic_terms_trend_dsl_names.sql` (card `vertex-trend-terms-dsl-names`, 2026-11-15) then appended one
+  sentence to these three descriptions: the DSL indicator (`supertrend`, `alphaTrend`, `chandelierExit`), its fields
+  and outputs, the direction sign (+1 up, -1 down), one JSON example and the run limits (research runs on the rig
+  only; not on frame monthly bars). The update is guarded (unchanged 0074 text, no operator edit or certification),
+  the rollback `packages/db/rollback/0075_semantic_terms_trend_dsl_names.down.sql` removes the sentence, and the 9
+  eval questions with stale trials were recorded again (`docs/vertex-rebuild/agent-semantic-layer.md`,
+  "Re-recording 2026-11-15 (trend indicator DSL names ...)"). `tests/integration/semantic-layer/trend-terms.test.ts`
+  parses each JSON example with the DSL schema.
+- PR 2 (items 14-19) is merged (PR #244, 2026-11-15).
 - Agent vocabulary: the five `semantic_terms` rows are not in PR 1. Every new term enters the catalog that the
   recorded semantic-layer eval (`tests/integration/semantic-layer/eval-recording.fixture.json`) replays, so adding
   them needed a re-recording of that eval (Postgres and model calls). Card `vertex-trend-semantic-terms` added them
