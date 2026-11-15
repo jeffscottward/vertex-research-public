@@ -599,6 +599,46 @@ describe("OrderFlowPanel edge states", () => {
     expect(alert).toContain("IBKR service said: UNAVAILABLE from service");
   });
 
+  it.each([
+    ["bars", "Refresh trade prints", null],
+    ["depth", "Refresh trade prints", null],
+    ["ticks", "Refresh order book", "book"],
+  ] as const)(
+    "counts a successful %s request as the panel's last success",
+    async (ok, refresh, openTab) => {
+      const down = async () => {
+        throw failure("UNAVAILABLE");
+      };
+      const gates = gateways({
+        ...(ok === "bars" ? {} : { bars: down }),
+        ...(ok === "depth" ? {} : { depth: down }),
+        ...(ok === "ticks" ? {} : { ticks: down }),
+      });
+      const container = await render(gates);
+      await click(button(container, "Load order flow"));
+      if (openTab !== null) await click(tab(container, openTab));
+      await click(container.querySelector(`[aria-label="${refresh}"]`));
+      const alert = container.querySelector("[role=alert]")?.textContent;
+      expect(alert).toContain("every request of this panel has failed since");
+      expect(alert).toContain("last successful request");
+      expect(alert).not.toContain("no successful request in this panel yet");
+    }
+  );
+
+  it("says that no request succeeded yet when every view fails with UNAVAILABLE", async () => {
+    const down = async () => {
+      throw failure("UNAVAILABLE");
+    };
+    const container = await render(
+      gateways({ bars: down, depth: down, ticks: down })
+    );
+    await click(button(container, "Load order flow"));
+    await click(container.querySelector('[aria-label="Refresh trade prints"]'));
+    const alert = container.querySelector("[role=alert]")?.textContent;
+    expect(alert).toContain("no successful request in this panel yet");
+    expect(alert).not.toContain("last successful request");
+  });
+
   it("handles a one-sided futures book with zero sizes and no venues", async () => {
     const gates = gateways({
       depth: async () => ({

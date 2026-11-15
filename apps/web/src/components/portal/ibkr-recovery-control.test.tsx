@@ -381,7 +381,7 @@ describe("loginStateNotReadText", () => {
 
   it("names the failure, since when and the next try when no state was read", () =>
     expect(loginStateNotReadText({ failure, nowMs, status: null })).toBe(
-      `${lead} · no login state read since this page opened · retrying every 15 s`
+      `${lead} · no login state read yet · retrying every 15 s`
     ));
 
   it("names the last known state and when the server checked it", () =>
@@ -607,7 +607,7 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
     expect(
       document.querySelector("[data-ibkr-recovery-failure]")?.textContent
     ).toBe(
-      `IBKR login state not read since ${sinceClock(Date.now(), Date.now())} (UNAVAILABLE: IBKR recovery service unavailable) · no login state read since this page opened · retrying every 15 s`
+      `IBKR login state not read since ${sinceClock(Date.now(), Date.now())} (UNAVAILABLE: IBKR recovery service unavailable) · no login state read yet · retrying every 15 s`
     );
     // No state was read yet, so there is no badge and no progress to mark.
     expect(document.querySelector("[data-ibkr-login]")).toBeNull();
@@ -686,6 +686,44 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
     expect(badge()).toBe("Status:IBKR login: logged out");
     expect(progress()).toBe("Waiting for approval on your phone");
     return expect(gateway.status).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps the first failure time and the button state when a sent request restarts the polling", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-28T15:00:35.000Z"));
+    const gateway = gatewayOf(status(), {
+      code: "UNAVAILABLE",
+      message: "no answer",
+    });
+    await mount(monitor(gateway));
+    expect(sendButton()?.disabled).toBe(false);
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+      await flush();
+    });
+    const firstFailMs = Date.parse("2026-10-28T15:00:50.000Z");
+    const line = () =>
+      document.querySelector("[data-ibkr-recovery-failure]")?.textContent;
+    expect(line()).toContain(
+      `not read since ${sinceClock(firstFailMs, Date.now())} (UNAVAILABLE: no answer)`
+    );
+    // The old state is marked, and the button stays as the last read state set it.
+    expect(document.querySelector("[data-ibkr-login]")?.textContent).toBe(
+      "Status:IBKR login: logged out (last known)"
+    );
+    expect(sendButton()?.disabled).toBe(false);
+    // Sending a request restarts the polling in a later minute; the next poll fails again.
+    vi.setSystemTime(new Date("2026-10-28T15:02:00.000Z"));
+    await run(() => sendButton()?.click());
+    await run(() => buttonNamed("Confirm and send").click());
+    expect(gateway.request).toHaveBeenCalledOnce();
+    expect(gateway.status).toHaveBeenCalledTimes(3);
+    expect(sinceClock(firstFailMs, Date.now())).not.toBe(
+      sinceClock(Date.now(), Date.now())
+    );
+    return expect(line()).toContain(
+      `not read since ${sinceClock(firstFailMs, Date.now())} (UNAVAILABLE: no answer)`
+    );
   });
 
   it("uses the browser client by default and sends nothing while not configured", async () => {

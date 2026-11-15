@@ -182,8 +182,7 @@ export const loginStateNotReadText = ({
 }>): string => {
   const lead = `IBKR login state not read since ${sinceClock(failure.sinceMs, nowMs)} (${failure.code}: ${failure.message})`;
   const next = `retrying every ${pollIntervalMs(null) / 1000} s`;
-  if (status === null)
-    return `${lead} · no login state read since this page opened · ${next}`;
+  if (status === null) return `${lead} · no login state read yet · ${next}`;
   const name = loggedInWithoutFeeds(status)
     ? "logged in, account feeds missing"
     : LOGIN_NAME[status.gateway.loginState];
