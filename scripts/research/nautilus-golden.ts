@@ -2016,8 +2016,30 @@ const fieldRefusals: readonly (readonly [
   python?: string,
 ])[] = [
   ["version", { version: 2 }, "Unknown definition version: 2"],
+  ["versionType", { version: true }, "Unknown definition version: True"],
   ["name", { name: " " }, "name must be a text of 1 to 120 characters"],
   ["nameType", { name: 5 }, "name must be a text of 1 to 120 characters"],
+  [
+    "nameLength",
+    { name: "n".repeat(121) },
+    "name must be a text of 1 to 120 characters",
+  ],
+  // JavaScript trim removes U+FEFF; zod counts the characters of a text as code points.
+  [
+    "nameTrim",
+    { name: "\ufeff" },
+    "name must be a text of 1 to 120 characters",
+  ],
+  [
+    "nameCodePoints",
+    { name: "😀".repeat(121) },
+    "name must be a text of 1 to 120 characters",
+  ],
+  [
+    "descriptionLength",
+    { description: "d".repeat(2001) },
+    "description must be a text of at most 2000 characters",
+  ],
   [
     "description",
     { description: 5 },

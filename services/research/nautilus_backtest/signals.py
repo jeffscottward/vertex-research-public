@@ -92,6 +92,11 @@ VOL_TARGET_MIN_LENGTH = 2
 VOL_TARGET_MAX_LENGTH = 252
 _NEW_YORK_TIME = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9]")
 _UTC_TIME = _NEW_YORK_TIME  # TS TimeSchema: the same HH:MM pattern
+# The characters that JavaScript String.prototype.trim removes (WhiteSpace and LineTerminator).
+_JS_WHITESPACE = (
+    "\t\n\v\f\r \xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
 MAX_LEVERAGE = 50
 MINUTES_PER_DAY = 1440
 MINUTE_MS = 60_000
@@ -740,7 +745,7 @@ def _is_whole(value: Any, low: int, high: int) -> bool:
     """A whole number from low to high; a float with no fraction counts (JSON has one number type)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return float(value).is_integer() and low <= value <= high
+    return (isinstance(value, int) or value.is_integer()) and low <= value <= high
 
 
 def _whole(value: Any, name: str, low: int, high: int) -> int:
@@ -1576,12 +1581,15 @@ def _check_definition_refinements(
 
 def _check_labels(definition: Mapping[str, Any]) -> None:
     """The version, name and description of the TS schema. Python callers and the normalized form
-    may leave out version and name; a value that is given must be valid."""
+    may leave out version and name; a value that is given must be valid. zod counts the characters
+    of a text as Python len does (code points), after a JavaScript trim for the name."""
     version = definition.get("version")
     if version is not None and (isinstance(version, bool) or version != DSL_VERSION):
         raise InputError(f"Unknown definition version: {version}")
     name = definition.get("name")
-    if name is not None and not (isinstance(name, str) and 1 <= len(name.strip()) <= MAX_NAME_LENGTH):
+    if name is not None and not (
+        isinstance(name, str) and 1 <= len(name.strip(_JS_WHITESPACE)) <= MAX_NAME_LENGTH
+    ):
         raise InputError(f"name must be a text of 1 to {MAX_NAME_LENGTH} characters")
     description = definition.get("description")
     if description is not None and not (
