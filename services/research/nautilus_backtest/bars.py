@@ -170,11 +170,13 @@ class Bars:
 
 def is_finite_number(value: Any) -> bool:
     """JS Number.isFinite: a real number that is not NaN or infinite (bool is not a number)."""
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        # An int above the float range: JSON.parse reads such a literal as Infinity.
+        return False
 
 
 def is_integer(value: Any) -> bool:

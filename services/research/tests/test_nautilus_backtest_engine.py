@@ -105,6 +105,27 @@ def test_cli_run_and_input_error(tmp_path):
     assert json.loads(done.stdout) == {"error": "costBps must be from 0 to 500"}
 
 
+def test_cli_refuses_a_definition_that_is_not_an_object(tmp_path):
+    """The validator runs before the engine, so this test needs no nautilus-trader."""
+    bars = GOLDEN["bars"][GOLDEN["engine"][0]["symbol"]]
+    refusal = "definition must be an object"
+    rules = [{"kind": "dsl", "definition": value} for value in (5, "x", [], None)] + [{"kind": "dsl"}]
+    request = tmp_path / "request.json"
+    for rule in rules:
+        request.write_text(json.dumps({"bars": bars, "spec": {"rule": rule}}))
+        done = subprocess.run([sys.executable, "-m", "nautilus_backtest", "run", str(request)], cwd=RESEARCH,
+                              capture_output=True, text=True, check=False)
+        assert done.returncode == 2, done.stderr
+        assert json.loads(done.stdout) == {"error": refusal}
+    output = tmp_path / "out.json"
+    request.write_text(json.dumps({"bars": bars, "cases": [
+        {"id": str(index), "spec": {"rule": rule}} for index, rule in enumerate(rules)]}))
+    done = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", str(request), str(output)],
+                          cwd=RESEARCH, capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stderr
+    assert [entry["error"] for entry in json.loads(output.read_text())["results"]] == [refusal] * len(rules)
+
+
 @needs_nautilus
 def test_cli_batch_runs_cases_on_their_slices_with_times(tmp_path):
     case = GOLDEN["engine"][0]
@@ -116,6 +137,7 @@ def test_cli_batch_runs_cases_on_their_slices_with_times(tmp_path):
         {"id": "whole", "spec": case["spec"]},
         {"id": "tail", "spec": case["spec"], "slice": [size // 2, size]},
         {"id": "bad", "spec": {**case["spec"], "costBps": 900}},
+        {"id": "malformed", "spec": {"rule": {"kind": "dsl", "definition": 5}}},
         {"id": "outside", "spec": case["spec"], "slice": [0, size + 1]},
     ]}))
     done = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", str(request), str(output)],
@@ -127,6 +149,7 @@ def test_cli_batch_runs_cases_on_their_slices_with_times(tmp_path):
     assert results["whole"]["result"]["stats"]["trades"] == case["stats"]["trades"]
     assert len(results["tail"]["result"]["equity"]) == size - size // 2
     assert results["bad"]["error"] == "costBps must be from 0 to 500"
+    assert results["malformed"]["error"] == "definition must be an object"
     assert results["outside"]["error"] == f"slice 0..{size + 1} is outside the {size} bars"
     assert all(entry["wallMs"] >= 0 for entry in payload["results"])
     assert payload["usage"]["cpuMs"] > 0
