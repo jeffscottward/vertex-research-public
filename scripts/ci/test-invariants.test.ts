@@ -101,8 +101,8 @@ const SOURCE_ROOT = /^(?:apps\/[^/]+\/src\/|packages\/[^/]+\/src\/|scripts\/)/u;
 const SOURCE_EXTENSION = /\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/u;
 const TEST_FILE = /\.(?:test|spec)\.[^./]+$/u;
 // The native-evidence files run in named CI coverage shards; pre-push runs the
-// same shard projects through the packages/api test:unit script, after the unit
-// project.
+// same shard projects through the packages/api test:unit script, never at the
+// same time as the unit project.
 const LOCAL_PROJECTS: readonly string[] = [
   "unit",
   "contract",
@@ -506,6 +506,7 @@ describe("every Vitest test file runs in the gates", {
       ],
       cwd: api,
     });
+    expect(unit.length).toBeGreaterThan(0);
     expect(inShards(unit)).toEqual([]);
     const runs = await expandVitestRuns("test:unit", api);
     expect(runs).toHaveLength(1);
@@ -521,7 +522,7 @@ describe("every Vitest test file runs in the gates", {
     );
   });
 
-  it("starts the native-evidence shard projects after every other project", () => {
+  it("gives the native-evidence shard projects a higher sequence.groupOrder than every other project", () => {
     const orders = new Map<string, number>();
     for (const project of vitestConfig.test?.projects ?? []) {
       if (typeof project !== "object" || !("test" in project)) {

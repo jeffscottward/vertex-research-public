@@ -60,8 +60,11 @@ const fsModuleCachePath = join(process.cwd(), "node_modules", ".vitest-cache");
 // packages/api test:unit script starts it in packages/api, where a path
 // relative to the repository root matches no file.
 const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
+// tinyglobby makes an absolute pattern relative to its escaped start
+// directory (escapePath). The prefix needs the same escaping to match;
+// escapeGlob also escapes + @ , ! and then matches no file in such a path.
 const shardFile = (file: string): string =>
-  escapeGlob(join(repositoryRoot, file));
+  join(repositoryRoot, file).replace(/[\\()[\]{}*?|]|^!|[!+@](?=\()/gu, "\\$&");
 
 export default defineConfig({
   // Verification never reads local dotenv files; tests receive explicit env only.
@@ -136,9 +139,10 @@ export default defineConfig({
         test: {
           name,
           include: include.map(shardFile),
-          // The JavaScript main thread of the worker limits these tests. In a
-          // run that also selects other projects, their files start when those
-          // projects have ended.
+          // The JavaScript main thread of the worker limits these tests.
+          // Vitest runs the groups one after the other, so these files never
+          // run at the same time as the other projects of the same run. With
+          // more than one worker they start when those projects have ended.
           sequence: { groupOrder: 1 },
         },
       })),
