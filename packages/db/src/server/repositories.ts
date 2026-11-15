@@ -168,6 +168,10 @@ import {
   type ResearchReportsRepository,
 } from "./research-reports.ts";
 import {
+  createResearchScreenRepository,
+  type ResearchScreenRepository,
+} from "./research-screen.ts";
+import {
   type AgentModelRunsRepository,
   createAgentModelRunsRepository,
 } from "./agent-model-runs.ts";
@@ -4491,6 +4495,7 @@ export type Repositories = Readonly<{
   goLiveDrafts?: GoLiveDraftsRepository;
   leveragedEtfUniverse?: LeveragedEtfUniverseRepository;
   marketNotes?: MarketNotesRepository;
+  researchScreen?: ResearchScreenRepository;
 }>;
 
 export const createRepositories = (
@@ -4599,4 +4604,5 @@ export const createRepositories = (
     database,
     resolveDependencies(dependencies)
   ),
+  researchScreen: createResearchScreenRepository(database, dependencies.now),
 });

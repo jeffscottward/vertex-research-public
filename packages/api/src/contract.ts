@@ -28,6 +28,7 @@ import { agentModelRunsContract } from "./contracts/agent-model-runs.ts";
 import { optimizationsContract } from "./contracts/optimizations.ts";
 import { quantLabContract } from "./contracts/quant-lab.ts";
 import { researchReportsContract } from "./contracts/research-reports.ts";
+import { researchScreenContract } from "./contracts/research-screen.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { flowContract } from "./contracts/flow.ts";
 import { semanticTermsContract } from "./contracts/semantic-terms.ts";
@@ -308,6 +309,7 @@ export const appContract = {
   agentOps: { ...agentOpsContract, optimizations: optimizationsContract },
   quantLab: quantLabContract,
   researchReports: researchReportsContract,
+  researchScreen: researchScreenContract,
   researchStudies: researchStudiesContract,
   flow: flowContract,
   semanticTerms: semanticTermsContract,

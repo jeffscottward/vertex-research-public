@@ -115,6 +115,9 @@ describe("ResearchWorkspace", () => {
       container.querySelector('a[href="/research/reports"]')?.textContent
     ).toBe("Research dossiers");
     expect(
+      container.querySelector('a[href="/research/screen"]')?.textContent
+    ).toBe("Research screen");
+    expect(
       container.querySelector('a[href="/knowledge"]')?.textContent
     ).toContain("Open the knowledge chat");
   });

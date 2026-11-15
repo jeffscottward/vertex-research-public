@@ -140,6 +140,7 @@ export {
 export * from "./contracts/optimizations.ts";
 export * from "./contracts/quant-lab.ts";
 export * from "./contracts/research-reports.ts";
+export * from "./contracts/research-screen.ts";
 export * from "./contracts/research-studies.ts";
 export * from "./contracts/click-log.ts";
 export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
