@@ -1861,6 +1861,70 @@ export const isNyseTradingDay = (day: number): boolean => {
   );
 };
 
+const NEW_YORK_PARTS = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  hour: "numeric",
+  hourCycle: "h23",
+  minute: "numeric",
+  month: "numeric",
+  second: "numeric",
+  timeZone: "America/New_York",
+  year: "numeric",
+});
+
+/** New York wall clock minus UTC, in milliseconds, at a whole-second instant. */
+const newYorkOffsetMs = (instant: number): number => {
+  const parts = new Map<string, number>(
+    NEW_YORK_PARTS.formatToParts(instant).map((part) => [
+      part.type,
+      Number(part.value),
+    ])
+  );
+  return (
+    Date.UTC(
+      parts.get("year") as number,
+      (parts.get("month") as number) - 1,
+      parts.get("day") as number,
+      parts.get("hour") as number,
+      parts.get("minute") as number,
+      parts.get("second") as number
+    ) - instant
+  );
+};
+
+/**
+ * Instant of a New York wall-clock time (minutes after midnight, in market hours) on the New York
+ * calendar date `day`. The offset is read five hours later on the UTC clock, which is the same
+ * New York day after the 02:00 clock change, so it holds in summer and winter time.
+ */
+const newYorkInstant = (day: number, minutes: number): Date => {
+  const wall = day * DAY_MS + minutes * 60_000;
+  return new Date(wall - newYorkOffsetMs(wall + 5 * 3_600_000));
+};
+
+/**
+ * Regular NYSE session of the New York calendar date `day` (UTC day number), null when the day is
+ * not a trading day. Open 09:30 New York time; close 16:00, or 13:00 on an early close: 3 July,
+ * the day after Thanksgiving and 24 December.
+ */
+export const nyseSession = (
+  day: number
+): { open: Date; close: Date; earlyClose: boolean } | null => {
+  if (!isNyseTradingDay(day)) return null;
+  const date = new Date(day * DAY_MS);
+  const month = date.getUTCMonth();
+  const dayOfMonth = date.getUTCDate();
+  const earlyClose =
+    (month === 6 && dayOfMonth === 3) ||
+    (month === 11 && dayOfMonth === 24) ||
+    day === nthWeekday(date.getUTCFullYear(), 10, 4, 4) + 1;
+  return {
+    close: newYorkInstant(day, earlyClose ? 13 * 60 : 16 * 60),
+    earlyClose,
+    open: newYorkInstant(day, 9 * 60 + 30),
+  };
+};
+
 /** First and last UTC day number of the month holding `day`, and its month (1 to 12). */
 const monthOf = (
   day: number
