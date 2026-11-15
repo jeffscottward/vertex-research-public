@@ -45,7 +45,8 @@ import {
 } from "../../features/order-flow/time-and-sales.ts";
 import type { TpoProfile, TpoSession } from "../../features/order-flow/tpo.ts";
 
-const DASH = "—";
+// Missing values name their cause; a dash would read as zero or "nothing happened".
+const NOT_REPORTED_BY_FEED = "not reported by feed";
 const headCell = "py-1 pr-3 font-normal text-muted-foreground";
 const numHead = `${headCell} text-right`;
 const numCell = "py-1 pr-3 text-right font-mono tabular-nums";
@@ -56,7 +57,7 @@ const SELL_FILL = "var(--color-destructive)";
 /** Price text at the window's tick decimals (at least 2), widened for a sub-penny print. */
 export const formatPrice = (value: number | null, digits: number): string =>
   value === null
-    ? DASH
+    ? "no price reported"
     : value.toFixed(Math.min(Math.max(digits, decimalsOf(value)), 6));
 
 const formatSize = (value: number): string =>
@@ -76,7 +77,7 @@ const formatUtc = (iso: string): string =>
 const SIDE_LABEL: Readonly<Record<TradeSide, string>> = Object.freeze({
   buy: "Buy",
   sell: "Sell",
-  unknown: DASH,
+  unknown: "Unsigned (no quote at print time)",
 });
 const SIDE_CLASS: Readonly<Record<TradeSide, string>> = Object.freeze({
   buy: "rounded-sm bg-success-subtle px-1 text-success-foreground",
@@ -238,10 +239,10 @@ export const TimeAndSalesTable = ({
                 {formatPrice(row.ask, digits)}
               </TableCell>
               <TableCell className="py-1 pr-3 font-mono">
-                {row.venue ?? DASH}
+                {row.venue ?? NOT_REPORTED_BY_FEED}
               </TableCell>
               <TableCell className="py-1 pr-3 font-mono">
-                {row.conditions ?? DASH}
+                {row.conditions ?? NOT_REPORTED_BY_FEED}
               </TableCell>
             </TableRow>
           ))}
@@ -313,7 +314,7 @@ const LadderRowView = ({
       </TableCell>
       {smart ? (
         <TableCell className="py-1 pr-3 font-mono">
-          {row.venue ?? DASH}
+          {row.venue ?? NOT_REPORTED_BY_FEED}
         </TableCell>
       ) : null}
     </TableRow>
@@ -332,7 +333,10 @@ const VenueNotice = ({
   >
     <p className="font-medium">IBKR venue notice</p>
     <p>
-      Depth from: {venues.depth.length === 0 ? DASH : venues.depth.join(", ")}
+      Depth from:{" "}
+      {venues.depth.length === 0
+        ? "no venue reported"
+        : venues.depth.join(", ")}
     </p>
     {venues.top.length === 0 ? null : (
       <p>Top of book only: {venues.top.join(", ")}</p>
@@ -360,7 +364,8 @@ export const OrderBookView = ({
       ? Math.max(2, ...prices.map((price) => decimalsOf(price)))
       : Math.max(2, decimalsOf(data.minTick));
   const unit = data.request.secType === "STK" ? "shares" : "contracts";
-  let spreadText = DASH;
+  // Shown only when the ladder has rows, so a missing spread means one side is empty.
+  let spreadText = "One-sided book";
   if (ladder.bookState === "crossed") spreadText = "Crossed book";
   else if (ladder.bookState === "locked") spreadText = "Locked book";
   else if (ladder.spread !== null)
@@ -541,7 +546,9 @@ export const FootprintGrid = ({
               [
                 "POC",
                 (bucket) =>
-                  bucket.poc === null ? DASH : formatPrice(bucket.poc, digits),
+                  bucket.poc === null
+                    ? "no traded volume"
+                    : formatPrice(bucket.poc, digits),
               ],
             ] as const satisfies readonly (readonly [
               string,

@@ -535,7 +535,7 @@ describe("OrderFlowPanel edge states", () => {
     expect(viewText(container)).toContain(
       "IBKR returned an empty book for this snapshot."
     );
-    expect(viewText(container)).toContain("Depth from: —");
+    expect(viewText(container)).toContain("Depth from: no venue reported");
     expect(container.querySelector("[data-venues-missing]")).toBeNull();
     await click(tab(container, "footprint"));
     expect(viewText(container)).toContain(
@@ -600,7 +600,8 @@ describe("OrderFlowPanel edge states", () => {
     await click(button(container, "Load order flow"));
     await click(tab(container, "book"));
     const summary = container.querySelector("[data-book-summary]");
-    expect(summary?.textContent).toContain("—");
+    expect(summary?.textContent).toContain("best ask no price reported");
+    expect(summary?.textContent).toContain("One-sided book");
     expect(summary?.textContent).toContain("contracts");
     expect(container.querySelector("[data-venue-notice]")).toBeNull();
     expect(
@@ -625,7 +626,8 @@ describe("OrderFlowPanel edge states", () => {
     });
     const container = await render(gates);
     await click(button(container, "Load order flow"));
-    expect(viewText(container)).toContain("—");
+    expect(viewText(container)).toContain("Unsigned (no quote at print time)");
+    expect(viewText(container)).toContain("not reported by feed");
     await click(tab(container, "footprint"));
     expect(viewText(container)).toContain("derived from the prints");
     const cells = [...container.querySelectorAll<HTMLElement>("td[style]")];
