@@ -8,6 +8,7 @@ This folder runs the production build of the web app on QuantVPS:
 - `recreate-tailnet-proxies.sh`: recreates `vertex-web-tailnet` and `vertex-status-tailnet` with the tailscaled socket directory mount (see below).
 - `tailscaled-preserve-runtime-dir.conf`: the tailscaled drop-in that keeps `/run/tailscale` across tailscaled restarts.
 - `restart-when-idle.sh`: **the only restart route for `vertex-web`**. Do not run `systemctl restart vertex-web` directly.
+- `stage-runtime.sh`: copies the runtime tree of a build commit (tracked files and `node_modules`) next to the live one on QuantVPS. The restart script moves it into place (see "Runtime tree").
 
 ## Restart route
 
@@ -32,7 +33,7 @@ Only one waiter runs at a time (`flock` on `${XDG_STATE_HOME:-$HOME/.local/state
 
 The container start-time baseline is taken after the idle wait, right before the restart, because the wait can cross the scheduled 03:00 UTC exec-node container restarts. Only containers in the baseline are compared. A changed start time, or a baseline container that is missing after the restart, sends one notice to #omp-alerts (exit 7). One-off `compose run` containers (`*-run-<hex>`) may vanish, and new containers are ignored. A failed start-time check after the restart also exits 7, without a notice.
 
-Exit codes: 0 restarted and healthy; 2 usage error; 3 gate or probe failed, or the `vertex-web` start time did not change (no restart happened); 4 gave up while busy; 5 rolled back and healthy; 6 rollback failed and the web app is down, or the health check got no answer over ssh (state unknown, no rollback); 7 a container start time changed or could not be checked; 8 another waiter holds the lock; 9 the version guard refused the build; 11 the lock file could not be opened or `flock` failed (no restart happened). `--dry-run`: 0 idle, 10 busy.
+Exit codes: 0 restarted and healthy; 2 usage error; 3 gate or probe failed, or the `vertex-web` start time did not change (no restart happened); 4 gave up while busy; 5 rolled back and healthy; 6 rollback failed and the web app is down, or the health check got no answer over ssh (state unknown, no rollback); 7 a container start time changed or could not be checked; 8 another waiter holds the lock; 9 the version guard refused the build; 11 the lock file could not be opened or `flock` failed (no restart happened); 12 the runtime guard refused (see "Runtime tree"). `--dry-run`: 0 idle, 10 busy.
 
 ### Idle signal
 
@@ -55,15 +56,53 @@ Nautilus backtests never run on QuantVPS (owner decision 2026-11-05): `vertex-we
 1. On the rig, build the merged SHA in a worktree: `pnpm install --frozen-lockfile && bun run build`, then record it: `git rev-parse HEAD > apps/web/dist/DEPLOYED_SHA`. Use `bun run build`, not a bare `turbo run build`: the root script sets `VERTEX_BUILD_SHA` to `HEAD`, and the web build's turbo cache key includes it, so a new commit never replays a cached bundle with the previous commit's click-log SHA (fixed 2026-11-07).
 2. On QuantVPS, keep a rollback copy in `apps/web`: `TS=$(date -u +%Y%m%dT%H%M%SZ); cp -a dist dist.bak-$TS && cp -a .wrangler .wrangler.bak-$TS`. The backup keeps its own `DEPLOYED_SHA`.
 3. Copy `apps/web/dist/` and `apps/web/.wrangler/deploy/config.json` from the rig into that `apps/web/` (rsync over the `quantvps` alias). Copy both together.
-4. Run `infra/quantvps/restart-when-idle.sh` from an up-to-date rig checkout (`git fetch` first). Its rollback source is the backup from step 2.
-5. If `git diff <deployed SHA> <new SHA> -- infra/quantvps/Caddyfile` is not empty, also do "Change the installed Caddyfile". The web deploy does not copy the proxy file.
-6. After the restart, check one page response through the proxy: `content-security-policy` must contain `script-src 'self' 'nonce-`.
+4. In the build worktree of step 1, run `infra/quantvps/stage-runtime.sh`. It stages the runtime tree of the build commit in `.runtime-next/` on QuantVPS and changes no live file (see "Runtime tree"). It must run in the build worktree, because only that worktree holds the installed packages of the build commit; this is why the restart script does not call it.
+5. Run `infra/quantvps/restart-when-idle.sh` from an up-to-date rig checkout (`git fetch` first). Its rollback source is the backup from step 2. It swaps the staged runtime tree in with the restart. Exit 12 means that step 4 is missing for this build.
+6. If `git diff <deployed SHA> <new SHA> -- infra/quantvps/Caddyfile` is not empty, also do "Change the installed Caddyfile". The web deploy does not copy the proxy file.
+7. After the restart, check one page response through the proxy: `content-security-policy` must contain `script-src 'self' 'nonce-`.
 
-Host values (2026-11-05, public repository): the committed tree names no real host. The real values are server-side config on QuantVPS and never committed: `run-preview.mjs` takes the tailnet origin from `APP_URL` in `private/basic-app-named/.prod.vars`, and the research fetch User-Agent takes its contact from `VERTEX_RESEARCH_CONTACT_EMAIL`. The proxy and install scripts read `/etc/vertex/hosts.env` (see "Host config"). Deploy only `apps/web/dist/` and `.wrangler/deploy/config.json`; do not copy the committed unit, Caddyfile or runner over the installed ones.
+Host values (2026-11-05, public repository): the committed tree names no real host. The real values are server-side config on QuantVPS and never committed: `run-preview.mjs` takes the tailnet origin from `APP_URL` in `private/basic-app-named/.prod.vars`, and the research fetch User-Agent takes its contact from `VERTEX_RESEARCH_CONTACT_EMAIL`. The proxy and install scripts read `/etc/vertex/hosts.env` (see "Host config"). Copy by hand only `apps/web/dist/` and `.wrangler/deploy/config.json`. Do not copy the committed unit or Caddyfile over the installed ones (`/etc/systemd/system/vertex-web.service` and `/opt/vertex-web-tailnet/Caddyfile`; the copies in the checkout are not the installed files). The runner `run-preview.mjs` is part of the runtime tree since 2026-11-15: `stage-runtime.sh` brings the committed runner with every build, so a server-side edit of it does not survive the next deploy.
 
 Version guard across repositories: when the deployed SHA comes from another repository (the first public deploy after private `c328e600`), fetch that repository into the rig checkout so both commits exist in one git directory, for example `git fetch <private-checkout> <deployed-sha>`. Unrelated histories count as diverged, so the guard passes; set `VERTEX_DEPLOY_GIT_DIR` to use another checkout.
 
 Version guard (added 2026-11-03 after 97fc8803, an ancestor of the live 99c1e1b1, was deployed and removed #163 and #165): before the idle wait, the script reads the new SHA from `dist/DEPLOYED_SHA` and the deployed SHA from `DEPLOYED_SHA` in `apps/web` on QuantVPS. It stops with exit 9 and no restart when the new SHA is a strict ancestor of the deployed SHA, when either SHA is unknown, or when the rig checkout does not contain both commits. An equal SHA or a newer or diverged SHA passes. After a healthy restart the script writes the checked SHA to `DEPLOYED_SHA` in `apps/web`, only while `dist/DEPLOYED_SHA` still holds it; after a rollback it records the restored build's SHA. On exit 9 the refused build is still in `dist`: restore the step-2 backup at once, so a crash restart cannot serve it. For a deliberate rollback, or the first deploy before `DEPLOYED_SHA` in `apps/web` exists, pass `--allow-older "<reason>"`; the script prints the warning and the reason. `--dry-run` prints what the guard would decide.
+
+## Runtime tree
+
+The checkout on QuantVPS is a plain copy of the repository tree, without `.git` and without a package store. `vertex-web` reads more than the build output from it: the runner, `apps/web/vite.config.ts`, `apps/web/src/proxy.ts`, `package.json` files of workspace packages and the installed packages (measured from file access times on 2026-11-15). Until 2026-11-15 no deploy step updated these files, so the web app ran a new build on packages of 2026-10-21 (card `quantvps-checkout-seroval-node-modules`).
+
+- **Runtime tree:** every tracked file of the build commit, and `node_modules` of the root and of each workspace package. `RUNTIME_SHA` in the checkout root names the commit.
+- **Server-side state:** `private/`, and in `apps/web` the build output (`dist`, `.wrangler`), its backups, `DEPLOYED_SHA`, `.next` and `.vinext`. No stage or swap touches these. Keep server-only files only there: an untracked file in any other tracked directory moves to the backup directory with the next swap. A server-side tool must not name a package version path in the checkout (`node_modules/.pnpm/<name>@<version>`): the path changes with the lockfile.
+- **Stage** (`stage-runtime.sh`, deploy step 4): it runs on the rig in the build worktree and holds the restart lock. It refuses a worktree with changed tracked files, an unfinished earlier swap, and less than 5 GiB free on QuantVPS (`VERTEX_RUNTIME_MIN_FREE_KB`). It copies the tree to `.runtime-next/` in the checkout; a file with the same content, owner and mode as the live file becomes a hard link (file times are not copied and do not count). It starts the staged `vite` and `workerd` with `--version`. It writes `PATHS` (the swap units) and then `RUNTIME_SHA`; a stage without `RUNTIME_SHA` is incomplete. Exit codes: 0 staged; 2 usage; 3 refused before any copy; 4 program check failed; 5 copy failed; 8 the restart lock is held; 11 lock file error.
+- **Runtime guard** (in `restart-when-idle.sh`, after the version guard): `RUNTIME_SHA` equals the new build SHA: plain restart. A complete stage for the new build SHA exists: the restart swaps it in. Anything else stops the run with exit 12: another commit with no stage, no answer over ssh, an unknown build SHA, or an unfinished swap.
+- **Swap:** one remote command moves each path in `PATHS` from the checkout to `.runtime-bak-<TS>/`, moves the staged path into its place and restarts the unit. A failed move puts the finished paths back and the directory gets an `UNDONE` file; the restart command is then not sent, the old process keeps serving, and the run ends with exit 3.
+- **Rollback:** when the health check fails after a swap, the rollback command first moves the new tree to `.runtime-failed-<now>/` and the saved tree back, and then restores the build output as before. With no health answer over ssh (exit 6) nothing is rolled back; the alert names the swapped tree and its backup. The runtime rollback pairs with the build backup of the same deploy (step 2). With an older `--backup <TS>` the web app runs an older build on the previous runtime tree until the next run, whose guard reports the difference.
+- **Override:** `--allow-stale-runtime <reason>` restarts although the runtime tree is at another commit, for an urgent restart while a stage is refused (for example by the free-space gate). It sends the reason to `#omp-alerts`. It does not skip the "no answer" and "unfinished swap" refusals.
+- **Disk:** `.runtime-bak-<TS>/` and `.runtime-failed-<now>/` are never deleted by a script. Unchanged files share their data with the live tree through hard links, so a stage and the backup it leaves cost about the size of the changed files. Measured on 2026-11-15, for the first stage against the packages of 2026-10-21: 36,580 of 88,555 files linked, 1.1 GB of new data. Do not edit a file of the runtime tree in place on the server: the edit would also change the backup, and the next swap replaces the file anyway. When the free-space gate refuses a stage, web deploys stop until old backups are removed; removal needs an owner decision.
+
+### Repair an unfinished runtime swap
+
+A swap is unfinished when the remote command died between two renames (lost connection, reboot), or when an undo could not put a path back. The sign: a `.runtime-bak-<TS>/` or `.runtime-failed-<now>/` directory in the checkout with neither `COMPLETE` nor `UNDONE`. The guard and the stage script then refuse to run and name the directory.
+
+One swap handles each unit (each line of `<directory>/PATHS`) in two renames: the live unit moves into `<directory>/`, then the unit from the source directory moves into its place. The source is `.runtime-next/` for a swap in and `.runtime-bak-<TS>/` for a swap back. `<directory>/DONE` lists the finished units, but a unit can be fully moved and still be absent from `DONE`. So look at each unit before a move, and use `mv -T` (it never moves a path into an existing directory). Both repairs end with the previous runtime tree live.
+
+First find the list and the source. Use `PATHS` of the unfinished directory. When that directory has no `PATHS`, or it holds no unit at all (only `PATHS` and `DONE`), nothing was moved: `touch <directory>/UNDONE` and stop here. In every other case use the rules below, also when `DONE` is empty: the first rename of a unit moves the live unit into the unfinished directory before `DONE` gets a line. The source of a swap back is the newest `.runtime-bak-<TS>/` that has `COMPLETE` (the tree that the failed deploy replaced).
+
+Swap in (`.runtime-bak-<TS>/` is unfinished): undo it. For each unit in `PATHS`:
+
+1. When `.runtime-next/<unit>` is missing and the live unit exists, the staged unit was moved in. Move it back: `mv -T <unit> .runtime-next/<unit>`.
+2. When `.runtime-bak-<TS>/<unit>` exists and the live unit is now missing, move the saved unit back: `mv -T .runtime-bak-<TS>/<unit> <unit>`.
+
+Then `touch .runtime-bak-<TS>/UNDONE`.
+
+Swap back (`.runtime-failed-<now>/` is unfinished): finish it. For each unit in `PATHS`:
+
+1. When `.runtime-failed-<now>/<unit>` is missing and the live unit exists, the new unit was not moved out yet: `mkdir -p` the parent in `.runtime-failed-<now>/`, then `mv -T <unit> .runtime-failed-<now>/<unit>`.
+2. When `.runtime-bak-<TS>/<unit>` exists and the live unit is missing: `mv -T .runtime-bak-<TS>/<unit> <unit>`.
+
+Then `touch .runtime-failed-<now>/COMPLETE`.
+
+After either repair, `cat RUNTIME_SHA` in the checkout must show the previous commit. Run `infra/quantvps/restart-when-idle.sh --dry-run` and check the `runtime:` lines. The build output is a separate matter: when `dist` in `apps/web` holds a newer build than the runtime tree, the next run swaps the stage in again (swap in) or needs the build backup restored (swap back; see deploy step 2).
 
 ## Change the installed Caddyfile
 
