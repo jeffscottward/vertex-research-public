@@ -328,6 +328,34 @@ short summary. It stops with an error when the ledger and NautilusTrader differ 
 (relative) on the equity of a row, or on the units of a trade, or when an equity value of either book
 is not a finite number.
 
+## Option gate version 2: spread runs
+
+Research only. Gate version 2 measures the bid/ask spread of the candidate funds again: the Friday expiry that the forms
+trade, three runs per session, Cboe first and Yahoo as the second source, a label only from 2 sessions. Design and rule:
+[leveraged-etf-option-gate-v2.md](../../../docs/specs/research/leveraged-etf-option-gate-v2.md). Stage 1 writes local
+files; the table `leveraged_etf_universe` keeps its version 1 labels.
+
+```sh
+# One run of the collector (while the US market is open), with the same pinned packages as the timer.
+# It needs a universe file: the output of universe.py of this folder.
+LEVERAGED_ETF_SPREADS_RUNNER_DIR="$PWD" infra/leveraged-etf-spreads/vertex-leveraged-etf-spreads-run
+
+# The result of the stored runs (no network): gate-v2.json and gate-v2.md in the --out folder.
+python3 research/backtests/leveraged-etf/gate_v2.py \
+  --store ~/.local/share/vertex/leveraged-etf-spreads \
+  --universe ~/.local/share/vertex/leveraged-etf-spreads-universe.json --out <folder>
+
+# Tests
+cd services/research
+uv run --no-project --python 3.12 --with-requirements requirements-linux-py312.lock python -m pytest -q \
+  tests/test_leveraged_etf_spread_gate.py tests/test_leveraged_etf_spread_reads.py tests/test_leveraged_etf_gate_v2.py
+```
+
+Store (local data, not committed): `~/.local/share/vertex/leveraged-etf-spreads/<New York day>/<HHMMSS>Z/` with
+`run.json` (the record of the run), `cboe/<SYMBOL>.json.gz` (the chain as Cboe sent it) and `yahoo/<SYMBOL>.json` (the
+rows of the Friday expiry), for the candidates only. A run folder is deleted after 45 days. The rig timer is in
+`infra/leveraged-etf-spreads/` (10:45, 12:45 and 14:45 New York on weekdays).
+
 ## Results
 
 <!-- results:start -->
@@ -547,3 +575,6 @@ Every row per pair (280 lines) is in `results.md` of the report work directory. 
 | `.../study.py`, `.../__main__.py` | the `research_studies` document and its command |
 | `services/research/tests/test_leveraged_etf_study*.py` | tests |
 | `research/backtests/leveraged-etf/fetch_data.py`, `run.py` | data fetch and the study run |
+| `.../spread_gate.py` | rule of option gate version 2 (session expiry, counted reads, session result, label) |
+| `research/backtests/leveraged-etf/spread_reads.py`, `gate_v2.py` | collector of the spread runs and the build of the gate version 2 result |
+| `services/research/tests/test_leveraged_etf_spread_*.py`, `test_leveraged_etf_gate_v2.py` | tests of gate version 2 |
