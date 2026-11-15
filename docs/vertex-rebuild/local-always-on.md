@@ -26,7 +26,7 @@ Plain-HTTP `http://*.localhost` (no port, no credentials) is accepted as the app
 ## Email
 
 - The named instance sends real email through Resend (`EMAIL_TRANSPORT=resend`) with the send-only key reused from Glen Ross (`~/Github/glen-ross/os/.env`). `run.mjs` accepts this mode only with no preview bindings and redacts the key from logs.
-- Sender: Resend's test sender `onboarding@resend.dev`, which delivers only to the Resend account owner's address. `glenrossmail.com` is NOT a verified domain in that account (Resend rejected it on 2026-10-04), so Glen Ross email with that sender also fails. For mail to other recipients, verify a domain you own (for example `vertex.xyz` on Cloudflare) in Resend and set `EMAIL_FROM` to an address on it.
+- Sender: Resend's test sender `onboarding@resend.dev`, which delivers only to the Resend account owner's address. `glenrossmail.com` is NOT a verified domain in that account (Resend rejected it on 2026-10-04), so Glen Ross email with that sender also fails. For mail to other recipients, verify a domain you own (for example `mail.example.com`) in Resend and set `EMAIL_FROM` to an address on it.
 - Backups of the named `.dev.vars` before each change: `private/basic-app-named/.dev.vars.before-*`.
 
 ## Limits
