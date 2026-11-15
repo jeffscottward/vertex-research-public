@@ -14,16 +14,59 @@ insert into strategies(id, slug, name, kind, status, tags, params) values
   ('s_gap', 'gap-fade',               'Gap Fade',               'native', 'retired', '[]', '[]');
 
 -- Engine runs. report.metrics.maxDrawdownPct is a positive FRACTION despite its name (0.2 = 20%; packages/api/src/backtest-run-report.ts); sharpe is annualized.
+-- The baseline runs of the drift monitors (br_orb_2, br_mr_1, br_mom_1) also have what the five drift
+-- checks compare with: a profit factor (with gross profit, gross loss, net profit and final equity that
+-- agree with it and with totalReturn), a longest losing streak with its money, and report.equity, a chart
+-- series of 24 quarterly points from 2021-01-01 to 2026-09-30 (t in epoch milliseconds) whose total
+-- return and max drawdown are the metrics of the run. grossLoss and the streak money are negative, as
+-- the engine stores them. profitTrades and lossTrades are totalTrades split by winRate; maxDrawdownAbs
+-- and absoluteDrawdown are those of the series. All other fields of these three reports stay
+-- at the defaults (for example cagr, sortino, recoveryFactor, maxConsecutiveWins, bars, trades); no drift
+-- check reads them. tests/integration/semantic-layer/drift-tools.test.ts compares the series with the
+-- metrics. The other runs keep the defaults of the update at the end of this file.
 insert into backtest_runs(id, status, strategy_id, spec, engine_version, requested_by, error, report, created_at, finished_at) values
   ('br_orb_1', 'succeeded', 's_orb', '{"symbol":"SPY","timeframe":"5m"}', 'vx-engine-1.4', 'u_owner', null,
    '{"metrics":{"sharpe":1.10,"maxDrawdownPct":0.142,"totalReturn":0.183,"totalTrades":212,"winRate":0.54}}', '2026-10-01T14:00Z', '2026-10-01T14:03Z'),
   ('br_orb_2', 'succeeded', 's_orb', '{"symbol":"SPY","timeframe":"5m"}', 'vx-engine-1.5', 'u_owner', null,
-   '{"metrics":{"sharpe":0.82,"maxDrawdownPct":0.189,"totalReturn":0.121,"totalTrades":240,"winRate":0.52}}', '2026-10-20T14:00Z', '2026-10-20T14:04Z'),
+   '{"metrics":{"sharpe":0.82,"maxDrawdownPct":0.189,"totalReturn":0.121,"totalTrades":240,"winRate":0.52,
+     "profitFactor":1.2,"grossProfit":72600,"grossLoss":-60500,"netProfit":12100,"finalEquity":112100,"maxConsecutiveLosses":6,"maxConsecutiveLossesMoney":-2140,"maximalConsecutiveLoss":-2140,"maximalConsecutiveLossCount":6,
+     "profitTrades":125,"lossTrades":115,"maxDrawdownAbs":22302,"absoluteDrawdown":4302},
+    "equity":[
+     {"drawdownPct":0,"equity":100000,"t":1609459200000},{"drawdownPct":0,"equity":102660,"t":1617235200000},{"drawdownPct":0,"equity":104190,"t":1625097600000},
+     {"drawdownPct":0,"equity":107390,"t":1633046400000},{"drawdownPct":0,"equity":108780,"t":1640995200000},{"drawdownPct":0,"equity":111580,"t":1648771200000},
+     {"drawdownPct":0,"equity":113050,"t":1656633600000},{"drawdownPct":0,"equity":116330,"t":1664582400000},{"drawdownPct":0,"equity":118000,"t":1672531200000},
+     {"drawdownPct":0.043475,"equity":112870,"t":1680307200000},{"drawdownPct":0.097203,"equity":106530,"t":1688169600000},{"drawdownPct":0.13661,"equity":101880,"t":1696118400000},
+     {"drawdownPct":0.189,"equity":95698,"t":1704067200000},{"drawdownPct":0.173898,"equity":97480,"t":1711929600000},{"drawdownPct":0.167034,"equity":98290,"t":1719792000000},
+     {"drawdownPct":0.146864,"equity":100670,"t":1727740800000},{"drawdownPct":0.138475,"equity":101660,"t":1735689600000},{"drawdownPct":0.122288,"equity":103570,"t":1743465600000},
+     {"drawdownPct":0.115847,"equity":104330,"t":1751328000000},{"drawdownPct":0.095169,"equity":106770,"t":1759276800000},{"drawdownPct":0.089746,"equity":107410,"t":1767225600000},
+     {"drawdownPct":0.072458,"equity":109450,"t":1775001600000},{"drawdownPct":0.066356,"equity":110170,"t":1782864000000},{"drawdownPct":0.05,"equity":112100,"t":1790726400000}]}', '2026-10-20T14:00Z', '2026-10-20T14:04Z'),
   ('br_orb_3', 'failed',    's_orb', '{"symbol":"SPY","timeframe":"5m"}', 'vx-engine-1.5', 'u_owner', 'bars missing for 2026-10-31', null, '2026-11-01T14:00Z', '2026-11-01T14:01Z'),
   ('br_mr_1',  'succeeded', 's_mr',  '{"symbol":"QQQ","timeframe":"1h"}', 'vx-engine-1.5', 'u_owner', null,
-   '{"metrics":{"sharpe":1.45,"maxDrawdownPct":0.098,"totalReturn":0.264,"totalTrades":96,"winRate":0.61}}', '2026-10-15T14:00Z', '2026-10-15T14:02Z'),
+   '{"metrics":{"sharpe":1.45,"maxDrawdownPct":0.098,"totalReturn":0.264,"totalTrades":96,"winRate":0.61,
+     "profitFactor":1.8,"grossProfit":59400,"grossLoss":-33000,"netProfit":26400,"finalEquity":126400,"maxConsecutiveLosses":3,"maxConsecutiveLossesMoney":-1520,"maximalConsecutiveLoss":-1520,"maximalConsecutiveLossCount":3,
+     "profitTrades":59,"lossTrades":37,"maxDrawdownAbs":10976,"absoluteDrawdown":0},
+    "equity":[
+     {"drawdownPct":0,"equity":100000,"t":1609459200000},{"drawdownPct":0,"equity":102410,"t":1617235200000},{"drawdownPct":0,"equity":103690,"t":1625097600000},
+     {"drawdownPct":0,"equity":106640,"t":1633046400000},{"drawdownPct":0,"equity":107780,"t":1640995200000},{"drawdownPct":0,"equity":110330,"t":1648771200000},
+     {"drawdownPct":0,"equity":112000,"t":1656633600000},{"drawdownPct":0.044286,"equity":107040,"t":1664582400000},{"drawdownPct":0.098,"equity":101024,"t":1672531200000},
+     {"drawdownPct":0.079196,"equity":103130,"t":1680307200000},{"drawdownPct":0.070625,"equity":104090,"t":1688169600000},{"drawdownPct":0.046964,"equity":106740,"t":1696118400000},
+     {"drawdownPct":0.039464,"equity":107580,"t":1704067200000},{"drawdownPct":0.019554,"equity":109810,"t":1711929600000},{"drawdownPct":0.011339,"equity":110730,"t":1719792000000},
+     {"drawdownPct":0,"equity":113430,"t":1727740800000},{"drawdownPct":0,"equity":114560,"t":1735689600000},{"drawdownPct":0,"equity":116710,"t":1743465600000},
+     {"drawdownPct":0,"equity":117590,"t":1751328000000},{"drawdownPct":0,"equity":120350,"t":1759276800000},{"drawdownPct":0,"equity":121080,"t":1767225600000},
+     {"drawdownPct":0,"equity":123390,"t":1775001600000},{"drawdownPct":0,"equity":124210,"t":1782864000000},{"drawdownPct":0,"equity":126400,"t":1790726400000}]}', '2026-10-15T14:00Z', '2026-10-15T14:02Z'),
   ('br_mom_1', 'succeeded', 's_mom', '{"symbol":"XLK","timeframe":"1d"}', 'vx-engine-1.5', 'u_owner', null,
-   '{"metrics":{"sharpe":1.31,"maxDrawdownPct":0.225,"totalReturn":0.402,"totalTrades":58,"winRate":0.57}}', '2026-10-28T14:00Z', '2026-10-28T14:06Z'),
+   '{"metrics":{"sharpe":1.31,"maxDrawdownPct":0.225,"totalReturn":0.402,"totalTrades":58,"winRate":0.57,
+     "profitFactor":2,"grossProfit":80400,"grossLoss":-40200,"netProfit":40200,"finalEquity":140200,"maxConsecutiveLosses":4,"maxConsecutiveLossesMoney":-7350,"maximalConsecutiveLoss":-7350,"maximalConsecutiveLossCount":4,
+     "profitTrades":33,"lossTrades":25,"maxDrawdownAbs":28800,"absoluteDrawdown":800},
+    "equity":[
+     {"drawdownPct":0,"equity":100000,"t":1609459200000},{"drawdownPct":0,"equity":103520,"t":1617235200000},{"drawdownPct":0,"equity":105900,"t":1625097600000},
+     {"drawdownPct":0,"equity":109990,"t":1633046400000},{"drawdownPct":0,"equity":112220,"t":1640995200000},{"drawdownPct":0,"equity":115900,"t":1648771200000},
+     {"drawdownPct":0,"equity":118190,"t":1656633600000},{"drawdownPct":0,"equity":122390,"t":1664582400000},{"drawdownPct":0,"equity":124890,"t":1672531200000},
+     {"drawdownPct":0,"equity":128000,"t":1680307200000},{"drawdownPct":0.077813,"equity":118040,"t":1688169600000},{"drawdownPct":0.144922,"equity":109450,"t":1696118400000},
+     {"drawdownPct":0.225,"equity":99200,"t":1704067200000},{"drawdownPct":0.193438,"equity":103240,"t":1711929600000},{"drawdownPct":0.170078,"equity":106230,"t":1719792000000},
+     {"drawdownPct":0.133359,"equity":110930,"t":1727740800000},{"drawdownPct":0.108516,"equity":114110,"t":1735689600000},{"drawdownPct":0.075703,"equity":118310,"t":1743465600000},
+     {"drawdownPct":0.053125,"equity":121200,"t":1751328000000},{"drawdownPct":0.015312,"equity":126040,"t":1759276800000},{"drawdownPct":0,"equity":128760,"t":1767225600000},
+     {"drawdownPct":0,"equity":133140,"t":1775001600000},{"drawdownPct":0,"equity":135930,"t":1782864000000},{"drawdownPct":0,"equity":140200,"t":1790726400000}]}', '2026-10-28T14:00Z', '2026-10-28T14:06Z'),
   ('br_vix_1', 'queued',    's_vix', '{"symbol":"VIXY","timeframe":"1d"}', 'vx-engine-1.5', 'u_owner', null, null, '2026-11-04T14:00Z', null);
 
 -- Engine runs with no strategy (strategy_id null), answered per run spec (symbol, timeframe, rule, stop loss,
@@ -86,14 +129,18 @@ update forward_drift_monitors set thresholds = '{"drawdown":{"alert":1.5,"warn":
 
 -- Forward data of the monitors, so that the stored level is backed by data: drift_monitor_get evaluates
 -- points and trades and must give the level that drift_status lists. Each monitor has one equity point
--- per trading day from 2026-10-01 (the day after its baseline run ends) to 2026-11-04 and its closed
--- trades; t is the bar time in epoch milliseconds, 00:00Z of the bar day.
---   m_orb: equity is 100000 plus closed pnl. Rolling win rate 23.1% against 52%: alert. Five losses in a
---          row are an alert too, but only because every run report of this fixture has the default
---          longest losing streak 0 (set below), so two losses in a row already are one.
---   m_mom: the open position is marked daily. Max drawdown 24.4% against 22.5%: warn.
---   m_mr:  equity is 100000 plus closed pnl. Every check with enough data is inside its thresholds: ok.
--- The profit factor and Sharpe checks stay insufficient: the run reports have no profit factor and no equity.
+-- per trading day and its closed trades; t is the bar time in epoch milliseconds, 00:00Z of the bar day.
+-- m_orb and m_mr start on 2026-10-01 (the day after their baseline run ends) and have 25 points to
+-- 2026-11-04. m_mom starts on 2026-10-08 and has 20 points.
+--   m_orb: equity is 100000 plus closed pnl. Rolling win rate 23.1% against 52%, rolling profit factor
+--          0.37 against 1.2 and a negative Sharpe: alert. Five losses in a row against six: ok.
+--   m_mom: the open position is marked daily. Max drawdown 24.4% against 22.5%: warn. 20 points are 19
+--          returns, one fewer than the Sharpe check needs, and three trades are fewer than the ten that
+--          profit factor and win rate need: those three checks are insufficient. With one more point of
+--          this falling series the Sharpe check would be at alert.
+--   m_mr:  equity is 100000 plus closed pnl. All five checks are inside their thresholds: ok.
+-- The Sharpe check computes its baseline from report.equity (the chart series of the run), as the API
+-- does, so it differs from report.metrics.sharpe: 0.39, 0.79 and 1.02 against 0.82, 1.31 and 1.45.
 -- The rows are what the API stores for this history, with one time (2026-11-05T14:00Z) for updated_at
 -- and the alert rows, a simplification: the monitor is created, its whole series is recorded by hand in
 -- one request (backtestRuns/drift/record, which saves through appendObservations), and for m_orb and
@@ -103,7 +150,7 @@ update forward_drift_monitors set thresholds = '{"drawdown":{"alert":1.5,"warn":
 -- runner columns and the alert rows. After a change of the drift rules or of this data that test fails,
 -- and its diff shows the values the API stores now ("Expected"); copy them here.
 update forward_drift_monitors set version = 1,
-  levels = '{"drawdown":"ok","losingStreak":"alert","profitFactor":"insufficient","sharpe":"insufficient","winRate":"alert"}',
+  levels = '{"drawdown":"ok","losingStreak":"ok","profitFactor":"alert","sharpe":"alert","winRate":"alert"}',
   points = '[
     {"equity":100420,"t":1790812800000},{"equity":100420,"t":1790899200000},{"equity":100110,"t":1791158400000},{"equity":100110,"t":1791244800000},{"equity":99820,"t":1791331200000},
     {"equity":99820,"t":1791417600000},{"equity":100270,"t":1791504000000},{"equity":100270,"t":1791763200000},{"equity":99940,"t":1791849600000},{"equity":99940,"t":1791936000000},
@@ -118,16 +165,15 @@ update forward_drift_monitors set version = 1,
 update forward_drift_monitors set version = 1,
   levels = '{"drawdown":"warn","losingStreak":"ok","profitFactor":"insufficient","sharpe":"insufficient","winRate":"insufficient"}',
   points = '[
-    {"equity":100000,"t":1790812800000},{"equity":101200,"t":1790899200000},{"equity":102900,"t":1791158400000},{"equity":103800,"t":1791244800000},{"equity":103100,"t":1791331200000},
-    {"equity":101400,"t":1791417600000},{"equity":99800,"t":1791504000000},{"equity":98900,"t":1791763200000},{"equity":97200,"t":1791849600000},{"equity":95600,"t":1791936000000},
-    {"equity":94100,"t":1792022400000},{"equity":93300,"t":1792108800000},{"equity":91800,"t":1792368000000},{"equity":90200,"t":1792454400000},{"equity":89400,"t":1792540800000},
-    {"equity":88100,"t":1792627200000},{"equity":86900,"t":1792713600000},{"equity":85800,"t":1792972800000},{"equity":84900,"t":1793059200000},{"equity":84100,"t":1793145600000},
-    {"equity":82000,"t":1793232000000},{"equity":79800,"t":1793318400000},{"equity":78500,"t":1793577600000},{"equity":79600,"t":1793664000000},{"equity":81200,"t":1793750400000}]',
+    {"equity":100000,"t":1791417600000},{"equity":101200,"t":1791504000000},{"equity":102900,"t":1791763200000},{"equity":103800,"t":1791849600000},{"equity":102300,"t":1791936000000},
+    {"equity":99800,"t":1792022400000},{"equity":97200,"t":1792108800000},{"equity":94900,"t":1792368000000},{"equity":92800,"t":1792454400000},{"equity":90900,"t":1792540800000},
+    {"equity":89400,"t":1792627200000},{"equity":88100,"t":1792713600000},{"equity":86900,"t":1792972800000},{"equity":85800,"t":1793059200000},{"equity":84900,"t":1793145600000},
+    {"equity":83300,"t":1793232000000},{"equity":81200,"t":1793318400000},{"equity":79600,"t":1793577600000},{"equity":78500,"t":1793664000000},{"equity":79600,"t":1793750400000}]',
   trades = '[
-    {"pnl":2100,"t":1791244800000},{"pnl":-1800,"t":1792108800000},{"pnl":900,"t":1793145600000}]'
+    {"pnl":2100,"t":1791849600000},{"pnl":-1800,"t":1792627200000},{"pnl":900,"t":1793664000000}]'
   where id = 'm_mom';
 update forward_drift_monitors set version = 1,
-  levels = '{"drawdown":"ok","losingStreak":"ok","profitFactor":"insufficient","sharpe":"insufficient","winRate":"ok"}',
+  levels = '{"drawdown":"ok","losingStreak":"ok","profitFactor":"ok","sharpe":"ok","winRate":"ok"}',
   points = '[
     {"equity":100000,"t":1790812800000},{"equity":100520,"t":1790899200000},{"equity":100520,"t":1791158400000},{"equity":101130,"t":1791244800000},{"equity":101130,"t":1791331200000},
     {"equity":100650,"t":1791417600000},{"equity":100650,"t":1791504000000},{"equity":101100,"t":1791763200000},{"equity":101100,"t":1791849600000},{"equity":101800,"t":1791936000000},
@@ -141,19 +187,23 @@ update forward_drift_monitors set version = 1,
   where id = 'm_mr';
 -- One open alert row per check that is at warn or alert.
 insert into forward_drift_alerts(id, monitor_id, check_key, level, message, forward_value, baseline_value, ratio, created_at) values
-  ('a_orb_losingStreak', 'm_orb', 'losingStreak', 'alert', 'Losing streak alert: forward 5 trades vs baseline 0 trades (ratio 5.00; warn at 1.25, alert at 1.5)', 5, 0, 5, '2026-11-05T14:00Z'),
+  ('a_orb_profitFactor', 'm_orb', 'profitFactor', 'alert', 'Rolling profit factor alert: forward 0.37 vs baseline 1.20 (ratio 0.31; warn at 0.75, alert at 0.5)', 0.3746312684365782, 1.2, 0.3121927236971485, '2026-11-05T14:00Z'),
+  ('a_orb_sharpe', 'm_orb', 'sharpe', 'alert', 'Sharpe alert: forward -7.28 vs baseline 0.39 (ratio -18.72; warn at 0.5, alert at 0)', -7.275756700840381, 0.3885716492011301, -18.724363230819108, '2026-11-05T14:00Z'),
   ('a_orb_winRate', 'm_orb', 'winRate', 'alert', 'Rolling win rate alert: forward 23.08% vs baseline 52.00% (ratio 0.44; warn at 0.8, alert at 0.6)', 0.23076923076923078, 0.52, 0.4437869822485207, '2026-11-05T14:00Z'),
   ('a_mom_drawdown', 'm_mom', 'drawdown', 'warn', 'Max drawdown warn: forward 24.37% vs baseline 22.50% (ratio 1.08; warn at 1, alert at 1.5)', 0.24373795761078998, 0.225, 1.083279811603511, '2026-11-05T14:00Z');
 
 -- Give the engine rows the full spec and report shape the API validates (contracts/backtest-runs.ts), so
 -- backtest_runs_list and backtest_runs_get work on this fixture. The metrics and rules above win over these defaults.
+-- A report that has an equity series keeps it, and takes firstT and lastT from it.
 update backtest_runs set spec = jsonb_build_object(
   'costBps', 1, 'from', '2021-01-01', 'to', '2026-09-30', 'initialCapital', 100000,
   'rule', coalesce(spec->'rule', jsonb_build_object('kind', 'smaCross', 'fast', 20, 'slow', 50)),
   'stopLossPct', coalesce((spec->>'stopLossPct')::numeric, 0), 'takeProfitPct', 0, 'symbol', spec->>'symbol',
   'timeframe', case when spec->>'timeframe' = '1d' then '1d' else '1m' end);
 update backtest_runs set report = jsonb_build_object(
-  'bars', 1000, 'equity', '[]'::jsonb, 'firstT', 1609459200, 'lastT', 1759190400, 'prices', '[]'::jsonb,
+  'bars', 1000, 'equity', coalesce(report->'equity', '[]'::jsonb),
+  'firstT', coalesce((report->'equity'->0->'t')::bigint, 1609459200000),
+  'lastT', coalesce((report->'equity'->-1->'t')::bigint, 1790726400000), 'prices', '[]'::jsonb,
   'seriesSha256', 'synthetic', 'trades', '[]'::jsonb, 'tradesTruncated', false,
   'metrics', jsonb_build_object(
     'absoluteDrawdown', 0, 'averageLossTrade', null, 'averageProfitTrade', null, 'buyHoldReturn', 0,

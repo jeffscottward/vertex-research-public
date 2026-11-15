@@ -1,6 +1,6 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { NATIVE_EVIDENCE_SHARDS } from "./coverage-shards.ts";
+import { FILE_SHARDS } from "./coverage-shards.ts";
 import type { TestEnvironmentDependencies } from "./test-env.ts";
 
 // The coverage lane is one Vitest run at 100% thresholds. A 2-vCPU CI runner
@@ -53,7 +53,7 @@ const SHARD = /^([1-9]\d?)\/([1-9]\d?)$/u;
 /** Shards that run exactly one project, named like the shard. */
 export const NAMED_SHARDS: readonly string[] = [
   "acceptance",
-  ...Object.keys(NATIVE_EVIDENCE_SHARDS),
+  ...Object.keys(FILE_SHARDS),
 ];
 
 /** The arguments with each `--project <name>` pair kept only if `keep(name)`. */
