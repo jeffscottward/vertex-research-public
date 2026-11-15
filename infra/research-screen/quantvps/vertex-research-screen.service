@@ -1,0 +1,32 @@
+# Vertex research screen tick (research only, no orders). Runs on QuantVPS with the Autopilot
+# operator write key file; the key stays here. ProtectHome=read-only lets the tick read the pause
+# file of the restart script (infra/quantvps/restart-when-idle.sh).
+[Unit]
+Description=Vertex research screen tick (research only)
+After=network-online.target vertex-web.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/vertex-autopilot/autopilot.env
+# The restart script runs as root over SSH and writes its pause file under /root. A system unit
+# has no HOME, so the path is set here.
+Environment=VERTEX_WORKER_PAUSE_FILE=/root/.local/state/vertex-nautilus-worker.pause
+WorkingDirectory=/opt/vertex-research-screen
+ExecStart=/opt/vertex-autopilot/bin/node /opt/vertex-research-screen/vertex-research-screen-tick.mjs
+# Above the worst case of the script: the 28-minute wall limit plus one 200-second call (1,880 s).
+TimeoutStartSec=2100
+Nice=10
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
