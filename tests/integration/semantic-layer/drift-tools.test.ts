@@ -16,7 +16,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { BacktestRunReportOutput } from "../../../packages/api/src/contracts/backtest-runs.ts";
 import { ForwardDriftRecordInputSchema } from "../../../packages/api/src/contracts/forward-drift.ts";
-import { DEFAULT_DRIFT_THRESHOLDS } from "../../../packages/api/src/forward-drift.ts";
+import {
+  DEFAULT_DRIFT_THRESHOLDS,
+  type DriftLevels,
+} from "../../../packages/api/src/forward-drift.ts";
+import { seriesStats } from "../../../packages/api/src/portfolio-combination.ts";
 import {
   appendObservations,
   baselineOf,
@@ -39,10 +43,46 @@ type OpenAlert = Readonly<{ check: string; level: string; monitorId: string }>;
 
 /** The stored level of each fixture monitor, with its point and trade counts. */
 const FIXTURE_MONITORS = [
-  { id: "m_mom", level: "warn", pointCount: 25, tradeCount: 3 },
+  { id: "m_mom", level: "warn", pointCount: 20, tradeCount: 3 },
   { id: "m_mr", level: "ok", pointCount: 25, tradeCount: 12 },
   { id: "m_orb", level: "alert", pointCount: 25, tradeCount: 13 },
 ] as const;
+
+type Check = Readonly<{
+  baseline: number | null;
+  key: string;
+  level: string;
+  minSample: number;
+  reason: string;
+  sample: number;
+}>;
+
+/** The level of each check that drift_monitor_get computes from the stored series. */
+const FIXTURE_CHECK_LEVELS: Readonly<
+  Record<(typeof FIXTURE_MONITORS)[number]["id"], Readonly<DriftLevels>>
+> = {
+  m_mom: {
+    drawdown: "warn",
+    losingStreak: "ok",
+    profitFactor: "insufficient",
+    sharpe: "insufficient",
+    winRate: "insufficient",
+  },
+  m_mr: {
+    drawdown: "ok",
+    losingStreak: "ok",
+    profitFactor: "ok",
+    sharpe: "ok",
+    winRate: "ok",
+  },
+  m_orb: {
+    drawdown: "ok",
+    losingStreak: "ok",
+    profitFactor: "alert",
+    sharpe: "alert",
+    winRate: "alert",
+  },
+};
 
 const call = async <Output>(
   backend: EvalBackend,
@@ -90,19 +130,87 @@ describe("drift tools on the eval fixture", () => {
         .sort()
     ).toEqual([
       ["m_mom", "drawdown", "warn"],
-      ["m_orb", "losingStreak", "alert"],
+      ["m_orb", "profitFactor", "alert"],
+      ["m_orb", "sharpe", "alert"],
       ["m_orb", "winRate", "alert"],
     ]);
   });
 
   // drift_monitor_get evaluates the stored points and trades. Its level must be the stored level that
-  // drift_status lists; with no forward data it was "insufficient" for every monitor.
+  // drift_status lists; with no forward data it was "insufficient" for every monitor. The baseline run
+  // of each monitor has a value for all five checks; when the run reports had no profit factor, no
+  // equity series and no losing streak, three checks had no baseline.
   it.each(FIXTURE_MONITORS)(
-    "evaluates $id to its stored level $level",
+    "evaluates $id to its stored level $level, with a baseline for all five checks",
     async ({ id, level }) => {
+      const monitor = await call<Summary & { checks: readonly Check[] }>(
+        backend,
+        "backtestRuns/drift/get",
+        { id }
+      );
+      expect(monitor).toMatchObject({ id, level });
       expect(
-        await call<Summary>(backend, "backtestRuns/drift/get", { id })
-      ).toMatchObject({ id, level });
+        Object.fromEntries(
+          monitor.checks.map((check) => [check.key, check.level])
+        )
+      ).toEqual(FIXTURE_CHECK_LEVELS[id]);
+      for (const check of monitor.checks) {
+        expect(check.baseline, check.key).toBeGreaterThan(0);
+      }
+    }
+  );
+
+  // m_mom stays at warn only because its 20 points are 19 returns, one fewer than the Sharpe check
+  // needs. A changed minimum or one more point of its falling series moves the monitor to alert; then
+  // this test fails before the eval answers of Q19 and Q20 change.
+  it("leaves the Sharpe check of m_mom without enough forward returns", async () => {
+    const monitor = await call<{ checks: readonly Check[] }>(
+      backend,
+      "backtestRuns/drift/get",
+      { id: "m_mom" }
+    );
+    expect(
+      monitor.checks.find((check) => check.key === "sharpe")
+    ).toMatchObject({
+      minSample: 20,
+      reason: "Needs at least 20 forward returns",
+      sample: 19,
+    });
+  });
+
+  // The equity series of a baseline run is its chart series: it must give the return and the drawdown
+  // that the metrics of the run state, and the money fields must agree with each other.
+  it.each(["br_mom_1", "br_mr_1", "br_orb_2"])(
+    "keeps the equity series of baseline run %s consistent with its metrics",
+    async (id) => {
+      const { report } = await call<{ report: BacktestRunReportOutput }>(
+        backend,
+        "backtestRuns/get",
+        { id }
+      );
+      const { metrics } = report;
+      const stats = seriesStats(
+        report.equity.map((point) => point.t),
+        report.equity.map((point) => point.equity)
+      );
+      expect(stats.totalReturn).toBeCloseTo(metrics.totalReturn, 6);
+      expect(stats.maxDrawdownPct).toBeCloseTo(metrics.maxDrawdownPct, 4);
+      expect(report.equity.at(-1)?.equity).toBe(metrics.finalEquity);
+      expect([report.firstT, report.lastT]).toEqual([
+        report.equity[0]?.t,
+        report.equity.at(-1)?.t,
+      ]);
+      expect(metrics.netProfit).toBe(metrics.grossProfit + metrics.grossLoss);
+      expect(metrics.finalEquity).toBe(
+        metrics.initialDeposit + metrics.netProfit
+      );
+      expect(metrics.profitFactor).toBeCloseTo(
+        metrics.grossProfit / -metrics.grossLoss,
+        10
+      );
+      expect(metrics.profitTrades + metrics.lossTrades).toBe(
+        metrics.totalTrades
+      );
     }
   );
 });
