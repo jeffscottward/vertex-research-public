@@ -1385,11 +1385,7 @@ def _check_definition_refinements(
     definition: Mapping[str, Any], normalized: Mapping[str, Any]
 ) -> None:
     """The StrategyDefinitionSchema refinements in the TS order, after every field check of
-    normalize_definition: the first one that fails is the first TS issue among them. One
-    difference: an options block takes no stop loss, so the two refinements that ask for one
-    (riskPct sizing, management) are not raised with an options block; the options refinements
-    for riskPct sizing and management refuse the same definitions, and their advice is the correct
-    one."""
+    normalize_definition: the first one that fails is the first TS issue among them."""
     side = normalized["side"]
     intraday = normalized["intraday"]
     management = normalized["management"]

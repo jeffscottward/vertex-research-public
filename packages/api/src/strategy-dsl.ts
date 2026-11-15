@@ -1416,8 +1416,10 @@ export const StrategyDefinitionSchema = z
     version: z.literal(STRATEGY_DSL_VERSION),
   })
   .strict()
+  // Applies only without an options block; with one, the next check refuses riskPct sizing.
   .refine(
     (definition) =>
+      definition.options !== undefined ||
       definition.sizing.mode !== "riskPct" ||
       definition.stopLoss.kind !== "none",
     { message: "Risk-percent sizing needs a stop loss", path: ["sizing"] }
@@ -1442,8 +1444,10 @@ export const StrategyDefinitionSchema = z
       path: ["options"],
     }
   )
+  // Applies only without an options block; with one, the next check refuses management.
   .refine(
     (definition) =>
+      definition.options !== undefined ||
       definition.management === undefined ||
       definition.stopLoss.kind !== "none",
     {

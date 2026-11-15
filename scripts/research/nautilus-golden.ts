@@ -1952,7 +1952,8 @@ const refusalCases: readonly RefusalCase[] = [
 // 2d. Definition refusals.
 /**
  * Definitions that StrategyDefinitionSchema refuses, for the Python normalize_definition. `python` is
- * the message Python raises when it is not the first TypeScript message (see definitionRefusalJson).
+ * the message Python raises when zod wrote the first TypeScript issue (a field error; see
+ * definitionRefusalJson).
  */
 type DefinitionRefusalCase = Readonly<{
   definition: Json;
@@ -1985,22 +1986,26 @@ const nySession = {
   entryFrom: "09:45",
   entryTo: "12:00",
 };
-const REMOVE_RISK_PCT =
-  "Option strategies size by options.maxLossPct; remove the riskPct sizing";
-const REMOVE_MANAGEMENT =
-  "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management";
 
 const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
-  // One cross-field check alone, in schema order (checks 2 and 5 cannot fail alone).
+  // One cross-field check alone, in schema order.
   {
     definition: { ...plainDefinition, sizing: riskPctSizing },
     id: "riskPct:noStop",
+  },
+  {
+    definition: { ...optionsDefinition, sizing: riskPctSizing },
+    id: "options:riskPct",
   },
   {
     definition: { ...optionsDefinition, stopLoss: pctStop },
     id: "options:stopLoss",
   },
   { definition: { ...plainDefinition, management }, id: "management:noStop" },
+  {
+    definition: { ...optionsDefinition, management },
+    id: "options:management",
+  },
   {
     definition: { ...optionsDefinition, sizing: volTargetSizing },
     id: "options:volTarget",
@@ -2060,22 +2065,12 @@ const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
     id: "riskPct:noStop+management:noStop",
   },
   {
-    definition: { ...optionsDefinition, sizing: riskPctSizing },
-    id: "riskPct:noStop+options:riskPct",
-    python: REMOVE_RISK_PCT,
-  },
-  {
     definition: {
       ...optionsDefinition,
       sizing: riskPctSizing,
       stopLoss: pctStop,
     },
     id: "options:riskPct+options:stopLoss",
-  },
-  {
-    definition: { ...optionsDefinition, management },
-    id: "management:noStop+options:management",
-    python: REMOVE_MANAGEMENT,
   },
   {
     definition: { ...optionsDefinition, management, stopLoss: pctStop },
@@ -2092,8 +2087,7 @@ const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
       management,
       portfolio: shiftedPortfolio,
     },
-    id: "management:noStop+options:management+shift:exit",
-    python: REMOVE_MANAGEMENT,
+    id: "options:management+shift:exit",
   },
   {
     definition: {
@@ -2659,8 +2653,7 @@ const DEFINITION_REFINEMENT_COUNT = 15;
  * One definitionRefusals entry: the definition and the message that normalize_definition raises.
  * Without `python` that is the message of the first TypeScript issue, which must be one written
  * in strategy-dsl.ts (zod code "custom"). With `python`: zod wrote the first issue (a field
- * error, Python has its own text), or the definition has an options block and `python` is a later
- * issue (Python skips the two "stop loss" refinements for an options definition).
+ * error); Python has its own text for it.
  */
 export const definitionRefusalJson = ({
   definition,
@@ -2670,7 +2663,7 @@ export const definitionRefusalJson = ({
   const parsed = StrategyDefinitionSchema.safeParse(definition);
   if (parsed.success)
     throw new Error(`${id}: the schema accepts the definition`);
-  const [first, ...later] = parsed.error.issues;
+  const [first] = parsed.error.issues;
   const written = first?.code === "custom";
   if (python === undefined) {
     if (!written)
@@ -2679,14 +2672,9 @@ export const definitionRefusalJson = ({
       );
     return { definition, id, message: first.message };
   }
-  const optionsCase =
-    typeof definition === "object" &&
-    definition !== null &&
-    "options" in definition &&
-    later.some((issue) => issue.message === python);
-  if (written && !optionsCase)
+  if (written)
     throw new Error(
-      `${id}: the Python message must be a later issue of an options definition`
+      `${id}: strategy-dsl.ts wrote the first issue; remove the Python message`
     );
   return { definition, id, message: python };
 };
