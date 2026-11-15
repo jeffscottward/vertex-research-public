@@ -52,13 +52,15 @@ describe("QuantVPS units", () => {
     );
   });
 
-  it("reads settings from the Autopilot environment file only", () => {
+  it("reads secrets from the Autopilot environment file only", () => {
     expect(directives(service, "EnvironmentFile")).toEqual([
       "/etc/vertex-autopilot/autopilot.env",
     ]);
-    for (const text of [service, timer]) {
-      expect(directives(text, "Environment")).toEqual([]);
-    }
+    // The one inline setting is the pause file path of the restart script (not a secret).
+    expect(directives(service, "Environment")).toEqual([
+      "VERTEX_WORKER_PAUSE_FILE=/root/.local/state/vertex-nautilus-worker.pause",
+    ]);
+    expect(directives(timer, "Environment")).toEqual([]);
   });
 
   it("keeps the hardening lines of the sector rotation service", () => {

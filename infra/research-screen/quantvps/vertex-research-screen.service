@@ -9,6 +9,9 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/vertex-autopilot/autopilot.env
+# The restart script runs as root over SSH and writes its pause file under /root. A system unit
+# has no HOME, so the path is set here.
+Environment=VERTEX_WORKER_PAUSE_FILE=/root/.local/state/vertex-nautilus-worker.pause
 WorkingDirectory=/opt/vertex-research-screen
 ExecStart=/opt/vertex-autopilot/bin/node /opt/vertex-research-screen/vertex-research-screen-tick.mjs
 TimeoutStartSec=1800
