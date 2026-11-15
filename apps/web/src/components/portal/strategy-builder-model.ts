@@ -3,9 +3,11 @@ import {
   type BacktestRunSummary,
   type InstantBacktestSeries,
   isSessionIndicator,
+  isTrendIndicator,
   STRATEGY_EVENT_OPERATORS,
   type STRATEGY_INDICATORS,
   STRATEGY_TEMPLATES,
+  type STRATEGY_TREND_INDICATORS,
   type StrategyCondition,
   type StrategyDefinition,
   StrategyDefinitionSchema,
@@ -17,6 +19,7 @@ import {
   type StrategySeriesRef,
   type StrategySessionIndicatorExpr,
   type StrategyTemplateId,
+  type StrategyTrendIndicatorExpr,
 } from "@darkfactory/api";
 
 import { isNotFound } from "./backtest-runs-model.ts";
@@ -50,10 +53,14 @@ export const defaultExpr = (type: EditableExpr["type"]): EditableExpr => {
 
 type StrategyIndicator = (typeof STRATEGY_INDICATORS)[number];
 
-/** Plain labels of the indicator choices. */
-export const INDICATOR_LABELS: Readonly<Record<StrategyIndicator, string>> = {
+/** Plain labels of the indicator choices and of the trend indicators (edited in the JSON text). */
+export const INDICATOR_LABELS: Readonly<
+  Record<StrategyIndicator | (typeof STRATEGY_TREND_INDICATORS)[number], string>
+> = {
   adx: "ADX (trend strength)",
+  alphaTrend: "AlphaTrend",
   atr: "ATR (average true range)",
+  chandelierExit: "Chandelier Exit",
   ema: "EMA (exponential average)",
   highest: "Highest (prior bars)",
   lowest: "Lowest (prior bars)",
@@ -61,6 +68,7 @@ export const INDICATOR_LABELS: Readonly<Record<StrategyIndicator, string>> = {
   rsi: "RSI (relative strength)",
   rvol: "Relative volume at time",
   sma: "SMA (simple average)",
+  supertrend: "SuperTrend",
   zscore: "Z-score (against trailing window)",
 };
 
@@ -68,14 +76,30 @@ export const INDICATOR_LABELS: Readonly<Record<StrategyIndicator, string>> = {
 export const usesSource = (name: StrategyIndicator): boolean =>
   name !== "atr" && name !== "adx" && name !== "rvol";
 
-/** rvol length counts previous sessions, a 1d indicator's length days, every other length bars. */
+const isIntradayBucket = (timeframe?: string): boolean =>
+  timeframe === "5m" || timeframe === "15m";
+
+/**
+ * rvol length counts previous sessions, a 1d indicator's length days, a 5m/15m indicator's length
+ * buckets of that size, every other length bars.
+ */
 export const lengthUnit = (
   name: StrategyIndicator,
   timeframe?: string
 ): string => {
   if (name === "rvol") return "sessions";
-  return timeframe === "1d" ? "days" : "bars";
+  if (timeframe === "1d") return "days";
+  return isIntradayBucket(timeframe) ? `${timeframe} buckets` : "bars";
 };
+
+/**
+ * Indicators the visual builder shows read-only (edit them in the JSON text): the session
+ * indicators and the trend indicators (supertrend, alphaTrend, chandelierExit).
+ */
+export const isJsonOnlyIndicator = (
+  expr: StrategyExpr
+): expr is StrategySessionIndicatorExpr | StrategyTrendIndicatorExpr =>
+  isSessionIndicator(expr) || isTrendIndicator(expr);
 
 /** Changes the indicator; rvol takes no timeframe, so switching to it drops the timeframe. */
 export const withIndicator = (
@@ -100,7 +124,7 @@ export const withOperator = (
 /**
  * Fields of the definition the visual builder does not edit (it keeps them): entry.any,
  * management, oncePerLevel, an indicator timeframe, maxLeverage, side, the intraday block, the
- * session indicators and volTarget sizing. Edit them in the JSON text.
+ * session indicators, the trend indicators and volTarget sizing. Edit them in the JSON text.
  */
 export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
   const conditions = [
@@ -136,6 +160,7 @@ export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
     ["side", definition.side !== undefined],
     ["intraday", definition.intraday !== undefined],
     ["session indicators", sides.some((expr) => isSessionIndicator(expr))],
+    ["trend indicators", sides.some((expr) => isTrendIndicator(expr))],
     ["volTarget", definition.sizing.mode === "volTarget"],
   ];
   return used.filter(([, present]) => present).map(([field]) => field);
@@ -175,9 +200,14 @@ const MATH_SYMBOLS: Readonly<Record<"add" | "sub" | "mul" | "div", string>> = {
   sub: "-",
 };
 
-// "[n]" for an expression read n bars ago; nothing for the current bar.
-const barsAgo = (offset: number | undefined): string =>
-  offset === undefined || offset === 0 ? "" : `[${offset}]`;
+// "[n]" for an expression read n bars ago, "[n 5m buckets ago]" on a 5m/15m indicator timeframe;
+// nothing for the current bar.
+const barsAgo = (offset: number | undefined, timeframe?: string): string => {
+  if (offset === undefined || offset === 0) return "";
+  return isIntradayBucket(timeframe)
+    ? `[${offset} ${timeframe} buckets ago]`
+    : `[${offset}]`;
+};
 
 /**
  * A compact text form of an expression, for example `change(series $future, 252)` or
@@ -195,7 +225,10 @@ export const describeExpr = (expr: StrategyExpr): string => {
         return `sessionReturn(${expr.from}, ${expr.to})`;
       if (expr.name === "noiseBand")
         return `noiseBand(${expr.band}, ${expr.length}${expr.multiple === undefined ? "" : `, ${expr.multiple}`})`;
-      return `${expr.name}(${usesSource(expr.name) ? `${expr.source}, ` : ""}${expr.length})${barsAgo(expr.offset)}`;
+      // For example "SuperTrend 10 x 3 direction (5m)".
+      if (isTrendIndicator(expr))
+        return `${INDICATOR_LABELS[expr.name]} ${expr.length} x ${expr.multiple}${"momentum" in expr ? ` ${expr.momentum}` : ""} ${expr.output}${barsAgo(expr.offset, expr.timeframe)}${expr.timeframe === undefined ? "" : ` (${expr.timeframe})`}`;
+      return `${expr.name}(${usesSource(expr.name) ? `${expr.source}, ` : ""}${expr.length})${barsAgo(expr.offset, expr.timeframe)}`;
     case "series":
       return `series ${expr.series}${barsAgo(expr.offset)}`;
     case "math":
