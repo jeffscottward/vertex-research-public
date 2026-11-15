@@ -167,7 +167,7 @@ Rules come from the decision record and are frozen in `docs/specs/strategies/tre
 | 1 | Signal timeframe 5 minutes; 15 minutes is a second row | V |
 | 2 | Long alignment at a bucket close: SuperTrend, Ultimate MA and AlphaTrend directions +1 (the trio agrees) and Slingshot +1 (the filter allows). Short alignment: all -1. | V (indicators named) + KB Q4 |
 | 3 | An alignment episode starts at a bucket close where the alignment holds and did not hold at the previous bucket close, or at the first bucket close of a session. It lasts while the alignment holds at each bucket close. | KB Q4 |
-| 4 | Entry: within an episode, at the first 1-minute bar close (at or after the episode's first bucket close) where the 1-minute Chandelier Exit direction agrees with the side; fill at the next 1-minute open; one entry per episode; entry decisions from 09:35 to 15:50 New York | KB Q4 + A |
+| 4 | Entry: within an episode, at the first 1-minute bar close (at or after the episode's first bucket close) where the 1-minute Chandelier Exit direction agrees with the side; fill at the next 1-minute open; one entry per episode; entry decisions from 09:35 to 15:50 New York (to 10 minutes before an early close) | KB Q4 + A |
 | 5 | Exit: at the first 1-minute bar close where the Chandelier Exit direction (1-minute bars) is against the position, fill at the next 1-minute open; an opposite entry closes the position and opens the other side at the same open; otherwise market on close at the last regular bar (the engine's `close_at` rule). One position at a time. | V (Chandelier) + KB Q2, Q5 |
 | 6 | Defaults: SuperTrend 10 / 3; Ultimate MA SMA 20, smoothing 2; AlphaTrend 14 / 1 with MFI; Chandelier 22 / 3; Slingshot 38 / 62 | published defaults, KB Q6 |
 | 7 | 1 NQ contract = $20 per point; tick 0.25 point = $5; fees $4.50 per round trip; slippage 0, 1 and 2 ticks per side (on every entry and exit fill) | KB Q3 (QuantStackAI raw file `ig-DfbYUD6xSin.md`: $4.50 and 1 tick each way) |
@@ -456,7 +456,7 @@ Python import root: `services/research` (pytest runs from it, `research/backtest
 
 #### 12. Migrations (Create unless marked)
 
-- `packages/db/migrations/0073_strategy_catalog_trend_trio.sql`: `INSERT ... ON CONFLICT ("slug") DO NOTHING` into `strategies` with `id` `strategy-seed-trend-trio`, `slug` `trend-trio`, `name` "Trend Trio (Vertex reconstruction, rules guessed)", `description` (claim, reconstruction outcome, per-year net dollars of P1 and P3, "Research only"), `kind` `python`, `status` `backtested`, `source_ref` `docs/specs/strategies/trend-trio.md`, `tags` as in G-LIB, `section` as the triple-rsi row, `params` (the P1 defaults), `priority` `normal`, `external_validation` (`{"source": "<reel URL>", "claim": "...", "checkedBy": "vertex-trend-trio"}` in the shape of migration 0065).
+- `packages/db/migrations/0073_strategy_catalog_trend_trio.sql`: `INSERT ... ON CONFLICT ("slug") DO NOTHING` into `strategies` with `id` `strategy-seed-trend-trio`, `slug` `trend-trio`, `name` "Trend Trio (Vertex reconstruction, rules guessed): SuperTrend + Ultimate MA + AlphaTrend on NQ", `description` (claim, reconstruction outcome, per-year net dollars of P1 and P3, "Research only"), `kind` `python`, `status` `backtested`, `source_ref` `docs/specs/strategies/trend-trio.md`, `tags` as in G-LIB plus topic tags (`nq`, `intraday`, `trend-following`, `supertrend`, `alphatrend`, `chandelier-exit`), `section` `Reel ideas` (the section of the other reel rows), `params` (the P1 defaults, nested by indicator), `priority` `normal`, `external_validation` in the shape of migration 0065 (`sourceUrl`, `sourceTitle`, `sourceAuthor`, `publishedOn`, `claimedMethod`, `claimedMetrics`).
 - `packages/db/migrations/0074_semantic_terms_trend_indicators.sql`: five `semantic_terms` rows (`supertrend`, `ultimate_ma`, `alphatrend`, `chandelier_exit`, `slingshot`): `source` `none`, not certified, description = definition, where to use it (script built-in or template, DSL form) and "Vertex has no stored series for it", synonyms (for example "Super Trend", "ST" / "UMA", "Ultimate Moving Average" / "Alpha Trend" / "Chandelier", "CE" / "Sling Shot", "EMA 38/62").
 - `packages/db/migrations/meta/_journal.json` (Modify), `packages/db/migrations/meta/0073_snapshot.json`, `packages/db/migrations/meta/0074_snapshot.json`.
 - `packages/db/rollback/0073_strategy_catalog_trend_trio.down.sql`, `packages/db/rollback/0074_semantic_terms_trend_indicators.down.sql` (guarded like the 0070 rollback).
@@ -508,3 +508,22 @@ Python import root: `services/research` (pytest runs from it, `research/backtest
 - **Static Analysis & Linting**: Biome (inside `bun run check`), `services/research/.venv/bin/ruff check services/research`, `bun run test:json-data`.
 - **Test Coverage Requirement**: 100% lines, branches, functions and statements for every new TypeScript file; no file of `scripts/ci/coverage-baseline.json` below its minimum.
 - **E2E/Integration**: migration integration tests; `bun run verify:prepush`; the eight required PR checks of AGENTS.md "Workflow" (four `Verification` lanes, `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL`, `Dependency Review`); live check = CUJ 1 Then-clause on the deployed library page and the report URL.
+
+## Implementation notes (drift check 2026-11-14)
+
+The EGM drift check of PR 1 (report in the card's report folder) found these differences between this plan and the code;
+the code is the reference:
+
+- Buckets are keyed by multiples of the bucket length in UTC milliseconds; 09:30 New York and the 13:00 early close are
+  such multiples for 5 and 15 minutes, so the buckets equal the ones described above.
+- `rules.buckets(t, o, h, low, c, v, bar_ms, period_minutes, *, read_at, session, lookahead) -> Buckets` (with `end_ms`,
+  `session_first`, `read`); `Minutes` also has `bar_ms`; `rules.spec_sha256()` computes the freeze hash.
+- `study.Job(kind, row, dataset, params, tier)` with kinds `trades`, `random`, `nautilus`, `mfi`; `run_job(job, out_dir,
+  data)`; the walk-forward is computed in `assemble`, not as a job; tier 4 also holds the NQ tracking row, the
+  NautilusTrader checks and the MFI agreement; `run.py` writes the data manifest (`data.json`) and has `--dry-run`,
+  `--render-only`, `--allow-dirty` and per-input path options.
+- A test that cannot be computed counts as not passed (it can decide the outcome).
+- The report also shows the look-ahead diagnostic next to P1 and the options-form arithmetic.
+- `0074` descriptions name the script built-in, template, chart study and, for Ultimate MA and Slingshot, the DSL
+  composition; the DSL names of SuperTrend, AlphaTrend and Chandelier Exit arrive with PR 2.
+- PR 2 (items 14-19) is not implemented yet.

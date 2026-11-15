@@ -135,6 +135,7 @@ packages/scripting/src/templates.ts.
 
 - SuperTrend: TradingView built-in ta.supertrend, Pine Script reference manual,
   https://www.tradingview.com/pine-script-reference/v6/#fun_ta.supertrend
+  (a built-in function; the manual states no licence for its formula)
 - Ultimate MA: ChrisMoody, CM_Ultimate_MA_MTF_V2,
   https://www.tradingview.com/script/8KVcQiJM-CM-Ultimate-MA-MTF-V2/
   (no licence header; published as open source under TradingView House Rules)
