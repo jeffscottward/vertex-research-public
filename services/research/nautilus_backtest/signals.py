@@ -1190,9 +1190,7 @@ def _filter_list(items: Any, where: str, name: str, minimum: int) -> list[dict[s
 
 
 def _management_level(value: Any, name: str) -> float:
-    if not (is_finite_number(value) and 0 < value <= 100):
-        raise InputError(f"management {name} must be above 0 and at most 100")
-    return float(value)
+    return _positive(value, f"management {name}", 100)
 
 
 def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any] | None:
