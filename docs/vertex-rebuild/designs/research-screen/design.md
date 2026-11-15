@@ -1,7 +1,7 @@
 # Research screen as a platform job
 
 - **Author:** Jeff Scott Ward (drafted by the job agent for card vertex-merge-p1-3-refresh-scheduler)
-- **Status:** Reviewed (10 fresh reviewers, 2026-11-15; 34 action items resolved)
+- **Status:** Implemented (reviewed by 10 fresh reviewers on 2026-11-15; compared with the code on 2026-11-15, see "Implementation notes")
 - **Date:** 2026-11-15
 - **Base:** jeffscottward/vertex-research-public, branch `vertex/rebuild-darkfactory-20260921`, commit `bf961e3e`
 
@@ -176,17 +176,17 @@ operator page /research/screen
 2. **Screen** (pure). Input: the parsed catalog entry, the quote, the completed daily bars and the time. Output: one row. See "Screen rules".
 3. **Price reader** (server).
    - **Quote and Yahoo bars:** one Yahoo chart request per report in each run (1 year of daily bars). Its meta block gives the price, the provider time, the instrument type, the currency, the time zone and the session period; the history service answer has none of these. The same answer holds the Yahoo daily bars.
-   - **IBKR bars:** for a report that IBKR can serve (a US stock or ETF in USD, or a continuous future that `historyInstrument` knows), the completed daily bars come from the table `research_screen_bars`. The stored bars are **due** when the report has none, when its provider symbol changed, or when they end before the newest NYSE session whose close is at least 2 hours ago. Due bars are read from the history service (1 year of daily `TRADES` bars, `offline: true`, without `ibkrOnly`, no `fillBefore`, so one series never mixes sources) and stored. The 2-hour delay lets the scheduled sector-rotation collection at 16:50 New York time run first and lets the bar settle.
+   - **IBKR bars:** for a report that IBKR can serve (a US stock or ETF in USD, or a continuous future that `historyInstrument` knows), the completed daily bars come from the table `research_screen_bars`. The stored bars are **due** when the report has none, when its provider symbol changed, or when they end before the newest NYSE session whose close is at least 2 hours ago. Due bars are read from the history service (1 year of daily `TRADES` bars, `offline: true`, `ibkrOnly: true`, no `fillBefore`, so one series never mixes sources; the Yahoo bars of the gap rule come from the chart answer, not from a second request) and stored. The 2-hour delay lets the scheduled sector-rotation collection at 16:50 New York time run first and lets the bar settle.
    - **Gap rule:** a report that IBKR cannot serve, or whose due read fails, is screened with the Yahoo bars of its chart answer. The row stores `bars_source` and `quote_source`.
    - **IBKR budget of a run:** after 3 reports in a row whose IBKR read fails or exceeds its paced wait, the run reads no more IBKR bars; the remaining due reports use the gap rule and are tried again in the next run. The counter is on the run row, because shares run in separate requests.
 4. **Run engine** (server).
-   - A tick first stores its time. Then it closes a run whose deadline and lease have both passed, continues the active run, or claims the newest due slot.
-   - The claim is one transaction: the slot time is unique, no other run is active, and the slot is newer than every claimed slot. A claimed slot is never run again. A new table is used and not `vertex_worker_jobs` or `outbox_events`: those are bound to worker event envelopes and to outbox handlers; the lease column names follow `outbox_events` (`lease_owner`, `lease_expires_at`, `fence`).
+   - A tick closes a run whose deadline and lease have both passed, continues the active run, or claims the newest due slot. It stores its time and its decision as soon as the decision is known, before the share starts.
+   - The claim is one transaction under a transaction advisory lock: the slot time is unique, no other run is active, and the slot is newer than every claimed slot. A claimed slot is never run again. A new table is used and not `vertex_worker_jobs` or `outbox_events`: those are bound to worker event envelopes and to outbox handlers; the lease column names follow `outbox_events` (`lease_owner`, `lease_expires_at`, `fence`).
    - A tick takes the lease when it is free or expired (database clock) and raises the fence number. Every write of that tick checks the fence, so a late tick of an older lease writes nothing.
-   - A tick works on reports until 50 seconds have passed and starts a report only then; it renews the lease after each report and returns the count that remains. Order: the report with the oldest last attempt first.
+   - A tick works on reports until 50 seconds have passed and starts a report only then; it renews the lease after each report, frees the lease when it stops with work left, and returns the count that remains. Order: the report with the oldest last attempt first.
    - When the deadline comes before all reports are done, the tick that sees it ends the run.
 5. **Tick script and timer.** The timer fires every 5 minutes; the unit is a oneshot service that systemd does not start again while it runs. The script calls the tick, and calls again while the answer says that work remains. Before each call it checks the pause file of the restart script (`VERTEX_WORKER_PAUSE_FILE`, younger than 90 minutes) and stops when it exists. It holds no calendar and sends no slot. The flow timer (`infra/flow/quantvps/vertex-flow.timer`) is the model: a frequent tick, and the server decides.
-6. **Swinglytics context** (server). Once per run, in the tick that claims the slot and before the first report. A failure is stored as the last attempt and never changes the run.
+6. **Swinglytics context** (server). Once per run, in the tick that claims the slot and before the first report. A failure of the read is stored as the last attempt and never changes the run. If the read throws or the storage of its result fails, the run continues and the event `research.screen.context.failed` is emitted with a one-line message.
 7. **Status and page.** `researchScreen.status` returns the scheduler state, the active and the last finished run, next and missed slots, the rows after the read-time rule, the Swinglytics snapshot and the limitation texts. The page `/research/screen` is linked from `/research`.
 
 ### Run statuses
@@ -337,6 +337,18 @@ A timer run every 5 minutes gives 288 timer runs a day; a timer run with nothing
 - **Cons**: that page shows only the trading-engine timers of the rig.
 - **Reason for Rejection**: Rejected by author.
 
+## Implementation notes
+
+Differences between this document and the code that were found by the drift comparison of 2026-11-15 and kept on purpose:
+
+- The session function for early closes is also used to decide if an IBKR daily bar is complete, for every instrument. On an NYSE holiday on which a future trades, a futures bar read during its session counts as complete. A future is never `review-entry`.
+- The check "does IBKR serve this report" is a call of the bars reader without a configuration, which makes no request. A history service that is not configured counts as a failed IBKR read for the IBKR stop.
+- The Swinglytics parser reads at most the first 15 setup candidates per direction, upper-cases tickers, cuts a ticker to 12 characters, reads the scan counts beside the scanner when the scanner has none, truncates a count that is not an integer, and skips a line with no `:`. The script elements are found by a linear scan, not by a regular expression.
+- The page shows the words "none" and "no source" for missing values and "No current data" for the action `unavailable`, because the status-language check of the web app does not allow a bare dash or the word "unavailable".
+- A failed row shows score 0; the last score is not shown beside the last action.
+- The runs table has one more check (`research_screen_runs_shape_check`) for the bounds of the message and the labels.
+- If the file SOURCE_SHA exists and cannot be read, the tick script stops before its first call.
+
 ## Detailed Implementation Plan
 
 `NNNN` is the next free migration number when the branch is ready to merge (the newest file on the base commit is `0074`); after the base branch is merged into the feature branch, `pnpm db:renumber` moves the migration of the feature branch behind the newest one. All other names are final. New files are written without code marks until they exist.
@@ -358,7 +370,8 @@ Tick: `researchScreen.tick`, POST `/research-screen/tick`, input `{}` (strict), 
 | --- | --- | --- | --- |
 | A run is active and its lease is live | none | `busy` | the run's slot, id, `running`; `done` true; processed and remaining of the run |
 | A run is active, lease free or expired, deadline not passed | take the lease, work a share | `resumed` | `done` true when the run ended |
-| A run is active, lease expired, deadline passed | end it as `interrupted`, then continue with the next line | | |
+| A run is active, lease expired, deadline passed | end it as `interrupted`, then continue with the next line; if the database refuses the end, try to take the lease | | |
+| A share loses its fence (another tick took the lease) | stop without a further write | as started | `done` true, `runStatus` `running` |
 | No run is active and the newest slot at or before now has no run and is newer than every claimed slot | claim, read Swinglytics, work a share | `claimed` | as `resumed` |
 | Otherwise | none | `not-due` | slot, run and status null; counts 0; `done` true |
 
@@ -388,7 +401,7 @@ Context = { generatedAt: Date | null, retrievedAt: Date | null, stale: boolean, 
             lastAttemptAt: Date | null, lastAttemptStatus: "ok" | "error" | null, lastError: string | null, warning: string }
 ```
 
-- `collection`: `never` when the report has no row; `failed` when the last attempt is newer than the last good observation; else `fresh`. A row with `never` or with no good observation has action `unavailable`, score 0 and null values.
+- `collection`: `never` when the report has no row or its row belongs to another provider symbol; `failed` when the last attempt is newer than the last good observation; else `fresh`. A row with `never` or with no good observation has action `unavailable`, score 0 and null values.
 - Scheduler state from the age of the last tick: `never` with no tick; `ok` up to 10 minutes; `late` up to 30 minutes; `silent` above.
 - Error codes of a row (9): `identity-unverified`, `metadata-invalid`, `provider-http`, `provider-timeout`, `rate-limited`, `identity-mismatch`, `quote-missing`, `too-few-bars`, `invalid-ohlc`.
 
@@ -421,7 +434,7 @@ Source of the rules: the old workspace (see "Sources"), file apps/server/src/res
 Inputs of `screenReport(entry, evidence, now)`:
 
 - `entry`: the parsed catalog entry (see "Catalog entry").
-- `evidence`: `{ quote: { price, quoteAt, instrumentType, currency, timeZone, sessionStart, sessionEnd } | null, bars: { date, o, h, l, c, source }[], barsSource, quoteSource, fetchError }`.
+- `evidence`: `{ quote: { price, quoteAt, instrumentType, currency, timeZone, sessionStart, sessionEnd } | null, bars: { date, o, h, l, c }[], barsSource }`. A failed chart read never reaches the screen; the engine writes its error code.
 - `now`: the time of the screen.
 
 Steps, in this order. The first step that fails ends the screen with action `unavailable`, score 0 and the named error code.
@@ -429,7 +442,7 @@ Steps, in this order. The first step that fails ends the screen with action `una
 | # | Rule | On failure |
 | --- | --- | --- |
 | 1 | The catalog entry parses, and `identity_status` is `verified`. | `metadata-invalid` or `identity-unverified` |
-| 2 | The price read returned an answer. | the error code of the read (`provider-http`, `provider-timeout`, `rate-limited`) |
+| 2 | The price read returned an answer (checked by the engine before the screen). | the error code of the read (`provider-http`, `provider-timeout`, `rate-limited`) |
 | 3 | Identity match: the quote's instrument type equals the expected type of the asset type (`equity` EQUITY, `etf` ETF, `future` FUTURE, `index` INDEX), its currency equals the entry currency and its time zone equals the entry time zone. | `identity-mismatch` |
 | 4 | The quote has a price above 0 and a provider time. | `quote-missing` |
 | 5 | Completed bars: a bar counts when it has a close above 0, a valid date, a date not after `now`, and is not the bar of a session that still runs; one bar per date, oldest first. At least 50 completed bars exist. | `too-few-bars` |
@@ -452,7 +465,7 @@ Conditions:
 - `inZone`: price is inside `buyZone` (both ends included).
 - `rewardAdequate`: `rewardRisk` is at least 2.
 - `quoteFresh`: the age of the quote at `now` is from 0 to 4 hours.
-- `historyCurrent`: the age of the provider time of `last` is from 0 to 4 days, and, when the quote names a session that has ended, `last` is the bar of that session date or newer.
+- `historyCurrent`: the end of the day of `last` is at most 4 days old (no lower limit: the end of the day of a session that closed today is a few hours after `now`). For stored IBKR bars, `last` must also be the bar of the due session date ("Price reader") or newer. For Yahoo bars, when the quote names a session that has ended, `last` must be the bar of that session date or newer.
 
 Blocking warnings (each has a fixed code and text): `quote-stale` (not `quoteFresh`), `history-stale` (not `historyCurrent`), `trend-not-aligned`, `outside-buy-zone`, `reward-below-2`, `catalog-not-ready` (catalog status is not `ready`), `future-not-executable` (asset type `future`), `alias-unconfirmed` (an alias with `confirmed` false).
 
@@ -460,11 +473,11 @@ Score (0 to 100) = 30 for `trend` + 25 for `inZone` + 25 for `rewardAdequate` + 
 
 Action: `review-entry` when no blocking warning exists; else `watch` when `trend` holds; else `wait`.
 
-Reasons: 4 fixed sentences (trend result, zone result, reward result, and the note that levels use the provider's own OHLC of the last 20 completed sessions). Warnings: the fixed research-only note; a currency note when the currency is not USD; the futures note; one line per alias; the fixed line "Options are not checked by this screen." Every message list holds at most 24 entries of at most 400 characters.
+Reasons: 4 fixed sentences (trend result, zone result, reward result, and the note that levels use the provider's own OHLC of the last 20 completed sessions). Warnings: the fixed research-only note; a currency note when the currency is not USD; the futures note; one line per alias; the fixed line "Options are not checked by this screen." Every message list holds at most 24 entries of at most 400 characters; the fixed lines come first, so alias lines are the ones cut.
 
-Read-time rule `effectiveRow(stored, now)`: when the stored action is `review-entry` and the age of the quote at `now` is below 0 or above 4 hours, the shown action is `watch`, the shown score is the stored score minus 20 (not below 0), and the warning `entry-expired` is added. No other read-time rule changes a row. The quote-age test also runs at screen time (`quoteFresh`), so a run on a closed day stores `watch` or `wait`, never `review-entry`.
+Read-time rule `effectiveRow(stored, now)`: when the stored action is `review-entry` and the age of the quote at `now` is below 0 or above 4 hours, the shown action is `watch`, the shown score is the stored score minus 20 (not below 0), and the warning `entry-expired` is added. A `review-entry` with no quote time also expires. Two more display rules apply when the status is read: a row whose latest collection failed is shown as `unavailable` with score 0 and its last good values, and a stored row whose provider symbol differs from the catalog is shown as not collected. The quote-age test also runs at screen time (`quoteFresh`), so a run on a closed day stores `watch` or `wait`, never `review-entry`.
 
-Parity test: one fixed synthetic series of 60 daily bars and one quote, written in the test file, with the expected row computed once by running the old `screenInstrument` on the same input and recorded in the test (price levels to 6 decimals; the ATR-dependent values within 0.5 %, because `wilderAtr` seeds differently on a short series).
+Parity test: one fixed synthetic series of 260 daily bars with two quotes (an entry case and a wait case), written in the test file, with the expected rows recorded from a run of the old `screenInstrument` on the same input (price levels to 6 decimals; the ATR-dependent values within 0.5 %).
 
 ### Catalog entry
 
@@ -472,7 +485,7 @@ Parity test: one fixed synthetic series of 60 daily bars and one quote, written 
 
 | Key | Type | Rule |
 | --- | --- | --- |
-| `currency` | string, 3 letters | required |
+| `currency` | string, 3 upper-case letters | required |
 | `timeZone` | string, an IANA zone that `Intl.DateTimeFormat` accepts | required |
 | `aliases` | array of `{ input: string, resolution: string, confirmed: boolean }` | optional, default empty |
 | `contractSpecs` | object | optional; used only to say that a future is a provider series |
@@ -586,12 +599,12 @@ Down file: one transaction that locks and drops the 5 tables (rows and bars firs
 
 - `packages/api/src/strategy-dsl-compile.ts` (Modify): add `nyseSession(day: number): { open: Date; close: Date; earlyClose: boolean } | null` beside `isNyseTradingDay` (`day` is the UTC day number of the New York date). Early close at 13:00 on 3 July, on the day after Thanksgiving and on 24 December when that day is a trading day; else 16:00; open 09:30.
 - `packages/api/src/strategy-dsl-compile.test.ts` (Modify): every holiday and early close of the official list for 2026 to 2028; both daylight-saving weeks of 2026.
-- packages/api/src/research-screen-slots.ts (Create): `slotsBetween(after: Date, until: Date): { at: Date; labels: string[] }[]` (after exclusive, until inclusive, ascending, labels joined in rule order), `newestSlotAtOrBefore(now: Date)`, `barsDueSessionDate(now: Date): string` (the New York date of the newest session whose close is at least 2 hours before `now`), `calendarVerified(now: Date): boolean`.
+- packages/api/src/research-screen-slots.ts (Create): `slotsBetween(after: Date, until: Date): { at: Date; labels: string[] }[]` (after exclusive, until inclusive, ascending, labels joined in rule order), `newestSlotAtOrBefore(now: Date)`, `barsDueSessionDate(now: Date): string | null` (null only for an invalid date; the New York date of the newest session whose close is at least 2 hours before `now`), `calendarVerified(now: Date): boolean`.
 - packages/api/src/research-screen-slots.test.ts (Create): the 57 slots of 2026-11-23 to 2026-11-29; a normal week in summer and in winter; a slot exactly at `now`; `barsDueSessionDate` before the close, 1 hour after, 2 hours after, on a weekend, after an early close; `calendarVerified` in 2028 and 2029; a test with the real clock that fails from 2028-07-01.
 
 #### 3. Screen
 
-- packages/api/src/research-screen.ts (Create): `parseCatalogEntry`, `screenReport`, `effectiveRow`, `runStatusOf(counts)`, the warning codes and texts, the limitation texts (4: research only; quotes can be delayed and the quote-age rule; schedule and calendar limits; provider limits and "Options are not checked by this screen"), the constants. It imports `wilderAtr` from `packages/api/src/pick-list-screen.ts` and `sma` from `packages/api/src/sector-rotation.ts`.
+- packages/api/src/research-screen.ts (Create): `parseCatalogEntry`, `screenReport`, `effectiveRow`, `runStatusOf(counts)`, the warning codes and texts, the limitation texts (4: research only; quotes can be delayed and the quote-age rule; schedule and calendar limits; provider limits and "Options are not checked by this screen"), the constants. It imports `wilderAtr` from `packages/api/src/pick-list-screen.ts`; SMA 20 and 50 are plain means of the last closes.
 - packages/api/src/research-screen.test.ts (Create): each failure step 1 to 6; each blocking warning alone; each action; the score sums; null cases of change, momentum, stop and reward to risk; a split inside the window; the parity series; `effectiveRow` at 3 hours 59 minutes, 4 hours 1 minute and a future quote; each `runStatusOf` result; each parser failure.
 
 #### 4. Yahoo chart parser
@@ -643,7 +656,9 @@ Down file: one transaction that locks and drops the 5 tables (rows and bars firs
   - `recordTick(decision): Promise<void>`
   - `findActiveRun(): Promise<RunRecord | null>`
   - `claimSlot({ slotAt, labels, total, owner }): Promise<RunRecord | null>` (null when the unique slot, the running index or the high-water rule refuses; it also takes the first lease)
-  - `takeLease(runId, owner): Promise<{ fence: number } | null>` (null when the lease is live)
+  - `takeLease(runId, owner): Promise<RunRecord | null>` (the fresh run with its new fence; null when the lease is live)
+  - `releaseLease(runId, fence): Promise<boolean>`
+  - `countReports(): Promise<number>`
   - `renewLease(runId, fence): Promise<boolean>`
   - `closeExpiredRun(runId): Promise<boolean>`
   - `listWork(runId): Promise<WorkItem[]>` (catalog reports with their row and stored bars, not yet attempted in this run, oldest attempt first)
@@ -662,7 +677,7 @@ Down file: one transaction that locks and drops the 5 tables (rows and bars firs
 
 #### 13. Tick script
 
-- scripts/research-screen/tick.ts (Create): modelled on `scripts/price-alerts/tick.ts`, with these differences: procedure path `/api/orpc/researchScreen/tick`; a loop while `done` is false; before each call the pause-file check (`VERTEX_WORKER_PAUSE_FILE`, default `$HOME/.local/state/vertex-nautilus-worker.pause`, ignored when older than 90 minutes); a timeout of 200,000 ms per call; a wall limit of 28 minutes checked between calls; one JSON line per call on stdout (the answer plus `sourceSha`). The `io` type adds `now`, `fileAge(path)` and `signal` support.
+- scripts/research-screen/tick.ts (Create): modelled on `scripts/price-alerts/tick.ts`, with these differences: procedure path `/api/orpc/researchScreen/tick`; a loop while `done` is false; before each call the pause-file check (`VERTEX_WORKER_PAUSE_FILE`, default `$HOME/.local/state/vertex-nautilus-worker.pause`, ignored when older than 90 minutes); a timeout of 200,000 ms per call; a wall limit of 28 minutes checked between calls; one JSON line per call on stdout (the answer plus `sourceSha`). The `io` type adds `now`, `fileAgeMs(path)` and `sourceSha` (read from the file SOURCE_SHA beside the bundle).
 - Exit codes: 0 when the last answer has `done` true, or the pause file or the wall limit ended the loop; 1 on an HTTP error or an answer that is not JSON; 2 when a call got no answer in 200,000 ms.
 - scripts/research-screen/tick.test.ts (Create): one call with `not-due`; three calls until `done`; `busy`; the pause file (fresh and older than 90 minutes); the wall limit; HTTP 403 with the body printed; a timeout; missing env values.
 - scripts/vertex-research-screen-tick.ts (Create): the entry file, as `scripts/vertex-price-alerts-tick.ts`.
@@ -671,13 +686,13 @@ Down file: one transaction that locks and drops the 5 tables (rows and bars firs
 #### 14. Units and install
 
 - infra/research-screen/quantvps/vertex-research-screen.timer (Create): `OnCalendar=*:0/5`, `Persistent=false`, `RandomizedDelaySec=20`.
-- infra/research-screen/quantvps/vertex-research-screen.service (Create): the service of `infra/sector-rotation/quantvps/vertex-sector-rotation.service` with `TimeoutStartSec=1800`, the new paths (/opt/vertex-research-screen), the same env file, `Nice`, `After` and hardening lines; `ProtectHome=read-only` allows the pause-file read.
+- infra/research-screen/quantvps/vertex-research-screen.service (Create): the service of `infra/sector-rotation/quantvps/vertex-sector-rotation.service` with `TimeoutStartSec=2100` (above the script's worst case of 1,880 seconds), `Environment=VERTEX_WORKER_PAUSE_FILE=/root/.local/state/vertex-nautilus-worker.pause` (a system unit has no HOME; the restart script runs as root), the new paths (/opt/vertex-research-screen), the same env file, `Nice`, `After` and hardening lines; `ProtectHome=read-only` allows the pause-file read.
 - infra/research-screen/quantvps/install.sh (Create): `infra/sector-rotation/quantvps/install.sh` with the new names and without the alert-route drop-in; the dirty-tree override is `VERTEX_RESEARCH_SCREEN_ALLOW_DIRTY`.
 - infra/research-screen/quantvps/install.test.ts (Create): the cases of `infra/sector-rotation/quantvps/install.test.ts` for the new names, and a check that every unit line above is present.
 
 #### 15. Page
 
-- apps/web/src/features/research-screen/view-model.ts (Create): `RESEARCH_SCREEN_PATH`, `toResearchScreenViewModel(status, timeZone)`: scheduler line, run lines with "n of total", slot lists in New York time with the UTC time, row view-models (action label, the stored action when it differs, quote age text, level texts, source labels), the context panel model.
+- apps/web/src/features/research-screen/view-model.ts (Create): `RESEARCH_SCREEN_PATH`, `toResearchScreenViewModel(status)` (times in New York time with the UTC time): scheduler line, run lines with "n of total", slot lists in New York time with the UTC time, row view-models (action label, the stored action when it differs, quote age text, level texts, source labels), the context panel model.
 - apps/web/src/features/research-screen/view-model.test.ts (Create): each scheduler state; a run in progress; no run; each action; a row with `failed` and `never`; a stale and a missing snapshot.
 - apps/web/src/components/portal/research-screen.tsx (Create): gateway `api().researchScreen.status({})`; states loading, forbidden, error and ready as in `apps/web/src/components/portal/research-reports.tsx`; a reload every 60 seconds while a run is active; `h1` "Research screen"; the `data-slot="page-status"` chip with the scheduler state; the rows table; the context panel; the limitation list. Texts must pass `apps/web/src/status-language.test.ts`: the action `unavailable` is shown as "No current data".
 - apps/web/src/components/portal/research-screen.test.tsx (Create): each load state; the reload while a run is active; the stale-response case; the table and the panel.
