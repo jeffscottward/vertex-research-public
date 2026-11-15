@@ -7,6 +7,7 @@ import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 import {
   assertGapExit,
   buildDefinitionRefusals,
+  definitionAcceptanceJson,
   definitionRefusalJson,
   GOLDEN_FIXTURE,
   orCaseError,
@@ -88,6 +89,37 @@ describe("orCaseError", () => {
         throw new RangeError("a bug, not a case result");
       })
     ).toThrow("a bug, not a case result");
+  });
+});
+
+describe("definitionAcceptanceJson", () => {
+  const accepted = {
+    entry: {
+      all: [
+        {
+          left: { field: "close", type: "price" },
+          op: ">",
+          right: { type: "const", value: 0 },
+        },
+      ],
+    },
+    name: "Bound",
+    version: 1,
+  };
+
+  it("keeps a definition that the schema accepts", () => {
+    expect(definitionAcceptanceJson({ definition: accepted, id: "a" })).toEqual(
+      { definition: accepted, id: "a" }
+    );
+  });
+
+  it("stops when the schema refuses the definition", () => {
+    expect(() =>
+      definitionAcceptanceJson({
+        definition: { ...accepted, version: 2 },
+        id: "b",
+      })
+    ).toThrow("b: the schema refuses the definition");
   });
 });
 

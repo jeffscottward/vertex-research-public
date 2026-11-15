@@ -91,6 +91,12 @@ INTRADAY_MAX_DECISION_MINUTES = 390
 VOL_TARGET_MIN_LENGTH = 2
 VOL_TARGET_MAX_LENGTH = 252
 _NEW_YORK_TIME = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9]")
+_UTC_TIME = _NEW_YORK_TIME  # TS TimeSchema: the same HH:MM pattern
+# The characters that JavaScript String.prototype.trim removes (WhiteSpace and LineTerminator).
+_JS_WHITESPACE = (
+    "\t\n\v\f\r \xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
 MAX_LEVERAGE = 50
 MINUTES_PER_DAY = 1440
 MINUTE_MS = 60_000
@@ -142,6 +148,14 @@ MAX_EXPR_DEPTH = 6
 MAX_EXPR_NODES = 40
 MAX_LENGTH = 1000
 MAX_CONDITIONS = 8
+# TS STRATEGY_DSL_VERSION, the name and description limits, ConstExprSchema and the indicator length
+# refinements (STRATEGY_DSL_MAX_RVOL_SESSIONS, STRATEGY_DSL_MIN_DEVIATION_LENGTH).
+DSL_VERSION = 1
+MAX_NAME_LENGTH = 120
+MAX_DESCRIPTION_LENGTH = 2000
+MAX_CONST = 1e12
+MAX_RVOL_SESSIONS = 100
+MIN_DEVIATION_LENGTH = 2
 MATH_OPS = ("add", "sub", "mul", "div")
 # Options portfolio block (StrategyPortfolioSchema).
 OPTION_SYMBOLS = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
@@ -157,6 +171,14 @@ SERIES_MAX_FILL_DAYS = 5
 SERIES_FILTER_TYPES = ("ivRank", "vixTermStructure", "volRegime", "series")
 MAX_FILTERS = 4
 VOL_REGIME_DEFAULT_TREND_LENGTH = 200
+# Field ranges of the entry filters (TS SectorQuadrantFilterSchema, IvRankFilterSchema, RatioSchema,
+# VolRegimeFilterSchema); SECTOR_SYMBOLS are the Select Sector SPDR symbols (SECTOR_ROTATION_SECTORS).
+SECTOR_SYMBOLS = ("XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY")
+SECTOR_QUADRANTS = ("leading", "weakening", "lagging", "improving")
+FILTER_TIMEFRAMES = ("daily", "weekly")
+IV_RANK_MIN_LENGTH = 20
+MAX_RATIO = 10
+MAX_VIX = 200
 # Indicators that need high, low or volume, which a one-value-per-date series does not have.
 NON_CLOSE_INDICATORS = ("adx", "atr", "rvol")
 SERIES_CLOSE_ONLY = (
@@ -658,6 +680,23 @@ _TREND_EXPR_KEYS = {
     "chandelierExit": frozenset({"type", "name", "length", "multiple", "output", "offset", "timeframe"}),
 }
 _INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery", "exitEvery"})
+_FILTER_KEYS = {
+    "sectorQuadrant": frozenset({"type", "sector", "quadrants", "timeframe"}),
+    "ivRank": frozenset({"type", "length", "min", "max"}),
+    "vixTermStructure": frozenset({"type", "minRatio", "maxRatio"}),
+    "volRegime": frozenset({"type", "maxVix", "maxTermRatio", "trendLength"}),
+    "series": frozenset({"type", "series", "condition"}),
+}
+_CALENDAR_WINDOW_KEYS = {
+    "turnOfMonth": frozenset({"type", "window", "fromDay", "toDay"}),
+    "opexWeek": frozenset({"type", "window"}),
+    "months": frozenset({"type", "window", "months"}),
+}
+_LEVEL_KEYS = {
+    "none": frozenset({"kind"}),
+    "pct": frozenset({"kind", "pct"}),
+    "atr": frozenset({"kind", "length", "multiple"}),
+}
 _LEG_KEYS = frozenset({"entry", "exit", "filters", "options"})
 
 
@@ -681,11 +720,32 @@ def _strict(value: Any, keys: frozenset[str], where: str) -> None:
         raise InputError(f"Unknown key in {where}: {unknown[0]}")
 
 
+def _list(value: Any, where: str) -> list[Any]:
+    """TS z.array(): rejects a value that is not a list (a Python tuple counts as a list)."""
+    if not isinstance(value, (list, tuple)):
+        raise InputError(f"{where} must be a list")
+    return list(value)
+
+
+def _positive(value: Any, name: str, high: float) -> float:
+    """TS z.number().gt(0).max(high)."""
+    if not (is_finite_number(value) and 0 < value <= high):
+        raise InputError(f"{name} must be above 0 and at most {high:g}")
+    return float(value)
+
+
+def _between(value: Any, name: str, low: float, high: float) -> float:
+    """TS z.number().min(low).max(high)."""
+    if not (is_finite_number(value) and low <= value <= high):
+        raise InputError(f"{name} must be from {low:g} to {high:g}")
+    return float(value)
+
+
 def _is_whole(value: Any, low: int, high: int) -> bool:
     """A whole number from low to high; a float with no fraction counts (JSON has one number type)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return float(value).is_integer() and low <= value <= high
+    return (isinstance(value, int) or value.is_integer()) and low <= value <= high
 
 
 def _whole(value: Any, name: str, low: int, high: int) -> int:
@@ -821,7 +881,10 @@ def _normalize_trend_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
 def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     """StrategyExprSchema defaults of one expression tree (idempotent); offsets default to 0."""
     _check_raw_expr_depth(expr)
+    expr = _object(expr, "expression")
     kind = expr.get("type")
+    if not isinstance(kind, str):
+        raise InputError(f"Unknown expression type: {kind}")
     if _is_session_indicator(expr):
         return _normalize_session_expr(expr)
     if _is_trend_indicator(expr):
@@ -836,6 +899,8 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
         value = expr.get("value")
         if not is_finite_number(value):
             raise InputError("Constant value must be a finite number")
+        if abs(value) > MAX_CONST:
+            raise InputError(f"Constant value must be from {-MAX_CONST:g} to {MAX_CONST:g}")
         return {"type": "const", "value": float(value)}
     if kind == "indicator":
         name = expr.get("name")
@@ -848,6 +913,8 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
         if not (isinstance(length, int) and not isinstance(length, bool)) or length < 1:
             if not (isinstance(length, float) and length.is_integer() and length >= 1):
                 raise InputError(f"{name} length must be a whole number of at least 1")
+        if length > MAX_LENGTH:
+            raise InputError(f"{name} length must be at most {MAX_LENGTH}")
         normalized = {
             "type": "indicator",
             "name": name,
@@ -862,6 +929,10 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
             if name == "rvol":
                 raise InputError("rvol has no timeframe; it already compares whole sessions")
             normalized["timeframe"] = timeframe
+        if name == "rvol" and length > MAX_RVOL_SESSIONS:
+            raise InputError(f"rvol length must be at most {MAX_RVOL_SESSIONS} sessions")
+        if name in ("zscore", "realizedVol") and length < MIN_DEVIATION_LENGTH:
+            raise InputError(f"zscore and realizedVol length must be at least {MIN_DEVIATION_LENGTH}")
         return normalized
     if kind == "series":
         series = expr.get("series")
@@ -875,36 +946,36 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "type": "math",
             "op": op,
-            "left": _normalize_expr(expr["left"]),
-            "right": _normalize_expr(expr["right"]),
+            "left": _normalize_expr(expr.get("left")),
+            "right": _normalize_expr(expr.get("right")),
         }
     if kind == "change":
         return {
             "type": "change",
             "length": _whole(expr.get("length"), "change length", 1, MAX_LENGTH),
-            "of": _normalize_expr(expr["of"]),
+            "of": _normalize_expr(expr.get("of")),
             "offset": _offset(expr),
         }
     if kind == "returnStdev":
         return {
             "type": "returnStdev",
             "length": _whole(expr.get("length"), "returnStdev length", 2, MAX_LENGTH),
-            "of": _normalize_expr(expr["of"]),
+            "of": _normalize_expr(expr.get("of")),
         }
     if kind == "regression":
         return {
             "type": "regression",
             "lag": _whole(expr.get("lag"), "regression lag", 0, MAX_LENGTH),
             "length": _whole(expr.get("length"), "regression length", 3, MAX_LENGTH),
-            "x": _normalize_expr(expr["x"]),
-            "y": _normalize_expr(expr["y"]),
+            "x": _normalize_expr(expr.get("x")),
+            "y": _normalize_expr(expr.get("y")),
         }
     if kind == "seasonal":
         return {
             "type": "seasonal",
             "minCount": _whole(expr.get("minCount"), "seasonal minCount", 1, MAX_LENGTH),
             "monthsAhead": _whole(expr.get("monthsAhead"), "seasonal monthsAhead", 0, 11),
-            "of": _normalize_expr(expr["of"]),
+            "of": _normalize_expr(expr.get("of")),
         }
     raise InputError(f"Unknown expression type: {kind}")
 
@@ -975,17 +1046,23 @@ def _normalize_condition(condition: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _normalize_level(level: Mapping[str, Any] | None) -> dict[str, Any]:
+def _normalize_level(level: Mapping[str, Any] | None, name: str) -> dict[str, Any]:
+    """TS ExitLevelSchema of the block `name` (stopLoss or takeProfit); no block means kind none."""
     if level is None:
         return {"kind": "none"}
     kind = level.get("kind")
-    if kind == "none":
-        return {"kind": "none"}
+    if not (isinstance(kind, str) and kind in _LEVEL_KEYS):
+        raise InputError(f"Unknown exit level kind: {kind}")
+    _strict(level, _LEVEL_KEYS[kind], name)
     if kind == "pct":
-        return {"kind": "pct", "pct": float(level["pct"])}
+        return {"kind": "pct", "pct": _positive(level.get("pct"), f"{name} pct", 99)}
     if kind == "atr":
-        return {"kind": "atr", "length": int(level["length"]), "multiple": float(level["multiple"])}
-    raise InputError(f"Unknown exit level kind: {kind}")
+        return {
+            "kind": "atr",
+            "length": _whole(level.get("length"), f"{name} length", 1, MAX_LENGTH),
+            "multiple": _positive(level.get("multiple"), f"{name} multiple", 100),
+        }
+    return {"kind": "none"}
 
 
 def _close_only(expr: Mapping[str, Any]) -> bool:
@@ -1002,58 +1079,90 @@ def _close_only(expr: Mapping[str, Any]) -> bool:
     return False
 
 
-def _bounds(item: Mapping[str, Any], keys: tuple[str, str], message: str) -> dict[str, float]:
-    """The optional numeric bounds of a filter; at least one must be given."""
-    bounds = {key: float(item[key]) for key in keys if item.get(key) is not None}
+def _bounds(
+    item: Mapping[str, Any], kind: str, keys: tuple[str, str], check: Callable[[Any, str], float]
+) -> dict[str, float]:
+    """The optional lower and upper bound of a filter (`check` is the range of one bound): at least
+    one must be given, and the lower must not be above the upper."""
+    low, high = keys
+    bounds = {key: check(item[key], f"{kind} {key}") for key in keys if item.get(key) is not None}
     if not bounds:
-        raise InputError(message)
+        raise InputError(f"{kind} needs {low}, {high} or both")
+    if len(bounds) == 2 and bounds[low] > bounds[high]:
+        raise InputError(f"{kind} {low} must not be above {high}")
     return bounds
 
 
-def _normalize_filter(item: Mapping[str, Any]) -> dict[str, Any]:
-    """StrategyFilterSchema defaults for one filter (idempotent)."""
+def _normalize_sector_quadrant(item: Mapping[str, Any]) -> dict[str, Any]:
+    """TS SectorQuadrantFilterSchema."""
+    if item.get("sector") not in SECTOR_SYMBOLS:
+        raise InputError("Unknown sector. Use a Select Sector SPDR symbol, for example XLK")
+    quadrants = _list(item.get("quadrants"), "sectorQuadrant quadrants")
+    if not quadrants:
+        raise InputError("sectorQuadrant needs at least one quadrant")
+    for quadrant in quadrants:
+        if quadrant not in SECTOR_QUADRANTS:
+            raise InputError(f"Unknown quadrant: {quadrant}")
+    if len(set(quadrants)) != len(quadrants):
+        raise InputError("Quadrants must not repeat")
+    timeframe = item.get("timeframe", "weekly")
+    if timeframe not in FILTER_TIMEFRAMES:
+        raise InputError(f"Unknown filter timeframe: {timeframe}")
+    return {"type": "sectorQuadrant", "sector": item["sector"], "quadrants": quadrants, "timeframe": timeframe}
+
+
+def _normalize_calendar_window(item: Mapping[str, Any]) -> dict[str, Any]:
+    """TS CalendarWindowFilterSchema."""
+    window = item.get("window")
+    if not (isinstance(window, str) and window in _CALENDAR_WINDOW_KEYS):
+        raise InputError(f"Unknown calendar window: {window}")
+    _strict(item, _CALENDAR_WINDOW_KEYS[window], f"{window} filter")
+    normalized: dict[str, Any] = {"type": "calendarWindow", "window": window}
+    if window == "turnOfMonth":
+        normalized["fromDay"] = _whole(item.get("fromDay"), "turnOfMonth fromDay", -10, -1)
+        normalized["toDay"] = _whole(item.get("toDay"), "turnOfMonth toDay", 1, 10)
+    if window == "months":
+        months = _list(item.get("months"), "calendarWindow months")
+        if not 1 <= len(months) <= 12:
+            raise InputError("calendarWindow months needs 1 to 12 months")
+        months = [_whole(month, "A calendarWindow month", 1, 12) for month in months]
+        if len(set(months)) != len(months):
+            raise InputError("Months must not repeat")
+        normalized["months"] = months
+    return normalized
+
+
+def _normalize_filter(item: Any) -> dict[str, Any]:
+    """StrategyFilterSchema: the field checks and the defaults of one filter (idempotent)."""
+    item = _object(item, "filter")
     kind = item.get("type")
+    if kind == "calendarWindow":
+        return _normalize_calendar_window(item)
+    if not (isinstance(kind, str) and kind in _FILTER_KEYS):
+        raise InputError(f"Unknown filter type: {kind}")
+    _strict(item, _FILTER_KEYS[kind], f"{kind} filter")
     if kind == "sectorQuadrant":
-        return {
-            "type": "sectorQuadrant",
-            "sector": item["sector"],
-            "quadrants": list(item["quadrants"]),
-            "timeframe": item.get("timeframe", "weekly"),
-        }
+        return _normalize_sector_quadrant(item)
     if kind == "ivRank":
         return {
             "type": "ivRank",
-            "length": int(item.get("length", IV_RANK_DEFAULT_LENGTH)),
-            **_bounds(item, ("min", "max"), "ivRank needs min, max or both"),
+            "length": _whole(item.get("length", IV_RANK_DEFAULT_LENGTH), "ivRank length", IV_RANK_MIN_LENGTH,
+                             MAX_LENGTH),
+            **_bounds(item, kind, ("min", "max"), lambda value, name: _between(value, name, 0, 100)),
         }
     if kind == "vixTermStructure":
         return {
             "type": "vixTermStructure",
-            **_bounds(
-                item, ("minRatio", "maxRatio"), "vixTermStructure needs minRatio, maxRatio or both"
-            ),
+            **_bounds(item, kind, ("minRatio", "maxRatio"), lambda value, name: _positive(value, name, MAX_RATIO)),
         }
     if kind == "volRegime":
         return {
             "type": "volRegime",
-            "maxVix": float(item["maxVix"]),
-            "maxTermRatio": float(item["maxTermRatio"]),
-            "trendLength": int(item.get("trendLength", VOL_REGIME_DEFAULT_TREND_LENGTH)),
+            "maxVix": _positive(item.get("maxVix"), "volRegime maxVix", MAX_VIX),
+            "maxTermRatio": _positive(item.get("maxTermRatio"), "volRegime maxTermRatio", MAX_RATIO),
+            "trendLength": _whole(item.get("trendLength", VOL_REGIME_DEFAULT_TREND_LENGTH),
+                                  "volRegime trendLength", 1, MAX_LENGTH),
         }
-    if kind == "calendarWindow":
-        window = item.get("window")
-        if window == "turnOfMonth":
-            return {
-                "type": kind,
-                "window": window,
-                "fromDay": int(item["fromDay"]),
-                "toDay": int(item["toDay"]),
-            }
-        if window == "opexWeek":
-            return {"type": kind, "window": window}
-        if window == "months":
-            return {"type": kind, "window": window, "months": [int(m) for m in item["months"]]}
-        raise InputError(f"Unknown calendar window: {window}")
     if kind == "series":
         series = item.get("series")
         if series not in SERIES_REFS:
@@ -1072,10 +1181,16 @@ def _normalize_filter(item: Mapping[str, Any]) -> dict[str, Any]:
     raise InputError(f"Unknown filter type: {kind}")
 
 
+def _filter_list(items: Any, where: str, name: str, minimum: int) -> list[dict[str, Any]]:
+    """TS StrategyFiltersSchema: a list of at most MAX_FILTERS filters."""
+    filters = _list(items, where)
+    if not minimum <= len(filters) <= MAX_FILTERS:
+        raise InputError(f"{name} needs {minimum} to {MAX_FILTERS} filters")
+    return [_normalize_filter(item) for item in filters]
+
+
 def _management_level(value: Any, name: str) -> float:
-    if not (is_finite_number(value) and 0 < value <= 100):
-        raise InputError(f"management {name} must be above 0 and at most 100")
-    return float(value)
+    return _positive(value, f"management {name}", 100)
 
 
 def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -1088,8 +1203,6 @@ def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any
         normalized["breakevenR"] = _management_level(management["breakevenR"], "breakevenR")
     if "trail" in management:
         trail = management["trail"]
-        if not isinstance(trail, Mapping):
-            raise InputError("management trail must be an object")
         _strict(trail, frozenset({"activateR", "length", "multiple"}), "management trail")
         length = _whole(trail.get("length"), "management trail length", 1, MAX_LENGTH)
         normalized["trail"] = {
@@ -1102,33 +1215,41 @@ def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any
     return normalized
 
 
-def _condition_list(items: Any, name: str, minimum: int) -> list[dict[str, Any]]:
-    conditions = list(items or [])
+def _condition_items(items: Any, where: str, name: str, minimum: int) -> list[Any]:
+    """The raw conditions of the list `where`: minimum to MAX_CONDITIONS items. An absent or null
+    list is the empty list."""
+    conditions = [] if items is None else _list(items, where)
     if not minimum <= len(conditions) <= MAX_CONDITIONS:
         raise InputError(f"{name} needs {minimum} to {MAX_CONDITIONS} conditions")
-    return [_normalize_condition(item) for item in conditions]
+    return conditions
+
+
+def _condition_list(items: Any, where: str, name: str, minimum: int) -> list[dict[str, Any]]:
+    return [_normalize_condition(item) for item in _condition_items(items, where, name, minimum)]
 
 
 def _normalize_leg(leg: Mapping[str, Any]) -> dict[str, Any]:
     """StrategyPortfolioLegSchema: entry, optional exit and filters, and an options block."""
+    leg = _object(leg, "portfolio leg")
     options = leg.get("options")
     if not isinstance(options, Mapping):
         raise InputError("A portfolio leg needs an options block")
     _strict(leg, _LEG_KEYS, "portfolio leg")
-    leg_entry = leg.get("entry") or {}
+    leg_entry = {} if leg.get("entry") is None else leg["entry"]
     _strict(leg_entry, frozenset({"all"}), "portfolio leg entry")
     normalized: dict[str, Any] = {
-        "entry": {"all": _condition_list(leg_entry.get("all"), "A leg entry", 1)},
+        "entry": {"all": _condition_list(leg_entry.get("all"), "portfolio leg entry.all", "A leg entry", 1)},
         "options": dict(options),
     }
     if leg.get("exit") is not None:
         _strict(leg["exit"], frozenset({"any"}), "portfolio leg exit")
-        normalized["exit"] = {"any": _condition_list(leg["exit"].get("any"), "A leg exit", 0)}
+        if leg["exit"].get("any") is None:  # ts_portfolio reads the raw list; the TS schema requires it
+            raise InputError("portfolio leg exit.any must be a list")
+        normalized["exit"] = {
+            "any": _condition_list(leg["exit"].get("any"), "portfolio leg exit.any", "A leg exit", 0)
+        }
     if leg.get("filters") is not None:
-        filters = list(leg["filters"])
-        if not 1 <= len(filters) <= MAX_FILTERS:
-            raise InputError(f"A leg needs 1 to {MAX_FILTERS} filters")
-        normalized["filters"] = [_normalize_filter(item) for item in filters]
+        normalized["filters"] = _filter_list(leg["filters"], "portfolio leg filters", "A leg", 1)
     return normalized
 
 
@@ -1169,9 +1290,7 @@ _SELECT_KEYS = frozenset({"score", "tieBreak", "top"})
 def _check_keys(block: Any, known: frozenset[str], name: str) -> None:
     """zod .strict() object with optional (not nullable) keys: an object, no unknown keys, no
     null values."""
-    if not isinstance(block, Mapping):
-        raise InputError(f"{name} must be an object")
-    for key, value in block.items():
+    for key, value in _object(block, name).items():
         if key not in known:
             raise InputError(f"Unknown {name} key: {key}")
         if value is None:
@@ -1222,12 +1341,13 @@ def ts_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
     if "legs" in out:
         legs = []
         for leg in out["legs"]:
-            ts_leg = dict(leg)
+            # A null exit or filters of a leg means that the key is absent (normalize_definition).
+            ts_leg = {key: value for key, value in leg.items() if value is not None}
             ts_leg["options"] = dict(leg["options"])
             ts_leg["entry"] = {"all": [_with_condition_defaults(c) for c in leg["entry"]["all"]]}
-            if "exit" in leg:
+            if "exit" in ts_leg:
                 ts_leg["exit"] = {"any": [_with_condition_defaults(c) for c in leg["exit"]["any"]]}
-            if "filters" in leg:
+            if "filters" in ts_leg:
                 ts_leg["filters"] = [_with_filter_defaults(item) for item in leg["filters"]]
             legs.append(ts_leg)
         out["legs"] = legs
@@ -1270,7 +1390,7 @@ def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
     policy = portfolio.get("policy")
     if policy not in PORTFOLIO_POLICIES:
         raise InputError(f"Unknown portfolio policy: {policy}")
-    symbols = list(portfolio.get("symbols") or [])
+    symbols = [] if portfolio.get("symbols") is None else _list(portfolio["symbols"], "portfolio symbols")
     if not 1 <= len(symbols) <= len(OPTION_SYMBOLS):
         raise InputError(f"A portfolio trades 1 to {len(OPTION_SYMBOLS)} symbols")
     for symbol in symbols:
@@ -1291,6 +1411,7 @@ def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
         normalized["frame"] = frame
     legs = portfolio.get("legs")
     if legs is not None:
+        legs = _list(legs, "portfolio legs")
         if not 1 <= len(legs) <= PORTFOLIO_MAX_LEGS:
             raise InputError(f"A portfolio holds 1 to {PORTFOLIO_MAX_LEGS} legs")
         normalized["legs"] = [_normalize_leg(leg) for leg in legs]
@@ -1298,7 +1419,7 @@ def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
     if select is not None:
         _check_keys(select, _SELECT_KEYS, "portfolio select")
         normalized["select"] = {
-            "score": _selection_score(select["score"]),
+            "score": _selection_score(select.get("score")),
             "top": _whole(select.get("top"), "select top", 1, len(OPTION_SYMBOLS)),
         }
         if select.get("tieBreak") is not None:
@@ -1321,8 +1442,6 @@ def _normalize_intraday(intraday: Any) -> dict[str, Any] | None:
     """TS StrategyIntradaySchema; None without a block."""
     if intraday is None:
         return None
-    if not isinstance(intraday, Mapping):
-        raise InputError("intraday must be an object")
     _strict(intraday, _INTRADAY_KEYS, "intraday")
     if intraday.get("timezone") != INTRADAY_TIMEZONE:
         raise InputError(f'intraday timezone must be "{INTRADAY_TIMEZONE}"')
@@ -1459,24 +1578,60 @@ def _check_definition_refinements(
                 raise InputError(INTRADAY_TIMEFRAME_MESSAGE)
 
 
+def _check_labels(definition: Mapping[str, Any]) -> None:
+    """The version, name and description of the TS schema. Python callers and the normalized form
+    may leave out version and name; a value that is given must be valid. zod counts the characters
+    of a text as Python len does (code points), after a JavaScript trim for the name."""
+    version = definition.get("version")
+    if version is not None and (isinstance(version, bool) or version != DSL_VERSION):
+        raise InputError(f"Unknown definition version: {version}")
+    name = definition.get("name")
+    if name is not None and not (
+        isinstance(name, str) and 1 <= len(name.strip(_JS_WHITESPACE)) <= MAX_NAME_LENGTH
+    ):
+        raise InputError(f"name must be a text of 1 to {MAX_NAME_LENGTH} characters")
+    description = definition.get("description")
+    if description is not None and not (
+        isinstance(description, str) and len(description) <= MAX_DESCRIPTION_LENGTH
+    ):
+        raise InputError(f"description must be a text of at most {MAX_DESCRIPTION_LENGTH} characters")
+
+
+def _check_session(session: Mapping[str, Any]) -> None:
+    """The session block of the TS schema: two different HH:MM UTC times and no other key."""
+    _strict(session, frozenset({"startUtc", "endUtc"}), "session")
+    if session.get("startUtc") is None or session.get("endUtc") is None:
+        raise InputError("session needs startUtc and endUtc")
+    for key in ("startUtc", "endUtc"):
+        if not (isinstance(session[key], str) and _UTC_TIME.fullmatch(session[key])):
+            raise InputError(f"session {key}: Expected HH:MM (UTC)")
+    if session["startUtc"] == session["endUtc"]:
+        raise InputError("Session start and end must differ")
+
+
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     """Applies the StrategyDefinitionSchema defaults and rejects unknown names, operators and keys
     (the TS schema objects are strict; filter and options blocks keep their own checks)."""
     _strict(definition, _DEFINITION_KEYS, "definition")
+    _check_labels(definition)
     entry = _block(definition, "entry") or {}
     _strict(entry, frozenset({"all", "any"}), "entry")
-    entry_all = entry.get("all") or []
-    entry_any = entry.get("any") or []
+    entry_all = _condition_items(entry.get("all"), "entry.all", "entry.all", 0)
+    entry_any = _condition_items(entry.get("any"), "entry.any", "entry.any", 0)
     if len(entry_all) + len(entry_any) == 0:
         raise InputError("Entry needs at least one condition in entry.all or entry.any")
     exit_ = _block(definition, "exit") or {}
     _strict(exit_, frozenset({"any"}), "exit")
-    exit_any = exit_.get("any") or []
-    sizing = _block(definition, "sizing") or {"mode": "allIn"}
+    exit_any = _condition_items(exit_.get("any"), "exit.any", "exit.any", 0)
+    sizing = _block(definition, "sizing")
+    if sizing is None:
+        sizing = {"mode": "allIn"}
+    if sizing.get("mode") is None:
+        raise InputError("sizing needs mode")
     if sizing.get("mode") == "riskPct":
         _strict(sizing, frozenset({"mode", "riskPct", "maxLeverage"}), "sizing")
         max_leverage = sizing.get("maxLeverage")
-        sizing = {"mode": "riskPct", "riskPct": float(sizing["riskPct"])}
+        sizing = {"mode": "riskPct", "riskPct": _positive(sizing.get("riskPct"), "riskPct", 100)}
         if max_leverage is not None:
             if not (is_finite_number(max_leverage) and 1 <= max_leverage <= MAX_LEVERAGE):
                 raise InputError(f"maxLeverage must be from 1 to {MAX_LEVERAGE}")
@@ -1490,17 +1645,17 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
         sizing = {"mode": "allIn"}
     else:
         raise InputError(f"Unknown sizing mode: {sizing.get('mode')}")
-    filters = [_normalize_filter(item) for item in definition.get("filters") or []]
-    stop_loss = _normalize_level(_block(definition, "stopLoss"))
-    take_profit = _normalize_level(_block(definition, "takeProfit"))
-    options = definition.get("options")
-    if options is not None and not isinstance(options, Mapping):
-        raise InputError("options must be an object")
+    # `filters: []` is the normalized form of a definition without filters (the TS schema needs one).
+    raw_filters = definition.get("filters")
+    filters = [] if raw_filters is None else _filter_list(raw_filters, "filters", "A definition", 0)
+    stop_loss = _normalize_level(_block(definition, "stopLoss"), "stopLoss")
+    take_profit = _normalize_level(_block(definition, "takeProfit"), "takeProfit")
+    options = _block(definition, "options")
     portfolio = definition.get("portfolio")
     normalized_portfolio = None if portfolio is None else _normalize_portfolio(portfolio)
     session = _block(definition, "session")
-    if session is not None and (session.get("startUtc") is None or session.get("endUtc") is None):
-        raise InputError("session needs startUtc and endUtc")
+    if session is not None:
+        _check_session(session)
     management = _normalize_management(_block(definition, "management"))
     entry_conditions = [_normalize_condition(c) for c in entry_all]
     entry_any_conditions = [_normalize_condition(c) for c in entry_any]
@@ -2965,7 +3120,7 @@ def plan_run(
     cost_bps = spec.get("costBps", 0)
     costs = spec.get("costs")
     if rule.get("kind") == "dsl":
-        definition = normalize_definition(rule["definition"])
+        definition = normalize_definition(rule.get("definition"))
         # The server equity engine (TS runStrategyDefinition): options are refused whatever
         # `support` says; series only load with series support.
         context = spec.get("context")
