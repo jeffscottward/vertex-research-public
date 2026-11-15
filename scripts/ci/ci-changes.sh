@@ -69,15 +69,18 @@ touches_init() {
 
 # Succeeds when a changed path on stdin is a debate file: a research-chat file (the debate
 # stores, runtimes, contracts and tests), the Python adapters that the test runs as its
-# native consumer (services/research/adapters, with their interpreter script and lock), a
+# native consumer (services/research adapters, agents and providers, the control client,
+# their interpreter script and lock), a
 # shared module that the five-turn test spends most of its time in (authorization,
 # persistence core, policy store, transaction read cache, predecessor walk, the canonical
 # encoder), another module that the test file imports (worker contract, Python test
 # support, timeout scale), or a file that defines or plans the shard (this script, the
 # shard list, the coverage lane, the Vitest config, the workflow). The first group is
 # not anchored on purpose: each research-chat file counts, in any package.
+# The rule is a chosen subset, not the import closure of the test: other transitive
+# imports and package.json are left to the nightly run and the pre-push hook.
 touches_debate() {
-  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale)\.ts$|^services/research/(adapters/|agents/types\.py$|requirements-sdk-linux-py312\.lock$)|^scripts/ci/(ci-changes|test-python)\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
+  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale)\.ts$|^services/research/((adapters|agents|providers)/|requirements-sdk-linux-py312\.lock$)|^services/control-client/vertex_control/|^scripts/coverage-lane\.ts$|^scripts/ci/(ci-changes|test-python)\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
 }
 
 changed_paths() {
