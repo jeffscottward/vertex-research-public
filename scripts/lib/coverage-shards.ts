@@ -24,8 +24,8 @@ export const NATIVE_EVIDENCE_SHARDS = {
 // a manual run (the exact-SHA run before a deploy) and a pull request or push
 // that changes a debate file run it (scripts/ci/ci-changes.sh). Pre-push still
 // runs it through the packages/api test:unit script.
-export const DEBATE_FIVE_TURN_SHARD = "debate-five-turn";
-export const DEBATE_FIVE_TURN_SHARDS = {
+const DEBATE_FIVE_TURN_SHARD = "debate-five-turn";
+const DEBATE_FIVE_TURN_SHARDS = {
   [DEBATE_FIVE_TURN_SHARD]: [
     "packages/api/src/server/vertex-research-chat-debate-five-turn.test.ts",
   ],
