@@ -103,7 +103,7 @@ describe("vertex-leveraged-etf-spreads units", () => {
       "-%h/.config/vertex/leveraged-etf-spreads.env",
     ]);
     expect(values(service, "NoNewPrivileges")).toEqual(["yes"]);
-    expect(values(service, "TimeoutStartSec")).toEqual(["900"]);
+    expect(values(service, "TimeoutStartSec")).toEqual(["3000"]);
   });
 
   it("the service header names the install and rollback commands", () => {

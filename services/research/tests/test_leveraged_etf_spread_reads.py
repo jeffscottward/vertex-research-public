@@ -110,14 +110,38 @@ def universe_file(tmp_path: Path, symbols=FUNDS, generated_at: str = "2026-11-12
     return path
 
 
-def run(tmp_path: Path, cboe: Cboe | None = None, yahoo: Yahoo | None = None, now: datetime = NOW, **options):
-    """One run with the fakes. Returns (exit code, log lines, the waits, the Cboe fake, the Yahoo fake)."""
+class Clock:
+    """A clock that only a wait or a slow fake moves forward."""
+
+    def __init__(self, start: datetime = NOW) -> None:
+        self.time = start
+
+    def now(self) -> datetime:
+        return self.time
+
+    def sleep(self, seconds: float) -> None:
+        self.time += timedelta(seconds=seconds)
+
+
+def run(tmp_path: Path, cboe: Cboe | None = None, yahoo: Yahoo | None = None, now: datetime = NOW,
+        clock: Clock | None = None, **options):
+    """One run with the fakes. Returns (exit code, log lines, the waits, the Cboe fake, the Yahoo fake).
+    Without `clock` the time stands still at `now`."""
     cboe, yahoo = cboe or Cboe(CBOE), yahoo or Yahoo()
     log, waits = [], []
     universe_path = options.pop("universe_path", None) or universe_file(tmp_path)
-    code = reads.collect(cboe, yahoo, lambda: now, waits.append, tmp_path / "store", universe_path,
-                         log=log.append, **options)
+    code = reads.collect(cboe, yahoo, clock.now if clock else lambda: now, clock.sleep if clock else waits.append,
+                         tmp_path / "store", universe_path, log=log.append, **options)
     return code, log, waits, cboe, yahoo
+
+
+LATER = NOW + timedelta(hours=2)  # the second run of the day, folder 174501Z
+
+
+def run_later(tmp_path: Path, now: datetime = LATER, **options):
+    """A later run of the day; the SPY chain of Yahoo has a trade 5 minutes before it."""
+    yahoo = Yahoo({"SPY": yahoo_chain(traded=now - timedelta(minutes=5)), **options.pop("yahoo_special", {})})
+    return run(tmp_path, yahoo=yahoo, now=now, **options)
 
 
 def record_of(tmp_path: Path, day: str = DAY, run_name: str = RUN) -> dict:
@@ -139,10 +163,12 @@ def test_a_run_reads_every_fund_from_cboe_and_the_candidates_from_yahoo(tmp_path
     assert gzip.decompress((tmp_path / "store" / DAY / RUN / "cboe" / "AAA.json.gz").read_bytes()) == cboe_body("AAA")
     assert waits == [1.0] * 6 + [1.0]  # one wait per Cboe request of a fund, one between the 2 Yahoo funds
     assert {key: record[key] for key in ("schema", "runId", "sessionDay", "sessionExpiry", "startedAt", "finishedAt",
-                                         "outsideSession", "candidates", "complete", "incompleteReasons")} == {
+                                         "outsideSession", "cboeScope", "candidatesFrom", "candidates", "complete",
+                                         "incompleteReasons")} == {
         "schema": "leveraged-etf-spread-run-v1", "runId": "2026-11-16/154501Z", "sessionDay": DAY,
         "sessionExpiry": EXPIRY, "startedAt": "2026-11-16T15:45:01Z", "finishedAt": "2026-11-16T15:45:01Z",
-        "outsideSession": False, "candidates": ["AAA", "BBB"], "complete": True, "incompleteReasons": []}
+        "outsideSession": False, "cboeScope": "all", "candidatesFrom": None, "candidates": ["AAA", "BBB"],
+        "complete": True, "incompleteReasons": []}
     assert record["universe"] == {"path": str(tmp_path / "universe.json"), "generatedAt": "2026-11-12T15:25:22Z",
                                   "ageDays": 4, "funds": 7, "fundsWithOptions": 6}
     assert record["probe"] == {"symbol": "SPY", "state": "live", "latestOptionTradeAt": "2026-11-16T15:40:01Z"}
@@ -178,14 +204,168 @@ def test_the_stored_yahoo_file(tmp_path):
     assert (whole["fundPrice"], whole["fundPriceTime"], len(whole["rows"])) == (50.0, "2026-11-16T15:44:01Z", 6)
 
 
-def test_a_second_run_of_the_day_requests_every_fund_again(tmp_path):
+def test_a_second_run_of_the_day_reads_the_candidates_of_the_first_run(tmp_path):
     run(tmp_path)
-    later = NOW + timedelta(hours=2)
-    live = Yahoo({"SPY": yahoo_chain(traded=later - timedelta(minutes=5))})
-    code, _, _, cboe, yahoo = run(tmp_path, yahoo=live, now=later)
-    assert code == 0 and len(cboe.symbols) == 7 and yahoo.symbols == ["SPY", "AAA", "BBB"]
+    code, log, _, cboe, yahoo = run_later(tmp_path)
+    record = record_of(tmp_path, run_name="174501Z")
+    assert code == 0 and cboe.symbols[0] == "SPY" and sorted(cboe.symbols) == ["AAA", "BBB", "SPY"]
+    assert yahoo.symbols == ["SPY", "AAA", "BBB"]
     assert sorted(path.name for path in (tmp_path / "store" / DAY).iterdir()) == ["154501Z", "174501Z"]
-    assert record_of(tmp_path, run_name="174501Z")["candidates"] == ["AAA", "BBB"]
+    assert (record["cboeScope"], record["candidatesFrom"]) == ("candidates", "2026-11-16/154501Z")
+    assert sorted(record["funds"]) == ["AAA", "BBB"] and record["candidates"] == ["AAA", "BBB"]
+    assert record["universe"]["fundsWithOptions"] == 6 and record["complete"] is True
+    assert record["counts"]["cboeOk"] == 2 and record["counts"]["cboeNoFile"] == 0
+    assert "2 candidates of 2 funds" in log[-1]
+
+
+def test_a_third_run_takes_the_candidates_of_the_run_that_read_every_fund(tmp_path):
+    run(tmp_path)
+    run_later(tmp_path, cboe=Cboe({"BBB": cboe_body("BBB", open_interest=100)}))  # BBB is no candidate there
+    code, _, _, cboe, _ = run_later(tmp_path, now=NOW + timedelta(hours=4))
+    second, third = record_of(tmp_path, run_name="174501Z"), record_of(tmp_path, run_name="194501Z")
+    assert second["candidates"] == ["AAA"] and sorted(second["funds"]) == ["AAA", "BBB"]  # by its own fresh chain
+    assert (second["funds"]["BBB"]["candidate"], second["funds"]["BBB"]["cboe"]["bandOpenInterest"]) == (False, 800)
+    assert (third["cboeScope"], third["candidatesFrom"]) == ("candidates", "2026-11-16/154501Z")
+    assert code == 0 and sorted(cboe.symbols) == ["AAA", "BBB", "SPY"] and third["candidates"] == ["AAA", "BBB"]
+
+
+def change_record(**changes):
+    def change(folder: Path) -> None:
+        record = json.loads((folder / "run.json").read_text())
+        (folder / "run.json").write_text(json.dumps({**record, **changes}))
+    return change
+
+
+def remove_key(key: str):
+    def change(folder: Path) -> None:
+        record = json.loads((folder / "run.json").read_text())
+        del record[key]
+        (folder / "run.json").write_text(json.dumps(record))
+    return change
+
+
+@pytest.mark.parametrize("change", [
+    change_record(outsideSession=True), change_record(finishedAt=None), change_record(schema="another"),
+    change_record(cboeScope="candidates"), remove_key("cboeScope"), remove_key("counts"), change_record(funds={}),
+    change_record(counts={"cboeFailed": 2}),  # 2 of 6: more than 20%
+    lambda folder: (folder / "run.json").write_text("{"), lambda folder: (folder / "run.json").unlink(),
+])
+def test_an_earlier_run_that_cannot_serve_leaves_the_scope_at_all(tmp_path, change):
+    run(tmp_path)
+    change(tmp_path / "store" / DAY / RUN)
+    code, _, _, cboe, _ = run_later(tmp_path)
+    record = record_of(tmp_path, run_name="174501Z")
+    assert code == 0 and len(cboe.symbols) == 7 and sorted(record["funds"]) == sorted(FUNDS)
+    assert (record["cboeScope"], record["candidatesFrom"]) == ("all", None)
+
+
+def test_a_run_with_one_failed_cboe_read_of_6_serves_and_a_run_of_another_day_does_not(tmp_path):
+    run(tmp_path, cboe=Cboe({**CBOE, "CCC": OSError("connection reset")}))
+    assert record_of(tmp_path)["counts"]["cboeFailed"] == 1  # at most 20%
+    run_later(tmp_path)
+    assert record_of(tmp_path, run_name="174501Z")["candidatesFrom"] == "2026-11-16/154501Z"
+    code, _, _, cboe, _ = run_later(tmp_path, now=NOW + timedelta(days=1))
+    record = record_of(tmp_path, "2026-11-17", RUN)
+    assert code == 0 and len(cboe.symbols) == 7 and (record["cboeScope"], record["candidatesFrom"]) == ("all", None)
+
+
+def test_a_candidate_that_left_the_universe_file_is_not_read(tmp_path):
+    run(tmp_path)
+    funds = [{"symbol": symbol, "optionsListed": symbol != "BBB"} for symbol in FUNDS]
+    path = tmp_path / "universe.json"
+    path.write_text(json.dumps({"generatedAt": "2026-11-12T15:25:22Z", "funds": funds}))
+    code, _, _, cboe, yahoo = run_later(tmp_path, universe_path=path)
+    record = record_of(tmp_path, run_name="174501Z")
+    assert code == 0 and sorted(cboe.symbols) == ["AAA", "SPY"] and yahoo.symbols == ["SPY", "AAA"]
+    assert sorted(record["funds"]) == ["AAA"] and record["cboeScope"] == "candidates"
+
+
+def test_the_20_percent_rule_uses_the_fund_list_of_the_run(tmp_path):
+    run(tmp_path)
+    code, *_ = run_later(tmp_path, cboe=Cboe({"BBB": OSError("connection reset")}))  # 1 of 2
+    record = record_of(tmp_path, run_name="174501Z")
+    assert code == 0 and record["counts"]["cboeFailed"] == 1
+    assert record["complete"] is False and record["incompleteReasons"] == ["cboe-failed-above-20-percent"]
+
+
+def test_an_outside_session_run_has_the_same_scope_rule_and_never_serves(tmp_path):
+    saturday = datetime(2026, 11, 14, 15, 0, tzinfo=UTC)
+    run(tmp_path, now=saturday, outside_session=True)
+    code, _, _, cboe, _ = run(tmp_path, now=saturday + timedelta(hours=1), outside_session=True)
+    record = record_of(tmp_path, "2026-11-14", "160000Z")
+    assert code == 0 and len(cboe.symbols) == 7 and (record["cboeScope"], record["candidatesFrom"]) == ("all", None)
+    run(tmp_path)  # Monday, in the session
+    code, _, _, cboe, _ = run(tmp_path, now=LATER, outside_session=True)
+    record = record_of(tmp_path, run_name="174501Z")
+    assert code == 0 and len(cboe.symbols) == 3
+    assert (record["outsideSession"], record["cboeScope"], record["candidatesFrom"]) == (
+        True, "candidates", "2026-11-16/154501Z")
+
+
+class Slow:
+    """A fake that takes `seconds` of the clock per request."""
+
+    def __init__(self, fake, clock: Clock, seconds: float) -> None:
+        self.fake, self.clock, self.seconds = fake, clock, seconds
+
+    def __call__(self, argument):
+        self.clock.sleep(self.seconds)
+        return self.fake(argument)
+
+
+def test_a_cboe_phase_that_passes_its_budget_fails_the_funds_that_are_left(tmp_path):
+    assert (reads.CBOE_BUDGET_SECONDS, reads.RUN_BUDGET_SECONDS) == (2100, 2400)
+    clock, cboe = Clock(), Cboe()  # every fund is a candidate
+    # SPY ends at 700 s. AAA: wait to 701, read to 1401. BBB: 1402 to 2102. CCC and later: past 2100 s.
+    code, log, _, _, yahoo = run(tmp_path, cboe=Slow(cboe, clock, 700), clock=clock, workers=1)
+    record = record_of(tmp_path)
+    assert code == 0 and cboe.symbols == ["SPY", "AAA", "BBB"]
+    assert {symbol: (record["funds"][symbol]["cboe"]["status"], record["funds"][symbol]["cboe"]["error"],
+                     record["funds"][symbol]["cboe"]["fetchedAt"]) for symbol in ("CCC", "DDD", "EEE", "FFF")} == {
+        symbol: ("failed", "time-budget", None) for symbol in ("CCC", "DDD", "EEE", "FFF")}
+    assert record["counts"]["cboeFailed"] == 4 and record["candidates"] == ["AAA", "BBB"]
+    assert yahoo.symbols == ["SPY", "AAA", "BBB"] and record["counts"]["yahooOk"] == 2  # the Yahoo phase goes on
+    assert record["complete"] is False
+    assert record["incompleteReasons"] == ["cboe-time-budget", "cboe-failed-above-20-percent"]
+    assert record["finishedAt"] == "2026-11-16T16:20:04Z" and "not complete: cboe-time-budget" in log[-1]
+
+
+def test_a_request_that_waited_past_the_cboe_budget_is_not_sent(tmp_path):
+    clock, cboe = Clock(), Cboe()
+    run(tmp_path, cboe=cboe, clock=clock, workers=1, cboe_delay=1000)  # AAA at 1000 s, BBB at 2000 s, CCC at 3000 s
+    record = record_of(tmp_path)
+    assert cboe.symbols == ["SPY", "AAA", "BBB"] and record["funds"]["CCC"]["cboe"]["error"] == "time-budget"
+    assert clock.time == NOW + timedelta(seconds=3000)  # DDD, EEE and FFF did not wait
+    assert record["incompleteReasons"] == ["cboe-time-budget", "cboe-failed-above-20-percent", "yahoo-time-budget"]
+    assert {fund["yahoo"]["status"] for fund in record["funds"].values()} == {"not-requested"}
+
+
+def test_a_yahoo_phase_with_failing_candidates_that_passes_the_run_budget_ends_the_run(tmp_path):
+    clock = Clock()
+    yahoo = Yahoo({symbol: [RuntimeError("timeout")] * 3 for symbol in FUNDS})
+    # A Yahoo request takes 300 s. SPY: 300 s. Cboe: 6 s. AAA and BBB: 3 attempts each, to 2137 s.
+    # CCC: one attempt to 2438 s; its second attempt would start after 2400 s.
+    code, log, _, _, _ = run(tmp_path, cboe=Cboe(), yahoo=Slow(yahoo, clock, 300), clock=clock, workers=1)
+    record = record_of(tmp_path)
+    assert code == 0 and yahoo.symbols == ["SPY"] + ["AAA"] * 3 + ["BBB"] * 3 + ["CCC"]
+    assert {symbol: record["funds"][symbol]["yahoo"]["status"] for symbol in FUNDS} == {
+        "AAA": "failed", "BBB": "failed", "CCC": "failed", "DDD": "not-requested", "EEE": "not-requested",
+        "FFF": "not-requested"}
+    assert record["funds"]["CCC"]["yahoo"]["error"] == "RuntimeError: timeout"
+    assert record["finishedAt"] == "2026-11-16T16:25:44Z" and record["complete"] is False
+    assert record["incompleteReasons"] == ["yahoo-time-budget", "yahoo-failed-above-20-percent"]
+    assert record["counts"]["yahooFailed"] == 3 and record["counts"]["yahooNotRequested"] == 3
+    assert "not complete: yahoo-time-budget" in log[-1]
+
+
+def test_no_new_fund_is_requested_from_yahoo_after_the_run_budget(tmp_path):
+    clock = Clock()
+    # A Yahoo request takes 900 s: SPY to 900 s, AAA to 1806 s, BBB to 2707 s. CCC is not requested.
+    code, _, _, _, yahoo = run(tmp_path, cboe=Cboe(), yahoo=Slow(Yahoo(), clock, 900), clock=clock, workers=1)
+    record = record_of(tmp_path)
+    assert code == 0 and yahoo.fake.symbols == ["SPY", "AAA", "BBB"] and record["counts"]["yahooOk"] == 2
+    assert record["counts"]["yahooNotRequested"] == 4 and record["incompleteReasons"] == ["yahoo-time-budget"]
+    assert stored(tmp_path, "yahoo") == ["AAA.json", "BBB.json"]
 
 
 def test_one_failed_cboe_read_of_6_keeps_the_run_complete(tmp_path):
@@ -369,7 +549,8 @@ def test_a_clock_outside_the_session_writes_nothing(tmp_path, now, words):
 def test_a_spy_chain_without_a_trade_in_45_minutes_writes_nothing(tmp_path, traded):
     code, log, _, cboe, yahoo = run(tmp_path, yahoo=Yahoo({"SPY": yahoo_chain(traded=traded)}))
     assert code == 0 and "the market is closed" in log[-1]
-    assert not (tmp_path / "store").exists() and cboe.symbols == [] and yahoo.symbols == ["SPY"]
+    # The run made the store folder before its first request (see the store test) and wrote nothing into it.
+    assert list((tmp_path / "store").iterdir()) == [] and cboe.symbols == [] and yahoo.symbols == ["SPY"]
 
 
 def test_an_unreadable_spy_chain_of_yahoo_gives_a_cboe_only_run(tmp_path):
@@ -450,6 +631,21 @@ def test_a_store_that_cannot_be_written_is_a_fault(tmp_path):
     with pytest.raises(OSError):
         reads.main(arguments, fetch_cboe=cboe, ticker_for=yahoo)
     assert cboe.symbols == [] and yahoo.symbols == []  # before any request
+    with pytest.raises(OSError):  # in the session: before the market check
+        run(tmp_path, cboe=cboe, yahoo=yahoo)
+    assert cboe.symbols == [] and yahoo.symbols == []
+
+
+def test_an_error_that_the_code_did_not_expect_leaves_main(tmp_path, monkeypatch):
+    """No handling: the error ends the process with a traceback and exit 1."""
+    def broken(*arguments, **options):
+        raise RuntimeError("not expected")
+
+    monkeypatch.setattr(reads, "delete_old_days", broken)
+    monkeypatch.setattr(reads.clock, "sleep", lambda seconds: None)
+    arguments = ["--store", str(tmp_path / "store"), "--universe", str(universe_file(tmp_path)), "--outside-session"]
+    with pytest.raises(RuntimeError, match="not expected"):
+        reads.main(arguments, fetch_cboe=Cboe(CBOE), ticker_for=Yahoo())
 
 
 def test_main_with_fakes_makes_one_run(tmp_path, monkeypatch, capsys):

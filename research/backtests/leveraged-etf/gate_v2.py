@@ -101,6 +101,8 @@ def run_folders(store: Path, first: date, last: date) -> list[tuple[date, Path]]
 def read_run(folder: Path, day: date, record: dict) -> Run:
     """The facts and the observations of one run. The session expiry is the one of the rule for the day of the
     run, so a changed expiry rule measures the stored chains again. Raises one of UNREADABLE."""
+    if record["cboeScope"] not in ("all", "candidates"):  # the fund list of the run: every fund, or candidates
+        raise ValueError(f"run.json has the Cboe scope {record['cboeScope']!r}")
     run = Run(run_id=f"{folder.parent.name}/{folder.name}", day=day)
     expiry = spread_gate.session_expiry(day)
     for symbol, fund in record["funds"].items():
@@ -213,6 +215,8 @@ def in_cheap_band(label: str, reasons: list[str], judged: list[spread_gate.Sessi
 
 
 def fund_entry(fund: dict, runs: list[Run], build_day: date) -> dict:
+    """One fund of the result. Its facts are of the newest run that has a Cboe fact of the fund: a run that
+    read only the candidates of an earlier run does not hide the fact of a fund that it did not read."""
     symbol = fund["symbol"]
     newest = next((run for run in reversed(runs) if symbol in run.facts), None) if fund["listed"] else None
     facts = newest.facts[symbol] if newest else None

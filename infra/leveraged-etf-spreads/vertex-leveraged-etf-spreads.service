@@ -23,5 +23,5 @@ After=network-online.target
 Type=oneshot
 EnvironmentFile=-%h/.config/vertex/leveraged-etf-spreads.env
 ExecStart=%h/.local/bin/vertex-leveraged-etf-spreads-run
-TimeoutStartSec=900
+TimeoutStartSec=3000
 NoNewPrivileges=yes

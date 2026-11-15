@@ -81,7 +81,8 @@ def write_run(store: Path, day: str, name: str, index: int, **changes) -> Path:
             "fundPriceTime": text(stamp(day, name, 1)), "rows": rows}))
     record = {"schema": "leveraged-etf-spread-run-v1", "runId": f"{day}/{name}", "sessionDay": day,
               "sessionExpiry": EXPIRY, "startedAt": text(started), "finishedAt": text(stamp(day, name, 4)),
-              "outsideSession": False, "candidates": sorted(symbol for symbol in funds if funds[symbol]["candidate"]),
+              "outsideSession": False, "cboeScope": "all", "candidatesFrom": None,
+              "candidates": sorted(symbol for symbol in funds if funds[symbol]["candidate"]),
               "funds": funds, "complete": True, "incompleteReasons": [], **changes}
     (folder / "run.json").write_text(json.dumps(record))
     return folder
@@ -225,6 +226,35 @@ def test_a_folder_in_the_short_form_of_a_day_is_no_day_folder(store, universe_pa
     (store / "20261117" / "190000Z").mkdir(parents=True)
     document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
     assert [run["runId"] for run in document["runs"]] == [f"{day}/{name}" for day, name in RUNS]
+
+
+def test_the_facts_of_a_fund_that_a_candidates_run_did_not_read_come_from_the_run_that_read_every_fund(
+        store, universe_path):
+    before = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
+    for day, name, first in ((MONDAY, "174501Z", "154501Z"), (TUESDAY, "174501Z", "154501Z")):
+        record = json.loads((store / day / name / "run.json").read_text())
+        del record["funds"]["DDD"]  # no candidate: the second run of a day does not read it
+        record.update(cboeScope="candidates", candidatesFrom=f"{day}/{first}")
+        (store / day / name / "run.json").write_text(json.dumps(record))
+    document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
+    assert all(run["used"] for run in document["runs"]) and len(document["runs"]) == 4
+    assert labels(document) == labels(before) and document["counts"] == before["counts"]
+    assert labels(document)["DDD"] == ("fail", ["open-interest-below-minimum"], False)
+    assert fund(document, "DDD")["facts"] == {
+        "chainFileTimestamp": "2026-11-17T15:40:01Z", "chainFetchedAt": "2026-11-17T15:45:01Z",
+        "sessionExpiry": EXPIRY, "hasExpiry": True, "bandOpenInterest": 800, "spot": 50.0}
+    assert fund(document, "AAA")["facts"]["chainFetchedAt"] == "2026-11-17T17:45:01Z"  # of the newest run
+
+
+def test_a_run_without_a_known_scope_of_the_cboe_phase_is_unreadable(store, universe_path):
+    for name, change in (("154501Z", lambda record: record.pop("cboeScope")),
+                         ("174501Z", lambda record: record.update(cboeScope="some"))):
+        record = json.loads((store / TUESDAY / name / "run.json").read_text())
+        change(record)
+        (store / TUESDAY / name / "run.json").write_text(json.dumps(record))
+    document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
+    assert [(run["used"], run["skipReason"]) for run in document["runs"]] == [
+        (True, None), (True, None), (False, "unreadable"), (False, "unreadable")]
 
 
 def test_an_incomplete_run_is_used(store, universe_path):
