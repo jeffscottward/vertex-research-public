@@ -15,6 +15,7 @@ import {
   databaseErrorDetails,
   InvalidRepositoryInputError,
 } from "./repository-errors.ts";
+import { rowWasInserted } from "./upsert-outcome.ts";
 
 export type ResearchStudyRecord = Readonly<{
   createdAt: Date;
@@ -107,19 +108,13 @@ const write = async (
       target: researchStudies.id,
     })
     .returning({
-      createdAt: researchStudies.createdAt,
       id: researchStudies.id,
+      inserted: rowWasInserted,
       updatedAt: researchStudies.updatedAt,
     });
   if (row === undefined)
     throw new DatabasePersistenceError("research study write");
-  return {
-    // Insert sets both timestamps to the same now(); an update moves only updated_at. now() is the
-    // transaction start, so this also holds inside upsertMany, which refuses repeated ids.
-    created: row.createdAt.getTime() === row.updatedAt.getTime(),
-    id: row.id,
-    updatedAt: row.updatedAt,
-  };
+  return { created: row.inserted, id: row.id, updatedAt: row.updatedAt };
 };
 
 export const createResearchStudyRepository = (
@@ -164,8 +159,8 @@ export const createResearchStudyRepository = (
     },
     upsertMany: async (inputs) => {
       if (inputs.length === 0) return [];
-      // A repeated id would be inserted then updated at the same now(), so `created` would be wrong
-      // for both rows; refuse it before opening a transaction.
+      // A repeated id would write one study twice in one batch, and the second document would replace
+      // the first without notice; refuse it before opening a transaction.
       const ids = new Set<string>();
       for (const { id } of inputs) {
         if (ids.has(id))
