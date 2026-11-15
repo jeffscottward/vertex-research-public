@@ -15,6 +15,7 @@ import {
   extreme,
   fixnan,
   macd,
+  mfi,
   pivot,
   rma,
   roc,
@@ -23,6 +24,7 @@ import {
   stdev,
   stoch,
   sum,
+  supertrend,
   valuewhen,
   vwma,
   wma,
@@ -449,6 +451,7 @@ const LENGTH_PARAMS: ReadonlySet<string> = new Set([
   "siglen",
   "leftbars",
   "rightbars",
+  "atrPeriod",
 ]);
 
 const stateful = (
@@ -969,6 +972,9 @@ const functions: Record<string, BuiltinFunction> = {
       lengthArg(a[3], e, "siglen")
     )
   ),
+  "ta.mfi": stateful(["source", "length"], (a, e) =>
+    mfi(e.site(), e.bar, src(a, e), barAt(e).volume, lengthArg(a[1], e))
+  ),
   "ta.mom": stateful(["source", "length"], (a, e) =>
     change(e.site(), e.bar, src(a, e), lengthArg(a[1], e))
   ),
@@ -1015,6 +1021,21 @@ const functions: Record<string, BuiltinFunction> = {
       lengthArg(a[3], e)
     )
   ),
+  // Pine's sign: direction -1 while the trend is up, +1 while it is down.
+  "ta.supertrend": stateful(["factor", "atrPeriod"], (a, e) => {
+    const factor = numberArg(a[0], e, "factor");
+    if (factor === null || !Number.isFinite(factor) || factor <= 0) {
+      return fail(`${e.name}: 'factor' must be a positive number`, e.at);
+    }
+    const length = lengthArg(a[1], e, "atrPeriod");
+    const { close, high, low } = barAt(e);
+    return supertrend(e.site(), e.bar, factor, length, {
+      close,
+      high,
+      low,
+      tr: trueRange(e.host.bars, e.bar, true),
+    });
+  }),
   "ta.tr": pure(
     ["handle_na"],
     (a, e) => trueRange(e.host.bars, e.bar, boolArg(a[0], e, false)),

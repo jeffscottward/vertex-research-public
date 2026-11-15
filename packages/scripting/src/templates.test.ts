@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { SMALL_BARS, waveBars } from "./fixtures.ts";
@@ -14,9 +15,11 @@ const LAST = bars.length - 1;
 const closes = bars.map((b) => b.close);
 
 const PLOT_TITLES: Readonly<Record<string, readonly string[]>> = {
+  alphatrend: ["AlphaTrend", "AlphaTrend[2]"],
   "atr-trailing-stop": ["Long stop", "Short stop"],
   "bollinger-bands": ["Basis", "Upper", "Lower"],
   cci: ["CCI", "Upper", "Lower"],
+  "chandelier-exit": ["Long stop", "Short stop"],
   "donchian-channel": ["Upper", "Basis", "Lower"],
   "ema-ribbon": ["EMA 1", "EMA 2", "EMA 3", "EMA 4", "EMA 5"],
   "keltner-channel": ["Basis", "Upper", "Lower"],
@@ -24,10 +27,14 @@ const PLOT_TITLES: Readonly<Record<string, readonly string[]>> = {
   obv: ["OBV", "Signal"],
   "pivot-levels": ["Buy-side liquidity", "Sell-side liquidity"],
   rsi: ["RSI", "Overbought", "Middle", "Oversold"],
+  slingshot: ["EMA 38", "EMA 62"],
   "sma-cross": ["Fast SMA", "Slow SMA"],
   stochastic: ["%K", "%D", "Upper", "Lower"],
   "strategy-ma-cross": ["Fast", "Slow"],
   "strategy-rsi-mean-reversion": ["RSI", "Overbought", "Oversold"],
+  supertrend: ["Up", "Down"],
+  "trend-trio": [],
+  "ultimate-ma": ["Ultimate MA"],
   "vwma-vs-sma": ["VWMA", "SMA"],
 };
 
@@ -313,5 +320,161 @@ describe("template values match independent formulas", () => {
       expect(rsi[i] ?? 0).toBeGreaterThan(30);
       expect(rsi[i - 1] ?? 100).toBeLessThanOrEqual(30);
     }
+  });
+});
+
+// Reference values shared with services/research/indicators/trend.py and
+// @darkfactory/shared/indicators (null = na).
+type TrendReference = Readonly<{
+  bars: Readonly<
+    Record<"open" | "high" | "low" | "close" | "volume", number[]>
+  >;
+  expected: Readonly<Record<string, readonly (number | null)[]>>;
+}>;
+const trend = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../services/research/tests/fixtures/trend-indicator-reference.json",
+      import.meta.url
+    ),
+    "utf8"
+  )
+) as TrendReference;
+const trendBars = trend.bars.close.map((close, index) => ({
+  close,
+  high: trend.bars.high[index] ?? Number.NaN,
+  low: trend.bars.low[index] ?? Number.NaN,
+  open: trend.bars.open[index] ?? Number.NaN,
+  timestamp: Date.UTC(2026, 0, 5) + index * 300_000,
+  volume: trend.bars.volume[index] ?? Number.NaN,
+}));
+const want = (key: string): readonly (number | null)[] => {
+  const values = trend.expected[key];
+  if (!values) throw new Error(`missing fixture key ${key}`);
+  return values;
+};
+// The expected value where `keep` holds for the bar, else na.
+const masked = (
+  key: string,
+  keep: (index: number) => boolean = () => true
+): (number | null)[] => want(key).map((v, i) => (keep(i) ? v : null));
+const directionIs = (key: string, side: number) => (index: number) =>
+  want(key)[index] === side;
+const trendRun = (
+  id: string,
+  inputs: Record<string, number | boolean> = {}
+) => {
+  const result = runScript(scriptTemplate(id)?.source ?? "", trendBars, {
+    inputs,
+  });
+  if (!result.ok) throw new Error(`${id}: ${JSON.stringify(result.errors)}`);
+  return result;
+};
+const near = (
+  actual: readonly (number | null)[] | undefined,
+  expected: readonly (number | null)[]
+) => {
+  expect(actual).toHaveLength(expected.length);
+  for (const [index, value] of expected.entries()) {
+    const got = actual?.[index];
+    if (value === null) expect(got, `bar ${index}`).toBeNull();
+    else
+      expect(
+        Math.abs((got ?? Number.NaN) - value),
+        `bar ${index}`
+      ).toBeLessThanOrEqual(1e-9);
+  }
+};
+
+describe("trend templates match the trend reference fixture", () => {
+  it("supertrend: Up and Down follow the fixture direction", () => {
+    const [up, down] = trendRun("supertrend").plots.map((p) => p.values);
+    const key = "supertrend_10_3";
+    near(up, masked(`${key}.line`, directionIs(`${key}.direction`, 1)));
+    near(down, masked(`${key}.line`, directionIs(`${key}.direction`, -1)));
+  });
+
+  it.each([
+    [1, "sma"],
+    [2, "ema"],
+    [3, "wma"],
+    [4, "hull"],
+    [5, "vwma"],
+    [6, "rma"],
+    [7, "tema"],
+    [8, "t3"],
+  ] as const)("ultimate-ma type %i (%s)", (maType, name) => {
+    const [value] = trendRun("ultimate-ma", { maType }).plots.map(
+      (p) => p.values
+    );
+    near(value, want(`ultimate_ma_${name}_20.value`));
+  });
+
+  it.each([
+    [true, "mfi"],
+    [false, "rsi"],
+  ] as const)("alphatrend with MFI %s (%s)", (useMfi, momentum) => {
+    const [line, lagged] = trendRun("alphatrend", { useMfi }).plots.map(
+      (p) => p.values
+    );
+    const expected = want(`alphatrend_14_1_${momentum}.line`);
+    near(line, expected);
+    near(
+      lagged,
+      expected.map((_, i) => expected[i - 2] ?? null)
+    );
+  });
+
+  it("chandelier-exit: the stop of the fixture direction", () => {
+    const [long, short] = trendRun("chandelier-exit").plots.map(
+      (p) => p.values
+    );
+    const key = "chandelier_22_3";
+    near(long, masked(`${key}.longStop`, directionIs(`${key}.direction`, 1)));
+    near(
+      short,
+      masked(`${key}.shortStop`, directionIs(`${key}.direction`, -1))
+    );
+  });
+
+  it("slingshot: EMA 38 and EMA 62", () => {
+    const [fast, slow] = trendRun("slingshot").plots.map((p) => p.values);
+    near(fast, want("slingshot_38_62.fast"));
+    near(slow, want("slingshot_38_62.slow"));
+  });
+
+  it("trend-trio: shapes where all five fixture directions agree", () => {
+    const keys = [
+      "supertrend_10_3.direction",
+      "ultimate_ma_sma_20.direction",
+      "alphatrend_14_1_mfi.direction",
+      "slingshot_38_62.direction",
+      "chandelier_22_3.direction",
+    ];
+    const aligned = (side: number) =>
+      trendBars
+        .filter((_, i) => keys.every((key) => want(key)[i] === side))
+        .map((bar) => bar.timestamp);
+    const result = trendRun("trend-trio");
+    const marks = (text: string) =>
+      result.signals.filter((s) => s.text === text).map((s) => s.timestamp);
+    expect(marks("L")).toEqual(aligned(1));
+    expect(marks("S")).toEqual(aligned(-1));
+    expect(aligned(1).length + aligned(-1).length).toBeGreaterThan(0);
+  });
+
+  it("ta.supertrend direction is -1 x the fixture direction; ta.mfi matches", () => {
+    const result = runScript(
+      'indicator("t")\n[st, dir] = ta.supertrend(3, 10)\nplot(st)\nplot(dir)\nplot(ta.mfi(hlc3, 14))\n',
+      trendBars
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    const [line, dir, mfi] = result.plots.map((p) => p.values);
+    near(line, want("supertrend_10_3.line"));
+    near(
+      dir,
+      want("supertrend_10_3.direction").map((v) => (v === null ? null : -v))
+    );
+    near(mfi, want("mfi_hlc3_14"));
   });
 });

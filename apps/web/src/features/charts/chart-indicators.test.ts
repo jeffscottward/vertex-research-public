@@ -19,6 +19,11 @@ describe("chart indicators", () => {
       "sar",
       "smma",
       "lwma",
+      "supertrend",
+      "ultma",
+      "alphatrend",
+      "chandelier",
+      "slingshot",
     ]);
     expect(STUDY_OPTIONS.map((option) => option.key)).toEqual([
       "macd",

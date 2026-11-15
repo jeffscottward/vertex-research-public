@@ -311,3 +311,90 @@ export const fixnan = (site: Site, bar: number, src: Num): Num => {
   site.store("last", next);
   return next;
 };
+
+// Pine's ta.mfi with the bar volume: rising flow sums volume x src over bars where src rose,
+// falling flow where it fell; the first bar has no change (na). When the falling flow is 0 the
+// result is 100 if the rising flow is above 0, else na (as in
+// services/research/indicators/trend.py; the Python study and this kernel share the fixture).
+export const mfi = (
+  site: Site,
+  bar: number,
+  src: Num,
+  volume: number,
+  len: number
+): Num => {
+  const prev = site.record("x", bar, src).back(1);
+  const delta = src === null || typeof prev !== "number" ? null : src - prev;
+  const flow = src === null ? 0 : volume * src;
+  const up = sma(
+    site,
+    bar,
+    "up",
+    delta === null ? null : delta <= 0 ? 0 : flow,
+    len
+  );
+  const down = sma(
+    site,
+    bar,
+    "down",
+    delta === null ? null : delta >= 0 ? 0 : flow,
+    len
+  );
+  if (up === null || down === null) return null;
+  const rising = up * len;
+  const falling = down * len;
+  if (falling === 0) return rising > 0 ? 100 : null;
+  return 100 - 100 / (1 + rising / falling);
+};
+
+export type SuperTrendInput = Readonly<{
+  high: number;
+  low: number;
+  close: number;
+  // This bar's true range with the first bar's high - low (ta.atr's input).
+  tr: number | null;
+}>;
+
+type SuperTrendState = Readonly<{
+  lower: number;
+  upper: number;
+  line: number;
+  atr: number;
+  close: number;
+}>;
+
+// Pine's ta.supertrend(factor, atrPeriod): [line, direction] with Pine's sign (-1 up, +1 down),
+// [na, na] while the ATR is na. Bands follow the reference code: the lower band keeps its
+// previous value unless it rose or the previous close fell below it, the upper band mirrors it
+// (previous bands count as 0 while na); the direction is down while the previous ATR is na.
+// Same steps as supertrend in services/research/indicators/trend.py (with NaN for na).
+export const supertrend = (
+  site: Site,
+  bar: number,
+  factor: number,
+  length: number,
+  input: SuperTrendInput
+): [Num, Num] => {
+  const atr = rma(site, bar, "atr", input.tr, length) ?? Number.NaN;
+  const prev = site.previous<SuperTrendState>("st", bar, {
+    atr: Number.NaN,
+    close: Number.NaN,
+    line: Number.NaN,
+    lower: Number.NaN,
+    upper: Number.NaN,
+  });
+  const mid = (input.high + input.low) / 2;
+  let upper = mid + factor * atr;
+  let lower = mid - factor * atr;
+  const pLower = Number.isNaN(prev.lower) ? 0 : prev.lower;
+  const pUpper = Number.isNaN(prev.upper) ? 0 : prev.upper;
+  if (!(lower > pLower || prev.close < pLower)) lower = pLower;
+  if (!(upper < pUpper || prev.close > pUpper)) upper = pUpper;
+  let up: boolean;
+  if (Number.isNaN(prev.atr)) up = false;
+  else if (prev.line === pUpper) up = input.close > upper;
+  else up = !(input.close < lower);
+  const line = up ? lower : upper;
+  site.store("st", { atr, close: input.close, line, lower, upper });
+  return Number.isNaN(atr) ? [null, null] : [line, up ? -1 : 1];
+};

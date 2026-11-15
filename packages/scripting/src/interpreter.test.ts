@@ -400,7 +400,6 @@ describe("unsupported Pine features", () => {
     ["method m(float x) => x", "method"],
     ["array<float> a = na", "array"],
     ["x = close\ny = x.abs()", "methods and fields"],
-    ["x = ta.supertrend(3, 10)", "ta.supertrend"],
     ["for x in a\n    y = x", "for...in"],
     ["x = if close > 1\n    1", "if expressions"],
   ];
@@ -408,6 +407,29 @@ describe("unsupported Pine features", () => {
   it.each(cases)("%s", (body, name) => {
     expect(errors(body)[0]?.message).toBe(
       `not supported in Vertex scripts yet: ${name}`
+    );
+  });
+
+  it("compiles and runs ta.supertrend (Pine's sign: -1 up, +1 down)", () => {
+    expect(
+      compileScript(
+        'indicator("t")\n[st, dir] = ta.supertrend(3, 10)\nplot(st)\n'
+      )
+    ).toMatchObject({ ok: true });
+    const [line, dir] = plots(
+      run("[st, dir] = ta.supertrend(3, 2)\nplot(st)\nplot(dir)")
+    );
+    expect(line?.slice(0, 2)).toEqual([null, expect.any(Number)]);
+    expect(dir?.slice(0, 1)).toEqual([null]);
+    expect(dir?.slice(1).every((v) => v === 1 || v === -1)).toBe(true);
+    expect(errors("[st, dir] = ta.supertrend(0, 10)")[0]?.message).toBe(
+      "ta.supertrend: 'factor' must be a positive number"
+    );
+    expect(errors("[st, dir] = ta.supertrend(na, 10)")[0]?.message).toBe(
+      "ta.supertrend: 'factor' must be a positive number"
+    );
+    expect(errors("[st, dir] = ta.supertrend(3, 1.5)")[0]?.message).toBe(
+      "ta.supertrend: 'atrPeriod' must be a positive integer"
     );
   });
 
