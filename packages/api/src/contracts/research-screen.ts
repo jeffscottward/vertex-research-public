@@ -58,6 +58,16 @@ export const RESEARCH_SCREEN_NEXT_SLOTS = 12;
 export const RESEARCH_SCREEN_MAX_MESSAGE = 300;
 /** Characters the last error of the Swinglytics context may hold. */
 export const RESEARCH_SCREEN_MAX_CONTEXT_ERROR = 240;
+/** Labels one slot may hold. */
+export const RESEARCH_SCREEN_MAX_SLOT_LABELS = 5;
+/** Reasons, warnings or blocking warnings one row may hold. */
+export const RESEARCH_SCREEN_MAX_ROW_TEXTS = 24;
+/** Characters one reason, warning or blocking-warning text may hold. */
+export const RESEARCH_SCREEN_MAX_ROW_TEXT = 400;
+/** Rows the status may hold. */
+export const RESEARCH_SCREEN_MAX_ROWS = 1000;
+/** Missed slots the status may hold. */
+export const RESEARCH_SCREEN_MAX_MISSED_SLOTS = 24;
 
 const count = z.number().int().min(0);
 const value = z.number().finite();
@@ -65,6 +75,9 @@ const decision = z.enum(RESEARCH_SCREEN_DECISIONS);
 const runStatus = z.enum(RESEARCH_SCREEN_RUN_STATUSES);
 const action = z.enum(RESEARCH_SCREEN_ACTIONS);
 const message = z.string().max(RESEARCH_SCREEN_MAX_MESSAGE);
+const slotLabels = z.array(z.string()).max(RESEARCH_SCREEN_MAX_SLOT_LABELS);
+const rowText = z.string().max(RESEARCH_SCREEN_MAX_ROW_TEXT);
+const rowTexts = z.array(rowText).max(RESEARCH_SCREEN_MAX_ROW_TEXTS);
 
 export const ResearchScreenTickInputSchema = z.strictObject({});
 export const ResearchScreenStatusInputSchema = z.strictObject({});
@@ -78,13 +91,13 @@ export const ResearchScreenTickOutputSchema = z.strictObject({
   runId: z.string().nullable(),
   runStatus: runStatus.nullable(),
   slotAt: z.date().nullable(),
-  slotLabels: z.array(z.string()),
+  slotLabels,
   total: count,
 });
 
 export const ResearchScreenSlotSchema = z.strictObject({
   at: z.date(),
-  labels: z.array(z.string()),
+  labels: slotLabels,
 });
 
 export const ResearchScreenRunSchema = z.strictObject({
@@ -98,7 +111,7 @@ export const ResearchScreenRunSchema = z.strictObject({
   message: message.nullable(),
   notReached: count,
   slotAt: z.date(),
-  slotLabels: z.array(z.string()),
+  slotLabels,
   status: runStatus,
   succeeded: count,
   total: count,
@@ -107,9 +120,9 @@ export const ResearchScreenRunSchema = z.strictObject({
 export const ResearchScreenRowSchema = z.strictObject({
   action,
   barsSource: z.enum(RESEARCH_SCREEN_BARS_SOURCES).nullable(),
-  blockingWarnings: z.array(
-    z.strictObject({ code: z.string(), text: z.string() })
-  ),
+  blockingWarnings: z
+    .array(z.strictObject({ code: z.string(), text: rowText }))
+    .max(RESEARCH_SCREEN_MAX_ROW_TEXTS),
   buyZone: z.strictObject({ high: value, low: value }).nullable(),
   changePercent: value.nullable(),
   collection: z.enum(RESEARCH_SCREEN_COLLECTIONS),
@@ -126,7 +139,7 @@ export const ResearchScreenRowSchema = z.strictObject({
   quoteAgeMs: value.nullable(),
   quoteAt: z.date().nullable(),
   quoteSource: z.enum(RESEARCH_SCREEN_QUOTE_SOURCES).nullable(),
-  reasons: z.array(z.string()),
+  reasons: rowTexts,
   reportId: z.string(),
   rewardRisk: value.nullable(),
   score: value,
@@ -136,7 +149,7 @@ export const ResearchScreenRowSchema = z.strictObject({
   support: value.nullable(),
   symbol: z.string(),
   target: value.nullable(),
-  warnings: z.array(z.string()),
+  warnings: rowTexts,
 });
 
 export const ResearchScreenContextSchema = z.strictObject({
@@ -156,12 +169,14 @@ export const ResearchScreenStatusOutputSchema = z.strictObject({
   lastRun: ResearchScreenRunSchema.nullable(),
   limitations: z.array(z.string()),
   /** Slots of the last 24 hours with no run, newest first. */
-  missedSlots: z.array(ResearchScreenSlotSchema),
+  missedSlots: z
+    .array(ResearchScreenSlotSchema)
+    .max(RESEARCH_SCREEN_MAX_MISSED_SLOTS),
   nextSlots: z
     .array(ResearchScreenSlotSchema)
     .length(RESEARCH_SCREEN_NEXT_SLOTS),
   /** Order: catalog position. */
-  rows: z.array(ResearchScreenRowSchema),
+  rows: z.array(ResearchScreenRowSchema).max(RESEARCH_SCREEN_MAX_ROWS),
   scheduler: z.strictObject({
     lastTickAt: z.date().nullable(),
     lastTickDecision: decision.nullable(),

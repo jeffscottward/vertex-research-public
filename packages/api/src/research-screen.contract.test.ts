@@ -4,6 +4,11 @@ import {
   RESEARCH_SCREEN_API_ERRORS,
   RESEARCH_SCREEN_ERROR_CODES,
   RESEARCH_SCREEN_MAX_MESSAGE,
+  RESEARCH_SCREEN_MAX_MISSED_SLOTS,
+  RESEARCH_SCREEN_MAX_ROW_TEXT,
+  RESEARCH_SCREEN_MAX_ROW_TEXTS,
+  RESEARCH_SCREEN_MAX_ROWS,
+  RESEARCH_SCREEN_MAX_SLOT_LABELS,
   ResearchScreenStatusInputSchema,
   ResearchScreenStatusOutputSchema,
   ResearchScreenTickInputSchema,
@@ -290,6 +295,94 @@ describe("research screen contract", () => {
         swinglytics: { ...status().swinglytics, lastError: "x".repeat(241) },
       })
     ).toBe(false);
+  });
+
+  it("pins the maxima of the lists", () => {
+    expect({
+      missedSlots: RESEARCH_SCREEN_MAX_MISSED_SLOTS,
+      rows: RESEARCH_SCREEN_MAX_ROWS,
+      rowText: RESEARCH_SCREEN_MAX_ROW_TEXT,
+      rowTexts: RESEARCH_SCREEN_MAX_ROW_TEXTS,
+      slotLabels: RESEARCH_SCREEN_MAX_SLOT_LABELS,
+    }).toEqual({
+      missedSlots: 24,
+      rows: 1000,
+      rowText: 400,
+      rowTexts: 24,
+      slotLabels: 5,
+    });
+  });
+
+  it("accepts the lists of a row at their maxima and refuses one more", () => {
+    const text = "x".repeat(400);
+    const texts = (length: number) => Array.from({ length }, () => text);
+    const blocking = (length: number) =>
+      Array.from({ length }, () => ({ code: "old-quote", text }));
+    const withRow = (change: Record<string, unknown>) => ({
+      ...status(),
+      rows: [{ ...row(), ...change }],
+    });
+    expect(
+      statusAccepts(
+        withRow({
+          blockingWarnings: blocking(24),
+          reasons: texts(24),
+          warnings: texts(24),
+        })
+      )
+    ).toBe(true);
+    for (const change of [
+      { reasons: texts(25) },
+      { warnings: texts(25) },
+      { blockingWarnings: blocking(25) },
+      { reasons: [`${text}x`] },
+      { warnings: [`${text}x`] },
+      { blockingWarnings: [{ code: "old-quote", text: `${text}x` }] },
+    ]) {
+      expect(statusAccepts(withRow(change))).toBe(false);
+    }
+  });
+
+  it("accepts 5 slot labels and refuses 6 in every place", () => {
+    const five = ["a", "b", "c", "d", "e"];
+    const six = [...five, "f"];
+    const slots = (labels: string[]) =>
+      Array.from({ length: 12 }, () => ({ at, labels }));
+    expect(
+      statusAccepts({
+        ...status(),
+        activeRun: { ...run(), slotLabels: five },
+        missedSlots: [{ at, labels: five }],
+        nextSlots: slots(five),
+      })
+    ).toBe(true);
+    for (const change of [
+      { activeRun: { ...run(), slotLabels: six } },
+      { lastRun: { ...run(), slotLabels: six } },
+      { missedSlots: [{ at, labels: six }] },
+      { nextSlots: slots(six) },
+    ]) {
+      expect(statusAccepts({ ...status(), ...change })).toBe(false);
+    }
+    expect(
+      ResearchScreenTickOutputSchema.safeParse({ ...tick(), slotLabels: five })
+        .success
+    ).toBe(true);
+    expect(
+      ResearchScreenTickOutputSchema.safeParse({ ...tick(), slotLabels: six })
+        .success
+    ).toBe(false);
+  });
+
+  it("accepts 1000 rows and 24 missed slots and refuses one more", () => {
+    const rows = (length: number) => Array.from({ length }, () => row());
+    const missed = (length: number) =>
+      Array.from({ length }, () => ({ at, labels: ["close"] }));
+    expect(
+      statusAccepts({ ...status(), missedSlots: missed(24), rows: rows(1000) })
+    ).toBe(true);
+    expect(statusAccepts({ ...status(), rows: rows(1001) })).toBe(false);
+    expect(statusAccepts({ ...status(), missedSlots: missed(25) })).toBe(false);
   });
 
   it("refuses a date given as text", () => {

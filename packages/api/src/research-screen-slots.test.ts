@@ -17,19 +17,27 @@ const labelsAt = (
   at: string
 ) => slots.find((slot) => slot.at.getTime() === Date.parse(at))?.labels;
 
+/** Slot count per New York date, with New York `hoursBehindUtc` hours behind UTC. */
+const countPerNewYorkDate = (
+  slots: readonly { at: Date }[],
+  hoursBehindUtc: number
+): [string, number][] => {
+  const perDate = new Map<string, number>();
+  for (const slot of slots) {
+    const date = new Date(slot.at.getTime() - hoursBehindUtc * 3_600_000)
+      .toISOString()
+      .slice(0, 10);
+    perDate.set(date, (perDate.get(date) ?? 0) + 1);
+  }
+  return [...perDate.entries()];
+};
+
 describe("slotsBetween", () => {
   it("gives 57 slots in the Thanksgiving week of 2026", () => {
     const slots = between("2026-11-23T05:00:00Z", "2026-11-30T05:00:00Z");
     expect(slots).toHaveLength(57);
     // New York is 5 hours behind UTC in this week.
-    const perDate = new Map<string, number>();
-    for (const slot of slots) {
-      const date = new Date(slot.at.getTime() - 5 * 3_600_000)
-        .toISOString()
-        .slice(0, 10);
-      perDate.set(date, (perDate.get(date) ?? 0) + 1);
-    }
-    expect([...perDate.entries()]).toEqual([
+    expect(countPerNewYorkDate(slots, 5)).toEqual([
       ["2026-11-23", 10],
       ["2026-11-24", 10],
       ["2026-11-25", 10],
@@ -41,6 +49,46 @@ describe("slotsBetween", () => {
     const times = slots.map((slot) => slot.at.getTime());
     expect(times).toEqual([...times].sort((left, right) => left - right));
     expect(new Set(times).size).toBe(57);
+  });
+
+  it("gives 57 slots in a normal summer week, Monday to Sunday", () => {
+    // New York is 4 hours behind UTC, so midnight New York is the 04:00 UTC grid slot and belongs
+    // to the date that starts there; noon New York is the 16:00 UTC grid slot.
+    const slots = between(
+      "2026-07-13T03:59:59.999Z",
+      "2026-07-20T03:59:59.999Z"
+    );
+    expect(countPerNewYorkDate(slots, 4)).toEqual([
+      ["2026-07-13", 9],
+      ["2026-07-14", 9],
+      ["2026-07-15", 9],
+      ["2026-07-16", 9],
+      ["2026-07-17", 9],
+      ["2026-07-18", 6],
+      ["2026-07-19", 6],
+    ]);
+    expect(slots).toHaveLength(5 * 9 + 2 * 6);
+    expect(slots).toHaveLength(57);
+    expect(slots.filter((slot) => slot.labels.length === 2)).toHaveLength(5);
+    expect(labelsAt(slots, "2026-07-17T16:00:00Z")).toEqual([GRID, "Noon"]);
+    expect(labelsAt(slots, "2026-07-18T16:00:00Z")).toEqual([GRID]);
+  });
+
+  it("gives 62 slots in a normal winter week, Monday to Sunday", () => {
+    // New York is 5 hours behind UTC; no checkpoint falls on the grid.
+    const slots = between("2026-12-07T05:00:00Z", "2026-12-14T05:00:00Z");
+    expect(countPerNewYorkDate(slots, 5)).toEqual([
+      ["2026-12-07", 10],
+      ["2026-12-08", 10],
+      ["2026-12-09", 10],
+      ["2026-12-10", 10],
+      ["2026-12-11", 10],
+      ["2026-12-12", 6],
+      ["2026-12-13", 6],
+    ]);
+    expect(slots).toHaveLength(5 * 10 + 2 * 6);
+    expect(slots).toHaveLength(62);
+    expect(slots.every((slot) => slot.labels.length === 1)).toBe(true);
   });
 
   it("follows the early close on the day after Thanksgiving", () => {

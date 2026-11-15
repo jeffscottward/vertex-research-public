@@ -5,6 +5,10 @@ import type {
   ResearchScreenErrorCode,
 } from "./contracts/research-screen.ts";
 import { wilderAtr } from "./pick-list-screen.ts";
+import type {
+  ResearchScreenBar,
+  ResearchScreenQuote,
+} from "./research-screen-quote.ts";
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -14,12 +18,10 @@ const DAY_MS = 24 * HOUR_MS;
 export const RESEARCH_SCREEN_LIMITS = Object.freeze({
   historyAgeLimitMs: 4 * DAY_MS,
   ibkrFailureStop: 3,
-  leaseSeconds: 240,
   maxMessageLength: 400,
   maxMessages: 24,
   minimumBars: 50,
   quoteAgeLimitMs: 4 * HOUR_MS,
-  runDeadlineMs: 25 * MINUTE_MS,
   schedulerLateMs: 30 * MINUTE_MS,
   schedulerOkMs: 10 * MINUTE_MS,
   shareBudgetMs: 50_000,
@@ -27,29 +29,10 @@ export const RESEARCH_SCREEN_LIMITS = Object.freeze({
   yahooRateLimitStop: 3,
 } as const);
 
-export type ResearchScreenBar = Readonly<{
-  date: string;
-  o: number;
-  h: number;
-  l: number;
-  c: number;
-}>;
-
-export type ResearchScreenQuote = Readonly<{
-  price: number | null;
-  quoteAt: Date | null;
-  instrumentType: string | null;
-  currency: string | null;
-  timeZone: string | null;
-  sessionStart: Date | null;
-  sessionEnd: Date | null;
-}>;
-
 export type ResearchScreenEvidence = Readonly<{
   quote: ResearchScreenQuote | null;
   bars: readonly ResearchScreenBar[];
   barsSource: "ibkr" | "yahoo" | null;
-  fetchError: ResearchScreenErrorCode | null;
 }>;
 
 export type CatalogAssetType = "equity" | "etf" | "future" | "index";
@@ -142,15 +125,26 @@ export const RESEARCH_SCREEN_LIMITATIONS: readonly string[] = Object.freeze([
 export const CALENDAR_UNVERIFIED_LIMITATION =
   "The trading calendar is not verified for this year. Slots that depend on the market close can be at the wrong time.";
 
-/** At most 24 messages of at most 400 characters, without duplicates. */
+const LONE_HIGH_SURROGATE_AT_END = /[\uD800-\uDBFF]$/u;
+
+/**
+ * At most 400 characters (UTF-16 units). A cut inside a surrogate pair drops
+ * the whole pair, so no lone surrogate stays at the end.
+ */
+export const boundedText = (text: string): string =>
+  text
+    .slice(0, RESEARCH_SCREEN_LIMITS.maxMessageLength)
+    .replace(LONE_HIGH_SURROGATE_AT_END, "");
+
+/**
+ * At most 24 messages of at most 400 characters, without duplicates. The
+ * first messages stay, so a caller puts the fixed lines first.
+ */
 export const boundedMessages = (messages: readonly string[]): string[] =>
-  [
-    ...new Set(
-      messages.map((text) =>
-        text.slice(0, RESEARCH_SCREEN_LIMITS.maxMessageLength)
-      )
-    ),
-  ].slice(0, RESEARCH_SCREEN_LIMITS.maxMessages);
+  [...new Set(messages.map(boundedText))].slice(
+    0,
+    RESEARCH_SCREEN_LIMITS.maxMessages
+  );
 
 const isTimeZone = (timeZone: string): boolean => {
   try {
@@ -319,8 +313,10 @@ const failure = (
   errorMessage: string
 ): ScreenFailure => ({ errorCode, errorMessage, ok: false });
 
+// The fixed lines are first, so the bound cuts alias lines and no fixed line.
 const catalogWarnings = (entry: CatalogEntry): string[] => [
   RESEARCH_ONLY_NOTE,
+  OPTIONS_NOTE,
   ...(entry.currency === "USD"
     ? []
     : [`Prices and levels are in ${entry.currency}, not in USD.`]),
@@ -329,7 +325,6 @@ const catalogWarnings = (entry: CatalogEntry): string[] => [
     (alias) =>
       `Alias ${alias.input}: ${alias.resolution} (${alias.confirmed ? "confirmed" : "not confirmed"}).`
   ),
-  OPTIONS_NOTE,
 ];
 
 type ScreenFailure = Extract<ScreenResult, { ok: false }>;
@@ -348,10 +343,7 @@ const checkQuote = (
 ): CheckedQuote | ScreenFailure => {
   const { quote } = evidence;
   if (quote === null)
-    return failure(
-      evidence.fetchError ?? "provider-http",
-      "The price read returned no answer."
-    );
+    return failure("quote-missing", "The price read gave no quote.");
   if (
     quote.instrumentType !== EXPECTED_INSTRUMENT_TYPE[entry.assetType] ||
     quote.currency !== entry.currency ||
@@ -430,7 +422,8 @@ const freshnessOf = (
   checkedQuote: CheckedQuote,
   last: ResearchScreenBar,
   timeZone: string,
-  now: Date
+  now: Date,
+  historyDueDate: string | null
 ) => {
   const { quote, quoteAt } = checkedQuote;
   const quoteAge = now.getTime() - quoteAt.getTime();
@@ -446,12 +439,16 @@ const freshnessOf = (
     now.getTime() >= quote.sessionEnd.getTime()
       ? dateInZone(quote.sessionStart, timeZone)
       : null;
+  // Stored bars are due only some time after the close. A caller that knows
+  // the date of the last session whose bars are due gives it, and it takes
+  // the place of the session date of the quote.
+  const requiredDate = historyDueDate ?? endedSessionDate;
   return {
     historyAt,
     historyCurrent:
       now.getTime() - historyAt.getTime() <=
         RESEARCH_SCREEN_LIMITS.historyAgeLimitMs &&
-      (endedSessionDate === null || last.date >= endedSessionDate),
+      (requiredDate === null || last.date >= requiredDate),
     quoteFresh:
       quoteAge >= 0 && quoteAge <= RESEARCH_SCREEN_LIMITS.quoteAgeLimitMs,
   };
@@ -504,11 +501,17 @@ const scoreOf = (flags: ScreenFlags): number =>
 /**
  * Steps 2 to 6 of the screen rules, then the values, the blocking warnings,
  * the score and the action. Step 1 is `parseCatalogEntry`.
+ *
+ * `historyDueDate` (YYYY-MM-DD) is the date of the last session whose daily
+ * bars are due. When it is given, the history is current only with a last
+ * bar of that date or newer; when it is null, the ended session of the quote
+ * gives that date.
  */
 export const screenReport = (
   entry: CatalogEntry,
   evidence: ResearchScreenEvidence,
-  now: Date
+  now: Date,
+  historyDueDate: string | null = null
 ): ScreenResult => {
   const checkedQuote = checkQuote(entry, evidence);
   if (!checkedQuote.ok) return checkedQuote;
@@ -527,7 +530,8 @@ export const screenReport = (
     checkedQuote,
     last,
     entry.timeZone,
-    now
+    now,
+    historyDueDate
   );
   const flags: ScreenFlags = {
     ...freshness,
@@ -550,13 +554,15 @@ export const screenReport = (
       price,
       ...levels,
       action: codes.length === 0 ? "review-entry" : blockedAction,
-      blockingWarnings: codes.map((code) => ({
-        code,
-        text: RESEARCH_SCREEN_WARNING_TEXTS[code],
-      })),
+      blockingWarnings: codes
+        .slice(0, RESEARCH_SCREEN_LIMITS.maxMessages)
+        .map((code) => ({
+          code,
+          text: boundedText(RESEARCH_SCREEN_WARNING_TEXTS[code]),
+        })),
       historyAt,
       quoteAt,
-      reasons: reasonsOf(flags),
+      reasons: boundedMessages(reasonsOf(flags)),
       score: scoreOf(flags),
       warnings: boundedMessages(catalogWarnings(entry)),
     },
@@ -594,8 +600,8 @@ export const effectiveRow = <
     action: "watch",
     score: Math.max(0, stored.score - 20),
     warnings: boundedMessages([
-      ...stored.warnings,
       RESEARCH_SCREEN_WARNING_TEXTS["entry-expired"],
+      ...stored.warnings,
     ]),
   };
 };

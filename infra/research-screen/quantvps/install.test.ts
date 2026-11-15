@@ -41,7 +41,8 @@ describe("QuantVPS units", () => {
       "/opt/vertex-research-screen",
     ]);
     expect(directives(service, "Type")).toEqual(["oneshot"]);
-    expect(directives(service, "TimeoutStartSec")).toEqual(["1800"]);
+    // Above the script's worst case: the 28-minute wall limit plus one 200-second call.
+    expect(directives(service, "TimeoutStartSec")).toEqual(["2100"]);
     expect(directives(service, "Nice")).toEqual(["10"]);
     expect(directives(service, "After")).toEqual([
       "network-online.target vertex-web.service",
@@ -154,9 +155,13 @@ describe("install.sh", () => {
     expect(readFileSync(join(app, "SOURCE_SHA"), "utf8")).toMatch(
       new RegExp(`^${headSha}(-dirty)?\\n$`, "u")
     );
-    expect(
-      readFileSync(join(app, "vertex-research-screen-tick.mjs"), "utf8")
-    ).toContain("// scripts/research-screen/tick.ts");
+    const installed = readFileSync(
+      join(app, "vertex-research-screen-tick.mjs"),
+      "utf8"
+    );
+    expect(installed).toContain("// scripts/research-screen/tick.ts");
+    // The bundle finds SOURCE_SHA beside itself, so the build must keep its own address.
+    expect(installed).toContain("readSourceSha(import.meta.url");
     for (const name of [
       "vertex-research-screen.service",
       "vertex-research-screen.timer",

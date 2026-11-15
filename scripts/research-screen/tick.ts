@@ -16,7 +16,7 @@ export type ResearchScreenTickIo = Readonly<{
   /** Age of the file in milliseconds; null when the file does not exist. */
   fileAgeMs: (path: string) => Promise<number | null>;
   /** Commit of the installed bundle; added to every result line when given. */
-  sourceSha?: string;
+  sourceSha?: string | undefined;
 }>;
 
 const PROCEDURE = "researchScreen/tick";
@@ -26,6 +26,24 @@ export const CALL_TIMEOUT_MS = 200_000;
 export const WALL_LIMIT_MS = 28 * 60_000;
 /** A pause file older than this is ignored (the same limit as the backtest worker). */
 export const PAUSE_FILE_MAX_AGE_MS = 90 * 60_000;
+
+/**
+ * Reads the commit of the installed bundle from the file SOURCE_SHA beside the running script (the
+ * install script writes it). Returns undefined when the file does not exist or is empty.
+ */
+export const readSourceSha = async (
+  scriptUrl: string,
+  readText: (file: URL) => Promise<string>
+): Promise<string | undefined> => {
+  try {
+    const sha = (await readText(new URL("./SOURCE_SHA", scriptUrl))).trim();
+    return sha === "" ? undefined : sha;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return;
+    throw error;
+  }
+};
 
 const required = (
   env: ResearchScreenTickIo["env"],

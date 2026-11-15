@@ -1,6 +1,7 @@
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   gte,
@@ -104,7 +105,8 @@ export type ResearchScreenWorkItem = Readonly<{
  */
 export type ResearchScreenStopSignals = Readonly<{
   ibkrFailed: boolean | null;
-  yahooRateLimited: boolean;
+  /** null: no Yahoo request was made, so the counter keeps its value. */
+  yahooRateLimited: boolean | null;
 }>;
 
 type RowWriteBase = Readonly<{
@@ -185,13 +187,17 @@ export type ResearchScreenRepository = Readonly<{
   ) => Promise<ResearchScreenRunRecord | null>;
   /** Ends a running run as interrupted when its deadline passed and its lease is free or expired. */
   closeExpiredRun: (runId: string) => Promise<boolean>;
+  /** The number of catalog reports (the first total of a run). */
+  countReports: () => Promise<number>;
   findActiveRun: () => Promise<ResearchScreenRunRecord | null>;
   /** Ends a running run and clears its lease. False when the fence is old. */
   finishRun: (
     runId: string,
     fence: number,
     status: Exclude<ResearchScreenRunStatus, "running">,
-    message: string | null
+    message: string | null,
+    /** Reports of the work list that got no attempt; the total becomes the sum of the three counts. */
+    notReached: number
   ) => Promise<boolean>;
   /**
    * Catalog reports not yet attempted in this run, with their row and stored bars: never attempted
@@ -201,6 +207,8 @@ export type ResearchScreenRepository = Readonly<{
   readStatus: () => Promise<ResearchScreenStatusRecord>;
   /** Stores the time (database clock) and the decision of a tick in the single scheduler row. */
   recordTick: (decision: ResearchScreenTickDecision) => Promise<void>;
+  /** Frees the lease of a share that ends with work left, so the next tick takes it at once. */
+  releaseLease: (runId: string, fence: number) => Promise<boolean>;
   /** Extends the lease. False when the fence is old or the run ended. */
   renewLease: (runId: string, fence: number) => Promise<boolean>;
   /** Replaces the stored bars of a report. False (and no write) when the fence is old. */
@@ -214,10 +222,11 @@ export type ResearchScreenRepository = Readonly<{
   ) => Promise<boolean>;
   saveSwinglytics: (result: ResearchScreenSwinglyticsResult) => Promise<void>;
   /** Takes the lease of a running run when it is free or expired. Null when the lease is live. */
+  /** The run as stored after the takeover (raised fence, fresh counters), or null. */
   takeLease: (
     runId: string,
     owner: string
-  ) => Promise<Readonly<{ fence: number }> | null>;
+  ) => Promise<ResearchScreenRunRecord | null>;
   /**
    * Writes the row of one report and the counters of its run in one transaction. False (and no
    * write) when the fence is old.
@@ -247,7 +256,7 @@ const heldBy = (runId: string, fence: number) =>
 const raisedBy = (column: typeof runs.succeeded, raise: boolean): SQL =>
   raise ? sql`${column} + 1` : sql`${column}`;
 
-/** The next value of a stop counter: +1 on true, 0 on false, unchanged on null. */
+/** The next value of a stop counter: +1 on true, 0 on false, unchanged on null (no request). */
 const stopCounter = (
   column: typeof runs.succeeded,
   signal: boolean | null
@@ -545,13 +554,19 @@ export const createResearchScreenRepository = (
     );
     return closed.length > 0;
   },
+  countReports: async () => {
+    const [counted] = await orPersistenceError(
+      database.select({ reports: count() }).from(researchReports)
+    );
+    return counted?.reports ?? 0;
+  },
   findActiveRun: async () => {
     const [run] = await orPersistenceError(
       database.select().from(runs).where(eq(runs.status, "running")).limit(1)
     );
     return run ?? null;
   },
-  finishRun: async (runId, fence, status, message) => {
+  finishRun: async (runId, fence, status, message, left) => {
     const finished = await orPersistenceError(
       database
         .update(runs)
@@ -560,8 +575,9 @@ export const createResearchScreenRepository = (
           leaseExpiresAt: null,
           leaseOwner: null,
           message: message?.slice(0, RESEARCH_SCREEN_MESSAGE_MAX) ?? null,
-          notReached,
+          notReached: left,
           status,
+          total: sql`${runs.succeeded} + ${runs.failed} + ${left}`,
         })
         .where(heldBy(runId, fence))
         .returning({ id: runs.id })
@@ -599,6 +615,16 @@ export const createResearchScreenRepository = (
         .onConflictDoUpdate({ set: tick, target: researchScreenScheduler.id })
     );
   },
+  releaseLease: async (runId, fence) => {
+    const released = await orPersistenceError(
+      database
+        .update(runs)
+        .set({ leaseExpiresAt: null, leaseOwner: null })
+        .where(heldBy(runId, fence))
+        .returning({ id: runs.id })
+    );
+    return released.length > 0;
+  },
   renewLease: async (runId, fence) => {
     const renewed = await orPersistenceError(
       database
@@ -623,7 +649,7 @@ export const createResearchScreenRepository = (
           leaseOwner: owner,
         })
         .where(and(eq(runs.id, runId), eq(runs.status, "running"), leaseFree))
-        .returning({ fence: runs.fence })
+        .returning()
     );
     return taken ?? null;
   },

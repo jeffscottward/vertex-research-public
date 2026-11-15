@@ -168030,6 +168030,7 @@
                               "items": {
                                 "type": "string"
                               },
+                              "maxItems": 5,
                               "type": "array"
                             },
                             "status": {
@@ -168151,6 +168152,7 @@
                               "items": {
                                 "type": "string"
                               },
+                              "maxItems": 5,
                               "type": "array"
                             },
                             "status": {
@@ -168216,6 +168218,7 @@
                             "items": {
                               "type": "string"
                             },
+                            "maxItems": 5,
                             "type": "array"
                           }
                         },
@@ -168225,6 +168228,7 @@
                         ],
                         "type": "object"
                       },
+                      "maxItems": 24,
                       "type": "array"
                     },
                     "nextSlots": {
@@ -168240,6 +168244,7 @@
                             "items": {
                               "type": "string"
                             },
+                            "maxItems": 5,
                             "type": "array"
                           }
                         },
@@ -168288,6 +168293,7 @@
                                   "type": "string"
                                 },
                                 "text": {
+                                  "maxLength": 400,
                                   "type": "string"
                                 }
                               },
@@ -168297,6 +168303,7 @@
                               ],
                               "type": "object"
                             },
+                            "maxItems": 24,
                             "type": "array"
                           },
                           "buyZone": {
@@ -168488,8 +168495,10 @@
                           },
                           "reasons": {
                             "items": {
+                              "maxLength": 400,
                               "type": "string"
                             },
+                            "maxItems": 24,
                             "type": "array"
                           },
                           "reportId": {
@@ -168569,8 +168578,10 @@
                           },
                           "warnings": {
                             "items": {
+                              "maxLength": 400,
                               "type": "string"
                             },
+                            "maxItems": 24,
                             "type": "array"
                           }
                         },
@@ -168608,6 +168619,7 @@
                         ],
                         "type": "object"
                       },
+                      "maxItems": 1000,
                       "type": "array"
                     },
                     "scheduler": {
@@ -169404,6 +169416,7 @@
                       "items": {
                         "type": "string"
                       },
+                      "maxItems": 5,
                       "type": "array"
                     },
                     "total": {

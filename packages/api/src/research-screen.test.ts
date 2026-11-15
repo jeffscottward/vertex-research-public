@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   boundedMessages,
+  boundedText,
   CALENDAR_UNVERIFIED_LIMITATION,
   type CatalogEntry,
   completedBars,
@@ -11,14 +12,16 @@ import {
   RESEARCH_SCREEN_LIMITATIONS,
   RESEARCH_SCREEN_LIMITS,
   RESEARCH_SCREEN_WARNING_TEXTS,
-  type ResearchScreenBar,
   type ResearchScreenEvidence,
-  type ResearchScreenQuote,
   runStatusOf,
   type ScreenObservation,
   schedulerStateOf,
   screenReport,
 } from "./research-screen.ts";
+import type {
+  ResearchScreenBar,
+  ResearchScreenQuote,
+} from "./research-screen-quote.ts";
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -86,7 +89,6 @@ const evidenceOf = (
 ): ResearchScreenEvidence => ({
   bars: fixedSeries(),
   barsSource: "yahoo",
-  fetchError: null,
   quote: quoteOf(),
   ...part,
 });
@@ -94,9 +96,10 @@ const evidenceOf = (
 const observe = (
   evidence: ResearchScreenEvidence,
   catalog: CatalogEntry = entry,
-  now: Date = NOW
+  now: Date = NOW,
+  historyDueDate?: string | null
 ): ScreenObservation => {
-  const result = screenReport(catalog, evidence, now);
+  const result = screenReport(catalog, evidence, now, historyDueDate);
   if (!result.ok) throw new Error(`screen failed: ${result.errorCode}`);
   return result.observation;
 };
@@ -119,12 +122,10 @@ describe("RESEARCH_SCREEN_LIMITS and texts", () => {
     expect(RESEARCH_SCREEN_LIMITS).toEqual({
       historyAgeLimitMs: 345_600_000,
       ibkrFailureStop: 3,
-      leaseSeconds: 240,
       maxMessageLength: 400,
       maxMessages: 24,
       minimumBars: 50,
       quoteAgeLimitMs: 14_400_000,
-      runDeadlineMs: 1_500_000,
       schedulerLateMs: 1_800_000,
       schedulerOkMs: 600_000,
       shareBudgetMs: 50_000,
@@ -156,7 +157,27 @@ describe("RESEARCH_SCREEN_LIMITS and texts", () => {
     const many = Array.from({ length: 30 }, (_, index) => `message ${index}`);
     expect(boundedMessages(many)).toHaveLength(24);
     expect(boundedMessages(["a", "a", "b"])).toEqual(["a", "b"]);
+    expect(boundedMessages(many).slice(0, 2)).toEqual([
+      "message 0",
+      "message 1",
+    ]);
     expect(boundedMessages(["x".repeat(500)])).toEqual(["x".repeat(400)]);
+  });
+});
+
+describe("boundedText", () => {
+  it("cuts at 400 characters on a code point boundary", () => {
+    const emoji = "\u{1F600}";
+    expect(emoji).toHaveLength(2);
+    // The emoji is at the positions 399 and 400: the cut drops both halves.
+    const split = boundedText(`${"x".repeat(399)}${emoji}tail`);
+    expect(split).toBe("x".repeat(399));
+    // The emoji is at the positions 398 and 399: it stays whole.
+    const whole = boundedText(`${"x".repeat(398)}${emoji}tail`);
+    expect(whole).toBe(`${"x".repeat(398)}${emoji}`);
+    expect(whole).toHaveLength(400);
+    expect(boundedText("short")).toBe("short");
+    expect(boundedText(`short ${emoji}`)).toBe(`short ${emoji}`);
   });
 });
 
@@ -252,16 +273,8 @@ describe("parseCatalogEntry", () => {
 });
 
 describe("screenReport failure steps", () => {
-  it("step 2: gives the error code of the price read", () => {
-    for (const code of [
-      "provider-http",
-      "provider-timeout",
-      "rate-limited",
-    ] as const)
-      expect(failureCode(evidenceOf({ fetchError: code, quote: null }))).toBe(
-        code
-      );
-    expect(failureCode(evidenceOf({ quote: null }))).toBe("provider-http");
+  it("step 2: a price read with no quote gives quote-missing", () => {
+    expect(failureCode(evidenceOf({ quote: null }))).toBe("quote-missing");
   });
 
   it("step 3: identity mismatch of type, currency or time zone", () => {
@@ -557,6 +570,29 @@ describe("screenReport blocking warnings, score and action", () => {
     expect(current.historyAt).toEqual(new Date("2026-03-03T00:00:00Z"));
   });
 
+  it("history due date: the bars of a session are not due right after its close", () => {
+    // 40 seconds after the close; the stored bars end on the session before.
+    const now = new Date("2026-03-02T21:00:40Z");
+    const quote = quoteOf({ quoteAt: new Date("2026-03-02T20:59:50Z") });
+    const notDue = observe(evidenceOf({ quote }), entry, now, "2026-03-01");
+    expect(notDue.blockingWarnings).toEqual([]);
+    expect(notDue.action).toBe("review-entry");
+    expect(notDue.score).toBe(100);
+    const due = observe(evidenceOf({ quote }), entry, now, "2026-03-02");
+    only(due, "history-stale");
+    expect(due.score).toBe(80);
+    // Without a due date the ended session of the quote decides.
+    only(observe(evidenceOf({ quote }), entry, now, null), "history-stale");
+  });
+
+  it("history due date: it also holds for a quote with no session times", () => {
+    const quote = quoteOf({ sessionEnd: null, sessionStart: null });
+    const current = observe(evidenceOf({ quote }), entry, NOW, "2026-03-01");
+    expect(current.action).toBe("review-entry");
+    const stale = observe(evidenceOf({ quote }), entry, NOW, "2026-03-02");
+    only(stale, "history-stale");
+  });
+
   it("trend-not-aligned alone gives wait", () => {
     // Last close 69.5: sma20 = (19 x 70 + 69.5) / 20 = 69.975 > 69.5, and
     // momentum = 69.5 / 69.5 - 1 = 0.
@@ -620,9 +656,9 @@ describe("screenReport blocking warnings, score and action", () => {
     only(observation, "future-not-executable");
     expect(observation.warnings).toEqual([
       "These levels are for research only. They are no order and no advice.",
+      "Options are not checked by this screen.",
       "Prices and levels are in EUR, not in USD.",
       "The prices come from a provider futures series. A roll between contracts can move the levels.",
-      "Options are not checked by this screen.",
     ]);
   });
 
@@ -651,6 +687,40 @@ describe("screenReport blocking warnings, score and action", () => {
     const { warnings } = observe(evidenceOf(), { ...entry, aliases });
     expect(warnings).toHaveLength(24);
     expect(Math.max(...warnings.map((text) => text.length))).toBe(400);
+    // The fixed lines are first, so the bound cuts only alias lines.
+    expect(warnings.slice(0, 2)).toEqual([
+      "These levels are for research only. They are no order and no advice.",
+      "Options are not checked by this screen.",
+    ]);
+    expect(warnings.slice(2).every((text) => text.startsWith("Alias "))).toBe(
+      true
+    );
+  });
+
+  it("cuts an alias line on a code point boundary", () => {
+    // "Alias " has 6 characters, so the emoji is at the positions 399 and 400.
+    const input = `${"x".repeat(393)}\u{1F600}`;
+    const aliases = [{ confirmed: true, input, resolution: "TEST" }];
+    const { warnings } = observe(evidenceOf(), { ...entry, aliases });
+    expect(warnings[2]).toBe(`Alias ${"x".repeat(393)}`);
+  });
+
+  it("bounds the reasons and the blocking warnings", () => {
+    const bars = makeBars(60, (index) => ({ c: 100 - index }));
+    const observation = observe(evidenceOf({ bars }), {
+      ...entry,
+      aliases: [{ confirmed: false, input: "AAA", resolution: "TEST" }],
+      status: "draft",
+    });
+    const texts = [
+      ...observation.reasons,
+      ...observation.blockingWarnings.map((warning) => warning.text),
+    ];
+    expect(observation.reasons).toHaveLength(4);
+    expect(observation.blockingWarnings.length).toBeLessThanOrEqual(24);
+    expect(Math.max(...texts.map((text) => text.length))).toBeLessThanOrEqual(
+      400
+    );
   });
 
   it("all conditions fail: score 0 and wait", () => {
@@ -685,7 +755,7 @@ describe("effectiveRow", () => {
     score: 80,
     storedAction: "review-entry",
     storedScore: 100,
-    warnings: ["note", RESEARCH_SCREEN_WARNING_TEXTS["entry-expired"]],
+    warnings: [RESEARCH_SCREEN_WARNING_TEXTS["entry-expired"], "note"],
   };
 
   it("keeps a row with a quote of 3 hours 59 minutes, and at the limit", () => {
@@ -702,6 +772,14 @@ describe("effectiveRow", () => {
   it("expires a row at 4 hours 1 minute, with a future quote and with no quote time", () => {
     for (const age of [4 * HOUR_MS + MINUTE_MS, -1, null])
       expect(effectiveRow(row(age), NOW)).toMatchObject(expired);
+  });
+
+  it("puts the expiry line first and bounds the warnings", () => {
+    const warnings = Array.from({ length: 24 }, (_, index) => `note ${index}`);
+    const shown = effectiveRow({ ...row(null), warnings }, NOW).warnings;
+    expect(shown).toHaveLength(24);
+    expect(shown[0]).toBe(RESEARCH_SCREEN_WARNING_TEXTS["entry-expired"]);
+    expect(shown[23]).toBe("note 22");
   });
 
   it("does not let the score go below 0", () => {
@@ -750,5 +828,119 @@ describe("schedulerStateOf", () => {
     expect(at(10 * MINUTE_MS + 1)).toBe("late");
     expect(at(30 * MINUTE_MS)).toBe("late");
     expect(at(30 * MINUTE_MS + 1)).toBe("silent");
+  });
+});
+
+/**
+ * Parity with the old screen. The expected numbers below are the output of the
+ * function `screenInstrument` of the old workspace (file
+ * apps/server/src/research-screen.ts, commit 67e4268c), run once on the same
+ * input as here: the 260 bars of `parityBars`, each with the provider time
+ * 21:00 UTC of its date; a verified report (TEST, equity, USD,
+ * America/New_York, status ready); a quote of 2026-03-02 14:55 UTC with the
+ * session 14:30 to 21:00 UTC; and `now` 2026-03-02 15:00 UTC.
+ */
+describe("screenReport parity with the old screen", () => {
+  type Variant = "entry" | "wait";
+  const firstDay = Date.parse("2025-06-15T00:00:00Z");
+
+  /** A deterministic close: a slope plus a small wobble with period 11. */
+  const closeOf = (index: number, variant: Variant): number => {
+    const step = (index * 7) % 11;
+    if (variant === "wait") return 120 - index * 0.2 + step * 0.15;
+    // A rise for 240 bars, then 20 bars in a narrow range.
+    return index < 240 ? 40 + index * 0.125 + step * 0.15 : 71 + step * 0.05;
+  };
+
+  /** 260 bars, 2025-06-15 to 2026-03-01. Bar 250 of "entry" has a high spike. */
+  const parityBars = (variant: Variant): ResearchScreenBar[] =>
+    Array.from({ length: 260 }, (_, index) => {
+      const c = closeOf(index, variant);
+      const spike = variant === "entry" && index === 250;
+      return {
+        c,
+        date: new Date(firstDay + index * DAY_MS).toISOString().slice(0, 10),
+        h: c + (spike ? 9 : 0.5 + ((index * 3) % 5) * 0.125),
+        l: c - 0.5 - ((index * 5) % 7) * 0.125,
+        o: c - 0.25,
+      };
+    });
+
+  const fixtures = [
+    {
+      expected: {
+        action: "review-entry",
+        buyZone: { high: 70.728_772_895_359_57, low: 69.75 },
+        changePercent: -1.609_517_144_856_553_7,
+        momentumPercent: 2.034_987_504_462_693,
+        rewardRisk: 3.888_263_989_469_884_5,
+        score: 100,
+        stop: 67.792_454_209_280_86,
+        support: 69.75,
+        target: 80.05,
+      },
+      price: 70.3,
+      variant: "entry",
+    },
+    {
+      expected: {
+        action: "wait",
+        buyZone: { high: 68.818_383_199_085_57, low: 67.95 },
+        changePercent: -0.790_797_987_059_643_8,
+        momentumPercent: -3.870_076_019_350_399,
+        rewardRisk: 1.686_542_511_451_428,
+        score: 20,
+        stop: 66.213_233_601_828_86,
+        support: 67.95,
+        target: 73.7,
+      },
+      price: 69,
+      variant: "wait",
+    },
+  ] as const;
+
+  /** The relative distance of a value from the old value; 1 for a null. */
+  const gap = (actual: number | null, old: number): number =>
+    Math.abs(Number(actual) / old - 1);
+
+  it.each(fixtures)("gives the old row for the $variant series", (fixture) => {
+    const { expected } = fixture;
+    const observation = observe(
+      evidenceOf({
+        bars: parityBars(fixture.variant),
+        quote: quoteOf({ price: fixture.price }),
+      })
+    );
+    expect(observation.action).toBe(expected.action);
+    expect(observation.score).toBe(expected.score);
+    expect(observation.price).toBe(fixture.price);
+    expect(observation.support).toBeCloseTo(expected.support, 6);
+    expect(observation.target).toBeCloseTo(expected.target, 6);
+    expect(observation.buyZone.low).toBeCloseTo(expected.buyZone.low, 6);
+    expect(observation.changePercent).toBeCloseTo(expected.changePercent, 6);
+    expect(observation.momentumPercent).toBeCloseTo(
+      expected.momentumPercent,
+      6
+    );
+    // These 3 values depend on the ATR, which the old code seeds with the
+    // range of the first bar; the limit is 0.5 %.
+    expect(gap(observation.buyZone.high, expected.buyZone.high)).toBeLessThan(
+      0.005
+    );
+    expect(gap(observation.stop, expected.stop)).toBeLessThan(0.005);
+    expect(gap(observation.rewardRisk, expected.rewardRisk)).toBeLessThan(
+      0.005
+    );
+  });
+
+  it("gives the old blocking warnings for the wait series", () => {
+    const observation = observe(
+      evidenceOf({ bars: parityBars("wait"), quote: quoteOf({ price: 69 }) })
+    );
+    expect(codesOf(observation)).toEqual([
+      "trend-not-aligned",
+      "outside-buy-zone",
+      "reward-below-2",
+    ]);
   });
 });

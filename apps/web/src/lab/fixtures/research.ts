@@ -800,6 +800,10 @@ export const LAB_RESEARCH_SCREEN: ResearchScreenStatusOutput = {
       collection: "failed",
       errorCode: "provider-timeout",
       errorMessage: "Demo provider did not answer",
+      lastGoodAt: at(55),
+      lastGoodRunId: "demo-screen-run-earlier",
+      score: 0,
+      storedAction: "review-entry",
     },
   ],
   scheduler: {
@@ -807,5 +811,56 @@ export const LAB_RESEARCH_SCREEN: ResearchScreenStatusOutput = {
     lastTickDecision: "not-due",
     state: "ok",
   },
-  swinglytics: null,
+  swinglytics: {
+    generatedAt: at(40),
+    lastAttemptAt: at(35),
+    lastAttemptStatus: "ok",
+    lastError: null,
+    retrievedAt: at(35),
+    snapshot: {
+      breadth: {
+        above20DayPercent: 61,
+        above50DayPercent: 54,
+        above200DayPercent: 48,
+        regime: "Demo healthy",
+        score: 63,
+      },
+      regime: {
+        label: "Demo uptrend",
+        riskLevel: "Demo low",
+        trendStrength: "Demo strong",
+      },
+      scanner: { bearish: 14, bullish: 38, total: 480, withSetups: 52 },
+      setups: [
+        {
+          direction: "bullish",
+          name: "Demo GPU maker",
+          pattern: "Demo flag",
+          sector: "Demo technology",
+          ticker: "NVDA",
+        },
+        {
+          direction: "bearish",
+          name: null,
+          pattern: null,
+          sector: null,
+          ticker: "GLD",
+        },
+      ],
+      themes: [
+        { bias: "bullish", changePercent: 1.4, name: "Demo chips" },
+        { bias: null, changePercent: null, name: "Demo banks" },
+      ],
+      vix: {
+        level: 15.2,
+        percentile1Year: 22,
+        regime: "Demo calm",
+        trend: "Demo falling",
+      },
+    },
+    stale: false,
+    // The fixed text of the status (SWINGLYTICS_WARNING in packages/api).
+    warning:
+      "Third-party context only. Swinglytics is not Vertex research, not a market measurement of the platform, not an input of the screen and not an order signal.",
+  },
 };

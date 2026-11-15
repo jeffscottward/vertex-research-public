@@ -266,13 +266,14 @@ describe("research screen repository", () => {
   });
 
   describe("leases", () => {
-    it("takes a free or expired lease of a running run and returns the raised fence", async () => {
-      const { database, operations } = createDouble([[{ fence: 3 }]]);
+    it("takes a free or expired lease of a running run and returns the run with the raised fence", async () => {
+      const run = { fence: 3, id: RUN_ID, succeeded: 4 };
+      const { database, operations } = createDouble([[run]]);
       const repository = createResearchScreenRepository(database, clock);
 
-      await expect(repository.takeLease(RUN_ID, "request-2")).resolves.toEqual({
-        fence: 3,
-      });
+      await expect(repository.takeLease(RUN_ID, "request-2")).resolves.toBe(
+        run
+      );
 
       const update = operation(operations, 0);
       expect(update.table).toBe(researchScreenRuns);
@@ -314,6 +315,28 @@ describe("research screen repository", () => {
       );
       expect(where.params).toEqual([RUN_ID, "running", 2]);
     });
+
+    it("releases only with the current fence of a running run", async () => {
+      const { database, operations } = createDouble([[{ id: RUN_ID }], []]);
+      const repository = createResearchScreenRepository(database, clock);
+
+      await expect(repository.releaseLease(RUN_ID, 2)).resolves.toBe(true);
+      await expect(repository.releaseLease(RUN_ID, 1)).resolves.toBe(false);
+
+      const update = operation(operations, 0);
+      expect(update.table).toBe(researchScreenRuns);
+      expect(update.set).toEqual({ leaseExpiresAt: null, leaseOwner: null });
+      const where = render(update.where);
+      expect(where.text).toBe(
+        '("research_screen_runs"."id" = $1 and "research_screen_runs"."status" = $2 and "research_screen_runs"."fence" = $3)'
+      );
+      expect(where.params).toEqual([RUN_ID, "running", 2]);
+      expect(render(operation(operations, 1).where).params).toEqual([
+        RUN_ID,
+        "running",
+        1,
+      ]);
+    });
   });
 
   describe("closeExpiredRun", () => {
@@ -346,7 +369,7 @@ describe("research screen repository", () => {
       const repository = createResearchScreenRepository(database, clock);
 
       await expect(
-        repository.finishRun(RUN_ID, 2, "partial", "m".repeat(301))
+        repository.finishRun(RUN_ID, 2, "partial", "m".repeat(301), 3)
       ).resolves.toBe(true);
 
       const update = operation(operations, 0);
@@ -354,10 +377,15 @@ describe("research screen repository", () => {
         leaseExpiresAt: null,
         leaseOwner: null,
         message: "m".repeat(300),
+        notReached: 3,
         status: "partial",
       });
       expect(render(update.set?.["finishedAt"]).text).toBe("now()");
-      expect(render(update.set?.["notReached"]).text).toContain("greatest(");
+      // The total follows the reports of the run: attempted plus not reached.
+      expect(render(update.set?.["total"])).toEqual({
+        params: [3],
+        text: '"research_screen_runs"."succeeded" + "research_screen_runs"."failed" + $1',
+      });
       expect(render(update.where).params).toEqual([RUN_ID, "running", 2]);
     });
 
@@ -366,7 +394,7 @@ describe("research screen repository", () => {
       const repository = createResearchScreenRepository(database, clock);
 
       await expect(
-        repository.finishRun(RUN_ID, 1, "completed", null)
+        repository.finishRun(RUN_ID, 1, "completed", null, 0)
       ).resolves.toBe(false);
       expect(operation(operations, 0).set?.["message"]).toBeNull();
     });
@@ -534,6 +562,22 @@ describe("research screen repository", () => {
       });
     });
 
+    it("leaves both stop counters when no request was made", async () => {
+      const { database, operations } = createDouble([[{ id: RUN_ID }]]);
+      const repository = createResearchScreenRepository(database, clock);
+
+      await repository.writeRow(
+        RUN_ID,
+        2,
+        failed({ stops: { ibkrFailed: null, yahooRateLimited: null } })
+      );
+
+      expect(counterText(operation(operations, 0).set)).toMatchObject({
+        ibkrFailuresInRow: '"ibkr_failures_in_row"',
+        yahooRateLimitsInRow: '"yahoo_rate_limits_in_row"',
+      });
+    });
+
     it("writes no row for an old fence", async () => {
       const { database, operations } = createDouble([[]]);
       const repository = createResearchScreenRepository(database, clock);
@@ -556,6 +600,15 @@ describe("research screen repository", () => {
       expect(render(operation(operations, 0).where).params).toEqual([
         "running",
       ]);
+    });
+
+    it("counts the catalog reports", async () => {
+      const { database, operations } = createDouble([[{ reports: 58 }], []]);
+      const repository = createResearchScreenRepository(database, clock);
+
+      await expect(repository.countReports()).resolves.toBe(58);
+      await expect(repository.countReports()).resolves.toBe(0);
+      expect(operation(operations, 0).table).toBe(researchReports);
     });
 
     it("lists the reports not attempted in the run, oldest attempt first", async () => {

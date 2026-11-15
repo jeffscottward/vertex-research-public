@@ -192,7 +192,7 @@ describe("research screen repository (Postgres)", () => {
     // A run is running.
     await expect(refuse(SLOT_3)).resolves.toBeNull();
     await expect(
-      repository.finishRun(run.id, 1, "failed", "nothing succeeded")
+      repository.finishRun(run.id, 1, "failed", "nothing succeeded", 2)
     ).resolves.toBe(true);
     await expect(repository.findActiveRun()).resolves.toBeNull();
     // The slot has a run.
@@ -222,7 +222,7 @@ describe("research screen repository (Postgres)", () => {
 
     const [winner] = sameSlot.filter((run) => run !== null);
     if (winner === undefined) throw new Error("no winner");
-    await repository.finishRun(winner.id, 1, "failed", null);
+    await repository.finishRun(winner.id, 1, "failed", null, 2);
 
     const twoSlots = await Promise.all([
       attempt(SLOT_2, "request-c"),
@@ -244,10 +244,11 @@ describe("research screen repository (Postgres)", () => {
     await expect(repository.renewLease(run.id, 1)).resolves.toBe(true);
 
     await expire();
-    await expect(repository.takeLease(run.id, "request-2")).resolves.toEqual({
-      fence: 2,
-    });
+    const fresh = await repository.takeLease(run.id, "request-2");
     const taken = await storedRun(run.id);
+    // The answer is the stored run after the takeover.
+    expect(fresh).toEqual(taken);
+    expect(taken.fence).toBe(2);
     expect(taken.leaseOwner).toBe("request-2");
     expect(taken.leaseExpiresAt?.getTime()).toBeGreaterThan(Date.now());
 
@@ -257,7 +258,7 @@ describe("research screen repository (Postgres)", () => {
     ).resolves.toBe(false);
     await expect(repository.writeRow(run.id, 1, good())).resolves.toBe(false);
     await expect(
-      repository.finishRun(run.id, 1, "completed", null)
+      repository.finishRun(run.id, 1, "completed", null, 0)
     ).resolves.toBe(false);
     await expect(storedRow(FIRST)).resolves.toBeNull();
     await expect(database().select().from(researchScreenBars)).resolves.toEqual(
@@ -274,7 +275,7 @@ describe("research screen repository (Postgres)", () => {
     ).resolves.toBe(true);
     await expect(repository.writeRow(run.id, 2, good())).resolves.toBe(true);
     await expect(
-      repository.finishRun(run.id, 2, "partial", "m".repeat(400))
+      repository.finishRun(run.id, 2, "partial", "m".repeat(400), 1)
     ).resolves.toBe(true);
     const finished = await storedRun(run.id);
     expect(finished).toMatchObject({
@@ -283,12 +284,77 @@ describe("research screen repository (Postgres)", () => {
       notReached: 1,
       status: "partial",
       succeeded: 1,
+      total: 2,
     });
     expect(finished.message).toHaveLength(300);
     expect(finished.finishedAt).toBeInstanceOf(Date);
     // An ended run takes no lease and no write.
     await expect(repository.takeLease(run.id, "request-3")).resolves.toBeNull();
     await expect(repository.writeRow(run.id, 2, failed())).resolves.toBe(false);
+  });
+
+  it("frees the lease of a share so the next tick takes it at once, twice in a row", async () => {
+    const repository = createResearchScreenRepository(database());
+    const run = await claim(SLOT_1);
+    await repository.writeRow(run.id, 1, good());
+
+    // An old fence frees nothing.
+    await expect(repository.releaseLease(run.id, 0)).resolves.toBe(false);
+    await expect(repository.takeLease(run.id, "request-2")).resolves.toBeNull();
+
+    await expect(repository.releaseLease(run.id, 1)).resolves.toBe(true);
+    expect(await storedRun(run.id)).toMatchObject({
+      fence: 1,
+      leaseExpiresAt: null,
+      leaseOwner: null,
+      status: "running",
+    });
+    const second = await repository.takeLease(run.id, "request-2");
+    expect(second).toMatchObject({
+      fence: 2,
+      id: run.id,
+      leaseOwner: "request-2",
+      succeeded: 1,
+    });
+    expect(second?.leaseExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+    // The released fence is old now.
+    await expect(repository.releaseLease(run.id, 1)).resolves.toBe(false);
+    await expect(repository.takeLease(run.id, "request-3")).resolves.toBeNull();
+
+    await expect(repository.releaseLease(run.id, 2)).resolves.toBe(true);
+    await expect(
+      repository.takeLease(run.id, "request-3")
+    ).resolves.toMatchObject({ fence: 3, leaseOwner: "request-3" });
+
+    await repository.finishRun(run.id, 3, "partial", null, 1);
+    // An ended run has no lease to free.
+    await expect(repository.releaseLease(run.id, 3)).resolves.toBe(false);
+  });
+
+  it("counts the catalog reports and leaves the Yahoo stop counter without a request", async () => {
+    const repository = createResearchScreenRepository(database());
+    const run = await claim(SLOT_1);
+
+    await expect(repository.countReports()).resolves.toBe(2);
+
+    await repository.writeRow(
+      run.id,
+      1,
+      failed({ stops: { ibkrFailed: null, yahooRateLimited: true } })
+    );
+    await repository.writeRow(
+      run.id,
+      1,
+      failed({
+        providerSymbol: SECOND,
+        reportId: SECOND,
+        stops: { ibkrFailed: null, yahooRateLimited: null },
+      })
+    );
+    expect(await storedRun(run.id)).toMatchObject({
+      failed: 2,
+      yahooRateLimitsInRow: 1,
+    });
   });
 
   it("keeps the counters, the stop counters and the row rules", async () => {
@@ -415,10 +481,15 @@ describe("research screen repository (Postgres)", () => {
     });
 
     await expect(
-      repository.finishRun(run.id, 1, "partial", null)
+      repository.finishRun(run.id, 1, "partial", null, 0)
     ).resolves.toBe(true);
-    // 5 total - 1 succeeded - 5 failed is below zero: stored as 0.
-    expect(await storedRun(run.id)).toMatchObject({ failed: 5, notReached: 0 });
+    // The claim said 5 reports; the run attempted 6 and left none: the total follows the run.
+    expect(await storedRun(run.id)).toMatchObject({
+      failed: 5,
+      notReached: 0,
+      succeeded: 1,
+      total: 6,
+    });
   });
 
   it("orders the work of the next run by the oldest attempt and reads the status", async () => {
@@ -435,7 +506,7 @@ describe("research screen repository (Postgres)", () => {
     await repository.saveBars(first.id, 1, FIRST, FIRST, "2026-11-13", [
       { c: 101, date: "2026-11-13", h: 102, l: 99, o: 100 },
     ]);
-    await repository.finishRun(first.id, 1, "partial", "one failed");
+    await repository.finishRun(first.id, 1, "partial", "one failed", 0);
 
     const second = await claim(SLOT_2);
     const work = await repository.listWork(second.id);

@@ -379,27 +379,145 @@ describe("research screen view-model", () => {
       lastError: null,
       retrieved: "Nov 13, 09:30 ET (14:30 UTC)",
       snapshot: {
-        breadthScore: "64",
-        counts: [
-          { label: "Scanned", value: "500" },
-          { label: "With setups", value: "none" },
-          { label: "Bullish", value: "40" },
-          { label: "Bearish", value: "12" },
+        groups: [
+          {
+            items: [
+              { label: "Label", value: "Uptrend" },
+              { label: "Trend strength", value: "strong" },
+              { label: "Risk level", value: "low" },
+            ],
+            title: "Regime",
+          },
+          {
+            items: [
+              { label: "Score", value: "64" },
+              { label: "Regime", value: "healthy" },
+              { label: "Above 20-day average", value: "60.0 %" },
+              { label: "Above 50-day average", value: "55.0 %" },
+              { label: "Above 200-day average", value: "50.0 %" },
+            ],
+            title: "Breadth",
+          },
+          {
+            items: [
+              { label: "Level", value: "15.50" },
+              { label: "1-year percentile", value: "20" },
+              { label: "Regime", value: "calm" },
+              { label: "Trend", value: "down" },
+            ],
+            title: "VIX",
+          },
+          {
+            items: [
+              { label: "Scanned", value: "500" },
+              { label: "With setups", value: "none" },
+              { label: "Bullish", value: "40" },
+              { label: "Bearish", value: "12" },
+            ],
+            title: "Scanner",
+          },
         ],
-        regimeLabel: "Uptrend",
         setups: [
-          { detail: "bullish · Demo Maker · flag · Tech", ticker: "AAA" },
-          { detail: "bearish", ticker: "BBB" },
+          {
+            direction: "Bullish",
+            name: "Demo Maker",
+            pattern: "flag",
+            sector: "Tech",
+            ticker: "AAA",
+          },
+          {
+            direction: "Bearish",
+            name: "none",
+            pattern: "none",
+            sector: "none",
+            ticker: "BBB",
+          },
         ],
         themes: [
-          { detail: "+1.50 % · bullish", name: "Chips" },
-          { detail: "", name: "Banks" },
-          { detail: "-0.50 %", name: "Energy" },
+          { bias: "bullish", change: "+1.50 %", name: "Chips" },
+          { bias: "none", change: "none", name: "Banks" },
+          { bias: "none", change: "-0.50 %", name: "Energy" },
         ],
-        vixLevel: "15.50",
       },
       stale: false,
       warning: "Third-party context only.",
+    });
+  });
+
+  it("shows the word for a missing value in every empty snapshot field", () => {
+    const view = toResearchScreenViewModel(
+      status({
+        swinglytics: context({
+          snapshot: {
+            breadth: {
+              above20DayPercent: null,
+              above50DayPercent: null,
+              above200DayPercent: null,
+              regime: null,
+              score: null,
+            },
+            regime: { label: "Range", riskLevel: null, trendStrength: null },
+            scanner: {
+              bearish: null,
+              bullish: null,
+              total: null,
+              withSetups: null,
+            },
+            setups: [],
+            themes: [],
+            vix: {
+              level: null,
+              percentile1Year: null,
+              regime: null,
+              trend: null,
+            },
+          },
+        }),
+      })
+    ).context?.snapshot;
+    expect(
+      view?.groups.map((group) => [
+        group.title,
+        group.items.map((item) => item.value),
+      ])
+    ).toEqual([
+      ["Regime", ["Range", "none", "none"]],
+      ["Breadth", ["none", "none", "none", "none", "none"]],
+      ["VIX", ["none", "none", "none", "none"]],
+      ["Scanner", ["none", "none", "none", "none"]],
+    ]);
+    expect(view?.setups).toEqual([]);
+    expect(view?.themes).toEqual([]);
+  });
+
+  it("shows a row whose latest collection failed with its last good values", () => {
+    const view = toResearchScreenViewModel(
+      status({
+        rows: [
+          row({
+            action: "unavailable",
+            collection: "failed",
+            errorCode: "provider-http",
+            errorMessage: "Provider answered 502",
+            lastAttemptAt: SUMMER,
+            score: 0,
+            storedAction: "review-entry",
+            storedScore: 71.25,
+          }),
+        ],
+      })
+    ).rows[0];
+    expect(view).toMatchObject({
+      actionLabel: "No current data",
+      actionTone: "warning",
+      buyZone: "101.00 to 103.50",
+      collectionNote:
+        "Latest collection failed; values are from Nov 13, 09:30 ET (14:30 UTC)",
+      errorCode: "provider-http",
+      price: "102.50",
+      score: "0.0",
+      storedActionLabel: "Review entry",
+      target: "112.00",
     });
   });
 

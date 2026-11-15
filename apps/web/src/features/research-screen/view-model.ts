@@ -136,7 +136,7 @@ export type ResearchScreenRowView = Readonly<{
   score: string;
   sources: string;
   stop: string;
-  /** The action stored in the dossier, only when it differs from the screen action. */
+  /** The action the last good run stored, only when it differs from the shown action. */
   storedActionLabel: string | null;
   support: string;
   symbol: string;
@@ -145,12 +145,19 @@ export type ResearchScreenRowView = Readonly<{
 }>;
 
 export type ResearchScreenSnapshotView = Readonly<{
-  breadthScore: string;
-  counts: readonly Readonly<{ label: string; value: string }>[];
-  regimeLabel: string;
-  setups: readonly Readonly<{ detail: string; ticker: string }>[];
-  themes: readonly Readonly<{ detail: string; name: string }>[];
-  vixLevel: string;
+  /** Regime, breadth, VIX and scanner: every parsed value, in this order. */
+  groups: readonly Readonly<{
+    items: readonly Readonly<{ label: string; value: string }>[];
+    title: string;
+  }>[];
+  setups: readonly Readonly<{
+    direction: string;
+    name: string;
+    pattern: string;
+    sector: string;
+    ticker: string;
+  }>[];
+  themes: readonly Readonly<{ bias: string; change: string; name: string }>[];
 }>;
 
 export type ResearchScreenContextView = Readonly<{
@@ -258,32 +265,90 @@ const toRow = (row: ResearchScreenRow): ResearchScreenRowView => {
   };
 };
 
-const joined = (parts: readonly (string | null)[]): string =>
-  parts.filter((part) => part !== null).join(" · ");
+/** A share of 0 to 100 without a sign: "60.0 %". */
+const share = (value: number | null): string =>
+  value === null ? RESEARCH_SCREEN_NO_VALUE : `${value.toFixed(1)} %`;
 
 const toSnapshot = (
   snapshot: NonNullable<ResearchScreenContext["snapshot"]>
 ): ResearchScreenSnapshotView => ({
-  breadthScore: fixed(snapshot.breadth.score, 0),
-  counts: [
-    { label: "Scanned", value: fixed(snapshot.scanner.total, 0) },
-    { label: "With setups", value: fixed(snapshot.scanner.withSetups, 0) },
-    { label: "Bullish", value: fixed(snapshot.scanner.bullish, 0) },
-    { label: "Bearish", value: fixed(snapshot.scanner.bearish, 0) },
+  groups: [
+    {
+      items: [
+        { label: "Label", value: snapshot.regime.label },
+        {
+          label: "Trend strength",
+          value: snapshot.regime.trendStrength ?? RESEARCH_SCREEN_NO_VALUE,
+        },
+        {
+          label: "Risk level",
+          value: snapshot.regime.riskLevel ?? RESEARCH_SCREEN_NO_VALUE,
+        },
+      ],
+      title: "Regime",
+    },
+    {
+      items: [
+        { label: "Score", value: fixed(snapshot.breadth.score, 0) },
+        {
+          label: "Regime",
+          value: snapshot.breadth.regime ?? RESEARCH_SCREEN_NO_VALUE,
+        },
+        {
+          label: "Above 20-day average",
+          value: share(snapshot.breadth.above20DayPercent),
+        },
+        {
+          label: "Above 50-day average",
+          value: share(snapshot.breadth.above50DayPercent),
+        },
+        {
+          label: "Above 200-day average",
+          value: share(snapshot.breadth.above200DayPercent),
+        },
+      ],
+      title: "Breadth",
+    },
+    {
+      items: [
+        { label: "Level", value: fixed(snapshot.vix.level, 2) },
+        {
+          label: "1-year percentile",
+          value: fixed(snapshot.vix.percentile1Year, 0),
+        },
+        {
+          label: "Regime",
+          value: snapshot.vix.regime ?? RESEARCH_SCREEN_NO_VALUE,
+        },
+        {
+          label: "Trend",
+          value: snapshot.vix.trend ?? RESEARCH_SCREEN_NO_VALUE,
+        },
+      ],
+      title: "VIX",
+    },
+    {
+      items: [
+        { label: "Scanned", value: fixed(snapshot.scanner.total, 0) },
+        { label: "With setups", value: fixed(snapshot.scanner.withSetups, 0) },
+        { label: "Bullish", value: fixed(snapshot.scanner.bullish, 0) },
+        { label: "Bearish", value: fixed(snapshot.scanner.bearish, 0) },
+      ],
+      title: "Scanner",
+    },
   ],
-  regimeLabel: snapshot.regime.label,
   setups: snapshot.setups.map((setup) => ({
-    detail: joined([setup.direction, setup.name, setup.pattern, setup.sector]),
+    direction: setup.direction === "bullish" ? "Bullish" : "Bearish",
+    name: setup.name ?? RESEARCH_SCREEN_NO_VALUE,
+    pattern: setup.pattern ?? RESEARCH_SCREEN_NO_VALUE,
+    sector: setup.sector ?? RESEARCH_SCREEN_NO_VALUE,
     ticker: setup.ticker,
   })),
   themes: snapshot.themes.map((theme) => ({
-    detail: joined([
-      theme.changePercent === null ? null : percent(theme.changePercent),
-      theme.bias,
-    ]),
+    bias: theme.bias ?? RESEARCH_SCREEN_NO_VALUE,
+    change: percent(theme.changePercent),
     name: theme.name,
   })),
-  vixLevel: fixed(snapshot.vix.level, 2),
 });
 
 const NOT_RECORDED = "not recorded";

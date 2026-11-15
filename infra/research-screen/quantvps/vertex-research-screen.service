@@ -14,7 +14,8 @@ EnvironmentFile=/etc/vertex-autopilot/autopilot.env
 Environment=VERTEX_WORKER_PAUSE_FILE=/root/.local/state/vertex-nautilus-worker.pause
 WorkingDirectory=/opt/vertex-research-screen
 ExecStart=/opt/vertex-autopilot/bin/node /opt/vertex-research-screen/vertex-research-screen-tick.mjs
-TimeoutStartSec=1800
+# Above the worst case of the script: the 28-minute wall limit plus one 200-second call (1,880 s).
+TimeoutStartSec=2100
 Nice=10
 NoNewPrivileges=yes
 CapabilityBoundingSet=

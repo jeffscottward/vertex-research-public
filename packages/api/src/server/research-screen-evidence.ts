@@ -5,16 +5,14 @@
 // fixed and hold no URL.
 
 import type { ResearchScreenErrorCode } from "../contracts/research-screen.ts";
-import type {
-  CatalogAssetType,
-  CatalogEntry,
-  ResearchScreenBar,
-  ResearchScreenQuote,
-} from "../research-screen.ts";
+import type { CatalogAssetType, CatalogEntry } from "../research-screen.ts";
 import {
   parseResearchScreenChart,
+  type ResearchScreenBar,
+  type ResearchScreenQuote,
   researchScreenChartUrl,
 } from "../research-screen-quote.ts";
+import { nyseSession } from "../strategy-dsl-compile.ts";
 import {
   parseSwinglyticsHtml,
   SWINGLYTICS_URL,
@@ -28,7 +26,6 @@ import {
   historyFetchedAt,
   historyInstrument,
   loadMergedBars,
-  sessionRunning,
 } from "./merged-bars.ts";
 import { readCappedText } from "./portfolio-monitor.ts";
 
@@ -41,6 +38,7 @@ const SWINGLYTICS_MAX_BYTES = 1_000_000;
 const SWINGLYTICS_ERROR_MAX_LENGTH = 240;
 /** One attempt of the Yahoo chart request and of the Swinglytics read. */
 const READ_TIMEOUT_MS = 10_000;
+const DAY_MS = 86_400_000;
 const HTML_CONTENT_TYPE = /^text\/html(?:\s*;|$)/iu;
 /** Transport options of the IBKR bars request (design, "Constants"). */
 const IBKR_BARS_TRANSPORT = Object.freeze({
@@ -263,7 +261,13 @@ export const readIbkrBars = async (
     config,
     fromIbkr: (bar, history) => {
       const date = historyDate(bar.t);
-      return sessionRunning(date, historyFetchedAt(history)) || bar.c <= 0
+      // A bar is forming while the NYSE session of its date has not closed (13:00 New York on an
+      // early close) when the service fetched it; a date without a session is never forming.
+      const session = nyseSession(Date.parse(`${date}T00:00:00Z`) / DAY_MS);
+      const running =
+        session !== null &&
+        historyFetchedAt(history).getTime() < session.close.getTime();
+      return running || bar.c <= 0
         ? null
         : { c: bar.c, date, h: bar.h, l: bar.l, o: bar.o };
     },

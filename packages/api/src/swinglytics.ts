@@ -148,8 +148,8 @@ type FieldKey =
 /** An object of the page data: every read key is unknown until it is checked. */
 type Fields = Partial<Record<FieldKey, unknown>>;
 
-const SCRIPT_OPEN = /<script(?:\s[^>]*)?>/i;
-const SCRIPT_CLOSE = /<\/script>/i;
+const SCRIPT_OPEN = "<script";
+const SCRIPT_CLOSE = "</script";
 const PUSH_PREFIX = "self.__next_f.push(";
 // Control characters and the direction marks and isolates.
 const UNSAFE_CHARACTERS =
@@ -201,13 +201,52 @@ const timeOf = (value: unknown): Date | null => {
   return Number.isNaN(candidate.getTime()) ? null : candidate;
 };
 
+/**
+ * Index of the first `tag` (lower case) at or after `from`, letters compared without case;
+ * -1 when none. One pass over the `<` characters, each compared at a fixed length.
+ */
+const indexOfTag = (html: string, tag: string, from: number): number => {
+  let at = html.indexOf("<", from);
+  while (at !== -1 && html.slice(at, at + tag.length).toLowerCase() !== tag) {
+    at = html.indexOf("<", at + 1);
+  }
+  return at;
+};
+
+/**
+ * The bodies of the `<script>` elements, in document order. A linear scan with a cursor that
+ * only moves forward: no regular expression reads the page, so no input can make it backtrack.
+ * An opening tag is `<script` followed by `>` or by white space and any text up to the next
+ * `>`; its body ends at the next `</script`. An element that is never closed has no body.
+ */
+const scriptBodies = (html: string): string[] => {
+  const bodies: string[] = [];
+  let open = indexOfTag(html, SCRIPT_OPEN, 0);
+  while (open !== -1) {
+    let next = open + SCRIPT_OPEN.length;
+    const after = html.charAt(next);
+    if (after === ">" || after.trim() === "") {
+      const tagEnd = html.indexOf(">", next);
+      const close =
+        tagEnd === -1 ? -1 : indexOfTag(html, SCRIPT_CLOSE, tagEnd + 1);
+      // No `>` or no closing tag from here on: none of the later elements can have one.
+      if (close === -1) {
+        break;
+      }
+      bodies.push(html.slice(tagEnd + 1, close));
+      next = close + SCRIPT_CLOSE.length;
+    }
+    open = indexOfTag(html, SCRIPT_OPEN, next);
+  }
+  return bodies;
+};
+
 /** Steps 1 to 3: the JSON values of the lines of the page data. */
 const pageValues = (html: string): unknown[] => {
   const strings: string[] = [];
   let chunks = 0;
-  for (const piece of html.split(SCRIPT_OPEN).slice(1)) {
-    const end = piece.search(SCRIPT_CLOSE);
-    const body = piece.slice(0, Math.max(end, 0)).trim();
+  for (const element of scriptBodies(html)) {
+    const body = element.trim();
     if (!(body.startsWith(PUSH_PREFIX) && body.endsWith(")"))) {
       continue;
     }
@@ -265,7 +304,14 @@ const dashboardOf = (candidate: Fields): Dashboard | null => {
 
 /** Step 4: depth-first search, in document order, for the first dashboard object. */
 const findDashboard = (values: unknown[]): Dashboard => {
-  const stack = [...values].reverse();
+  // Children are pushed one by one: a spread of a large array as arguments overflows the call stack.
+  const stack: unknown[] = [];
+  const pushReversed = (children: readonly unknown[]): void => {
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      stack.push(children[index]);
+    }
+  };
+  pushReversed(values);
   let visited = 0;
   while (stack.length > 0) {
     visited += 1;
@@ -274,14 +320,13 @@ const findDashboard = (values: unknown[]): Dashboard => {
     }
     const value = stack.pop();
     if (Array.isArray(value)) {
-      const children: unknown[] = [...value];
-      stack.push(...children.reverse());
+      pushReversed(value);
     } else if (isFields(value)) {
       const dashboard = dashboardOf(value);
       if (dashboard !== null) {
         return dashboard;
       }
-      stack.push(...Object.values(value).reverse());
+      pushReversed(Object.values(value));
     }
   }
   throw new SwinglyticsParseError(SWINGLYTICS_PARSE_ERRORS.noDashboard);

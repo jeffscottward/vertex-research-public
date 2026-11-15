@@ -35,6 +35,7 @@ import {
   type ResearchScreenRowView,
   type ResearchScreenRunView,
   type ResearchScreenSlotView,
+  type ResearchScreenSnapshotView,
   type ResearchScreenViewModel,
   toResearchScreenViewModel,
 } from "../../features/research-screen/view-model.ts";
@@ -258,7 +259,7 @@ const RowsTable = ({
               </StatusBadge>
               {row.storedActionLabel !== null && (
                 <div className="text-muted-foreground text-xs">
-                  Dossier: {row.storedActionLabel}
+                  Last action: {row.storedActionLabel}
                 </div>
               )}
             </TableCell>
@@ -280,6 +281,100 @@ const RowsTable = ({
       </TableBody>
     </Table>
   </TableScroll>
+);
+
+const SnapshotBody = ({
+  snapshot,
+}: {
+  readonly snapshot: ResearchScreenSnapshotView;
+}) => (
+  <>
+    {snapshot.groups.map((group) => (
+      <div data-research-screen-group={group.title} key={group.title}>
+        <h3 className="font-medium">{group.title}</h3>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+          {group.items.map((item) => (
+            <div key={item.label}>
+              <dt className="text-muted-foreground">{item.label}</dt>
+              <dd className="tabular-nums">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    ))}
+    <div data-research-screen-themes="">
+      <h3 className="font-medium">Themes</h3>
+      {snapshot.themes.length === 0 ? (
+        <p className="text-muted-foreground">No theme is in the snapshot.</p>
+      ) : (
+        <TableScroll label="Third-party themes" minWidth="20rem">
+          <Table>
+            <TableCaption className="sr-only">
+              Themes of the third-party snapshot
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">Theme</TableHead>
+                <TableHead numeric scope="col">
+                  Change
+                </TableHead>
+                <TableHead scope="col">Bias</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {snapshot.themes.map((theme) => (
+                <TableRow key={theme.name}>
+                  <TableHead className="font-normal" scope="row">
+                    {theme.name}
+                  </TableHead>
+                  <TableCell numeric>{theme.change}</TableCell>
+                  <TableCell>{theme.bias}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableScroll>
+      )}
+    </div>
+    <div data-research-screen-setups="">
+      <h3 className="font-medium">Setups</h3>
+      {snapshot.setups.length === 0 ? (
+        <p className="text-muted-foreground">No setup is in the snapshot.</p>
+      ) : (
+        <TableScroll label="Third-party setups" minWidth="32rem">
+          <Table>
+            <TableCaption className="sr-only">
+              Setups of the third-party snapshot
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">Ticker</TableHead>
+                <TableHead scope="col">Direction</TableHead>
+                <TableHead scope="col">Name</TableHead>
+                <TableHead scope="col">Pattern</TableHead>
+                <TableHead scope="col">Sector</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {snapshot.setups.map((setup) => (
+                <TableRow
+                  key={`${setup.ticker}-${setup.direction}-${setup.pattern}`}
+                >
+                  <TableHead className="font-normal" scope="row">
+                    {setup.ticker}
+                  </TableHead>
+                  <TableCell>{setup.direction}</TableCell>
+                  <TableCell>{setup.name}</TableCell>
+                  <TableCell>{setup.pattern}</TableCell>
+                  <TableCell>{setup.sector}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableScroll>
+      )}
+    </div>
+  </>
 );
 
 const ContextPanel = ({
@@ -309,46 +404,7 @@ const ContextPanel = ({
       {context.snapshot === null ? (
         <p>No snapshot is stored yet.</p>
       ) : (
-        <>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-            {[
-              { label: "Regime", value: context.snapshot.regimeLabel },
-              { label: "Breadth score", value: context.snapshot.breadthScore },
-              { label: "VIX level", value: context.snapshot.vixLevel },
-              ...context.snapshot.counts,
-            ].map((item) => (
-              <div key={item.label}>
-                <dt className="text-muted-foreground">{item.label}</dt>
-                <dd className="tabular-nums">{item.value}</dd>
-              </div>
-            ))}
-          </dl>
-          {context.snapshot.themes.length > 0 && (
-            <div>
-              <h3 className="font-medium">Themes</h3>
-              <ul>
-                {context.snapshot.themes.map((theme) => (
-                  <li key={theme.name}>
-                    {theme.name}
-                    {theme.detail !== "" && ` · ${theme.detail}`}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {context.snapshot.setups.length > 0 && (
-            <div>
-              <h3 className="font-medium">Setups</h3>
-              <ul>
-                {context.snapshot.setups.map((setup) => (
-                  <li key={`${setup.ticker}-${setup.detail}`}>
-                    {setup.ticker} · {setup.detail}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
+        <SnapshotBody snapshot={context.snapshot} />
       )}
     </div>
   </Panel>

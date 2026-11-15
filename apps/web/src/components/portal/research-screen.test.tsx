@@ -187,6 +187,9 @@ const full = (): ResearchScreenStatusOutput =>
         collection: "failed",
         errorCode: "provider-timeout",
         reportId: "BBB",
+        score: 0,
+        storedAction: "review-entry",
+        storedScore: 71,
         symbol: "BBB",
         warnings: ["Earnings in 3 days"],
       }),
@@ -271,13 +274,17 @@ describe("research screen workspace", () => {
     expect(host.querySelector('[data-slot="table-scroll"]')).not.toBeNull();
     const first = host.querySelector('[data-research-screen-row="AAA"]');
     expect(first?.textContent).toContain("Review entry");
-    expect(first?.textContent).toContain("Dossier: Wait");
+    expect(first?.textContent).toContain("Last action: Wait");
     expect(first?.textContent).toContain("3 h 12 min");
     expect(first?.textContent).toContain("IBKR bars, Yahoo quote");
     expect(first?.textContent).toContain("Reasons: Price is inside");
     const second = host.querySelector('[data-research-screen-row="BBB"]');
     expect(second?.textContent).toContain("No current data");
-    expect(second?.textContent).toContain("Latest collection failed");
+    expect(second?.textContent).toContain(
+      "Latest collection failed; values are from Nov 13, 09:30 ET (14:30 UTC)"
+    );
+    expect(second?.textContent).toContain("Last action: Review entry");
+    expect(second?.textContent).toContain("102.50");
     expect(second?.textContent).toContain("Error code: provider-timeout");
     expect(second?.textContent).toContain("Blocking: Quote is too old");
     expect(second?.textContent).toContain("Warnings: Earnings in 3 days");
@@ -287,9 +294,58 @@ describe("research screen workspace", () => {
     expect(panel?.textContent).toContain(WARNING);
     expect(panel?.textContent).toContain("Stale");
     expect(panel?.textContent).toContain("Last retrieval error: HTTP 503");
-    expect(panel?.textContent).toContain("Uptrend");
-    expect(panel?.textContent).toContain("Chips · +1.50 % · bullish");
-    expect(panel?.textContent).toContain("CCC · bullish · Demo Maker");
+    const group = (title: string) =>
+      [
+        ...(panel
+          ?.querySelector(`[data-research-screen-group="${title}"]`)
+          ?.querySelectorAll("dl > div") ?? []),
+      ].map((item) => [
+        item.querySelector("dt")?.textContent,
+        item.querySelector("dd")?.textContent,
+      ]);
+    expect(group("Regime")).toEqual([
+      ["Label", "Uptrend"],
+      ["Trend strength", "strong"],
+      ["Risk level", "low"],
+    ]);
+    expect(group("Breadth")).toEqual([
+      ["Score", "64"],
+      ["Regime", "healthy"],
+      ["Above 20-day average", "60.0 %"],
+      ["Above 50-day average", "55.0 %"],
+      ["Above 200-day average", "50.0 %"],
+    ]);
+    expect(group("VIX")).toEqual([
+      ["Level", "15.50"],
+      ["1-year percentile", "20"],
+      ["Regime", "calm"],
+      ["Trend", "down"],
+    ]);
+    expect(group("Scanner")).toEqual([
+      ["Scanned", "500"],
+      ["With setups", "52"],
+      ["Bullish", "40"],
+      ["Bearish", "12"],
+    ]);
+    const cells = (slot: string) =>
+      [
+        ...(panel?.querySelectorAll(
+          `[data-research-screen-${slot}] tbody tr`
+        ) ?? []),
+      ].map((line) => [...line.children].map((cell) => cell.textContent));
+    expect(cells("themes")).toEqual([
+      ["Chips", "+1.50 %", "bullish"],
+      ["Banks", "none", "none"],
+    ]);
+    expect(cells("setups")).toEqual([
+      ["CCC", "Bullish", "Demo Maker", "flag", "Tech"],
+    ]);
+    for (const slot of ["themes", "setups"]) {
+      const inner = panel?.querySelector(`[data-research-screen-${slot}]`);
+      expect(inner?.querySelector("caption")).not.toBeNull();
+      expect(inner?.querySelector('[data-slot="table-scroll"]')).not.toBeNull();
+      expect(inner?.querySelector('th[scope="row"]')).not.toBeNull();
+    }
     expect(text).toContain("Screen values are research only.");
     expect(text).not.toMatch(VAGUE);
   });
@@ -331,7 +387,7 @@ describe("research screen workspace", () => {
     expect(text).not.toMatch(VAGUE);
   });
 
-  it("leaves the context panel out when there is no context", async () => {
+  it("names empty themes and setups and leaves the panel out without context", async () => {
     const { host } = await mount(
       <ResearchScreenWorkspace
         gateway={gatewayOf(async () =>
@@ -351,8 +407,9 @@ describe("research screen workspace", () => {
       />
     );
     const panel = host.querySelector("[data-research-screen-context]");
-    expect(panel?.textContent).not.toContain("Themes");
-    expect(panel?.textContent).not.toContain("Setups");
+    expect(panel?.textContent).toContain("No theme is in the snapshot.");
+    expect(panel?.textContent).toContain("No setup is in the snapshot.");
+    expect(panel?.querySelector("table")).toBeNull();
     const none = await mount(
       <ResearchScreenWorkspace
         gateway={gatewayOf(async () => status({ swinglytics: null }))}

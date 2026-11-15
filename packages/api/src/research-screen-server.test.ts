@@ -26,8 +26,8 @@ import {
   type CatalogEntry,
   RESEARCH_SCREEN_LIMITATIONS,
   RESEARCH_SCREEN_WARNING_TEXTS,
-  type ResearchScreenBar,
 } from "./research-screen.ts";
+import type { ResearchScreenBar } from "./research-screen-quote.ts";
 import { slotsBetween } from "./research-screen-slots.ts";
 import { createApiContext } from "./server/context.ts";
 import type { DeployStatusConfig } from "./server/deploy-status.ts";
@@ -71,9 +71,15 @@ const at = (offsetMs: number): Date => new Date(NOW.getTime() + offsetMs);
 const sessionDay = (back: number): number =>
   Date.parse(`${LAST_SESSION}T00:00:00Z`) - back * DAY_MS;
 
-/** A Yahoo chart answer with `count` completed daily bars that end at the last session. */
-const chartOf = (instrumentType = "EQUITY", count = 60) => {
-  const days = Array.from({ length: count }, (_, index) => count - 1 - index);
+/**
+ * A Yahoo chart answer with `count` completed daily bars that end `endBack` days before the last
+ * session.
+ */
+const chartOf = (instrumentType = "EQUITY", count = 60, endBack = 0) => {
+  const days = Array.from(
+    { length: count },
+    (_, index) => count - 1 - index + endBack
+  );
   const closes = days.map((back) => 200 - back);
   return {
     chart: {
@@ -111,9 +117,9 @@ const chartOf = (instrumentType = "EQUITY", count = 60) => {
   };
 };
 
-const screenBars = (count = 60): ResearchScreenBar[] =>
+const screenBars = (count = 60, endBack = 0): ResearchScreenBar[] =>
   Array.from({ length: count }, (_, index) => {
-    const back = count - 1 - index;
+    const back = count - 1 - index + endBack;
     const close = 200 - back;
     return {
       c: close,
@@ -208,18 +214,26 @@ type Seed = Readonly<{
   run?: ResearchScreenRunRecord;
   /** Reports the seeded run attempted before this test. */
   attempted?: readonly string[];
+  /** The catalog size at the claim; default: the number of reports. */
+  count?: number;
   status?: Partial<ResearchScreenStatusRecord>;
 }>;
 
-/** An in-memory stand-in with the write rules the engine relies on (fence, counters, order). */
+/**
+ * An in-memory stand-in with the rules the engine relies on: the lease (taken only when it is free
+ * or expired at the test clock, freed by a release, renewed after a report), the fence, the
+ * counters and the work order. `accept` refuses one kind of call, as an old fence does.
+ */
 const fakeRepository = (seed: Seed = {}) => {
   const reports = seed.reports ?? [];
   const state = {
     accept: {
       bars: true,
       claim: true,
+      close: true,
       finish: true,
       lease: true,
+      release: true,
       renew: true,
       write: true,
     },
@@ -235,13 +249,15 @@ const fakeRepository = (seed: Seed = {}) => {
     if (signal === null) return count;
     return signal ? count + 1 : 0;
   };
+  const leaseEnd = () => new Date(clock.at + 4 * MINUTE_MS);
+  const active = () => state.run as ResearchScreenRunRecord;
   const repository = {
     claimSlot: vi.fn(async (input) => {
       if (!state.accept.claim) return null;
       state.run = runOf({
         claimedAt: new Date(clock.at),
         deadlineAt: new Date(clock.at + 25 * MINUTE_MS),
-        leaseExpiresAt: new Date(clock.at + 4 * MINUTE_MS),
+        leaseExpiresAt: leaseEnd(),
         leaseOwner: input.owner,
         slotAt: input.slotAt,
         slotLabels: [...input.labels],
@@ -250,9 +266,11 @@ const fakeRepository = (seed: Seed = {}) => {
       return state.run;
     }),
     closeExpiredRun: vi.fn(async () => {
+      if (!state.accept.close) return false;
       state.run = null;
       return true;
     }),
+    countReports: vi.fn(async () => seed.count ?? reports.length),
     findActiveRun: vi.fn(async () => state.run),
     finishRun: vi.fn(async (...input) => {
       state.finished.push(input);
@@ -278,7 +296,16 @@ const fakeRepository = (seed: Seed = {}) => {
     recordTick: vi.fn(async (decision) => {
       state.ticks.push(decision);
     }),
-    renewLease: vi.fn(async () => state.accept.renew),
+    releaseLease: vi.fn(async () => {
+      if (!state.accept.release) return false;
+      state.run = { ...active(), leaseExpiresAt: null, leaseOwner: null };
+      return true;
+    }),
+    renewLease: vi.fn(async () => {
+      if (!state.accept.renew) return false;
+      state.run = { ...active(), leaseExpiresAt: leaseEnd() };
+      return true;
+    }),
     saveBars: vi.fn(async (...input) => {
       state.savedBars.push(input);
       return state.accept.bars;
@@ -287,14 +314,21 @@ const fakeRepository = (seed: Seed = {}) => {
       state.swinglytics.push(result);
     }),
     takeLease: vi.fn(async (_runId, owner) => {
-      const run = state.run as ResearchScreenRunRecord;
-      if (!state.accept.lease) return null;
-      state.run = { ...run, fence: run.fence + 1, leaseOwner: owner };
-      return { fence: run.fence + 1 };
+      const run = active();
+      const live =
+        run.leaseExpiresAt !== null && run.leaseExpiresAt.getTime() > clock.at;
+      if (live || !state.accept.lease) return null;
+      state.run = {
+        ...run,
+        fence: run.fence + 1,
+        leaseExpiresAt: leaseEnd(),
+        leaseOwner: owner,
+      };
+      return state.run;
     }),
     writeRow: vi.fn(async (_runId, fence, row) => {
       if (!state.accept.write) return false;
-      const run = state.run as ResearchScreenRunRecord;
+      const run = active();
       const good = row.kind === "good";
       state.writes.push({ fence, row });
       state.attempted.add(row.reportId);
@@ -381,6 +415,7 @@ const clientFor = (
   options: Readonly<{
     repository?: ResearchScreenRepository;
     apiKey?: string;
+    keyAccess?: "read" | "write";
     /** The session user; null is an anonymous caller. */
     user?: string | null;
     marketHistory?: DeployStatusConfig;
@@ -402,7 +437,7 @@ const clientFor = (
     authenticate: vi.fn(async (headers: Headers) => {
       if (headers.get("x-api-key") !== PLAINTEXT) throw denied();
       return {
-        access: "write" as const,
+        access: options.keyAccess ?? "write",
         apiKeyId: "key-1",
         email: "owner@domain.test",
         emailVerified: true,
@@ -510,6 +545,20 @@ describe("researchScreen access", () => {
     });
     expect(state.ticks).toStrictEqual([]);
     expect(repository.findActiveRun).not.toHaveBeenCalled();
+  });
+
+  it("refuses the tick of an agent read key", async () => {
+    const { repository, state } = fakeRepository({ reports: [report("aaa")] });
+    const reader = clientFor({
+      apiKey: PLAINTEXT,
+      keyAccess: "read",
+      repository,
+    });
+
+    await expectCode(reader.researchScreen.tick({}), "FORBIDDEN", 403);
+    expect(state.ticks).toStrictEqual([]);
+    expect(repository.findActiveRun).not.toHaveBeenCalled();
+    expect(repository.claimSlot).not.toHaveBeenCalled();
   });
 
   it("answers STORAGE_ERROR when the repository is missing", async () => {
@@ -621,7 +670,7 @@ describe("researchScreen.tick decisions", () => {
       { kind: "error", message: expect.stringContaining("Swinglytics") },
     ]);
     expect(state.finished).toStrictEqual([
-      ["run-1", 1, "completed", "2 of 2 reports screened"],
+      ["run-1", 1, "completed", "2 of 2 reports screened", 0],
     ]);
     // The served report: IBKR bars read, stored, and used. The index: the Yahoo bars of its chart.
     expect(state.savedBars).toStrictEqual([
@@ -723,7 +772,7 @@ describe("researchScreen.tick decisions", () => {
       [[4, "bbb"]]
     );
     expect(state.finished).toStrictEqual([
-      ["run-1", 4, "completed", "2 of 2 reports screened"],
+      ["run-1", 4, "completed", "2 of 2 reports screened", 0],
     ]);
     // A resumed run reads no Swinglytics page.
     expect(seen.pages).toStrictEqual([]);
@@ -775,6 +824,70 @@ describe("researchScreen.tick decisions", () => {
     });
     expect(state.ticks).toStrictEqual(["claimed"]);
   });
+
+  it("continues a run that the database did not end, and ends it at its deadline", async () => {
+    const seen = useFetch();
+    const { repository, state } = fakeRepository({
+      attempted: ["aaa"],
+      reports: [report("aaa"), report("bbb")],
+      run: runOf({
+        deadlineAt: at(-MINUTE_MS),
+        leaseExpiresAt: at(-MINUTE_MS),
+        succeeded: 1,
+        total: 2,
+      }),
+    });
+    state.accept.close = false;
+
+    const answer = await scheduler(repository).researchScreen.tick({});
+
+    expect(repository.closeExpiredRun).toHaveBeenCalledExactlyOnceWith("run-1");
+    expect(repository.claimSlot).not.toHaveBeenCalled();
+    expect(answer).toMatchObject({
+      decision: "resumed",
+      done: true,
+      processed: 1,
+      remaining: 1,
+      runId: "run-1",
+      runStatus: "partial",
+      total: 2,
+    });
+    expect(state.ticks).toStrictEqual(["resumed"]);
+    // The deadline is past: no report starts.
+    expect(seen.charts).toStrictEqual([]);
+    expect(repository.releaseLease).not.toHaveBeenCalled();
+    expect(state.finished).toStrictEqual([
+      ["run-1", 2, "partial", "1 of 2 reports screened", 1],
+    ]);
+  });
+
+  it("answers busy when the database did not end the run and its lease is taken", async () => {
+    useFetch();
+    const { repository, state } = fakeRepository({
+      reports: [report("aaa")],
+      run: runOf({
+        deadlineAt: at(-MINUTE_MS),
+        leaseExpiresAt: at(-MINUTE_MS),
+        total: 1,
+      }),
+    });
+    state.accept.close = false;
+    state.accept.lease = false;
+
+    const answer = await scheduler(repository).researchScreen.tick({});
+
+    expect(answer).toMatchObject({
+      decision: "busy",
+      done: true,
+      processed: 0,
+      remaining: 1,
+      runId: "run-1",
+      runStatus: "running",
+    });
+    expect(state.ticks).toStrictEqual(["busy"]);
+    expect(repository.claimSlot).not.toHaveBeenCalled();
+    expect(repository.listWork).not.toHaveBeenCalled();
+  });
 });
 
 describe("researchScreen.tick shares", () => {
@@ -802,12 +915,10 @@ describe("researchScreen.tick shares", () => {
       total: 3,
     });
     expect(state.finished).toStrictEqual([]);
+    // The share freed its lease, so the next call of the script continues at once.
+    expect(repository.releaseLease).toHaveBeenCalledExactlyOnceWith("run-1", 1);
+    expect(state.run).toMatchObject({ leaseExpiresAt: null, leaseOwner: null });
 
-    // The first tick ended: its lease is free.
-    state.run = {
-      ...(state.run as ResearchScreenRunRecord),
-      leaseExpiresAt: null,
-    };
     const second = await client.researchScreen.tick({});
 
     expect(second).toMatchObject({
@@ -818,9 +929,47 @@ describe("researchScreen.tick shares", () => {
       runStatus: "completed",
     });
     expect(state.ticks).toStrictEqual(["claimed", "resumed"]);
+    expect(repository.takeLease).toHaveBeenCalledExactlyOnceWith(
+      "run-1",
+      "request-1"
+    );
+    expect(repository.releaseLease).toHaveBeenCalledTimes(1);
     expect(state.finished).toStrictEqual([
-      ["run-1", 2, "completed", "3 of 3 reports screened"],
+      ["run-1", 2, "completed", "3 of 3 reports screened", 0],
     ]);
+  });
+
+  it("answers busy to the next tick when a share could not free its lease", async () => {
+    const { repository, state } = fakeRepository({
+      reports: [indexReport("one"), indexReport("two"), indexReport("six")],
+    });
+    useFetch({
+      chart: () => {
+        clock.at += 30_000;
+        return Response.json(chartOf("INDEX"));
+      },
+    });
+    // Another tick took the run after the last renewal: the old fence frees nothing.
+    state.accept.release = false;
+    const client = scheduler(repository);
+
+    const first = await client.researchScreen.tick({});
+    const second = await client.researchScreen.tick({});
+
+    expect(first).toMatchObject({
+      decision: "claimed",
+      done: true,
+      processed: 2,
+      remaining: 1,
+      runStatus: "running",
+    });
+    expect(second).toMatchObject({
+      decision: "busy",
+      done: true,
+      processed: 2,
+      remaining: 1,
+    });
+    expect(repository.finishRun).not.toHaveBeenCalled();
   });
 
   it("ends the share when the fence refuses a row write", async () => {
@@ -840,7 +989,10 @@ describe("researchScreen.tick shares", () => {
       runStatus: "running",
     });
     expect(seen.charts).toHaveLength(1);
+    // A lost fence: the tick writes nothing more, frees no lease and does not end the run.
+    expect(state.writes).toStrictEqual([]);
     expect(repository.renewLease).not.toHaveBeenCalled();
+    expect(repository.releaseLease).not.toHaveBeenCalled();
     expect(repository.finishRun).not.toHaveBeenCalled();
   });
 
@@ -926,7 +1078,7 @@ describe("researchScreen.tick shares", () => {
       total: 3,
     });
     expect(state.finished).toStrictEqual([
-      ["run-1", 1, "partial", "1 of 3 reports screened"],
+      ["run-1", 1, "partial", "1 of 3 reports screened", 2],
     ]);
   });
 
@@ -961,7 +1113,8 @@ describe("researchScreen.tick shares", () => {
       expect.objectContaining({
         errorCode: "identity-unverified",
         reportId: "two",
-        stops: { ibkrFailed: null, yahooRateLimited: false },
+        // No request was made: neither stop counter moves.
+        stops: { ibkrFailed: null, yahooRateLimited: null },
       }),
       expect.objectContaining({
         errorCode: "metadata-invalid",
@@ -969,7 +1122,7 @@ describe("researchScreen.tick shares", () => {
       }),
     ]);
     expect(state.finished).toStrictEqual([
-      ["run-1", 1, "failed", "3 of 3 reports screened"],
+      ["run-1", 1, "failed", "3 of 3 reports screened", 0],
     ]);
   });
 
@@ -988,7 +1141,7 @@ describe("researchScreen.tick shares", () => {
       total: 0,
     });
     expect(state.finished).toStrictEqual([
-      ["run-1", 1, "failed", "0 of 0 reports screened"],
+      ["run-1", 1, "failed", "0 of 0 reports screened", 0],
     ]);
   });
 
@@ -1023,33 +1176,49 @@ describe("researchScreen.tick stop rules and bars", () => {
       reports: [
         indexReport("one"),
         indexReport("two"),
+        report("bad", { identityStatus: "pending" }),
         indexReport("six"),
         indexReport("ten"),
-        report("bad", { identityStatus: "pending" }),
+        report("ugh", { identityStatus: "pending" }),
+        indexReport("end"),
       ],
     });
 
     const answer = await scheduler(repository).researchScreen.tick({});
 
-    expect(answer).toMatchObject({ processed: 5, runStatus: "failed" });
+    expect(answer).toMatchObject({ processed: 7, runStatus: "failed" });
     expect(seen.charts).toHaveLength(3);
     expect(
       state.writes.map(({ row }) => [
+        row.reportId,
         row.kind === "failed" ? row.errorCode : null,
         row.stops,
       ])
     ).toStrictEqual([
-      ["rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
-      ["rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
-      ["rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
-      ["rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
-      // A catalog failure makes no request and keeps the stop.
-      ["identity-unverified", { ibkrFailed: null, yahooRateLimited: true }],
+      ["one", "rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
+      ["two", "rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
+      // A catalog failure makes no request: it does not break the row of rate limits.
+      [
+        "bad",
+        "identity-unverified",
+        { ibkrFailed: null, yahooRateLimited: null },
+      ],
+      ["six", "rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
+      // The stop: no request.
+      ["ten", "rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
+      // A catalog failure under the stop leaves the counter, so the stop holds.
+      [
+        "ugh",
+        "identity-unverified",
+        { ibkrFailed: null, yahooRateLimited: null },
+      ],
+      ["end", "rate-limited", { ibkrFailed: null, yahooRateLimited: true }],
     ]);
-    expect(state.writes[3]?.row).toMatchObject({
+    expect(state.writes[4]?.row).toMatchObject({
       errorMessage:
         "Yahoo chart: not requested after 3 rate-limit answers in a row in this run.",
     });
+    expect(state.run).toBeNull();
   });
 
   it("reads no IBKR bars after 3 failed reads in a row", async () => {
@@ -1073,20 +1242,123 @@ describe("researchScreen.tick stop rules and bars", () => {
     ]);
   });
 
-  it("keeps the IBKR stop of the run record across shares", async () => {
+  it("starts a resumed share from the counters of the run as stored at the takeover", async () => {
     const seen = useFetch();
     const { repository, state } = fakeRepository({
-      reports: [report("aaa")],
-      run: runOf({ ibkrFailuresInRow: 3, leaseExpiresAt: null, total: 1 }),
+      attempted: ["old"],
+      reports: [report("old"), report("aaa")],
+      run: runOf({
+        failed: 1,
+        ibkrFailuresInRow: 3,
+        leaseExpiresAt: null,
+        total: 2,
+      }),
+    });
+    // The first read of the tick is older than the last write of the share before it.
+    repository.findActiveRun.mockResolvedValueOnce(
+      runOf({ leaseExpiresAt: null, total: 2 })
+    );
+
+    const answer = await scheduler(
+      repository,
+      HISTORY_CONFIG
+    ).researchScreen.tick({});
+
+    // The IBKR stop of the stored run holds: no history request.
+    expect(seen.history).toStrictEqual([]);
+    expect(state.writes[0]?.row).toMatchObject({
+      barsSource: "yahoo",
+      reportId: "aaa",
+      stops: { ibkrFailed: null },
+    });
+    expect(answer).toMatchObject({
+      decision: "resumed",
+      done: true,
+      processed: 2,
+      remaining: 0,
+      runStatus: "partial",
+      total: 2,
+    });
+    expect(state.finished).toStrictEqual([
+      ["run-1", 2, "partial", "2 of 2 reports screened", 0],
+    ]);
+  });
+
+  it("asks IBKR bars, and not Yahoo bars, to reach the session that is due", async () => {
+    useFetch({
+      chart: (url) =>
+        Response.json(
+          url.includes("%5E") ? chartOf("INDEX", 60, 3) : chartOf("EQUITY")
+        ),
+    });
+    const { repository, state } = fakeRepository({
+      // Stored as current, but the series ends 3 days before the session that is due.
+      bars: [storedBars("cur", { bars: screenBars(60, 3) })],
+      reports: [report("cur"), indexReport("syn")],
     });
 
     await scheduler(repository, HISTORY_CONFIG).researchScreen.tick({});
 
-    expect(seen.history).toStrictEqual([]);
-    expect(state.writes[0]?.row).toMatchObject({
-      barsSource: "yahoo",
-      stops: { ibkrFailed: null },
+    const codes = state.writes.map(({ row }) => [
+      row.barsSource,
+      row.kind === "good" &&
+        row.observation.blockingWarnings.some(
+          (warning) => warning.code === "history-stale"
+        ),
+    ]);
+    expect(codes).toStrictEqual([
+      ["ibkr", true],
+      ["yahoo", false],
+    ]);
+  });
+
+  it("writes quote-missing for a chart answer without a quote", async () => {
+    useFetch({ chart: () => Response.json({ chart: { result: [] } }) });
+    const { repository, state } = fakeRepository({
+      reports: [indexReport("one")],
     });
+
+    const answer = await scheduler(repository).researchScreen.tick({});
+
+    expect(answer).toMatchObject({ processed: 1, runStatus: "failed" });
+    expect(state.writes.map(({ row }) => row)).toStrictEqual([
+      {
+        barsSource: "yahoo",
+        errorCode: "quote-missing",
+        errorMessage: "The price read gave no quote.",
+        kind: "failed",
+        providerSymbol: "^ONE",
+        reportId: "one",
+        stops: { ibkrFailed: null, yahooRateLimited: false },
+      },
+    ]);
+  });
+
+  it("ends a run by the reports it had, not by the count at the claim", async () => {
+    useFetch({ chart: () => Response.json(chartOf("INDEX")) });
+    // The catalog had 3 reports at the claim; one left it before the work list was read.
+    const { repository, state } = fakeRepository({
+      count: 3,
+      reports: [indexReport("one"), indexReport("two")],
+    });
+
+    const answer = await scheduler(repository).researchScreen.tick({});
+
+    expect(repository.claimSlot).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ total: 3 })
+    );
+    expect(repository.readStatus).not.toHaveBeenCalled();
+    expect(answer).toMatchObject({
+      decision: "claimed",
+      done: true,
+      processed: 2,
+      remaining: 0,
+      runStatus: "completed",
+      total: 2,
+    });
+    expect(state.finished).toStrictEqual([
+      ["run-1", 1, "completed", "2 of 2 reports screened", 0],
+    ]);
   });
 
   it("requests IBKR bars only when the stored bars are due", async () => {
@@ -1458,6 +1730,19 @@ describe("research screen engine", () => {
       succeeded: 1,
       yahooRateLimitsInRow: 0,
     });
+
+    // No request at all: both stop counters keep their value.
+    countWrite(run, good);
+    countWrite(run, {
+      ...good,
+      stops: { ibkrFailed: null, yahooRateLimited: null },
+    });
+    expect(run).toStrictEqual({
+      failed: 2,
+      ibkrFailuresInRow: 1,
+      succeeded: 3,
+      yahooRateLimitsInRow: 1,
+    });
   });
 });
 
@@ -1661,12 +1946,13 @@ describe("researchScreen.status", () => {
       storedRow("mov", { providerSymbol: "MOVOLD" }),
       // A review-entry whose quote is older than 4 hours.
       storedRow("exp", { quoteAt: at(-5 * 60 * MINUTE_MS) }),
-      // The last attempt failed after a good observation.
+      // The last attempt failed after a good observation (whose quote is older than 4 hours).
       storedRow("bad", {
         attemptAt: at(-MINUTE_MS),
         attemptRunId: "run-2",
         errorCode: "provider-timeout",
         errorMessage: "Yahoo chart: request timed out",
+        quoteAt: at(-5 * 60 * MINUTE_MS),
       }),
       // Only failed attempts so far.
       storedRow("err", {
@@ -1761,13 +2047,15 @@ describe("researchScreen.status", () => {
         storedScore: 100,
         symbol: "EXP",
         warnings: [
-          "Synthetic warning",
           RESEARCH_SCREEN_WARNING_TEXTS["entry-expired"],
+          "Synthetic warning",
         ],
       },
+      // A failed collection: unavailable with score 0; the last good values, their action and
+      // their score stay, and the read-time rule adds nothing.
       {
         ...values,
-        action: "review-entry",
+        action: "unavailable",
         barsSource: "ibkr",
         collection: "failed",
         errorCode: "provider-timeout",
@@ -1778,11 +2066,11 @@ describe("researchScreen.status", () => {
         lastGoodAt: at(-10 * MINUTE_MS),
         lastGoodRunId: "run-1",
         providerSymbol: "BAD",
-        quoteAgeMs: 11 * MINUTE_MS,
-        quoteAt: at(-11 * MINUTE_MS),
+        quoteAgeMs: 5 * 60 * MINUTE_MS,
+        quoteAt: at(-5 * 60 * MINUTE_MS),
         quoteSource: "yahoo",
         reportId: "bad",
-        score: 100,
+        score: 0,
         storedAction: "review-entry",
         storedScore: 100,
         symbol: "BAD",

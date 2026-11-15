@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   PAUSE_FILE_MAX_AGE_MS,
   type ResearchScreenTickIo,
+  readSourceSha,
   runResearchScreenTick,
   WALL_LIMIT_MS,
 } from "./tick.ts";
@@ -240,5 +241,51 @@ describe("runResearchScreenTick", () => {
       "research screen tick failed: VERTEX_AGENT_API_KEY is required\n",
     ]);
     expect(noKey.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("readSourceSha", () => {
+  const scriptUrl =
+    "file:///opt/vertex-research-screen/vertex-research-screen-tick.mjs";
+  const missing = (code: string): Error =>
+    Object.assign(new Error(`${code}: SOURCE_SHA`), { code });
+
+  it("reads the trimmed commit from the file beside the running script", async () => {
+    const readText = vi.fn(async (_file: URL) => "abc123-dirty\n");
+    await expect(readSourceSha(scriptUrl, readText)).resolves.toBe(
+      "abc123-dirty"
+    );
+    expect(readText.mock.calls[0]?.[0].href).toBe(
+      "file:///opt/vertex-research-screen/SOURCE_SHA"
+    );
+  });
+
+  it("gives nothing when the file does not exist or is empty", async () => {
+    await expect(
+      readSourceSha(scriptUrl, async () => {
+        throw missing("ENOENT");
+      })
+    ).resolves.toBeUndefined();
+    await expect(
+      readSourceSha(scriptUrl, async () => " \n")
+    ).resolves.toBeUndefined();
+  });
+
+  it("passes on any other read error", async () => {
+    await expect(
+      readSourceSha(scriptUrl, async () => {
+        throw missing("EACCES");
+      })
+    ).rejects.toThrow("EACCES: SOURCE_SHA");
+    await expect(
+      readSourceSha(scriptUrl, async () => {
+        throw new Error("no code");
+      })
+    ).rejects.toThrow("no code");
+    await expect(
+      readSourceSha(scriptUrl, async () => {
+        throw "plain text";
+      })
+    ).rejects.toBe("plain text");
   });
 });

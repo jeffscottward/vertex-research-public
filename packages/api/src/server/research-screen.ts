@@ -33,11 +33,11 @@ import {
   parseCatalogEntry,
   RESEARCH_SCREEN_LIMITATIONS,
   RESEARCH_SCREEN_LIMITS,
-  type ResearchScreenBar,
   runStatusOf,
   schedulerStateOf,
   screenReport,
 } from "../research-screen.ts";
+import type { ResearchScreenBar } from "../research-screen-quote.ts";
 import {
   barsDueSessionDate,
   calendarVerified,
@@ -135,6 +135,12 @@ export const storedBarsCurrent = (
   );
 };
 
+/** The next value of a stop counter: +1 on true, 0 on false, unchanged on null (no request). */
+const nextStopCount = (count: number, signal: boolean | null): number => {
+  if (signal === null) return count;
+  return signal ? count + 1 : 0;
+};
+
 /** The run counters after a write that the repository accepted (the rules of `writeRow`). */
 export const countWrite = (
   counters: ShareCounters,
@@ -144,13 +150,14 @@ export const countWrite = (
     row.kind === "good" && row.observation.action !== "unavailable";
   if (succeeded) counters.succeeded += 1;
   else counters.failed += 1;
-  counters.yahooRateLimitsInRow = row.stops.yahooRateLimited
-    ? counters.yahooRateLimitsInRow + 1
-    : 0;
-  if (row.stops.ibkrFailed === null) return;
-  counters.ibkrFailuresInRow = row.stops.ibkrFailed
-    ? counters.ibkrFailuresInRow + 1
-    : 0;
+  counters.yahooRateLimitsInRow = nextStopCount(
+    counters.yahooRateLimitsInRow,
+    row.stops.yahooRateLimited
+  );
+  counters.ibkrFailuresInRow = nextStopCount(
+    counters.ibkrFailuresInRow,
+    row.stops.ibkrFailed
+  );
 };
 
 /**
@@ -242,10 +249,11 @@ const screenedRow = async (
     {
       bars: chosen.bars,
       barsSource: chosen.source,
-      fetchError: null,
       quote: work.chart.quote,
     },
-    now
+    now,
+    // IBKR bars must reach the session the stored bars are due for; Yahoo bars have no such date.
+    chosen.source === "ibkr" ? barsDueSessionDate(now) : null
   );
   if (!screened.ok) return failedRow(item, screened, stops, chosen.source);
   const { historyAt, quoteAt, ...values } = screened.observation;
@@ -277,16 +285,16 @@ const rowOf = async (
   item: ResearchScreenWorkItem,
   counters: ShareCounters
 ): Promise<ResearchScreenRowWrite | null> => {
-  const yahooStopped =
-    counters.yahooRateLimitsInRow >= RESEARCH_SCREEN_LIMITS.yahooRateLimitStop;
   const parsed = parseCatalogEntry(item.report);
-  // No Yahoo request was made: the Yahoo counter keeps its side of the stop.
+  // No request was made: both stop counters keep their value, so an active stop holds.
   if (!parsed.ok)
     return failedRow(item, parsed, {
       ibkrFailed: null,
-      yahooRateLimited: yahooStopped,
+      yahooRateLimited: null,
     });
-  if (yahooStopped)
+  if (
+    counters.yahooRateLimitsInRow >= RESEARCH_SCREEN_LIMITS.yahooRateLimitStop
+  )
     return failedRow(
       item,
       {
@@ -339,6 +347,7 @@ const answerOf = (
     processed: number;
     remaining: number;
     runStatus: ResearchScreenTickOutput["runStatus"];
+    total: number;
   }>
 ): ResearchScreenTickOutput => ({
   decision,
@@ -350,13 +359,14 @@ const answerOf = (
   runStatus: state.runStatus,
   slotAt: run.slotAt,
   slotLabels: [...run.slotLabels],
-  total: run.total,
+  total: state.total,
 });
 
 /**
  * One share of a run: reports until the share budget or the deadline, the lease renewed after each
- * one. Ends the run when no report remains or the deadline is reached. A refused write or renewal
- * (an old fence) ends the share at once.
+ * one. Ends the run when no report remains or the deadline is reached; else frees the lease for the
+ * next tick. A refused write or renewal (an old fence) ends the share at once. The counts of the
+ * answer and of the end are those of the work list, not of the claim.
  */
 export const workShare = async (
   engine: ResearchScreenEngine,
@@ -389,36 +399,40 @@ export const workShare = async (
   }
   const processed = counters.succeeded + counters.failed;
   const remaining = items.length - attempted;
-  const state = { processed, remaining };
-  if (!held)
-    return answerOf(engine, decision, run, {
-      ...state,
-      done: true,
-      runStatus: "running",
+  // The reports of the run as it went: a report can leave or join the catalog after the claim.
+  const total = processed + remaining;
+  const answer = (
+    done: boolean,
+    runStatus: ResearchScreenTickOutput["runStatus"]
+  ): ResearchScreenTickOutput =>
+    answerOf(engine, decision, run, {
+      done,
+      processed,
+      remaining,
+      runStatus,
+      total,
     });
-  if (remaining > 0 && engine.now().getTime() < deadline)
-    return answerOf(engine, decision, run, {
-      ...state,
-      done: false,
-      runStatus: "running",
-    });
+  if (!held) return answer(true, "running");
+  if (remaining > 0 && engine.now().getTime() < deadline) {
+    // Work is left: the lease is freed so the next tick takes it at once. A refusal means that
+    // another tick has the run already.
+    const released = await engine.repository.releaseLease(run.id, lease.fence);
+    return answer(!released, "running");
+  }
   const status = runStatusOf({
     failed: counters.failed,
-    notReached: Math.max(0, run.total - processed),
+    notReached: remaining,
     succeeded: counters.succeeded,
-    total: run.total,
+    total,
   });
   const finished = await engine.repository.finishRun(
     run.id,
     lease.fence,
     status,
-    `${processed} of ${run.total} reports screened`
+    `${processed} of ${total} reports screened`,
+    remaining
   );
-  return answerOf(engine, decision, run, {
-    ...state,
-    done: true,
-    runStatus: finished ? status : "running",
-  });
+  return answer(true, finished ? status : "running");
 };
 
 const leaseLive = (run: ResearchScreenRunRecord, now: Date): boolean =>
@@ -435,6 +449,7 @@ const busy = async (
     processed,
     remaining: Math.max(0, run.total - processed),
     runStatus: "running",
+    total: run.total,
   });
 };
 
@@ -474,12 +489,11 @@ const claimAndWork = async (
 ): Promise<ResearchScreenTickOutput> => {
   const { repository } = engine;
   const slot = newestSlotAtOrBefore(now);
-  const catalog = await repository.readStatus();
   const run = await repository.claimSlot({
     labels: [...slot.labels],
     owner: engine.requestId,
     slotAt: slot.at,
-    total: catalog.rows.length,
+    total: await repository.countReports(),
   });
   if (run === null) {
     await repository.recordTick("not-due");
@@ -510,14 +524,18 @@ export const runTick = async (
   const active = await repository.findActiveRun();
   if (active === null) return claimAndWork(engine, now);
   if (leaseLive(active, now)) return busy(engine, active);
-  if (active.deadlineAt.getTime() <= now.getTime()) {
-    await repository.closeExpiredRun(active.id);
+  if (
+    active.deadlineAt.getTime() <= now.getTime() &&
+    (await repository.closeExpiredRun(active.id))
+  )
     return claimAndWork(engine, now);
-  }
+  // The deadline has not passed, or the database did not end the run (its clock, or another tick,
+  // says otherwise): this tick continues the run when it gets the lease.
   const taken = await repository.takeLease(active.id, engine.requestId);
   if (taken === null) return busy(engine, active);
   await repository.recordTick("resumed");
-  return workShare(engine, "resumed", { fence: taken.fence, run: active });
+  // The run as stored now: its counters and stop counters include every earlier share.
+  return workShare(engine, "resumed", { fence: taken.fence, run: taken });
 };
 
 const toRun = (
@@ -574,9 +592,14 @@ const NO_OBSERVATION = {
 
 type StoredRow = NonNullable<ResearchScreenStatusRow["row"]>;
 
-/** The observation columns of a row after the read-time rule; no good observation gives nulls. */
+/**
+ * The observation columns of a row. No good observation gives nulls. After a failed collection the
+ * last good values stay with their stored action and score, and the row is shown as `unavailable`
+ * with score 0. Else the read-time rule applies.
+ */
 const observationOf = (
   row: StoredRow,
+  collection: "failed" | "fresh",
   now: Date
 ): Pick<ResearchScreenRow, keyof typeof NO_OBSERVATION> => {
   const stored = row.observation;
@@ -590,15 +613,22 @@ const observationOf = (
       reasons: [],
       warnings: [],
     };
-  const shown = effectiveRow(
-    {
-      action,
-      quoteAt: row.quoteAt,
-      score: stored.score,
-      warnings: stored.warnings,
-    },
-    now
-  );
+  const kept = {
+    action,
+    quoteAt: row.quoteAt,
+    score: stored.score,
+    warnings: stored.warnings,
+  };
+  const shown =
+    collection === "failed"
+      ? {
+          ...kept,
+          action: "unavailable" as const,
+          score: 0,
+          storedAction: action,
+          storedScore: stored.score,
+        }
+      : effectiveRow(kept, now);
   return {
     action: shown.action,
     blockingWarnings: stored.blockingWarnings,
@@ -652,11 +682,13 @@ export const toStatusRow = (
       reasons: [],
       warnings: [],
     };
+  const collection =
+    timeOf(row.attemptAt) > timeOf(row.goodAt) ? "failed" : "fresh";
   return {
     ...identity,
-    ...observationOf(row, now),
+    ...observationOf(row, collection, now),
     barsSource: row.barsSource,
-    collection: timeOf(row.attemptAt) > timeOf(row.goodAt) ? "failed" : "fresh",
+    collection,
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,
     historyAt: row.historyAt,

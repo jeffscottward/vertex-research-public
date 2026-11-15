@@ -426,6 +426,70 @@ describe("readIbkrBars", () => {
     expect(history.urls).toHaveLength(1);
   });
 
+  it.each([
+    // 27 November 2026 is the day after Thanksgiving: the session closes at 13:00 New York.
+    ["an early-close day at 15:00 New York", "2026-11-27T20:00:00Z", true],
+    ["an early-close day at 12:59 New York", "2026-11-27T17:59:59Z", false],
+    ["a normal day at 15:00 New York", "2026-11-10T20:00:00Z", false],
+    ["a normal day one second before the close", "2026-11-10T20:59:59Z", false],
+    ["a normal day at the close", "2026-11-10T21:00:00Z", true],
+    ["a normal day at 16:01 New York", "2026-11-10T21:01:00Z", true],
+    // Thanksgiving and a Saturday have no NYSE session, so their bar is never forming.
+    ["a holiday at 15:00 New York", "2026-11-26T20:00:00Z", true],
+    ["a Saturday at 15:00 New York", "2026-11-07T20:00:00Z", true],
+  ])(
+    "judges the newest bar of %s by the close of its NYSE session",
+    async (_name, fetchedAt, kept) => {
+      const day = Date.parse(`${fetchedAt.slice(0, 10)}T00:00:00Z`) / 1000;
+      const history = withHistory(
+        (url) =>
+          historyResponse(url, [historyBar(NOV_5, 100), historyBar(day, 104)], {
+            fetchedAt,
+          }),
+        noOther
+      );
+      setResearchScreenOptionsForTesting({
+        fetch: history.fetch,
+        now: () => new Date(fetchedAt),
+      });
+
+      const read = await readIbkrBars(entry(), HISTORY_CONFIG);
+
+      expect(read).toStrictEqual({
+        bars: [
+          { c: 100, date: "2026-11-05", h: 101, l: 99, o: 100 },
+          ...(kept
+            ? [{ c: 104, date: fetchedAt.slice(0, 10), h: 105, l: 103, o: 104 }]
+            : []),
+        ],
+        ok: true,
+      });
+    }
+  );
+
+  it("fails at once when the history service paces beyond the wait limit", async () => {
+    // 71 seconds is above maxPacedWaitMs (70 seconds): no wait and no second request.
+    const history = withHistory(
+      () =>
+        Response.json(
+          { error: "paced", retry_after_seconds: 71 },
+          { status: 429 }
+        ),
+      noOther
+    );
+    setResearchScreenOptionsForTesting({
+      fetch: history.fetch,
+      now: () => NOW,
+    });
+
+    expect(await readIbkrBars(entry(), HISTORY_CONFIG)).toStrictEqual({
+      message: "IBKR history pacing: retry in 71 s",
+      ok: false,
+      reason: "failed",
+    });
+    expect(history.urls).toHaveLength(1);
+  });
+
   it("fails when no bar is complete", async () => {
     const history = withHistory(
       (url) => historyResponse(url, bars.slice(2)),

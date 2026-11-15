@@ -103,13 +103,13 @@ describe("parseSwinglyticsHtml", () => {
   it("reads a complete page", () => {
     const html = page(
       script("window.other = 1"),
-      '<script>self.__next_f.push([1,"never closed"])',
       chunk(`${line("1", "text")}no separator line\n2:not json\n`),
       chunk(line("3", { generated_at: "2030-01-01T00:00:00Z", vix: 1 })),
       // One line split over two chunks.
       chunk(line("5", [1, null, { data: dashboard() }]).slice(0, 40)),
       chunk(line("5", [1, null, { data: dashboard() }]).slice(40)),
-      chunk(line("6", dashboard({ generated_at: "2031-01-01T00:00:00Z" })))
+      chunk(line("6", dashboard({ generated_at: "2031-01-01T00:00:00Z" }))),
+      '<script>self.__next_f.push([1,"never closed"])'
     );
     const parsed = parseSwinglyticsHtml(html);
     expect(parsed.generatedAt).toEqual(new Date("2030-01-07T15:00:00Z"));
@@ -239,6 +239,81 @@ describe("parseSwinglyticsHtml", () => {
       page(chunk(line("1", wide)), chunk(line("5", dashboard()))),
       SWINGLYTICS_PARSE_ERRORS.tooManyNodes
     );
+  });
+
+  it("refuses a very wide array or object with the search limit, not a stack overflow", () => {
+    const zeros = "0,".repeat(190_000);
+    expectRefusal(
+      page(chunk(`1:[${zeros}0]\n`)),
+      SWINGLYTICS_PARSE_ERRORS.tooManyNodes
+    );
+    const wide = Object.fromEntries(
+      Array.from({ length: 30_000 }, (_, index) => [`k${index}`, 0])
+    );
+    expectRefusal(
+      page(chunk(line("1", wide))),
+      SWINGLYTICS_PARSE_ERRORS.tooManyNodes
+    );
+  });
+
+  it("reads the script element in every tag form", () => {
+    const argument = JSON.stringify([1, line("5", dashboard())]);
+    const body = `self.__next_f.push(${argument})`;
+    for (const element of [
+      `<SCRIPT>${body}</SCRIPT>`,
+      `<script type="text/javascript" nonce="n">${body}</script>`,
+      `<Script\n>${body}</Script >`,
+      `<script\tdata-a="1">\n  ${body}\n</script>`,
+      // Tags that only start like a script element are not one.
+      `<scripts>${body}</scripts><script-x>${body}</script-x><script>${body}</script>`,
+      // An element that is never closed takes the text up to the next closing tag.
+      `<script>self.__next_f.push(0)<script>${body}</script><script>${body}</script>`,
+    ]) {
+      expect(parseSwinglyticsHtml(page(element)).snapshot.regime.label).toBe(
+        "Test Regime"
+      );
+    }
+    for (const element of [
+      `<scripts>${body}</scripts>`,
+      `<script-x>${body}</script-x>`,
+      `<script>${body}`,
+      `<script ${body}</script`,
+      `${body}</script>`,
+      "<script",
+    ]) {
+      expectRefusal(element, SWINGLYTICS_PARSE_ERRORS.noDashboard);
+    }
+  });
+
+  it("scans a hostile page of 1,000,000 bytes in linear time", () => {
+    const size = 1_000_000;
+    const fill = (unit: string): string => unit.repeat(size / unit.length);
+    const closed = `${fill("<script ")}></script>`;
+    for (const html of [
+      // Opening tags that never end.
+      fill("<script "),
+      // Elements that are never closed.
+      fill("<script>"),
+      // Opening tags that end only at the last byte, and are then closed.
+      closed,
+      fill("<scriptx"),
+      fill("<script\n"),
+      fill("</script"),
+      fill("<SCRIPT></"),
+      fill("<<<<<<<<"),
+      fill("<script>a</script>".padEnd(20)),
+    ]) {
+      expect(new TextEncoder().encode(html).byteLength).toBeGreaterThanOrEqual(
+        size
+      );
+      const startedAt = performance.now();
+      const error = refusal(html);
+      const elapsed = performance.now() - startedAt;
+      expect(error).toMatchObject({
+        message: SWINGLYTICS_PARSE_ERRORS.noDashboard,
+      });
+      expect(elapsed).toBeLessThan(500);
+    }
   });
 
   it("turns out-of-range and non-numeric numbers into null", () => {
