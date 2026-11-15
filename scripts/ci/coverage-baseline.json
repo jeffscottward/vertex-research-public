@@ -824,10 +824,10 @@
       "statements": 63.63
     },
     "packages/api/src/server/vertex-research-chat-debate.test-support.ts": {
-      "lines": 49.8,
-      "branches": 30.43,
-      "functions": 63.26,
-      "statements": 46.57
+      "lines": 71.65,
+      "branches": 63.63,
+      "functions": 73.46,
+      "statements": 67.14
     },
     "packages/api/src/server/vertex-research-chat-derived.ts": {
       "lines": 100.0,

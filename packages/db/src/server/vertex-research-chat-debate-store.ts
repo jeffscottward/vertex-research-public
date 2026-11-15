@@ -24,6 +24,7 @@ import type {
   ResearchChatSourceInputs,
   ResearchChatSourceRequest,
 } from "./vertex-research-chat-source-ports.ts";
+import { withPredecessorWalk } from "./vertex-research-chat-predecessor-walk.ts";
 
 // Concrete-source ports return original data, never an accepted/authorized flag.
 // The API composition supplies its existing governed output owner. No public
@@ -331,7 +332,7 @@ export const createResearchChatDebateOperations = (
       includeBytes
     );
   };
-  const sources = async (
+  const checkSources = async (
     tx: Transaction,
     principal: VertexPrincipal,
     scope: VertexScope,
@@ -465,6 +466,19 @@ export const createResearchChatDebateOperations = (
       throw error;
     }
   };
+  // One walk: every nested currency check of an earlier turn reuses this
+  // walk's exact predecessor reads instead of walking its own chain again.
+  const sources = (
+    tx: Transaction,
+    principal: VertexPrincipal,
+    scope: VertexScope,
+    plan: VertexRecord,
+    at: string,
+    expectedGrants?: readonly VertexRecord[]
+  ) =>
+    withPredecessorWalk(tx, () =>
+      checkSources(tx, principal, scope, plan, at, expectedGrants)
+    );
   const prepareForTransaction = async (
     tx: Transaction,
     principal: VertexPrincipal,
