@@ -76,6 +76,8 @@ def test_hand_cases() -> None:
     assert nan_equal(T.lowest([1.0, 3.0, 2.0, 0.5], 2), [nan, 1.0, 2.0, 0.5])
     assert T.mfi([1.0, 2.0, 3.0, 4.0], [1.0, 1.0, 1.0, 1.0], 2)[-1] == 100.0
     assert math.isnan(T.mfi([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 2)[-1])
+    # A window whose falling flow left the running sum is exactly 0, not a rounding remainder.
+    assert nan_equal(T.mfi([1.0, 0.1, 0.05, 0.05, 0.05], [1.0, 1.0, 4.0, 1.0, 1.0], 2), [nan, nan, 0.0, 0.0, nan])
     assert T.rsi([1.0, 2.0, 3.0], 2)[-1] == 100.0
     assert math.isnan(T.rsi([1.0, 1.0, 1.0], 2)[-1])
     assert T.slingshot([1.0, 1.0, 1.0], 1, 2)[2][-1] == 0.0

@@ -189,16 +189,24 @@ def mfi(src: Sequence[float], volume: Sequence[float], length: int) -> Series:
     size = _same_length(src, volume)
     up = [NAN] * size
     down = [NAN] * size
+    up_bars = [NAN] * size
+    down_bars = [NAN] * size
     for i in range(1, size):
         change = src[i] - src[i - 1]
         up[i] = 0.0 if change <= 0 else volume[i] * src[i]
         down[i] = 0.0 if change >= 0 else volume[i] * src[i]
+        up_bars[i] = 1.0 if up[i] > 0 else 0.0
+        down_bars[i] = 1.0 if down[i] > 0 else 0.0
     span = _length("length", length)
     sum_up, sum_down = sma(up, span), sma(down, span)
+    # A window without any rising (falling) flow has a flow of exactly 0; the running sum can leave a remainder.
+    any_up, any_down = sma(up_bars, span), sma(down_bars, span)
     out = [NAN] * size
     for i in range(size):
         if not math.isnan(sum_up[i]):
-            out[i] = _oscillator(sum_up[i] * span, sum_down[i] * span)
+            upper = 0.0 if any_up[i] == 0 else sum_up[i] * span
+            lower = 0.0 if any_down[i] == 0 else sum_down[i] * span
+            out[i] = _oscillator(upper, lower)
     return out
 
 
