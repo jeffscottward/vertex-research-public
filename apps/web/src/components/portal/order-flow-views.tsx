@@ -47,6 +47,8 @@ import type { TpoProfile, TpoSession } from "../../features/order-flow/tpo.ts";
 
 // Missing values name their cause; a dash would read as zero or "nothing happened".
 const NOT_REPORTED_BY_FEED = "not reported by feed";
+// Trade signing drops a quote older than 5 s before the print (flow-trade-signing.ts).
+const NO_RECENT_QUOTE = "no quote within 5 s";
 const headCell = "py-1 pr-3 font-normal text-muted-foreground";
 const numHead = `${headCell} text-right`;
 const numCell = "py-1 pr-3 text-right font-mono tabular-nums";
@@ -77,7 +79,7 @@ const formatUtc = (iso: string): string =>
 const SIDE_LABEL: Readonly<Record<TradeSide, string>> = Object.freeze({
   buy: "Buy",
   sell: "Sell",
-  unknown: "Unsigned (no quote at print time)",
+  unknown: "Unsigned (no usable quote or earlier price)",
 });
 const SIDE_CLASS: Readonly<Record<TradeSide, string>> = Object.freeze({
   buy: "rounded-sm bg-success-subtle px-1 text-success-foreground",
@@ -233,16 +235,20 @@ export const TimeAndSalesTable = ({
                 {SIGNING_METHOD_LABELS[row.method]}
               </TableCell>
               <TableCell className={numCell}>
-                {formatPrice(row.bid, digits)}
+                {row.bid === null
+                  ? NO_RECENT_QUOTE
+                  : formatPrice(row.bid, digits)}
               </TableCell>
               <TableCell className={numCell}>
-                {formatPrice(row.ask, digits)}
+                {row.ask === null
+                  ? NO_RECENT_QUOTE
+                  : formatPrice(row.ask, digits)}
               </TableCell>
               <TableCell className="py-1 pr-3 font-mono">
                 {row.venue ?? NOT_REPORTED_BY_FEED}
               </TableCell>
               <TableCell className="py-1 pr-3 font-mono">
-                {row.conditions ?? NOT_REPORTED_BY_FEED}
+                {row.conditions ?? "no special conditions"}
               </TableCell>
             </TableRow>
           ))}

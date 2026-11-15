@@ -626,8 +626,12 @@ describe("OrderFlowPanel edge states", () => {
     });
     const container = await render(gates);
     await click(button(container, "Load order flow"));
-    expect(viewText(container)).toContain("Unsigned (no quote at print time)");
+    expect(viewText(container)).toContain(
+      "Unsigned (no usable quote or earlier price)"
+    );
     expect(viewText(container)).toContain("not reported by feed");
+    expect(viewText(container)).toContain("no special conditions");
+    expect(viewText(container)).toContain("no quote within 5 s");
     await click(tab(container, "footprint"));
     expect(viewText(container)).toContain("derived from the prints");
     const cells = [...container.querySelectorAll<HTMLElement>("td[style]")];
