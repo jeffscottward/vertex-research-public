@@ -100,8 +100,9 @@ const isThinEntry = (source: string): boolean => {
 const SOURCE_ROOT = /^(?:apps\/[^/]+\/src\/|packages\/[^/]+\/src\/|scripts\/)/u;
 const SOURCE_EXTENSION = /\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/u;
 const TEST_FILE = /\.(?:test|spec)\.[^./]+$/u;
-// The native-evidence files run in named CI coverage shards; pre-push still runs
-// them through the packages/api test:unit script.
+// The native-evidence files run in named CI coverage shards; pre-push runs the
+// same shard projects through the packages/api test:unit script, after the unit
+// project.
 const LOCAL_PROJECTS: readonly string[] = [
   "unit",
   "contract",

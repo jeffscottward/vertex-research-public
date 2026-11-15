@@ -55,6 +55,14 @@ export const coverageThresholds = {
 // each turbo task its own.
 const fsModuleCachePath = join(process.cwd(), "node_modules", ".vitest-cache");
 
+// The files of the named shards as absolute paths. Vitest resolves a relative
+// include or exclude entry against the directory it starts in. The
+// packages/api test:unit script starts it in packages/api, where a path
+// relative to the repository root matches no file.
+const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
+const shardFile = (file: string): string =>
+  escapeGlob(join(repositoryRoot, file));
+
 export default defineConfig({
   // Verification never reads local dotenv files; tests receive explicit env only.
   envDir: false,
@@ -119,13 +127,20 @@ export default defineConfig({
             // Git-ignored local evidence keeps preimage copies of test files.
             "private/**",
             // Named coverage shards (scripts/lib/coverage-shards.ts) run these.
-            ...Object.values(NATIVE_EVIDENCE_SHARDS).flat(),
+            ...Object.values(NATIVE_EVIDENCE_SHARDS).flat().map(shardFile),
           ],
         },
       },
       ...Object.entries(NATIVE_EVIDENCE_SHARDS).map(([name, include]) => ({
         extends: true,
-        test: { name, include: [...include] },
+        test: {
+          name,
+          include: include.map(shardFile),
+          // The JavaScript main thread of the worker limits these tests. In a
+          // run that also selects other projects, their files start when those
+          // projects have ended.
+          sequence: { groupOrder: 1 },
+        },
       })),
       {
         extends: true,

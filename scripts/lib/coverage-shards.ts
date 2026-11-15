@@ -6,6 +6,9 @@
 // ubuntu-latest has 4 for public repositories) (card orochi-impl). This leaf module has no imports, so
 // vitest.config.ts can read it. vitest.config.ts builds one project per
 // entry and keeps these files out of the unit project.
+// It does so in every start directory, and it starts the shard projects after
+// the other projects of the same run (sequence.groupOrder), so pre-push runs
+// these files after the unit project of packages/api.
 export const NATIVE_EVIDENCE_SHARDS = {
   "native-evidence-1": [
     "packages/api/src/server/vertex-research-chat-native-evidence.test.ts",
