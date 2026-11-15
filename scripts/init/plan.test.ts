@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   changelogFor,
@@ -514,6 +515,50 @@ describe("planInit structured edits", () => {
       files({ "apps/web/wrangler.jsonc": "", "package.json": "" })
     );
     expect(empty.edits).toEqual([]);
+  });
+
+  it("keeps an origin on the reserved .invalid domain and rewrites the other values", () => {
+    const plan = planInit(
+      identity({ emailFrom: "Acme <team@acme.dev>" }),
+      files({
+        "apps/web/wrangler.jsonc": `{
+  "vars": {
+    "APP_URL": "https://app.no-approved-origin.invalid",
+    "BETTER_AUTH_URL": "https://old.example",
+    "EMAIL_FROM": "Old <no-reply@old.invalid>"
+  }
+}
+`,
+      })
+    );
+    expect(contentOf(plan, "apps/web/wrangler.jsonc")).toBe(`{
+  "vars": {
+    "APP_URL": "https://app.no-approved-origin.invalid",
+    "BETTER_AUTH_URL": "https://acme.dev",
+    "EMAIL_FROM": "Acme <team@acme.dev>"
+  }
+}
+`);
+  });
+
+  it("leaves the origins of this repository's wrangler.jsonc as committed", () => {
+    // scripts/deployment/destination.test.ts pins these origins. It stays in an
+    // initialized project, where init.acceptance.test.ts runs it. If this test
+    // fails after an origin change, decide how init handles the new origin so
+    // that an initialized project still passes its own deployment tests
+    // (docs/vertex-deployment-safety.md).
+    const path = "apps/web/wrangler.jsonc";
+    const committed = readFileSync(
+      new URL(`../../${path}`, import.meta.url),
+      "utf8"
+    );
+    const origins = (text: string) =>
+      text.match(/"(?:APP|BETTER_AUTH)_URL": "[^"]*"/gu);
+    const planned =
+      contentOf(planInit(identity(), files({ [path]: committed })), path) ??
+      committed;
+    expect(origins(committed)).toHaveLength(4);
+    expect(origins(planned)).toEqual(origins(committed));
   });
 
   it("rewrites the capabilities project and nothing outside it", () => {
