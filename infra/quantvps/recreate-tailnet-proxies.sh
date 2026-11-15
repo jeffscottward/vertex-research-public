@@ -37,7 +37,7 @@
 # Usage: infra/quantvps/recreate-tailnet-proxies.sh [--caddyfile-only] [--dry-run]
 #   --caddyfile-only  install the committed Caddyfile and reload vertex-web-tailnet; recreate nothing.
 #   --dry-run         print the remote program only; change nothing.
-# Exit codes: 0 done and the inodes match; 2 usage error; 3 a precondition failed (nothing changed);
+# Exit codes: 0 done (full mode: the inodes match); 2 usage error; 3 a precondition failed (nothing changed);
 #   4 a container does not see the host socket inode after the recreate; 5 the drop-in was written but
 #   systemd does not report it (containers unchanged); 6 a `docker run` failed or vertex-web-tailnet did not stay up: that proxy is down;
 #   7 (--caddyfile-only) `caddy reload` failed: Caddy keeps the old config and its file is back.
@@ -167,6 +167,8 @@ docker run -d --name vertex-web-tailnet --restart unless-stopped --network host 
 sleep "${VERTEX_TAILNET_SETTLE_SECONDS:-3}"
 [ "$(docker inspect -f '{{.State.Running}} {{.RestartCount}}' vertex-web-tailnet 2>/dev/null || true)" = "true 0" ] \
   || { echo "vertex-web-tailnet DID NOT STAY UP; proxy is down"; exit 6; }
+# The new container runs the installed file, so a Caddyfile.prev of a stopped --caddyfile-only run is stale.
+rm -f "$WEB_DIR/Caddyfile.prev"
 # The file of the old single-file mount (it had the host values as literal text) becomes a backup.
 if [ -e "$WEB_DIR/Caddyfile" ]; then mv "$WEB_DIR/Caddyfile" "$WEB_DIR/Caddyfile.bak-$TS-literal"; fi
 docker rm -f vertex-status-tailnet >/dev/null 2>&1 || true

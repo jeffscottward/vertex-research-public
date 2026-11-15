@@ -163,7 +163,7 @@ docker run -d --name vertex-web-tailnet --restart unless-stopped --network host 
   -v /var/run/tailscale:/var/run/tailscale:ro caddy:2-alpine
 ```
 
-The script does not restart tailscaled, `vertex-web` or any trading container. Exit codes: 0 done and inodes match; 2 usage error; 3 a precondition or the `caddy validate` check failed (nothing changed); 4 a container does not see the host socket inode; 5 the drop-in was written but systemd does not report it (containers unchanged); 6 a `docker run` failed or `vertex-web-tailnet` did not stay up, and that proxy is down; 7 (`--caddyfile-only`) `caddy reload` failed, Caddy keeps the old config and its file is back. Check after a tailscaled restart: `docker exec <container> stat -c %i /var/run/tailscale/tailscaled.sock` must equal `stat -c %i /var/run/tailscale/tailscaled.sock` on the host.
+The script does not restart tailscaled, `vertex-web` or any trading container. Exit codes: 0 done (full mode: the inodes match); 2 usage error; 3 a precondition or the `caddy validate` check failed (nothing changed); 4 a container does not see the host socket inode; 5 the drop-in was written but systemd does not report it (containers unchanged); 6 a `docker run` failed or `vertex-web-tailnet` did not stay up, and that proxy is down; 7 (`--caddyfile-only`) `caddy reload` failed, Caddy keeps the old config and its file is back. Check after a tailscaled restart: `docker exec <container> stat -c %i /var/run/tailscale/tailscaled.sock` must equal `stat -c %i /var/run/tailscale/tailscaled.sock` on the host.
 
 ## Host config (`/etc/vertex/hosts.env`)
 

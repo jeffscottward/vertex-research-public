@@ -401,7 +401,8 @@ describe("recreate-tailnet-proxies", () => {
   });
 
   it("recreates a proxy that already has the directory form without a literal backup", () => {
-    const result = run("111", { installed: "older template\n" });
+    // A Caddyfile.prev of a stopped --caddyfile-only run is stale after a recreate.
+    const result = run("111", { installed: "older template\n", prev: "x\n" });
     expect(result.status).toBe(0);
     expect(callsOf(result.calls, "docker run -d")).toHaveLength(2);
     expect(readdirSync(result.web)).toEqual(["caddy"]);
