@@ -5,7 +5,7 @@ This folder runs the production build of the web app on QuantVPS:
 - `vertex-web.service`: the systemd unit. It serves the prebuilt `dist/` folder of `apps/web` with `vite preview` on `127.0.0.1:3450`.
 - `run-preview.mjs`: the runner that the unit starts. It checks the private bindings and needs `apps/web/dist/` and `apps/web/.wrangler/deploy/config.json`.
 - `Caddyfile`: the `vertex-web-tailnet` proxy. It serves `https://<VERTEX_TAILNET_HOST>:3451` on the tailnet only. The host values come from the server (see "Host config" below).
-- `recreate-tailnet-proxies.sh`: recreates `vertex-web-tailnet` and `vertex-status-tailnet` with the tailscaled socket directory mount (see below).
+- `recreate-tailnet-proxies.sh`: installs the committed `Caddyfile` on QuantVPS (`--caddyfile-only`: with a reload, no container removed) and recreates `vertex-web-tailnet` and `vertex-status-tailnet` with the tailscaled socket directory mount (see below).
 - `tailscaled-preserve-runtime-dir.conf`: the tailscaled drop-in that keeps `/run/tailscale` across tailscaled restarts.
 - `restart-when-idle.sh`: **the only restart route for `vertex-web`**. Do not run `systemctl restart vertex-web` directly.
 
@@ -56,10 +56,10 @@ Nautilus backtests never run on QuantVPS (owner decision 2026-11-05): `vertex-we
 2. On QuantVPS, keep a rollback copy in `apps/web`: `TS=$(date -u +%Y%m%dT%H%M%SZ); cp -a dist dist.bak-$TS && cp -a .wrangler .wrangler.bak-$TS`. The backup keeps its own `DEPLOYED_SHA`.
 3. Copy `apps/web/dist/` and `apps/web/.wrangler/deploy/config.json` from the rig into that `apps/web/` (rsync over the `quantvps` alias). Copy both together.
 4. Run `infra/quantvps/restart-when-idle.sh` from an up-to-date rig checkout (`git fetch` first). Its rollback source is the backup from step 2.
-5. If `git diff <deployed SHA> <new SHA> -- infra/quantvps/Caddyfile` is not empty, also do "Change the installed Caddyfile". The web deploy does not copy the proxy file.
+5. Run `infra/quantvps/recreate-tailnet-proxies.sh --caddyfile-only` from the same checkout. It installs the committed `Caddyfile` with a reload and no proxy outage, and when the installed proxy file already equals the committed one it changes nothing and only repeats the reload (see "Change the installed Caddyfile"). The web deploy itself does not copy the proxy file.
 6. After the restart, check one page response through the proxy: `content-security-policy` must contain `script-src 'self' 'nonce-`.
 
-Host values (2026-11-05, public repository): the committed tree names no real host. The real values are server-side config on QuantVPS and never committed: `run-preview.mjs` takes the tailnet origin from `APP_URL` in `private/basic-app-named/.prod.vars`, and the research fetch User-Agent takes its contact from `VERTEX_RESEARCH_CONTACT_EMAIL`. The proxy and install scripts read `/etc/vertex/hosts.env` (see "Host config"). Deploy only `apps/web/dist/` and `.wrangler/deploy/config.json`; do not copy the committed unit, Caddyfile or runner over the installed ones.
+Host values (2026-11-05, public repository): the committed tree names no real host. The real values are server-side config on QuantVPS and never committed: `run-preview.mjs` takes the tailnet origin from `APP_URL` in `private/basic-app-named/.prod.vars`, and the research fetch User-Agent takes its contact from `VERTEX_RESEARCH_CONTACT_EMAIL`. The proxy and install scripts read `/etc/vertex/hosts.env` (see "Host config"). Deploy only `apps/web/dist/` and `.wrangler/deploy/config.json`; do not copy the committed unit or runner over the installed ones, and install the committed Caddyfile only with `recreate-tailnet-proxies.sh`.
 
 Version guard across repositories: when the deployed SHA comes from another repository (the first public deploy after private `c328e600`), fetch that repository into the rig checkout so both commits exist in one git directory, for example `git fetch <private-checkout> <deployed-sha>`. Unrelated histories count as diverged, so the guard passes; set `VERTEX_DEPLOY_GIT_DIR` to use another checkout.
 
@@ -67,15 +67,39 @@ Version guard (added 2026-11-03 after 97fc8803, an ancestor of the live 99c1e1b1
 
 ## Change the installed Caddyfile
 
-The installed proxy file is `/opt/vertex-web-tailnet/Caddyfile` on QuantVPS. The web deploy never copies it. On 2026-11-15 it had the host values as literal text, and the running `vertex-web-tailnet` container had no `VERTEX_*` variable (`docker exec vertex-web-tailnet env`). Until card `vertex-web-tailnet-caddyfile-template` moves it to the template form, change it by hand:
+`recreate-tailnet-proxies.sh` is the only writer of the proxy file on QuantVPS (2026-11-15, card `vertex-web-tailnet-caddyfile-template`). Do not edit the installed file by hand: change `infra/quantvps/Caddyfile`, merge, then run the script from that checkout.
 
-1. Make the same edit in a copy of the installed file. Do not copy the committed template over it: without the variables, `caddy reload` adapts the template with the `.invalid` fallback names and fails.
-2. Back up next to the file (`Caddyfile.bak-<TS>`). Dry render the installed file and the new file with the image of the running container (see "Host config"; a file with literal host values needs no `--env-file`) and compare the JSON (`jq -S`, `diff`): only the intended change may differ, and the new file must give the same JSON as the committed template with `--env-file /etc/vertex/hosts.env`.
-3. Write the new content into the existing file: `sudo sh -c 'cat /tmp/Caddyfile.new > /opt/vertex-web-tailnet/Caddyfile'`. The container bind-mounts this single file. A replace by `mv`, `cp` to a new file or `sed -i` makes a new inode; the container then keeps the old file, and `caddy reload` loads the old config with no error.
-4. Check inside the container that it sees the new content (`docker exec vertex-web-tailnet sha256sum /etc/caddy/Caddyfile`), then reload only this proxy: `docker exec vertex-web-tailnet caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile --address unix//tmp/caddy-admin.sock`. A reload keeps the container and its start time. A failed reload keeps the old config.
-5. Check the running config: `sudo curl -s --unix-socket /proc/$(docker inspect -f '{{.State.Pid}}' vertex-web-tailnet)/root/tmp/caddy-admin.sock http://localhost/config/ | jq -S .` must equal the dry render of the new file.
+| Path on QuantVPS | Content | In the container |
+| --- | --- | --- |
+| `/opt/vertex-web-tailnet/caddy/Caddyfile` | Byte-identical copy of the committed `Caddyfile`. The directory holds nothing else. | `/etc/caddy`, read-only directory mount |
+| `/opt/vertex-web-tailnet/staging/` | The new copy while `caddy validate` checks it. Removed when the script ends. | no |
+| `/opt/vertex-web-tailnet/Caddyfile.prev` | `--caddyfile-only`: the replaced file, until a reload has passed. It is present only after a run that stopped or failed. | no |
+| `/opt/vertex-web-tailnet/Caddyfile.bak-<TS>-literal`, older `Caddyfile.bak-*` | Files of the old single-file mount. They have the host values as literal text. | no |
+| `/etc/vertex/hosts.env` | The host values (see "Host config"). | environment (`--env-file`) |
 
-Roll back: write the backup into the same file (`cat Caddyfile.bak-<TS> > Caddyfile`), then repeat steps 4 and 5.
+The container mounts the directory, so a file that `mv` replaced is visible in the container (a single-file bind mount keeps the old inode). No file with literal host values is inside the mount.
+
+```sh
+infra/quantvps/recreate-tailnet-proxies.sh --caddyfile-only --dry-run   # print the remote program only
+infra/quantvps/recreate-tailnet-proxies.sh --caddyfile-only             # check, install, reload; no container is removed
+```
+
+Steps of `--caddyfile-only` on QuantVPS:
+
+1. Preconditions (exit 3, nothing changed): valid host values in `/etc/vertex/hosts.env`; `vertex-web-tailnet` is running, mounts the `caddy/` directory and has the same two host values in its environment; `caddy/Caddyfile` exists. A container in the old form, or a changed `hosts.env`, needs one full run of the script first (see the next section). The checks of the status proxy files and the tailscaled socket run in full mode only.
+2. If the installed file differs from the committed one: write the committed file to `staging/` and run `caddy validate` on it in a temporary container (`--rm --network none`, image `caddy:2-alpine`, `--env-file /etc/vertex/hosts.env`; measured on QuantVPS on 2026-11-15: it passes for the committed file and fails for a broken file). Failure: exit 3, nothing changed. Then copy the installed file to `Caddyfile.prev` (unless an earlier run left one) and rename the new file into `caddy/`.
+3. Run `caddy reload` in the container, also when the file did not change. A reload keeps the container, its start time and its listeners; long-lived connections (streams, WebSockets) through the proxy are closed. Caddy ignores a reload of a config that it already runs. The repeat matters after a run that stopped between the rename and the reload.
+4. If the reload fails, Caddy keeps the old config; the script puts `Caddyfile.prev` back (the file of the config that still runs) and exits 7. After a good reload it removes `Caddyfile.prev`.
+
+The script prints the SHA-256 of the file that it checked (`caddyfile checked: sha256=...`); compare it with `sha256sum infra/quantvps/Caddyfile` of the commit that you deploy. Run it from an up-to-date checkout of the deployed commit: it installs the `Caddyfile` of the working tree. The default mode without `--caddyfile-only` recreates both proxies (a few seconds of outage each), so type the flag in a web deploy.
+
+Check the running config after a change. It must equal the dry render of the committed file (see "Host config"):
+
+```sh
+sudo curl -s --unix-socket /proc/$(docker inspect -f '{{.State.Pid}}' vertex-web-tailnet)/root/tmp/caddy-admin.sock http://localhost/config/ | jq -S .
+```
+
+Roll back a change: check out the earlier commit (or revert the change) and run `--caddyfile-only` again. After a good reload the script keeps no copy of a replaced file, because each installed file is a copy of a committed one.
 
 ## Tailnet proxies and the tailscaled socket
 
@@ -85,10 +109,22 @@ Fix: both containers mount the directory read-only (`-v /var/run/tailscale:/var/
 
 ```sh
 infra/quantvps/recreate-tailnet-proxies.sh --dry-run   # print the remote program only
-infra/quantvps/recreate-tailnet-proxies.sh             # install drop-in, daemon-reload, recreate both proxies, check inodes
+infra/quantvps/recreate-tailnet-proxies.sh             # check and install the Caddyfile, install drop-in, daemon-reload, recreate both proxies, check inodes
 ```
 
-The script does not restart tailscaled, `vertex-web` or any trading container. Exit codes: 0 done and inodes match; 2 usage error; 3 precondition failed (nothing changed); 4 a container does not see the host socket inode; 5 the drop-in was written but systemd does not report it (containers unchanged); 6 a `docker run` failed and that proxy is down. Check after a tailscaled restart: `docker exec <container> stat -c %i /var/run/tailscale/tailscaled.sock` must equal `stat -c %i /var/run/tailscale/tailscaled.sock` on the host.
+A full run first checks the committed `Caddyfile` with `caddy validate` (exit 3 and no change on failure), then installs it in `/opt/vertex-web-tailnet/caddy/` and starts `vertex-web-tailnet` with that directory mounted at `/etc/caddy`. Each proxy is down between its `docker rm` and `docker run` (a few seconds). A changed `Caddyfile` alone does not need a full run: use `--caddyfile-only`. A full run is needed after a change to the container flags or mounts in the script.
+
+If the `docker run` of `vertex-web-tailnet` fails, or the new container is not running with restart count 0 after 3 seconds (exit 6), the script stops; `vertex-status-tailnet` is not touched, and a container that did not stay up is left in place for `docker logs`. On a server that was already in the directory form, roll back with the script: check out the earlier commit and do a full run. Only when the run failed on the first move to the directory form, start a container of the old form from the file with literal host values, which is then still `/opt/vertex-web-tailnet/Caddyfile` (after a successful move it is a `Caddyfile.bak-<TS>-literal`, which can be older than later committed proxy changes):
+
+```sh
+docker rm -f vertex-web-tailnet
+docker run -d --name vertex-web-tailnet --restart unless-stopped --network host --read-only \
+  --tmpfs /tmp --tmpfs /config --tmpfs /data --cap-drop ALL --cap-add NET_BIND_SERVICE \
+  -v /opt/vertex-web-tailnet/<literal file>:/etc/caddy/Caddyfile:ro \
+  -v /var/run/tailscale:/var/run/tailscale:ro caddy:2-alpine
+```
+
+The script does not restart tailscaled, `vertex-web` or any trading container. Exit codes: 0 done and inodes match; 2 usage error; 3 a precondition or the `caddy validate` check failed (nothing changed); 4 a container does not see the host socket inode; 5 the drop-in was written but systemd does not report it (containers unchanged); 6 a `docker run` failed or `vertex-web-tailnet` did not stay up, and that proxy is down; 7 (`--caddyfile-only`) `caddy reload` failed, Caddy keeps the old config and its file is back. Check after a tailscaled restart: `docker exec <container> stat -c %i /var/run/tailscale/tailscaled.sock` must equal `stat -c %i /var/run/tailscale/tailscaled.sock` on the host.
 
 ## Host config (`/etc/vertex/hosts.env`)
 
@@ -103,7 +139,7 @@ The committed templates name no real host. QuantVPS keeps the values in `/etc/ve
 Rules:
 
 - `recreate-tailnet-proxies.sh` and the four install scripts stop before any change (exit 3) when a value is missing or malformed.
-- A `vertex-web-tailnet` container that `recreate-tailnet-proxies.sh` created gets the file with `--env-file /etc/vertex/hosts.env`. On 2026-11-15 the running container (created 2026-11-07) had no `VERTEX_*` variable, and the installed file had the host values as literal text (see "Change the installed Caddyfile"). An unset value falls back to a name under the reserved `.invalid` domain, so Caddy cannot bind its listener; an empty value leaves the site without an address, so Caddy starts no listener. In both cases it serves nothing and never binds every interface.
+- `recreate-tailnet-proxies.sh` starts `vertex-web-tailnet` with `--env-file /etc/vertex/hosts.env`; Caddy fills the placeholders of the installed copy of the committed `Caddyfile` from these variables when it starts or reloads. After a change to `hosts.env`, do one full run of the script: a container keeps the values from its creation, and `--caddyfile-only` refuses (exit 3) while they differ. An unset value falls back to a name under the reserved `.invalid` domain, so Caddy cannot bind its listener; an empty value leaves the site without an address, so Caddy starts no listener. In both cases it serves nothing and never binds every interface.
 - Dry render after a change to the file or the template (no container changes; `--network none`):
 
 ```sh
