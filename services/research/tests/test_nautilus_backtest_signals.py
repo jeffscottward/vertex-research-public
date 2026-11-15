@@ -7,6 +7,7 @@ This suite does not import nautilus_trader.
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -1943,17 +1944,221 @@ def test_the_object_and_condition_guards_cover_the_other_strict_objects(definiti
     assert str(raised.value) == message
 
 
-@pytest.mark.parametrize("sizing", [None, {}])
-def test_a_null_block_and_an_empty_sizing_keep_their_defaults(sizing: Any) -> None:
+def test_a_null_block_keeps_its_default() -> None:
     """Python callers write None for "no block", and the normalized form holds None for session,
     management and options: both stay accepted."""
-    normalized = sig.normalize_definition(_entry(_one(ALWAYS), exit=None, sizing=sizing, session=None,
+    normalized = sig.normalize_definition(_entry(_one(ALWAYS), exit=None, sizing=None, session=None,
                                                  management=None, options=None, stopLoss=None, takeProfit=None))
     assert normalized["exit"] == {"any": []}
     assert normalized["sizing"] == {"mode": "allIn"}
     assert normalized["stopLoss"] == {"kind": "none"} == normalized["takeProfit"]
     assert (normalized["session"], normalized["management"], normalized["options"]) == (None, None, None)
     assert sig.normalize_definition(normalized) == normalized
+
+
+# Card vertex-dsl-python-validator-field-guards: normalize_definition checks every field before it reads it.
+# Seven valid definitions that together use every block, filter type and expression type.
+_M_SMA = {"type": "indicator", "name": "sma", "length": 5, "source": "close", "offset": 1, "timeframe": "1d"}
+_M_OPTIONS = {"structure": "putCreditVertical", "dte": {"min": 21, "target": 45}, "exitDte": 7, "maxLossPct": 2,
+              "profitTakePct": 50, "shortDelta": 0.2, "widthSigma": 0.5}
+_M_OPEX = {"type": "calendarWindow", "window": "opexWeek"}
+MUTATION_BASES: dict[str, dict[str, Any]] = {
+    "equity": {
+        "version": 1, "name": "Equity", "description": "d", "side": "long",
+        "entry": {
+            "all": [ALWAYS, {"left": _M_SMA, "op": "crossesAbove", "right": {**CLOSE, "offset": 1},
+                             "oncePerLevel": True}],
+            "any": [{"left": {"type": "math", "op": "add",
+                              "left": {"type": "change", "of": CLOSE, "length": 5, "offset": 0},
+                              "right": {"type": "returnStdev", "of": CLOSE, "length": 5}},
+                     "op": ">", "right": ZERO}],
+        },
+        "exit": {"any": [
+            {"left": {"type": "regression", "y": CLOSE, "x": {"type": "series", "series": "VIX", "offset": 0},
+                      "length": 20, "lag": 0},
+             "op": "<", "right": {"type": "seasonal", "of": CLOSE, "monthsAhead": 1, "minCount": 3}}]},
+        "filters": [
+            {"type": "sectorQuadrant", "sector": "XLK", "quadrants": ["leading", "improving"], "timeframe": "weekly"},
+            {"type": "ivRank", "length": 252, "min": 10, "max": 90},
+            {"type": "vixTermStructure", "minRatio": 0.5, "maxRatio": 1.2},
+            {"type": "volRegime", "maxVix": 30, "maxTermRatio": 1, "trendLength": 200},
+        ],
+        "stopLoss": {"kind": "atr", "length": 14, "multiple": 2},
+        "takeProfit": {"kind": "pct", "pct": 10},
+        "sizing": {"mode": "riskPct", "riskPct": 1, "maxLeverage": 2},
+        "session": {"startUtc": "14:30", "endUtc": "21:00"},
+        "management": {"breakevenR": 1, "trail": {"activateR": 2, "length": 14, "multiple": 3}},
+    },
+    "calendar": {
+        "version": 1, "name": "Calendar", "side": "short",
+        "entry": {"all": [
+            {"left": {"type": "indicator", "name": "supertrend", "length": 10, "multiple": 3, "output": "direction",
+                      "offset": 0, "timeframe": "1d"}, "op": ">", "right": ZERO},
+            {"left": {"type": "indicator", "name": "alphaTrend", "length": 14, "multiple": 1, "momentum": "rsi",
+                      "output": "line"}, "op": "<", "right": CLOSE},
+            {"left": {"type": "indicator", "name": "chandelierExit", "length": 22, "multiple": 3,
+                      "output": "longStop"}, "op": "<", "right": CLOSE},
+        ]},
+        "filters": [
+            {"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -1, "toDay": 3},
+            {"type": "calendarWindow", "window": "months", "months": [1, 2]},
+            _M_OPEX,
+            {"type": "series", "series": "VIX",
+             "condition": {"left": CLOSE, "op": "<", "right": {"type": "const", "value": 20}}},
+        ],
+        "stopLoss": {"kind": "pct", "pct": 5},
+        "takeProfit": {"kind": "none"},
+        "sizing": {"mode": "volTarget", "targetPct": 1, "length": 20, "maxLeverage": 2},
+    },
+    "intraday": {
+        "version": 1, "name": "Intraday",
+        "entry": {"all": [
+            {"left": CLOSE, "op": ">", "right": {"type": "indicator", "name": "vwap"}},
+            {"left": {"type": "indicator", "name": "sessionReturn", "from": "open", "to": "10:00"},
+             "op": ">", "right": ZERO},
+            {"left": CLOSE, "op": ">",
+             "right": {"type": "indicator", "name": "noiseBand", "band": "upper", "length": 14, "multiple": 1}},
+            {"left": {"type": "indicator", "name": "ema", "length": 5, "timeframe": "5m"}, "op": ">", "right": ZERO},
+        ]},
+        "exit": {"any": []},
+        "intraday": {"timezone": "America/New_York", "open": "09:30", "close": "16:00", "entryFrom": "10:00",
+                     "entryTo": "15:00", "decisionEvery": 30, "exitEvery": 5},
+        "sizing": {"mode": "allIn"},
+        "stopLoss": {"kind": "none"},
+    },
+    "indicators": {
+        "version": 1, "name": "Indicators",
+        "entry": {"all": [
+            {"left": {"type": "indicator", "name": name, "length": 20}, "op": ">", "right": ZERO}
+            for name in ("rvol", "zscore", "realizedVol", "atr", "rsi")
+        ]},
+        "exit": {"any": [{"left": {"type": "indicator", "name": "adx", "length": 14}, "op": "<",
+                          "right": {"type": "const", "value": 20}}]},
+    },
+    "roll": {
+        "version": 1, "name": "Roll", "entry": {"all": [ALWAYS]}, "options": _M_OPTIONS,
+        "portfolio": {
+            "policy": "roll", "symbols": ["SPY", "QQQ"], "frame": "monthly",
+            "select": {"score": {"type": "change", "of": CLOSE, "length": 3}, "tieBreak": CLOSE, "top": 1},
+            "legs": [{"entry": {"all": [ALWAYS]}, "exit": {"any": [ALWAYS]}, "filters": [_M_OPEX],
+                      "options": _M_OPTIONS}],
+        },
+    },
+    "flat": {
+        "version": 1, "name": "Flat", "entry": {"all": [ALWAYS]}, "options": _M_OPTIONS,
+        "portfolio": {"policy": "flat", "cadence": "daily", "symbols": ["SPY"]},
+    },
+    "window": {
+        "version": 1, "name": "Window", "entry": {"all": [ALWAYS]}, "filters": [_M_OPEX], "options": _M_OPTIONS,
+        "portfolio": {"policy": "window", "shift": 2, "symbols": ["SPY"],
+                      "legs": [{"entry": {"all": [ALWAYS]}, "filters": [_M_OPEX], "options": _M_OPTIONS}]},
+    },
+}
+JUNK: list[Any] = [None, True, False, 0, 5, -1, 1.5, 1e9, "", "x", [], [1], {}, {"x": 1}]
+# Numbers just outside the ranges of the schema (tried where the valid value is a number) and texts near
+# valid ones (tried where the valid value is a text).
+EDGES: list[Any] = [-11, 0.01, 1, 2, 10.5, 11, 13, 19, 21, 51, 99.5, 100.5, 101, 201, 401, 501, 1001, 1e13, -1e13]
+WORDS: list[Any] = ["24:00", "9:30", "14:30", "21:00", "XLZ", "spy", " ", "n" * 121, "d" * 2001]
+
+
+def _paths(node: Any, at: tuple[Any, ...] = ()) -> list[tuple[Any, ...]]:
+    """Every key and list index of a JSON tree, parents first."""
+    children = node.items() if isinstance(node, dict) else enumerate(node) if isinstance(node, list) else ()
+    return [found for key, value in children for found in [(*at, key), *_paths(value, (*at, key))]]
+
+
+def _mutated(base: dict[str, Any], path: tuple[Any, ...], change: str, value: Any = None) -> Any:
+    """A deep copy of `base` with one change at `path`: set, delete, append (to a list) or add (a key)."""
+    out = copy.deepcopy(base)
+    parent: Any = out
+    for step in path[:-1]:
+        parent = parent[step]
+    if change == "set":
+        parent[path[-1]] = value
+    elif change == "delete":
+        del parent[path[-1]]
+    elif change == "append":
+        parent[path[-1]].append(value)
+    else:
+        parent[path[-1]]["zzz"] = value
+    return out
+
+
+def _mutations(base: dict[str, Any]) -> list[tuple[str, Any]]:
+    """(label, definition) for every single change of `base`: a junk value in place of the definition, of a
+    key or of a list item; a deleted key or item; one more junk item in a list; an unknown key in an object."""
+    found: list[tuple[str, Any]] = [(f"definition = {value!r}", value)
+                                    for value in (None, True, False, 0, 5, "", "x", [], [1], {})]
+    found.append(("definition + unknown key", {**base, "zzz": 1}))
+    for path in _paths(base):
+        where = ".".join(str(step) for step in path)
+        current: Any = base
+        for step in path:
+            current = current[step]
+        number = isinstance(current, (int, float)) and not isinstance(current, bool)
+        for value in JUNK + (EDGES if number else WORDS if isinstance(current, str) else []):
+            if value != current or type(value) is not type(current):
+                found.append((f"{where} = {value!r}"[:80], _mutated(base, path, "set", value)))
+        found.append((f"{where} deleted", _mutated(base, path, "delete")))
+        if isinstance(current, list):
+            found += [(f"{where} + item {value!r}", _mutated(base, path, "append", value)) for value in JUNK]
+        if isinstance(current, dict):
+            found.append((f"{where} + unknown key", _mutated(base, path, "add", 1)))
+    return found
+
+
+@pytest.mark.parametrize("base", MUTATION_BASES.values(), ids=MUTATION_BASES.keys())
+def test_every_mutation_base_is_valid_and_normalizes_to_a_fixed_point(base: dict[str, Any]) -> None:
+    normalized = sig.normalize_definition(base)
+    assert sig.normalize_definition(normalized) == normalized
+
+
+@pytest.mark.parametrize("base", MUTATION_BASES.values(), ids=MUTATION_BASES.keys())
+def test_a_single_change_of_a_valid_definition_never_raises_anything_but_an_input_error(
+    base: dict[str, Any]
+) -> None:
+    """A malformed field, list, filter or expression is an input error, never a TypeError, KeyError,
+    AttributeError or ValueError (the command prints a traceback for those, and a batch loses every result)."""
+    mutations = _mutations(base)
+    crashes = []
+    for label, definition in mutations:
+        try:
+            sig.normalize_definition(definition)
+        except InputError:
+            pass
+        except (Exception, RecursionError) as error:  # noqa: BLE001
+            crashes.append(f"{label}: {type(error).__name__}: {error}")
+    assert len(mutations) > 300
+    assert crashes == []
+
+
+def test_a_tuple_counts_as_a_list() -> None:
+    """Python callers may pass tuples where JSON has a list."""
+    quadrant = {"type": "sectorQuadrant", "sector": "XLK", "quadrants": ("leading", "improving")}
+    normalized = sig.normalize_definition({"version": 1, "name": "x", "entry": {"all": (ALWAYS,)},
+                                           "filters": (quadrant,)})
+    assert len(normalized["entry"]["all"]) == 1
+    assert normalized["filters"][0]["quadrants"] == ["leading", "improving"]
+    portfolio = sig.normalize_definition(_portfolio_definition({"policy": "roll", "symbols": ("SPY", "QQQ")}))
+    assert portfolio["portfolio"]["symbols"] == ["SPY", "QQQ"]
+
+
+def test_empty_filters_and_null_optional_fields_keep_their_meaning() -> None:
+    """Kept differences from the TypeScript schema: `filters: []` is the normalized form of no filters, null
+    for an optional key means that the key is absent, and an absent list of conditions is the empty list."""
+    assert sig.normalize_definition(_entry(_one(ALWAYS), filters=[]))["filters"] == []
+    assert sig.normalize_definition(_entry(_one(ALWAYS), filters=None))["filters"] == []
+    filters = sig.normalize_definition(_filtered(
+        {"type": "ivRank", "length": None, "min": 10, "max": None},
+        {"type": "volRegime", "maxVix": 30, "maxTermRatio": 1, "trendLength": None},
+        {"type": "sectorQuadrant", "sector": "XLK", "quadrants": ["leading"], "timeframe": None},
+    ))["filters"]
+    assert filters[0] == {"type": "ivRank", "length": 252, "min": 10.0}
+    assert filters[1]["trendLength"] == 200
+    assert filters[2]["timeframe"] == "weekly"
+    any_only = sig.normalize_definition({"entry": {"any": [ALWAYS]}})
+    assert any_only["entry"]["all"] == [] and len(any_only["entry"]["any"]) == 1
+    assert (any_only["name"], sig.normalize_definition(any_only)) == (None, any_only)
 
 
 # ---------------------------------------------------------------------------------------------
