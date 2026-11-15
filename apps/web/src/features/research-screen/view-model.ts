@@ -57,7 +57,7 @@ const BARS_SOURCES: Readonly<
 };
 
 /** Shown where a number has no stored value. */
-export const RESEARCH_SCREEN_NO_VALUE = "none";
+const RESEARCH_SCREEN_NO_VALUE = "none";
 
 const NEW_YORK = new Intl.DateTimeFormat("en-US", {
   day: "numeric",

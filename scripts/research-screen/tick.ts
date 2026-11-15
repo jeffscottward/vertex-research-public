@@ -21,7 +21,7 @@ export type ResearchScreenTickIo = Readonly<{
 
 const PROCEDURE = "researchScreen/tick";
 /** Limit of one call. */
-export const CALL_TIMEOUT_MS = 200_000;
+const CALL_TIMEOUT_MS = 200_000;
 /** The script starts no new call after this time; the next timer run continues. */
 export const WALL_LIMIT_MS = 28 * 60_000;
 /** A pause file older than this is ignored (the same limit as the backtest worker). */

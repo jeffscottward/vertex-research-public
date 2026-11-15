@@ -321,7 +321,7 @@ const rowOf = async (
  * Screens one report and writes its row. False when the fence is old (nothing was counted); the
  * counters follow an accepted write.
  */
-export const processReport = async (
+const processReport = async (
   engine: ResearchScreenEngine,
   lease: Lease,
   item: ResearchScreenWorkItem,
@@ -368,7 +368,7 @@ const answerOf = (
  * next tick. A refused write or renewal (an old fence) ends the share at once. The counts of the
  * answer and of the end are those of the work list, not of the claim.
  */
-export const workShare = async (
+const workShare = async (
   engine: ResearchScreenEngine,
   decision: "claimed" | "resumed",
   lease: Lease
@@ -654,7 +654,7 @@ const observationOf = (
  * One catalog report as a status row. A stored row of another provider symbol is a row of another
  * instrument: the report is shown as never collected until its next attempt.
  */
-export const toStatusRow = (
+const toStatusRow = (
   { report, row }: ResearchScreenStatusRow,
   now: Date
 ): ResearchScreenRow => {
@@ -742,7 +742,7 @@ const missedSlotsOf = (
 };
 
 /** The status answer from one stored read (the read-time rule applied at `now`). */
-export const statusOf = (
+const statusOf = (
   stored: ResearchScreenStatusRecord,
   now: Date
 ): ResearchScreenStatusOutput => {
