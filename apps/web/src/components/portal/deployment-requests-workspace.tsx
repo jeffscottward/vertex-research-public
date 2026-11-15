@@ -573,7 +573,7 @@ const RequestDetail = ({
         </DetailRow>
         <DetailRow label="Decided by">{request.decidedBy ?? "—"}</DetailRow>
         <DetailRow label="Decided (UTC)">
-          {formatTimestamp(request.decidedAt)}
+          {formatTimestamp(request.decidedAt, "not decided")}
         </DetailRow>
         {request.decisionNote === null ? null : (
           <div className="min-w-0 sm:col-span-2 lg:col-span-4">

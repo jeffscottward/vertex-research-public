@@ -1251,6 +1251,99 @@ describe("readBatchOutput", () => {
       ],
     });
   });
+  it("keeps the other runs of a part when one case crashed (exit 4)", () => {
+    const stderr = `Traceback (most recent call last):\nZeroDivisionError: division by zero\ncase "run-1" crashed: ZeroDivisionError: division by zero\n`;
+    const stdout = JSON.stringify({
+      engine,
+      results: [
+        {
+          crash: "ZeroDivisionError: division by zero",
+          id: "run-1",
+          wallMs: 1,
+        },
+        { id: "run-2", result: caseResult, wallMs: 2 },
+      ],
+      usage: { cpuMs: 5, wallMs: 6 },
+    });
+    const output = readBatchOutput(
+      outcome({ code: 4, stderr, stdout }),
+      runs,
+      context
+    );
+    expect(output.failure).toBe("case crash");
+    expect(output.detail).toBe(stderr);
+    expect(output.items[0]).toEqual({
+      error: "Nautilus engine crashed: ZeroDivisionError: division by zero",
+      id: "run-1",
+    });
+    expect(output.items[1]).toMatchObject({
+      engineRun: { wallMs: 2 },
+      id: "run-2",
+      result: caseResult,
+    });
+  });
+
+  it("reads crash before result and bounds the crash text with its prefix", () => {
+    const stdout = JSON.stringify({
+      engine,
+      results: [
+        { crash: "y".repeat(600), id: "run-1", result: caseResult, wallMs: 1 },
+        { error: "At least 2 bars needed", id: "run-2", wallMs: 1 },
+      ],
+      usage: { cpuMs: 1, wallMs: 1 },
+    });
+    const output = readBatchOutput(outcome({ code: 4, stdout }), runs, context);
+    expect(output).toEqual({
+      failure: "case crash",
+      items: [
+        {
+          error: `Nautilus engine crashed: ${"y".repeat(475)}`,
+          id: "run-1",
+        },
+        { error: "At least 2 bars needed", id: "run-2" },
+      ],
+    });
+    expect(output.items[0]).toHaveProperty("error.length", 500);
+  });
+
+  it("names a missing entry before a crash in one part", () => {
+    const stdout = JSON.stringify({
+      engine,
+      results: [{ crash: "KeyError: 'spec'", id: "run-1", wallMs: 1 }],
+      usage: { cpuMs: 1, wallMs: 1 },
+    });
+    expect(
+      readBatchOutput(
+        outcome({ code: 4, stderr: "trace", stdout }),
+        runs,
+        context
+      )
+    ).toEqual({
+      detail: "trace",
+      failure: "engine output incomplete",
+      items: [
+        { error: "Nautilus engine crashed: KeyError: 'spec'", id: "run-1" },
+        {
+          error: "The Nautilus engine returned no result for the run",
+          id: "run-2",
+        },
+      ],
+    });
+  });
+
+  it("fails every run when exit 4 comes with output that does not parse", () => {
+    expect(
+      readBatchOutput(
+        outcome({ code: 4, stderr: "trace", stdout: "{" }),
+        runs,
+        context
+      )
+    ).toEqual({
+      detail: "trace",
+      failure: "engine exit 4",
+      items: everyRun("Nautilus engine failed (exit 4)"),
+    });
+  });
 });
 
 describe("nautilus worker alerts", () => {
@@ -1279,6 +1372,95 @@ describe("nautilus worker alerts", () => {
     expect(run.alerts[0]).toMatchObject({ channel: "vertex-ops" });
     expect(JSON.stringify(run.alerts)).not.toContain("secret-key");
     expect(run.out).toContain("alert posted to vertex-ops\n");
+  });
+
+  /** Exit 4: the first case of the part crashed, the others have results. */
+  const firstCrashed = (input: string) => {
+    const request = JSON.parse(input) as { cases: { id: string }[] };
+    return outcome({
+      code: 4,
+      stderr: `case "${request.cases[0]?.id}" crashed: KeyError: 'spec'\n`,
+      stdout: JSON.stringify({
+        engine,
+        results: request.cases.map((entry, index) =>
+          index === 0
+            ? { crash: "KeyError: 'spec'", id: entry.id, wallMs: 1 }
+            : { id: entry.id, result: caseResult, wallMs: 1 }
+        ),
+        usage: { cpuMs: 1, wallMs: 1 },
+      }),
+    });
+  };
+
+  it("stores the other runs of a crashed case's part and counts the cycle as failed", async () => {
+    const run = harness({
+      claims: [claimedBatch(2), claimedBatch(2), claimedBatch(2)],
+      commands: [firstCrashed, firstCrashed, firstCrashed],
+      env: { ...alertEnv, VERTEX_WORKER_PROCESSES: "1" },
+    });
+    stopAfter(run, 4);
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    const items = run.completes()[0]?.input as { items: Items };
+    expect(items.items).toMatchObject([
+      { error: "Nautilus engine crashed: KeyError: 'spec'", id: "run-1" },
+      { id: "run-2", result: caseResult },
+    ]);
+    expect(run.out).toContain(
+      "run run-1: failed: Nautilus engine crashed: KeyError: 'spec'\n"
+    );
+    expect(run.out).toContain("run run-2: succeeded\n");
+    expect(run.err).toContain(
+      `engine stderr: case "run-1" crashed: KeyError: 'spec'\n\n`
+    );
+    expect(texts(run)).toEqual([
+      "Vertex Nautilus backtest worker: 3 cycles failed in a row (last: case crash). Research only; see journalctl --user -u vertex-nautilus-worker.",
+      "Vertex Nautilus backtest worker recovered after 3 failed cycles.",
+    ]);
+  });
+
+  it("names an outage of another part before a case crash", async () => {
+    const timedOut = () => outcome({ code: null, timedOut: true });
+    const run = harness({
+      claims: [claimedBatch(2), claimedBatch(2), claimedBatch(2)],
+      commands: [
+        firstCrashed,
+        timedOut,
+        firstCrashed,
+        timedOut,
+        firstCrashed,
+        timedOut,
+      ],
+      env: { ...alertEnv, VERTEX_WORKER_PROCESSES: "2" },
+    });
+    stopAfter(run, 4);
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    expect(texts(run)).toEqual([
+      "Vertex Nautilus backtest worker: 3 cycles failed in a row (last: engine timeout). Research only; see journalctl --user -u vertex-nautilus-worker.",
+      "Vertex Nautilus backtest worker recovered after 3 failed cycles.",
+    ]);
+  });
+
+  it("names a rejected result before a case crash", async () => {
+    const run = harness({
+      claims: [claimedBatch(2), claimedBatch(2), claimedBatch(2)],
+      commands: [firstCrashed, firstCrashed, firstCrashed],
+      complete: (input) =>
+        Response.json({
+          json: {
+            outcomes: (input as { items: Items }).items.map((item) =>
+              item.error === undefined
+                ? { error: "BAD_REQUEST", id: item.id, status: null }
+                : { id: item.id, status: "failed" }
+            ),
+          },
+        }),
+      env: { ...alertEnv, VERTEX_WORKER_PROCESSES: "1" },
+    });
+    stopAfter(run, 4);
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    expect(texts(run)[0]).toBe(
+      "Vertex Nautilus backtest worker: 3 cycles failed in a row (last: result rejected). Research only; see journalctl --user -u vertex-nautilus-worker."
+    );
   });
 
   it("counts results the API rejected as failed cycles", async () => {
