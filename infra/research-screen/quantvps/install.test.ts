@@ -161,7 +161,7 @@ describe("install.sh", () => {
     );
     expect(installed).toContain("// scripts/research-screen/tick.ts");
     // The bundle finds SOURCE_SHA beside itself, so the build must keep its own address.
-    expect(installed).toContain("readSourceSha(import.meta.url");
+    expect(installed).toContain("scriptUrl: import.meta.url");
     for (const name of [
       "vertex-research-screen.service",
       "vertex-research-screen.timer",

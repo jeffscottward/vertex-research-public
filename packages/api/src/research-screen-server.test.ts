@@ -265,8 +265,14 @@ const fakeRepository = (seed: Seed = {}) => {
       });
       return state.run;
     }),
+    // Only a run whose deadline passed and whose lease is set and expired (never a released one).
     closeExpiredRun: vi.fn(async () => {
-      if (!state.accept.close) return false;
+      const run = active();
+      const abandoned =
+        run.leaseExpiresAt !== null &&
+        run.leaseExpiresAt.getTime() <= clock.at &&
+        run.deadlineAt.getTime() <= clock.at;
+      if (!(abandoned && state.accept.close)) return false;
       state.run = null;
       return true;
     }),
@@ -799,7 +805,7 @@ describe("researchScreen.tick decisions", () => {
     expect(repository.listWork).not.toHaveBeenCalled();
   });
 
-  it("ends a run whose deadline and lease passed, then claims the due slot", async () => {
+  it("interrupts a run whose deadline passed and whose holder vanished, then claims the due slot", async () => {
     useFetch();
     const { repository, state } = fakeRepository({
       reports: [report("aaa")],
@@ -823,6 +829,73 @@ describe("researchScreen.tick decisions", () => {
       slotAt: SLOT,
     });
     expect(state.ticks).toStrictEqual(["claimed"]);
+  });
+
+  it("ends a run by its counts when the deadline falls between two shares", async () => {
+    const { repository, state } = fakeRepository({
+      reports: [indexReport("one"), indexReport("two"), indexReport("six")],
+    });
+    const seen = useFetch({
+      chart: () => {
+        clock.at += 30_000;
+        return Response.json(chartOf("INDEX"));
+      },
+    });
+    const client = scheduler(repository);
+
+    const first = await client.researchScreen.tick({});
+    // The share freed its lease; the next tick comes after the deadline of the run.
+    clock.at += 26 * MINUTE_MS;
+    const second = await client.researchScreen.tick({});
+
+    expect(first).toMatchObject({ done: false, processed: 2, remaining: 1 });
+    expect(second).toMatchObject({
+      decision: "resumed",
+      done: true,
+      processed: 2,
+      remaining: 1,
+      runId: "run-1",
+      runStatus: "partial",
+      total: 3,
+    });
+    // Not interrupted: no holder vanished. And no report starts after the deadline.
+    expect(repository.closeExpiredRun).not.toHaveBeenCalled();
+    expect(repository.claimSlot).toHaveBeenCalledTimes(1);
+    expect(seen.charts).toHaveLength(2);
+    expect(state.ticks).toStrictEqual(["claimed", "resumed"]);
+    expect(state.finished).toStrictEqual([
+      ["run-1", 2, "partial", "2 of 3 reports screened", 1],
+    ]);
+  });
+
+  it("ends a released run without a success as failed after its deadline", async () => {
+    const seen = useFetch();
+    const { repository, state } = fakeRepository({
+      attempted: ["aaa"],
+      reports: [report("aaa"), report("bbb")],
+      run: runOf({
+        deadlineAt: at(-MINUTE_MS),
+        failed: 1,
+        leaseExpiresAt: null,
+        leaseOwner: null,
+        total: 2,
+      }),
+    });
+
+    const answer = await scheduler(repository).researchScreen.tick({});
+
+    expect(answer).toMatchObject({
+      decision: "resumed",
+      done: true,
+      processed: 1,
+      remaining: 1,
+      runStatus: "failed",
+    });
+    expect(repository.closeExpiredRun).not.toHaveBeenCalled();
+    expect(seen.charts).toStrictEqual([]);
+    expect(state.finished).toStrictEqual([
+      ["run-1", 2, "failed", "1 of 2 reports screened", 1],
+    ]);
   });
 
   it("continues a run that the database did not end, and ends it at its deadline", async () => {
@@ -937,6 +1010,57 @@ describe("researchScreen.tick shares", () => {
     expect(state.finished).toStrictEqual([
       ["run-1", 2, "completed", "3 of 3 reports screened", 0],
     ]);
+  });
+
+  it("frees the lease when a share throws, so the next tick continues at once", async () => {
+    useFetch({ chart: () => Response.json(chartOf("INDEX")) });
+    const { repository, state } = fakeRepository({
+      reports: [indexReport("one"), indexReport("two")],
+    });
+    // A catalog import removed the report between the work list and the write.
+    repository.writeRow.mockRejectedValueOnce(
+      new DatabasePersistenceError("research screen")
+    );
+    const client = scheduler(repository);
+
+    await expectCode(client.researchScreen.tick({}), "STORAGE_ERROR", 503);
+
+    expect(repository.releaseLease).toHaveBeenCalledExactlyOnceWith("run-1", 1);
+    expect(state.run).toMatchObject({
+      leaseExpiresAt: null,
+      status: "running",
+    });
+
+    const next = await client.researchScreen.tick({});
+
+    expect(next).toMatchObject({
+      decision: "resumed",
+      done: true,
+      processed: 2,
+      remaining: 0,
+      runStatus: "completed",
+    });
+    expect(state.ticks).toStrictEqual(["claimed", "resumed"]);
+  });
+
+  it("reports the error of the share when the release fails too", async () => {
+    useFetch({ chart: () => Response.json(chartOf("INDEX")) });
+    const { repository } = fakeRepository({
+      reports: [indexReport("one")],
+      run: runOf({ leaseExpiresAt: null, total: 1 }),
+    });
+    repository.listWork.mockRejectedValueOnce(
+      new DatabasePersistenceError("research screen")
+    );
+    repository.releaseLease.mockRejectedValueOnce(new Error("release down"));
+
+    // The storage error of the share, not the error of the release (which would be a 500).
+    await expectCode(
+      scheduler(repository).researchScreen.tick({}),
+      "STORAGE_ERROR",
+      503
+    );
+    expect(repository.releaseLease).toHaveBeenCalledExactlyOnceWith("run-1", 2);
   });
 
   it("answers busy to the next tick when a share could not free its lease", async () => {
@@ -1901,7 +2025,8 @@ describe("researchScreen.status", () => {
       message: "4 of 4 reports screened",
       status: "completed",
     });
-    expect(freeLease.activeRun?.status).toBe("interrupted");
+    // A released lease: the next tick ends the run by its counts, so it is not interrupted.
+    expect(freeLease.activeRun?.status).toBe("running");
     expect(liveLease.activeRun?.status).toBe("running");
     expect(inTime.activeRun?.status).toBe("running");
   });

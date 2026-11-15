@@ -664,7 +664,7 @@ Down file: one transaction that locks and drops the 5 tables (rows and bars firs
   - `listWork(runId): Promise<WorkItem[]>` (catalog reports with their row and stored bars, not yet attempted in this run, oldest attempt first)
   - `saveBars(runId, fence, reportId, providerSymbol, sessionDate, bars): Promise<boolean>`
   - `writeRow(runId, fence, row): Promise<boolean>` (false when the fence is old; it also updates the run counters and the two stop counters)
-  - `finishRun(runId, fence, status, message): Promise<boolean>`
+  - `finishRun(runId, fence, status, message, notReached): Promise<boolean>` (it stores `total` as succeeded + failed + notReached)
   - `saveSwinglytics(result): Promise<void>`
   - `readStatus(): Promise<{ scheduler, activeRun, lastRun, runsSince(24 hours), rows, swinglytics }>`
 - packages/db/src/server/research-screen.test.ts (Create): each function with a fake database in the style of `packages/db/src/server/research-reports.test.ts`.

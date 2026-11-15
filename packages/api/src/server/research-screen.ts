@@ -16,6 +16,7 @@ import { implement } from "@orpc/server";
 import { appContract } from "../contract.ts";
 import {
   RESEARCH_SCREEN_ACTIONS,
+  RESEARCH_SCREEN_MAX_CONTEXT_ERROR,
   RESEARCH_SCREEN_NEXT_SLOTS,
   type ResearchScreenAction,
   type ResearchScreenContext,
@@ -66,8 +67,6 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 /** How far ahead the status looks for its next slots (the grid alone gives 18 in 3 days). */
 const NEXT_SLOTS_WINDOW_MS = 3 * DAY_MS;
-/** Characters the message of a context failure event may hold. */
-const CONTEXT_FAILURE_MESSAGE_MAX = 240;
 export const RESEARCH_SCREEN_CONTEXT_FAILED_EVENT =
   "research.screen.context.failed";
 /** Stored bars of one report: the newest sessions that are kept. */
@@ -453,13 +452,16 @@ const busy = async (
   });
 };
 
-/** The failure of the context step as one line of at most 240 characters without URLs. */
+/**
+ * The failure of the context step as one line without URLs, within the bound of the stored context
+ * error (240 characters).
+ */
 export const contextFailureMessage = (error: unknown): string =>
   String(error)
     .replace(/https?:\/\/\S+/giu, "[url]")
     .replace(/\s+/gu, " ")
     .trim()
-    .slice(0, CONTEXT_FAILURE_MESSAGE_MAX);
+    .slice(0, RESEARCH_SCREEN_MAX_CONTEXT_ERROR);
 
 /** The Swinglytics context of a run. Isolated: no failure here changes the run. */
 const collectSwinglytics = async (
@@ -479,6 +481,29 @@ const collectSwinglytics = async (
   } catch (error) {
     // The run goes on: the next run reads the page again. The failure is reported, not hidden.
     await engine.reportContextFailure(contextFailureMessage(error));
+  }
+};
+
+/**
+ * Runs the work of a lease holder. When the work throws (for example a storage error in the middle
+ * of a share), the lease is freed, so the next tick continues at once and not after the 240 seconds
+ * of the lease. The error of the work is the one thrown.
+ */
+const whileHolding = async <T>(
+  engine: ResearchScreenEngine,
+  lease: Lease,
+  work: () => Promise<T>
+): Promise<T> => {
+  try {
+    return await work();
+  } catch (error) {
+    try {
+      await engine.repository.releaseLease(lease.run.id, lease.fence);
+    } catch {
+      // Best effort: the error of the work is the one reported. Without the release the lease
+      // ends by its time and the run continues then.
+    }
+    throw error;
   }
 };
 
@@ -510,9 +535,12 @@ const claimAndWork = async (
       total: 0,
     };
   }
-  await repository.recordTick("claimed");
-  await collectSwinglytics(engine);
-  return workShare(engine, "claimed", { fence: run.fence, run });
+  const lease = { fence: run.fence, run };
+  return whileHolding(engine, lease, async () => {
+    await repository.recordTick("claimed");
+    await collectSwinglytics(engine);
+    return workShare(engine, "claimed", lease);
+  });
 };
 
 /** One scheduler tick (design, "Contracts", the decision table). */
@@ -524,18 +552,24 @@ export const runTick = async (
   const active = await repository.findActiveRun();
   if (active === null) return claimAndWork(engine, now);
   if (leaseLive(active, now)) return busy(engine, active);
+  // A lease that is set and expired at a passed deadline: the holder vanished, the run is
+  // interrupted. A released lease is not that case: the share below ends the run by its counts.
   if (
+    active.leaseExpiresAt !== null &&
     active.deadlineAt.getTime() <= now.getTime() &&
     (await repository.closeExpiredRun(active.id))
   )
     return claimAndWork(engine, now);
-  // The deadline has not passed, or the database did not end the run (its clock, or another tick,
-  // says otherwise): this tick continues the run when it gets the lease.
+  // This tick continues the run when it gets the lease. After the deadline the share starts no
+  // report and ends the run as `partial` or `failed`.
   const taken = await repository.takeLease(active.id, engine.requestId);
   if (taken === null) return busy(engine, active);
-  await repository.recordTick("resumed");
   // The run as stored now: its counters and stop counters include every earlier share.
-  return workShare(engine, "resumed", { fence: taken.fence, run: taken });
+  const lease = { fence: taken.fence, run: taken };
+  return whileHolding(engine, lease, async () => {
+    await repository.recordTick("resumed");
+    return workShare(engine, "resumed", lease);
+  });
 };
 
 const toRun = (
@@ -558,12 +592,17 @@ const toRun = (
   total: run.total,
 });
 
-/** A running run whose deadline and lease are both past is shown as interrupted (not written). */
+/**
+ * A running run whose deadline passed and whose lease is set and expired is shown as interrupted
+ * (not written; the next tick writes it). With a released lease the next tick ends the run by its
+ * counts, so it is still shown as running.
+ */
 const shownStatusOf = (
   run: ResearchScreenRunRecord,
   now: Date
 ): ResearchScreenRun["status"] =>
   run.status === "running" &&
+  run.leaseExpiresAt !== null &&
   run.deadlineAt.getTime() <= now.getTime() &&
   !leaseLive(run, now)
     ? "interrupted"

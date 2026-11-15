@@ -171,6 +171,8 @@ export type ResearchScreenContextView = Readonly<{
 
 export type ResearchScreenViewModel = Readonly<{
   activeRun: ResearchScreenRunView | null;
+  /** When the server evaluated this status. */
+  asOf: string;
   context: ResearchScreenContextView | null;
   lastRun: ResearchScreenRunView | null;
   limitations: readonly string[];
@@ -374,6 +376,7 @@ export const toResearchScreenViewModel = (
   const scheduler = SCHEDULER_STATES[status.scheduler.state];
   return {
     activeRun: toRun(status.activeRun),
+    asOf: formatScreenTime(status.evaluatedAt),
     context: toContext(status.swinglytics),
     lastRun: toRun(status.lastRun),
     limitations: status.limitations,

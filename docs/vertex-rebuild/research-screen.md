@@ -19,14 +19,14 @@ Slots: 00, 04, 08, 12, 16 and 20 UTC on every day, and 09:00, 12:00, 30 minutes 
 | --- | --- | --- |
 | Scheduler running | the last tick is at most 10 minutes old | nothing |
 | Scheduler late | the last tick is 10 to 30 minutes old | a web restart or a long timer run; look again after 5 minutes |
-| Scheduler silent | no tick for more than 30 minutes | the timer and the service on QuantVPS (commands below) |
+| Scheduler silent | no tick for more than 30 minutes | the timer and the service on QuantVPS (commands below). A deploy that is waiting is one cause: while the pause file exists (at most 90 minutes) the script makes no call and the journal shows `{"paused":true}` |
 | No tick yet | the timer was never installed or never reached the web app | the install step |
 
 | Run status | Meaning |
 | --- | --- |
 | running | a run is in progress; the page shows "n of total" |
 | completed | every report was screened |
-| partial | some reports failed or were not reached before the 25-minute deadline; they are first in the next run |
+| partial | some reports failed or were not reached before the 25-minute deadline; the reports that were not reached are first in the next run |
 | failed | no report was screened |
 | interrupted | the run stopped and no tick continued it before its deadline |
 
@@ -64,6 +64,7 @@ Rollback:
 
 ## Limits
 
+- Not yet observed: the session end that Yahoo reports on an early-close day. If it reports 16:00 and not 13:00, the IBKR bar of that day is used only from 16:00 New York time. Check the rows after 15:00 New York time on the next early close (2026-11-27).
 - The calendar is a rule set that was checked against the official NYSE list for 2026 to 2028. A special closure that is not in the list of `packages/api/src/strategy-dsl-compile.ts` is treated as a trading day.
 - Quotes come from Yahoo Finance and can be delayed. Bars come from IBKR where IBKR serves the instrument, else from Yahoo; each row names both sources.
 - The Swinglytics panel is third-party context. It is never an input of the screen.

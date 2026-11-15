@@ -11,36 +11,53 @@ export type ResearchScreenTickIo = Readonly<{
   post: (url: string, init: RequestInit) => Promise<Response>;
   stdout: Readonly<{ write: (text: string) => unknown }>;
   stderr: Readonly<{ write: (text: string) => unknown }>;
-  /** Current time in milliseconds. */
+  /** Current time in milliseconds (Date.now). */
   now: () => number;
-  /** Age of the file in milliseconds; null when the file does not exist. */
-  fileAgeMs: (path: string) => Promise<number | null>;
-  /** Commit of the installed bundle; added to every result line when given. */
-  sourceSha?: string | undefined;
+  /** File status (node:fs/promises stat); it rejects with code ENOENT when the file does not exist. */
+  stat: (path: string) => Promise<Readonly<{ mtimeMs: number }>>;
+  /** Text of a file; it rejects with code ENOENT when the file does not exist. */
+  readText: (file: URL) => Promise<string>;
+  /** Address of the running script (import.meta.url); the file SOURCE_SHA lies beside it. */
+  scriptUrl: string;
 }>;
 
 const PROCEDURE = "researchScreen/tick";
 /** Limit of one call. */
 const CALL_TIMEOUT_MS = 200_000;
 /** The script starts no new call after this time; the next timer run continues. */
-export const WALL_LIMIT_MS = 28 * 60_000;
+const WALL_LIMIT_MS = 28 * 60_000;
 /** A pause file older than this is ignored (the same limit as the backtest worker). */
-export const PAUSE_FILE_MAX_AGE_MS = 90 * 60_000;
+const PAUSE_FILE_MAX_AGE_MS = 90 * 60_000;
+
+const isMissingFile = (error: unknown): boolean =>
+  error instanceof Error && "code" in error && error.code === "ENOENT";
 
 /**
  * Reads the commit of the installed bundle from the file SOURCE_SHA beside the running script (the
  * install script writes it). Returns undefined when the file does not exist or is empty.
  */
-export const readSourceSha = async (
-  scriptUrl: string,
-  readText: (file: URL) => Promise<string>
+const readSourceSha = async (
+  io: ResearchScreenTickIo
 ): Promise<string | undefined> => {
   try {
-    const sha = (await readText(new URL("./SOURCE_SHA", scriptUrl))).trim();
+    const file = new URL("./SOURCE_SHA", io.scriptUrl);
+    const sha = (await io.readText(file)).trim();
     return sha === "" ? undefined : sha;
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT")
-      return;
+    if (isMissingFile(error)) return;
+    throw error;
+  }
+};
+
+/** Age of the file in milliseconds; null when the file does not exist. */
+const fileAgeMs = async (
+  io: ResearchScreenTickIo,
+  path: string
+): Promise<number | null> => {
+  try {
+    return io.now() - (await io.stat(path)).mtimeMs;
+  } catch (error) {
+    if (isMissingFile(error)) return null;
     throw error;
   }
 };
@@ -93,9 +110,10 @@ const loop = async (io: ResearchScreenTickIo): Promise<void> => {
   const origin = new URL(required(io.env, "VERTEX_ORIGIN")).origin;
   const apiKey = required(io.env, "VERTEX_AGENT_API_KEY");
   const pauseFile = pauseFilePath(io.env);
+  const sourceSha = await readSourceSha(io);
   const start = io.now();
   for (;;) {
-    const age = await io.fileAgeMs(pauseFile);
+    const age = await fileAgeMs(io, pauseFile);
     if (age !== null && age < PAUSE_FILE_MAX_AGE_MS) {
       io.stdout.write(`${JSON.stringify({ paused: true })}\n`);
       return;
@@ -105,10 +123,7 @@ const loop = async (io: ResearchScreenTickIo): Promise<void> => {
       return;
     }
     const answer = await call(io, origin, apiKey);
-    const line =
-      io.sourceSha === undefined
-        ? answer
-        : { ...answer, sourceSha: io.sourceSha };
+    const line = sourceSha === undefined ? answer : { ...answer, sourceSha };
     io.stdout.write(`${JSON.stringify(line)}\n`);
     if (answer["done"] !== false) return;
   }

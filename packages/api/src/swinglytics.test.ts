@@ -287,6 +287,9 @@ describe("parseSwinglyticsHtml", () => {
 
   it("scans a hostile page of 1,000,000 bytes in linear time", () => {
     const size = 1_000_000;
+    // A linear scan needs some milliseconds and a quadratic one more than a minute, so a bound
+    // of 5 seconds tells them apart on a loaded runner too.
+    const limitMs = 5000;
     const fill = (unit: string): string => unit.repeat(size / unit.length);
     const closed = `${fill("<script ")}></script>`;
     for (const html of [
@@ -312,7 +315,7 @@ describe("parseSwinglyticsHtml", () => {
       expect(error).toMatchObject({
         message: SWINGLYTICS_PARSE_ERRORS.noDashboard,
       });
-      expect(elapsed).toBeLessThan(500);
+      expect(elapsed).toBeLessThan(limitMs);
     }
   });
 
@@ -381,6 +384,33 @@ describe("parseSwinglyticsHtml", () => {
       { bias: null, changePercent: 3, name: "Other" },
     ]);
     expect(snapshotOf({ themes: "text" }).themes).toEqual([]);
+  });
+
+  it("drops the half of a character pair that the cut leaves, and a lone surrogate", () => {
+    // U+1F600 is two UTF-16 units (a surrogate pair).
+    const pair = "\u{1F600}";
+    const names = snapshotOf({
+      themes: [
+        { name: `${"x".repeat(59)}${pair}` },
+        { name: `${"y".repeat(58)}${pair}tail` },
+        { name: `Lone \ud83d high, \ude00 low, ${pair} pair\ud83d` },
+        { name: "\ud83d" },
+      ],
+    }).themes.map((theme) => theme.name);
+    expect(names).toEqual([
+      "x".repeat(59),
+      `${"y".repeat(58)}${pair}`,
+      `Lone  high,  low, ${pair} pair`,
+    ]);
+    // No name holds a surrogate outside a pair.
+    for (const name of names) {
+      expect(name).not.toMatch(/\p{Cs}/u);
+      expect(JSON.parse(JSON.stringify(name))).toBe(name);
+    }
+    const bias = snapshotOf({
+      themes: [{ bias: `${"b".repeat(39)}${pair}`, name: "Theme" }],
+    }).themes[0]?.bias;
+    expect(bias).toBe("b".repeat(39));
   });
 
   it("keeps 10 of 11 themes and reads only the first 20 items", () => {

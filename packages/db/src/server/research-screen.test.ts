@@ -340,7 +340,7 @@ describe("research screen repository", () => {
   });
 
   describe("closeExpiredRun", () => {
-    it("interrupts a running run whose deadline and lease have passed", async () => {
+    it("interrupts a running run whose deadline passed and whose lease is set and expired", async () => {
       const { database, operations } = createDouble([[{ id: RUN_ID }], []]);
       const repository = createResearchScreenRepository(database, clock);
 
@@ -357,8 +357,9 @@ describe("research screen repository", () => {
       expect(render(update.set?.["notReached"]).text).toBe(
         'greatest("research_screen_runs"."total" - "research_screen_runs"."succeeded" - "research_screen_runs"."failed", 0)'
       );
+      // No "is null" arm: a released lease is not an expired one, so that run is not interrupted.
       expect(render(update.where).text).toBe(
-        '("research_screen_runs"."id" = $1 and "research_screen_runs"."status" = $2 and "research_screen_runs"."deadline_at" <= now() and ("research_screen_runs"."lease_expires_at" is null or "research_screen_runs"."lease_expires_at" <= now()))'
+        '("research_screen_runs"."id" = $1 and "research_screen_runs"."status" = $2 and "research_screen_runs"."deadline_at" <= now() and "research_screen_runs"."lease_expires_at" <= now())'
       );
     });
   });

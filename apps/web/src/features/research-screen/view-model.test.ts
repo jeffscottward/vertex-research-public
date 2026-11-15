@@ -145,6 +145,12 @@ const status = (
 describe("research screen view-model", () => {
   it("names the path and accepts a fixture of the contract shape", () => {
     expect(RESEARCH_SCREEN_PATH).toBe("/research/screen");
+    expect(toResearchScreenViewModel(status()).asOf).toBe(
+      "Nov 13, 09:30 ET (14:30 UTC)"
+    );
+    expect(
+      toResearchScreenViewModel(status({ evaluatedAt: SUMMER })).asOf
+    ).toBe("Jul 14, 09:30 ET (13:30 UTC)");
     expect(() =>
       ResearchScreenStatusOutputSchema.parse(status())
     ).not.toThrow();

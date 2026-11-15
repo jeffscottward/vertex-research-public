@@ -151,9 +151,12 @@ type Fields = Partial<Record<FieldKey, unknown>>;
 const SCRIPT_OPEN = "<script";
 const SCRIPT_CLOSE = "</script";
 const PUSH_PREFIX = "self.__next_f.push(";
-// Control characters and the direction marks and isolates.
+// Control characters, the direction marks and isolates, and surrogates that are not part of a
+// pair (with the `u` flag a pair is one code point, so only a lone surrogate matches `\p{Cs}`).
 const UNSAFE_CHARACTERS =
-  /[\p{Cc}\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/gu;
+  /[\p{Cc}\p{Cs}\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/gu;
+// A cut in the middle of a surrogate pair leaves its first half, which Postgres jsonb refuses.
+const LONE_HIGH_SURROGATE_AT_END = /[\uD800-\uDBFF]$/u;
 
 const PushSchema = z.tuple([z.unknown(), z.string()], z.unknown());
 
@@ -176,7 +179,11 @@ const text = (value: unknown, limit: number): string | null => {
   if (typeof value !== "string") {
     return null;
   }
-  const cleaned = value.replace(UNSAFE_CHARACTERS, "").trim().slice(0, limit);
+  const cleaned = value
+    .replace(UNSAFE_CHARACTERS, "")
+    .trim()
+    .slice(0, limit)
+    .replace(LONE_HIGH_SURROGATE_AT_END, "");
   return cleaned === "" ? null : cleaned;
 };
 

@@ -232,6 +232,16 @@ const stateOf = (host: HTMLElement) =>
     .querySelector("[data-research-screen-state]")
     ?.getAttribute("data-research-screen-state");
 
+const asOf = (host: HTMLElement) =>
+  host.querySelector("[data-research-screen-as-of]")?.textContent ?? undefined;
+const note = (host: HTMLElement) =>
+  host.querySelector("[data-research-screen-reload-note]")?.textContent ??
+  undefined;
+const reloadButton = (host: HTMLElement) =>
+  [...host.querySelectorAll("button")].find(
+    (button) => button.textContent === "Reload"
+  );
+
 const VAGUE =
   /\b(unknown|n\/a|unavailable|not available|not known|not set|unspecified|undetermined|tbd)\b/i;
 
@@ -242,6 +252,8 @@ describe("research screen workspace", () => {
       <ResearchScreenWorkspace gateway={gatewayOf(() => pending.promise)} />
     );
     expect(stateOf(host)).toBe("loading");
+    expect(asOf(host)).toBeUndefined();
+    expect(reloadButton(host)).toBeUndefined();
     expect(host.querySelector("h1")?.textContent).toBe("Research screen");
     expect(chip(host)).toBe("Loading");
     expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
@@ -252,6 +264,8 @@ describe("research screen workspace", () => {
     await act(async () => pending.resolve(full()));
     expect(stateOf(host)).toBe("ready");
     expect(chip(host)).toBe("Scheduler running");
+    expect(asOf(host)).toBe("As of Nov 13, 09:30 ET (14:30 UTC)");
+    expect(note(host)).toBeUndefined();
     const text = host.textContent ?? "";
     expect(text).toContain(
       "Last run: Run of Nov 13, 09:30 ET (14:30 UTC): 12 of 58 reports"
@@ -451,7 +465,173 @@ describe("research screen workspace", () => {
     expect(read).toHaveBeenCalledTimes(2);
   });
 
-  it("reloads every minute while a run is active and stops when idle", async () => {
+  it("loads again from the Reload button and keeps the error state of a manual load", async () => {
+    const read = vi
+      .fn<ResearchScreenGateway["status"]>()
+      .mockResolvedValueOnce(status())
+      .mockResolvedValueOnce(
+        status({ evaluatedAt: new Date("2026-11-13T15:00:00.000Z") })
+      )
+      .mockRejectedValue(new Error("down"));
+    const { host } = await mount(
+      <ResearchScreenWorkspace gateway={gatewayOf(read)} />
+    );
+    expect(asOf(host)).toBe("As of Nov 13, 09:30 ET (14:30 UTC)");
+    expect(reloadButton(host)?.className).toContain("min-h-11");
+
+    await act(async () => reloadButton(host)?.click());
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(stateOf(host)).toBe("ready");
+    expect(asOf(host)).toBe("As of Nov 13, 10:00 ET (15:00 UTC)");
+
+    await act(async () => reloadButton(host)?.click());
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(stateOf(host)).toBe("error");
+    expect(chip(host)).toBe("Load failed");
+    expect(asOf(host)).toBeUndefined();
+    expect(note(host)).toBeUndefined();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      "The research screen did not load."
+    );
+  });
+
+  it("shows the loading state while a manual reload is pending", async () => {
+    const pending = deferred();
+    const read = vi
+      .fn<ResearchScreenGateway["status"]>()
+      .mockResolvedValueOnce(status())
+      .mockReturnValueOnce(pending.promise);
+    const { host } = await mount(
+      <ResearchScreenWorkspace gateway={gatewayOf(read)} />
+    );
+    await act(async () => reloadButton(host)?.click());
+    expect(stateOf(host)).toBe("loading");
+    expect(chip(host)).toBe("Loading");
+    await act(async () => pending.resolve(status()));
+    expect(stateOf(host)).toBe("ready");
+  });
+
+  it("reloads an idle screen every 5 minutes", async () => {
+    vi.useFakeTimers();
+    const read = vi
+      .fn<ResearchScreenGateway["status"]>()
+      .mockResolvedValueOnce(status())
+      .mockResolvedValueOnce(
+        status({ evaluatedAt: new Date("2026-11-13T14:35:00.000Z") })
+      )
+      .mockResolvedValue(status({ activeRun: run() }));
+    const { host } = await mount(
+      <ResearchScreenWorkspace gateway={gatewayOf(read)} />
+    );
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 5 - 1)
+    );
+    expect(read).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(read).toHaveBeenCalledTimes(2);
+    // A quiet reload: the page never went back to the loading state.
+    expect(stateOf(host)).toBe("ready");
+    expect(asOf(host)).toBe("As of Nov 13, 09:35 ET (14:35 UTC)");
+
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 5)
+    );
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(host.textContent).toContain("Active run");
+    // A run is active now, so the next reload comes after one minute.
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS)
+    );
+    expect(read).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps the shown data and adds a note when a timer reload fails", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-13T15:00:00.000Z"));
+    const read = vi
+      .fn<ResearchScreenGateway["status"]>()
+      .mockResolvedValueOnce(status())
+      .mockRejectedValueOnce(new Error("down"))
+      .mockResolvedValueOnce(
+        status({ evaluatedAt: new Date("2026-11-13T15:10:00.000Z") })
+      )
+      .mockRejectedValueOnce(new Error("down again"))
+      .mockRejectedValue({
+        code: "FORBIDDEN",
+        message: "Forbidden",
+        status: 403,
+      });
+    const { host } = await mount(
+      <ResearchScreenWorkspace gateway={gatewayOf(read)} />
+    );
+    expect(note(host)).toBeUndefined();
+
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 5)
+    );
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(stateOf(host)).toBe("ready");
+    expect(chip(host)).toBe("Scheduler running");
+    expect(
+      host.querySelector('[data-research-screen-row="AAA"]')
+    ).not.toBeNull();
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(note(host)).toBe(
+      "Reload failed at Nov 13, 10:05 ET (15:05 UTC); showing data as of Nov 13, 09:30 ET (14:30 UTC)"
+    );
+    expect(note(host)).not.toMatch(VAGUE);
+
+    // The timer goes on after a failure, and a good answer removes the note.
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 5)
+    );
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(note(host)).toBeUndefined();
+    expect(asOf(host)).toBe("As of Nov 13, 10:10 ET (15:10 UTC)");
+
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 5)
+    );
+    expect(note(host)).toBe(
+      "Reload failed at Nov 13, 10:15 ET (15:15 UTC); showing data as of Nov 13, 10:10 ET (15:10 UTC)"
+    );
+
+    // An operator-only answer to a timer reload still ends the page, and the timer with it.
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 5)
+    );
+    expect(read).toHaveBeenCalledTimes(5);
+    expect(stateOf(host)).toBe("forbidden");
+    expect(chip(host)).toBe("Operator only");
+    expect(note(host)).toBeUndefined();
+    expect(asOf(host)).toBeUndefined();
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 10)
+    );
+    expect(read).toHaveBeenCalledTimes(5);
+  });
+
+  it("removes the note of a failed timer reload on a manual reload", async () => {
+    vi.useFakeTimers();
+    const read = vi
+      .fn<ResearchScreenGateway["status"]>()
+      .mockResolvedValueOnce(status())
+      .mockRejectedValueOnce(new Error("down"))
+      .mockResolvedValue(status());
+    const { host } = await mount(
+      <ResearchScreenWorkspace gateway={gatewayOf(read)} />
+    );
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 5)
+    );
+    expect(note(host)).toContain("Reload failed at");
+    await act(async () => reloadButton(host)?.click());
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(stateOf(host)).toBe("ready");
+    expect(note(host)).toBeUndefined();
+  });
+
+  it("reloads every minute while a run is active and slower when idle", async () => {
     vi.useFakeTimers();
     const read = vi
       .fn<ResearchScreenGateway["status"]>()
@@ -487,7 +667,7 @@ describe("research screen workspace", () => {
     expect(read).toHaveBeenCalledTimes(3);
   });
 
-  it("does not reload an idle screen and clears the timer on unmount", async () => {
+  it("does not reload an idle screen each minute and clears the timers on unmount", async () => {
     vi.useFakeTimers();
     const idle = vi.fn(async () => status());
     await mount(<ResearchScreenWorkspace gateway={gatewayOf(idle)} />);
@@ -504,6 +684,12 @@ describe("research screen workspace", () => {
     roots.splice(roots.indexOf(root), 1);
     await vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 2);
     expect(active).toHaveBeenCalledTimes(1);
+
+    const idleRoot = roots[0];
+    await act(async () => idleRoot?.unmount());
+    roots.splice(0, 1);
+    await vi.advanceTimersByTimeAsync(RESEARCH_SCREEN_RELOAD_MS * 10);
+    expect(idle).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a slow older response after a newer one", async () => {
@@ -533,6 +719,7 @@ describe("research screen workspace", () => {
     });
     expect(stateOf(host)).toBe("ready");
     expect(host.textContent).toContain("40 of 58 reports");
+    expect(note(host)).toBeUndefined();
   });
 });
 

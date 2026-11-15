@@ -31,6 +31,7 @@ import {
 } from "react";
 
 import {
+  formatScreenTime,
   type ResearchScreenContextView,
   type ResearchScreenRowView,
   type ResearchScreenRunView,
@@ -61,6 +62,8 @@ export const createBrowserResearchScreenGateway = (): ResearchScreenGateway => {
 
 /** The page reloads at this interval while a run is active. */
 export const RESEARCH_SCREEN_RELOAD_MS = 60_000;
+/** The page reloads at this interval while no run is active. */
+const IDLE_RELOAD_MS = 5 * RESEARCH_SCREEN_RELOAD_MS;
 
 type Load =
   | Readonly<{ type: "loading" }>
@@ -69,29 +72,38 @@ type Load =
   | Readonly<{ type: "ready"; data: ResearchScreenStatusOutput }>;
 
 /**
- * Loads the status on mount and again every minute while a run is active. Only the newest request
- * may set state, so a slow older response never replaces a newer one.
+ * Loads the status on mount, then again on a timer: every minute while a run is active, every 5
+ * minutes when idle. Only the newest request may set state, so a slow older response never
+ * replaces a newer one. A timer reload is quiet: it keeps the shown status until the new one
+ * arrives, and a failure only sets `reloadFailedAt` (an operator-only answer still ends the page).
  */
 const useScreenStatus = (gateway: ResearchScreenGateway) => {
   const [state, setState] = useState<Load>({ type: "loading" });
+  const [reloadFailedAt, setReloadFailedAt] = useState<Date | null>(null);
   const latest = useRef(0);
-  // A quiet load keeps the shown rows until the new status arrives.
   const load = useCallback(
     async (quiet: boolean) => {
       latest.current += 1;
       const request = latest.current;
-      if (!quiet) setState({ type: "loading" });
+      if (!quiet) {
+        setState({ type: "loading" });
+        setReloadFailedAt(null);
+      }
       try {
         const data = await gateway.status();
-        if (request === latest.current) setState({ data, type: "ready" });
+        if (request !== latest.current) return;
+        setState({ data, type: "ready" });
+        setReloadFailedAt(null);
       } catch (error) {
         if (request !== latest.current) return;
         const failure = describePortfolioMonitorFailure(error);
-        setState(
-          failure.kind === "forbidden"
-            ? { type: "forbidden" }
-            : { message: `${failure.code}: ${failure.message}`, type: "error" }
-        );
+        if (failure.kind === "forbidden") setState({ type: "forbidden" });
+        else if (quiet) setReloadFailedAt(new Date());
+        else
+          setState({
+            message: `${failure.code}: ${failure.message}`,
+            type: "error",
+          });
       }
     },
     [gateway]
@@ -102,13 +114,17 @@ const useScreenStatus = (gateway: ResearchScreenGateway) => {
       latest.current += 1;
     };
   }, [load]);
-  const active = state.type === "ready" && state.data.activeRun !== null;
+  const ready = state.type === "ready";
+  const active = ready && state.data.activeRun !== null;
   useEffect(() => {
-    if (!active) return;
-    const timer = setInterval(() => void load(true), RESEARCH_SCREEN_RELOAD_MS);
+    if (!ready) return;
+    const timer = setInterval(
+      () => void load(true),
+      active ? RESEARCH_SCREEN_RELOAD_MS : IDLE_RELOAD_MS
+    );
     return () => clearInterval(timer);
-  }, [active, load]);
-  return { load, state };
+  }, [active, load, ready]);
+  return { load, reloadFailedAt, state };
 };
 
 /** Header chip: the load state, then the scheduler state. */
@@ -519,12 +535,32 @@ export const ResearchScreenWorkspace = ({
   const [gateway] = useState(
     () => supplied ?? createBrowserResearchScreenGateway()
   );
-  const { load, state } = useScreenStatus(gateway);
+  const { load, reloadFailedAt, state } = useScreenStatus(gateway);
   const view =
     state.type === "ready" ? toResearchScreenViewModel(state.data) : null;
   return (
     <div className="space-y-6" data-research-screen-state={state.type}>
       <PageHeader
+        actions={
+          view === null ? undefined : (
+            <>
+              <span
+                className="text-muted-foreground text-sm"
+                data-research-screen-as-of=""
+              >
+                As of {view.asOf}
+              </span>
+              <Button
+                className="min-h-11"
+                onClick={() => void load(false)}
+                variant="outline"
+              >
+                <RotateCcw aria-hidden="true" className="size-4" />
+                Reload
+              </Button>
+            </>
+          )
+        }
         breadcrumb={
           <nav aria-label="Breadcrumb">
             <Link
@@ -541,6 +577,16 @@ export const ResearchScreenWorkspace = ({
         status={headerStatus(state, view)}
         title="Research screen"
       />
+      {view !== null && reloadFailedAt !== null && (
+        <p
+          className="text-muted-foreground text-sm"
+          data-research-screen-reload-note=""
+          role="status"
+        >
+          Reload failed at {formatScreenTime(reloadFailedAt)}; showing data as
+          of {view.asOf}
+        </p>
+      )}
       <ScreenGate onRetry={() => void load(false)} state={state} view={view} />
     </div>
   );

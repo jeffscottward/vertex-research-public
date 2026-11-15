@@ -185,7 +185,10 @@ export type ResearchScreenRepository = Readonly<{
   claimSlot: (
     input: ResearchScreenClaimInput
   ) => Promise<ResearchScreenRunRecord | null>;
-  /** Ends a running run as interrupted when its deadline passed and its lease is free or expired. */
+  /**
+   * Ends a running run as interrupted when its deadline passed and its lease is set and expired (the
+   * holder vanished). A run whose lease was released is ended by the next share, by its counts.
+   */
   closeExpiredRun: (runId: string) => Promise<boolean>;
   /** The number of catalog reports (the first total of a run). */
   countReports: () => Promise<number>;
@@ -221,8 +224,10 @@ export type ResearchScreenRepository = Readonly<{
     bars: readonly ResearchScreenBarValue[]
   ) => Promise<boolean>;
   saveSwinglytics: (result: ResearchScreenSwinglyticsResult) => Promise<void>;
-  /** Takes the lease of a running run when it is free or expired. Null when the lease is live. */
-  /** The run as stored after the takeover (raised fence, fresh counters), or null. */
+  /**
+   * Takes the lease of a running run when it is free or expired: the run as stored after the
+   * takeover (raised fence, fresh counters). Null when the lease is live.
+   */
   takeLease: (
     runId: string,
     owner: string
@@ -243,10 +248,9 @@ const runs = researchScreenRuns;
 const rows = researchScreenRows;
 
 const leaseExpiry = sql`now() + make_interval(secs => ${RESEARCH_SCREEN_LEASE_SECONDS})`;
-const leaseFree = or(
-  isNull(runs.leaseExpiresAt),
-  sql`${runs.leaseExpiresAt} <= now()`
-);
+/** A lease that is set and has ended: its holder vanished. A released lease (null) is not one. */
+const leaseExpired = sql`${runs.leaseExpiresAt} <= now()`;
+const leaseFree = or(isNull(runs.leaseExpiresAt), leaseExpired);
 const notReached = sql<number>`greatest(${runs.total} - ${runs.succeeded} - ${runs.failed}, 0)`;
 
 /** The running run with this id whose lease still has this fence. */
@@ -547,7 +551,7 @@ export const createResearchScreenRepository = (
             eq(runs.id, runId),
             eq(runs.status, "running"),
             sql`${runs.deadlineAt} <= now()`,
-            leaseFree
+            leaseExpired
           )
         )
         .returning({ id: runs.id })

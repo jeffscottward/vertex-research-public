@@ -1,8 +1,13 @@
+import {
+  RESEARCH_SCREEN_MESSAGE_MAX,
+  RESEARCH_SCREEN_SWINGLYTICS_ERROR_MAX,
+} from "@darkfactory/db/server";
 import { describe, expect, it } from "vitest";
 
 import {
   RESEARCH_SCREEN_API_ERRORS,
   RESEARCH_SCREEN_ERROR_CODES,
+  RESEARCH_SCREEN_MAX_CONTEXT_ERROR,
   RESEARCH_SCREEN_MAX_MESSAGE,
   RESEARCH_SCREEN_MAX_MISSED_SLOTS,
   RESEARCH_SCREEN_MAX_ROW_TEXT,
@@ -15,6 +20,7 @@ import {
   ResearchScreenTickOutputSchema,
   researchScreenContract,
 } from "./contracts/research-screen.ts";
+import { RESEARCH_SCREEN_LIMITS } from "./research-screen.ts";
 
 const routeOf = (procedure: unknown) =>
   (procedure as { ["~orpc"]: { route: { method: string; path: string } } })[
@@ -295,6 +301,22 @@ describe("research screen contract", () => {
         swinglytics: { ...status().swinglytics, lastError: "x".repeat(241) },
       })
     ).toBe(false);
+  });
+
+  it("keeps the bounds that exist in two places equal", () => {
+    // The repository cuts to these lengths before it writes; the contract refuses longer texts.
+    expect(RESEARCH_SCREEN_MAX_MESSAGE).toBe(RESEARCH_SCREEN_MESSAGE_MAX);
+    expect(RESEARCH_SCREEN_MAX_CONTEXT_ERROR).toBe(
+      RESEARCH_SCREEN_SWINGLYTICS_ERROR_MAX
+    );
+    expect(RESEARCH_SCREEN_MAX_CONTEXT_ERROR).toBe(240);
+    // The screen cuts its reasons and warnings to these bounds.
+    expect(RESEARCH_SCREEN_MAX_ROW_TEXT).toBe(
+      RESEARCH_SCREEN_LIMITS.maxMessageLength
+    );
+    expect(RESEARCH_SCREEN_MAX_ROW_TEXTS).toBe(
+      RESEARCH_SCREEN_LIMITS.maxMessages
+    );
   });
 
   it("pins the maxima of the lists", () => {
