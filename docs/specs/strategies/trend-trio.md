@@ -129,7 +129,7 @@ trade in QQQ terms next to the cost of crossing a 0-1 DTE QQQ option spread twic
 
 ## Results
 
-Run 2026-11-14 on the rig, commit `f202aca3` (the same numbers as three earlier runs of the same rules), spec SHA-256
+Run 2026-11-14 on the rig, commit `4067241c` (the same numbers as four earlier runs of the same rules), spec SHA-256
 `35b52eec`, 257 s with 8 workers. Report on the rig: `~/Documents/reports/web/vertex-trend-trio/index.html` (the rig's
 tailnet report site, path `/reports/vertex-trend-trio/`); full numbers in the run folder next to it.
 
