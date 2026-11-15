@@ -1393,8 +1393,9 @@ describe("portfolio block", () => {
     }
   );
 
-  // The Python normalize_definition raises the first issue of each list
-  // (test_cross_field_checks_raise_in_the_typescript_order).
+  // The Python normalize_definition raises the first issue of each list; for an options definition
+  // it raises the options issue instead of a "stop loss" issue (definitionRefusalCases in
+  // scripts/research/nautilus-golden.ts, test_definition_refusal_matches_typescript).
   it.each([
     [
       "management without a stop loss before a portfolio without options",
@@ -1517,7 +1518,7 @@ describe("portfolio block", () => {
 
   // zod runs the cross-field checks only when every field is valid. The Python
   // normalize_definition raises the field error first too
-  // (test_field_errors_come_before_the_portfolio_checks).
+  // (the field:side cases of definitionRefusalCases in scripts/research/nautilus-golden.ts).
   it.each([
     [
       "a portfolio without options",

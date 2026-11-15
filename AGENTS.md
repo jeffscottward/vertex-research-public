@@ -217,19 +217,34 @@ Owner decision, 2026-11-11: the agents that work here own the quality of this co
 - Leave the code you touch cleaner than you found it. A small refactor in files that your change already touches is welcome in any PR: a clearer name, an extracted function, deleted dead code, a helper moved to the module that owns it. Give it its own commit; the "Security and repository hygiene" rules stay (no cleanup inside a functional commit, no unrelated files).
 - A structure-only change keeps behavior: the tests are green before and after, coverage does not go down, and public contracts (oRPC, Zod, database schema, package `exports`) stay the same.
 - A behavior change needs its own PR. A bug found during a cleanup also gets its own PR.
-- A change to an order, execution, arming or risk path is never cleanup. It follows "Code review practice": a person reviews it.
+- A change to an order, execution, arming or risk path is never cleanup. It gets its own PR and the full review that "Code review practice" requires for these paths.
 - For an optimization, measure first. Put the number before and the number after in the PR.
 - Runtime import cycles are a lint error (`suspicious/noImportCycles` in `biome.jsonc`). Fix a cycle by moving the shared code into a leaf module, not with a lazy import. The override list for this rule only shrinks.
 
 ## Code review practice
 
-This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15). Machines do most of the reading; a person owns the outcome.
+This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15), with one change: only agents review code here. The owner does not read code (owner decision, 2026-11-10, [message](https://discord.com/channels/1511468532876185770/1569796763714457652/1569827457996029986)). The agent that opens a PR owns its outcome: tests, review findings, CI, merge and follow-up.
 
 - Verify before review: run the tests, build or browser check, and put the command and its output (or a screenshot) in the PR.
 - Before opening a PR, have a fresh-context reviewer (subagent or `/code-review`) read the diff. Fix each finding or answer it with a reason.
 - When the same finding appears twice, fix it at the source: a lint rule, a test, or a line in this file.
 - Cap review rounds at three, then reconsider the approach. After two rounds, review only the new diff. Flag the whole class of a bug once, so the author fixes every instance. This cap does not narrow the exact-head merge review or any full-scope review this file requires (security bootstrap, order or risk paths), and it never waives a required check or finding.
-- What the change touches, not who wrote it, decides how much review it needs: order, execution, risk, auth, CI and deploy paths always get a person's review. An agent's approval never replaces a required human approval. The person who prompted an agent-written change owns it.
+- What the change touches, not who wrote it, decides how much review it needs. A change to an order, execution, arming, risk, auth, CI or deploy path merges only when all of these are true:
+  - The required checks passed on the exact head commit.
+  - A fresh-context agent reviewed the full diff at that head, not only the newest review round.
+  - No review finding is open.
+  - If the change alters what an item in the owner-decision list below allows (for example a risk gate, cap, size limit or kill switch), the owner decided it before the merge, and the PR body links that decision.
+- No merge waits for a person to read code. A job never asks the owner to review code or a diff. Ask the owner only for a decision that only the owner can make. Ask it as one plain-English question about the effect (what changes for trading, money, risk, security or access), without implementation details.
+- Owner-decision list. The owner decides these, whatever the review result:
+  - Arming trading.
+  - Placing or changing live orders.
+  - Risk settings (sizes, caps, gates, kill switches), including a code change that changes what one of them allows.
+  - Starting, stopping or reconfiguring live trading units.
+  - Trading-engine deploys.
+  - Money movement.
+  - Security and access changes.
+- An agent review never authorizes an item in the owner-decision list. A PR that changes one of them, or changes what one of them allows, does not merge before the owner decides. Link the owner's decision (message or issue, with its date) in the PR body. A reviewer treats a missing link as an open finding.
+- Approvals that branch protection or rulesets require still apply ("Lifecycle gates").
 - Keep changes small, and state in the PR how to test and how to revert them.
 
 ## Deeper docs

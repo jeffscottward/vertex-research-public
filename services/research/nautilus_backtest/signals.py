@@ -988,10 +988,8 @@ def _management_level(value: Any, name: str) -> float:
     return float(value)
 
 
-def _normalize_management(
-    management: Mapping[str, Any] | None, stop_loss: Mapping[str, Any], options: Any
-) -> dict[str, Any] | None:
-    """TS StrategyManagementSchema and its definition refinements; None without a block."""
+def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The field checks of the TS StrategyManagementSchema; None without a block."""
     if management is None:
         return None
     _strict(management, frozenset({"breakevenR", "trail"}), "management")
@@ -1011,13 +1009,6 @@ def _normalize_management(
         }
     if not normalized:
         raise InputError("management needs trail, breakevenR or both")
-    # Options first: an options block needs no stop loss, so the stop message would mislead.
-    if options is not None:
-        raise InputError(
-            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
-        )
-    if stop_loss["kind"] == "none":
-        raise InputError("management moves the stop loss; add a stop loss")
     return normalized
 
 
@@ -1303,14 +1294,35 @@ def _definition_exprs(normalized: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 def _check_definition_refinements(
     definition: Mapping[str, Any], normalized: Mapping[str, Any]
 ) -> None:
-    """The StrategyDefinitionSchema refinements that follow the sizing, stop and management ones,
-    in the TS order: the first one that fails is the first TS issue among them."""
+    """The StrategyDefinitionSchema refinements in the TS order, after every field check of
+    normalize_definition: the first one that fails is the first TS issue among them. One
+    difference: an options block takes no stop loss, so the two refinements that ask for one
+    (riskPct sizing, management) are not raised with an options block; the options refinements
+    for riskPct sizing and management refuse the same definitions, and their advice is the correct
+    one."""
     side = normalized["side"]
     intraday = normalized["intraday"]
     management = normalized["management"]
     options = normalized["options"]
     portfolio = definition.get("portfolio")
-    if options is not None and normalized["sizing"]["mode"] == "volTarget":
+    sizing_mode = normalized["sizing"]["mode"]
+    no_stop = normalized["stopLoss"]["kind"] == "none"
+    if options is None and sizing_mode == "riskPct" and no_stop:
+        raise InputError("Risk-percent sizing needs a stop loss")
+    if options is not None and sizing_mode == "riskPct":
+        raise InputError("Option strategies size by options.maxLossPct; remove the riskPct sizing")
+    if options is not None and not (no_stop and normalized["takeProfit"]["kind"] == "none"):
+        raise InputError(
+            "Option strategies exit by profitTakePct, exitDte and exit conditions;"
+            " remove the stop loss and take profit"
+        )
+    if options is None and management is not None and no_stop:
+        raise InputError("management moves the stop loss; add a stop loss")
+    if options is not None and management is not None:
+        raise InputError(
+            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
+        )
+    if options is not None and sizing_mode == "volTarget":
         raise InputError("Option strategies size by options.maxLossPct; remove the volTarget sizing")
     if portfolio is not None and options is None:
         raise InputError("A portfolio block trades option verticals; add an options block")
@@ -1375,20 +1387,12 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     stop_loss = _normalize_level(definition.get("stopLoss"))
     take_profit = _normalize_level(definition.get("takeProfit"))
     options = definition.get("options")
-    if options is not None:
-        if sizing["mode"] == "riskPct":
-            raise InputError(
-                "Option strategies size by options.maxLossPct; remove the riskPct sizing"
-            )
-        if stop_loss["kind"] != "none" or take_profit["kind"] != "none":
-            raise InputError(
-                "Option strategies exit by profitTakePct, exitDte and exit conditions;"
-                " remove the stop loss and take profit"
-            )
+    if options is not None and not isinstance(options, Mapping):
+        raise InputError("options must be an object")
     portfolio = definition.get("portfolio")
     normalized_portfolio = None if portfolio is None else _normalize_portfolio(portfolio)
     session = definition.get("session")
-    management = _normalize_management(definition.get("management"), stop_loss, options)
+    management = _normalize_management(definition.get("management"))
     entry_conditions = [_normalize_condition(c) for c in entry_all]
     entry_any_conditions = [_normalize_condition(c) for c in entry_any]
     exit_conditions = [_normalize_condition(c) for c in exit_any]
