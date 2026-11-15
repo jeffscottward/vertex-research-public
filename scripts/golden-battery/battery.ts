@@ -70,7 +70,7 @@ const TradeSchema = z.object({
   exitPrice: z.number(),
   netReturn: z.number(),
   pnl: z.number(),
-  exitReason: z.enum(["signal", "stop", "target", "end"]),
+  exitReason: z.enum(["signal", "stop", "target", "end", "sessionClose"]),
 });
 
 const StatsSchema = z.object({

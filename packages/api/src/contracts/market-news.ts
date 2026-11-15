@@ -1,7 +1,8 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
-// News monitor for the signed-in user's watchlist: Yahoo Finance headline RSS and SEC EDGAR
+// News monitor for the signed-in user's watchlist: headlines from IBKR (vertex-history /news),
+// Reuters (Google News RSS), Seeking Alpha and Yahoo Finance RSS, merged per ticker, plus SEC EDGAR
 // 8-K filings per ticker. Read-only research; no orders, no quotes, no execution linkage.
 // Item labels, the important-item set and the headline keyword idea are adapted from
 // day-trader-skill trader-news/news.py (MIT, Jake Schincariol, commit 3d0f4ef).
@@ -22,6 +23,27 @@ export const MARKET_NEWS_HEADLINE_TAGS = [
   "executive",
 ] as const;
 export type MarketNewsHeadlineTag = (typeof MARKET_NEWS_HEADLINE_TAGS)[number];
+
+/**
+ * Headline sources, highest priority first: when several sources carry the same story, the
+ * merged list keeps the copy from the source listed first.
+ */
+export const MARKET_NEWS_SOURCES = [
+  "ibkr",
+  "reuters",
+  "seekingalpha",
+  "yahoo",
+] as const;
+export type MarketNewsSource = (typeof MARKET_NEWS_SOURCES)[number];
+
+export const MARKET_NEWS_SOURCE_LABELS: Readonly<
+  Record<MarketNewsSource, string>
+> = {
+  ibkr: "IBKR",
+  reuters: "Reuters",
+  seekingalpha: "Seeking Alpha",
+  yahoo: "Yahoo Finance",
+};
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -45,9 +67,11 @@ export const MarketNewsHeadlineSchema = z
   .object({
     publishedAt: z.date(),
     publisher: text(200).nullable(),
+    source: z.enum(MARKET_NEWS_SOURCES),
     tags: z.array(z.enum(MARKET_NEWS_HEADLINE_TAGS)),
     title: text(500),
-    url: MarketNewsUrlSchema,
+    // IBKR headlines carry no public article link.
+    url: MarketNewsUrlSchema.nullable(),
   })
   .strict();
 
@@ -78,6 +102,10 @@ export const MarketNewsTickerSchema = z
   })
   .strict();
 
+/** "all": headlines and 8-K filings; "filings": 8-K filings only (no headline source is read). */
+export const MARKET_NEWS_INCLUDE = ["all", "filings"] as const;
+export type MarketNewsInclude = (typeof MARKET_NEWS_INCLUDE)[number];
+
 export const MarketNewsWatchlistInputSchema = z
   .object({
     // GET query values arrive as strings; coerce, then allow only the listed windows.
@@ -87,6 +115,7 @@ export const MarketNewsWatchlistInputSchema = z
         z.union([z.literal(24), z.literal(72), z.literal(168), z.literal(720)])
       )
       .default(72),
+    include: z.enum(MARKET_NEWS_INCLUDE).default("all"),
   })
   .strict();
 

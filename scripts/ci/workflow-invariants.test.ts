@@ -7,6 +7,7 @@ import { parse } from "yaml";
 // change without weakening the pipeline.
 
 interface Step {
+  env?: Record<string, unknown>;
   run?: string;
   uses?: string;
   with?: Record<string, unknown>;
@@ -177,6 +178,44 @@ describe("GitHub workflow invariants", () => {
     );
   });
 
+  // Owner 2026-11-11 (card vertex-code-stewardship): the template init acceptance shard
+  // is the longest job. It runs on the nightly run and when the changes job plans it
+  // (scripts/ci/ci-changes.sh); the coverage lane then requires its report.
+  it("runs the acceptance shard nightly and only when the changes job plans it", () => {
+    const ci = workflows.find(({ file }) => file === "ci.yml")!;
+    const on = ci.workflow.on as Record<string, unknown>;
+    expect(on["schedule"]).toEqual([{ cron: expect.any(String) }]);
+    const { concurrency } = ci.workflow as unknown as {
+      concurrency: { group: string };
+    };
+    // Its own group: the nightly run never replaces a queued live-line run.
+    expect(concurrency.group).toContain(
+      "github.event_name == 'schedule' && format('nightly-{0}', github.run_id)"
+    );
+    const ciJobs = ci.workflow.jobs as Record<
+      string,
+      Job & {
+        outputs?: Record<string, string>;
+        steps?: (Step & { env?: Record<string, string> })[];
+      }
+    >;
+    expect(ciJobs["changes"]!.outputs).toMatchObject({
+      acceptance: "${{ steps.plan.outputs.acceptance }}",
+      skip_shards: "${{ steps.plan.outputs.skip_shards }}",
+    });
+    const matrix = ciJobs["coverage-shards"]!.strategy?.matrix;
+    expect(matrix?.["shard"]).toContain("acceptance");
+    expect(matrix?.["exclude"]).toBe(
+      "${{ fromJSON(needs.changes.outputs.skip_shards) }}"
+    );
+    // The merge counts the reports against the plan: 13 with the acceptance shard, else 12.
+    return expect(
+      ciJobs["verification-coverage"]!.steps?.map((step) => step.env)
+    ).toContainEqual({
+      EXPECTED: "${{ needs.changes.outputs.acceptance == 'true' && 13 || 12 }}",
+    });
+  });
+
   // Card vertex-ci-queue-pathfilter (2026-11-02): one required check, a light lane
   // that never waits for the coverage shards, and no workflow-level path filters.
   it("gates every CI job behind ci-gate and keeps the light lane independent", () => {
@@ -186,9 +225,6 @@ describe("GitHub workflow invariants", () => {
       Job & { needs?: string | string[]; if?: string }
     >;
     const gate = ciJobs["ci-gate"]!;
-    expect(gate.name).toBe(
-      "${{ github.event.pull_request.draft && 'ci-gate (draft)' || 'ci-gate' }}"
-    );
     expect(gate.if).toBe("${{ always() }}");
     expect([...(gate.needs as string[])].sort()).toEqual(
       Object.keys(ciJobs)
@@ -212,6 +248,25 @@ describe("GitHub workflow invariants", () => {
       expect(trigger?.["paths-ignore"]).toBeUndefined();
       expect(trigger?.["paths"]).toBeUndefined();
     }
+  });
+
+  // Card vertex-ci-draft-ready-race (PR #84): the draft flag in the event can be
+  // stale, so the changes job reports the draft state it read from GitHub. The gate
+  // is the required "ci-gate" check when the event says ready, or when the changes
+  // job answered "not a draft". A draft run that was cancelled before the changes
+  // job answered stays "ci-gate (draft)".
+  it("names the gate from the draft state that the changes job read", () => {
+    const ci = workflows.find(({ file }) => file === "ci.yml")!;
+    const ciJobs = ci.workflow.jobs as Record<
+      string,
+      Job & { outputs?: Record<string, string> }
+    >;
+    expect(ciJobs["changes"]!.outputs?.["draft"]).toBe(
+      "${{ steps.plan.outputs.draft }}"
+    );
+    return expect(ciJobs["ci-gate"]!.name).toBe(
+      "${{ github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}"
+    );
   });
 
   return it("keeps the job names that required status checks reference", () => {

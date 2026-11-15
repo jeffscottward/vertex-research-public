@@ -136,6 +136,7 @@ export const tradesAnalysis = (
       "signal",
       "stop",
       "target",
+      "sessionClose",
       "end",
     ]),
     byWeekday: groupRows(

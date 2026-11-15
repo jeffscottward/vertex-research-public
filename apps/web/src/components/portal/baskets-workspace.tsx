@@ -211,7 +211,10 @@ const BasketConstituents = ({
         <TableBody>
           {data.members.map((member) => (
             <TableRow key={member.symbol}>
-              <TableHead className="text-left font-normal" scope="row">
+              <TableHead
+                className="h-auto whitespace-normal text-left font-normal"
+                scope="row"
+              >
                 <TickerLink symbol={member.symbol} />
                 {member.stale && (
                   <span className="ml-2 text-amber-600 text-xs dark:text-amber-400">

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "finra-short-interest",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "short_interest",
+      "rows": [
+        {
+          "settlementDate": "2026-10-15",
+          "symbol": "AAPL",
+          "shortInterest": 112345678,
+          "previousShortInterest": 109876543,
+          "avgDailyVolume": 54321098,
+          "daysToCover": 2.07
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

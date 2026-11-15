@@ -38,6 +38,38 @@ export const marketDurationAllowed = (
   return days <= 31;
 };
 
+// Server-side reads of vertex-history 1.3.0 (card vertex-yahoo-terms-decision): the Yahoo replacements also use
+// forex (CASH), indices (IND, TRADES only), dividend-adjusted daily bars (ADJUSTED_LAST, no end date) and daily
+// windows up to 30 Y (above 365 days in Y units only). The /charts UI keeps the MARKET_* lists above.
+export const HISTORY_SEC_TYPES = [
+  "STK",
+  "FUT",
+  "CONTFUT",
+  "CASH",
+  "IND",
+] as const;
+export const HISTORY_WHAT_TO_SHOW = [
+  "TRADES",
+  "MIDPOINT",
+  "BID_ASK",
+  "ADJUSTED_LAST",
+] as const;
+const HISTORY_DAILY_MAX_DAYS = 30 * 365;
+export type HistorySecType = (typeof HISTORY_SEC_TYPES)[number];
+export type HistoryWhatToShow = (typeof HISTORY_WHAT_TO_SHOW)[number];
+
+export const historyDurationAllowed = (
+  barSize: MarketBarSize,
+  duration: string
+): boolean => {
+  const days = marketDurationDays(duration);
+  if (days === null) return false;
+  if (barSize !== "1 day") return marketDurationAllowed(barSize, duration);
+  return (
+    days <= HISTORY_DAILY_MAX_DAYS && (days <= 365 || duration.endsWith(" Y"))
+  );
+};
+
 // Ticker accepted by the bars request; also gates the /charts?symbol= deep link.
 export const MarketSymbolSchema = z
   .string()

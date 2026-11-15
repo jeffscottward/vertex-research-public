@@ -53,6 +53,7 @@ flowchart LR
   darkfactory_config --> darkfactory_ai
   darkfactory_config --> darkfactory_analytics
   darkfactory_config --> darkfactory_email
+  darkfactory_db --> darkfactory_academy
   darkfactory_db --> darkfactory_config
   darkfactory_db --> darkfactory_notifications
   darkfactory_db --> darkfactory_shared
@@ -71,7 +72,6 @@ flowchart LR
   darkfactory_operator_app --> darkfactory_jobs
   darkfactory_operator_app --> darkfactory_operator
   darkfactory_operator_app --> darkfactory_ui
-  darkfactory_shared --> darkfactory_testkit
   darkfactory_storage --> darkfactory_shared
   darkfactory_web --> darkfactory_academy
   darkfactory_web --> darkfactory_analytics
@@ -116,15 +116,15 @@ flowchart LR
 | [`@darkfactory/root`](../../package.json) | workspace | Vertex Research, a research-first trading platform built on DarkFactory. | `@darkfactory/api`, `@darkfactory/auth`, `@darkfactory/config`, `@darkfactory/db`, `@darkfactory/email`, `@darkfactory/jobs`, `@darkfactory/observability`, `@darkfactory/operator`, `@darkfactory/state`, `@darkfactory/testkit`, `@darkfactory/ui` | — |
 | [`@darkfactory/desktop`](../../apps/desktop/package.json) | app | Electron shell for the Vertex site: workspace windows, tray watchlist, alerts | `@darkfactory/api` | — |
 | [`@darkfactory/web`](../../apps/web/package.json) | app | Vertex Research web and control plane. | `@darkfactory/academy`, `@darkfactory/analytics`, `@darkfactory/api`, `@darkfactory/auth`, `@darkfactory/config`, `@darkfactory/db`, `@darkfactory/email`, `@darkfactory/observability`, `@darkfactory/scripting`, `@darkfactory/shared`, `@darkfactory/state`, `@darkfactory/storage`, `@darkfactory/ui` | — |
-| [`@darkfactory/academy`](../../packages/academy/package.json) | product | Academy lessons: specs, options math, scenes, modeled backtest, deploy gates | — | `.`, `./chart`, `./lessons` |
+| [`@darkfactory/academy`](../../packages/academy/package.json) | product | Academy lessons: specs, options math, scenes, modeled backtest, deploy gates | — | `.`, `./chart`, `./courses`, `./lessons`, `./schema` |
 | [`@darkfactory/api`](../../packages/api/package.json) | product | oRPC contracts, services and router; the source of the typed client and OpenAPI. | `@darkfactory/academy`, `@darkfactory/auth`, `@darkfactory/config`, `@darkfactory/db`, `@darkfactory/notifications`, `@darkfactory/observability`, `@darkfactory/scripting`, `@darkfactory/shared`, `@darkfactory/storage` | `.`, `./client`, `./server`, `./vertex`, `./vertex-chart-read`, `./vertex-model-use`, `./vertex-policy`, `./vertex-worker` |
 | [`@darkfactory/auth`](../../packages/auth/package.json) | product | Better Auth setup: sessions, email verification and password reset on Postgres. | `@darkfactory/db`, `@darkfactory/email` | `./client`, `./db`, `./server`, `./types` |
 | [`@darkfactory/config`](../../packages/config/package.json) | product | Zod-validated environment, database profiles and the capabilities.yaml loader. | `@darkfactory/ai`, `@darkfactory/analytics`, `@darkfactory/email` | `.`, `./database`, `./server`, `./server/capabilities`, `./vertex` |
-| [`@darkfactory/db`](../../packages/db/package.json) | product | Drizzle schema, migrations, seeds and repositories for Postgres. | `@darkfactory/config`, `@darkfactory/notifications`, `@darkfactory/shared`, `@darkfactory/storage` | `./schema`, `./server`, `./server/migration`, `./server/vertex`, `./server/vertex-epoch`, `./server/vertex-research-chat-runtime`, `./server/vertex-worker` |
+| [`@darkfactory/db`](../../packages/db/package.json) | product | Drizzle schema, migrations, seeds and repositories for Postgres. | `@darkfactory/academy`, `@darkfactory/config`, `@darkfactory/notifications`, `@darkfactory/shared`, `@darkfactory/storage` | `./schema`, `./server`, `./server/migration`, `./server/vertex`, `./server/vertex-epoch`, `./server/vertex-research-chat-runtime`, `./server/vertex-worker` |
 | [`@darkfactory/notifications`](../../packages/notifications/package.json) | product | Vertex operator notifications: ntfy and email ports with dispatch policy. | `@darkfactory/email`, `@darkfactory/shared` | `.`, `./server`, `./server/dispatch`, `./test` |
 | [`@darkfactory/observability`](../../packages/observability/package.json) | product | Telemetry port: OpenTelemetry traces and metrics, evlog events and redaction. | — | `.`, `./port`, `./redaction`, `./server/evlog`, `./server/fanout`, `./server/otel`, `./test` |
 | [`@darkfactory/scripting`](../../packages/scripting/package.json) | product | Pine v5 subset parser and bar-by-bar interpreter for chart scripts. | — | `.` |
-| [`@darkfactory/shared`](../../packages/shared/package.json) | product | Vertex shared primitives: canonical JSON, hashing and artifact helpers. | `@darkfactory/testkit` | `.`, `./universes`, `./vertex` |
+| [`@darkfactory/shared`](../../packages/shared/package.json) | product | Vertex shared primitives: canonical JSON, hashing and artifact helpers. | — | `./universes`, `./vertex` |
 | [`@darkfactory/state`](../../packages/state/package.json) | product | UI-free state: XState lifecycles and Zustand stores. | — | `.`, `./client`, `./flow` |
 | [`@darkfactory/storage`](../../packages/storage/package.json) | product | Vertex object storage: R2 adapter, chat copies and artifact metadata. | `@darkfactory/shared` | `.`, `./chat-copies`, `./r2`, `./test`, `./vertex` |
 | [`@darkfactory/ui`](../../packages/ui/package.json) | product | Presentational React components, styles and shadcn primitives. | — | `.`, `./alert`, `./avatar`, `./badge`, `./button`, `./card`, `./client/data-table`, `./client/dialog`, `./client/dropdown-menu`, `./client/page-sections`, `./client/sidebar`, `./client/tabs`, `./client/theme`, `./client/toaster`, `./data-table-sort`, `./empty-state`, `./headings`, `./icon-button`, `./input`, `./kpi`, `./label`, `./separator`, `./skeleton`, `./stat-card`, `./status-badge`, `./styles.css`, `./table`, `./textarea`, `./themes`, `./utilities` |

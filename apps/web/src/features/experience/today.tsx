@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@darkfactory/ui";
+import { Button, TableBody, TableRow } from "@darkfactory/ui";
 
 import { useEffect, useMemo, useState } from "react";
 import { timestampToEpochNanoseconds } from "@darkfactory/shared/vertex";
@@ -18,6 +18,14 @@ import {
   useExperienceResource,
   useExperienceServices,
 } from "./shared.tsx";
+import {
+  ExperienceTable,
+  ExperienceTableCaption,
+  ExperienceTableCell,
+  ExperienceTableHead,
+  ExperienceTableHeader,
+  experienceTableScroll,
+} from "./experience-table.tsx";
 
 type InboxKind = "approval" | "blocked" | "strategy" | "continuity";
 type InboxItem = Readonly<{
@@ -208,7 +216,10 @@ export const TodayDecisionInbox = ({
     (currentPage + 1) * PAGE_SIZE
   );
   return (
-    <section className="vx-ex-section" aria-labelledby="decision-inbox-title">
+    <section
+      className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
+      aria-labelledby="decision-inbox-title"
+    >
       <ResearchTableHeading id="decision-inbox-title" title="Decision inbox">
         <p>
           Supplied approval requests, blocked or failed jobs, pending
@@ -217,7 +228,7 @@ export const TodayDecisionInbox = ({
         </p>
         <p>Links do not include the account scope or private artifact IDs.</p>
       </ResearchTableHeading>
-      <div className="vx-ex-toolbar">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <label>
           Item type
           <select
@@ -275,58 +286,76 @@ export const TodayDecisionInbox = ({
       ) : (
         <div>
           <div
-            className="vx-ex-table-scroll"
+            className={experienceTableScroll}
             role="region"
             aria-label="Decision inbox; scroll horizontally for all fields"
             // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
             tabIndex={0}
           >
-            <table
-              className="vx-ex-table"
-              aria-labelledby="decision-inbox-title"
-            >
-              <caption>Pending decisions — supplied records only</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Item type</th>
-                  <th scope="col">Decision</th>
-                  <th scope="col">Condition</th>
-                  <th scope="col">Source identity</th>
-                  <th scope="col">Source hash</th>
-                  <th scope="col">Next action</th>
-                </tr>
-              </thead>
-              <tbody>
+            <ExperienceTable aria-labelledby="decision-inbox-title">
+              <ExperienceTableCaption>
+                Pending decisions — supplied records only
+              </ExperienceTableCaption>
+              <ExperienceTableHeader>
+                <TableRow>
+                  <ExperienceTableHead scope="col">
+                    Item type
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Decision
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Condition
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Source identity
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Source hash
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Next action
+                  </ExperienceTableHead>
+                </TableRow>
+              </ExperienceTableHeader>
+              <TableBody>
                 {visible.map((item) => (
-                  <tr key={item.key}>
-                    <td>{kindLabels[item.kind]}</td>
-                    <th scope="row">{item.title}</th>
-                    <td>{item.detail}</td>
-                    <td>
+                  <TableRow key={item.key}>
+                    <ExperienceTableCell>
+                      {kindLabels[item.kind]}
+                    </ExperienceTableCell>
+                    <ExperienceTableHead scope="row">
+                      {item.title}
+                    </ExperienceTableHead>
+                    <ExperienceTableCell>{item.detail}</ExperienceTableCell>
+                    <ExperienceTableCell>
                       {item.kind === "strategy" ? (
-                        <span className="vx-caption">
+                        <span className="text-muted-foreground text-sm leading-relaxed">
                           Immutable strategy version
                           <br />
                         </span>
                       ) : null}
                       {item.identity}
-                    </td>
-                    <td>
+                    </ExperienceTableCell>
+                    <ExperienceTableCell>
                       {item.digest === null
                         ? "Unknown — not supplied"
                         : item.digest}
-                    </td>
-                    <td>
+                    </ExperienceTableCell>
+                    <ExperienceTableCell>
                       <a className="vx-text-link" href={item.href}>
                         {item.action}
                       </a>
-                    </td>
-                  </tr>
+                    </ExperienceTableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </ExperienceTable>
           </div>
-          <nav className="vx-ex-pagination" aria-label="Decision inbox pages">
+          <nav
+            className="text-(length:--text-sm) my-4 flex flex-wrap items-center gap-4 border-border border-t pt-4 @min-[42rem]:[&>p]:mr-auto [&>p]:flex-[1_1_100%] @min-[42rem]:[&>p]:basis-auto"
+            aria-label="Decision inbox pages"
+          >
             <Button
               type="button"
               variant="outline"
@@ -363,8 +392,8 @@ const ScopedToday = ({ scope }: { readonly scope: ExperienceScope }) => {
     return () => resource.clear();
   }, [resource, scope]);
   return (
-    <div className="vx-ex-stack">
-      <div className="vx-ex-toolbar">
+    <div className="grid gap-8">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <ScopeLabel scope={scope} />
         <Button
           variant="outline"

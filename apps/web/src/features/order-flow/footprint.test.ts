@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildFootprint, pointOfControl } from "./footprint.ts";
-import type { SignedTrade, TradeSide } from "./trade-signing.ts";
+import type { SignedTrade, TradeSide } from "@darkfactory/api";
 
 const signed = (
   t: number,

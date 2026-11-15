@@ -146,6 +146,13 @@ services:
       NAUTILUS_RISK_MAX_DAILY_LOSS_USD: ${NAUTILUS_RISK_MAX_DAILY_LOSS_USD:-0}
       NAUTILUS_RISK_ALLOWED_INSTRUMENTS: ${NAUTILUS_RISK_ALLOWED_INSTRUMENTS:-*}
       RISK_DENIED_INSTRUMENTS: ${RISK_DENIED_INSTRUMENTS:-}
+      # Order policy v3 (card vertex-golive-spread-gate, nautilus/arm_gate.py). The spreads switch is on
+      # only when its value is "owner-decision:<Discord message link of the owner decision>"; empty or
+      # any other value is off (v2 behaviour: every BAG is refused). The total open risk cap is in
+      # percent of NetLiquidation (default 10); a set value needs its _SOURCE (who decided it).
+      NAUTILUS_ORDER_POLICY_ALLOW_DEFINED_RISK_SPREADS: ${NAUTILUS_ORDER_POLICY_ALLOW_DEFINED_RISK_SPREADS:-}
+      NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT: ${NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT:-}
+      NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT_SOURCE: ${NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT_SOURCE:-}
       KILL_SWITCH_PATH: /app/data/KILL_SWITCH
       NAUTILUS_ARMED_PATH: /app/data/nautilus/ARMED
       NAUTILUS_ARM_AUDIT_PATH: /app/data/nautilus/arm-audit.jsonl

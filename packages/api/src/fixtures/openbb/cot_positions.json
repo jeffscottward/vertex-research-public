@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "cftc-cot",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "cot_positions",
+      "rows": [
+        {
+          "reportDate": "2026-11-03",
+          "marketCode": "13874A",
+          "category": "leveraged_funds",
+          "market": "ES",
+          "reportType": "tff",
+          "long": 312345,
+          "short": 512345,
+          "spreading": 45678,
+          "openInterest": 2123456
+        },
+        {
+          "reportDate": "2026-11-03",
+          "marketCode": "067651",
+          "category": "nonreportable",
+          "market": "CL",
+          "reportType": "disaggregated",
+          "long": 123456,
+          "short": 98765,
+          "spreading": null,
+          "openInterest": 1765432
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

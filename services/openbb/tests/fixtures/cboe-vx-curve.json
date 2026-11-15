@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "cboe-vx-curve",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "vx_curve",
+      "rows": [
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2026-11",
+          "price": 23.75
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2026-12",
+          "price": 22.25
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2027-01",
+          "price": 22.05
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2027-02",
+          "price": 21.95
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2027-03",
+          "price": 21.7
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2027-04",
+          "price": 21.8
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2027-05",
+          "price": 21.75
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2027-06",
+          "price": 21.7
+        },
+        {
+          "asOf": "2026-11-06",
+          "contractMonth": "2027-07",
+          "price": 21.9
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

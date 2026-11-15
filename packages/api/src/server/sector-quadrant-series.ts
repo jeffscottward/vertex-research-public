@@ -33,6 +33,7 @@ export const loadSectorQuadrants = async (
     .slice(0, 10);
   const series: Record<string, readonly SectorQuadrantPoint[]> = {};
   for (const filter of filters) {
+    if (filter.type !== "sectorQuadrant") continue;
     if (source === undefined)
       throw new SectorQuadrantDataError(filter.sector, filter.timeframe);
     const points = await source.listPoints({

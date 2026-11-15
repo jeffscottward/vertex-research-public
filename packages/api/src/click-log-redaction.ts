@@ -13,8 +13,12 @@ import {
 //   quantities, balances and P&L shown on a button never reach the log;
 // - white space collapses and the text is cut to CLICK_LOG_LABEL_MAX characters.
 
-const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/gu;
-const TOKEN = /(?=[A-Za-z0-9_+=-]*\d)[A-Za-z0-9_+=-]{24,}/gu;
+// EMAIL and TOKEN start with a repeated class, so a lookbehind anchors each to the start of its
+// run: a long run is scanned once, not once per character (the match is the same, the time is
+// linear).
+const EMAIL = /(?<![^\s@])[^\s@]+@[^\s@]+\.[^\s@]+/gu;
+const TOKEN =
+  /(?<![A-Za-z0-9_+=-])(?=[A-Za-z0-9_+=-]*\d)[A-Za-z0-9_+=-]{24,}/gu;
 // A sign counts only at a word start, so "order-12" keeps its hyphen.
 const NUMBER = /(?:(?<![\w-])[-+])?[$€£¥]?\d(?:[\d,.:'\u00a0]*\d)?%?/gu;
 const SPACE = /\s+/gu;

@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sessionMock = vi.hoisted(() => ({ isOperator: true }));
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+// Lessons from memory: database courses from their import input (no Postgres, no oRPC dispatch).
+vi.mock(
+  "../../../../lib/academy-lessons.ts",
+  () => import("../../../../lib/academy-lessons.test-support.ts")
+);
 vi.mock("../../../../lib/request-portal-session.ts", () => ({
   getRequestPortalSession: async () => ({
     expiresAt: new Date(),

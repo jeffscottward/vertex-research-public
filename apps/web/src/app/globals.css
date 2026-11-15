@@ -82,11 +82,6 @@
     text-transform: uppercase;
     color: var(--muted-foreground);
   }
-  .vx-caption {
-    font-size: var(--text-sm);
-    line-height: 1.65;
-    color: var(--muted-foreground);
-  }
   .vx-hero {
     display: grid;
     gap: var(--space-12);
@@ -354,9 +349,6 @@
     font: 600 1.4rem / 1.4 var(--font-heading);
     margin-top: var(--space-2);
   }
-  .vx-module > .vx-caption {
-    margin-block: var(--space-4);
-  }
   .vx-status {
     border: 1px solid var(--border-strong);
     background: var(--surface);
@@ -396,9 +388,6 @@
   }
   .vx-details[open] {
     padding-bottom: var(--space-5);
-  }
-  .vx-service-details > .vx-caption {
-    margin-bottom: var(--space-6);
   }
   .vx-requirements {
     font-size: var(--text-sm);

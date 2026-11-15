@@ -242,6 +242,8 @@ export const BacktestRunConfigSchema = z
     timeframe: requiredText(16).optional(),
     fillModel: z.enum(BACKTEST_FILL_MODEL_VALUES).optional(),
     leverage: positiveNumber.optional(),
+    // Backtest engine and version, e.g. "stdlib-daily-v1" or "nautilus-trader-1.227.0".
+    engine: requiredText(64).optional(),
   })
   .strict();
 export const BacktestBenchmarkSchema = z
@@ -484,6 +486,7 @@ const MonteCarloRunSchema = z.object({
   maxDrawdown: z.object(PercentilesFields),
   probabilityOfProfit: z.number(),
   riskOfRuin: z.number(),
+  worst: z.object({ finalPnl: z.number(), maxDrawdown: z.number() }),
   fan: z.array(z.object({ step: z.number().int(), ...PercentilesFields })),
 });
 const PnlBucketSchema = z.object({
@@ -613,7 +616,24 @@ export const BacktestAnalyticsSchema = z.object({
     expectancy: IntervalSchema,
   }),
   monteCarlo: z
-    .object({ reshuffle: MonteCarloRunSchema, bootstrap: MonteCarloRunSchema })
+    .object({
+      paths: z.number().int(),
+      seed: z.number(),
+      pnlSource: z.enum(["trades", "equity"]),
+      reshuffle: MonteCarloRunSchema,
+      bootstrap: MonteCarloRunSchema,
+      worst: z.object({
+        finalPnl: z.number(),
+        maxDrawdown: z.number(),
+        riskOfRuin: z.number(),
+      }),
+      sizing: z.object({
+        basis: z.literal("worst_run"),
+        drawdownBudget: z.number(),
+        worstMaxDrawdown: z.number(),
+        sizeScale: z.number(),
+      }),
+    })
     .nullable(),
   benchmark: z
     .object({
@@ -832,6 +852,7 @@ export const BacktestResultSchema = z.object({
       timeframe: z.string().optional(),
       fillModel: z.enum(BACKTEST_FILL_MODEL_VALUES).optional(),
       leverage: z.number().optional(),
+      engine: z.string().optional(),
     })
     .nullable(),
   benchmark: z

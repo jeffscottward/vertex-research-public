@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import { appContract } from "../contract.ts";
 import { BASKET_MAX_MEMBERS } from "../contracts/baskets.ts";
+import type { MarketBar } from "../contracts/market-data.ts";
 import {
   PICK_LIST_SCREEN_MAX_MEMBERS,
   type PickListImportInput,
@@ -37,16 +38,31 @@ import {
 } from "../pick-list-screen.ts";
 import { isAgentViewerEmail } from "./agent-viewer.ts";
 import type { ApiContext } from "./context.ts";
-import type { DeployStatusFetch } from "./deploy-status.ts";
+import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
+import type { HistoryBars } from "./ibkr-history.ts";
+import {
+  DAILY_HISTORY_DURATION,
+  FallbackFailure,
+  historyDate,
+  historyFetchedAt,
+  historyInstrument,
+  LIVE_HISTORY_TIMEOUT_MS,
+  loadMergedBars,
+  sessionRunning,
+  settle,
+  windowFillBefore,
+} from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import { fetchBoundedJson, type ResearchLensError } from "./research-lenses.ts";
 
 // Pick-list procedures (pickLists.*). Operator-only; the owner is the authenticated operator and
 // inputs never carry a user id. import stores one dated snapshot, list returns every list with its
 // latest snapshot, syncBucket turns the latest snapshot into an equal-weight basket, and screen
-// reads one year of public Yahoo daily bars for the first 60 members in rank order (plus SPY and
-// sector ETFs; 10-minute in-process cache) for the trend gates and rotation quadrants. Research
-// only: no order path.
+// reads one year of daily bars for the first 60 members in rank order (plus SPY and sector ETFs;
+// 10-minute in-process cache) for the trend gates and rotation quadrants: IBKR history first
+// (TRADES, 1 Y; merged-bars.ts paces it per isolate and reads Yahoo on the service's PACED answer),
+// public Yahoo bars for symbols IBKR could not serve in time and for days before IBKR's first bar.
+// Research only: no order path.
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -55,7 +71,8 @@ const YAHOO_USER_AGENT =
 const YAHOO_MAX_BYTES = 4 * 1024 * 1024;
 const YAHOO_TIMEOUT_MS = 10_000;
 const FETCH_CONCURRENCY = 4;
-const SCREEN_RANGE = "1y";
+const SCREEN_RANGE = "1y" as const;
+const SCREEN_DAYS = 365;
 /** US regular session length; a newest bar quoted before its end is still live. */
 const REGULAR_SESSION_SECONDS = 6.5 * 60 * 60;
 const BARS_CACHE_TTL_MS = 10 * 60_000;
@@ -71,7 +88,7 @@ const NEW_YORK_DATE = new Intl.DateTimeFormat("en-CA", {
 });
 
 export type PickListOptions = Readonly<{
-  /** Yahoo chart fetch. */
+  /** Yahoo chart and IBKR history fetch. */
   fetch?: DeployStatusFetch;
   now?: () => Date;
 }>;
@@ -326,13 +343,83 @@ const fetchDailyOhlcv = async (symbol: string): Promise<BarsResult> => {
   };
 };
 
+/**
+ * One IBKR daily bar as a screen bar; null without positive prices or while its session was still
+ * running when the service fetched it (a cached copy can hold a live bar after the close).
+ */
+const screenBarOf = (
+  bar: MarketBar,
+  history: HistoryBars
+): ScreenBar | null => {
+  const date = historyDate(bar.t);
+  if (
+    sessionRunning(date, historyFetchedAt(history)) ||
+    Math.min(bar.o, bar.h, bar.l, bar.c) <= 0
+  )
+    return null;
+  return {
+    date,
+    o: bar.o,
+    h: Math.max(bar.h, bar.c),
+    l: Math.min(bar.l, bar.c),
+    c: bar.c,
+    v: bar.v ?? 0,
+  };
+};
+
+/**
+ * One year of daily bars: IBKR TRADES first (unadjusted, like the Yahoo bars; volume in shares),
+ * Yahoo for the whole year when IBKR fails or has no request slot, and Yahoo for the days before
+ * IBKR's first bar when IBKR starts late. A Yahoo failure is the symbol's reason.
+ */
+const fetchBars = (
+  symbol: string,
+  config: DeployStatusConfig | null
+): Promise<BarsResult> => {
+  const now = clock();
+  const instrument = historyInstrument(symbol);
+  return settle(async (): Promise<BarsResult> => {
+    const merged = await loadMergedBars<ScreenBar>({
+      site: "pick-lists",
+      config,
+      request:
+        instrument === null
+          ? null
+          : {
+              ...instrument,
+              barSize: "1 day",
+              duration: DAILY_HISTORY_DURATION[SCREEN_RANGE],
+            },
+      options: {
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+        now: clock,
+        timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
+      },
+      fillBefore: historyDate(
+        windowFillBefore(now, SCREEN_DAYS).getTime() / 1000
+      ),
+      fromIbkr: screenBarOf,
+      yahoo: async () => {
+        const result = await fetchDailyOhlcv(symbol);
+        if (!result.ok) throw new FallbackFailure(result.reason, result);
+        return result.bars;
+      },
+      keyOf: (bar) => bar.date,
+    });
+    return { ok: true, bars: merged.bars };
+  });
+};
+
 /** Cached bars when fresh, else one fetch; only successful results are cached. */
-const loadBars = async (symbol: string): Promise<BarsResult> => {
+const loadBars = async (
+  symbol: string,
+  config: DeployStatusConfig | null
+): Promise<BarsResult> => {
   const now = clock().getTime();
   const cached = barsCache.get(symbol);
   if (cached !== undefined && now - cached.at < BARS_CACHE_TTL_MS)
     return { ok: true, bars: cached.bars };
-  const result = await fetchDailyOhlcv(symbol);
+  const result = await fetchBars(symbol, config);
   if (result.ok) {
     barsCache.delete(symbol);
     if (barsCache.size >= BARS_CACHE_MAX_ENTRIES) {
@@ -346,12 +433,15 @@ const loadBars = async (symbol: string): Promise<BarsResult> => {
 
 /** Bars for each symbol, a few requests at a time. */
 const loadAllBars = async (
-  symbols: readonly string[]
+  symbols: readonly string[],
+  config: DeployStatusConfig | null
 ): Promise<Map<string, BarsResult>> => {
   const out = new Map<string, BarsResult>();
   for (let start = 0; start < symbols.length; start += FETCH_CONCURRENCY) {
     const batch = symbols.slice(start, start + FETCH_CONCURRENCY);
-    const results = await Promise.all(batch.map(loadBars));
+    const results = await Promise.all(
+      batch.map((symbol) => loadBars(symbol, config))
+    );
     batch.forEach((symbol, index) => {
       out.set(symbol, results[index] as BarsResult);
     });
@@ -490,7 +580,7 @@ const screen = api.pickLists.screen
         ...members.flatMap((member) => sectorEtfFor(member.sector) ?? []),
       ]),
     ];
-    const loaded = await loadAllBars(symbols);
+    const loaded = await loadAllBars(symbols, context.marketHistory ?? null);
     const benchmark = closesFrom(loaded.get(SECTOR_ROTATION_BENCHMARK));
     return {
       listId: found.list.id,
@@ -578,15 +668,18 @@ const proposal = api.pickLists.proposal
       .sort((a, b) => a.bucketSymbol.localeCompare(b.bucketSymbol));
     const candidates = proposalCandidates(buckets);
     const proposed = candidates.slice(0, PICK_LIST_SCREEN_MAX_MEMBERS);
-    const loaded = await loadAllBars([
-      ...new Set([
-        SECTOR_ROTATION_BENCHMARK,
-        ...proposed.map((candidate) => candidate.symbol),
-        ...proposed.flatMap(
-          (candidate) => sectorEtfFor(candidate.sector) ?? []
-        ),
-      ]),
-    ]);
+    const loaded = await loadAllBars(
+      [
+        ...new Set([
+          SECTOR_ROTATION_BENCHMARK,
+          ...proposed.map((candidate) => candidate.symbol),
+          ...proposed.flatMap(
+            (candidate) => sectorEtfFor(candidate.sector) ?? []
+          ),
+        ]),
+      ],
+      context.marketHistory ?? null
+    );
     const benchmark = closesFrom(loaded.get(SECTOR_ROTATION_BENCHMARK));
     const now = clock();
     // DTE counts from the New York calendar date (US option expiries).

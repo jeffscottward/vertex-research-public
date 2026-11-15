@@ -6,6 +6,7 @@ import {
   createPlaysRepository,
   PLAY_MAX_LEGS,
   type PlayLeg,
+  normalizePlayInput,
   type UpsertPlayInput,
   validatePlayLegs,
 } from "./plays-repository.ts";
@@ -250,5 +251,69 @@ describe("validatePlayLegs", () => {
     ],
   ])("rejects invalid legs (%#)", (legs, message) => {
     expect(() => validatePlayLegs(legs)).toThrow(message);
+  });
+});
+
+describe("defined risk: covered shorts", () => {
+  const short = (overrides: Partial<PlayLeg> = {}): PlayLeg => ({
+    side: "sell",
+    right: "call",
+    strike: 100,
+    expiry: "2027-02-19",
+    quantity: 1,
+    ...overrides,
+  });
+  const long = (overrides: Partial<PlayLeg> = {}): PlayLeg => ({
+    ...short(overrides),
+    side: "buy",
+    ...overrides,
+  });
+
+  it("accepts calendars, verticals and put spreads whose shorts are covered", () => {
+    expect(
+      validatePlayLegs([short(), long({ expiry: "2027-05-21" })])
+    ).toHaveLength(2);
+    expect(
+      validatePlayLegs([
+        short({ right: "put" }),
+        long({ right: "put", strike: 90 }),
+      ])
+    ).toHaveLength(2);
+    expect(
+      validatePlayLegs([
+        short({ quantity: 2 }),
+        long({ expiry: "2027-02-19" }),
+        long({ expiry: "2027-05-21" }),
+      ])
+    ).toHaveLength(3);
+  });
+
+  it.each([
+    [[short()], "short call legs must be covered"],
+    [[short({ right: "put" }), long()], "short put legs must be covered"],
+    [
+      [short(), long({ expiry: "2027-01-15" })],
+      "short call legs must be covered",
+    ],
+    [[short({ quantity: 2 }), long()], "short call legs must be covered"],
+  ])(
+    "rejects a short without a long of the same right expiring no earlier (%#)",
+    (legs, message) => {
+      expect(() => validatePlayLegs(legs)).toThrow(message);
+    }
+  );
+
+  it("normalizes a play without a database, with the upsert rules", () => {
+    expect(normalizePlayInput(input())).toMatchObject({
+      ticker: "ZZZT",
+      structure: "call debit spread",
+      definedRisk: true,
+    });
+    expect(() => normalizePlayInput(input({ ticker: "zz zt" }))).toThrow(
+      "ticker must be a symbol"
+    );
+    expect(() => normalizePlayInput(input({ legs: [short()] }))).toThrow(
+      InvalidRepositoryInputError
+    );
   });
 });

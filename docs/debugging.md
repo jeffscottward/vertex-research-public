@@ -33,6 +33,7 @@ Start with `bun run doctor`, then find the symptom below. Paths are relative to 
 | `OMP model relay is unavailable`, `… failed to start` or `OMP sandbox did not report its process` | `/usr/bin/nsenter` (util-linux) must be root-owned, and able to enter the sandbox's user namespace; `packages/jobs/src/server/model-relay.ts#openOmpModelRelay` |
 | Verifier check fails with `EAGAIN` or `Resource temporarily unavailable` | The container's task limit, which counts threads (`packages/jobs/src/server/omp.ts#OMP_VERIFIER_PIDS`). Limit how many processes the failing test starts at once; see [operator.md](operator.md#how-the-verifier-runs) |
 | Pages load slowly in `bun run dev` | Count the requests in the browser network tab. Hundreds of `node_modules` requests mean a barrel package (for example `lucide-react`) is not pre-bundled: add it to `CLIENT_OPTIMIZE_DEPS_INCLUDE` in `apps/web/vite.config.ts`, then restart with `--force`. See [Page-load performance](#page-load-performance) |
+| Forecast scorecard prints `NOT_ENOUGH_DATA`, fewer scored windows than expected, or `self-check: FAILED` | `ledger.byStatus` in the output; `packages/api/src/forecast-scorecard.ts#classifyForecasts`; [`docs/specs/research/forecast-scorecard.md`](specs/research/forecast-scorecard.md) (status rule) |
 
 ## Tools
 
@@ -41,6 +42,7 @@ Start with `bun run doctor`, then find the symptom below. Paths are relative to 
 - **Local:** `bun run dev` prints evlog events in the terminal. Each event has a `name` such as `contact.submitted` or `request-database.client-close-failed`, plus the request id in `correlation`. `orpc.request` is the OpenTelemetry span name for oRPC calls.
 - **Production:** Workers Logs are enabled in `apps/web/wrangler.jsonc` (`observability.logs`). Tail live with `cd apps/web && pnpm exec wrangler tail`.
 - Events are redacted before emission (`packages/observability/src/redaction.ts#redact`). If you need a value that is redacted, add a safe derived attribute instead of removing redaction.
+- OpenTelemetry sampling and span limits come only from code (`packages/observability/src/server/otel.ts#initializeTelemetry`). The 3.x SDK `TracerProvider` does not read `OTEL_TRACES_SAMPLER` or the `OTEL_SPAN_*`/`OTEL_ATTRIBUTE_*` limit variables, so pass `sampler` or `spanLimits` there if they ever need tuning.
 
 ### Request ids
 

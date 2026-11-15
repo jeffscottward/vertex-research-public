@@ -8,7 +8,17 @@ import {
   type AgentTaskOutput,
   type AgentTaskStatusValue,
 } from "@darkfactory/api";
-import { Button, Input } from "@darkfactory/ui";
+import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { ChevronDown, ChevronRight, Plus, RotateCcw } from "lucide-react";
 import { Fragment, useCallback, useEffect, useState } from "react";
 
@@ -425,35 +435,51 @@ export const AgentRunsWorkspace = ({
         // `relative` makes the scroll box the containing block of the absolutely
         // positioned sr-only "Expand" label, so it cannot widen the page on a phone.
         <div className="relative overflow-x-auto" data-agent-tasks-scroll>
-          <table className="w-full text-sm" data-click-private="">
-            <caption className="sr-only">Agent tasks</caption>
-            <thead>
-              <tr className="border-border border-b text-left text-muted-foreground text-xs">
-                <th scope="col">
+          <Table
+            containerClassName="overflow-visible"
+            className="w-full text-sm"
+            data-click-private=""
+          >
+            <TableCaption className="sr-only">Agent tasks</TableCaption>
+            <TableHeader>
+              <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
+                <TableHead className="text-muted-foreground" scope="col">
                   <span className="sr-only">Expand</span>
-                </th>
-                <th scope="col">Task</th>
-                <th scope="col">Kind</th>
-                <th scope="col">Agent</th>
-                <th scope="col">
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Task
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Kind
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Agent
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
                   Status
                   <InfoGlyph text="Running sets the started time once. Succeeded, failed and cancelled set the finished time. Queued clears both." />
-                </th>
-                <th scope="col">Duration</th>
-                <th scope="col">Metrics</th>
-                <th scope="col">Updated (UTC)</th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Duration
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Metrics
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Updated (UTC)
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {state.tasks.map((task) => {
                 const open = detail?.id === task.id;
                 return (
                   <Fragment key={task.id}>
-                    <tr
-                      className="border-border border-b align-top"
+                    <TableRow
+                      className="border-border border-b [&>td]:align-top [&>th]:align-top"
                       data-task-id={task.id}
                     >
-                      <td className="py-1">
+                      <TableCell className="whitespace-normal py-1">
                         <Button
                           aria-expanded={open}
                           aria-label={`${open ? "Collapse" : "Expand"} ${task.title}`}
@@ -473,18 +499,25 @@ export const AgentRunsWorkspace = ({
                             />
                           )}
                         </Button>
-                      </td>
-                      <th className="py-1 font-normal" scope="row">
+                      </TableCell>
+                      <TableHead
+                        className="h-auto whitespace-normal py-1 font-normal"
+                        scope="row"
+                      >
                         {task.title}
                         {task.summary === null ? null : (
                           <div className="text-muted-foreground text-xs">
                             {task.summary.slice(0, 200)}
                           </div>
                         )}
-                      </th>
-                      <td className="py-1 font-mono text-xs">{task.kind}</td>
-                      <td className="py-1 font-mono text-xs">{task.agent}</td>
-                      <td className="py-1">
+                      </TableHead>
+                      <TableCell className="whitespace-normal py-1 font-mono text-xs">
+                        {task.kind}
+                      </TableCell>
+                      <TableCell className="whitespace-normal py-1 font-mono text-xs">
+                        {task.agent}
+                      </TableCell>
+                      <TableCell className="whitespace-normal py-1">
                         <select
                           aria-label={`${task.title} status`}
                           className={selectClass}
@@ -503,20 +536,23 @@ export const AgentRunsWorkspace = ({
                             </option>
                           ))}
                         </select>
-                      </td>
-                      <td className="py-1 font-mono text-xs">
+                      </TableCell>
+                      <TableCell className="whitespace-normal py-1 font-mono text-xs">
                         {formatDuration(task)}
-                      </td>
-                      <td className="py-1 font-mono text-xs">
+                      </TableCell>
+                      <TableCell className="whitespace-normal py-1 font-mono text-xs">
                         {formatMetrics(task.metrics)}
-                      </td>
-                      <td className="py-1 font-mono text-muted-foreground text-xs">
+                      </TableCell>
+                      <TableCell className="whitespace-normal py-1 font-mono text-muted-foreground text-xs">
                         {formatTimestamp(task.updatedAt)}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                     {open ? (
-                      <tr className="border-border border-b bg-surface">
-                        <td colSpan={8}>
+                      <TableRow className="border-border border-b bg-surface hover:bg-surface">
+                        <TableCell
+                          className="whitespace-normal p-0"
+                          colSpan={8}
+                        >
                           {detail?.type === "loading" ? (
                             <p
                               aria-busy="true"
@@ -548,14 +584,14 @@ export const AgentRunsWorkspace = ({
                               Add event
                             </Button>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ) : null}
                   </Fragment>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

@@ -172,10 +172,12 @@ export {
 export {
   createOrderIntentRepository,
   ORDER_INTENT_ACTIONS,
+  ORDER_INTENT_OUTCOMES,
   type OrderIntent,
   type OrderIntentAction,
   type OrderIntentOutcome,
   type OrderIntentRepository,
+  type OrderSendState,
 } from "./order-intents.ts";
 export {
   boundDriftMessage,
@@ -207,6 +209,23 @@ export {
   signalAlertRecordOf,
 } from "./signal-alerts.ts";
 export {
+  createFlowRepository,
+  FLOW_UPSERT_BATCH,
+  type FlowBookRecord,
+  type FlowEventRecord,
+  type FlowGexRecord,
+  type FlowMinuteRecord,
+  type FlowOptionGapRecord,
+  type FlowOptionPrintRecord,
+  type FlowRepository,
+  type FlowSampleRecord,
+  type FlowSampleStatusValue,
+  type FlowSourceValue,
+  type FlowSymbolValue,
+  type FlowWindowQuery,
+  type FlowWindowRows,
+} from "./flow.ts";
+export {
   createSectorRotationRepository,
   SECTOR_ROTATION_UPSERT_BATCH,
   type SectorRotationAlertDeliveryValue,
@@ -218,6 +237,87 @@ export {
   type SectorRotationRepositoryDependencies,
   type SectorRotationTimeframeValue,
 } from "./sector-rotation.ts";
+export {
+  BREADTH90_STATUS_ID,
+  BREADTH90_UPSERT_BATCH,
+  type Breadth90BasketValue,
+  type Breadth90CollectRecord,
+  type Breadth90CollectResult,
+  type Breadth90DayKindValue,
+  type Breadth90DayRecord,
+  type Breadth90EventKindValue,
+  type Breadth90EventRecord,
+  type Breadth90GradeValue,
+  type Breadth90Repository,
+  type Breadth90RepositoryDependencies,
+  type Breadth90StateValue,
+  type Breadth90StatusRecord,
+  type Breadth90StoredDay,
+  type Breadth90StoredEvent,
+  type Breadth90StoredStatus,
+  type Breadth90TierValue,
+  type Breadth90TriggerValue,
+  createBreadth90Repository,
+} from "./breadth-90.ts";
+export {
+  createGoLiveDraftsRepository,
+  type GoLiveApprovedOrderInput,
+  type GoLiveApprovedOrderLegValue,
+  type GoLiveApprovedOrderValue,
+  type GoLiveCollectRecord,
+  type GoLiveCollectResult,
+  type GoLiveDecideInput,
+  type GoLiveDefinitionVariantValue,
+  type GoLiveDraftCandidateInput,
+  GoLiveDraftChangedError,
+  GoLiveDraftConflictError,
+  type GoLiveDraftKindValue,
+  GoLiveDraftLimitError,
+  GoLiveDraftNotFoundError,
+  type GoLiveDraftRecord,
+  type GoLiveDraftRunRecord,
+  type GoLiveDraftStateValue,
+  type GoLiveDraftsRepository,
+  type GoLiveDraftsRepositoryDependencies,
+  type GoLiveEntryBasisValue,
+  type GoLiveExitReasonValue,
+  type GoLiveExitRuleValue,
+  type GoLiveNodeBadgeValue,
+  type GoLivePlanApprovalBasisValue,
+  type GoLivePlanLimitsValue,
+  GoLivePlanMismatchError,
+  type GoLivePlanRecord,
+  type GoLivePlanSeedInput,
+  type GoLivePlanSleeveValue,
+  type GoLivePlanStatusValue,
+  type GoLiveQuoteSourceValue,
+  type GoLiveStoredQuoteValue,
+  type GoLiveStructureValue,
+  goLiveEntryDraftId,
+} from "./golive-drafts.ts";
+export {
+  MARKET_NOTES_ACTIVE_LIMIT,
+  MARKET_NOTES_LIST_LIMIT,
+  type MarketNoteAffectedValue,
+  type MarketNoteCheckRecord,
+  type MarketNoteChecksResult,
+  type MarketNoteClaimStatusValue,
+  type MarketNoteClaimValue,
+  type MarketNoteConfidenceValue,
+  type MarketNoteDetailRecord,
+  type MarketNoteInsertResult,
+  type MarketNoteListResult,
+  type MarketNoteNewRecord,
+  type MarketNoteRecord,
+  type MarketNoteReviewAction,
+  type MarketNoteReviewResult,
+  type MarketNoteSourceKindValue,
+  type MarketNoteStanceValue,
+  type MarketNoteStoredStatusValue,
+  type MarketNotesRepository,
+  type MarketNotesRepositoryDependencies,
+  createMarketNotesRepository,
+} from "./market-notes.ts";
 export type {
   MarketBarColumns,
   MarketBarRow,
@@ -230,6 +330,61 @@ export {
   MarketBarsInputError,
   marketBarSeriesId,
 } from "./market-bars.ts";
+export type {
+  MarketDailyColumns,
+  MarketDailyPoint,
+  MarketDailyRange,
+  MarketDailySeries,
+  MarketDailySeriesInput,
+  MarketDailySeriesRepository,
+  MarketDailyUpsertResult,
+} from "./market-daily-series.ts";
+export {
+  createMarketDailySeriesRepository,
+  isMarketDailyDate,
+  MARKET_DAILY_SERIES_ID_PATTERN,
+  MarketDailySeriesInputError,
+  validateMarketDailySeries,
+} from "./market-daily-series.ts";
+export type {
+  Openbb13fRow,
+  OpenbbCotRow,
+  OpenbbEventRow,
+  OpenbbFactorRow,
+  OpenbbFtdRow,
+  OpenbbInsiderRow,
+  OpenbbMacroPointInput,
+  OpenbbMacroPointRow,
+  OpenbbMacroSeriesRow,
+  OpenbbOptionIvDailyRow,
+  OpenbbOptionIvTermRow,
+  OpenbbOtcRow,
+  OpenbbRepository,
+  OpenbbRun,
+  OpenbbRunInput,
+  OpenbbSecFilingRow,
+  OpenbbShortInterestRow,
+  OpenbbShortVolumeRow,
+  OpenbbTableStat,
+  OpenbbUpsertRows,
+  OpenbbUpsertTable,
+  OpenbbVxCurveRow,
+} from "./openbb.ts";
+export {
+  createOpenbbRepository,
+  OPENBB_UPSERT_TABLES,
+} from "./openbb.ts";
+export type {
+  MarketDailyBars,
+  MarketDailyViews,
+} from "./market-daily-views.ts";
+export {
+  createMarketDailyViews,
+  marketDailyBars,
+  marketDailyCloses,
+  marketDailyTotalReturn,
+  TOTAL_RETURN_SUFFIX,
+} from "./market-daily-views.ts";
 export type {
   ResearchCatalogImport,
   ResearchCategoryInput,
@@ -257,6 +412,37 @@ export {
   CLICK_LOG_RETENTION_DAYS,
   createClickLogRepository,
 } from "./click-log.ts";
+export type {
+  SemanticAttributePatch,
+  SemanticAttributeResult,
+  SemanticAttributeRunOptions,
+  SemanticCatalog,
+  SemanticCatalogKind,
+  SemanticCertification,
+  SemanticJsonValue,
+  SemanticLayerRepository,
+  SemanticParamValue,
+  SemanticRelationshipPatch,
+  SemanticRelationshipRow,
+  SemanticRow,
+  SemanticRunFailure,
+  SemanticSqlAttributeRow,
+  SemanticTermPatch,
+  SemanticTermRow,
+} from "./semantic-layer.ts";
+export type {
+  CertifiedStatement,
+  SemanticReader,
+  SemanticReaderClient,
+  SemanticReaderConnection,
+} from "./semantic-layer.ts";
+export {
+  certifiedStatement,
+  createSemanticLayerRepository,
+  createSemanticReader,
+  SEMANTIC_READER_ROLE,
+  SemanticSqlParameterError,
+} from "./semantic-layer.ts";
 export {
   createResearchReportsRepository,
   ResearchReportsInputError,
@@ -305,6 +491,7 @@ export type {
 export {
   createPlaysRepository,
   PLAY_MAX_LEGS,
+  normalizePlayInput,
   validatePlayLegs,
 } from "./plays-repository.ts";
 export {
@@ -352,10 +539,22 @@ export {
   createDashboardRepository,
   DashboardPersistenceError,
 } from "./dashboard-repository.ts";
-export type { DeploymentRequestAction } from "./deployment-requests.ts";
+export type {
+  DeploymentOptionGroup,
+  DeploymentOptionLeg,
+  DeploymentOptionStructure,
+  DeploymentRequestAction,
+  DeploymentRequestOptions,
+} from "./deployment-requests.ts";
 export {
   checkDeploymentTransition,
+  DEPLOYMENT_GROUP_MAX_SYMBOLS,
+  DEPLOYMENT_GROUP_MIN_SYMBOLS,
   DEPLOYMENT_LIMIT_KEYS,
+  DEPLOYMENT_MAX_LOSS_PCT_CEILING,
+  DEPLOYMENT_OPTION_STRUCTURES,
+  deploymentOptionLegs,
+  normalizeDeploymentOptions,
   DEPLOYMENT_REQUEST_ACTIONS,
   DEPLOYMENT_REQUEST_TRANSITIONS,
   DeploymentRequestInputError,
@@ -398,6 +597,26 @@ export {
   type ResearchStudyUpsertInput,
   type ResearchStudyUpsertResult,
 } from "./research-studies.ts";
+export {
+  createLeveragedEtfUniverseRepository,
+  type LeveragedEtfUniverseDocument,
+  type LeveragedEtfUniverseReplaceResult,
+  type LeveragedEtfUniverseRepository,
+} from "./leveraged-etf-universe.ts";
+export {
+  type AcademyContentRepository,
+  type AcademyCourseImportInput,
+  type AcademyCourseImportResult,
+  type AcademyImportCounts,
+  type AcademyLessonListEntry,
+  type AcademyLessonRecord,
+  type AcademyLessonSourceRecord,
+  type AcademyLessonSpecRecord,
+  academyLessonSpecHash,
+  createAcademyContentRepository,
+  parseAcademyCourseImport,
+  type ValidatedAcademyImport,
+} from "./academy-content.ts";
 export type {
   QuantLabBacktestRow,
   QuantLabCaptureRow,

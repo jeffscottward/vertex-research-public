@@ -28,6 +28,14 @@ import type {
   ContactDeliveryPort,
   ContactThrottlePort,
 } from "./contact-service.ts";
+import type { GoLiveQuotesPort } from "./golive-live-quotes.ts";
+import type { JevConfig } from "./jev-client.ts";
+import type { QuantDataConfig } from "./quantdata-client.ts";
+import type {
+  DeployStatusConfig,
+  PriceAlertsNtfyConfig,
+  VertexOrdersConfig,
+} from "./service-config.ts";
 import type { VertexChartReadDependencies } from "./vertex-chart-service.ts";
 import type { VertexExperienceDependencies } from "./vertex-experience-core.ts";
 import type { VertexLocalSetupService } from "./vertex-local-setup.ts";
@@ -35,15 +43,8 @@ import type { VertexNotificationReadService } from "./vertex-notification-read-s
 import type { VertexResearchChatConversationService } from "./vertex-research-chat-conversation-runtime.ts";
 import type { ResearchChatModelPrivacyOperations } from "./vertex-research-chat-model-privacy.ts";
 import type { VertexReadDependencies } from "./vertex-service.ts";
-import type { VertexWorkerServiceDependencies } from "./vertex-worker-service.ts";
-import type { JevConfig } from "./jev-client.ts";
-import type { QuantDataConfig } from "./quantdata-client.ts";
 import type { VertexWorkerRequestContext } from "./vertex-worker-auth.ts";
-import type {
-  DeployStatusConfig,
-  PriceAlertsNtfyConfig,
-  VertexOrdersConfig,
-} from "./service-config.ts";
+import type { VertexWorkerServiceDependencies } from "./vertex-worker-service.ts";
 
 export type VertexModelPrivacyReviewer = Pick<
   ResearchChatModelPrivacyOperations,
@@ -83,6 +84,9 @@ export type ApiContext = Readonly<{
   // read-access key or a read-only agent viewer. Read procedures with a side effect (the engine
   // comparison queue of backtestRuns.sweep) run it only when this is true.
   callerCanWrite?: boolean;
+  // Set by requireOperator: true for a read-only agent viewer session. Academy backtests (owner
+  // decision 2026-11-10) let a viewer queue their Nautilus comparison run; nothing else does.
+  callerIsAgentViewer?: boolean;
   // Lower-cased operator allow-list (VERTEX_OPERATOR_EMAILS). Absent/empty => no
   // operators; agentOps.*, papers.* and agentApiKeys.* then deny everyone.
   operatorEmails?: readonly string[];
@@ -105,6 +109,8 @@ export type ApiContext = Readonly<{
   priceAlertsNtfy?: PriceAlertsNtfyConfig | null;
   // Tailnet-only IBKR portfolio service (VERTEX_PORTFOLIO_URL, same token). Server-only; null => not configured.
   portfolioMonitor?: DeployStatusConfig | null;
+  // Read-only vertex_semantic_reader login (SEMANTIC_DATABASE_URL). Server-only; null => not configured.
+  semanticDatabaseUrl?: string | null;
   // ibkr-monitor base URL on loopback (IBKR_MONITOR_URL, e.g. http://127.0.0.1:3461). null => not configured.
   ibkrMonitor?: string | null;
   // Rig status file server on loopback (ENGINE_STATUS_URL, e.g. http://127.0.0.1:3462): status.json for
@@ -126,6 +132,8 @@ export type ApiContext = Readonly<{
   verifyPassword?: (password: string) => Promise<boolean>;
   // Owner order screen (VERTEX_ORDERS_ENABLED, VERTEX_ORDER_BRIDGE_URL). Absent => disabled, mock only.
   vertexOrders?: VertexOrdersConfig;
+  // Live IBKR spread quotes for the go-live drafts (bridge POST /quotes, read only). Absent => none.
+  goLiveQuotes?: GoLiveQuotesPort;
   // Research assistant (OpenRouter client + session-bound tool caller). Server-only; absent => not wired.
   assistant?: AssistantRuntime;
   semanticEvents?: SemanticEventPort;
@@ -170,6 +178,7 @@ export type ApiContextDependencies = Readonly<{
   researchLenses?: DeployStatusConfig | null;
   priceAlertsNtfy?: PriceAlertsNtfyConfig | null;
   portfolioMonitor?: DeployStatusConfig | null;
+  semanticDatabaseUrl?: string | null;
   // ibkr-monitor base URL on loopback (IBKR_MONITOR_URL, e.g. http://127.0.0.1:3461). null => not configured.
   ibkrMonitor?: string | null;
   // Rig status file server on loopback (ENGINE_STATUS_URL, e.g. http://127.0.0.1:3462): status.json for
@@ -185,6 +194,8 @@ export type ApiContextDependencies = Readonly<{
   verifyPassword?: (headers: Headers, password: string) => Promise<boolean>;
   // Owner order screen (VERTEX_ORDERS_ENABLED, VERTEX_ORDER_BRIDGE_URL). Absent => disabled, mock only.
   vertexOrders?: VertexOrdersConfig;
+  // Live IBKR spread quotes for the go-live drafts (bridge POST /quotes, read only). Absent => none.
+  goLiveQuotes?: GoLiveQuotesPort;
   assistant?: AssistantDependencies;
   requestId?: string;
   generateRequestId?: () => string;
@@ -250,7 +261,33 @@ export const createApiContext = (
   const agentApiKeys = dependencies.agentApiKeys;
   const verifyPassword = dependencies.verifyPassword;
   return {
+    agentApiKeyPresented: request.headers.has(AGENT_API_KEY_HEADER),
+    agentViewerEmails: Object.freeze(
+      (dependencies.agentViewerEmails ?? []).map((email) =>
+        email.trim().toLowerCase()
+      )
+    ),
+    backtestRunsEngine: dependencies.backtestRunsEngine ?? "typescript",
+    deployStatus: dependencies.deployStatus ?? null,
+    deployStatusV2: dependencies.deployStatusV2 ?? null,
+    engineComparison: dependencies.engineComparison ?? "off",
+    engineStatus: dependencies.engineStatus ?? null,
+    hostLabel: dependencies.hostLabel ?? DEFAULT_HOST_LABEL,
+    ibkrMonitor: dependencies.ibkrMonitor ?? null,
+    ibkrRecovery: dependencies.ibkrRecovery ?? null,
+    jev: dependencies.jev ?? null,
+    marketHistory: dependencies.marketHistory ?? null,
+    operatorEmails: Object.freeze(
+      (dependencies.operatorEmails ?? []).map((email) =>
+        email.trim().toLowerCase()
+      )
+    ),
+    portfolioMonitor: dependencies.portfolioMonitor ?? null,
+    priceAlertsNtfy: dependencies.priceAlertsNtfy ?? null,
+    quantData: dependencies.quantData ?? null,
     requestId: resolveApiRequestId(request, dependencies),
+    researchLenses: dependencies.researchLenses ?? null,
+    semanticDatabaseUrl: dependencies.semanticDatabaseUrl ?? null,
     signal: request.signal,
     // Server-only request provenance. Never accept worker credentials/context from
     // RPC input or substitute the browser session principal for bearer authority.
@@ -258,31 +295,6 @@ export const createApiContext = (
       headers: new Headers(request.headers),
       signal: request.signal,
     },
-    agentApiKeyPresented: request.headers.has(AGENT_API_KEY_HEADER),
-    operatorEmails: Object.freeze(
-      (dependencies.operatorEmails ?? []).map((email) =>
-        email.trim().toLowerCase()
-      )
-    ),
-    agentViewerEmails: Object.freeze(
-      (dependencies.agentViewerEmails ?? []).map((email) =>
-        email.trim().toLowerCase()
-      )
-    ),
-    deployStatus: dependencies.deployStatus ?? null,
-    deployStatusV2: dependencies.deployStatusV2 ?? null,
-    marketHistory: dependencies.marketHistory ?? null,
-    quantData: dependencies.quantData ?? null,
-    jev: dependencies.jev ?? null,
-    researchLenses: dependencies.researchLenses ?? null,
-    priceAlertsNtfy: dependencies.priceAlertsNtfy ?? null,
-    portfolioMonitor: dependencies.portfolioMonitor ?? null,
-    ibkrMonitor: dependencies.ibkrMonitor ?? null,
-    engineStatus: dependencies.engineStatus ?? null,
-    backtestRunsEngine: dependencies.backtestRunsEngine ?? "typescript",
-    engineComparison: dependencies.engineComparison ?? "off",
-    hostLabel: dependencies.hostLabel ?? DEFAULT_HOST_LABEL,
-    ibkrRecovery: dependencies.ibkrRecovery ?? null,
     ...(verifyPassword === undefined
       ? {}
       : {
@@ -297,16 +309,15 @@ export const createApiContext = (
       : {
           agentApiKeys: Object.freeze({
             authenticate: () => agentApiKeys.authenticate(request.headers),
-            list: () => agentApiKeys.list(request.headers),
             create: (
               input: Readonly<{ name: string; access?: "read" | "write" }>
             ) => agentApiKeys.create(request.headers, input),
+            list: () => agentApiKeys.list(request.headers),
             revoke: (id: string) => agentApiKeys.revoke(request.headers, id),
           }),
         }),
-    repositories: dependencies.repositories,
     capabilities: dependencies.capabilities,
-    requireSession: () => dependencies.requireSession(request.headers),
+    repositories: dependencies.repositories,
     // A read-only agent viewer never passes a role check (no admin or owner access), even if its
     // account has the admin role in the database.
     requireRole: async (role) => {
@@ -321,9 +332,13 @@ export const createApiContext = (
         );
       return session;
     },
+    requireSession: () => dependencies.requireSession(request.headers),
     ...(dependencies.vertexOrders === undefined
       ? {}
       : { vertexOrders: dependencies.vertexOrders }),
+    ...(dependencies.goLiveQuotes === undefined
+      ? {}
+      : { goLiveQuotes: dependencies.goLiveQuotes }),
     ...(dependencies.semanticEvents === undefined
       ? {}
       : { semanticEvents: dependencies.semanticEvents }),

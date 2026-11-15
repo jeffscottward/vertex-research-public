@@ -419,6 +419,41 @@ const databaseUrlSchema = z.preprocess(
     .optional()
 );
 
+const SEMANTIC_DATABASE_USER = "vertex_semantic_reader";
+const semanticDatabaseUrlUser = (value: string): string | undefined => {
+  const username = parseUrl(value)?.username;
+  if (username === undefined) return undefined;
+  try {
+    return decodeURIComponent(username);
+  } catch {
+    return undefined;
+  }
+};
+// libpq lets query parameters override the userinfo login, so forbid them outright.
+const hasCredentialQueryParameter = (value: string): boolean => {
+  const params = parseUrl(value)?.searchParams;
+  if (params === undefined) return false;
+  return params.has("user") || params.has("password");
+};
+
+// Optional: the read-only vertex_semantic_reader login for certified semantic SQL.
+const semanticDatabaseUrlSchema = z.preprocess(
+  emptyStringToUndefined,
+  z
+    .string({ error: "SEMANTIC_DATABASE_URL must be a PostgreSQL URL" })
+    .trim()
+    .refine(isPostgresUrl, "SEMANTIC_DATABASE_URL must be a PostgreSQL URL")
+    .refine(
+      (value) => semanticDatabaseUrlUser(value) === SEMANTIC_DATABASE_USER,
+      `SEMANTIC_DATABASE_URL must authenticate as ${SEMANTIC_DATABASE_USER}`
+    )
+    .refine(
+      (value) => !hasCredentialQueryParameter(value),
+      "SEMANTIC_DATABASE_URL must not carry user or password query parameters"
+    )
+    .optional()
+);
+
 const databaseAllowedHostsSchema = z
   .string()
   .default("")
@@ -571,6 +606,7 @@ const baseServerEnvSchema = z.object({
   RUST_KERNEL_API_TOKEN: optionalString,
   RUST_KERNEL_API_URL: optionalUrl("RUST_KERNEL_API_URL"),
   RUST_KERNEL_RUNTIME_STATE: pendingRuntimeState,
+  SEMANTIC_DATABASE_URL: semanticDatabaseUrlSchema,
   SSRN_CORPUS_PATH: optionalString,
 
   // Vertex restores @darkfactory/storage (R2); disabled unless every R2 key is set.
@@ -592,25 +628,17 @@ const baseServerEnvSchema = z.object({
     z.enum(["typescript", "nautilus"]).default("typescript")
   ),
   VERTEX_DEPLOY_STATUS_TOKEN: serviceTokenSchema("VERTEX_DEPLOY_STATUS_TOKEN"),
+  VERTEX_DEPLOY_STATUS_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_URL"),
+  // Tailnet-only v2 session snapshot (same token and URL rules).
+  VERTEX_DEPLOY_STATUS_V2_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_V2_URL"),
   // Engine comparison (dual run): "on" also queues the instant backtest, sweep cells and Autopilot
   // gate runs for the Nautilus research worker; the TypeScript result is unchanged. Blank: off.
   VERTEX_ENGINE_COMPARISON: z.preprocess(
     emptyStringToUndefined,
     z.enum(["off", "on"]).default("off")
   ),
-  VERTEX_DEPLOY_STATUS_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_URL"),
-  // Tailnet-only v2 session snapshot (same token and URL rules).
-  VERTEX_DEPLOY_STATUS_V2_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_V2_URL"),
   // Tailnet-only read-only IBKR history service base URL (marketData.bars).
   VERTEX_HISTORY_URL: tailnetOrLoopbackServiceUrl("VERTEX_HISTORY_URL"),
-  VERTEX_IBKR_RECOVERY_TOKEN: serviceTokenSchema("VERTEX_IBKR_RECOVERY_TOKEN"),
-  // Tailnet-only human IBKR 2FA recovery service (ibkrRecovery.*), e.g.
-  // https://<vps>.ts.net:8443/vertex-ibkr-recovery/v1. It has its OWN token (VERTEX_IBKR_RECOVERY_TOKEN),
-  // because VERTEX_DEPLOY_STATUS_TOKEN also opens the public status route.
-  VERTEX_IBKR_RECOVERY_URL: tailnetServiceUrl("VERTEX_IBKR_RECOVERY_URL"),
-  // Tailnet-only kb-chat front end, framed by the Knowledge page (no KB data reaches Vertex).
-  VERTEX_KB_CHAT_URL: kbChatUrlSchema,
-  VERTEX_UI_LAB: uiLabSchema,
   // Where this server runs, shown next to TypeScript engine times (for example "QuantVPS web
   // (in-request)"). Blank: "web server".
   VERTEX_HOST_LABEL: z.preprocess(
@@ -622,6 +650,13 @@ const baseServerEnvSchema = z.object({
       .max(100, { error: "VERTEX_HOST_LABEL must be at most 100 characters" })
       .default("web server")
   ),
+  VERTEX_IBKR_RECOVERY_TOKEN: serviceTokenSchema("VERTEX_IBKR_RECOVERY_TOKEN"),
+  // Tailnet-only human IBKR 2FA recovery service (ibkrRecovery.*), e.g.
+  // https://<vps>.ts.net:8443/vertex-ibkr-recovery/v1. It has its OWN token (VERTEX_IBKR_RECOVERY_TOKEN),
+  // because VERTEX_DEPLOY_STATUS_TOKEN also opens the public status route.
+  VERTEX_IBKR_RECOVERY_URL: tailnetServiceUrl("VERTEX_IBKR_RECOVERY_URL"),
+  // Tailnet-only kb-chat front end, framed by the Knowledge page (no KB data reaches Vertex).
+  VERTEX_KB_CHAT_URL: kbChatUrlSchema,
 
   // Vertex safety literals: research/paper only, read-only, no order submission.
   VERTEX_MODE: z.enum(["research", "paper"]).default("research"),
@@ -651,6 +686,7 @@ const baseServerEnvSchema = z.object({
   // Tailnet-only read-only research lens documents (researchLenses.*), e.g.
   // https://<vps>.ts.net:8443/vertex-research-lenses/v1. Same token and URL rules as VERTEX_DEPLOY_STATUS_URL.
   VERTEX_RESEARCH_LENSES_URL: tailnetServiceUrl("VERTEX_RESEARCH_LENSES_URL"),
+  VERTEX_UI_LAB: uiLabSchema,
   WORKFLOW_REPOSITORY_GRANTS: optionalString,
 });
 
@@ -708,6 +744,47 @@ const addDevelopmentCaptureIssues = (
         "Development email capture requires a canonical 32-byte base64url key",
       path: ["DEV_EMAIL_PREVIEW_KEY"],
     });
+  }
+};
+
+// Production endpoint contract for the optional semantic reader login, mirroring DATABASE_URL.
+const addSemanticDatabaseEndpointIssue = (
+  env: Pick<
+    z.infer<typeof baseServerEnvSchema>,
+    | "APP_ENV"
+    | "DATABASE_ALLOWED_HOSTS"
+    | "DATABASE_PROVIDER"
+    | "SEMANTIC_DATABASE_URL"
+  >,
+  context: z.RefinementCtx
+): void => {
+  if (
+    env.SEMANTIC_DATABASE_URL !== undefined &&
+    isPostgresUrl(env.SEMANTIC_DATABASE_URL)
+  ) {
+    try {
+      validateRequestDatabaseEndpoint({
+        allowedHosts: env.DATABASE_ALLOWED_HOSTS,
+        appEnvironment: env.APP_ENV,
+        connectionString: env.SEMANTIC_DATABASE_URL,
+        // Hyperdrive only fronts DATABASE_URL; the semantic login is a direct
+        // connection, so it must meet the standard postgres endpoint contract.
+        provider:
+          env.DATABASE_PROVIDER === "hyperdrive"
+            ? "postgres"
+            : env.DATABASE_PROVIDER,
+      });
+    } catch (error) {
+      if (!(error instanceof RequestDatabaseEndpointError)) throw error;
+      context.addIssue({
+        code: "custom",
+        message: error.diagnostic.replaceAll(
+          "DATABASE_URL",
+          "SEMANTIC_DATABASE_URL"
+        ),
+        path: ["SEMANTIC_DATABASE_URL"],
+      });
+    }
   }
 };
 
@@ -802,6 +879,7 @@ export const serverEnvSchema = baseServerEnvSchema
           });
         }
       }
+      addSemanticDatabaseEndpointIssue(env, context);
     }
 
     if (
@@ -826,8 +904,8 @@ export const serverEnvSchema = baseServerEnvSchema
     if (env.APP_ENV === "production" && env.VERTEX_UI_LAB === "on") {
       context.addIssue({
         code: "custom",
-        path: ["VERTEX_UI_LAB"],
         message: "VERTEX_UI_LAB cannot be on in production",
+        path: ["VERTEX_UI_LAB"],
       });
     }
 

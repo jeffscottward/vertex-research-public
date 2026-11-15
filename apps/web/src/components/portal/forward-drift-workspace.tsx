@@ -311,7 +311,7 @@ const ChecksTable = ({
             key={check.key}
           >
             <TableHead
-              className="whitespace-normal px-2 py-2 font-medium"
+              className="h-auto whitespace-normal px-2 py-2 font-medium"
               scope="row"
             >
               {check.label}

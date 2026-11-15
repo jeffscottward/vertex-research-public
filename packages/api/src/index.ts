@@ -85,6 +85,7 @@ export * from "./contracts/agent-ops.ts";
 export * from "./contracts/portfolio-monitor.ts";
 export * from "./contracts/engines.ts";
 export * from "./contracts/market-context.ts";
+export * from "./contracts/market-notes.ts";
 export * from "./contracts/ibkr-monitor.ts";
 export * from "./contracts/ibkr-recovery.ts";
 export * from "./contracts/nautilus-arm.ts";
@@ -93,6 +94,7 @@ export * from "./contracts/assistant.ts";
 export * from "./contracts/deployment-requests.ts";
 export * from "./contracts/market-data.ts";
 export * from "./contracts/options-analytics.ts";
+export * from "./contracts/flow.ts";
 export * from "./contracts/jev-verdict.ts";
 export * from "./contracts/options-chain.ts";
 export {
@@ -118,10 +120,23 @@ export * from "./backtest-report-depth.ts";
 export * from "./contracts/academy.ts";
 export * from "./strategy-dsl.ts";
 export * from "./contracts/research-lenses.ts";
+export * from "./contracts/openbb.ts";
 export * from "./contracts/sector-rotation.ts";
+export * from "./flow-exhaustion.ts";
+export * from "./flow-trade-signing.ts";
+export * from "./contracts/breadth-90.ts";
+export * from "./contracts/golive-drafts.ts";
 export * from "./contracts/congress-trades.ts";
 export * from "./contracts/risk-allocator.ts";
 export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
+export {
+  MARKET_NOTE_CONTEXT_HEADER,
+  MARKET_NOTE_CONTEXT_MAX_NOTES,
+  marketNoteContextLines,
+  marketNoteSourceKey,
+  marketNoteStatus,
+  marketNoteVerification,
+} from "./market-notes.ts";
 export * from "./contracts/optimizations.ts";
 export * from "./contracts/quant-lab.ts";
 export * from "./contracts/research-reports.ts";
@@ -129,9 +144,11 @@ export * from "./contracts/research-studies.ts";
 export * from "./contracts/click-log.ts";
 export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
 export * from "./contracts/strategy-library.ts";
+export * from "./strategy-study-tags.ts";
 export * from "./contracts/vertex-chart-read.ts";
 export * from "./contracts/vertex-experience.ts";
 export * from "./contracts/vertex-notification-read.ts";
+export { SEMANTIC_GRAIN_LABELS } from "./contracts/semantic-terms.ts";
 export * from "./contracts/vertex-research-chat.ts";
 export * from "./contracts/vertex-research-chat-conversation.ts";
 export * from "./contracts/vertex-research-chat-debate.ts";

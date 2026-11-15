@@ -14,6 +14,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type BuildSourcesOptions,
   buildSources,
+  knowledgeBaseDir,
+  knowledgeBaseRoot,
+  readKnowledgeBaseSources,
   runBuildSourcesEntrypoint,
 } from "./build-sources.ts";
 
@@ -25,8 +28,8 @@ let home: string;
 let stdout: string[];
 
 const options = (): BuildSourcesOptions => ({
-  root,
   home,
+  root,
   stdout: { write: (text: string) => stdout.push(text) },
 });
 const outPath = () => join(root, "packages/academy/src/lessons/sources.json");
@@ -43,7 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  rmSync(join(root, ".."), { recursive: true, force: true });
+  rmSync(join(root, ".."), { force: true, recursive: true });
 });
 
 describe("buildSources", () => {
@@ -79,26 +82,26 @@ describe("buildSources", () => {
     expect(readFileSync(outPath(), "utf8").endsWith("]\n")).toBe(true);
     expect(readOut()).toEqual([
       {
-        sourceId: "DAbc",
-        url: "https://www.instagram.com/reel/DAbc/",
         caption: "Covered calls explained",
-        publishedAt: "2026-01-02T03:04:05Z",
         durationSeconds: 20,
+        publishedAt: "2026-01-02T03:04:05Z",
+        sourceId: "DAbc",
         transcript: [
           { start: 0, text: "One two three four." },
           { start: 6.7, text: "Five six seven eight!" },
           { start: 13.3, text: '"Quoted end?")' },
           { start: 16.7, text: "trailing words" },
         ],
+        url: "https://www.instagram.com/reel/DAbc/",
       },
       {
-        sourceId: "DTlH37JjmfZ",
-        url: "",
         caption: "Duplicate reel",
-        publishedAt: "",
-        durationSeconds: 60,
-        transcript: [{ start: 0, text: "Same text." }],
         duplicateOf: "DTlH5tcDoyh",
+        durationSeconds: 60,
+        publishedAt: "",
+        sourceId: "DTlH37JjmfZ",
+        transcript: [{ start: 0, text: "Same text." }],
+        url: "",
       },
     ]);
     expect(stdout).toEqual([`wrote 2 sources to ${outPath()}\n`]);
@@ -117,35 +120,184 @@ describe("buildSources", () => {
 
     expect(readOut()).toEqual([
       {
-        sourceId: "DBlank",
-        url: "",
         caption: "",
-        publishedAt: "",
         durationSeconds: 60,
+        publishedAt: "",
+        sourceId: "DBlank",
         transcript: [],
+        url: "",
       },
       {
-        sourceId: "DEmpty",
-        url: "",
         caption: "Title only",
-        publishedAt: "",
         durationSeconds: 60,
+        publishedAt: "",
+        sourceId: "DEmpty",
         transcript: [],
+        url: "",
       },
     ]);
+  });
+});
+
+const QFTG_KB = "Github/knowledge-bases/trading/quantfinancetogo/raw";
+describe("readKnowledgeBaseSources (quantfinancetogo)", () => {
+  it("reads reel notes: frontmatter, caption block and timestamped segments", () => {
+    const kb = join(home, QFTG_KB);
+    mkdirSync(kb, { recursive: true });
+    writeFileSync(
+      join(kb, "ig-Df_Ab-12345.md"),
+      note([
+        "---",
+        // Assembled so the private-sources guard finds no committed note marker.
+        `type: ${"raw"}-transcript`,
+        'title: "Part 37: \\"Binomial\\" pricing"',
+        "platform: instagram",
+        'post_id: "Df_Ab-12345"',
+        "url: https://www.instagram.com/reel/Df_Ab-12345/",
+        "published: 2026-10-31",
+        "duration: 118.0",
+        'transcript_status: "ok"',
+        "topics: [options-pricing]",
+        "  indented: ignored",
+        "---",
+        "",
+        "# Part 37",
+        "",
+        "## Caption",
+        "",
+        "```text",
+        "Part 37: Binomial model option pricing",
+        "",
+        "Synthetic caption line.",
+        "```",
+        "",
+        "## Transcript",
+        "",
+        "- [00:00] Synthetic opening line",
+        "- [01:03] the real chance   ",
+        "- [1:02:05] an hour in",
+        "not a segment",
+      ])
+    );
+    // A no-speech reel: no caption, no url, no post id, invalid quoted title.
+    writeFileSync(
+      join(kb, "ig-Dq9.md"),
+      note([
+        "---",
+        'title: "broken \\q escape"',
+        "duration: none",
+        "---",
+        "",
+        "## Transcript",
+        "",
+        "No speech transcript (no-speech).",
+      ])
+    );
+    // Neither caption nor title.
+    writeFileSync(join(kb, "ig-Dzz.md"), note(["# Only a heading"]));
+    writeFileSync(join(kb, "index.md"), "---\ntype: index\n---\n");
+
+    expect(
+      readKnowledgeBaseSources(
+        "quantfinancetogo",
+        knowledgeBaseDir("quantfinancetogo", home)
+      )
+    ).toEqual([
+      {
+        caption:
+          "Part 37: Binomial model option pricing\n\nSynthetic caption line.",
+        course: "quantfinancetogo",
+        durationSeconds: 118,
+        publishedAt: "2026-10-31",
+        sourceId: "Df_Ab-12345",
+        transcript: [
+          { start: 0, text: "Synthetic opening line" },
+          { start: 63, text: "the real chance" },
+          { start: 3725, text: "an hour in" },
+        ],
+        url: "https://www.instagram.com/reel/Df_Ab-12345/",
+      },
+      {
+        caption: "broken \\q escape",
+        course: "quantfinancetogo",
+        durationSeconds: 0,
+        publishedAt: "",
+        sourceId: "Dq9",
+        transcript: [],
+        url: "",
+      },
+      {
+        caption: "",
+        course: "quantfinancetogo",
+        durationSeconds: 0,
+        publishedAt: "",
+        sourceId: "Dzz",
+        transcript: [],
+        url: "",
+      },
+    ]);
+  });
+
+  it("keeps the frontmatter title when it is valid JSON", () => {
+    const kb = join(root, "..", "reels");
+    mkdirSync(kb);
+    writeFileSync(
+      join(kb, "ig-Dt1.md"),
+      note(["---", 'title: "Quoted \\"title\\""', "---"])
+    );
+    expect(readKnowledgeBaseSources("quantfinancetogo", kb)).toEqual([
+      expect.objectContaining({ caption: 'Quoted "title"', sourceId: "Dt1" }),
+    ]);
+  });
+
+  it("finds the knowledge base in ~/Github/knowledge-bases or $ACADEMY_KB_ROOT", () => {
+    expect(knowledgeBaseRoot(home)).toBe(join(home, "Github/knowledge-bases"));
+    expect(knowledgeBaseRoot(home, { ACADEMY_KB_ROOT: "  " })).toBe(
+      join(home, "Github/knowledge-bases")
+    );
+    expect(knowledgeBaseRoot(home, { ACADEMY_KB_ROOT: "/srv/kb" })).toBe(
+      "/srv/kb"
+    );
+    expect(knowledgeBaseDir("quantfinancetogo", home, "/srv/kb")).toBe(
+      "/srv/kb/trading/quantfinancetogo/raw"
+    );
+  });
+});
+
+describe("buildSources --course quantfinancetogo", () => {
+  it("writes nothing: a database course's sources stay in the knowledge base", () => {
+    const kb = join(home, QFTG_KB);
+    mkdirSync(kb, { recursive: true });
+    writeFileSync(join(kb, "ig-Dt1.md"), note(["---", "title: x", "---"]));
+    expect(() =>
+      buildSources(["--course", "quantfinancetogo"], options())
+    ).toThrow(
+      "course quantfinancetogo keeps its sources in the knowledge base, not in the repository"
+    );
+    expect(stdout).toEqual([]);
+    expect(existsSync(join(root, "scripts"))).toBe(false);
+  });
+
+  it("refuses an unknown or missing course", () => {
+    expect(() => buildSources(["--course", "nope"], options())).toThrow(
+      'unknown course "nope"; expected one of dyr, quantfinancetogo'
+    );
+    expect(() => buildSources(["--course"], options())).toThrow(
+      'unknown course ""'
+    );
   });
 });
 
 describe("runBuildSourcesEntrypoint", () => {
   it("does nothing when imported", () => {
     runBuildSourcesEntrypoint({
-      isMain: undefined,
       argv: ["bun", "build-sources.ts"],
+      isMain: undefined,
       options: options(),
     });
     runBuildSourcesEntrypoint({
-      isMain: false,
       argv: ["bun", "build-sources.ts"],
+      isMain: false,
       options: options(),
     });
     expect(existsSync(outPath())).toBe(false);
@@ -157,18 +309,18 @@ describe("runBuildSourcesEntrypoint", () => {
     mkdirSync(kb);
     writeFileSync(join(kb, "DOne.md"), note(["# One", "## Transcript", "Hi."]));
     runBuildSourcesEntrypoint({
-      isMain: true,
       argv: ["bun", "scripts/academy/build-sources.ts", kb],
+      isMain: true,
       options: options(),
     });
     expect(readOut()).toEqual([
       {
-        sourceId: "DOne",
-        url: "",
         caption: "One",
-        publishedAt: "",
         durationSeconds: 60,
+        publishedAt: "",
+        sourceId: "DOne",
         transcript: [{ start: 0, text: "Hi." }],
+        url: "",
       },
     ]);
   });

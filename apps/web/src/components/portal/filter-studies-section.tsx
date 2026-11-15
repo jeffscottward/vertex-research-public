@@ -41,7 +41,8 @@ export const createBrowserResearchStudyGateway = (): ResearchStudyGateway => {
   });
 };
 
-const getWithTimeout = (
+/** One researchStudies.get call that rejects with code TIMEOUT after RESEARCH_STUDY_TIMEOUT_MS. */
+export const getResearchStudyWithTimeout = (
   gateway: ResearchStudyGateway,
   id: string
 ): Promise<ResearchStudy> => {
@@ -140,7 +141,10 @@ export const FilterStudiesSection = ({
   const load = useCallback(async () => {
     setState({ type: "loading" });
     try {
-      const { study } = await getWithTimeout(gateway, FILTER_STUDY_ID);
+      const { study } = await getResearchStudyWithTimeout(
+        gateway,
+        FILTER_STUDY_ID
+      );
       return setState({ model: toFilterStudyViewModel(study), type: "ready" });
     } catch (error) {
       const failure = describePortfolioMonitorFailure(error);

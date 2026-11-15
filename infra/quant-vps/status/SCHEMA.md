@@ -2,7 +2,7 @@
 
 > **Status (2026-10-03T11:49:55Z): served ONLY over the tailnet, ONLY to the rig.** v2 contains account blocks. The user's condition is bearer token **plus** a source-IP allow-list. That condition is now met on the VPS tailnet interface.
 >
-> - The public `vertex.xyz` endpoint serves v1 only, including for `?schema=v2` and the v2 Accept header.
+> - The v1 endpoint (tailnet `/vertex-status/v1`; the public `vertex.xyz` route is retired since 2026-11-05) serves v1 only, including for `?schema=v2` and the v2 Accept header.
 > - v2 was briefly public from 11:30:33Z to 11:35:39Z, before the tailnet path existed.
 
 Read-only QuantVPS session snapshot. `collect.py` writes it every 30 s to the **non-public** `/opt/vertex-status/private-v2/status-v2.json`. This requires the unit to set `VERTEX_STATUS_V2=1` and `VERTEX_STATUS_V2_DIR=/opt/vertex-status/private-v2`. The collector refuses to write v2 into `/opt/vertex-status/public`, and deletes any `status-v2.json` it finds there.
@@ -22,7 +22,7 @@ Read-only QuantVPS session snapshot. `collect.py` writes it every 30 s to the **
 - The listener is container `vertex-status-tailnet` (`Caddyfile.tailnet`), bound to 100.64.0.10 and fd7a:115c:a1e0::10 on port 8443.
 - TLS uses the Let's Encrypt certificate for the MagicDNS name, obtained through tailscaled.
 - Callers must be tailnet members using MagicDNS. Cloudflare-hosted runtimes cannot reach this endpoint.
-- The public URL `https://vertex.xyz/vertex-status/v1` keeps serving the unchanged v1 document, for every selector.
+- The v1 URL `https://quant-vps-host.example-tailnet.ts.net:8443/vertex-status/v1` serves the unchanged v1 document, for every selector. The public `vertex.xyz` route is retired (2026-11-05).
 - Responses send `Cache-Control: no-store`.
 
 ## Size and safety guarantees

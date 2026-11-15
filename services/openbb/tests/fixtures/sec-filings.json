@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "sec-filings",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "sec_filings",
+      "rows": [
+        {
+          "accessionNumber": "0000320193-26-000024",
+          "cik": "320193",
+          "description": "8-K (items 2.02,9.01)",
+          "filingDate": "2026-11-02",
+          "formType": "8-K",
+          "reportDate": "2026-11-02",
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000024/aapl-20261102.htm"
+        },
+        {
+          "accessionNumber": "0000320193-26-000026",
+          "cik": "320193",
+          "description": "10-K",
+          "filingDate": "2026-11-03",
+          "formType": "10-K",
+          "reportDate": "2026-09-26",
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm"
+        },
+        {
+          "accessionNumber": "0001140361-26-039785",
+          "cik": "320193",
+          "description": "FORM 4",
+          "filingDate": "2026-10-15",
+          "formType": "4",
+          "reportDate": "2026-10-13",
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126039785/xslF345X06/form4.xml"
+        },
+        {
+          "accessionNumber": "0001140361-26-040126",
+          "cik": "320193",
+          "description": "FORM 4",
+          "filingDate": "2026-10-19",
+          "formType": "4",
+          "reportDate": "2026-10-15",
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126040126/xslF345X06/form4.xml"
+        },
+        {
+          "accessionNumber": "0001140361-26-040127",
+          "cik": "320193",
+          "description": "FORM 4",
+          "filingDate": "2026-10-19",
+          "formType": "4",
+          "reportDate": "2026-10-15",
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126040127/xslF345X06/form4.xml"
+        },
+        {
+          "accessionNumber": "0001140361-26-040540",
+          "cik": "320193",
+          "description": "FORM 4",
+          "filingDate": "2026-10-22",
+          "formType": "4",
+          "reportDate": "2026-10-20",
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126040540/xslF345X06/form4.xml"
+        },
+        {
+          "accessionNumber": "0001140361-26-041201",
+          "cik": "320193",
+          "description": "FORM 4",
+          "filingDate": "2026-10-29",
+          "formType": "4",
+          "reportDate": "2026-10-27",
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126041201/xslF345X06/form4.xml"
+        },
+        {
+          "accessionNumber": "0001140361-26-042046",
+          "cik": "320193",
+          "description": "424B2",
+          "filingDate": "2026-11-05",
+          "formType": "424B2",
+          "reportDate": null,
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126042046/ny20084621x1_424b2.htm"
+        },
+        {
+          "accessionNumber": "0001140361-26-042149",
+          "cik": "320193",
+          "description": "FORM 4",
+          "filingDate": "2026-11-05",
+          "formType": "4",
+          "reportDate": "2026-11-03",
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126042149/xslF345X06/form4.xml"
+        },
+        {
+          "accessionNumber": "0001140361-26-042173",
+          "cik": "320193",
+          "description": "FWP",
+          "filingDate": "2026-11-06",
+          "formType": "FWP",
+          "reportDate": null,
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126042173/ny20084621x3_fwp.htm"
+        },
+        {
+          "accessionNumber": "0001140361-26-042505",
+          "cik": "320193",
+          "description": "424B2",
+          "filingDate": "2026-11-06",
+          "formType": "424B2",
+          "reportDate": null,
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126042505/ny20084621x2_424b2.htm"
+        },
+        {
+          "accessionNumber": "0001197647-26-000011",
+          "cik": "1045810",
+          "description": "FORM 4",
+          "filingDate": "2026-10-09",
+          "formType": "4",
+          "reportDate": "2026-10-07",
+          "symbol": "NVDA",
+          "url": "https://www.sec.gov/Archives/edgar/data/1045810/000119764726000011/xslF345X06/wk-form4_1791579847.xml"
+        },
+        {
+          "accessionNumber": "0001197647-26-000013",
+          "cik": "1045810",
+          "description": "FORM 4",
+          "filingDate": "2026-11-06",
+          "formType": "4",
+          "reportDate": "2026-11-04",
+          "symbol": "NVDA",
+          "url": "https://www.sec.gov/Archives/edgar/data/1045810/000119764726000013/xslF345X06/wk-form4_1793999520.xml"
+        },
+        {
+          "accessionNumber": "0001950047-26-010286",
+          "cik": "320193",
+          "description": "",
+          "filingDate": "2026-10-16",
+          "formType": "144",
+          "reportDate": null,
+          "symbol": "AAPL",
+          "url": "https://www.sec.gov/Archives/edgar/data/320193/000195004726010286/xsl144X01/primary_doc.xml"
+        },
+        {
+          "accessionNumber": "0002152188-26-000007",
+          "cik": "1045810",
+          "description": "FORM 4/A",
+          "filingDate": "2026-10-13",
+          "formType": "4/A",
+          "reportDate": "2026-09-09",
+          "symbol": "NVDA",
+          "url": "https://www.sec.gov/Archives/edgar/data/1045810/000215218826000007/xslF345X06/wk-form4a_1791925767.xml"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

@@ -65,6 +65,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@darkfactory/academy": "workspace:*",
     "@darkfactory/config": "workspace:*",
     "@darkfactory/notifications": "workspace:*",
     "@darkfactory/shared": "workspace:*",

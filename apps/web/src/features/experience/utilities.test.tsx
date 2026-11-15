@@ -404,7 +404,7 @@ describe("execution audit preserves evidence and uncertainty", () => {
     expect(html).toContain("No observations match this search");
     expect(html).toContain("Unknown execution outcomes: 2");
     expect(html).toContain("Sequence gap: missing 2 through 3");
-    return expect(html).not.toContain("<tbody>");
+    return expect(html).not.toContain("<tbody");
   });
 
   it("bounds pages to 25 records, keeps unknown totals, and resets the page for search", () => {
@@ -413,7 +413,7 @@ describe("execution audit preserves evidence and uncertainty", () => {
     );
     const component = () => AuditLedger({ projections, scope });
     let tree = render(component);
-    expect((markup(tree).match(/<tr>/g) ?? []).length).toBe(26);
+    expect((markup(tree).match(/<tr\b/g) ?? []).length).toBe(26);
     expect(markup(tree)).toContain("Unknown execution outcomes: 26");
     const next = elements(tree).find(
       (element) =>
@@ -423,7 +423,7 @@ describe("execution audit preserves evidence and uncertainty", () => {
     expect(next!.props.disabled).toBe(false);
     next!.props.onClick!();
     tree = render(component);
-    expect((markup(tree).match(/<tr>/g) ?? []).length).toBe(2);
+    expect((markup(tree).match(/<tr\b/g) ?? []).length).toBe(2);
     expect(markup(tree)).toContain("projection-26");
     expect(markup(tree)).toContain("Page 2 of 2");
     change(tree, "audit-search", "intent-1");
@@ -435,7 +435,7 @@ describe("execution audit preserves evidence and uncertainty", () => {
       AuditLedger({ projections: [projection()], scope })
     );
     const html = markup(tree);
-    expect(html).toContain("<caption>");
+    expect(html).toContain("<caption");
     expect(html).toContain('scope="row"');
     expect(html).toContain('scope="col"');
     expect(html).toContain('tabindex="0"');
@@ -535,7 +535,7 @@ describe("audit scope and failure boundaries", () => {
       await settle();
       const html = markup(render(component));
       expect(html).toContain("Source verification failed");
-      return expect(html).not.toContain("<tbody>");
+      return expect(html).not.toContain("<tbody");
     }
   );
 
@@ -973,7 +973,7 @@ describe("native fact audit union", () => {
       await settle();
       const html = markup(render(component));
       expect(html).toContain("Source verification failed");
-      return expect(html).not.toContain("<tbody>");
+      return expect(html).not.toContain("<tbody");
     }
   );
 });

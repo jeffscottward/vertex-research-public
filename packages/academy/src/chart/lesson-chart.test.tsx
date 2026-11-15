@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ACADEMY_LESSONS } from "../lessons/index.ts";
+import { ALL_ACADEMY_LESSONS as ACADEMY_LESSONS } from "../lessons/database-courses.test-support.ts";
 import { defaultValues } from "../position.ts";
 import { buildScene, elementColors } from "../scenes.ts";
 import { buildTables } from "../tables.ts";
-import type { Panel, SceneData } from "../scenes.ts";
+import type { Panel, SceneData } from "../scene-kit.ts";
 import { lessonTimeline, stateAt } from "../timeline.ts";
 import { LessonChart } from "./lesson-chart.tsx";
 import { DARK_PALETTE, LIGHT_PALETTE, paletteFor } from "./palette.ts";
@@ -251,6 +251,87 @@ describe("LessonChart edge cases", () => {
     expect(svg).not.toContain(">Off<");
     expect(svg).not.toContain("No y");
     expect(svg).toContain(LIGHT_PALETTE.tokens.red);
+  });
+
+  it("draws labelled markers after unlabelled ones, with a halo, and keeps vline labels off the legend", () => {
+    const labelY = (svg: string, text: string): number =>
+      Number(new RegExp(`y="([0-9.]+)"[^>]*>${text}<`, "u").exec(svg)?.[1]);
+    const withLegend = (legend: boolean) =>
+      render(
+        scene([
+          panel({
+            elements: ["axes", "line", "m"],
+            markers: [
+              { element: "m", label: "Named", kind: "dot", x: 5, y: 1 },
+              { element: "m", label: "", kind: "dot", x: 5, y: 1 },
+              { element: "m", label: "Left shock", kind: "vline", x: 0.5 },
+              { element: "m", label: "Right shock", kind: "vline", x: 9.5 },
+            ],
+            series: [
+              {
+                element: "line",
+                label: legend ? "A fairly long legend entry" : "",
+                points: [
+                  [0, 0],
+                  [10, 1],
+                ],
+              },
+            ],
+          }),
+        ])
+      );
+    const svg = withLegend(true);
+    // The unlabelled dot comes first in the markup, so the named dot and its text paint on top.
+    expect(svg.indexOf(">Named<")).toBeGreaterThan(svg.lastIndexOf("<circle"));
+    expect(svg).toMatch(/paint-order="stroke"[^>]*>Named</u);
+    // A vertical-line label under the legend moves below it; one clear of it stays at the top.
+    expect(labelY(svg, "Left shock")).toBeGreaterThan(
+      labelY(withLegend(false), "Left shock")
+    );
+    expect(labelY(svg, "Right shock")).toBe(
+      labelY(withLegend(false), "Right shock")
+    );
+  });
+
+  it("colors tone bars by their element and reveals each bar by its own element", () => {
+    const svg = render(
+      scene([
+        panel({
+          elements: ["axes", "capital", "risk"],
+          bars: [
+            { element: "capital", x: 1, y: 2, width: 0.5, tone: true },
+            { element: "risk", x: 2, y: -1, width: 0.5, tone: true },
+          ],
+        }),
+      ]),
+      new Map([["capital", 1]])
+    );
+    expect(svg.match(/opacity="0.85"/gu)).toHaveLength(1);
+  });
+
+  it("writes a surface's own legend instead of the P&L reading", () => {
+    const svg = render(
+      scene([
+        panel({
+          elements: ["surface"],
+          surface: {
+            element: "surface",
+            legend: "Sharpe: higher is better",
+            xs: [1, 2],
+            ys: [1, 2],
+            z: [
+              [0, 1],
+              [1, 0],
+            ],
+            xLabel: "lookback",
+            yLabel: "threshold",
+            zLabel: "Sharpe",
+          },
+        }),
+      ])
+    );
+    expect(svg).toContain("Sharpe: higher is better");
+    expect(svg).not.toContain("green = profit");
   });
 
   it("skips bars that are not revealed yet", () => {

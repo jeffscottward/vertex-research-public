@@ -55,6 +55,7 @@ import {
   StrategyCatalog,
   StrategyDossierView,
 } from "./strategies.tsx";
+import { experienceTableScroll } from "./experience-table.tsx";
 import {
   ExperienceProvider,
   createUnavailableExperienceServices,
@@ -169,9 +170,11 @@ describe("Strategies data-first immutable records", () => {
     const visible = withoutHelp(html);
     expect(html).toContain('aria-label="About Immutable strategy catalog"');
     expect(visible).toContain(
-      '<table class="vx-ex-table" aria-labelledby="synthetic-strategy-heading-0-catalog">'
+      'data-slot="table" aria-labelledby="synthetic-strategy-heading-0-catalog">'
     );
-    expect(visible).toContain('class="vx-ex-table-scroll" role="region"');
+    expect(visible).toContain(
+      `class="${experienceTableScroll}" role="region" aria-labelledby="synthetic-strategy-heading-0-catalog" tabindex="0"`
+    );
     expect(visible).toContain('tabindex="0"');
     for (const text of [
       artifact.artifactId,
@@ -342,7 +345,7 @@ describe("Strategies data-first immutable records", () => {
     const marked = Array.from(
       html.matchAll(/<(th|td)\b([^>]*)>([\s\S]*?)<\/\1>/g)
     )
-      .filter((match) => match[2]!.includes('class="vx-ex-numeric"'))
+      .filter((match) => match[2]!.includes("data-numeric"))
       .map((match) => [match[1], match[3]]);
     expect(marked).toEqual([
       ["th", "Threshold"],
@@ -357,15 +360,15 @@ describe("Strategies data-first immutable records", () => {
       ["td", "60000"],
       ["td", "120000"],
     ]);
-    expect(html.match(/class="vx-ex-numeric"/g)).toHaveLength(marked.length);
-    expect(html).toContain(`<td class="vx-ex-numeric">${longThreshold}</td>`);
-    expect(html).toContain('<td class="vx-ex-numeric">0.000000001</td>');
+    expect(html.match(/data-numeric=""/g)).toHaveLength(marked.length);
+    expect(html).toContain(`data-numeric="">${longThreshold}</td>`);
+    expect(html).toContain('data-numeric="">0.000000001</td>');
     expect(
-      html.match(/class="vx-ex-table-scroll" role="region"/g)
-    ).toHaveLength(3);
+      html.split(`class="${experienceTableScroll}" role="region"`)
+    ).toHaveLength(4);
     hooks.clear();
     return expect(renderToStaticMarkup(catalog())).not.toContain(
-      "vx-ex-numeric"
+      "data-numeric"
     );
   });
 });

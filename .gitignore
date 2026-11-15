@@ -12,6 +12,7 @@ build/
 .alchemy/
 .cache/
 coverage/
+.coverage
 playwright-report/
 test-results/
 graphify-out/
@@ -67,6 +68,10 @@ __pycache__/
 
 # Vertex Academy rendered media (MP4, VTT, thumbnails); see docs/vertex-academy.md
 apps/web/public/academy-media/
+# Academy database-course captions and transcripts stay in the knowledge base (owner decision
+# 2026-11-08); scripts/ci/private-academy-sources.test.ts fails if a snapshot is committed.
+scripts/academy/lessons/*/sources.generated.ts
+packages/academy/src/lessons/sources.quantfinancetogo.generated.ts
 
 # Private broker, account and portfolio data (restored from the pre-rebuild
 # rules). Ignore is not redaction; verify before publishing.
@@ -118,6 +123,17 @@ token*.json
 *.webm
 *.mkv
 
-# Temporary bundle folder of packages/email/src/server/server-bundle.test.ts. A format check that
-# runs while the test is in progress must not see it (it broke pre-push, card vertex-public-audit).
-.server-production-bundle-*/
+# Temporary folders of the Vite build tests (server-bundle, groq-bundle, posthog-bundle,
+# inline-bundle and the observability boundary test). A test that times out leaves its folder
+# behind, and a format check that runs while a test is in progress must not see it (it broke
+# pre-push, cards vertex-public-audit and prepush-bundle-leftover-dirs). Biome reads this file
+# (vcs.useIgnoreFile).
+.*-bundle-*/
+.vite-browser-boundary-*/
+
+# Staging folder of the feature generator (scripts/generate-feature/apply.ts). An interrupted
+# run leaves it in the target root; .graphify/config.json excludes it from the graph too.
+.generate-feature-*/
+
+# Python build artifacts
+*.egg-info/

@@ -190,11 +190,15 @@ export const CandleCanvas = ({
     return;
   }, [markers]);
   return (
-    <figure aria-label={label} className="vx-chart-panel">
+    <figure
+      aria-label={label}
+      className="@container min-w-0 max-w-full border-border-strong border-t-2 pt-4 text-foreground [&>*]:min-w-0 [&>*]:max-w-full motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:scroll-auto motion-reduce:[&_*]:transition-none [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-foreground [&_:focus-visible]:outline-solid [&_:focus-visible]:outline-offset-3"
+    >
       <div
         aria-describedby={description}
         aria-label={label}
-        className="vx-chart-canvas"
+        className="h-[calc(clamp(18rem,45cqi,32rem)+var(--vx-chart-sub-panes,0)*6rem)] min-h-[18rem] w-full min-w-0 max-w-full overflow-hidden bg-background"
+        data-chart-canvas=""
         ref={element}
         role="group"
         style={
@@ -206,7 +210,10 @@ export const CandleCanvas = ({
           } as CSSProperties
         }
       />
-      <figcaption className="vx-chart-note" id={description}>
+      <figcaption
+        id={description}
+        className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]"
+      >
         {captions === undefined
           ? phase === "error"
             ? "Chart renderer unavailable. Exact data remains in the table."
@@ -230,7 +237,10 @@ export class ChartRendererBoundary extends Component<
   override render() {
     if (this.state.failed)
       return (
-        <p className="vx-chart-note" role="status">
+        <p
+          role="status"
+          className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]"
+        >
           The renderer could not display the selected data. The exact table
           remains available.
         </p>

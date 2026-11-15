@@ -6,10 +6,12 @@ This checkout is an isolated rebuild, not a cutover. Its Wrangler configuration 
 
 The exact-approved-revision runner now has a concrete Docker backend, not an unconditional refusal or mutable-workspace executor. Its new implementation and synthetic tests **have not yet passed the integration owner's gates or an OS-level isolation/adapter compatibility probe**. The offline input capsule is not prepared: `infra/docker/deployment/policy.json` deliberately has `offlineInputsSha256: null`, which produces `pinned-offline-inputs-required` rather than inventing a digest. No image has been pulled or built, and no adapter or provider operation has run as part of this implementation.
 
-- Production Worker: `vertex-research-web`; proposed application/auth origin: `https://app.vertex.xyz`.
-- Staging Worker: `vertex-research-web-staging`; proposed application/auth origin: `https://staging.vertex.xyz`.
+- Production Worker: `vertex-research-web`; application/auth origin: none approved. Placeholder: `https://app.no-approved-origin.invalid`.
+- Staging Worker: `vertex-research-web-staging`; application/auth origin: none approved. Placeholder: `https://staging.no-approved-origin.invalid`.
 
-These origins remain **unbound proposals**, not ownership, active routes, reservations or cutover approval. Do not reroute the current public `vertex.xyz`, delete old subdomains, or change existing DarkFactory/Vertex accounts, services, DNS, routes or email configuration based on this document.
+> 2026-11-05 owner decision (card sec20-vertex-xyz-exposure): "No use of vertex.XYZ at all". The public `vertex.xyz` site is retired and its public DNS records are being removed. The former proposals `app.vertex.xyz` and `staging.vertex.xyz` are removed from the Wrangler configuration and from the deploy gate (card vertex-xyz-deploy-origins, 2026-11-14). The gate blocks a route, an `APP_URL`, a `BETTER_AUTH_URL` and a receipt origin on these hosts. A Worker deploy needs a new owner-approved origin first.
+
+The two placeholders are on the reserved `.invalid` top-level domain (RFC 2606, RFC 6761). Nobody can register a name under it, so the placeholders are **not a deployment destination**: they are not ownership, active routes, reservations or cutover approval. The gate does not treat the placeholders in a special way. The committed configuration is blocked because it has no account and no route, and a receipt for a placeholder would be a false statement. To deploy, the owner approves an origin. One reviewed pull request then replaces the placeholders in `scripts/deployment/destination.ts`, in `apps/web/wrangler.jsonc` and in the deployment tests (`scripts/deployment/destination.test.ts`, `scripts/deployment/cli.test.ts`, `scripts/deployment/runtime.test.ts` and `scripts/deployment/test-fixtures.ts`). The same pull request adds the `account_id` and the one custom-domain route of each environment, and it updates the two tests that expect the unbound configuration ("blocks the unbound checkout for both environments" and "keeps the committed Wrangler origins on the reserved placeholders"). Do not restore `vertex.xyz`, delete old subdomains, or change existing DarkFactory/Vertex accounts, services, DNS, routes or email configuration based on this document.
 
 ## Fail-closed destination and authority contract
 
@@ -18,7 +20,7 @@ Every root `deploy:web*` alias enters `scripts/deployment.ts`. Imports and depen
 Admission preserves all existing requirements:
 
 1. Explicit production or staging selection, with staging's own account/configuration. Deliberate reuse of the same user-owned account is permitted only with matching, environment-specific human verification.
-2. Exact environment-specific Worker, well-formed explicit account, and exactly one isolated custom-domain route matching the proposed hostname. Apex, wildcard, inherited, extra and foreign routes remain forbidden.
+2. Exact environment-specific Worker, well-formed explicit account, and exactly one isolated custom-domain route matching the expected hostname of the gate (today a placeholder, so no real host matches). Apex, wildcard, inherited, extra and foreign routes remain forbidden.
 3. Workers.dev, previews, email provider and transport explicitly disabled; matching app/auth origins; no email sending identity or Resend credential in Wrangler vars.
 4. Clean Git status including untracked dirt, exact current 40-character lowercase SHA, and exact complete Wrangler byte digest. The configuration comes from the Git object, not the current file.
 5. Private matching human account verification, domain verification and cutover approval. Account possession, existing tokens, model output and matching repository trees are not approval.
@@ -79,7 +81,7 @@ No new package script, lock change or workspace setting is required to discover 
 
 ## Operator cutover sequence remains mandatory
 
-Before binding the unbound configuration, verify the intended user-owned account, isolated Worker/route, domain and existing routing/resources, data isolation and rollback destination. Reuse and new accounts require the same exact account/config/SHA/environment/Worker/origin approval. No inherited routing should be restored. Domain binding and deployment require current point-of-risk authorization, never inference from these proposed origins or successful local gates.
+Before binding the unbound configuration, verify the intended user-owned account, isolated Worker/route, domain and existing routing/resources, data isolation and rollback destination. Reuse and new accounts require the same exact account/config/SHA/environment/Worker/origin approval. No inherited routing should be restored. Domain binding and deployment require current point-of-risk authorization, never inference from the placeholder origins or successful local gates.
 
 After the engineering runner and OS-level gates pass, review/commit the exact candidate, prepare its private authority receipt, and use the environment's validation alias. Check aliases can then execute setup-only dry-run in isolation when all prerequisites are satisfied; preview remains forbidden. No deployed state is implied by validate/check.
 

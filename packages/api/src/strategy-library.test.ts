@@ -5,6 +5,7 @@ import {
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import {
+  DatabasePersistenceError,
   InvalidRepositoryInputError,
   normalizeBacktestResult,
   type AgentOpsRepository,
@@ -12,6 +13,7 @@ import {
   type BacktestTrialLedger,
   type BacktestResultSummary,
   type Repositories,
+  type ResearchStudyRepository,
   type StrategyLibraryRepository,
   type StrategyListRow,
 } from "@darkfactory/db/server";
@@ -20,6 +22,11 @@ import type {
   BacktestResult,
   StrategyPreset,
 } from "@darkfactory/db/schema";
+import type {
+  SemanticEvent,
+  SemanticEventPort,
+  SpanHandle,
+} from "@darkfactory/observability/port";
 import { ORPCError } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 
@@ -32,7 +39,12 @@ import {
 } from "./server/mcp.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
-import { latestBacktestStats, sortStrategies } from "./strategy-library.ts";
+import {
+  latestBacktestStats,
+  sortStrategies,
+  studyCandidateSlugs,
+  studyVerdictsBySlug,
+} from "./strategy-library.ts";
 
 const at = new Date("2026-01-02T03:04:05.000Z");
 const later = new Date("2026-01-03T03:04:05.000Z");
@@ -52,12 +64,27 @@ const strategyRow = (
   favorite: false,
   section: null,
   params: [],
+  priority: "normal",
+  externalValidation: null,
   createdAt: at,
   updatedAt: at,
   presetCount: 0,
   backtestCount: 0,
   ...overrides,
 });
+
+// A third party's claim, in the shape migration 0065 stores for the volume spike breakout row.
+const claim = {
+  sourceUrl: "https://youtu.be/XLMG6-SATRk",
+  sourceTitle: "I Backtested 10,000 Strategies",
+  sourceAuthor: "Lil Fish, YouTube",
+  publishedOn: "2026-09-24",
+  claimedMethod: "10,500 strategies ranked by total net R.",
+  claimedMetrics: [
+    { label: "Rank", value: "1 of 10,500" },
+    { label: "Win rate", value: "14%" },
+  ],
+};
 
 const presetRow = (
   overrides: Partial<StrategyPreset> = {}
@@ -114,6 +141,8 @@ const strategiesRepository = (
         name: input.name,
         kind: input.kind,
         slug: "new",
+        priority: input.priority ?? "normal",
+        externalValidation: input.externalValidation ?? null,
       })
     ),
     update: vi.fn(async (input) => {
@@ -125,6 +154,12 @@ const strategiesRepository = (
             ...(input.favorite === undefined
               ? {}
               : { favorite: input.favorite }),
+            ...(input.priority === undefined
+              ? {}
+              : { priority: input.priority }),
+            ...(input.externalValidation === undefined
+              ? {}
+              : { externalValidation: input.externalValidation }),
           };
     }),
     savePreset: vi.fn(async (input) => {
@@ -264,6 +299,9 @@ type Harness = Readonly<{
   apiKeyAccess?: "read" | "write";
   strategyLibrary?: StrategyLibraryRepository;
   backtestResults?: BacktestResultsRepository;
+  researchStudies?: ResearchStudyRepository;
+  semanticEvents?: SemanticEventPort;
+  span?: SpanHandle;
 }>;
 
 const clientFor = (options: Harness = {}) => {
@@ -283,6 +321,9 @@ const clientFor = (options: Harness = {}) => {
     ...(options.backtestResults === undefined
       ? {}
       : { backtestResults: options.backtestResults }),
+    ...(options.researchStudies === undefined
+      ? {}
+      : { researchStudies: options.researchStudies }),
   };
   const keys = {
     authenticate: vi.fn(async (headers: Headers) => {
@@ -325,6 +366,10 @@ const clientFor = (options: Harness = {}) => {
         },
         operatorEmails: ["operator@domain.test"],
         agentApiKeys: keys,
+        ...(options.semanticEvents === undefined
+          ? {}
+          : { semanticEvents: options.semanticEvents }),
+        ...(options.span === undefined ? {} : { span: options.span }),
       });
       return handleApiRequest(request, context);
     },
@@ -386,23 +431,33 @@ describe("strategy library rules", () => {
       cagr: null,
       maxDrawdown: null,
     });
+    const normal = "normal" as const;
     const rows = [
-      { id: "a", name: "beta", updatedAt: at, latestBacktest: null },
+      {
+        id: "a",
+        name: "beta",
+        priority: normal,
+        updatedAt: at,
+        latestBacktest: null,
+      },
       {
         id: "b",
         name: "Alpha",
+        priority: normal,
         updatedAt: later,
         latestBacktest: latest(0.5, -0.1),
       },
       {
         id: "c",
         name: "gamma",
+        priority: normal,
         updatedAt: at,
         latestBacktest: latest(1.2, 0.3),
       },
       {
         id: "d",
         name: "delta",
+        priority: normal,
         updatedAt: at,
         latestBacktest: latest(null, null),
       },
@@ -426,6 +481,272 @@ describe("strategy library rules", () => {
       "a",
       "d",
     ]);
+  });
+
+  return it("puts high-priority strategies first inside every sort", () => {
+    const row = (
+      id: string,
+      priority: "normal" | "high",
+      updatedAt: Date,
+      sharpe: number | null
+    ) => ({
+      id,
+      name: id,
+      priority,
+      updatedAt,
+      latestBacktest:
+        sharpe === null
+          ? null
+          : {
+              id: `bt-${id}`,
+              createdAt: at,
+              sharpe,
+              totalReturn: sharpe,
+              cagr: null,
+              maxDrawdown: null,
+            },
+    });
+    // Without priority every sort would lead with "a": first by name, newest and best metric.
+    const rows = [
+      row("a", "normal", later, 2),
+      row("y", "high", at, null),
+      row("b", "normal", at, 1),
+      row("z", "high", at, 0.1),
+      row("x", "high", later, 0.4),
+    ];
+    const ids = (sort?: "updated" | "name" | "sharpe" | "return") =>
+      sortStrategies(rows, sort).map((entry) => entry.id);
+    expect(ids("name")).toEqual(["x", "y", "z", "a", "b"]);
+    expect(ids("updated")).toEqual(["x", "z", "y", "a", "b"]);
+    expect(ids()).toEqual(ids("updated"));
+    expect(ids("sharpe")).toEqual(["x", "z", "y", "a", "b"]);
+    expect(ids("return")).toEqual(["x", "z", "y", "a", "b"]);
+    return expect(rows.map((entry) => entry.id)).toEqual([
+      "a",
+      "y",
+      "b",
+      "z",
+      "x",
+    ]);
+  });
+});
+
+describe("strategy study verdicts", () => {
+  const tagged = (slug: string, tags: string[]) => ({ slug, tags });
+
+  it("picks only tagged rows whose slug is a valid study id", () => {
+    expect(
+      studyCandidateSlugs([
+        tagged("triple-rsi", ["backtest-study", "failed"]),
+        tagged("qc-port-one", ["quantconnect-idea"]),
+        tagged("untagged", ["failed"]),
+        { slug: "no-tags", tags: null },
+        tagged(`long-${"a".repeat(70)}`, ["backtest-study"]),
+      ])
+    ).toEqual(["triple-rsi", "qc-port-one"]);
+  });
+
+  it("keeps a verdict only when it is valid for its kind and the row has that kind's tag", () => {
+    const rows = [
+      tagged("study-ok", ["backtest-study"]),
+      tagged("port-ok", ["quantconnect-idea"]),
+      tagged("both", ["quantconnect-idea", "backtest-study"]),
+      tagged("wrong-kind", ["quantconnect-idea"]),
+      tagged("filter", ["backtest-study"]),
+      tagged("bad-verdict", ["backtest-study"]),
+      { slug: "no-tags", tags: null },
+    ];
+    const verdicts = studyVerdictsBySlug(rows, [
+      { id: "study-ok", kind: "strategy-backtest", verdict: "no-edge" },
+      { id: "port-ok", kind: "qc-port", verdict: "FAIL" },
+      { id: "both", kind: "strategy-backtest", verdict: "edge" },
+      { id: "wrong-kind", kind: "strategy-backtest", verdict: "edge" },
+      { id: "filter", kind: null, verdict: null },
+      { id: "bad-verdict", kind: "strategy-backtest", verdict: "PASS" },
+      { id: "no-tags", kind: "qc-port", verdict: "PASS" },
+      { id: "unknown-slug", kind: "qc-port", verdict: "PASS" },
+    ]);
+    expect(Object.fromEntries(verdicts)).toEqual({
+      both: { kind: "strategy-backtest", verdict: "edge" },
+      "port-ok": { kind: "qc-port", verdict: "FAIL" },
+      "study-ok": { kind: "strategy-backtest", verdict: "no-edge" },
+    });
+  });
+});
+
+const studiesRepository = (
+  verdicts: ResearchStudyRepository["verdicts"]
+): ResearchStudyRepository & {
+  verdicts: ReturnType<typeof vi.fn>;
+} => ({
+  get: () => Promise.reject(new Error("not used")),
+  upsert: () => Promise.reject(new Error("not used")),
+  upsertMany: () => Promise.reject(new Error("not used")),
+  verdicts: vi.fn(verdicts),
+});
+
+/** A structured event sink that keeps the strategy-library events; `fail` makes emit throw. */
+const eventSink = (fail = false) => {
+  const events: SemanticEvent[] = [];
+  const port: SemanticEventPort = {
+    emit: async (event) => {
+      if (fail) throw new Error("sink down");
+      if (event.name.startsWith("vertex.strategyLibrary.")) events.push(event);
+      return {
+        analytics: "skipped",
+        span: "skipped",
+        structuredEvent: "emitted",
+      };
+    },
+  };
+  return { events, port };
+};
+
+describe("strategyLibrary study verdicts", () => {
+  const studyRows = () => [
+    strategyRow({
+      id: "s-triple",
+      slug: "triple-rsi",
+      tags: ["backtest-study", "failed"],
+    }),
+    strategyRow({ id: "s-hmm" }),
+  ];
+
+  it("adds the study verdict to list and get rows in one lookup of tagged slugs", async () => {
+    const studies = studiesRepository(async () => [
+      { id: "triple-rsi", kind: "strategy-backtest", verdict: "no-edge" },
+    ]);
+    const client = clientFor({
+      strategyLibrary: strategiesRepository(studyRows()),
+      researchStudies: studies,
+    });
+    const listed = await client.strategyLibrary.list({ sort: "name" });
+    expect(
+      Object.fromEntries(
+        listed.strategies.map((row) => [row.slug, row.vertexStudy])
+      )
+    ).toEqual({
+      hmm: null,
+      "triple-rsi": { kind: "strategy-backtest", verdict: "no-edge" },
+    });
+    expect(studies.verdicts).toHaveBeenCalledTimes(1);
+    expect(studies.verdicts).toHaveBeenCalledWith(["triple-rsi"]);
+    const detail = await client.strategyLibrary.get({ id: "s-triple" });
+    expect(detail.strategy.vertexStudy).toEqual({
+      kind: "strategy-backtest",
+      verdict: "no-edge",
+    });
+  });
+
+  it("makes no lookup and sends no event when no row has a study tag", async () => {
+    const studies = studiesRepository(async () => []);
+    const sink = eventSink();
+    const client = clientFor({
+      strategyLibrary: strategiesRepository([strategyRow()]),
+      researchStudies: studies,
+      semanticEvents: sink.port,
+    });
+    const listed = await client.strategyLibrary.list({});
+    expect(listed.strategies[0]?.vertexStudy).toBeNull();
+    expect(studies.verdicts).not.toHaveBeenCalled();
+    await expect(
+      clientFor({
+        strategyLibrary: strategiesRepository([strategyRow()]),
+        semanticEvents: sink.port,
+      }).strategyLibrary.list({})
+    ).resolves.toMatchObject({ strategies: [{ vertexStudy: null }] });
+    expect(sink.events).toEqual([]);
+  });
+
+  it("gives a read key the study verdict through list and get", async () => {
+    const reader = clientFor({
+      requestSession: null,
+      apiKeyAccess: "read",
+      strategyLibrary: strategiesRepository(studyRows()),
+      researchStudies: studiesRepository(async () => [
+        { id: "triple-rsi", kind: "strategy-backtest", verdict: "no-edge" },
+      ]),
+    });
+    const verdict = { kind: "strategy-backtest", verdict: "no-edge" };
+    expect(
+      (await reader.strategyLibrary.list({})).strategies.find(
+        (row) => row.slug === "triple-rsi"
+      )?.vertexStudy
+    ).toEqual(verdict);
+    expect(
+      (await reader.strategyLibrary.get({ id: "s-triple" })).strategy
+        .vertexStudy
+    ).toEqual(verdict);
+  });
+
+  it("still lists when the lookup fails and reports one storage-error event", async () => {
+    const sink = eventSink();
+    const client = clientFor({
+      strategyLibrary: strategiesRepository(studyRows()),
+      researchStudies: studiesRepository(() =>
+        Promise.reject(new DatabasePersistenceError("research study read"))
+      ),
+      semanticEvents: sink.port,
+    });
+    const listed = await client.strategyLibrary.list({});
+    expect(listed.strategies.map((row) => row.vertexStudy)).toEqual([
+      null,
+      null,
+    ]);
+    expect(sink.events).toHaveLength(1);
+    expect(sink.events[0]).toMatchObject({
+      action: "studyVerdicts",
+      attributes: { candidates: 1 },
+      correlation: {
+        procedure: "strategyLibrary.list",
+        requestId: "request-1",
+      },
+      entityType: "research-study",
+      errorCategory: "storage-error",
+      name: "vertex.strategyLibrary.studyVerdicts",
+      outcome: "failure",
+      source: "api",
+    });
+  });
+
+  it("reports a missing study store on get and still returns the strategy", async () => {
+    const sink = eventSink();
+    const span: SpanHandle = {
+      addEvent: () => undefined,
+      correlation: { requestId: "request-1", traceId: "trace-1" },
+      recordMetric: () => undefined,
+    };
+    const client = clientFor({
+      strategyLibrary: strategiesRepository(studyRows()),
+      semanticEvents: sink.port,
+      span,
+    });
+    const detail = await client.strategyLibrary.get({ id: "s-triple" });
+    expect(detail.strategy.vertexStudy).toBeNull();
+    expect(sink.events.map((event) => event.errorCategory)).toEqual([
+      "repository-missing",
+    ]);
+    // The span's correlation stays next to the procedure and request id.
+    expect(sink.events[0]?.correlation).toMatchObject({
+      procedure: "strategyLibrary.get",
+      requestId: "request-1",
+      traceId: "trace-1",
+    });
+  });
+
+  it("never fails the request when reporting fails or no event sink is set", async () => {
+    const failing = () =>
+      studiesRepository(() => Promise.reject(new Error("down")));
+    for (const semanticEvents of [eventSink(true).port, undefined]) {
+      const client = clientFor({
+        strategyLibrary: strategiesRepository(studyRows()),
+        researchStudies: failing(),
+        ...(semanticEvents === undefined ? {} : { semanticEvents }),
+      });
+      expect((await client.strategyLibrary.list({})).strategies).toHaveLength(
+        2
+      );
+    }
   });
 });
 
@@ -482,6 +803,192 @@ describe("strategyLibrary procedures", () => {
     ]);
     expect(result.strategies[0]?.latestBacktest).toMatchObject({ id: "bt-up" });
     return expect(result.strategies[2]?.latestBacktest).toBeNull();
+  });
+
+  it("returns the priority and the external claim and lists high priority first", async () => {
+    const rows = [
+      strategyRow({ id: "s-up", name: "Rising", backtestCount: 2 }),
+      strategyRow({
+        id: "s-claim",
+        name: "Volume spike breakout",
+        priority: "high",
+        externalValidation: claim,
+        updatedAt: at,
+      }),
+      strategyRow({ id: "s-new", name: "Newest", updatedAt: later }),
+    ];
+    const client = clientFor({ strategyLibrary: strategiesRepository(rows) });
+    for (const sort of ["updated", "name", "sharpe", "return"] as const) {
+      const listed = await client.strategyLibrary.list({ sort });
+      expect(listed.strategies[0]?.id, sort).toBe("s-claim");
+    }
+    const { strategies } = await client.strategyLibrary.list({});
+    expect(strategies.map((row) => row.id)).toEqual([
+      "s-claim",
+      "s-new",
+      "s-up",
+    ]);
+    expect(strategies[0]).toMatchObject({
+      priority: "high",
+      externalValidation: claim,
+    });
+    expect(strategies[1]).toMatchObject({
+      priority: "normal",
+      externalValidation: null,
+    });
+    const found = await client.strategyLibrary.get({ id: "s-claim" });
+    expect(found.strategy.priority).toBe("high");
+    expect(found.strategy.externalValidation).toEqual(claim);
+    // The output is a copy: it shares no reference with the repository row.
+    expect(found.strategy.externalValidation).not.toBe(claim);
+    const plain = await client.strategyLibrary.get({ id: "s-up" });
+    expect(plain.strategy.priority).toBe("normal");
+    return expect(plain.strategy.externalValidation).toBeNull();
+  });
+
+  it("reports missing tables or columns and invalid stored values as a typed storage error", async () => {
+    const repository = strategiesRepository([strategyRow()]);
+    const client = clientFor({ strategyLibrary: repository });
+    const message =
+      "Strategy library storage unavailable: its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).";
+    repository.list.mockRejectedValueOnce(
+      new DatabasePersistenceError("strategies read")
+    );
+    await expectCode(
+      client.strategyLibrary.list({}),
+      "STORAGE_ERROR",
+      503,
+      message
+    );
+    repository.get.mockRejectedValueOnce(
+      new DatabasePersistenceError(
+        "strategy s-hmm read (stored priority must be one of normal, high)"
+      )
+    );
+    return await expectCode(
+      client.strategyLibrary.get({ id: "s-hmm" }),
+      "STORAGE_ERROR",
+      503,
+      message
+    );
+  });
+
+  it("accepts and rejects the priority and the external claim on create and update", async () => {
+    const repository = strategiesRepository([
+      strategyRow({ priority: "high", externalValidation: claim }),
+    ]);
+    const client = clientFor({ strategyLibrary: repository });
+    expect(
+      await client.strategyLibrary.create({ name: "Plain", kind: "python" })
+    ).toMatchObject({ priority: "normal", externalValidation: null });
+    expect(
+      await client.strategyLibrary.create({
+        name: "Claimed",
+        kind: "python",
+        priority: "high",
+        externalValidation: claim,
+      })
+    ).toMatchObject({ priority: "high", externalValidation: claim });
+    expect(repository.create).toHaveBeenLastCalledWith({
+      name: "Claimed",
+      kind: "python",
+      priority: "high",
+      externalValidation: claim,
+    });
+    expect(
+      await client.strategyLibrary.update({
+        id: "s-hmm",
+        externalValidation: null,
+      })
+    ).toMatchObject({ priority: "high", externalValidation: null });
+    expect(repository.update).toHaveBeenLastCalledWith({
+      id: "s-hmm",
+      externalValidation: null,
+    });
+    expect(
+      await client.strategyLibrary.update({ id: "s-hmm", priority: "normal" })
+    ).toMatchObject({ priority: "normal" });
+    expect(repository.update).toHaveBeenLastCalledWith({
+      id: "s-hmm",
+      priority: "normal",
+    });
+    const metric = { label: "Rank", value: "1" };
+    const invalid: Record<string, unknown>[] = [
+      { priority: "urgent" },
+      { externalValidation: { ...claim, sourceUrl: "http://youtu.be/x" } },
+      { externalValidation: { ...claim, sourceUrl: "not a url" } },
+      {
+        externalValidation: {
+          ...claim,
+          sourceUrl: `https://x.test/${"a".repeat(300)}`,
+        },
+      },
+      { externalValidation: { ...claim, sourceTitle: " " } },
+      { externalValidation: { ...claim, sourceTitle: "t".repeat(201) } },
+      { externalValidation: { ...claim, sourceAuthor: "a".repeat(121) } },
+      { externalValidation: { ...claim, publishedOn: "24.09.2026" } },
+      { externalValidation: { ...claim, publishedOn: "2026-02-30" } },
+      { externalValidation: { ...claim, claimedMethod: "m".repeat(1001) } },
+      { externalValidation: { ...claim, claimedMetrics: [] } },
+      {
+        externalValidation: {
+          ...claim,
+          claimedMetrics: Array.from({ length: 13 }, () => metric),
+        },
+      },
+      {
+        externalValidation: {
+          ...claim,
+          claimedMetrics: [{ ...metric, unit: "R" }],
+        },
+      },
+      {
+        externalValidation: {
+          ...claim,
+          claimedMetrics: [{ label: "l".repeat(61), value: "1" }],
+        },
+      },
+      {
+        externalValidation: {
+          ...claim,
+          claimedMetrics: [{ label: "Rank", value: "v".repeat(81) }],
+        },
+      },
+      { externalValidation: { ...claim, validatedByVertex: true } },
+      { externalValidation: { sourceUrl: claim.sourceUrl } },
+    ];
+    const calls = repository.create.mock.calls.length;
+    for (const fields of invalid) {
+      await expectCode(
+        client.strategyLibrary.create({
+          name: "x",
+          kind: "python",
+          ...fields,
+        } as never),
+        "BAD_REQUEST",
+        400
+      );
+      await expectCode(
+        client.strategyLibrary.update({ id: "s-hmm", ...fields } as never),
+        "BAD_REQUEST",
+        400
+      );
+    }
+    expect(repository.create.mock.calls).toHaveLength(calls);
+    repository.update.mockRejectedValueOnce(
+      new InvalidRepositoryInputError(
+        "externalValidation.claimedMethod must not contain control characters"
+      )
+    );
+    return await expectCode(
+      client.strategyLibrary.update({
+        id: "s-hmm",
+        externalValidation: { ...claim, claimedMethod: "line\nbreak" },
+      }),
+      "VALIDATION_ERROR",
+      422,
+      "externalValidation.claimedMethod must not contain control characters"
+    );
   });
 
   it("creates, updates, saves and removes presets, and maps failures", async () => {
@@ -613,6 +1120,10 @@ describe("strategyLibrary procedures", () => {
       strategyLibrary: repository,
     });
     expect((await reader.strategyLibrary.list({})).strategies).toHaveLength(1);
+    // Read keys see the study verdict field (owner decision 2026-11-13).
+    expect(
+      (await reader.strategyLibrary.list({})).strategies[0]
+    ).toHaveProperty("vertexStudy", null);
     expect(
       (await reader.strategyLibrary.get({ id: "s-hmm" })).strategy.id
     ).toBe("s-hmm");

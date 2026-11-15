@@ -3,7 +3,15 @@
     "manifestSha256": "c5b0bc57b0ff44e4a5a93bdb468dea65932335905a1e08fdb4d304ebb376c936",
     "source": "Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py)"
   },
-  "generated": "2026-10-31",
+  "engine": "nautilus-trader-1.227.0",
+  "engineParity": {
+    "against": "instant-2",
+    "equityRelTolerance": 0.00001,
+    "jobs": 39,
+    "maxEquityRel": 1.803057167119817e-7,
+    "pass": 39
+  },
+  "generated": "2026-11-08",
   "strategies": [
     {
       "adapter": {
@@ -90,32 +98,32 @@
         "volatility": 0.1914692213274204
       },
       "dsl": {
-        "cagr": 0.05538957863597771,
+        "cagr": 0.055389578250283344,
         "end": "2025-12-31",
-        "excessKurtosis": 5.146992891938002,
+        "excessKurtosis": 5.146992896931398,
         "firstHalf": {
-          "cagr": 0.042569160850712606,
-          "sharpe": 0.37380938579291484
+          "cagr": 0.04256916046805692,
+          "sharpe": 0.3738093831463409
         },
-        "maxDrawdown": -0.2883883247823229,
-        "meanReturn": 0.0002482813090101711,
+        "maxDrawdown": -0.2883883217303601,
+        "meanReturn": 0.0002482813075303204,
         "periods": 6285,
         "periodsPerYear": 251.48951029798422,
         "secondHalf": {
-          "cagr": 0.06837909744247672,
-          "sharpe": 0.5956517196937801
+          "cagr": 0.06837909705372458,
+          "sharpe": 0.5956517170623774
         },
-        "sharpe": 0.47884544503115894,
-        "skew": -0.5134880208977016,
+        "sharpe": 0.47884544236333465,
+        "skew": -0.5134880207324419,
         "start": "2001-01-03",
-        "stdReturn": 0.008222589388987457,
-        "totalReturn": 2.846907191800651,
-        "volatility": 0.13039728260346592
+        "stdReturn": 0.008222589385788782,
+        "totalReturn": 2.8469071566666657,
+        "volatility": 0.13039728255273997
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.021236126871390208,
+        "deflatedSharpeProbability": 0.021236110217981077,
         "pass": false,
         "qValue": 0.03138431932247221
       },
@@ -209,34 +217,34 @@
         "volatility": 0.1914692213274204
       },
       "dsl": {
-        "cagr": 0.02349144605954323,
+        "cagr": 0.023491445462100025,
         "end": "2025-12-31",
-        "excessKurtosis": 26.939299323278295,
+        "excessKurtosis": 26.939299307410327,
         "firstHalf": {
-          "cagr": 0.0037374901463624877,
-          "sharpe": 0.1068085638852822
+          "cagr": 0.0037374900993003557,
+          "sharpe": 0.10680856366273266
         },
-        "maxDrawdown": -0.4351658715082468,
-        "meanReturn": 0.0001402606934709887,
+        "maxDrawdown": -0.43516586929960177,
+        "meanReturn": 0.0001402606911900447,
         "periods": 6285,
         "periodsPerYear": 251.48951029798422,
         "secondHalf": {
-          "cagr": 0.043652001860823075,
-          "sharpe": 0.37757025225082674
+          "cagr": 0.043652000690842074,
+          "sharpe": 0.3775702442280316
         },
-        "sharpe": 0.2273059574136293,
-        "skew": 0.014569038741744597,
+        "sharpe": 0.22730595362530195,
+        "skew": 0.014569033944972805,
         "start": "2001-01-03",
-        "stdReturn": 0.009785546864658193,
-        "totalReturn": 0.7865521760623502,
-        "volatility": 0.1551833199465435
+        "stdReturn": 0.009785546868611827,
+        "totalReturn": 0.7865521500000001,
+        "volatility": 0.1551833200092419
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.0004809571515644979,
+        "deflatedSharpeProbability": 0.00048095657732718643,
         "pass": false,
-        "qValue": 0.19383549461123775
+        "qValue": 0.19383550061302943
       },
       "id": "O02",
       "note": null,
@@ -331,7 +339,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.013522554713520901,
+        "deflatedSharpeProbability": 0.013522543813861773,
         "pass": false,
         "qValue": 0.03322262026102224
       },
@@ -428,7 +436,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.01799932971273903,
+        "deflatedSharpeProbability": 0.01799931583018978,
         "pass": false,
         "qValue": 0.03138431932247221
       },
@@ -525,7 +533,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.005513174846776495,
+        "deflatedSharpeProbability": 0.005513169882984525,
         "pass": false,
         "qValue": 0.0550025478013445
       },
@@ -619,34 +627,34 @@
         "volatility": 0.1914692213274204
       },
       "dsl": {
-        "cagr": 0.0373735094425951,
+        "cagr": 0.037373510132409526,
         "end": "2025-12-31",
-        "excessKurtosis": 5.166166258425768,
+        "excessKurtosis": 5.166166313123869,
         "firstHalf": {
-          "cagr": 0.04265646650138066,
-          "sharpe": 0.41438886593862984
+          "cagr": 0.04265646687822988,
+          "sharpe": 0.4143888688742241
         },
-        "maxDrawdown": -0.319824346687958,
-        "meanReturn": 0.00017075026045046502,
+        "maxDrawdown": -0.3198243431439285,
+        "meanReturn": 0.00017075026312304,
         "periods": 6285,
         "periodsPerYear": 251.48951029798422,
         "secondHalf": {
-          "cagr": 0.03211272323339287,
-          "sharpe": 0.3525952015245904
+          "cagr": 0.032112724233261725,
+          "sharpe": 0.35259521055408155
         },
-        "sharpe": 0.3846414726457649,
-        "skew": -0.5520718408096552,
+        "sharpe": 0.3846414784541464,
+        "skew": -0.5520718468122283,
         "start": "2001-01-03",
-        "stdReturn": 0.007039879146308763,
-        "totalReturn": 1.5017104817595426,
-        "volatility": 0.11164136588954879
+        "stdReturn": 0.007039879150189038,
+        "totalReturn": 1.5017105233333332,
+        "volatility": 0.11164136595108383
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.006225726912775449,
+        "deflatedSharpeProbability": 0.006225721911152246,
         "pass": false,
-        "qValue": 0.05454213943599395
+        "qValue": 0.05454213578766587
       },
       "id": "O06",
       "note": null,
@@ -741,7 +749,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.029951942456022142,
+        "deflatedSharpeProbability": 0.02995192102978938,
         "pass": false,
         "qValue": 0.025270853968677554
       },
@@ -838,7 +846,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.008426107665556622,
+        "deflatedSharpeProbability": 0.008426100473530488,
         "pass": false,
         "qValue": 0.046205790363650016
       },
@@ -935,7 +943,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.0041320175422447656,
+        "deflatedSharpeProbability": 0.004132013696599768,
         "pass": false,
         "qValue": 0.06324107723237843
       },
@@ -1032,7 +1040,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 2.0874741851052766e-7,
+        "deflatedSharpeProbability": 2.0874707084359402e-7,
         "pass": false,
         "qValue": 0.9075757163637036
       },
@@ -1129,7 +1137,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.004221552358021534,
+        "deflatedSharpeProbability": 0.004221548436351492,
         "pass": false,
         "qValue": 0.06324107723237843
       },
@@ -1223,32 +1231,32 @@
         "volatility": 0.1914692213274204
       },
       "dsl": {
-        "cagr": 0.02310295892386205,
+        "cagr": 0.02310295775991067,
         "end": "2025-12-31",
-        "excessKurtosis": 17.92207274055342,
+        "excessKurtosis": 17.92207298613914,
         "firstHalf": {
-          "cagr": 0.024004234141455694,
-          "sharpe": 0.49317913727272417
+          "cagr": 0.02400423192974044,
+          "sharpe": 0.49317909372544066
         },
-        "maxDrawdown": -0.15500096843983202,
-        "meanReturn": 0.00009619671253979424,
+        "maxDrawdown": -0.15500096962994359,
+        "meanReturn": 0.00009619670802997823,
         "periods": 6285,
         "periodsPerYear": 251.48951029798422,
         "secondHalf": {
-          "cagr": 0.022201687759497712,
-          "sharpe": 0.43887702406836315
+          "cagr": 0.022201687642384282,
+          "sharpe": 0.43887702167265935
         },
-        "sharpe": 0.465266288133564,
-        "skew": 0.11756532854445174,
+        "sharpe": 0.465266265694741,
+        "skew": 0.11756534469556068,
         "start": "2001-01-03",
-        "stdReturn": 0.0032788276005073945,
-        "totalReturn": 0.769682086981506,
-        "volatility": 0.05199702782240668
+        "stdReturn": 0.0032788276049230862,
+        "totalReturn": 0.7696820366666668,
+        "volatility": 0.05199702789243258
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.01729338962869053,
+        "deflatedSharpeProbability": 0.017293371277965357,
         "pass": false,
         "qValue": 0.03138431932247221
       },
@@ -1342,34 +1350,34 @@
         "volatility": 0.1914692213274204
       },
       "dsl": {
-        "cagr": -0.010056353402889573,
+        "cagr": -0.010056350559709104,
         "end": "2025-12-31",
-        "excessKurtosis": 21.56026161547346,
+        "excessKurtosis": 21.56026243401861,
         "firstHalf": {
-          "cagr": -0.021625186769506755,
-          "sharpe": -0.25678544788278856
+          "cagr": -0.021625186481005976,
+          "sharpe": -0.2567854406323236
         },
-        "maxDrawdown": -0.3564989214457023,
-        "meanReturn": -0.000030215001999370224,
+        "maxDrawdown": -0.35649889032885207,
+        "meanReturn": -0.000030214990559548502,
         "periods": 6285,
         "periodsPerYear": 251.48951029798422,
         "secondHalf": {
-          "cagr": 0.0016596002025064394,
-          "sharpe": 0.05827079350446246
+          "cagr": 0.0016596056630620026,
+          "sharpe": 0.05827087451740432
         },
-        "sharpe": -0.10718961400812416,
-        "skew": 0.6311322047387374,
+        "sharpe": -0.1071895732907119,
+        "skew": 0.6311323659213295,
         "start": "2001-01-03",
-        "stdReturn": 0.004470229887844525,
-        "totalReturn": -0.2232149190878756,
-        "volatility": 0.07089078663813739
+        "stdReturn": 0.00447022989342983,
+        "totalReturn": -0.2232148633333333,
+        "volatility": 0.07089078672671151
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 3.446630938187589e-7,
+        "deflatedSharpeProbability": 3.44662890921419e-7,
         "pass": false,
-        "qValue": 0.9025132482878703
+        "qValue": 0.9025131581078255
       },
       "id": "O13",
       "note": null,
@@ -1464,7 +1472,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.001105598065179338,
+        "deflatedSharpeProbability": 0.0011055968980479398,
         "pass": false,
         "qValue": 0.13557120923398455
       },
@@ -1585,7 +1593,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.14773871243566955,
+        "deflatedSharpeProbability": 0.14773864947642668,
         "pass": false,
         "qValue": 0.015387290810826154
       },
@@ -1679,32 +1687,32 @@
         "volatility": 0.1914692213274204
       },
       "dsl": {
-        "cagr": 0.05538957863597771,
+        "cagr": 0.055389578250283344,
         "end": "2025-12-31",
-        "excessKurtosis": 5.146992891938002,
+        "excessKurtosis": 5.146992896931398,
         "firstHalf": {
-          "cagr": 0.042569160850712606,
-          "sharpe": 0.37380938579291484
+          "cagr": 0.04256916046805692,
+          "sharpe": 0.3738093831463409
         },
-        "maxDrawdown": -0.2883883247823229,
-        "meanReturn": 0.0002482813090101711,
+        "maxDrawdown": -0.2883883217303601,
+        "meanReturn": 0.0002482813075303204,
         "periods": 6285,
         "periodsPerYear": 251.48951029798422,
         "secondHalf": {
-          "cagr": 0.06837909744247672,
-          "sharpe": 0.5956517196937801
+          "cagr": 0.06837909705372458,
+          "sharpe": 0.5956517170623774
         },
-        "sharpe": 0.47884544503115894,
-        "skew": -0.5134880208977016,
+        "sharpe": 0.47884544236333465,
+        "skew": -0.5134880207324419,
         "start": "2001-01-03",
-        "stdReturn": 0.008222589388987457,
-        "totalReturn": 2.846907191800651,
-        "volatility": 0.13039728260346592
+        "stdReturn": 0.008222589385788782,
+        "totalReturn": 2.8469071566666657,
+        "volatility": 0.13039728255273997
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.021236126871390208,
+        "deflatedSharpeProbability": 0.021236110217981077,
         "pass": false,
         "qValue": 0.03138431932247221
       },
@@ -1801,7 +1809,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 2.2276401184862796e-8,
+        "deflatedSharpeProbability": 2.22763693788245e-8,
         "pass": false,
         "qValue": 1
       },
@@ -1898,9 +1906,9 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.12355516467884997,
+        "deflatedSharpeProbability": 0.12355513090599168,
         "pass": false,
-        "qValue": 0.19383549461123775
+        "qValue": 0.19383550061302943
       },
       "id": "O20",
       "note": null,
@@ -1992,32 +2000,32 @@
         "volatility": 0.19374643031032046
       },
       "dsl": {
-        "cagr": 0.058919982117739966,
+        "cagr": 0.05891998211025751,
         "end": "2025-12-31",
-        "excessKurtosis": 15.985174788221716,
+        "excessKurtosis": 15.985174836001192,
         "firstHalf": {
-          "cagr": 0.041728538700623874,
-          "sharpe": 0.42615573388694583
+          "cagr": 0.041728538665229964,
+          "sharpe": 0.4261557338122772
         },
-        "maxDrawdown": -0.3011670431420689,
-        "meanReturn": 0.0002539496662869377,
+        "maxDrawdown": -0.3011670434316406,
+        "meanReturn": 0.00025394966623136235,
         "periods": 6538,
         "periodsPerYear": 251.5277543711818,
         "secondHalf": {
-          "cagr": 0.0764025571993665,
-          "sharpe": 0.6778086904871701
+          "cagr": 0.07640255722073896,
+          "sharpe": 0.6778086908465423
         },
-        "sharpe": 0.556465842083472,
-        "skew": -0.964540585662151,
+        "sharpe": 0.5564658422545391,
+        "skew": -0.9645405877448625,
         "start": "2000-01-03",
-        "stdReturn": 0.007237725239799983,
-        "totalReturn": 3.4286520063689636,
-        "volatility": 0.11478761938973227
+        "stdReturn": 0.007237725235991053,
+        "totalReturn": 3.4286520055555556,
+        "volatility": 0.11478761932932405
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.04858348132555207,
+        "deflatedSharpeProbability": 0.048583449531367784,
         "pass": false,
         "qValue": 0.015387290810826154
       },
@@ -2114,7 +2122,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.03942734815157403,
+        "deflatedSharpeProbability": 0.0394273248841508,
         "pass": false,
         "qValue": 0.0409538351745274
       },
@@ -2208,32 +2216,32 @@
         "volatility": 0.19374643031032046
       },
       "dsl": {
-        "cagr": 0.0392616710827991,
+        "cagr": 0.039261671124870556,
         "end": "2025-12-31",
-        "excessKurtosis": 42.285112275580914,
+        "excessKurtosis": 42.28511226262241,
         "firstHalf": {
-          "cagr": 0.020053372370693268,
-          "sharpe": 0.21257299381317168
+          "cagr": 0.020053372934615288,
+          "sharpe": 0.21257299778279629
         },
-        "maxDrawdown": -0.3722764028898785,
-        "meanReturn": 0.00018438445349089282,
+        "maxDrawdown": -0.3722764021185968,
+        "meanReturn": 0.00018438445364597569,
         "periods": 6538,
         "periodsPerYear": 251.5277543711818,
         "secondHalf": {
-          "cagr": 0.05883999926686645,
-          "sharpe": 0.5727903571433666
+          "cagr": 0.05883999876700163,
+          "sharpe": 0.5727903531778286
         },
-        "sharpe": 0.37003181977104027,
-        "skew": -0.03679755949196354,
+        "sharpe": 0.37003182011733926,
+        "skew": -0.036797559902481285,
         "start": "2000-01-03",
-        "stdReturn": 0.007902748947868398,
-        "totalReturn": 1.7210291526923274,
-        "volatility": 0.12533464704797137
+        "stdReturn": 0.007902748947119387,
+        "totalReturn": 1.7210291555555557,
+        "volatility": 0.12533464703609234
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.004238255980465615,
+        "deflatedSharpeProbability": 0.004238251992370609,
         "pass": false,
         "qValue": 0.0550025478013445
       },
@@ -2330,7 +2338,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.0022677828570684916,
+        "deflatedSharpeProbability": 0.002267780911281875,
         "pass": false,
         "qValue": 0.22877171118913667
       },
@@ -2427,7 +2435,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.18909179316773667,
+        "deflatedSharpeProbability": 0.18909171904824645,
         "pass": false,
         "qValue": 0.01516433223166247
       },
@@ -2524,7 +2532,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.009339077285351638,
+        "deflatedSharpeProbability": 0.00933907038987813,
         "pass": false,
         "qValue": 0.10932791471327012
       },
@@ -2642,34 +2650,34 @@
         "volatility": 0.14255591601259437
       },
       "dsl": {
-        "cagr": -0.04097168943806839,
+        "cagr": -0.040971752838129705,
         "end": "2026-07-09T19:30:00+00:00",
-        "excessKurtosis": 19.387105819030573,
+        "excessKurtosis": 19.38710589367425,
         "firstHalf": {
-          "cagr": 0.0908513926479162,
-          "sharpe": 1.1561907671995977
+          "cagr": 0.09085133511325916,
+          "sharpe": 1.1561900823739186
         },
-        "maxDrawdown": -0.039893727079839625,
-        "meanReturn": -0.0000213011236284377,
+        "maxDrawdown": -0.0398937333730639,
+        "meanReturn": -0.000021301161145236225,
         "periods": 286,
         "periodsPerYear": 1763.0632911392406,
         "secondHalf": {
-          "cagr": -0.15325234849348834,
-          "sharpe": -1.5241001137407901
+          "cagr": -0.15325241541256518,
+          "sharpe": -1.5241008793239064
         },
-        "sharpe": -0.4045833927251915,
-        "skew": 2.2932318695179363,
+        "sharpe": -0.40458410708727394,
+        "skew": 2.293231847508614,
         "start": "2026-05-11T13:30:00+00:00",
-        "stdReturn": 0.002210692880135117,
-        "totalReturn": -0.006763349348540282,
-        "volatility": 0.09282444560156763
+        "stdReturn": 0.00221069287037683,
+        "totalReturn": -0.006763359999999996,
+        "volatility": 0.0928244451918284
       },
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.3036281972863534,
+        "deflatedSharpeProbability": 0.3036280927678825,
         "pass": false,
-        "qValue": 0.7429786374019102
+        "qValue": 0.7429787863026621
       },
       "id": "W09",
       "note": null,
@@ -2764,7 +2772,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 1.4163800635862535e-14,
+        "deflatedSharpeProbability": 1.4163770556200864e-14,
         "pass": false,
         "qValue": 1
       },
@@ -2861,7 +2869,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.09381830443860956,
+        "deflatedSharpeProbability": 0.0938182587230168,
         "pass": false,
         "qValue": 0.025270853968677554
       },
@@ -2958,9 +2966,9 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.00496193404490717,
+        "deflatedSharpeProbability": 0.004961929447069046,
         "pass": false,
-        "qValue": 0.05454213943599395
+        "qValue": 0.05454213578766587
       },
       "id": "W12",
       "note": null,
@@ -3055,7 +3063,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.00007321860749042618,
+        "deflatedSharpeProbability": 0.00007321851180036901,
         "pass": false,
         "qValue": 0.3241162917727658
       },
@@ -3152,7 +3160,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.000002555964856198018,
+        "deflatedSharpeProbability": 0.0000025559609306836828,
         "pass": false,
         "qValue": 0.7125251873221883
       },
@@ -3249,7 +3257,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.0000017306324893319855,
+        "deflatedSharpeProbability": 0.0000017306297865928687,
         "pass": false,
         "qValue": 0.7358637074914333
       },
@@ -3346,7 +3354,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 9.68305065826343e-11,
+        "deflatedSharpeProbability": 9.683030358718582e-11,
         "pass": false,
         "qValue": 1
       },
@@ -3443,7 +3451,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.05743493016213558,
+        "deflatedSharpeProbability": 0.0574348991722895,
         "pass": false,
         "qValue": 0.031840238353173976
       },
@@ -3540,7 +3548,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.13950935141987397,
+        "deflatedSharpeProbability": 0.13950929174798404,
         "pass": false,
         "qValue": 0.01611371393739964
       },
@@ -3637,7 +3645,7 @@
       "flags": ["total return", "Sharpe"],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.06535911178668075,
+        "deflatedSharpeProbability": 0.06535907714446249,
         "pass": false,
         "qValue": 0.03138431932247221
       },
@@ -3734,7 +3742,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.05377050030005376,
+        "deflatedSharpeProbability": 0.053770465272465484,
         "pass": false,
         "qValue": 0.01516433223166247
       },
@@ -3831,7 +3839,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.011740325223136299,
+        "deflatedSharpeProbability": 0.011740315373676936,
         "pass": false,
         "qValue": 0.031840238353173976
       },
@@ -3969,7 +3977,7 @@
       "flags": ["total return", "max drawdown"],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.000006609513760090001,
+        "deflatedSharpeProbability": 0.000006609506120346968,
         "pass": false,
         "qValue": 0.9620367473245602
       },
@@ -4066,7 +4074,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 3.113211759061309e-12,
+        "deflatedSharpeProbability": 3.1132061883867724e-12,
         "pass": false,
         "qValue": 1
       },
@@ -4163,7 +4171,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.4939996160934513,
+        "deflatedSharpeProbability": 0.4939995514234315,
         "pass": false,
         "qValue": 0.031840238353173976
       },
@@ -4260,7 +4268,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.06555476836860485,
+        "deflatedSharpeProbability": 0.06555472766450438,
         "pass": false,
         "qValue": 0.01516433223166247
       },
@@ -4357,7 +4365,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.06555476836860485,
+        "deflatedSharpeProbability": 0.06555472766450438,
         "pass": false,
         "qValue": 0.01516433223166247
       },
@@ -4454,7 +4462,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.008115326459858425,
+        "deflatedSharpeProbability": 0.00811531931089186,
         "pass": false,
         "qValue": 0.040437191867708014
       },
@@ -4551,7 +4559,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.057843909103049485,
+        "deflatedSharpeProbability": 0.057843872180972644,
         "pass": false,
         "qValue": 0.01516433223166247
       },
@@ -4648,7 +4656,7 @@
       "flags": [],
       "gate": {
         "beatsBenchmarkBothHalves": false,
-        "deflatedSharpeProbability": 0.12774900333337325,
+        "deflatedSharpeProbability": 0.12774893693858036,
         "pass": false,
         "qValue": 0.01516433223166247
       },

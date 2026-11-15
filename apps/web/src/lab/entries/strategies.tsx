@@ -8,6 +8,7 @@ import {
   ACADEMY_MEDIA,
   ACADEMY_SOURCES,
   lessonSummaries,
+  sourceCounts,
   withAcademyMediaBaseUrl,
 } from "@darkfactory/academy/lessons";
 import { PageHeader } from "@darkfactory/ui";
@@ -188,6 +189,23 @@ export const STRATEGIES_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/academy",
     title: "Academy",
+  },
+  {
+    group: GROUP,
+    id: "academy-course",
+    // One course's gallery: Define Your Risk. QuantFinanceToGo lessons live in Postgres (read through
+    // academy.lessons), out of the lab's reach; the lab shows the packaged course.
+    render: (params) => (
+      <AcademyGallery
+        course="dyr"
+        initialQuery={readAcademyGalleryQuery(Object.fromEntries(params))}
+        lessons={lessonSummaries().filter((lesson) => lesson.course === "dyr")}
+        media={academyMedia}
+        sourceCount={sourceCounts().dyr}
+      />
+    ),
+    route: "/academy/c/[course]",
+    title: "Academy course",
   },
   {
     group: GROUP,

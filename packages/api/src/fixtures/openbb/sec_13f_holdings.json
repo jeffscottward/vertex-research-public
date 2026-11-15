@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "sec-13f",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "sec_13f_holdings",
+      "rows": [
+        {
+          "filerCik": "1067983",
+          "periodEnding": "2026-09-30",
+          "cusip": "037833100",
+          "optionType": "",
+          "filerName": "BERKSHIRE HATHAWAY INC",
+          "issuer": "APPLE INC",
+          "assetClass": "COM",
+          "shares": 300000000,
+          "value": 67500000000.0,
+          "weight": 0.21,
+          "symbol": "AAPL"
+        },
+        {
+          "filerCik": "1067983",
+          "periodEnding": "2026-09-30",
+          "cusip": "037833100",
+          "optionType": "put",
+          "filerName": "BERKSHIRE HATHAWAY INC",
+          "issuer": "APPLE INC",
+          "assetClass": "COM",
+          "shares": null,
+          "value": 67500000000.0,
+          "weight": 0.21,
+          "symbol": null
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

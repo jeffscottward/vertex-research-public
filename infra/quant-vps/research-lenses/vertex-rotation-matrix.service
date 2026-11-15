@@ -1,0 +1,14 @@
+# Rig user unit: rotation matrix data job. Each run exports scripts/research-lenses from the
+# vertex-research-public default branch (vertex-research-lenses-fetch), then writes latest.json,
+# which vertex-research-lenses-push.path pushes to QuantVPS. Install: see README.md.
+[Unit]
+Description=Vertex Research rotation matrix data job (read-only; Nasdaq screener metadata + Yahoo daily bars; no IBKR; places nothing). Code: vertex-research-public scripts/research-lenses
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/vertex/research-lenses.env
+ExecStartPre=%h/.local/bin/vertex-research-lenses-fetch
+ExecStart=%h/.local/share/mise/installs/bun/1.4.2/bin/bun %h/.local/share/vertex-research-lenses/app/scripts/research-lenses/collect-rotation-matrix.ts --out %h/.local/share/vertex-research-lenses/data/rotation-matrix
+TimeoutStartSec=900
+Nice=10
