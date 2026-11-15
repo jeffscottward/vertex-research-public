@@ -113,6 +113,45 @@ check value; written in TypeScript.
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
+prediction-market-analysis
+https://github.com/Jon-Becker/prediction-market-analysis
+Commit 2d69f7330fdee142d2cf75d901841f9174fdbbd2
+License: MIT License, Copyright (c) 2026 Jonathan Becker (see
+services/research/providers/PREDICTION_MARKET_ANALYSIS_LICENSE.txt)
+
+services/research/providers/prediction_markets.py adapts
+src/analysis/kalshi/win_rate_by_price.py and
+src/analysis/polymarket/polymarket_win_rate_by_price.py (resolved markets,
+taker and maker positions, win rate by price, Brier score, log loss and
+expected calibration error).
+
+Changes: plain Python over rows that the caller passes in, in place of
+DuckDB SQL over Parquet files; typed results; a Kalshi trade with an invalid
+taker side or a missing price is skipped and counted; prices outside 1 to 99
+cents are left out for both venues; empty input gives no score; legacy FPMM
+trades, the collectors and the charts are not included. No dataset is
+included in this repository.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+claude-trading-skills
+https://github.com/tradermonty/claude-trading-skills
+Commit c9b84196a44a56a553293114fdae1f30bdd08c58
+License: MIT License, Copyright (c) 2026 TraderMonty (see
+services/research/strategies/TRADERMONTY_LICENSE.txt)
+
+services/research/strategies/distribution_days.py adapts
+skills/ibd-distribution-day-monitor/scripts/distribution_day_tracker.py,
+risk_classifier.py, models.py (the rule and threshold fields) and the
+moving-average filter and audit flags of ibd_monitor.py.
+
+Changes: typed bars in date order, oldest first; moving averages from the
+Vertex indicators package over the trailing run of valid closes; a symbol may
+appear only once in the combined level; the data client, caching, report text
+and the exposure recommendation are not included.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
 Vibe-Trading
 https://github.com/HKUDS/Vibe-Trading
 Tag v0.1.18, commit 66eb57634f16344b326d85fd1fe10029c7f348bb
