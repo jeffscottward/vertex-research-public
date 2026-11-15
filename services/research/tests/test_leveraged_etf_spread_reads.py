@@ -19,6 +19,8 @@ _spec.loader.exec_module(reads)
 NOW = datetime(2026, 11, 16, 15, 45, 1, tzinfo=UTC)  # Monday 10:45:01 New York
 DAY, RUN, EXPIRY = "2026-11-16", "154501Z", "2026-11-20"
 FUNDS = ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF")  # with listed options; AAA and BBB are the candidates
+# The text of yfinance 0.2.66 for an expiry that Yahoo does not list.
+NOT_LISTED = "Expiration `2026-11-20` cannot be found. Available expirations are: [2026-11-27, 2026-12-18]"
 
 
 def cboe_body(symbol: str, open_interest: int = 600, expiry: str = "261120") -> bytes:
@@ -215,6 +217,57 @@ def test_a_universe_file_that_is_no_json_ends_the_run_before_a_folder_is_made(tm
     assert run(tmp_path, universe_path=path)[0] == 1 and not (tmp_path / "store").exists()
 
 
+def test_a_symbol_with_a_newline_at_the_end_is_refused(tmp_path):
+    path = universe_file(tmp_path, ("AAA", "BBB\n"))
+    code, log, _, cboe, _ = run(tmp_path, universe_path=path)
+    assert code == 1 and "cannot be stored" in log[-1]
+    assert not (tmp_path / "store").exists() and cboe.symbols == []
+
+
+def test_a_universe_file_with_more_funds_than_the_limit_is_refused(tmp_path):
+    symbols = [f"F{index:04d}" for index in range(2001)]
+    day = datetime(2026, 11, 16).date()
+    assert reads.read_universe(universe_file(tmp_path, symbols[:2000]), day)[0]["fundsWithOptions"] == 2000
+    path = universe_file(tmp_path, symbols)
+    with pytest.raises(ValueError, match="2001 funds with listed options"):
+        reads.read_universe(path, day)
+    code, log, _, cboe, yahoo = run(tmp_path, universe_path=path)
+    assert code == 1 and "cannot be read" in log[-1]
+    assert not (tmp_path / "store").exists() and cboe.symbols == [] and yahoo.symbols == []
+
+
+@pytest.mark.parametrize("data", ["null", '{"symbol": "CCC", "current_price": 50.0, "options": [5]}'])
+def test_a_malformed_cboe_body_fails_the_fund_and_the_run_goes_on(tmp_path, data):
+    body = ('{"symbol": "CCC", "timestamp": "2026-11-16 15:40:12", "data": %s}' % data).encode()
+    code, *_ = run(tmp_path, cboe=Cboe({**CBOE, "CCC": body}))
+    record = record_of(tmp_path)
+    assert code == 0 and record["complete"] is True and record["finishedAt"] == "2026-11-16T15:45:01Z"
+    assert record["funds"]["CCC"]["cboe"]["status"] == "failed"
+    assert record["funds"]["CCC"]["cboe"]["error"].startswith("AttributeError: ")
+    assert record["candidates"] == ["AAA", "BBB"] and stored(tmp_path, "yahoo") == ["AAA.json", "BBB.json"]
+
+
+def test_the_body_of_a_fund_is_dropped_when_the_fund_is_handled(tmp_path):
+    dropped, at_request = [], []
+
+    class Body(bytes):
+        def __del__(self) -> None:
+            dropped.append(1)
+
+    class Counting(Yahoo):
+        def __call__(self, symbol: str):
+            at_request.append(len(dropped))
+            return super().__call__(symbol)
+
+    def fetch(url: str) -> bytes:
+        return Body(cboe_body(url.rsplit("/", 1)[1].removesuffix(".json")))
+
+    path = universe_file(tmp_path, ("AAA", "BBB", "CCC"))
+    code, *_ = run(tmp_path, cboe=fetch, yahoo=Counting(), universe_path=path)
+    assert code == 0 and stored(tmp_path, "cboe") == ["AAA.json.gz", "BBB.json.gz", "CCC.json.gz"]
+    assert at_request == [0, 4, 4, 4]  # SPY and the 3 funds: no Cboe body is alive in the Yahoo phase
+
+
 def test_an_old_universe_file_gives_a_warning(tmp_path):
     path = universe_file(tmp_path, generated_at="2026-10-15T15:00:00Z")
     code, log, *_ = run(tmp_path, universe_path=path)
@@ -236,7 +289,7 @@ def test_the_first_yahoo_rate_limit_ends_the_yahoo_phase(tmp_path):
 
 def test_yahoo_statuses_of_a_candidate(tmp_path):
     yahoo = Yahoo({"AAA": yahoo_chain(bid=0.0),
-                   "BBB": ValueError("Expiration `2026-11-20` cannot be found."),
+                   "BBB": ValueError(NOT_LISTED),
                    "CCC": [RuntimeError("timeout"), RuntimeError("timeout"), yahoo_chain()],
                    "DDD": [RuntimeError("timeout")] * 3})
     code, _, waits, _, yahoo = run(tmp_path, cboe=Cboe(), yahoo=yahoo)  # 6 candidates
@@ -249,6 +302,47 @@ def test_yahoo_statuses_of_a_candidate(tmp_path):
     assert record["funds"]["DDD"]["yahoo"]["error"] == "RuntimeError: timeout"
     assert record["counts"]["yahooNoQuotes"] == 1 and record["counts"]["yahooNoExpiry"] == 1
     assert code == 0 and record["complete"] is True  # 1 failed Yahoo read of 6 candidates
+
+
+@pytest.mark.parametrize("error", [
+    json.JSONDecodeError("Expecting value", "<html>", 0),  # a reply that is no JSON; a subclass of ValueError
+    ValueError("No timezone found, symbol may be delisted"),
+    ValueError("Expiration `2026-11-20` cannot be found. Available expirations are: []"),  # Yahoo sent no list
+])
+def test_a_value_error_of_yahoo_that_is_no_missing_expiry_is_a_failed_attempt(tmp_path, error):
+    code, _, waits, _, yahoo = run(tmp_path, yahoo=Yahoo({"AAA": [error] * 3, "BBB": [error, yahoo_chain()]}))
+    record = record_of(tmp_path)
+    assert yahoo.symbols == ["SPY", "AAA", "AAA", "AAA", "BBB", "BBB"] and waits[6:] == [5, 10, 1.0, 5]
+    assert record["funds"]["AAA"]["yahoo"]["status"] == "failed"
+    assert record["funds"]["BBB"]["yahoo"]["status"] == "ok"
+    assert (record["counts"]["yahooFailed"], record["counts"]["yahooNoExpiry"]) == (1, 0)
+    assert code == 0 and record["incompleteReasons"] == ["yahoo-failed-above-20-percent"]
+
+
+@pytest.mark.parametrize("empty", [
+    SimpleNamespace(calls=None, puts=None, underlying=None),  # yfinance 0.2.66 when Yahoo sends no options
+    SimpleNamespace(calls=Frame([]), puts=yahoo_chain().puts, underlying={}),
+    SimpleNamespace(calls=yahoo_chain().calls, puts=Frame([]), underlying={}),
+])
+def test_an_empty_yahoo_chain_is_a_failed_attempt(tmp_path, empty):
+    code, _, _, _, yahoo = run(tmp_path, yahoo=Yahoo({"AAA": [empty] * 3, "BBB": [empty, yahoo_chain()]}))
+    record = record_of(tmp_path)
+    assert yahoo.symbols == ["SPY", "AAA", "AAA", "AAA", "BBB", "BBB"]
+    assert record["funds"]["AAA"]["yahoo"]["status"] == "failed"
+    assert record["funds"]["AAA"]["yahoo"]["error"] == "RuntimeError: Yahoo sent an empty chain for 2026-11-20"
+    assert record["funds"]["BBB"]["yahoo"]["status"] == "ok" and stored(tmp_path, "yahoo") == ["BBB.json"]
+    assert record["counts"]["yahooNoQuotes"] == 0 and record["incompleteReasons"] == ["yahoo-failed-above-20-percent"]
+
+
+def test_the_marks_of_a_yahoo_rate_limit():
+    class YFRateLimitError(Exception):
+        """The name of the yfinance class."""
+
+    assert reads.rate_limited(RuntimeError("Too Many Requests. Rate limited. Try after a while."))
+    assert reads.rate_limited(RuntimeError("HTTP Error 429: "))
+    assert reads.rate_limited(YFRateLimitError("limited"))
+    assert not reads.rate_limited(RuntimeError("timed out after 30429 milliseconds"))  # 429 inside a number
+    assert not reads.rate_limited(RuntimeError("no data"))
 
 
 def test_more_than_20_percent_failed_yahoo_reads_make_the_run_incomplete(tmp_path):
@@ -321,6 +415,16 @@ def test_a_run_deletes_the_day_folders_of_more_than_45_days_before(tmp_path):
     code, log, *_ = run(tmp_path)
     assert code == 0 and sorted(path.name for path in (tmp_path / "store").iterdir()) == ["2026-10-02", DAY, "notes"]
     assert "deleted the runs of 2026-10-01: more than 45 days old" in log
+
+
+def test_only_a_folder_with_the_name_of_a_day_is_deleted(tmp_path):
+    (tmp_path / "store" / "20261001" / "120000Z").mkdir(parents=True)  # Python reads this as a date too
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / "120000Z").mkdir(parents=True)
+    (tmp_path / "store" / "2026-09-01").symlink_to(elsewhere, target_is_directory=True)  # a link is not followed
+    code, *_ = run(tmp_path)
+    assert code == 0 and sorted(path.name for path in (tmp_path / "store").iterdir()) == ["2026-09-01", DAY, "20261001"]
+    assert (tmp_path / "store" / "20261001" / "120000Z").is_dir() and (elsewhere / "120000Z").is_dir()
 
 
 def test_an_outside_session_run_skips_both_checks(tmp_path):

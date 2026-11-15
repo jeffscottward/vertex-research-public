@@ -228,6 +228,25 @@ def test_a_yahoo_observation_needs_a_fund_price_of_the_session_at_most_30_minute
     assert counted(yahoo_seen=[no_time]) == ([], [])
 
 
+def test_a_fund_price_time_after_the_fetch_time_counts_only_inside_the_clock_skew():
+    at = ny(MONDAY, 10, 20)
+    assert counted(yahoo_seen=[yahoo("a", at, price_age=-5)]) == ([], ["a"])  # two clocks: up to 5 minutes
+    assert counted(yahoo_seen=[yahoo("a", at, price_age=-6)]) == ([], [])
+
+
+def test_the_entry_hours_start_at_10_00_for_a_cboe_quote_time():
+    assert counted([cboe("a", ny(MONDAY, 10, 0)), cboe("b", ny(MONDAY, 9, 59))]) == (["a"], [])
+
+
+def test_counted_reads_on_a_half_day_end_at_12_30():
+    half_day = date(2026, 11, 27)  # close 13:00
+    cboe_reads, yahoo_reads = gate.counted_reads(
+        half_day, [cboe("a", ny(half_day, 12, 30)), cboe("b", ny(half_day, 12, 31))],
+        [yahoo("c", ny(half_day, 10, 45)), yahoo("d", ny(half_day, 12, 45), bid=1.8)], frozenset())
+    assert [item.run_id for item in cboe_reads] == ["a"]
+    assert [item.run_id for item in yahoo_reads] == ["c"]  # the run of 12:45 is after the entry hours
+
+
 def test_an_unchanged_yahoo_quote_set_counts_once():
     first, same = yahoo("a", ny(MONDAY, 10, 45)), yahoo("b", ny(MONDAY, 12, 45))
     changed = yahoo("c", ny(MONDAY, 14, 45), bid=1.95)

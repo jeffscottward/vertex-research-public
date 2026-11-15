@@ -194,6 +194,39 @@ def test_folders_that_cannot_be_used_are_listed_with_the_reason(store, universe_
     assert (document["funds"], document["counts"]) == (before["funds"], before["counts"])
 
 
+def damage_yahoo_file(folder: Path) -> None:
+    stored = json.loads((folder / "yahoo" / "AAA.json").read_text())
+    (folder / "yahoo" / "AAA.json").write_text(json.dumps({**stored, "fetchedAt": None}))
+
+
+def damage_fund(symbol: str = "DDD", **cboe_changes):
+    """A change of run.json: the fund DDD (no candidate) under the key `symbol` with the changed Cboe values."""
+    def damage(folder: Path) -> None:
+        record = json.loads((folder / "run.json").read_text())
+        fund = record["funds"].pop("DDD")
+        record["funds"][symbol] = {**fund, "cboe": {**fund["cboe"], **cboe_changes}}
+        (folder / "run.json").write_text(json.dumps(record))
+    return damage
+
+
+@pytest.mark.parametrize("damage", [
+    damage_yahoo_file, damage_fund(bandOpenInterest="abc"), damage_fund(bandOpenInterest=True),
+    damage_fund(bandOpenInterest=800.5), damage_fund(symbol="../../DDD"), damage_fund(symbol="DDD\n"),
+])
+def test_a_stored_file_of_the_wrong_shape_makes_the_run_unreadable(store, universe_path, damage):
+    damage(store / TUESDAY / "174501Z")
+    document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
+    assert [(run["used"], run["skipReason"], run["complete"]) for run in document["runs"]] == [
+        (True, None, True)] * 3 + [(False, "unreadable", True)]
+    assert labels(document)["DDD"] == ("fail", ["open-interest-below-minimum"], False)  # from the run before
+
+
+def test_a_folder_in_the_short_form_of_a_day_is_no_day_folder(store, universe_path):
+    (store / "20261117" / "190000Z").mkdir(parents=True)
+    document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
+    assert [run["runId"] for run in document["runs"]] == [f"{day}/{name}" for day, name in RUNS]
+
+
 def test_an_incomplete_run_is_used(store, universe_path):
     record = json.loads((store / TUESDAY / "174501Z" / "run.json").read_text())
     record.update(complete=False, incompleteReasons=["yahoo-rate-limited"], finishedAt=None)

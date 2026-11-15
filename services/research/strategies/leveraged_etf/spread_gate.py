@@ -226,8 +226,8 @@ def counted_reads(session_day: date, cboe: Sequence[CboeObservation], yahoo: Seq
     runs before this session) and no earlier run of the session had it.
 
     A Yahoo observation counts when its fetch time is at least 15 minutes after the start of the entry hours
-    and not after their end, the fund price time is on the session day and at most 30 minutes before the fetch
-    time, and its quotes differ from those of the last counted Yahoo observation of the session."""
+    and not after their end, the fund price time is on the session day, at most 30 minutes before the fetch
+    time and at most 5 minutes after it (two clocks), and its quotes differ from those of the last counted Yahoo observation of the session."""
     hours = entry_hours(session_day)
     if hours is None:
         return [], []
@@ -253,7 +253,8 @@ def counted_reads(session_day: date, cboe: Sequence[CboeObservation], yahoo: Seq
         if not _inside(item.fetched_at, session_day, yahoo_start, end):
             continue
         if item.fund_price_time.astimezone(NEW_YORK).date() != session_day \
-                or item.fetched_at - item.fund_price_time > max_age:
+                or item.fetched_at - item.fund_price_time > max_age \
+                or item.fund_price_time - item.fetched_at > liquidity.MAX_CLOCK_SKEW:
             continue
         last_quotes = item.quotes
         yahoo_reads.append(Read(

@@ -49,6 +49,7 @@ import re
 import shutil
 import sys
 import time as clock
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -78,8 +79,13 @@ RETRY_WAIT = 5  # seconds before the second Yahoo attempt; twice that before the
 MAX_FAILED_SHARE = 0.2  # of the Cboe reads, and of the Yahoo reads of the candidates
 RETENTION_DAYS = 45
 MAX_UNIVERSE_AGE_DAYS = 30  # a warning, not a failure
-RATE_LIMIT_MARKS = ("Too Many Requests", "429")
-_SYMBOL = re.compile(r"^[A-Z][A-Z0-9.]{0,9}$")  # a symbol is a file name in the store
+# A rate limit of Yahoo: this text, the HTTP status as a whole number, or the error class of yfinance.
+RATE_LIMIT_TEXT = "Too Many Requests"
+RATE_LIMIT_CLASS = "YFRateLimitError"
+_RATE_LIMIT_STATUS = re.compile(r"\b429\b")
+# The error of yfinance for an expiry that Yahoo does not list, with a list of expiries that is not empty.
+_EXPIRY_NOT_LISTED = re.compile(r"cannot be found\. Available expirations are: \[\s*[^\]\s]")
+_SYMBOL = re.compile(r"[A-Z][A-Z0-9.]{0,9}")  # with fullmatch: a symbol is a file name in the store
 
 
 def utc_text(stamp: datetime | None) -> str | None:
@@ -105,10 +111,13 @@ def read_universe(path: Path, session_day: date) -> tuple[dict, list[str]]:
     document = json.loads(path.read_text(encoding="utf-8"))
     funds = document["funds"]
     symbols = [str(fund["symbol"]) for fund in funds]
-    bad = [symbol for symbol in symbols if not _SYMBOL.match(symbol)]
+    bad = [symbol for symbol in symbols if not _SYMBOL.fullmatch(symbol)]
     if bad or len(set(symbols)) != len(symbols):
         raise ValueError(f"the universe file has a symbol that cannot be stored or is there twice: {bad[:3]}")
     listed = sorted(str(fund["symbol"]) for fund in funds if fund["optionsListed"] is True)
+    if len(listed) > liquidity.MAX_FUNDS:  # a bound on the requests of one run
+        raise ValueError(f"the universe file has {len(listed)} funds with listed options, more than "
+                         f"{liquidity.MAX_FUNDS}")
     generated_at = datetime.strptime(str(document["generatedAt"]), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     age = (session_day - generated_at.astimezone(liquidity.NEW_YORK).date()).days
     return {"path": str(path.resolve()), "generatedAt": utc_text(generated_at), "ageDays": age,
@@ -116,7 +125,15 @@ def read_universe(path: Path, session_day: date) -> tuple[dict, list[str]]:
 
 
 def rate_limited(error: BaseException) -> bool:
-    return any(mark in str(error) for mark in RATE_LIMIT_MARKS)
+    text = str(error)
+    return (RATE_LIMIT_TEXT in text or _RATE_LIMIT_STATUS.search(text) is not None
+            or any(base.__name__ == RATE_LIMIT_CLASS for base in type(error).__mro__))
+
+
+def empty_chain(chain) -> bool:
+    """True when Yahoo sent no option row for the calls or for the puts: yfinance then gives None or a frame
+    without rows. That is a failed read, not a market without quotes."""
+    return chain.calls is None or chain.puts is None or len(chain.calls) == 0 or len(chain.puts) == 0
 
 
 def error_text(error: BaseException) -> str:
@@ -130,7 +147,7 @@ def market_check(ticker_for, expiry_text: str, now, sleep) -> tuple[str, datetim
     for attempt in range(ATTEMPTS):
         try:
             chain = ticker_for(CONTROL).option_chain(expiry_text)
-            if chain.calls is None or chain.puts is None or len(chain.calls) == 0 or len(chain.puts) == 0:
+            if empty_chain(chain):
                 raise RuntimeError(f"Yahoo sent an empty {CONTROL} chain for {expiry_text}")
             latest = snapshot.last_trade([chain.calls, chain.puts])
             break
@@ -168,13 +185,21 @@ def cboe_fact(symbol: str, read: tuple, expiry: date, run_id: str) -> tuple[dict
         chain = json.loads(body)
         seen = spread_gate.cboe_observation(chain, symbol, expiry, run_id, fetched_at)
         fact["fileTimestamp"] = utc_text(liquidity.quote_time(chain))
-    except (ValueError, KeyError, TypeError) as error:  # the chain cannot be read: a failure, not "no options"
+    except (ValueError, KeyError, TypeError, AttributeError) as error:  # the chain cannot be read: a failure
         return {**fact, "status": "failed", "error": error_text(error)}, False
     if isinstance(seen, liquidity.NoOptions):
         return {**fact, "status": "no-standard-contract", "hasExpiry": False}, False
     band = seen.measure.band_open_interest if seen.has_expiry else None
     fact.update(hasExpiry=seen.has_expiry, bandOpenInterest=band, spot=seen.spot)
     return fact, band is not None and band >= spread_gate.GATE_V2["minBandOpenInterest"]
+
+
+def store_cboe(out: Path, symbol: str, read: tuple, expiry: date, run_id: str) -> tuple[dict, bool]:
+    """`cboe_fact` of one Cboe read; the body of a candidate is stored gzip-compressed."""
+    fact, candidate = cboe_fact(symbol, read, expiry, run_id)
+    if candidate:
+        write_bytes(out / "cboe" / f"{symbol}.json.gz", gzip.compress(read[1], mtime=0))
+    return fact, candidate
 
 
 def records(frame) -> list[dict]:
@@ -212,11 +237,14 @@ def yahoo_snapshot(chain, expiry_text: str, fetched_at: datetime) -> dict:
 
 def read_yahoo(ticker_for, symbol: str, expiry_text: str, run_id: str, now, sleep) -> tuple:
     """(status, the snapshot or None, error text, fetch time, rate limited) of the Yahoo chain of one fund.
-    Up to 3 attempts. A rate limit and an expiry that Yahoo does not list are not tried again."""
+    Up to 3 attempts. A rate limit and an expiry that Yahoo does not list are not tried again. Any other
+    error is a failed attempt, also another ValueError (a reply that is no JSON, an empty list of expiries)
+    and an empty chain."""
     for attempt in range(ATTEMPTS):
-        chain = None
         try:
             chain = ticker_for(symbol).option_chain(expiry_text)
+            if empty_chain(chain):
+                raise RuntimeError(f"Yahoo sent an empty chain for {expiry_text}")
             fetched_at = now()
             stored = yahoo_snapshot(chain, expiry_text, fetched_at)
             status = "ok" if spread_gate.yahoo_observation(stored, run_id) is not None else "no-quotes"
@@ -224,7 +252,7 @@ def read_yahoo(ticker_for, symbol: str, expiry_text: str, run_id: str, now, slee
         except Exception as error:  # noqa: BLE001 - yfinance raises many types on a throttled or empty reply
             if rate_limited(error):
                 return "failed", None, error_text(error), now(), True
-            if chain is None and isinstance(error, ValueError):  # yfinance: the expiry is not listed
+            if isinstance(error, ValueError) and _EXPIRY_NOT_LISTED.search(str(error)):
                 return "no-expiry", None, error_text(error), now(), False
             if attempt == ATTEMPTS - 1:
                 return "failed", None, error_text(error), now(), False
@@ -234,11 +262,13 @@ def read_yahoo(ticker_for, symbol: str, expiry_text: str, run_id: str, now, slee
 
 def delete_old_days(store: Path, session_day: date, log=print) -> None:
     """Deletes the day folders of more than RETENTION_DAYS before `session_day`. Only folders whose name is a
-    date are touched."""
+    date as the collector writes it (YYYY-MM-DD) are touched."""
     for folder in sorted(store.iterdir()):
         try:
             day = date.fromisoformat(folder.name)
         except ValueError:
+            continue
+        if folder.name != day.isoformat():  # fromisoformat also reads "20260102"
             continue
         if folder.is_dir() and not folder.is_symlink() and (session_day - day).days > RETENTION_DAYS:
             shutil.rmtree(folder)
@@ -329,12 +359,11 @@ def collect(fetch_cboe, ticker_for, now, sleep, store: Path, universe_path: Path
     (out / "cboe").mkdir()
     pool = ThreadPoolExecutor(max_workers=workers)
     try:
-        reads = [pool.submit(read_cboe, fetch_cboe, symbol, cboe_delay, now, sleep) for symbol in symbols]
-        for symbol, pending in zip(symbols, reads):
-            read = pending.result()
-            funds[symbol]["cboe"], funds[symbol]["candidate"] = cboe_fact(symbol, read, expiry, run_id)
-            if funds[symbol]["candidate"]:
-                write_bytes(out / "cboe" / f"{symbol}.json.gz", gzip.compress(read[1], mtime=0))
+        reads = deque(pool.submit(read_cboe, fetch_cboe, symbol, cboe_delay, now, sleep) for symbol in symbols)
+        for symbol in symbols:
+            # popleft: the body of a fund is dropped when the fund is handled, not kept until the run ends.
+            funds[symbol]["cboe"], funds[symbol]["candidate"] = store_cboe(
+                out, symbol, reads.popleft().result(), expiry, run_id)
     finally:
         pool.shutdown(wait=True, cancel_futures=True)
     candidates = [symbol for symbol in symbols if funds[symbol]["candidate"]]

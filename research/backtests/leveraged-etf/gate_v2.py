@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import re
 import sys
 import zlib
 from collections import Counter
@@ -45,6 +46,7 @@ RUN_SCHEMA = "leveraged-etf-spread-run-v1"
 LABELS = ("pass", "fail", "spread-not-measured")
 UNIVERSE_REASONS = ("no-listed-options", "no-standard-contract")  # of a fund without listed options
 # A stored file of a run that cannot be read: not there, cut, no gzip, no JSON, or not the expected shape.
+_SYMBOL = re.compile(r"[A-Z][A-Z0-9.]{0,9}")  # with fullmatch, as spread_reads.py: a symbol is a file name
 UNREADABLE = (OSError, EOFError, zlib.error, ValueError, KeyError, TypeError, AttributeError)
 
 
@@ -91,7 +93,7 @@ def run_folders(store: Path, first: date, last: date) -> list[tuple[date, Path]]
             day = date.fromisoformat(day_folder.name)
         except ValueError:
             continue
-        if first <= day <= last and day_folder.is_dir():
+        if day_folder.name == day.isoformat() and first <= day <= last and day_folder.is_dir():
             out.extend((day, folder) for folder in sorted(day_folder.iterdir()) if folder.is_dir())
     return out
 
@@ -102,6 +104,8 @@ def read_run(folder: Path, day: date, record: dict) -> Run:
     run = Run(run_id=f"{folder.parent.name}/{folder.name}", day=day)
     expiry = spread_gate.session_expiry(day)
     for symbol, fund in record["funds"].items():
+        if not _SYMBOL.fullmatch(symbol):  # the key becomes a file name below
+            raise ValueError(f"run.json has the fund key {symbol!r}, which is no symbol")
         cboe, yahoo = fund["cboe"], fund["yahoo"]
         if fund["candidate"]:
             chain = json.loads(gzip.decompress((folder / "cboe" / f"{symbol}.json.gz").read_bytes()))
@@ -116,15 +120,18 @@ def read_run(folder: Path, day: date, record: dict) -> Run:
             if seen.has_expiry:
                 run.cboe[symbol] = seen
         elif cboe["status"] in ("ok", "no-standard-contract"):
-            spot = cboe["spot"]
+            spot, band = cboe["spot"], cboe["bandOpenInterest"]
+            if band is not None and (isinstance(band, bool) or not isinstance(band, int)):
+                raise ValueError(f"{symbol}: bandOpenInterest {band!r} is no whole number")
             run.facts[symbol] = spread_gate.FundFacts(
                 file_timestamp=utc(cboe["fileTimestamp"]), fetched_at=utc(cboe["fetchedAt"]),
                 session_expiry=date.fromisoformat(record["sessionExpiry"]), has_expiry=cboe["hasExpiry"] is True,
-                band_open_interest=cboe["bandOpenInterest"], spot=float(spot) if spot is not None else 0.0,
+                band_open_interest=band, spot=float(spot) if spot is not None else 0.0,
                 no_standard_contract=cboe["status"] == "no-standard-contract")
             run.spots[symbol] = spot
         if fund["candidate"] and yahoo["status"] in ("ok", "no-quotes"):
             stored = json.loads((folder / "yahoo" / f"{symbol}.json").read_text(encoding="utf-8"))
+            utc(stored["fetchedAt"])  # null or another shape: the file cannot be read
             seen = spread_gate.yahoo_observation(stored, run.run_id)
             if seen is not None and stored["expiry"] == expiry.isoformat():
                 run.yahoo[symbol] = seen
