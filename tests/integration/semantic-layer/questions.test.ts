@@ -25,6 +25,8 @@ describe("Q20 rubric", () => {
     "Sector momentum is not ok, it is in alert.",
     "Sector momentum is in alert, not alert-free.",
     "Sector momentum is in alert; RSI MR is not in alert.",
+    "Two monitors are in alert: ORB paper forward and Sector momentum paper forward; RSI MR is not in alert.",
+    "In alert: ORB paper forward and Sector momentum paper forward (RSI MR paper forward: not alert).",
   ])("grades Sector Momentum in alert as wrong: %s", (sentence) => {
     expect(gradeAnswer(q20, `${ORB} ${sentence}`)).toBe("wrong");
   });
