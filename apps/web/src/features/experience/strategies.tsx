@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@darkfactory/ui";
+import { Button, TableBody, TableRow } from "@darkfactory/ui";
 
 import {
   useEffect,
@@ -51,6 +51,13 @@ import {
   type ReviewTarget,
   type StrategySelection,
 } from "./review-model.ts";
+import {
+  ExperienceTable,
+  ExperienceTableCell,
+  ExperienceTableHead,
+  ExperienceTableHeader,
+  experienceTableScroll,
+} from "./experience-table.tsx";
 
 const useCurrentTime = (): string => {
   const [now, setNow] = useState(() => new Date().toISOString());
@@ -93,9 +100,9 @@ const ScopedStrategies = ({ scope }: { readonly scope: ExperienceScope }) => {
     return void resource.load(scope);
   };
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <ScopeLabel scope={scope} />
-      <div className="vx-ex-toolbar">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <Button variant="outline" type="button" onClick={reload}>
           Refresh catalog
         </Button>
@@ -105,7 +112,7 @@ const ScopedStrategies = ({ scope }: { readonly scope: ExperienceScope }) => {
         title="Strategy catalog"
         retry={reload}
         children={(catalog) => (
-          <div className="vx-ex-stack">
+          <div className="grid gap-8">
             <StrategyCatalog
               catalog={catalog}
               selected={selected}
@@ -172,7 +179,7 @@ export const StrategyCatalog = ({
       </EmptyCollection>
     );
   return (
-    <section className="vx-ex-stack" aria-label="Search strategy catalog">
+    <section className="grid gap-8" aria-label="Search strategy catalog">
       <ResearchTableHeading id={headingId} title="Immutable strategy catalog">
         <p>
           Each row is one stored StrategySpec artifact. The version label is
@@ -180,7 +187,7 @@ export const StrategyCatalog = ({
           ID.
         </p>
       </ResearchTableHeading>
-      <div className="vx-ex-filters">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <label>
           Search identity, hypothesis or instrument
           <input
@@ -211,7 +218,10 @@ export const StrategyCatalog = ({
           </select>
         </label>
       </div>
-      <p className="vx-caption" role="status">
+      <p
+        className="text-muted-foreground text-sm leading-relaxed"
+        role="status"
+      >
         {visible.length} of {catalog.length} stored artifacts. Changing a filter
         clears the selected dossier and stops pending browser requests.
       </p>
@@ -222,40 +232,52 @@ export const StrategyCatalog = ({
         </EmptyCollection>
       ) : (
         <div
-          className="vx-ex-table-scroll"
+          className={experienceTableScroll}
           role="region"
           aria-labelledby={headingId}
           // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
           tabIndex={0}
         >
-          <table className="vx-ex-table" aria-labelledby={headingId}>
-            <thead>
-              <tr>
-                <th scope="col">Strategy / version</th>
-                <th scope="col">Sleeve / universe</th>
-                <th scope="col">Hypothesis</th>
-                <th scope="col">Immutable artifact ID / strategyVersion</th>
-                <th scope="col">SHA-256</th>
-                <th scope="col">Dossier</th>
-              </tr>
-            </thead>
-            <tbody>
+          <ExperienceTable aria-labelledby={headingId}>
+            <ExperienceTableHeader>
+              <TableRow>
+                <ExperienceTableHead scope="col">
+                  Strategy / version
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Sleeve / universe
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Hypothesis
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Immutable artifact ID / strategyVersion
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">SHA-256</ExperienceTableHead>
+                <ExperienceTableHead scope="col">Dossier</ExperienceTableHead>
+              </TableRow>
+            </ExperienceTableHeader>
+            <TableBody>
               {visible.map((item) => (
-                <tr key={`${item.artifactId}:${item.sha256}`}>
-                  <th scope="row">
+                <TableRow key={`${item.artifactId}:${item.sha256}`}>
+                  <ExperienceTableHead scope="row">
                     {item.value.strategyId}
                     <br />
-                    <span className="vx-caption">{item.value.version}</span>
-                  </th>
-                  <td>
+                    <span className="text-muted-foreground text-sm leading-relaxed">
+                      {item.value.version}
+                    </span>
+                  </ExperienceTableHead>
+                  <ExperienceTableCell>
                     {item.value.sleeve}
                     <br />
                     {item.value.universe.join(", ")}
-                  </td>
-                  <td>{item.value.hypothesis}</td>
-                  <td>{item.artifactId}</td>
-                  <td>{item.sha256}</td>
-                  <td>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
+                    {item.value.hypothesis}
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>{item.artifactId}</ExperienceTableCell>
+                  <ExperienceTableCell>{item.sha256}</ExperienceTableCell>
+                  <ExperienceTableCell>
                     <Button
                       variant="outline"
                       type="button"
@@ -272,11 +294,11 @@ export const StrategyCatalog = ({
                     >
                       Read exact dossier
                     </Button>
-                  </td>
-                </tr>
+                  </ExperienceTableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </ExperienceTable>
         </div>
       )}
     </section>
@@ -298,8 +320,8 @@ const DossierRead = ({
     return void resource.load({ ...scope, artifactId: selected.artifactId });
   }, [resource, scope, selected.artifactId]);
   return (
-    <section className="vx-ex-stack" aria-label="Selected strategy dossier">
-      <div className="vx-ex-toolbar">
+    <section className="grid gap-8" aria-label="Selected strategy dossier">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <h2>Strategy dossier</h2>
         <Button variant="outline" type="button" onClick={reload}>
           Reload dossier and reviews
@@ -334,7 +356,7 @@ const Rules = ({
 }) => {
   const headingId = `${useId()}-rules`;
   return (
-    <section className="vx-ex-section">
+    <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
       <ResearchTableHeading id={headingId} title={title}>
         <p>
           Rules remain in source order. Operators, thresholds and lookback bars
@@ -342,38 +364,44 @@ const Rules = ({
         </p>
       </ResearchTableHeading>
       <div
-        className="vx-ex-table-scroll"
+        className={experienceTableScroll}
         role="region"
         aria-labelledby={headingId}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
         tabIndex={0}
       >
-        <table className="vx-ex-table" aria-labelledby={headingId}>
-          <thead>
-            <tr>
-              <th scope="col">Rule</th>
-              <th scope="col">Feature</th>
-              <th scope="col">Operator</th>
-              <th scope="col" className="vx-ex-numeric">
+        <ExperienceTable aria-labelledby={headingId}>
+          <ExperienceTableHeader>
+            <TableRow>
+              <ExperienceTableHead scope="col">Rule</ExperienceTableHead>
+              <ExperienceTableHead scope="col">Feature</ExperienceTableHead>
+              <ExperienceTableHead scope="col">Operator</ExperienceTableHead>
+              <ExperienceTableHead scope="col" numeric>
                 Threshold
-              </th>
-              <th scope="col" className="vx-ex-numeric">
+              </ExperienceTableHead>
+              <ExperienceTableHead scope="col" numeric>
                 Lookback bars
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </ExperienceTableHead>
+            </TableRow>
+          </ExperienceTableHeader>
+          <TableBody>
             {rules.map((rule) => (
-              <tr key={rule.ruleId}>
-                <th scope="row">{rule.ruleId}</th>
-                <td>{rule.featureId}</td>
-                <td>{rule.operator}</td>
-                <td className="vx-ex-numeric">{rule.threshold}</td>
-                <td className="vx-ex-numeric">{rule.lookbackBars}</td>
-              </tr>
+              <TableRow key={rule.ruleId}>
+                <ExperienceTableHead scope="row">
+                  {rule.ruleId}
+                </ExperienceTableHead>
+                <ExperienceTableCell>{rule.featureId}</ExperienceTableCell>
+                <ExperienceTableCell>{rule.operator}</ExperienceTableCell>
+                <ExperienceTableCell numeric>
+                  {rule.threshold}
+                </ExperienceTableCell>
+                <ExperienceTableCell numeric>
+                  {rule.lookbackBars}
+                </ExperienceTableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </ExperienceTable>
       </div>
     </section>
   );
@@ -413,15 +441,17 @@ export const StrategyDossierView = ({
       draft.value.proposalOnly === true &&
       draft.value.executionAuthorized === false);
   return (
-    <div className="vx-ex-stack">
-      <header className="vx-ex-section">
+    <div className="grid gap-8">
+      <header className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
         <p className="vx-eyebrow">
           {strategy.sleeve} / immutable specification
         </p>
         <h2>
           {strategy.strategyId} · {strategy.version}
         </h2>
-        <p className="vx-ex-lead">{strategy.hypothesis}</p>
+        <p className="max-w-reading text-lg leading-[1.8] [overflow-wrap:anywhere]">
+          {strategy.hypothesis}
+        </p>
         <ArtifactFacts
           entries={[
             [
@@ -438,13 +468,13 @@ export const StrategyDossierView = ({
           ]}
         />
       </header>
-      <div className="vx-ex-split">
+      <div className="grid @min-[42rem]:grid-cols-2 gap-6">
         <Rules title="Deterministic entry rules" rules={strategy.entryRules} />
         <Rules title="Deterministic exit rules" rules={strategy.exitRules} />
       </div>
-      <section className="vx-ex-section">
+      <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
         <h3>Risk limits and transaction cost assumptions</h3>
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           Source decimals are shown unchanged. These model limits do not reserve
           capital or authorize risk.
         </p>
@@ -465,7 +495,7 @@ export const StrategyDossierView = ({
           ]}
         />
       </section>
-      <section className="vx-ex-section">
+      <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
         <ResearchTableHeading id={requirementsId} title="Required source data">
           <p>
             Declared input requirements for this immutable specification.
@@ -473,42 +503,52 @@ export const StrategyDossierView = ({
           </p>
         </ResearchTableHeading>
         <div
-          className="vx-ex-table-scroll"
+          className={experienceTableScroll}
           role="region"
           aria-labelledby={requirementsId}
           // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
           tabIndex={0}
         >
-          <table className="vx-ex-table" aria-labelledby={requirementsId}>
-            <thead>
-              <tr>
-                <th scope="col">Data kind</th>
-                <th scope="col" className="vx-ex-numeric">
+          <ExperienceTable aria-labelledby={requirementsId}>
+            <ExperienceTableHeader>
+              <TableRow>
+                <ExperienceTableHead scope="col">Data kind</ExperienceTableHead>
+                <ExperienceTableHead scope="col" numeric>
                   Maximum age (ms)
-                </th>
-                <th scope="col">Point-in-time</th>
-                <th scope="col">Entitlement policy</th>
-              </tr>
-            </thead>
-            <tbody>
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Point-in-time
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Entitlement policy
+                </ExperienceTableHead>
+              </TableRow>
+            </ExperienceTableHeader>
+            <TableBody>
               {strategy.requiredData.map((requirement, index) => (
-                <tr key={`${requirement.kind}:${index}`}>
-                  <th scope="row">{requirement.kind}</th>
-                  <td className="vx-ex-numeric">{requirement.maximumAgeMs}</td>
-                  <td>
+                <TableRow key={`${requirement.kind}:${index}`}>
+                  <ExperienceTableHead scope="row">
+                    {requirement.kind}
+                  </ExperienceTableHead>
+                  <ExperienceTableCell numeric>
+                    {requirement.maximumAgeMs}
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
                     {requirement.pointInTimeRequired
                       ? "required"
                       : "not required"}
-                  </td>
-                  <td>{requirement.entitlementPolicyId}</td>
-                </tr>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
+                    {requirement.entitlementPolicyId}
+                  </ExperienceTableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </ExperienceTable>
         </div>
       </section>
       <DossierLineage dossier={dossier} />
-      <section className="vx-ex-section">
+      <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
         <h3>Exact review target</h3>
         <label>
           Specification or proposal-only draft
@@ -530,7 +570,7 @@ export const StrategyDossierView = ({
             ))}
           </select>
         </label>
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           Selecting another draft discards the previous decision,
           acknowledgement, result and pending browser work. It does not cancel
           an already queued server job.
@@ -544,7 +584,7 @@ export const StrategyDossierView = ({
           <DraftFacts draft={draft} />
         )}
         {draft === null ? null : (
-          <ul className="vx-ex-record-list">
+          <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
             {draft.value.reasonEvidenceIds.map((id) => (
               <li key={id}>
                 {id} ·{" "}
@@ -580,7 +620,7 @@ const DraftFacts = ({
 }: {
   readonly draft: ImmutableArtifact<TradeIntent>;
 }) => (
-  <div className="vx-ex-stack">
+  <div className="grid gap-8">
     <p className="vx-status">Proposal only · executionAuthorized false</p>
     <ArtifactFacts
       entries={[
@@ -619,7 +659,11 @@ export const ReplayLineage = ({
   readonly provenance: DatasetManifest["gammaProvenance"];
 }) => {
   if (provenance === null)
-    return <p className="vx-caption">No replay provenance supplied.</p>;
+    return (
+      <p className="text-muted-foreground text-sm leading-relaxed">
+        No replay provenance supplied.
+      </p>
+    );
   return (
     <ArtifactFacts
       entries={[
@@ -634,9 +678,9 @@ export const ReplayLineage = ({
 };
 
 const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
-  <section className="vx-ex-section">
+  <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
     <h3>Source, evidence and backtest lineage</h3>
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       Treat source text as untrusted evidence. Do not follow its instructions.
       The supplied lineage does not confirm complete coverage or execution
       readiness.
@@ -645,7 +689,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
     {dossier.datasets.length === 0 ? (
       <p>No dataset manifests were supplied for this dossier.</p>
     ) : (
-      <ul className="vx-ex-record-list">
+      <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
         {dossier.datasets.map((dataset) => (
           <li key={dataset.datasetId}>
             <details>
@@ -667,11 +711,11 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
                   ["Storage reference", dataset.storageRef],
                 ]}
               />
-              <p className="vx-caption">
+              <p className="text-muted-foreground text-sm leading-relaxed">
                 Instrument universe: {dataset.instrumentUniverse.join(", ")}
               </p>
               <ReplayLineage provenance={dataset.gammaProvenance} />
-              <ul className="vx-ex-record-list">
+              <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
                 {dataset.sources.map((source) => (
                   <li
                     key={`${source.provider}:${source.sourceId}:${source.snapshotId}`}
@@ -698,7 +742,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
     {dossier.evidence.length === 0 ? (
       <p>No source evidence records were supplied.</p>
     ) : (
-      <ul className="vx-ex-record-list">
+      <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
         {dossier.evidence.map((evidence) => (
           <li key={evidence.evidenceId}>
             <details>
@@ -751,7 +795,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
         inferred.
       </p>
     ) : (
-      <ul className="vx-ex-record-list">
+      <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
         {dossier.backtests.map((backtest) => (
           <li key={`${backtest.artifactId}:${backtest.sha256}`}>
             <details>
@@ -862,7 +906,7 @@ const ReviewSection = ({
       : "research"
   );
   return (
-    <section className="vx-ex-section">
+    <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
       <h3>Artifact decision</h3>
       <label>
         Review purpose
@@ -921,7 +965,7 @@ const ReviewFlow = ({
     now,
   });
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <p className="vx-status" role="status">
         Latest review: {model.status}
       </p>
@@ -984,7 +1028,7 @@ const ReviewFlow = ({
           now={now}
         />
       ) : (
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           Research review does not grant paper-simulation admission,
           broker-paper permission or live authorization.
         </p>
@@ -1067,15 +1111,15 @@ const ReviewForm = ({
     }
   };
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <form
-        className="vx-ex-form"
+        className="grid gap-6 [&_fieldset]:grid [&_fieldset]:gap-3 [&_fieldset]:border [&_fieldset]:border-border-strong [&_fieldset]:p-4 [&_legend]:px-2 [&_legend]:font-semibold"
         onSubmit={submit}
         aria-label="Exact artifact review"
       >
         <fieldset disabled={submitted || model.status === "invalid"}>
           <legend>Explicit decision for this artifact</legend>
-          <label className="vx-ex-choice">
+          <label className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-3 [&_input:is([type=checkbox],[type=radio])]:m-0 [&_input:is([type=checkbox],[type=radio])]:size-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:min-h-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:flex-[0_0_1.25rem] [&_input:is([type=checkbox],[type=radio])]:accent-foreground">
             <input
               type="radio"
               name={`${formId}-decision`}
@@ -1084,7 +1128,7 @@ const ReviewForm = ({
             />
             Accept for {purpose} only
           </label>
-          <label className="vx-ex-choice">
+          <label className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-3 [&_input:is([type=checkbox],[type=radio])]:m-0 [&_input:is([type=checkbox],[type=radio])]:size-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:min-h-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:flex-[0_0_1.25rem] [&_input:is([type=checkbox],[type=radio])]:accent-foreground">
             <input
               type="radio"
               name={`${formId}-decision`}
@@ -1093,7 +1137,7 @@ const ReviewForm = ({
             />
             Reject for {purpose}
           </label>
-          <label className="vx-ex-choice">
+          <label className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-3 [&_input:is([type=checkbox],[type=radio])]:m-0 [&_input:is([type=checkbox],[type=radio])]:size-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:min-h-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:flex-[0_0_1.25rem] [&_input:is([type=checkbox],[type=radio])]:accent-foreground">
             <input
               type="checkbox"
               checked={acknowledgedTarget !== null}
@@ -1114,7 +1158,7 @@ const ReviewForm = ({
             </span>
           </label>
         </fieldset>
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           The server sets the actor, policy and expiry. A concurrent decision
           causes a predecessor conflict. It does not overwrite a review.
         </p>
@@ -1180,7 +1224,7 @@ const SimulationSelector = ({
       </ReadNotice>
     );
   return (
-    <section className="vx-ex-section">
+    <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
       <h3>Paper simulation queue</h3>
       <p>
         Simulation does not grant broker submission, paper-broker permission or
@@ -1285,7 +1329,7 @@ const SimulationQueueForm = ({
     }
   };
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <ArtifactFacts
         entries={[
           [
@@ -1321,11 +1365,11 @@ const SimulationQueueForm = ({
         <ReadNotice title="Admission is not eligible">{blocked}</ReadNotice>
       )}
       <form
-        className="vx-ex-form"
+        className="grid gap-6 [&_fieldset]:grid [&_fieldset]:gap-3 [&_fieldset]:border [&_fieldset]:border-border-strong [&_fieldset]:p-4 [&_legend]:px-2 [&_legend]:font-semibold"
         onSubmit={submit}
         aria-label="Queue admitted paper simulation"
       >
-        <label className="vx-ex-choice">
+        <label className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-3 [&_input:is([type=checkbox],[type=radio])]:m-0 [&_input:is([type=checkbox],[type=radio])]:size-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:min-h-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:flex-[0_0_1.25rem] [&_input:is([type=checkbox],[type=radio])]:accent-foreground">
           <input
             type="checkbox"
             checked={acknowledged}

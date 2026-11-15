@@ -56,6 +56,7 @@ const store = (): MarketDailySeriesRepository => ({
     return new Map(found);
   }),
   replaceSeries: vi.fn(),
+  upsertPoints: vi.fn(),
 });
 
 const expr = (series: string) => ({

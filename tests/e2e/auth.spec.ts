@@ -226,6 +226,7 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/charts",
   "/flow",
   "/deployments",
+  "/drafts",
   "/engines",
   "/semantic-terms",
   "/plays",

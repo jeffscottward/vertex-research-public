@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+# Runs one go-live draft collection from the runner checkout. RECORDS ONLY: it refreshes the local
+# daily data (public market data, research/backtests/qc-ports/fetch_data.py), reads the allocation
+# plan from Vertex, computes draft candidates from local research files (qc-ports data, option-chain
+# snapshots) and stores them in Vertex. No order, no broker call. The operator write key is read
+# from its 0600 file and is never printed. The generator (python -m golive) does not get the key:
+# scripts/golive/collect.ts starts it with HOME and PATH only. The data refresh does not get it
+# either: it runs before the key is read, in an environment built from nothing (env -i).
+set -euo pipefail
+cd "${GOLIVE_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-ticks-runner}"
+# The bun version is the pin of the runner checkout (.bun-version), installed by mise.
+BUN="$HOME/.local/share/mise/installs/bun/$(tr -d '[:space:]' < .bun-version)/bin"
+if [[ ! -x "$BUN/bun" ]]; then
+  echo "vertex-golive-drafts-run: the pinned bun is not installed ($BUN/bun); run mise install in $PWD" >&2
+  exit 127
+fi
+export PATH="$BUN:/usr/local/bin:/usr/bin:/bin"
+# A Python with services/research/requirements-linux-py312.lock (the Nautilus venv has it).
+export GOLIVE_PYTHON="${GOLIVE_PYTHON:-$HOME/.local/share/vertex/nautilus-venv/bin/python}"
+if [[ ! -x "$GOLIVE_PYTHON" ]]; then
+  echo "vertex-golive-drafts-run: no Python at $GOLIVE_PYTHON; set GOLIVE_PYTHON" >&2
+  exit 127
+fi
+KEYF="${GOLIVE_KEY_FILE:-$HOME/.config/vertex/sector-rotation-key}"
+if [[ -z "${VERTEX_ORIGIN:-}" || ! -r "$KEYF" ]]; then
+  echo "vertex-golive-drafts-run: VERTEX_ORIGIN or the key file ($KEYF) is missing; nothing was run" >&2
+  exit 64
+fi
+if [[ "$(stat -c %a "$KEYF")" != "600" ]]; then
+  echo "vertex-golive-drafts-run: $KEYF must have mode 0600; nothing was run" >&2
+  exit 64
+fi
+# The generator's own copy of the daily data. The refresh below replaces files in this directory, so
+# the default is not the shared research dataset (~/Documents/reports/vertex-qc-ports/data), whose
+# SOURCES.json and SHA256SUMS pin the inputs of other backtests.
+export GOLIVE_DATA_DIR="${GOLIVE_DATA_DIR:-$HOME/.local/share/vertex/golive-data}"
+export GOLIVE_CHAIN_STORE="${GOLIVE_CHAIN_STORE:-$HOME/.local/share/vertex/option-chain}"
+# Both must be absolute: the refresh runs in the runner checkout and the generator in
+# services/research, so a relative path would name two different directories.
+for name in GOLIVE_DATA_DIR GOLIVE_CHAIN_STORE; do
+  if [[ ! "${!name}" =~ ^/.*[^/] ]]; then
+    echo "vertex-golive-drafts-run: $name must be an absolute path below /, not '${!name}'; nothing was run" >&2
+    exit 64
+  fi
+done
+# The fetch gets at most 600 s. The unit allows 1200 s (TimeoutStartSec) for the fetch, the 10 s to
+# kill it and the collect, so a longer fetch is refused here and not cut by systemd later.
+REFRESH_TIMEOUT="${GOLIVE_REFRESH_TIMEOUT:-600}"
+if [[ ! "$REFRESH_TIMEOUT" =~ ^[1-9][0-9]{0,2}$ ]] || ((REFRESH_TIMEOUT > 600)); then
+  echo "vertex-golive-drafts-run: GOLIVE_REFRESH_TIMEOUT must be a whole number of seconds from 1 to 600, not '$REFRESH_TIMEOUT'; nothing was run" >&2
+  exit 64
+fi
+
+# The data refresh. It writes to a work directory beside the data and the files move in only after
+# a complete fetch, so a failed or timed-out fetch leaves the old data as it was. A failure is
+# reported and the collect still runs: the generator decides.
+#
+# Which days it fetches. fetch_data.py --end is exclusive, and the generator takes only data whose
+# last day is the trading day before the trading day of the run. The fetch always ends before today
+# in New York (--end today): the bar of today may be incomplete, and a later run would read it as a
+# finished day. With that end:
+# - trading day today (the timer runs, before 16:00): the data ends on the session before today,
+#   which is what the generator needs;
+# - a later trading day with no session from today on before it (a run on Saturday for Monday): the
+#   same data is what the generator needs;
+# - a later trading day that needs the bar of today or of a later day (a run after the close for
+#   the next session, or a far day): the generator refuses the day and names the last data day. To
+#   run it, fetch the data by hand after the close and set GOLIVE_SKIP_REFRESH=1;
+# - a trading day before today (--trading-day): no refresh. A fetch that ends there would cut this
+#   directory back to that day, and the collect refuses a past day itself.
+asked_trading_day() {
+  local argument day="" previous=""
+  for argument in "$@"; do
+    if [[ "$previous" == "--trading-day" ]]; then day="$argument"; fi
+    if [[ "$argument" == --trading-day=* ]]; then day="${argument#--trading-day=}"; fi
+    previous="$argument"
+  done
+  printf '%s\n' "$day"
+}
+find_uv() {
+  local candidate
+  for candidate in "${GOLIVE_UV:-}" "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "$HOME/.local/share/mise/shims/uv"; do
+    if [[ -n "$candidate" && -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+# The work directory and the running fetch, for refresh_cleanup. The script ends in exec, where no
+# EXIT trap runs, so refresh_data calls refresh_cleanup itself; the traps cover a stop before that.
+REFRESH_WORK=""
+REFRESH_PID=""
+REFRESH_STAGE=""
+refresh_cleanup() {
+  if [[ -n "$REFRESH_PID" ]]; then
+    # timeout passes the signal on to the fetch and kills it after 10 s (-k 10).
+    kill "$REFRESH_PID" 2>/dev/null || true
+    wait "$REFRESH_PID" 2>/dev/null || true
+    REFRESH_PID=""
+  fi
+  if [[ -n "$REFRESH_WORK" ]]; then
+    rm -rf "$REFRESH_WORK"
+    REFRESH_WORK=""
+  fi
+}
+refresh_stopped() {
+  trap '' INT TERM HUP
+  echo "vertex-golive-drafts-run: stopped by SIG$1 before the collect; nothing was posted" >&2
+  exit "$2"
+}
+# Fetches the data that ends before the day $1 and moves the files into GOLIVE_DATA_DIR. The fetch
+# gets HOME, PATH and the two optional settings of the IBKR history source; nothing else of this
+# shell reaches it. Its stdout (one line per file) goes to stderr: the stdout of this script is the
+# collect's. It runs in the background so that a signal to this script is handled at once.
+refresh_data() {
+  local uv status=0
+  REFRESH_STAGE="fetch"
+  uv="$(find_uv)" || {
+    echo "vertex-golive-drafts-run: no uv found; set GOLIVE_UV" >&2
+    return 127
+  }
+  mkdir -p "$GOLIVE_DATA_DIR" || return 1
+  REFRESH_WORK="$(mktemp -d "${GOLIVE_DATA_DIR%/}.refresh.XXXXXX")" || return 1
+  local -a settings=("HOME=$HOME" "PATH=$(dirname "$uv"):$PATH")
+  if [[ -n "${VERTEX_HISTORY_URL:-}" && -n "${VERTEX_DEPLOY_STATUS_TOKEN:-}" ]]; then
+    settings+=("VERTEX_HISTORY_URL=$VERTEX_HISTORY_URL" "VERTEX_DEPLOY_STATUS_TOKEN=$VERTEX_DEPLOY_STATUS_TOKEN")
+  fi
+  env -i "${settings[@]}" timeout -k 10 "$REFRESH_TIMEOUT" \
+    "$uv" run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 \
+    python research/backtests/qc-ports/fetch_data.py --out "$REFRESH_WORK" --end "$1" >&2 &
+  REFRESH_PID=$!
+  wait "$REFRESH_PID" || status=$?
+  REFRESH_PID=""
+  if [[ "$status" -eq 0 ]]; then
+    REFRESH_STAGE="move"
+    find "$REFRESH_WORK" -maxdepth 1 -type f -exec mv -f -t "$GOLIVE_DATA_DIR" {} + || status=$?
+  fi
+  refresh_cleanup
+  return "$status"
+}
+trap 'trap "" INT TERM HUP; refresh_cleanup' EXIT
+trap 'refresh_stopped INT 130' INT
+trap 'refresh_stopped TERM 143' TERM
+trap 'refresh_stopped HUP 129' HUP
+if [[ "${GOLIVE_SKIP_REFRESH:-}" == "1" ]]; then
+  echo "vertex-golive-drafts-run: data refresh skipped (GOLIVE_SKIP_REFRESH=1)" >&2
+else
+  # The zone name proves the answer is New York time: without the zone data, date answers in UTC.
+  stamp="$(TZ=America/New_York date '+%F %Z')" || stamp=""
+  asked="$(asked_trading_day "$@")"
+  if [[ ! "$stamp" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})\ E[SD]T$ ]]; then
+    echo "vertex-golive-drafts-run: the data refresh failed: today's date in New York could not be read (date answered '$stamp'); $GOLIVE_DATA_DIR is unchanged and the collect runs on it" >&2
+  else
+    today="${BASH_REMATCH[1]}"
+    if [[ "$asked" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && ((10#${asked//-/} < 10#${today//-/})); then
+      echo "vertex-golive-drafts-run: the data refresh is skipped for a past trading day ($asked is before $today, today in New York): a fetch that ends there would cut $GOLIVE_DATA_DIR back to that day; the collect runs on the data that is there" >&2
+    else
+      refresh_status=0
+      refresh_data "$today" || refresh_status=$?
+      if [[ "$refresh_status" -eq 0 ]]; then
+        :
+      elif [[ "$REFRESH_STAGE" == "move" ]]; then
+        echo "vertex-golive-drafts-run: the data refresh fetched the files and the move into $GOLIVE_DATA_DIR failed (exit $refresh_status); the directory may hold a mix of old and new files and the collect runs on it (the generator refuses the day when a series it reads has no value of the last data day)" >&2
+      elif [[ "$refresh_status" -eq 124 || "$refresh_status" -eq 137 ]]; then
+        echo "vertex-golive-drafts-run: the data refresh timed out after $REFRESH_TIMEOUT s; $GOLIVE_DATA_DIR is unchanged and the collect runs on it" >&2
+      else
+        echo "vertex-golive-drafts-run: the data refresh failed (exit $refresh_status); $GOLIVE_DATA_DIR is unchanged and the collect runs on it" >&2
+      fi
+    fi
+  fi
+fi
+# No work directory is left here (refresh_data removed it). The traps end before the exec, so the
+# collect starts with the signal handling this script was started with.
+refresh_cleanup
+trap - EXIT INT TERM HUP
+
+VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
+export VERTEX_AGENT_API_KEY
+exec "$BUN/bun" run vertex:golive:collect "$@"

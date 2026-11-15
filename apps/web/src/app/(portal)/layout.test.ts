@@ -275,6 +275,7 @@ describe("portal route manifests", () =>
       "/charts",
       "/flow",
       "/deployments",
+      "/drafts",
       "/engines",
       "/semantic-terms",
       "/watchlist",

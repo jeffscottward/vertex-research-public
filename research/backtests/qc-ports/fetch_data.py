@@ -5,13 +5,23 @@ Run (rig):
   uv run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 \
       python research/backtests/qc-ports/fetch_data.py --out ~/Documents/reports/vertex-qc-ports/data
 
-Output (not committed: the Yahoo, CBOE and Shiller terms do not allow redistribution):
-- <SYMBOL>.csv, header `date,open,high,low,close,adj_close`: Yahoo daily bars, auto_adjust=False, for the
-  Core 7 ETF twins (SPY QQQ DIA IWM GLD SLV USO) and futures (ES=F NQ=F YM=F RTY=F GC=F SI=F CL=F).
+Source: IBKR first, Yahoo fills gaps (services/research/ibkr_history.py). With VERTEX_HISTORY_URL and
+VERTEX_DEPLOY_STATUS_TOKEN set: ETFs from IBKR TRADES joined with ADJUSTED_LAST (adj_close, about 30
+years back), futures from IBKR CONTFUT (latest window; adj_close = close), indices from IBKR IND bars
+(CBOE; IRX and TNX in percent). Yahoo (auto_adjust=False) fills the dates before IBKR's first date
+(ETF adj_close rescaled to IBKR's on the seam date) and everything when IBKR fails or is not configured.
+Index fallbacks after Yahoo: the CBOE public history CSV (volatility indices), then the US Treasury par
+yield (IRX 3-month, TNX 10-year) only when nothing else reaches the start.
+
+Output (not committed: the IBKR, Yahoo, CBOE and Shiller terms do not allow redistribution):
+- <SYMBOL>.csv, header `date,open,high,low,close,adj_close`: daily bars for the Core 7 ETF twins
+  (SPY QQQ DIA IWM GLD SLV USO) and futures (ES=F NQ=F YM=F RTY=F GC=F SI=F CL=F).
   `close` is split-adjusted and not dividend-adjusted (the price options strike against);
   `adj_close` also adjusts dividends (total return).
-- <INDEX>.csv, header `date,close`: implied-volatility and rate indices. Yahoo for VIX VIX3M VXN VXD
-  GVZ OVX IRX TNX; the CBOE public history CSV for RVX and VXSLV (Yahoo has no history for them).
+- <INDEX>.csv, header `date,close`: implied-volatility and rate indices VIX VIX3M VXN VXD GVZ OVX IRX
+  TNX (Yahoo fallback) and RVX VXSLV (no Yahoo history: IBKR, then the CBOE CSV).
+  The headers stay exact (scripts/market-series/import.ts refuses other columns), so the per-row source
+  is recorded in SOURCES.json instead: rows per source, failed sources and seams of every file.
 - SHILLER.csv, header `month,price,earnings`: Robert Shiller's monthly S&P composite price and trailing
   12-month earnings (shillerdata.com ie_data.xls).
 - SHA256SUMS of every file.
@@ -19,22 +29,26 @@ Output (not committed: the Yahoo, CBOE and Shiller terms do not allow redistribu
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
-import io
+import json
 import re
+import sys
 import urllib.request
-from datetime import datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "services" / "research"))
+import ibkr_history as ih  # noqa: E402
 
 ETFS = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
 FUTURES = ("ES=F", "NQ=F", "YM=F", "RTY=F", "GC=F", "SI=F", "CL=F")
 YAHOO_INDICES = {"VIX": "^VIX", "VIX3M": "^VIX3M", "VXN": "^VXN", "VXD": "^VXD", "GVZ": "^GVZ",
                  "OVX": "^OVX", "IRX": "^IRX", "TNX": "^TNX"}
 CBOE_INDICES = ("RVX", "VXSLV")
-CBOE_URL = "https://cdn.cboe.com/api/global/us_indices/daily_prices/{name}_History.csv"
+CBOE_URL = ih.CBOE_URL  # read by ih.cboe_daily
 SHILLER_PAGE = "https://shillerdata.com/"
 START = "1990-01-01"
+BAR_FIELDS = ("open", "high", "low", "close", "adj_close")
+BAR_COLUMNS = ("Open", "High", "Low", "Close", "Adj Close")
 AGENT = {"User-Agent": "Mozilla/5.0 (vertex-research; public data)"}
 
 
@@ -44,38 +58,37 @@ def _get(url: str) -> bytes:
         return response.read()
 
 
-def _bars(yf, symbol: str, end: str | None) -> list[str]:
-    frame = yf.Ticker(symbol).history(start=START, end=end, interval="1d", auto_adjust=False)
-    if frame.empty:
+def _bars(yf, symbol: str, end: str | None) -> tuple[list[str], dict]:
+    def yahoo() -> list[dict]:
+        frame = yf.Ticker(symbol).history(start=START, end=end, interval="1d", auto_adjust=False)
+        return [{"date": stamp.strftime("%Y-%m-%d"),
+                 **{key: float(row[col]) for key, col in zip(BAR_FIELDS, BAR_COLUMNS, strict=True)}}
+                for stamp, row in frame.iterrows()]
+
+    merged = ih.merged_daily(symbol, yahoo, start=START, end=end,
+                             adjust="none" if symbol.endswith("=F") else "adj_close")
+    if not merged.rows:
         raise SystemExit(f"no data for {symbol}")
     rows = ["date,open,high,low,close,adj_close"]
-    for stamp, row in frame.iterrows():
-        values = [row["Open"], row["High"], row["Low"], row["Close"], row["Adj Close"]]
+    for row in merged.rows:
+        values = [row.get(key, row["close"]) for key in BAR_FIELDS]
         if all(value == value and value > 0 for value in values):  # skip NaN and zero rows
-            rows.append(stamp.strftime("%Y-%m-%d") + "," + ",".join(f"{float(value):.6f}" for value in values))
-    return rows
+            rows.append(row["date"] + "," + ",".join(f"{float(value):.6f}" for value in values))
+    return rows, merged.summary()
 
 
-def _index_yahoo(yf, symbol: str, end: str | None) -> list[str]:
-    frame = yf.Ticker(symbol).history(start=START, end=end, interval="1d", auto_adjust=False)
-    if frame.empty:
-        raise SystemExit(f"no data for {symbol}")
+def _index(yf, name: str, end: str | None) -> tuple[list[str], dict]:
+    def yahoo() -> list[dict]:
+        frame = yf.Ticker(YAHOO_INDICES[name]).history(start=START, end=end, interval="1d", auto_adjust=False)
+        return [{"date": stamp.strftime("%Y-%m-%d"), "close": float(close)} for stamp, close in frame["Close"].items()]
+
+    merged = ih.index_daily(f"^{name}", yahoo if name in YAHOO_INDICES else None, start=START, end=end, fetch=_get)
+    if not merged.rows:
+        raise SystemExit(f"no data for {name}")
     rows = ["date,close"]
-    for stamp, close in frame["Close"].items():
-        if close == close and close > 0:
-            rows.append(f"{stamp.strftime('%Y-%m-%d')},{float(close):.6f}")
-    return rows
-
-
-def _index_cboe(name: str, end: str | None) -> list[str]:
-    text = _get(CBOE_URL.format(name=name)).decode("utf-8")
-    rows = ["date,close"]
-    for record in csv.DictReader(io.StringIO(text)):
-        day = datetime.strptime(record["DATE"], "%m/%d/%Y").strftime("%Y-%m-%d")
-        close = float(record["CLOSE"])
-        if close > 0 and (end is None or day < end):
-            rows.append(f"{day},{close:.6f}")
-    return rows
+    rows += [f"{row['date']},{float(row['close']):.6f}" for row in merged.rows
+             if row["close"] == row["close"] and row["close"] > 0]
+    return rows, merged.summary()
 
 
 def _shiller() -> list[str]:
@@ -111,12 +124,11 @@ def main() -> None:
     out: Path = args.out.expanduser()
     out.mkdir(parents=True, exist_ok=True)
     files: dict[str, list[str]] = {}
+    sources: dict[str, dict] = {}
     for symbol in ETFS + FUTURES:
-        files[symbol] = _bars(yf, symbol, args.end)
-    for name, symbol in YAHOO_INDICES.items():
-        files[name] = _index_yahoo(yf, symbol, args.end)
-    for name in CBOE_INDICES:
-        files[name] = _index_cboe(name, args.end)
+        files[symbol], sources[f"{symbol}.csv"] = _bars(yf, symbol, args.end)
+    for name in (*YAHOO_INDICES, *CBOE_INDICES):
+        files[name], sources[f"{name}.csv"] = _index(yf, name, args.end)
     files["SHILLER"] = _shiller()
     sums: list[str] = []
     for name, rows in files.items():
@@ -124,6 +136,10 @@ def main() -> None:
         path.write_text("\n".join(rows) + "\n", encoding="utf-8")
         sums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
         print(f"{name}: {len(rows) - 1} rows {rows[1].split(',')[0]} .. {rows[-1].split(',')[0]}")
+    path = out / "SOURCES.json"
+    # No sort_keys: files in fetch order, rows newest source first (read in that order by labels).
+    path.write_text(json.dumps(sources, indent=1) + "\n", encoding="utf-8")
+    sums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
     (out / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
 
 

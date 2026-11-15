@@ -27,6 +27,7 @@ interface Operation {
 }
 
 const createDouble = (outcomes: Array<readonly unknown[]>) => {
+  const executed: SQL[] = [];
   const operations: Operation[] = [];
   const builder = (operation: Operation) => {
     const chain: Record<string, unknown> = {
@@ -53,6 +54,10 @@ const createDouble = (outcomes: Array<readonly unknown[]>) => {
   };
   const executor = {
     delete: (table: unknown) => builder({ kind: "delete", table }),
+    execute: async (query: SQL) => {
+      executed.push(query);
+      return [];
+    },
     insert: (table: unknown) => builder({ kind: "insert", table }),
     select: () => builder({ kind: "select" }),
   };
@@ -63,7 +68,7 @@ const createDouble = (outcomes: Array<readonly unknown[]>) => {
       return await work(executor);
     },
   } as unknown as Database;
-  return { database, operations };
+  return { database, executed, operations };
 };
 
 const series: MarketDailySeriesInput = {
@@ -297,7 +302,7 @@ describe("createMarketDailySeriesRepository", () => {
   });
 
   it("replaces a series inside one transaction in chunks", async () => {
-    const { database, operations } = createDouble([]);
+    const { database, executed, operations } = createDouble([]);
     const start = Date.UTC(2000, 0, 1);
     const points = Array.from({ length: 5001 }, (_, index) =>
       point(new Date(start + index * 86_400_000).toISOString().slice(0, 10))
@@ -318,6 +323,14 @@ describe("createMarketDailySeriesRepository", () => {
       "insert",
       "insert",
       "insert",
+    ]);
+    // The per-series lock comes first, with the namespaced key upsertPoints also takes.
+    expect(executed.map((query) => sqlQuery(query))).toEqual([
+      {
+        params: ["EY_TNX_RATIO"],
+        sql: "select pg_advisory_xact_lock(hashtextextended('market_daily_series:' || $1, 0))",
+        typings: ["none"],
+      },
     ]);
     expect(operations[1]?.table).toBe(marketDailySeries);
     expect(sqlQuery(operations[1]?.where).params).toEqual(["EY_TNX_RATIO"]);

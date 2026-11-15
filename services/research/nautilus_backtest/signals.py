@@ -629,7 +629,7 @@ _SESSION_EXPR_KEYS = {
     "sessionReturn": frozenset({"type", "name", "from", "to"}),
     "noiseBand": frozenset({"type", "name", "band", "length", "multiple"}),
 }
-_INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery"})
+_INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery", "exitEvery"})
 _LEG_KEYS = frozenset({"entry", "exit", "filters", "options"})
 
 
@@ -988,10 +988,8 @@ def _management_level(value: Any, name: str) -> float:
     return float(value)
 
 
-def _normalize_management(
-    management: Mapping[str, Any] | None, stop_loss: Mapping[str, Any], options: Any
-) -> dict[str, Any] | None:
-    """TS StrategyManagementSchema and its definition refinements; None without a block."""
+def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The field checks of the TS StrategyManagementSchema; None without a block."""
     if management is None:
         return None
     _strict(management, frozenset({"breakevenR", "trail"}), "management")
@@ -1011,13 +1009,6 @@ def _normalize_management(
         }
     if not normalized:
         raise InputError("management needs trail, breakevenR or both")
-    # Options first: an options block needs no stop loss, so the stop message would mislead.
-    if options is not None:
-        raise InputError(
-            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
-        )
-    if stop_loss["kind"] == "none":
-        raise InputError("management moves the stop loss; add a stop loss")
     return normalized
 
 
@@ -1244,13 +1235,14 @@ def _normalize_intraday(intraday: Any) -> dict[str, Any] | None:
             "The entry window must be inside the session: open < entryFrom <= entryTo < close"
         )
     normalized: dict[str, Any] = {"timezone": INTRADAY_TIMEZONE, **times}
-    if "decisionEvery" in intraday:
-        every = intraday["decisionEvery"]
-        if not _is_whole(every, 1, INTRADAY_MAX_DECISION_MINUTES):
-            raise InputError(
-                f"intraday decisionEvery must be a whole number from 1 to {INTRADAY_MAX_DECISION_MINUTES}"
-            )
-        normalized["decisionEvery"] = int(every)
+    for field in ("decisionEvery", "exitEvery"):
+        if field in intraday:
+            every = intraday[field]
+            if not _is_whole(every, 1, INTRADAY_MAX_DECISION_MINUTES):
+                raise InputError(
+                    f"intraday {field} must be a whole number from 1 to {INTRADAY_MAX_DECISION_MINUTES}"
+                )
+            normalized[field] = int(every)
     return normalized
 
 
@@ -1282,16 +1274,71 @@ def _session_indicator_in(expr: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _check_intraday_and_side(
-    normalized: dict[str, Any], management: Any, options: Any
+def _definition_exprs(normalized: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """TS definitionExprPaths: every condition side of the definition and of its legs, then the
+    selection score and tie break."""
+    portfolio = normalized["portfolio"] or {}
+    select = portfolio.get("select") or {}
+    return [
+        side
+        for part in [normalized, *portfolio.get("legs", [])]
+        for condition in [
+            *part["entry"]["all"],
+            *part["entry"].get("any", []),
+            *(part.get("exit") or {}).get("any", []),
+        ]
+        for side in (condition["left"], condition["right"])
+    ] + [select[key] for key in ("score", "tieBreak") if key in select]
+
+
+def _check_definition_refinements(
+    definition: Mapping[str, Any], normalized: Mapping[str, Any]
 ) -> None:
-    """The definition refinements of side, intraday and volTarget (TS StrategyDefinitionSchema)."""
+    """The StrategyDefinitionSchema refinements in the TS order, after every field check of
+    normalize_definition: the first one that fails is the first TS issue among them. One
+    difference: an options block takes no stop loss, so the two refinements that ask for one
+    (riskPct sizing, management) are not raised with an options block; the options refinements
+    for riskPct sizing and management refuse the same definitions, and their advice is the correct
+    one."""
     side = normalized["side"]
     intraday = normalized["intraday"]
-    if options is not None and normalized["sizing"]["mode"] == "volTarget":
+    management = normalized["management"]
+    options = normalized["options"]
+    portfolio = definition.get("portfolio")
+    sizing_mode = normalized["sizing"]["mode"]
+    no_stop = normalized["stopLoss"]["kind"] == "none"
+    if options is None and sizing_mode == "riskPct" and no_stop:
+        raise InputError("Risk-percent sizing needs a stop loss")
+    if options is not None and sizing_mode == "riskPct":
+        raise InputError("Option strategies size by options.maxLossPct; remove the riskPct sizing")
+    if options is not None and not (no_stop and normalized["takeProfit"]["kind"] == "none"):
+        raise InputError(
+            "Option strategies exit by profitTakePct, exitDte and exit conditions;"
+            " remove the stop loss and take profit"
+        )
+    if options is None and management is not None and no_stop:
+        raise InputError("management moves the stop loss; add a stop loss")
+    if options is not None and management is not None:
+        raise InputError(
+            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
+        )
+    if options is not None and sizing_mode == "volTarget":
         raise InputError("Option strategies size by options.maxLossPct; remove the volTarget sizing")
+    if portfolio is not None and options is None:
+        raise InputError("A portfolio block trades option verticals; add an options block")
     if side == "short" and management is not None:
         raise InputError("management raises a long stop; a short definition takes no management")
+    if portfolio is not None and portfolio.get("shift") is not None and not all(
+        _calendar_only(part) for part in [definition, *(portfolio.get("legs") or [])]
+    ):
+        raise InputError(
+            "A shifted window reads ahead: every leg needs the entry close > 0, no exit and"
+            " calendarWindow filters only"
+        )
+    if (normalized["portfolio"] or {}).get("frame") == "monthly" and any(
+        _uses_bar_range_indicator(expr) for expr in _definition_exprs(normalized)
+    ):
+        raise InputError(MONTHLY_INDICATOR_MESSAGE)
     if side == "short" and options is not None:
         raise InputError("Option strategies take their direction from options.structure; remove side")
     if intraday is not None and options is not None:
@@ -1299,12 +1346,10 @@ def _check_intraday_and_side(
     if intraday is not None and any(item["type"] == "calendarWindow" for item in normalized["filters"]):
         raise InputError("calendarWindow filters run on daily bars only; remove them or the intraday block")
     if intraday is None:
-        conditions = (*normalized["entry"]["all"], *normalized["entry"].get("any", []), *normalized["exit"]["any"])
-        for condition in conditions:
-            for expr in (condition["left"], condition["right"]):
-                name = _session_indicator_in(expr)
-                if name is not None:
-                    raise InputError(f"{name} reads the intraday session; add an intraday block")
+        for expr in _definition_exprs(normalized):
+            name = _session_indicator_in(expr)
+            if name is not None:
+                raise InputError(f"{name} reads the intraday session; add an intraday block")
 
 
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
@@ -1342,54 +1387,18 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     stop_loss = _normalize_level(definition.get("stopLoss"))
     take_profit = _normalize_level(definition.get("takeProfit"))
     options = definition.get("options")
-    if options is not None:
-        if sizing["mode"] == "riskPct":
-            raise InputError(
-                "Option strategies size by options.maxLossPct; remove the riskPct sizing"
-            )
-        if stop_loss["kind"] != "none" or take_profit["kind"] != "none":
-            raise InputError(
-                "Option strategies exit by profitTakePct, exitDte and exit conditions;"
-                " remove the stop loss and take profit"
-            )
+    if options is not None and not isinstance(options, Mapping):
+        raise InputError("options must be an object")
     portfolio = definition.get("portfolio")
-    normalized_portfolio = None
-    if portfolio is not None:
-        normalized_portfolio = _normalize_portfolio(portfolio)
-        if options is None:
-            raise InputError("A portfolio block trades option verticals; add an options block")
-        if portfolio.get("shift") is not None and not all(
-            _calendar_only(part) for part in [definition, *(portfolio.get("legs") or [])]
-        ):
-            raise InputError(
-                "A shifted window reads ahead: every leg needs the entry close > 0, no exit and"
-                " calendarWindow filters only"
-            )
+    normalized_portfolio = None if portfolio is None else _normalize_portfolio(portfolio)
     session = definition.get("session")
-    management = _normalize_management(definition.get("management"), stop_loss, options)
+    management = _normalize_management(definition.get("management"))
     entry_conditions = [_normalize_condition(c) for c in entry_all]
     entry_any_conditions = [_normalize_condition(c) for c in entry_any]
     exit_conditions = [_normalize_condition(c) for c in exit_any]
     entry_out: dict[str, Any] = {"all": entry_conditions}
     if entry_any_conditions:
         entry_out["any"] = entry_any_conditions
-    if normalized_portfolio is not None and normalized_portfolio.get("frame") == "monthly":
-        select = normalized_portfolio.get("select") or {}
-        exprs = [
-            side
-            for part in [
-                {"entry": entry_out, "exit": {"any": exit_conditions}},
-                *normalized_portfolio.get("legs", []),
-            ]
-            for condition in [
-                *part["entry"]["all"],
-                *part["entry"].get("any", []),
-                *(part.get("exit") or {}).get("any", []),
-            ]
-            for side in (condition["left"], condition["right"])
-        ] + [select[key] for key in ("score", "tieBreak") if key in select]
-        if any(_uses_bar_range_indicator(expr) for expr in exprs):
-            raise InputError(MONTHLY_INDICATOR_MESSAGE)
     side = definition.get("side")
     if side is not None and side not in SIDES:
         raise InputError(f"Unknown side: {side}")
@@ -1408,7 +1417,7 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
         "stopLoss": stop_loss,
         "takeProfit": take_profit,
     }
-    _check_intraday_and_side(normalized, management, options)
+    _check_definition_refinements(definition, normalized)
     return normalized
 
 
@@ -1555,22 +1564,24 @@ def intraday_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessio
 
 
 def _intraday_gates(sessions: IntradaySessions, intraday: Mapping[str, Any]) -> tuple[list[int], list[int]]:
-    """TS intradayGates: (entry, exit) bars of the intraday block."""
+    """TS intradayGates: (entry, exit) bars of the intraday block. Exits on the exitEvery grid (else the
+    decision grid), entries on the decisionEvery grid."""
     size = len(sessions.session)
     start = _minutes_of(intraday["entryFrom"]) * MINUTE_MS
     end = _minutes_of(intraday["entryTo"]) * MINUTE_MS
-    every = intraday.get("decisionEvery")
-    grid = None if every is None else every * MINUTE_MS
+    decision = intraday.get("decisionEvery")
+    exit_every = intraday.get("exitEvery", decision)
     entry = [0] * size
     exit_ = [0] * size
     for index in range(size):
         if sessions.session[index] < 0:
             continue
         close = sessions.close_ms[index]
-        if grid is not None and math.fmod(close - sessions.open_ms, grid) != 0:
-            continue
-        exit_[index] = 1
-        if start <= close <= end and sessions.last[index] == 0:
+        offset = close - sessions.open_ms
+        if exit_every is None or math.fmod(offset, exit_every * MINUTE_MS) == 0:
+            exit_[index] = 1
+        on_decision = decision is None or math.fmod(offset, decision * MINUTE_MS) == 0
+        if on_decision and start <= close <= end and sessions.last[index] == 0:
             entry[index] = 1
     return entry, exit_
 
@@ -1685,15 +1696,16 @@ def _align_to_grid(field: str, value: str | float, minutes: float, sessions: Int
 
 def _attach_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessions:
     """TS attachSessions: refuses bars without two bars on one New York date, and open, close,
-    entryFrom, entryTo or decisionEvery that are not whole multiples of the bar duration."""
+    entryFrom, entryTo, decisionEvery or exitEvery that are not whole multiples of the bar duration."""
     sessions = intraday_sessions(bars, intraday)
     if sessions is None:
         raise intraday_daily_unsupported()
     for field in ("open", "close", "entryFrom", "entryTo"):
         _align_to_grid(field, intraday[field], _minutes_of(intraday[field]), sessions)
-    every = intraday.get("decisionEvery")
-    if every is not None:
-        _align_to_grid("decisionEvery", every, every, sessions)
+    for field in ("decisionEvery", "exitEvery"):
+        every = intraday.get(field)
+        if every is not None:
+            _align_to_grid(field, every, every, sessions)
     return sessions
 
 
@@ -2656,10 +2668,12 @@ def plan_run(
 
     "dsl" rules work like runStrategyDefinition: percent stop and target, ATR distances, riskPct
     sizing and the exit mask come from the definition (spec stopLossPct/takeProfitPct are
-    ignored). Fixed rules work like runInstantBacktest with the spec stop and target. Like the
-    TypeScript server engine it refuses (StrategyUnsupportedError) an options block always, and
-    filters and expressions that read series unless `support["series"]` (default: when the spec
-    has a "context"); then the spec "context", "symbol" and "calendar" are the series input.
+    ignored); optional "maxHoldBars" closes a position at the next open after that many bars, as
+    the runStrategyDefinition option of the same name (setup replay uses it). Fixed rules work like
+    runInstantBacktest with the spec stop and target. Like the TypeScript server engine it refuses
+    (StrategyUnsupportedError) an options block always, and filters and expressions that read
+    series unless `support["series"]` (default: when the spec has a "context"); then the spec
+    "context", "symbol" and "calendar" are the series input.
     """
     rule = spec["rule"]
     cost_bps = spec.get("costBps", 0)
@@ -2695,6 +2709,7 @@ def plan_run(
             risk_pct=sizing["riskPct"] if sizing["mode"] == "riskPct" else None,
             max_leverage=sizing.get("maxLeverage") if sizing["mode"] == "riskPct" else None,
             side=definition["side"],
+            max_hold_bars=spec.get("maxHoldBars"),
         )
         size = assert_columns(bars)
     else:

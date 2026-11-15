@@ -102,6 +102,8 @@ drawdown >= -35 %; >= 75 % of the parameter changes keep Sharpe > 0; Sharpe > 0 
 - `services/research/strategies/imom/` (data, definition, runner, metrics reuse, study, rules); tests in
   `services/research/tests/test_imom_study.py`.
 - Run: `cd services/research && python -m strategies.imom study --ran <date> | bun run vertex:research-studies:import`.
+  Since 2026-11-09 this runs the IBKR study (`imom-ibkr-<date>`, the Vertex intraday default,
+  [intraday data source](../../vertex-rebuild/data-sources/intraday.md)); add `--source dukascopy` for the original run.
 
 ## Results
 

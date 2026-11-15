@@ -64,6 +64,15 @@ describe("SEC companyfacts extraction", () => {
               // A quarter and a 10-Q never count as a fiscal year.
               fy("2025-09-30", 30, { start: "2025-07-01" }),
               fy("2025-06-30", 50, { form: "10-Q" }),
+              // A fiscal-year row with no form is not an annual report.
+              {
+                val: 500,
+                end: "2026-06-30",
+                start: "2025-06-30",
+                fy: 2026,
+                fp: "FY",
+                filed: "2026-08-01",
+              },
               fy("2024-12-31", 95),
               // Same period, later filing: the newer filing wins.
               fy("2024-12-31", 96, { filed: "2026-02-01" }),

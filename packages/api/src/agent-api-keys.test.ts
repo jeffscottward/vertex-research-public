@@ -251,7 +251,7 @@ const expectCode = async (
 };
 
 describe("agent API key scope", () => {
-  it("admits only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedure paths, the autopilot tick and the sector rotation collect and snapshot", () => {
+  it("admits only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedure paths, the autopilot tick and the sector rotation collect and snapshot", () => {
     expect(AGENT_API_KEY_PROCEDURE_ROOTS).toEqual([
       "agentOps",
       "papers",
@@ -261,6 +261,7 @@ describe("agent API key scope", () => {
       "todos",
       "priceAlerts",
       "agentModelRuns",
+      "openbb",
     ]);
     expect(AGENT_API_KEY_PROCEDURE_PATHS).toEqual([
       "autopilot.campaigns.tick",
@@ -274,6 +275,16 @@ describe("agent API key scope", () => {
       "pickLists.screen",
       "flow.collect",
       "flow.snapshot",
+      "breadth90.collect",
+      "breadth90.get",
+      "goLiveDrafts.collect",
+      "goLiveDrafts.queue",
+      "instantBacktest.run",
+      "marketNotes.add",
+      "marketNotes.get",
+      "marketNotes.list",
+      "marketNotes.recordChecks",
+      "marketNotes.review",
     ]);
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(
@@ -283,6 +294,10 @@ describe("agent API key scope", () => {
       true
     );
     expect(isAgentApiKeyProcedurePath(["sectorRotation", "map"])).toBe(false);
+    expect(isAgentApiKeyProcedurePath(["instantBacktest", "run"])).toBe(true);
+    expect(isAgentApiKeyProcedurePath(["instantBacktest", "series"])).toBe(
+      false
+    );
     expect(
       isAgentApiKeyProcedurePath(["autopilot", "campaigns", "create"])
     ).toBe(false);
@@ -302,6 +317,7 @@ describe("agent API key scope", () => {
       "agentOps",
       "backtestRuns",
       "marketData",
+      "openbb",
       "papers",
       "priceAlerts",
       "strategyLibrary",

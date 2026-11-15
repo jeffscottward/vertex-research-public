@@ -15,11 +15,12 @@ Frozen research studies are stored in Postgres and served through oRPC. The app 
 | Part | Code |
 | --- | --- |
 | Table | `research_studies` (`packages/db/src/schema/research-studies.ts`, migration `0051_research_studies`, rollback `packages/db/rollback/0051_research_studies.down.sql`) |
-| Repository | `packages/db/src/server/research-studies.ts` (`get`, `upsert`, `upsertMany` in one transaction) |
+| Repository | `packages/db/src/server/research-studies.ts` (`get`, `verdicts` (only the `kind` and `verdict` keys of several studies, in one query), `upsert`, `upsertMany` in one transaction) |
 | Contract | `packages/api/src/contracts/research-studies.ts`: `FilterStudySchema`, `QcPortStudySchema`, `StrategyBacktestStudySchema` (guard `isStrategyBacktestStudy`), `ResearchStudyDocumentSchema` (the union, selected by `kind`), `researchStudies.get` (`GET /research-studies/{id}`) |
 | Service | `packages/api/src/server/research-studies.ts` (operator-only, the same gate as `quantLab.list`) |
 | Pages | `/backtests`: `apps/web/src/components/portal/filter-studies-section.tsx` loads the filter study; `filter-studies-panel.tsx` renders it. Strategy library: `strategy-backtest-study.tsx` (qc-port Backtest study section, mapped by `strategy-backtest-study-model.ts`; it also holds the shared loader `useResearchStudy` and the loading, operator-only, signed-out, missing and error states) and `strategy-reel-study.tsx` (strategy-backtest Backtest study section, mapped by `strategy-reel-study-model.ts`) |
 | Import | `bun run vertex:research-studies:import` (`scripts/research-studies/import.ts`) |
+| Library badge | `strategyLibrary.list` and `.get` return `vertexStudy` (kind and verdict) for entries whose study tag (`packages/api/src/strategy-study-tags.ts`: `quantconnect-idea` for qc-port, `backtest-study` for strategy-backtest) matches the stored study's kind. The list and detail header show it as the Vertex result badge (`strategy-library-model.ts`). A failed lookup never fails the list. Design: `docs/vertex-rebuild/designs/library-vertex-verdict/design.md` |
 
 ## qc-port study document
 
@@ -70,6 +71,8 @@ The migration seeds the ADX/RVOL study run on 2026-10-31 (public research on pub
 Rollback: `packages/db/rollback/0051_research_studies.down.sql` refuses while an imported study exists. It does not touch the Drizzle ledger, so the 0051 row stays in `drizzle.__drizzle_migrations` and `db:migrate` skips 0051 afterwards (the table stays missing and `researchStudies.get` answers `STORAGE_ERROR`). To re-apply, delete that ledger row (match its hash), then run `db:migrate`.
 
 ## Store a new run
+
+Intraday studies run on IBKR bars by default (owner decision 2026-11-09, see [intraday data source](data-sources/intraday.md)).
 
 From the repository root:
 

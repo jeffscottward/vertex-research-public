@@ -87,52 +87,13 @@ describe("0022 assistant migration", () => {
       idx: 21,
       tag: "0021_deployment_requests",
     });
-    // Upstream appearance migrations (0023, 0024) are appended after the Vertex ledger.
-    return expect(
-      journal.entries.slice(index + 1).map((entry) => entry.tag)
-    ).toEqual([
-      "0023_appearance_preferences",
-      "0024_shadcn_themes",
-      "0025_market_bars",
-      "0026_backtest_runs",
-      "0027_forward_drift",
-      "0028_paper_forward_runner",
-      "0029_ai_builder",
-      "0030_todos",
-      "0031_strategy_catalog",
-      "0032_strategy_catalog_carousel",
-      "0033_strategy_catalog_quantjourney",
-      "0034_autopilot",
-      "0035_strategy_catalog_sma30_timing",
-      "0036_backtest_rating_series",
-      "0037_agent_model_runs",
-      "0038_agent_model_run_events",
-      "0039_app_role_grants",
-      "0040_price_alert_rules",
-      "0041_baskets",
-      "0042_basket_benchmark_base",
-      "0043_quant_lab",
-      "0044_research_reports",
-      "0045_market_bar_futures_symbols",
-      "0046_click_log",
-      "0047_sector_rotation",
-      "0048_pick_lists",
-      "0049_signal_alerts",
-      "0050_plays",
-      "0051_research_studies",
-      "0052_flow_pipeline",
-      "0053_flow_option_gaps",
-      "0054_agent_model_run_grants",
-      "0055_strategy_catalog_calendar_spread",
-      "0056_semantic_layer",
-      "0057_strategy_catalog_qc_ports",
-      "0058_semantic_unlinked_runs",
-      "0059_strategy_catalog_ld34",
-      "0060_market_daily_series",
-      "0061_qc_port_definitions",
-      "0062_academy_content",
-      "0063_strategy_catalog_market_intraday_momentum",
-    ]);
+    // Upstream appearance migrations (0023, 0024) are appended after the Vertex ledger. Later entries
+    // are not pinned here: migration-journal.test.ts checks the order, and a list would make every
+    // new migration edit this file (card vertex-migration-number-race).
+    return expect(journal.entries[index + 1]).toMatchObject({
+      idx: 23,
+      tag: "0023_appearance_preferences",
+    });
   });
 
   return it("rollback refuses while any assistant row exists and never cascades", () => {

@@ -23,29 +23,28 @@ import {
   startFakeIbkrRecovery,
 } from "./helpers/fake-ibkr-recovery.ts";
 import { startPreviewCaptureServer } from "./helpers/preview-capture.ts";
+import { runTeardown, type TeardownStep } from "./helpers/teardown.ts";
 
 // Runs once per invocation, after the webServers are up. The app only opens the
 // database per request, and its readiness probe (/robots.txt) needs none.
+// The returned teardown runs before Playwright stops the webServers, so the app is
+// still up when the database is dropped; the testkit drop ends its connections.
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const env = e2eEnvironment();
   const database = await createPostgresTestDatabase({
     runId: `e2e_${env.runId}`,
   });
-  const cleanup: (() => Promise<void>)[] = [
-    () => rm(env.runPaths.root, { force: true, recursive: true }),
-    () => dropPostgresTestDatabase(database),
+  // Teardown steps in setup order; runTeardown runs them one at a time, the last one first.
+  const steps: TeardownStep[] = [
+    {
+      name: "remove the run directory",
+      run: () => rm(env.runPaths.root, { force: true, recursive: true }),
+    },
+    {
+      name: "drop the test database",
+      run: () => dropPostgresTestDatabase(database),
+    },
   ];
-  const teardown = async (): Promise<void> => {
-    const results = await Promise.allSettled(
-      cleanup.toReversed().map((step) => step())
-    );
-    const failures = results.flatMap((result) =>
-      result.status === "rejected" ? [result.reason] : []
-    );
-    if (failures.length > 0) {
-      throw new AggregateError(failures, "E2E teardown failed");
-    }
-  };
   try {
     if (database.databaseUrl !== env.databaseUrl) {
       throw new Error("E2E database differs from the one the app was given");
@@ -72,10 +71,16 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       contactDirectory: env.runPaths.contactPreviews,
       port: env.capturePort,
     });
-    cleanup.push(() => capture.close());
+    steps.push({
+      name: "close the preview capture server",
+      run: () => capture.close(),
+    });
     // Fake QuantVPS recovery service behind the run's HTTPS proxy (a static portless route).
     const recovery = await startFakeIbkrRecovery();
-    cleanup.push(() => recovery.close());
+    steps.push({
+      name: "close the fake IBKR recovery service",
+      run: () => recovery.close(),
+    });
     const portless = (args: string[]) =>
       promisify(execFile)("node_modules/.bin/portless", args, {
         env: env.proxyEnv,
@@ -86,24 +91,33 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       String(recovery.port),
       "--force",
     ]);
-    cleanup.push(async () => {
-      await portless(["alias", "--remove", FAKE_IBKR_RECOVERY_HOST]);
+    steps.push({
+      name: `remove the proxy alias ${FAKE_IBKR_RECOVERY_HOST}`,
+      run: async () => {
+        await portless(["alias", "--remove", FAKE_IBKR_RECOVERY_HOST]);
+      },
     });
     // Fake chat completions model behind the same proxy (E2E_ASSISTANT_MODEL_URL).
     const model = await startFakeAssistantModel();
-    cleanup.push(() => model.close());
+    steps.push({
+      name: "close the fake assistant model",
+      run: () => model.close(),
+    });
     await portless([
       "alias",
       FAKE_ASSISTANT_MODEL_HOST,
       String(model.port),
       "--force",
     ]);
-    cleanup.push(async () => {
-      await portless(["alias", "--remove", FAKE_ASSISTANT_MODEL_HOST]);
+    steps.push({
+      name: `remove the proxy alias ${FAKE_ASSISTANT_MODEL_HOST}`,
+      run: async () => {
+        await portless(["alias", "--remove", FAKE_ASSISTANT_MODEL_HOST]);
+      },
     });
   } catch (error) {
-    await teardown();
+    await runTeardown(steps);
     throw error;
   }
-  return teardown;
+  return () => runTeardown(steps);
 }

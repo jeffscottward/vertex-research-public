@@ -1,0 +1,38 @@
+Vertex OpenBB fetcher (services/openbb)
+Copyright Jeff Scott Ward and contributors. Licensed under the MIT License (see ../../LICENSE).
+
+This service uses the OpenBB Platform:
+
+------------------------------------------------------------------------------
+OpenBB Platform
+https://github.com/OpenBB-finance/OpenBB
+Copyright OpenBB Inc. (the OpenBB Team, hello@openbb.co)
+License: Apache License, Version 2.0
+  http://www.apache.org/licenses/LICENSE-2.0
+  (full text also in ../../licenses/glassbench-APACHE-2.0.txt, the same license)
+
+Packages and versions (installed unmodified from PyPI with hash checks, see
+requirements-openbb-linux-py312.lock; no OpenBB source file is copied or
+changed in this repository):
+  openbb-core 2.0.1, openbb-cboe 2.0.0, openbb-cftc 2.0.0,
+  openbb-famafrench 2.0.0, openbb-federal-reserve 2.0.0, openbb-finra 2.0.0,
+  openbb-government-us 2.0.0, openbb-oecd 2.0.0, openbb-sec 2.0.0
+
+Use: vertex_openbb calls the provider fetchers and helper functions of these
+packages at runtime. At runtime it replaces the User-Agent header of requests
+to *.sec.gov (it does not edit the installed files).
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use these packages except in compliance with the License. Unless required by
+applicable law or agreed to in writing, software distributed under the
+License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
+OF ANY KIND, either express or implied. See the License for the specific
+language governing permissions and limitations under the License.
+------------------------------------------------------------------------------
+
+Data terms (per source, unchanged by OpenBB's license): Cboe delayed data for
+personal, non-commercial use; CFTC, Federal Reserve, U.S. Treasury, SEC and
+FINRA public data (SEC fair access: declared User-Agent, at most 10 requests
+per second); FRED series as published by their owners (ICE BofA spreads under
+ICE terms); OECD data and the Kenneth R. French Data Library with attribution.
+No paid provider is used.

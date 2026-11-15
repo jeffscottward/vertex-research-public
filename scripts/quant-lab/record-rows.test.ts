@@ -119,6 +119,13 @@ describe("Quant Lab record mapping", () => {
     expect(row.taskId).toBe(task.id);
     expect(row.maxDrawdown).toBeCloseTo(0.9 / 1.2 - 1, 10);
     expect(row.tradeCount).toBe(1);
+    expect(row.runConfig).toEqual({
+      engine: "nautilus-trader-1.227.0",
+      fillModel: "bar",
+      initialCapital: 1,
+      timeframe: "1d",
+    });
+    expect(row.strategy).toBe("SMA timing (walk-forward)");
     expect(row.notes).toContain("1/2 preregistered criteria passed");
     expect(row.notes).toContain("FAIL oos_sharpe_gt_benchmark");
     expect(row.notes).toContain("PASS walk_forward_sharpe_gt_benchmark");

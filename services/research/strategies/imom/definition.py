@@ -14,6 +14,10 @@ holding whichever leg is open.
   band (14 days), short below the lower; exit when the close crosses back through max(upper band, VWAP)
   (long) or min(lower band, VWAP) (short); flat at 16:00; volatility-target sizing 2 % / 14-day daily vol,
   at most 4x. Variant 1x: all-in notional.
+- CHUK (Chuk 2026, SSRN 7609644; docs/specs/strategies/session-open-momentum-nq.md): the ZAB band on
+  Nasdaq-100 futures with the VWAP-side filter (enter only beyond VWAP) and exits checked on every
+  5-minute bar (`intraday.exitEvery`); 1x notional. The paper's resting stop that fills inside the bar is
+  run by the research kernel (strategies/noise_band.py, run_futures_backtest); this is its DSL form.
 - BIAS: a research-only signal (bias.py), executed with the GHLZ clock: these definitions supply the
   intraday block, side, costs and market-on-close exit; the entry signal is replaced by the bias vote.
 """
@@ -63,6 +67,22 @@ class Zab:
 
 
 @dataclass(frozen=True)
+class Chuk:
+    length: int = 14
+    multiple: float = 1.0
+    decision_every: int = 30
+    exit_every: int = 5
+    entry_from: str = "10:00"
+    entry_to: str = "15:30"
+    sides: tuple[str, ...] = SIDES
+
+    family = "CHUK"
+
+    def label(self) -> str:
+        return "chuk:" + ",".join(f"{k}={v}" for k, v in asdict(self).items())
+
+
+@dataclass(frozen=True)
 class Bias:
     decision: str = "15:30"
     threshold: float = 50.0
@@ -74,12 +94,13 @@ class Bias:
         return "bias:" + ",".join(f"{k}={v}" for k, v in asdict(self).items())
 
 
-Params = Ghlz | Zab | Bias
+Params = Ghlz | Zab | Chuk | Bias
 
 GHLZ = Ghlz()
 GHLZ_R1R12 = Ghlz(r12=True)
 ZAB = Zab()
 ZAB_1X = Zab(vol_target=False)
+CHUK_NQ = Chuk()
 BIAS = Bias()
 # The strategies of the study, in report order: (id, name, params).
 STRATEGIES: tuple[tuple[str, str, Params], ...] = (
@@ -103,18 +124,21 @@ def _session_return(start: str, end: str) -> dict[str, Any]:
     return {"type": "indicator", "name": "sessionReturn", "from": start, "to": end}
 
 
-def _band(band: str, params: Zab) -> dict[str, Any]:
+def _band(band: str, params: Zab | Chuk) -> dict[str, Any]:
     out: dict[str, Any] = {"type": "indicator", "name": "noiseBand", "band": band, "length": params.length}
     if params.multiple != 1.0:
         out["multiple"] = params.multiple
     return out
 
 
-def _intraday(entry_from: str, entry_to: str, decision_every: int | None = None) -> dict[str, Any]:
+def _intraday(entry_from: str, entry_to: str, decision_every: int | None = None,
+              exit_every: int | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"timezone": TIMEZONE, "open": OPEN, "close": CLOSE, "entryFrom": entry_from,
                            "entryTo": entry_to}
     if decision_every is not None:
         out["decisionEvery"] = decision_every
+    if exit_every is not None:
+        out["exitEvery"] = exit_every
     return out
 
 
@@ -167,6 +191,29 @@ def zab_definition(params: Zab, side: str) -> dict[str, Any]:
     return out
 
 
+def chuk_definition(params: Chuk, side: str) -> dict[str, Any]:
+    """Long above the upper band and above VWAP (short: below both); exit when the close comes back
+    through the band or VWAP, checked on every `exit_every`-minute bar; flat at 16:00."""
+    vwap = {"type": "indicator", "name": "vwap"}
+    band = _band("upper" if side == "long" else "lower", params)
+    into, back = (">", "<") if side == "long" else ("<", ">")
+    out: dict[str, Any] = {
+        "version": 1,
+        "name": f"Chuk noise band NQ {side}",
+        "description": "Chuk (2026) Noise-band intraday momentum in Nasdaq-100 futures, SSRN 7609644. Research only.",
+        "intraday": _intraday(params.entry_from, params.entry_to, params.decision_every, params.exit_every),
+        "entry": {"all": [{"left": _close(), "op": into, "right": band},
+                          {"left": _close(), "op": into, "right": vwap}]},
+        "exit": {"any": [{"left": _close(), "op": back, "right": band},
+                         {"left": _close(), "op": back, "right": vwap}]},
+        "stopLoss": {"kind": "none"},
+        "sizing": {"mode": "allIn"},
+    }
+    if side == "short":
+        out["side"] = "short"
+    return out
+
+
 def bias_definition(params: Bias, side: str) -> dict[str, Any]:
     """The execution shell of the BIAS signal: GHLZ clock at the decision time; the entry condition is a
     placeholder that bias.py replaces with the vote."""
@@ -183,6 +230,8 @@ def definition(params: Params, side: str) -> dict[str, Any]:
         return ghlz_definition(params, side)
     if isinstance(params, Zab):
         return zab_definition(params, side)
+    if isinstance(params, Chuk):
+        return chuk_definition(params, side)
     return bias_definition(params, side)
 
 
@@ -198,7 +247,7 @@ def params_from_json(data: dict[str, Any]) -> Params:
     fields = dict(data)
     family = fields.pop("family")
     fields["sides"] = tuple(fields["sides"])
-    return {"GHLZ": Ghlz, "ZAB": Zab, "BIAS": Bias}[family](**fields)
+    return {"GHLZ": Ghlz, "ZAB": Zab, "CHUK": Chuk, "BIAS": Bias}[family](**fields)
 
 
 # One-at-a-time sensitivity (each row changes one parameter of the stated rules).

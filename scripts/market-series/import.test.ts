@@ -22,6 +22,7 @@ import {
   parseSeriesPoints,
   parseSha256Sums,
   parseShiller,
+  parseSourcesRecord,
   runMarketSeriesImport,
   shiftMonth,
 } from "./import.ts";
@@ -312,11 +313,14 @@ describe("loadSeriesImports", () => {
     });
     expect(byId.get("ES=F")?.series.kind).toBe("future");
     expect(byId.get("ES=F")?.series.source).toContain(
-      "ES=F (continuous future)"
+      "Yahoo daily bars ES=F (continuous future), auto_adjust=False;"
     );
     expect(byId.get("VIX")?.series.source).toContain("Yahoo daily close ^VIX;");
     expect(byId.get("RVX")?.series.source).toContain(
-      "CBOE public history CSV RVX_History.csv"
+      "CBOE public history CSV RVX_History.csv, daily close;"
+    );
+    expect(byId.get("EY_TNX_RATIO")?.series.source).toContain(
+      "and Yahoo ^TNX;"
     );
     expect(byId.get("VXSLV")?.series.kind).toBe("index");
     expect(byId.get("SPY")?.points).toHaveLength(2);
@@ -330,6 +334,86 @@ describe("loadSeriesImports", () => {
     expect(ratio?.points.map((point) => [point.date, point.close])).toEqual([
       ["2024-01-02", (100 * 190.25) / 4500.5 / 4],
     ]);
+  });
+
+  it("labels each series from SOURCES.json when the fetch recorded it", async () => {
+    const sources = JSON.stringify({
+      "RVX.csv": {
+        rows: { cboe: { first: "2004-01-02", last: "2026-11-06", rows: 5000 } },
+      },
+      "ES=F.csv": {
+        rows: {
+          ibkr: { first: "2024-11-11", last: "2026-11-06", rows: 500 },
+          yahoo: { first: "2000-09-18", last: "2024-11-08", rows: 6000 },
+        },
+      },
+      "IRX.csv": {
+        rows: {
+          ibkr: { first: "2000-01-03", last: "2026-11-06", rows: 6700 },
+          treasury: { first: "1990-01-02", last: "1999-12-31", rows: 2500 },
+        },
+      },
+      "SPY.csv": {
+        rows: {
+          ibkr: { first: "1996-11-11", last: "2026-11-06", rows: 7550 },
+          yahoo: { first: "1993-01-29", last: "1996-11-08", rows: 950 },
+        },
+      },
+      "GC=F.csv": {
+        rows: { ibkr: { first: "2024-11-11", last: "2026-11-06", rows: 500 } },
+      },
+      "TNX.csv": {
+        rows: {
+          ibkr: { first: "2003-01-02", last: "2026-11-06", rows: 6000 },
+          yahoo: { first: "2000-01-03", last: "2002-12-31", rows: 750 },
+          treasury: { first: "1990-01-02", last: "1999-12-31", rows: 2500 },
+        },
+      },
+      "VIX.csv": {
+        rows: { ibkr: { first: "1990-01-02", last: "2026-11-06", rows: 9300 } },
+      },
+    });
+    writeFetch(directory, { "SOURCES.json": sources });
+    const imports = await loadSeriesImports(directory);
+    const byId = new Map(imports.map((entry) => [entry.series.id, entry]));
+    expect(byId.get("SPY")?.series.source).toContain(
+      "daily bars SPY, split-adjusted close: ibkr 1996-11-11..2026-11-06, yahoo 1993-01-29..1996-11-08; fetched"
+    );
+    expect(byId.get("RVX")?.series.source).toContain(
+      "daily close ^RVX: cboe 2004-01-02..2026-11-06;"
+    );
+    expect(byId.get("ES=F")?.series.source).toContain(
+      "daily bars ES=F (continuous future): ibkr 2024-11-11..2026-11-06, yahoo 2000-09-18..2024-11-08, Yahoo part scaled to IBKR at the seam;"
+    );
+    expect(byId.get("GC=F")?.series.source).toContain(
+      "daily bars GC=F (continuous future): ibkr 2024-11-11..2026-11-06;"
+    );
+    expect(byId.get("IRX")?.series.source).toContain(
+      "daily close ^IRX: ibkr 2000-01-03..2026-11-06, treasury 1990-01-02..1999-12-31; treasury = US Treasury 3-month par yield;"
+    );
+    expect(byId.get("VIX")?.series.source).toContain(
+      "daily close ^VIX: ibkr 1990-01-02..2026-11-06;"
+    );
+    // A file without a record keeps the old label.
+    expect(byId.get("QQQ")?.series.source).toContain(
+      "Yahoo daily bars QQQ, auto_adjust=False;"
+    );
+    const ratio = byId.get("EY_TNX_RATIO")?.series.source ?? "";
+    expect(ratio).toContain(
+      "and ^TNX (TNX.csv sources: ibkr, yahoo, treasury; treasury = US Treasury 10-year par yield);"
+    );
+    expect(ratio.length).toBeLessThanOrEqual(300);
+    for (const entry of imports) {
+      expect(entry.series.source.length).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it("refuses a SOURCES.json that is not a JSON object", async () => {
+    writeFetch(directory, { "SOURCES.json": "[]" });
+    await expect(loadSeriesImports(directory)).rejects.toThrow(
+      "SOURCES.json must be a JSON object"
+    );
+    expect(() => parseSourcesRecord("null")).toThrow("JSON object");
   });
 
   it("refuses a file missing from SHA256SUMS", async () => {

@@ -1,0 +1,211 @@
+[
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 10,
+      "callIv25d30d": null,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 1e-9
+    },
+    "why": "IVs at the bounds 0 and 10, smallest positive price"
+  },
+  {
+    "table": "option_iv_term",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv": 10,
+      "atmStrike": 373.0,
+      "callOi": 12691,
+      "callVolume": 13457,
+      "dte": 0,
+      "expiration": "2026-11-06",
+      "putOi": 3330,
+      "putVolume": 6328,
+      "underlying": "GLD"
+    },
+    "why": "expiration on asOf (dte 0), atmIv 10"
+  },
+  {
+    "table": "vx_curve",
+    "row": {
+      "asOf": "2026-11-06",
+      "contractMonth": "2026-11",
+      "price": 0.0001
+    },
+    "why": "tiny positive price"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 9007199254740991,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 0,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "counts at Number.MAX_SAFE_INTEGER"
+  },
+  {
+    "table": "event_calendar",
+    "row": {
+      "date": "2026-10-14",
+      "detail": null,
+      "eventKey": "fedcal:beige_book:2026-10-14:14:00",
+      "kind": "beige_book",
+      "source": "federal_reserve",
+      "time": "14:00",
+      "title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    },
+    "why": "title of exactly 300 UTF-16 units (150 astral characters)"
+  },
+  {
+    "table": "event_calendar",
+    "row": {
+      "date": "2026-10-14",
+      "detail": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "eventKey": "fedcal:beige_book:2026-10-14:14:00",
+      "kind": "beige_book",
+      "source": "federal_reserve",
+      "time": "23:59",
+      "title": "Beige Book"
+    },
+    "why": "detail of exactly 2000 units, time 23:59"
+  },
+  {
+    "table": "event_calendar",
+    "row": {
+      "date": "2026-10-14",
+      "detail": null,
+      "eventKey": " kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk ",
+      "kind": "beige_book",
+      "source": "federal_reserve",
+      "time": "14:00",
+      "title": "Beige Book"
+    },
+    "why": "eventKey with surrounding spaces, 200 units untrimmed"
+  },
+  {
+    "table": "macro_points",
+    "row": {
+      "date": "2024-02-29",
+      "frequency": "daily",
+      "name": "Effective federal funds rate",
+      "seriesId": "EFFR",
+      "source": "federal_reserve",
+      "unit": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+      "value": 3.88
+    },
+    "why": "unit of exactly 40 units, leap day"
+  },
+  {
+    "table": "finra_otc_weekly",
+    "row": {
+      "lastUpdated": "2026-10-05",
+      "shares": 27301288,
+      "symbol": "AAPL",
+      "tier": "TTTTTTTTTTTTTTTTTTTT",
+      "trades": 538096,
+      "venue": "ats",
+      "weekStart": "2026-09-14"
+    },
+    "why": "tier of exactly 20 units"
+  },
+  {
+    "table": "short_interest",
+    "row": {
+      "avgDailyVolume": 45135477,
+      "daysToCover": 0,
+      "previousShortInterest": 139749097,
+      "settlementDate": "2026-09-15",
+      "shortInterest": 128753092,
+      "symbol": "AAPL"
+    },
+    "why": "daysToCover zero"
+  },
+  {
+    "table": "sec_insider_trades",
+    "row": {
+      "accessionNumber": "0001140361-26-039785",
+      "acquiredDisposed": null,
+      "filingDate": "2026-10-15",
+      "ownerName": "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo",
+      "ownerTitle": null,
+      "price": null,
+      "rowNumber": 1,
+      "shares": null,
+      "sharesAfter": null,
+      "symbol": "AAPL",
+      "transactionCode": null,
+      "transactionDate": null,
+      "url": null
+    },
+    "why": "nullable fields null, owner name of 200 units"
+  },
+  {
+    "table": "sec_13f_holdings",
+    "row": {
+      "assetClass": null,
+      "cusip": "02005N100",
+      "filerCik": "1067983",
+      "filerName": "BERKSHIRE HATHAWAY INC",
+      "issuer": "ALLY FINL INC",
+      "optionType": "",
+      "periodEnding": "2026-03-31",
+      "shares": null,
+      "symbol": null,
+      "value": 1137670000.0,
+      "weight": null
+    },
+    "why": "top-50-only row: symbol null, shares null, optionType empty"
+  },
+  {
+    "table": "sec_filings",
+    "row": {
+      "accessionNumber": "0000320193-26-000024",
+      "cik": "320193",
+      "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "filingDate": "2026-11-02",
+      "formType": "8-K",
+      "reportDate": "2026-11-02",
+      "symbol": "AAPL",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000024/aapl-20261102.htm"
+    },
+    "why": "description of exactly 2000 UTF-16 units"
+  },
+  {
+    "table": "cot_positions",
+    "row": {
+      "category": "managed_money",
+      "long": 221896,
+      "market": "CL",
+      "marketCode": "067651",
+      "openInterest": 1955764,
+      "reportDate": "2026-09-15",
+      "reportType": "disaggregated",
+      "short": 115617,
+      "spreading": null
+    },
+    "why": "spreading null"
+  }
+]

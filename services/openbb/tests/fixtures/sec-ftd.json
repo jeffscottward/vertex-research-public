@@ -1,0 +1,2141 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "sec-ftd",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "sec_ftd",
+      "rows": [
+        {
+          "cusip": "78463V107",
+          "price": 399.72,
+          "quantity": 253894,
+          "settlementDate": "2026-09-09",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "464287655",
+          "price": 294.67,
+          "quantity": 1010244,
+          "settlementDate": "2026-09-09",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 613.48,
+          "quantity": 1,
+          "settlementDate": "2026-09-09",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 493.95,
+          "quantity": 4354,
+          "settlementDate": "2026-09-09",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 718.36,
+          "quantity": 1164442,
+          "settlementDate": "2026-09-09",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 59.37,
+          "quantity": 1904,
+          "settlementDate": "2026-09-09",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 765.96,
+          "quantity": 41142,
+          "settlementDate": "2026-09-09",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 146.03,
+          "quantity": 83492,
+          "settlementDate": "2026-09-09",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 315.34,
+          "quantity": 469,
+          "settlementDate": "2026-09-10",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 403.35,
+          "quantity": 22530,
+          "settlementDate": "2026-09-10",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "464287655",
+          "price": 290.64,
+          "quantity": 2728267,
+          "settlementDate": "2026-09-10",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 653.69,
+          "quantity": 700,
+          "settlementDate": "2026-09-10",
+          "symbol": "META"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 76.03,
+          "quantity": 1961,
+          "settlementDate": "2026-09-10",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 223.67,
+          "quantity": 12564,
+          "settlementDate": "2026-09-10",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 716.31,
+          "quantity": 34350,
+          "settlementDate": "2026-09-10",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 60.72,
+          "quantity": 14100,
+          "settlementDate": "2026-09-10",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 762.4,
+          "quantity": 1,
+          "settlementDate": "2026-09-10",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 367.81,
+          "quantity": 3,
+          "settlementDate": "2026-09-10",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 149.97,
+          "quantity": 269,
+          "settlementDate": "2026-09-10",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 326.57,
+          "quantity": 2134,
+          "settlementDate": "2026-09-11",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 520.75,
+          "quantity": 167768,
+          "settlementDate": "2026-09-11",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 396.36,
+          "quantity": 2869,
+          "settlementDate": "2026-09-11",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 332.6,
+          "quantity": 13,
+          "settlementDate": "2026-09-11",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 287.7,
+          "quantity": 3232454,
+          "settlementDate": "2026-09-11",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "594918104",
+          "price": 492.44,
+          "quantity": 93,
+          "settlementDate": "2026-09-11",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 76.01,
+          "quantity": 102596,
+          "settlementDate": "2026-09-11",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 218.36,
+          "quantity": 376,
+          "settlementDate": "2026-09-11",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 708.69,
+          "quantity": 3045,
+          "settlementDate": "2026-09-11",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 57.5,
+          "quantity": 1,
+          "settlementDate": "2026-09-11",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 757.83,
+          "quantity": 44176,
+          "settlementDate": "2026-09-11",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 158.38,
+          "quantity": 126835,
+          "settlementDate": "2026-09-11",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 332.27,
+          "quantity": 15390,
+          "settlementDate": "2026-09-14",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 256.78,
+          "quantity": 193,
+          "settlementDate": "2026-09-14",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 361.99,
+          "quantity": 956,
+          "settlementDate": "2026-09-14",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 525.79,
+          "quantity": 210,
+          "settlementDate": "2026-09-14",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 338.5,
+          "quantity": 2660,
+          "settlementDate": "2026-09-14",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 288.89,
+          "quantity": 825370,
+          "settlementDate": "2026-09-14",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 648.03,
+          "quantity": 13800,
+          "settlementDate": "2026-09-14",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 495.63,
+          "quantity": 6700,
+          "settlementDate": "2026-09-14",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 77.4,
+          "quantity": 1,
+          "settlementDate": "2026-09-14",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 218.29,
+          "quantity": 300,
+          "settlementDate": "2026-09-14",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 714.88,
+          "quantity": 767045,
+          "settlementDate": "2026-09-14",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 764.29,
+          "quantity": 4591440,
+          "settlementDate": "2026-09-14",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 154.9,
+          "quantity": 30455,
+          "settlementDate": "2026-09-14",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 333.08,
+          "quantity": 201,
+          "settlementDate": "2026-09-15",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 344.72,
+          "quantity": 56,
+          "settlementDate": "2026-09-15",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 349.39,
+          "quantity": 200,
+          "settlementDate": "2026-09-15",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 287.91,
+          "quantity": 3994138,
+          "settlementDate": "2026-09-15",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 665.6,
+          "quantity": 3022,
+          "settlementDate": "2026-09-15",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 505.41,
+          "quantity": 1800,
+          "settlementDate": "2026-09-15",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 80.32,
+          "quantity": 83716,
+          "settlementDate": "2026-09-15",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 760.88,
+          "quantity": 1141653,
+          "settlementDate": "2026-09-15",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 156.66,
+          "quantity": 34161,
+          "settlementDate": "2026-09-15",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 331.34,
+          "quantity": 100,
+          "settlementDate": "2026-09-16",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 248.42,
+          "quantity": 18721,
+          "settlementDate": "2026-09-16",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 339.27,
+          "quantity": 575,
+          "settlementDate": "2026-09-16",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 394.15,
+          "quantity": 21430,
+          "settlementDate": "2026-09-16",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "464287655",
+          "price": 285.14,
+          "quantity": 298903,
+          "settlementDate": "2026-09-16",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 77.9,
+          "quantity": 1,
+          "settlementDate": "2026-09-16",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 212.17,
+          "quantity": 5369,
+          "settlementDate": "2026-09-16",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 704.54,
+          "quantity": 3429,
+          "settlementDate": "2026-09-16",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 57.53,
+          "quantity": 37740,
+          "settlementDate": "2026-09-16",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 356.58,
+          "quantity": 1072,
+          "settlementDate": "2026-09-16",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 161.86,
+          "quantity": 152649,
+          "settlementDate": "2026-09-16",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 332.41,
+          "quantity": 29,
+          "settlementDate": "2026-09-17",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 245.96,
+          "quantity": 140,
+          "settlementDate": "2026-09-17",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 391.74,
+          "quantity": 207111,
+          "settlementDate": "2026-09-17",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 342.87,
+          "quantity": 100,
+          "settlementDate": "2026-09-17",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 673.31,
+          "quantity": 4008,
+          "settlementDate": "2026-09-17",
+          "symbol": "META"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 57.05,
+          "quantity": 5806,
+          "settlementDate": "2026-09-17",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 754.05,
+          "quantity": 2154548,
+          "settlementDate": "2026-09-17",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 358.08,
+          "quantity": 190,
+          "settlementDate": "2026-09-17",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 156.17,
+          "quantity": 33655,
+          "settlementDate": "2026-09-17",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "023135106",
+          "price": 251.19,
+          "quantity": 70,
+          "settlementDate": "2026-09-18",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 347.3,
+          "quantity": 52,
+          "settlementDate": "2026-09-18",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 518.35,
+          "quantity": 541,
+          "settlementDate": "2026-09-18",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "464287655",
+          "price": 285.43,
+          "quantity": 79689,
+          "settlementDate": "2026-09-18",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 682.31,
+          "quantity": 285,
+          "settlementDate": "2026-09-18",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 497.75,
+          "quantity": 261,
+          "settlementDate": "2026-09-18",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 75.31,
+          "quantity": 935,
+          "settlementDate": "2026-09-18",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 219.34,
+          "quantity": 1812,
+          "settlementDate": "2026-09-18",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 716.92,
+          "quantity": 335113,
+          "settlementDate": "2026-09-18",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 58.97,
+          "quantity": 9152,
+          "settlementDate": "2026-09-18",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 762.6,
+          "quantity": 771602,
+          "settlementDate": "2026-09-18",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 155.31,
+          "quantity": 33994,
+          "settlementDate": "2026-09-18",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 336.13,
+          "quantity": 39300,
+          "settlementDate": "2026-09-21",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 253.71,
+          "quantity": 2478,
+          "settlementDate": "2026-09-21",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 357.61,
+          "quantity": 1000,
+          "settlementDate": "2026-09-21",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 895.31,
+          "quantity": 9643,
+          "settlementDate": "2026-09-21",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 515.88,
+          "quantity": 2545,
+          "settlementDate": "2026-09-21",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 401.17,
+          "quantity": 341900,
+          "settlementDate": "2026-09-21",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 349.54,
+          "quantity": 16281,
+          "settlementDate": "2026-09-21",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 284.1,
+          "quantity": 1810719,
+          "settlementDate": "2026-09-21",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 665.75,
+          "quantity": 149,
+          "settlementDate": "2026-09-21",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 493.78,
+          "quantity": 83182,
+          "settlementDate": "2026-09-21",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 71.79,
+          "quantity": 62215,
+          "settlementDate": "2026-09-21",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 222.27,
+          "quantity": 133400,
+          "settlementDate": "2026-09-21",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 721.45,
+          "quantity": 5198915,
+          "settlementDate": "2026-09-21",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 59.93,
+          "quantity": 4248299,
+          "settlementDate": "2026-09-21",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 761.69,
+          "quantity": 297611,
+          "settlementDate": "2026-09-21",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 364.27,
+          "quantity": 49666,
+          "settlementDate": "2026-09-21",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 153.82,
+          "quantity": 248216,
+          "settlementDate": "2026-09-21",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 338.98,
+          "quantity": 610,
+          "settlementDate": "2026-09-22",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 258.45,
+          "quantity": 2089,
+          "settlementDate": "2026-09-22",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 519.78,
+          "quantity": 2574,
+          "settlementDate": "2026-09-22",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 398.38,
+          "quantity": 45564,
+          "settlementDate": "2026-09-22",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 354.97,
+          "quantity": 500,
+          "settlementDate": "2026-09-22",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 285.58,
+          "quantity": 4190,
+          "settlementDate": "2026-09-22",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 741.25,
+          "quantity": 34157,
+          "settlementDate": "2026-09-22",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 501.61,
+          "quantity": 3300,
+          "settlementDate": "2026-09-22",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 73.36,
+          "quantity": 12884,
+          "settlementDate": "2026-09-22",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 227.38,
+          "quantity": 18801,
+          "settlementDate": "2026-09-22",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 741.47,
+          "quantity": 4352675,
+          "settlementDate": "2026-09-22",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 773.5,
+          "quantity": 10210,
+          "settlementDate": "2026-09-22",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 375.3,
+          "quantity": 8902,
+          "settlementDate": "2026-09-22",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 148.16,
+          "quantity": 28260,
+          "settlementDate": "2026-09-22",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 351.16,
+          "quantity": 70,
+          "settlementDate": "2026-09-23",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 287.21,
+          "quantity": 4101,
+          "settlementDate": "2026-09-23",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 72.16,
+          "quantity": 50,
+          "settlementDate": "2026-09-23",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 228.87,
+          "quantity": 232477,
+          "settlementDate": "2026-09-23",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 747.46,
+          "quantity": 3553499,
+          "settlementDate": "2026-09-23",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 773.38,
+          "quantity": 54144,
+          "settlementDate": "2026-09-23",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 144.08,
+          "quantity": 9405,
+          "settlementDate": "2026-09-23",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 337.02,
+          "quantity": 898701,
+          "settlementDate": "2026-09-24",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 904.7,
+          "quantity": 732,
+          "settlementDate": "2026-09-24",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 514.3,
+          "quantity": 1138,
+          "settlementDate": "2026-09-24",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "464287655",
+          "price": 281.92,
+          "quantity": 535,
+          "settlementDate": "2026-09-24",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 744.1,
+          "quantity": 200,
+          "settlementDate": "2026-09-24",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 500.59,
+          "quantity": 100,
+          "settlementDate": "2026-09-24",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 71.36,
+          "quantity": 2205,
+          "settlementDate": "2026-09-24",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 225.51,
+          "quantity": 500,
+          "settlementDate": "2026-09-24",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 741.21,
+          "quantity": 597,
+          "settlementDate": "2026-09-24",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 58.16,
+          "quantity": 399752,
+          "settlementDate": "2026-09-24",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 767.81,
+          "quantity": 503,
+          "settlementDate": "2026-09-24",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 380.12,
+          "quantity": 3279,
+          "settlementDate": "2026-09-24",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 148.83,
+          "quantity": 118394,
+          "settlementDate": "2026-09-24",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 512.68,
+          "quantity": 47453,
+          "settlementDate": "2026-09-25",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 342.36,
+          "quantity": 455,
+          "settlementDate": "2026-09-25",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 281.66,
+          "quantity": 18662,
+          "settlementDate": "2026-09-25",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 71.72,
+          "quantity": 929,
+          "settlementDate": "2026-09-25",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 224.58,
+          "quantity": 32480,
+          "settlementDate": "2026-09-25",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 741.1,
+          "quantity": 180,
+          "settlementDate": "2026-09-25",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 767.18,
+          "quantity": 44,
+          "settlementDate": "2026-09-25",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 153.09,
+          "quantity": 482132,
+          "settlementDate": "2026-09-25",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 341.07,
+          "quantity": 3800,
+          "settlementDate": "2026-09-28",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 249.67,
+          "quantity": 491,
+          "settlementDate": "2026-09-28",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 352.81,
+          "quantity": 25,
+          "settlementDate": "2026-09-28",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 922.77,
+          "quantity": 915,
+          "settlementDate": "2026-09-28",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 517.49,
+          "quantity": 6126,
+          "settlementDate": "2026-09-28",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 393.41,
+          "quantity": 35725,
+          "settlementDate": "2026-09-28",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 343.92,
+          "quantity": 101,
+          "settlementDate": "2026-09-28",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 281.97,
+          "quantity": 54006,
+          "settlementDate": "2026-09-28",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 751.66,
+          "quantity": 23301,
+          "settlementDate": "2026-09-28",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 516.17,
+          "quantity": 13508,
+          "settlementDate": "2026-09-28",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 71.15,
+          "quantity": 146,
+          "settlementDate": "2026-09-28",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 225.07,
+          "quantity": 4024,
+          "settlementDate": "2026-09-28",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 744.5,
+          "quantity": 24692,
+          "settlementDate": "2026-09-28",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 58.14,
+          "quantity": 319,
+          "settlementDate": "2026-09-28",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 771.35,
+          "quantity": 60765,
+          "settlementDate": "2026-09-28",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 372.11,
+          "quantity": 24958,
+          "settlementDate": "2026-09-28",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 148.33,
+          "quantity": 35025,
+          "settlementDate": "2026-09-28",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 342.75,
+          "quantity": 612,
+          "settlementDate": "2026-09-29",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "594918104",
+          "price": 509.22,
+          "quantity": 478,
+          "settlementDate": "2026-09-29",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 69.23,
+          "quantity": 12832,
+          "settlementDate": "2026-09-29",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 228.86,
+          "quantity": 1500,
+          "settlementDate": "2026-09-29",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 736.53,
+          "quantity": 7,
+          "settlementDate": "2026-09-29",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 54.95,
+          "quantity": 4376,
+          "settlementDate": "2026-09-29",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 765.61,
+          "quantity": 1948579,
+          "settlementDate": "2026-09-29",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 357.45,
+          "quantity": 17,
+          "settlementDate": "2026-09-29",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 150.01,
+          "quantity": 12139,
+          "settlementDate": "2026-09-29",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 329.4,
+          "quantity": 217,
+          "settlementDate": "2026-09-30",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 924.59,
+          "quantity": 46,
+          "settlementDate": "2026-09-30",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 382.89,
+          "quantity": 22412,
+          "settlementDate": "2026-09-30",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 340.92,
+          "quantity": 21,
+          "settlementDate": "2026-09-30",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 279.01,
+          "quantity": 204030,
+          "settlementDate": "2026-09-30",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 738.79,
+          "quantity": 30,
+          "settlementDate": "2026-09-30",
+          "symbol": "META"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 70.3,
+          "quantity": 1196,
+          "settlementDate": "2026-09-30",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 764.2,
+          "quantity": 110,
+          "settlementDate": "2026-09-30",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 143.35,
+          "quantity": 318843,
+          "settlementDate": "2026-09-30",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "023135106",
+          "price": 249.15,
+          "quantity": 54801,
+          "settlementDate": "2026-10-01",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 380.84,
+          "quantity": 3020,
+          "settlementDate": "2026-10-01",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 344.08,
+          "quantity": 2628,
+          "settlementDate": "2026-10-01",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 277.89,
+          "quantity": 475,
+          "settlementDate": "2026-10-01",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 725.18,
+          "quantity": 25,
+          "settlementDate": "2026-10-01",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 512.9,
+          "quantity": 1410,
+          "settlementDate": "2026-10-01",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 69.58,
+          "quantity": 1093,
+          "settlementDate": "2026-10-01",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 228.38,
+          "quantity": 300,
+          "settlementDate": "2026-10-01",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 54.51,
+          "quantity": 4008,
+          "settlementDate": "2026-10-01",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 762.63,
+          "quantity": 60319,
+          "settlementDate": "2026-10-01",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 354.81,
+          "quantity": 25,
+          "settlementDate": "2026-10-01",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 145.66,
+          "quantity": 221458,
+          "settlementDate": "2026-10-01",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 330.32,
+          "quantity": 156354,
+          "settlementDate": "2026-10-02",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 248.23,
+          "quantity": 1150,
+          "settlementDate": "2026-10-02",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 914.94,
+          "quantity": 441,
+          "settlementDate": "2026-10-02",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 508.62,
+          "quantity": 12,
+          "settlementDate": "2026-10-02",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 338.24,
+          "quantity": 1137,
+          "settlementDate": "2026-10-02",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 279.02,
+          "quantity": 32034,
+          "settlementDate": "2026-10-02",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "594918104",
+          "price": 512.8,
+          "quantity": 7022,
+          "settlementDate": "2026-10-02",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 67.85,
+          "quantity": 545,
+          "settlementDate": "2026-10-02",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 230.86,
+          "quantity": 38491,
+          "settlementDate": "2026-10-02",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 742.03,
+          "quantity": 4817,
+          "settlementDate": "2026-10-02",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 55.02,
+          "quantity": 220483,
+          "settlementDate": "2026-10-02",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 150.02,
+          "quantity": 348699,
+          "settlementDate": "2026-10-02",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 333.69,
+          "quantity": 1610,
+          "settlementDate": "2026-10-05",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 355.14,
+          "quantity": 1200,
+          "settlementDate": "2026-10-05",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 920.65,
+          "quantity": 100,
+          "settlementDate": "2026-10-05",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 511.1,
+          "quantity": 8,
+          "settlementDate": "2026-10-05",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 380.14,
+          "quantity": 15352,
+          "settlementDate": "2026-10-05",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "464287655",
+          "price": 281.52,
+          "quantity": 164271,
+          "settlementDate": "2026-10-05",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 728.08,
+          "quantity": 8571,
+          "settlementDate": "2026-10-05",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 517.53,
+          "quantity": 135349,
+          "settlementDate": "2026-10-05",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 67.06,
+          "quantity": 274,
+          "settlementDate": "2026-10-05",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 233.95,
+          "quantity": 63726,
+          "settlementDate": "2026-10-05",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 749.58,
+          "quantity": 65162,
+          "settlementDate": "2026-10-05",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 769.64,
+          "quantity": 5943,
+          "settlementDate": "2026-10-05",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 370.59,
+          "quantity": 219841,
+          "settlementDate": "2026-10-05",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 147.37,
+          "quantity": 427295,
+          "settlementDate": "2026-10-05",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 332.89,
+          "quantity": 1519,
+          "settlementDate": "2026-10-06",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 251.4,
+          "quantity": 57,
+          "settlementDate": "2026-10-06",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 362.51,
+          "quantity": 1420,
+          "settlementDate": "2026-10-06",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 923.52,
+          "quantity": 3,
+          "settlementDate": "2026-10-06",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 512.11,
+          "quantity": 100,
+          "settlementDate": "2026-10-06",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 346.47,
+          "quantity": 66,
+          "settlementDate": "2026-10-06",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 283.38,
+          "quantity": 3471,
+          "settlementDate": "2026-10-06",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 741.9,
+          "quantity": 1452,
+          "settlementDate": "2026-10-06",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 525.18,
+          "quantity": 85,
+          "settlementDate": "2026-10-06",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 67.5,
+          "quantity": 1262,
+          "settlementDate": "2026-10-06",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 238.9,
+          "quantity": 13455,
+          "settlementDate": "2026-10-06",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 756.2,
+          "quantity": 14516,
+          "settlementDate": "2026-10-06",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 774.83,
+          "quantity": 2970,
+          "settlementDate": "2026-10-06",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 378.73,
+          "quantity": 2786,
+          "settlementDate": "2026-10-06",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 143.99,
+          "quantity": 3,
+          "settlementDate": "2026-10-06",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 333.63,
+          "quantity": 69,
+          "settlementDate": "2026-10-07",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 375.81,
+          "quantity": 1,
+          "settlementDate": "2026-10-07",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 382.27,
+          "quantity": 100,
+          "settlementDate": "2026-10-07",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 347.68,
+          "quantity": 51,
+          "settlementDate": "2026-10-07",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 281.34,
+          "quantity": 74795,
+          "settlementDate": "2026-10-07",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 738.88,
+          "quantity": 92,
+          "settlementDate": "2026-10-07",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 529.3,
+          "quantity": 248,
+          "settlementDate": "2026-10-07",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 68.69,
+          "quantity": 143,
+          "settlementDate": "2026-10-07",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 239.24,
+          "quantity": 1782,
+          "settlementDate": "2026-10-07",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 759.66,
+          "quantity": 7391,
+          "settlementDate": "2026-10-07",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 779.09,
+          "quantity": 4508,
+          "settlementDate": "2026-10-07",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 380.68,
+          "quantity": 1865,
+          "settlementDate": "2026-10-07",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 144.91,
+          "quantity": 19584,
+          "settlementDate": "2026-10-07",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 336.67,
+          "quantity": 6046,
+          "settlementDate": "2026-10-08",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 259.92,
+          "quantity": 19155,
+          "settlementDate": "2026-10-08",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 376.51,
+          "quantity": 3600,
+          "settlementDate": "2026-10-08",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 942.25,
+          "quantity": 3,
+          "settlementDate": "2026-10-08",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 511.02,
+          "quantity": 56386,
+          "settlementDate": "2026-10-08",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 350.5,
+          "quantity": 4298,
+          "settlementDate": "2026-10-08",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 277.7,
+          "quantity": 274,
+          "settlementDate": "2026-10-08",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 721.31,
+          "quantity": 45,
+          "settlementDate": "2026-10-08",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 529.76,
+          "quantity": 100,
+          "settlementDate": "2026-10-08",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 69.7,
+          "quantity": 4372,
+          "settlementDate": "2026-10-08",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 237.47,
+          "quantity": 2166,
+          "settlementDate": "2026-10-08",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 757.73,
+          "quantity": 212112,
+          "settlementDate": "2026-10-08",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 53.82,
+          "quantity": 2,
+          "settlementDate": "2026-10-08",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 777.22,
+          "quantity": 101039,
+          "settlementDate": "2026-10-08",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 377.81,
+          "quantity": 371,
+          "settlementDate": "2026-10-08",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 143.91,
+          "quantity": 46644,
+          "settlementDate": "2026-10-08",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 340.42,
+          "quantity": 2,
+          "settlementDate": "2026-10-09",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 360.14,
+          "quantity": 2522,
+          "settlementDate": "2026-10-09",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 378.62,
+          "quantity": 125821,
+          "settlementDate": "2026-10-09",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 348.29,
+          "quantity": 437,
+          "settlementDate": "2026-10-09",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 277.57,
+          "quantity": 419165,
+          "settlementDate": "2026-10-09",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 720.89,
+          "quantity": 90,
+          "settlementDate": "2026-10-09",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 522.61,
+          "quantity": 1081,
+          "settlementDate": "2026-10-09",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 71.57,
+          "quantity": 4245,
+          "settlementDate": "2026-10-09",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 230.48,
+          "quantity": 1059,
+          "settlementDate": "2026-10-09",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 747.58,
+          "quantity": 300,
+          "settlementDate": "2026-10-09",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 53.45,
+          "quantity": 12318,
+          "settlementDate": "2026-10-09",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 773.93,
+          "quantity": 85,
+          "settlementDate": "2026-10-09",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 375.0,
+          "quantity": 24177,
+          "settlementDate": "2026-10-09",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 147.58,
+          "quantity": 286745,
+          "settlementDate": "2026-10-09",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 340.97,
+          "quantity": 1,
+          "settlementDate": "2026-10-13",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 259.53,
+          "quantity": 1077,
+          "settlementDate": "2026-10-13",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 354.73,
+          "quantity": 955,
+          "settlementDate": "2026-10-13",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "22160K105",
+          "price": 959.44,
+          "quantity": 7194,
+          "settlementDate": "2026-10-13",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 352.72,
+          "quantity": 6288,
+          "settlementDate": "2026-10-13",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 742.96,
+          "quantity": 76235,
+          "settlementDate": "2026-10-13",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 541.15,
+          "quantity": 413,
+          "settlementDate": "2026-10-13",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 70.61,
+          "quantity": 37699,
+          "settlementDate": "2026-10-13",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 226.32,
+          "quantity": 7747,
+          "settlementDate": "2026-10-13",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46090E103",
+          "price": 746.04,
+          "quantity": 10,
+          "settlementDate": "2026-10-13",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 54.35,
+          "quantity": 4847,
+          "settlementDate": "2026-10-13",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 778.1,
+          "quantity": 14192,
+          "settlementDate": "2026-10-13",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 378.03,
+          "quantity": 3097,
+          "settlementDate": "2026-10-13",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 151.03,
+          "quantity": 6346,
+          "settlementDate": "2026-10-13",
+          "symbol": "USO"
+        },
+        {
+          "cusip": "037833100",
+          "price": 341.27,
+          "quantity": 5,
+          "settlementDate": "2026-10-14",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "023135106",
+          "price": 258.58,
+          "quantity": 224,
+          "settlementDate": "2026-10-14",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "11135F101",
+          "price": 357.31,
+          "quantity": 10036,
+          "settlementDate": "2026-10-14",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "78467X109",
+          "price": 516.21,
+          "quantity": 21004,
+          "settlementDate": "2026-10-14",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "78463V107",
+          "price": 381.67,
+          "quantity": 21622,
+          "settlementDate": "2026-10-14",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "02079K305",
+          "price": 353.78,
+          "quantity": 293,
+          "settlementDate": "2026-10-14",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "464287655",
+          "price": 276.7,
+          "quantity": 3889,
+          "settlementDate": "2026-10-14",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "30303M102",
+          "price": 762.5,
+          "quantity": 796,
+          "settlementDate": "2026-10-14",
+          "symbol": "META"
+        },
+        {
+          "cusip": "594918104",
+          "price": 543.45,
+          "quantity": 118,
+          "settlementDate": "2026-10-14",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "price": 70.46,
+          "quantity": 1173,
+          "settlementDate": "2026-10-14",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "price": 228.52,
+          "quantity": 876,
+          "settlementDate": "2026-10-14",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "46428Q109",
+          "price": 53.49,
+          "quantity": 100,
+          "settlementDate": "2026-10-14",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "78462F103",
+          "price": 778.01,
+          "quantity": 2,
+          "settlementDate": "2026-10-14",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "88160R101",
+          "price": 375.23,
+          "quantity": 338,
+          "settlementDate": "2026-10-14",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "price": 153.09,
+          "quantity": 86830,
+          "settlementDate": "2026-10-14",
+          "symbol": "USO"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

@@ -2342,6 +2342,25 @@ describe("intraday sessions, session indicators, gates and volTarget", () => {
       expect(Array.from(compiled.exits)).toEqual([0, 0, 1, 0, 1, 0, 0, 1]);
     });
 
+    it("checks exits on the exitEvery grid and entries on the decisionEvery grid", () => {
+      const compiled = compileStrategy(
+        bars,
+        always({ decisionEvery: 60, exitEvery: 30 })
+      );
+      // Entries as with decisionEvery 60 (the 10:30 bar); exits on every 30-minute regular bar.
+      expect(Array.from(compiled.signals)).toEqual([
+        0, -1, 1, -1, -1, 0, -1, -1,
+      ]);
+      expect(Array.from(compiled.exits)).toEqual([0, 1, 1, 1, 1, 0, 1, 1]);
+    });
+
+    it("checks exits on the exitEvery grid without a decision grid", () => {
+      const compiled = compileStrategy(bars, always({ exitEvery: 60 }));
+      // Entries on every regular bar but the last; exits 60 and 120 minutes after 09:30.
+      expect(Array.from(compiled.signals)).toEqual([0, 1, 1, 1, -1, 0, 1, -1]);
+      expect(Array.from(compiled.exits)).toEqual([0, 0, 1, 0, 1, 0, 0, 1]);
+    });
+
     it("reuses one session indicator series across conditions", () => {
       const compiled = compileStrategy(
         bars,
@@ -2399,6 +2418,7 @@ describe("intraday sessions, session indicators, gates and volTarget", () => {
         [{ entryFrom: "10:15" }, "entryFrom 10:15"],
         [{ entryTo: "11:10" }, "entryTo 11:10"],
         [{ decisionEvery: 45 }, "decisionEvery 45"],
+        [{ exitEvery: 45 }, "exitEvery 45"],
       ] as const) {
         expect(refusal(() => compileStrategy(bars, always(block)))).toBe(
           `${STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday ${field} is not a whole multiple of the 30-minute bar duration; put every intraday time (minutes since midnight New York) and decisionEvery on the bar grid.`

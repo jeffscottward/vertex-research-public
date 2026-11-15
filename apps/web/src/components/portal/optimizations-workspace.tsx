@@ -300,7 +300,10 @@ export const OptimizationsWorkspace = ({
                     data-optimization-id={row.id}
                     key={row.id}
                   >
-                    <TableHead className="py-1 pr-3 font-normal" scope="row">
+                    <TableHead
+                      className="h-auto whitespace-normal py-1 pr-3 font-normal"
+                      scope="row"
+                    >
                       {row.strategyName ?? (
                         <span className="text-muted-foreground">Unlinked</span>
                       )}

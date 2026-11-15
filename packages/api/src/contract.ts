@@ -31,6 +31,7 @@ import { researchReportsContract } from "./contracts/research-reports.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { flowContract } from "./contracts/flow.ts";
 import { semanticTermsContract } from "./contracts/semantic-terms.ts";
+import { masterRulesContract } from "./contracts/master-rules.ts";
 import { clickLogContract } from "./contracts/click-log.ts";
 import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
 import { strategyLibraryContract } from "./contracts/strategy-library.ts";
@@ -42,7 +43,10 @@ import { instantBacktestContract } from "./contracts/instant-backtest.ts";
 import { playsContract } from "./contracts/plays.ts";
 import { setupReplayContract } from "./contracts/setup-replay.ts";
 import { researchLensesContract } from "./contracts/research-lenses.ts";
+import { openbbContract } from "./contracts/openbb.ts";
 import { sectorRotationContract } from "./contracts/sector-rotation.ts";
+import { breadth90Contract } from "./contracts/breadth-90.ts";
+import { goLiveDraftsContract } from "./contracts/golive-drafts.ts";
 import { congressTradesContract } from "./contracts/congress-trades.ts";
 import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
 import { marketDataContract } from "./contracts/market-data.ts";
@@ -53,6 +57,7 @@ import { portfolioMonitorContract } from "./contracts/portfolio-monitor.ts";
 import { enginesContract } from "./contracts/engines.ts";
 import { ibkrMonitorContract } from "./contracts/ibkr-monitor.ts";
 import { marketContextContract } from "./contracts/market-context.ts";
+import { marketNotesContract } from "./contracts/market-notes.ts";
 import { ibkrRecoveryContract } from "./contracts/ibkr-recovery.ts";
 import { nautilusArmContract } from "./contracts/nautilus-arm.ts";
 import { vertexOrdersContract } from "./contracts/vertex-orders.ts";
@@ -306,6 +311,7 @@ export const appContract = {
   researchStudies: researchStudiesContract,
   flow: flowContract,
   semanticTerms: semanticTermsContract,
+  masterRules: masterRulesContract,
   clickLog: clickLogContract,
   papers: papersContract,
   agentModelRuns: agentModelRunsContract,
@@ -323,13 +329,17 @@ export const appContract = {
   backtestRuns: backtestRunsContract,
   autopilot: autopilotContract,
   researchLenses: researchLensesContract,
+  openbb: openbbContract,
   sectorRotation: sectorRotationContract,
+  breadth90: breadth90Contract,
+  goLiveDrafts: goLiveDraftsContract,
   congressTrades: congressTradesContract,
   riskAllocator: riskAllocatorContract,
   portfolioMonitor: portfolioMonitorContract,
   ibkrMonitor: ibkrMonitorContract,
   engines: enginesContract,
   marketContext: marketContextContract,
+  marketNotes: marketNotesContract,
   ibkrRecovery: ibkrRecoveryContract,
   nautilusArm: nautilusArmContract,
   vertexOrders: vertexOrdersContract,

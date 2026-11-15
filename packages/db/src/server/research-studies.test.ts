@@ -29,6 +29,11 @@ const createDouble = (outcome: Outcome) => {
       calls["onConflict"] = config;
       return chain;
     },
+    // Awaiting the chain itself (a select that ends at where) settles the outcome.
+    then: (
+      onFulfilled: (value: unknown) => unknown,
+      onRejected: (reason: unknown) => unknown
+    ) => settle().then(onFulfilled, onRejected),
     returning: (columns: unknown) => {
       calls["returning"] = columns;
       return settle();
@@ -47,7 +52,10 @@ const createDouble = (outcome: Outcome) => {
       calls["insert"] = table;
       return chain;
     },
-    select: () => chain,
+    select: (columns?: unknown) => {
+      calls["select"] = columns;
+      return chain;
+    },
   } as unknown as DatabaseExecutor;
   return { calls, database };
 };
@@ -85,6 +93,41 @@ describe("research study repository", () => {
     expect(double.calls["from"]).toBe(researchStudies);
     expect(double.calls["limit"]).toBe(1);
     expect(double.calls["where"]).toBeDefined();
+  });
+
+  it("reads only the id, kind and verdict keys of the requested studies", async () => {
+    const rows = [
+      { id: "triple-rsi", kind: "strategy-backtest", verdict: "no-edge" },
+      { id: "adx-rvol-filters", kind: null, verdict: null },
+    ];
+    const double = createDouble(rows);
+    const repository = createResearchStudyRepository(double.database);
+    await expect(
+      repository.verdicts(["triple-rsi", "adx-rvol-filters"])
+    ).resolves.toEqual(rows);
+    expect(Object.keys(double.calls["select"] as object).sort()).toEqual([
+      "id",
+      "kind",
+      "verdict",
+    ]);
+    expect(double.calls["from"]).toBe(researchStudies);
+    expect(double.calls["where"]).toBeDefined();
+  });
+
+  it("makes no query for an empty verdict lookup", async () => {
+    const double = createDouble(new Error("must not run"));
+    const repository = createResearchStudyRepository(double.database);
+    await expect(repository.verdicts([])).resolves.toEqual([]);
+    expect(double.calls["from"]).toBeUndefined();
+  });
+
+  it("maps a database error in the verdict lookup", async () => {
+    const repository = createResearchStudyRepository(
+      createDouble(postgresError("57P01")).database
+    );
+    await expect(repository.verdicts(["triple-rsi"])).rejects.toBeInstanceOf(
+      DatabasePersistenceError
+    );
   });
 
   it("returns null for an unknown id", async () => {

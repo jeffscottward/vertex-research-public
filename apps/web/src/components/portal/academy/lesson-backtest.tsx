@@ -13,6 +13,11 @@ import { LessonChart } from "@darkfactory/academy/chart";
 import { FlaskConical } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  createBrowserEngineComparisonGateway,
+  type EngineComparisonGateway,
+  NautilusCard,
+} from "../engine-comparison.tsx";
 import { type AcademyGateway, errorMessage } from "./academy-client.ts";
 import { useAcademyTheme } from "./academy-theme.tsx";
 import { TableView } from "./lesson-interactive.tsx";
@@ -209,12 +214,18 @@ export const LessonBacktest = ({
   lesson,
   gateway,
   onResult,
+  comparisonGateway: suppliedComparisons,
 }: {
   readonly lesson: Lesson;
   readonly gateway: AcademyGateway;
   readonly onResult?: (result: AcademyBacktestOutput) => void;
+  /** Reads the Nautilus comparison runs of a backtest (engine comparison on). */
+  readonly comparisonGateway?: EngineComparisonGateway;
 }) => {
   const { palette } = useAcademyTheme();
+  const [comparisonGateway] = useState(
+    () => suppliedComparisons ?? createBrowserEngineComparisonGateway()
+  );
   const preset = lesson.backtest;
   const initialRules = useMemo(
     () =>
@@ -466,6 +477,17 @@ export const LessonBacktest = ({
               Show all {result.trades.length} trades
             </button>
           ) : null}
+          {result.comparison === undefined ? null : (
+            // Engine comparison on: the same modelled backtest repeats on Nautilus option
+            // instruments (switch plan step 6); the result above stays the TypeScript one.
+            <div data-engine-comparison="on">
+              <NautilusCard
+                gateway={comparisonGateway}
+                key={result.comparison.groupId ?? "none"}
+                timing={result.comparison}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

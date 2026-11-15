@@ -67,6 +67,7 @@ import {
   type Strategy,
   type StrategyKind,
   type StrategyPreset,
+  type StrategyPriority,
   type DeploymentRequest,
   type DeploymentRequestStatus,
   type StrategyStatus,
@@ -124,6 +125,7 @@ import {
   createMarketDailySeriesRepository,
   type MarketDailySeriesRepository,
 } from "./market-daily-series.ts";
+import { createOpenbbRepository, type OpenbbRepository } from "./openbb.ts";
 import {
   type BacktestRunsRepository,
   createBacktestRunsRepository,
@@ -192,17 +194,20 @@ import {
   STRATEGY_SEARCH_MAX_LENGTH,
   StrategyInputError,
   normalizeStrategyDescription,
+  normalizeStrategyExternalValidation,
   normalizeStrategyFavorite,
   normalizeStrategyKind,
   normalizeStrategyName,
   normalizeStrategyParams,
   normalizeStrategyPresetName,
+  normalizeStrategyPriority,
   normalizeStrategyPresetValues,
   normalizeStrategySection,
   normalizeStrategySlug,
   normalizeStrategySourceRef,
   normalizeStrategyStatus,
   normalizeStrategyTags,
+  parseStoredStrategyFields,
   slugifyStrategyName,
 } from "./strategy-library.ts";
 import {
@@ -213,9 +218,11 @@ import {
   checkDeploymentTransition,
   normalizeDeploymentLimits,
   normalizeDeploymentNote,
+  normalizeDeploymentOptions,
   normalizeDeploymentStatus,
   normalizeDeploymentSymbol,
   normalizeDeploymentTimeframe,
+  resolveDeploymentOptionsEdit,
   resolveDeploymentParams,
   type DeploymentRequestAction,
 } from "./deployment-requests.ts";
@@ -232,6 +239,22 @@ import {
   type BasketRepository,
   createBasketRepository,
 } from "./basket-repository.ts";
+import {
+  type Breadth90Repository,
+  createBreadth90Repository,
+} from "./breadth-90.ts";
+import {
+  createGoLiveDraftsRepository,
+  type GoLiveDraftsRepository,
+} from "./golive-drafts.ts";
+import {
+  createLeveragedEtfUniverseRepository,
+  type LeveragedEtfUniverseRepository,
+} from "./leveraged-etf-universe.ts";
+import {
+  type MarketNotesRepository,
+  createMarketNotesRepository,
+} from "./market-notes.ts";
 import {
   createPickListRepository,
   type PickListRepository,
@@ -3135,6 +3158,9 @@ export type CreateStrategyInput = Readonly<{
   favorite?: boolean;
   section?: string | null;
   params?: unknown;
+  priority?: StrategyPriority;
+  // A third party's claim; null (or omitted on create) means no external claim.
+  externalValidation?: unknown;
 }>;
 
 export type UpdateStrategyInput = Readonly<{
@@ -3147,6 +3173,9 @@ export type UpdateStrategyInput = Readonly<{
   favorite?: boolean;
   section?: string | null;
   params?: unknown;
+  priority?: StrategyPriority;
+  // A third party's claim; null (or omitted on create) means no external claim.
+  externalValidation?: unknown;
 }>;
 
 export type SaveStrategyPresetInput = Readonly<{
@@ -3205,11 +3234,25 @@ const strategyListColumns = {
   backtestCount: sql<number>`(${sql.raw(STRATEGY_BACKTEST_COUNT_SQL)})`,
 };
 
+// priority and external_validation are parsed on every read: a stored value that does not parse
+// is a storage error, never silently dropped.
+const storedStrategy = <T extends Strategy>(row: T): T => {
+  try {
+    return { ...row, ...parseStoredStrategyFields(row) };
+  } catch (error) {
+    if (error instanceof StrategyInputError)
+      throw new DatabasePersistenceError(
+        `strategy ${row.id} read (stored ${error.message})`
+      );
+    throw error;
+  }
+};
+
 const withStrategyCounts = (
   row: Strategy & Readonly<{ presetCount: unknown; backtestCount: unknown }>
 ): StrategyListRow => {
   return {
-    ...row,
+    ...storedStrategy(row),
     presetCount: Number(row.presetCount ?? 0),
     backtestCount: Number(row.backtestCount ?? 0),
   };
@@ -3274,7 +3317,12 @@ export const createStrategyLibraryRepository = (
           .select(strategyListColumns)
           .from(strategies)
           .where(conditions.length === 0 ? undefined : andWhere(...conditions))
-          .orderBy(desc(strategies.updatedAt), desc(strategies.id))
+          // High priority first, before the limit, so a limited list never cuts a high-priority row.
+          .orderBy(
+            sql`case when ${strategies.priority} = 'high' then 0 else 1 end`,
+            desc(strategies.updatedAt),
+            desc(strategies.id)
+          )
           .limit(limit);
         return rows.map(withStrategyCounts);
       } catch (error) {
@@ -3326,6 +3374,13 @@ export const createStrategyLibraryRepository = (
               : normalizeStrategyFavorite(input.favorite),
           section: normalizeStrategySection(input.section) ?? null,
           params: normalizeStrategyParams(input.params ?? []),
+          priority:
+            input.priority === undefined
+              ? ("normal" as StrategyPriority)
+              : normalizeStrategyPriority(input.priority),
+          externalValidation:
+            normalizeStrategyExternalValidation(input.externalValidation) ??
+            null,
         };
       });
       const timestamp = dependencies.now();
@@ -3339,7 +3394,7 @@ export const createStrategyLibraryRepository = (
             updatedAt: timestamp,
           })
           .returning();
-        return required(row, "row");
+        return storedStrategy(required(row, "row"));
       } catch (error) {
         return mapAgentOpsMutationError(error, "strategy");
       }
@@ -3374,6 +3429,16 @@ export const createStrategyLibraryRepository = (
         ...(input.params === undefined
           ? {}
           : { params: normalizeStrategyParams(input.params) }),
+        ...(input.priority === undefined
+          ? {}
+          : { priority: normalizeStrategyPriority(input.priority) }),
+        ...(input.externalValidation === undefined
+          ? {}
+          : {
+              externalValidation:
+                normalizeStrategyExternalValidation(input.externalValidation) ??
+                null,
+            }),
       }));
       if (Object.keys(changes).length === 0) {
         throw new InvalidRepositoryInputError(
@@ -3416,7 +3481,7 @@ export const createStrategyLibraryRepository = (
             .set({ ...changes, updatedAt: dependencies.now() })
             .where(eq(strategies.id, input.id))
             .returning();
-          return row ?? null;
+          return row === undefined ? null : storedStrategy(row);
         });
       } catch (error) {
         return mapAgentOpsMutationError(error, "strategy");
@@ -3560,8 +3625,18 @@ export type CreateDeploymentRequestInput = Readonly<{
   symbol: string;
   timeframe: string;
   limits: unknown;
+  // Optional options block; null or absent is the old format.
+  options?: unknown;
   requestedBy: string;
 }>;
+
+// One draft per symbol with the same fields; options.group must list exactly these symbols.
+export type CreateDeploymentRequestGroupInput = Readonly<
+  Omit<CreateDeploymentRequestInput, "symbol" | "options"> & {
+    symbols: readonly string[];
+    options: unknown;
+  }
+>;
 
 export type UpdateDeploymentRequestInput = Readonly<{
   id: string;
@@ -3570,6 +3645,8 @@ export type UpdateDeploymentRequestInput = Readonly<{
   symbol?: string;
   timeframe?: string;
   limits?: unknown;
+  // null removes the options block; undefined keeps the stored one.
+  options?: unknown;
 }>;
 
 export type TransitionDeploymentRequestInput = Readonly<{
@@ -3590,6 +3667,11 @@ export type DeploymentRequestsRepository = Readonly<{
   create: (
     input: CreateDeploymentRequestInput
   ) => Promise<DeploymentRequestRow | null>;
+  // One draft per symbol in one transaction (all or nothing), in the order of input.symbols;
+  // null when the strategy does not exist.
+  createGroup: (
+    input: CreateDeploymentRequestGroupInput
+  ) => Promise<DeploymentRequestRow[] | null>;
   // Drafts only; null when the request does not exist.
   update: (
     input: UpdateDeploymentRequestInput
@@ -3717,6 +3799,10 @@ export const createDeploymentRequestsRepository = (
         symbol: normalizeDeploymentSymbol(input.symbol),
         timeframe: normalizeDeploymentTimeframe(input.timeframe),
         limits: normalizeDeploymentLimits(input.limits),
+        options: normalizeDeploymentOptions(
+          input.options,
+          normalizeDeploymentSymbol(input.symbol)
+        ),
       }));
       const presetId = input.presetId ?? null;
       try {
@@ -3759,6 +3845,79 @@ export const createDeploymentRequestsRepository = (
       }
     },
 
+    createGroup: async (input) => {
+      requireNonBlank(input.strategyId, "strategyId");
+      requireNonBlank(input.requestedBy, "requestedBy");
+      const requests = deploymentInput(() => {
+        const timeframe = normalizeDeploymentTimeframe(input.timeframe);
+        const limits = normalizeDeploymentLimits(input.limits);
+        const symbols = input.symbols.map(normalizeDeploymentSymbol);
+        return symbols.map((symbol) => {
+          const options = normalizeDeploymentOptions(input.options, symbol);
+          if (
+            options === null ||
+            options.group === null ||
+            options.group.symbols.length !== symbols.length ||
+            options.group.symbols.some((entry, at) => entry !== symbols[at])
+          ) {
+            throw new DeploymentRequestInputError(
+              "options.group.symbols must list exactly the symbols of the group, without repeats"
+            );
+          }
+          return { symbol, timeframe, limits, options };
+        });
+      });
+      const presetId = input.presetId ?? null;
+      try {
+        return await withTransaction(database, async (transaction) => {
+          const [strategy] = await transaction
+            .select({ params: strategies.params })
+            .from(strategies)
+            .where(eq(strategies.id, input.strategyId))
+            .limit(1);
+          if (strategy === undefined) return null;
+          const presetValues =
+            presetId === null
+              ? undefined
+              : await presetValuesFor(transaction, input.strategyId, presetId);
+          const params = deploymentInput(() =>
+            resolveDeploymentParams(
+              strategy.params ?? [],
+              presetValues,
+              input.params
+            )
+          );
+          const timestamp = dependencies.now();
+          const values = requests.map((fields) => ({
+            id: dependencies.generateId(),
+            strategyId: input.strategyId,
+            presetId,
+            params,
+            ...fields,
+            mode: "paper" as const,
+            status: "draft" as const,
+            requestedBy: input.requestedBy,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          }));
+          // One statement in one transaction: every row is written or none is.
+          await transaction.insert(deploymentRequests).values(values);
+          const rows: DeploymentRequestRow[] = [];
+          for (const { id } of values) {
+            const row = await readDeploymentRequest(transaction, id);
+            if (row === null)
+              throw new DatabasePersistenceError(
+                "deployment request group could not be read back"
+              );
+            rows.push(row);
+          }
+          return rows;
+        });
+      } catch (error) {
+        return mapAgentOpsMutationError(error, "deployment request");
+      }
+    },
+
     update: async (input) => {
       requireNonBlank(input.id, "id");
       const changes = deploymentInput(() => ({
@@ -3774,6 +3933,7 @@ export const createDeploymentRequestsRepository = (
       }));
       if (
         Object.keys(changes).length === 0 &&
+        input.options === undefined &&
         input.params === undefined &&
         input.presetId === undefined
       ) {
@@ -3787,6 +3947,8 @@ export const createDeploymentRequestsRepository = (
             .select({
               status: deploymentRequests.status,
               strategyId: deploymentRequests.strategyId,
+              symbol: deploymentRequests.symbol,
+              options: deploymentRequests.options,
             })
             .from(deploymentRequests)
             .where(eq(deploymentRequests.id, input.id))
@@ -3825,10 +3987,18 @@ export const createDeploymentRequestsRepository = (
               : deploymentInput(() =>
                   resolveDeploymentParams(schema, input.params)
                 );
+          // undefined keeps the stored block; a changed symbol re-checks it (a group must contain it).
+          const options = deploymentInput(() =>
+            resolveDeploymentOptionsEdit(
+              { options: input.options, symbol: changes.symbol },
+              current
+            )
+          );
           await transaction
             .update(deploymentRequests)
             .set({
               ...changes,
+              ...(options === undefined ? {} : { options }),
               ...(presetId === undefined ? {} : { presetId }),
               ...(params === undefined ? {} : { params }),
               updatedAt: dependencies.now(),
@@ -3874,6 +4044,8 @@ export const createDeploymentRequestsRepository = (
               status: deploymentRequests.status,
               strategyId: deploymentRequests.strategyId,
               params: deploymentRequests.params,
+              symbol: deploymentRequests.symbol,
+              options: deploymentRequests.options,
             })
             .from(deploymentRequests)
             .where(eq(deploymentRequests.id, input.id))
@@ -3897,6 +4069,11 @@ export const createDeploymentRequestsRepository = (
             }
             deploymentInput(() =>
               checkDeploymentParamsFit(strategy?.params ?? [], current.params)
+            );
+            // A stored options block that breaks a rule (above the max-loss ceiling) is never
+            // submitted or approved.
+            deploymentInput(() =>
+              normalizeDeploymentOptions(current.options, current.symbol)
             );
           }
           const timestamp = dependencies.now();
@@ -4294,6 +4471,7 @@ export type Repositories = Readonly<{
   strategyLibrary?: StrategyLibraryRepository;
   marketBars?: MarketBarsRepository;
   marketDailySeries?: MarketDailySeriesRepository;
+  openbb?: OpenbbRepository;
   backtestRuns?: BacktestRunsRepository;
   forwardDrift?: ForwardDriftRepository;
   agentModelRuns?: AgentModelRunsRepository;
@@ -4309,6 +4487,10 @@ export type Repositories = Readonly<{
   sectorRotation?: SectorRotationRepository;
   clickLog?: ClickLogRepository;
   semanticLayer?: SemanticLayerRepository;
+  breadth90?: Breadth90Repository;
+  goLiveDrafts?: GoLiveDraftsRepository;
+  leveragedEtfUniverse?: LeveragedEtfUniverseRepository;
+  marketNotes?: MarketNotesRepository;
 }>;
 
 export const createRepositories = (
@@ -4346,6 +4528,7 @@ export const createRepositories = (
     database,
     dependencies.now
   ),
+  openbb: createOpenbbRepository(database, dependencies.now),
   backtestRuns: createBacktestRunsRepository(
     database,
     resolveDependencies(dependencies)
@@ -4402,5 +4585,18 @@ export const createRepositories = (
   semanticLayer: createSemanticLayerRepository(
     database,
     resolveDependencies(dependencies).now
+  ),
+  breadth90: createBreadth90Repository(
+    database,
+    resolveDependencies(dependencies)
+  ),
+  goLiveDrafts: createGoLiveDraftsRepository(
+    database,
+    resolveDependencies(dependencies)
+  ),
+  leveragedEtfUniverse: createLeveragedEtfUniverseRepository(database),
+  marketNotes: createMarketNotesRepository(
+    database,
+    resolveDependencies(dependencies)
   ),
 });

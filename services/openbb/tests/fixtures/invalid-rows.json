@@ -1,0 +1,674 @@
+[
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 22.73,
+      "date": "2026-10-29",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "SPX"
+    },
+    "why": "seriesId not a Cboe vol index id"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 22.73,
+      "date": "2026-02-30",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "GVZ"
+    },
+    "why": "impossible calendar date"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 22.73,
+      "date": "2026-11-05\n",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "GVZ"
+    },
+    "why": "date with a trailing newline (whole-string match)"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": null,
+      "date": "2026-10-29",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "GVZ"
+    },
+    "why": "close is required"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 22.73,
+      "date": "2026-10-29",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "GVZ",
+      "volume": 1
+    },
+    "why": "unknown key (strict object)"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 22.73,
+      "date": "2026-10-29",
+      "high": null,
+      "low": null,
+      "seriesId": "GVZ"
+    },
+    "why": "missing key"
+  },
+  {
+    "table": "vx_curve",
+    "row": {
+      "asOf": "2026-11-06",
+      "contractMonth": "2026-13",
+      "price": 23.75
+    },
+    "why": "month 13"
+  },
+  {
+    "table": "vx_curve",
+    "row": {
+      "asOf": "2026-11-06",
+      "contractMonth": "2026-11",
+      "price": "23.75"
+    },
+    "why": "price as a string"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 9007199254740992,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "count above Number.MAX_SAFE_INTEGER"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": -1,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "negative count"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 1.5,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "fractional count"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": true,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "boolean as a count"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "spy",
+      "underlyingPrice": 372.52
+    },
+    "why": "lower-case symbol"
+  },
+  {
+    "table": "option_iv_term",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv": 0.1748,
+      "atmStrike": 373.0,
+      "callOi": 12691,
+      "callVolume": 13457,
+      "dte": 3,
+      "expiration": "2026-11-01",
+      "putOi": 3330,
+      "putVolume": 6328,
+      "underlying": "GLD"
+    },
+    "why": "expiration before asOf"
+  },
+  {
+    "table": "cot_positions",
+    "row": {
+      "category": "commercial",
+      "long": 221896,
+      "market": "CL",
+      "marketCode": "067651",
+      "openInterest": 1955764,
+      "reportDate": "2026-09-15",
+      "reportType": "disaggregated",
+      "short": 115617,
+      "spreading": 298939
+    },
+    "why": "category not in the enum"
+  },
+  {
+    "table": "cot_positions",
+    "row": {
+      "category": "managed_money",
+      "long": 221896,
+      "market": "CL",
+      "marketCode": "067651",
+      "openInterest": 1955764,
+      "reportDate": "2026-09-15",
+      "reportType": "legacy",
+      "short": 115617,
+      "spreading": 298939
+    },
+    "why": "report type not in the enum"
+  },
+  {
+    "table": "macro_points",
+    "row": {
+      "date": "2026-10-09",
+      "frequency": "daily",
+      "name": "Effective federal funds rate",
+      "seriesId": "Nfci",
+      "source": "federal_reserve",
+      "unit": "percent",
+      "value": 3.88
+    },
+    "why": "series id with a lower-case letter"
+  },
+  {
+    "table": "macro_points",
+    "row": {
+      "date": "2026-10-09",
+      "frequency": "daily",
+      "name": "Effective federal funds rate",
+      "seriesId": "EFFR",
+      "source": "federal_reserve",
+      "unit": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+      "value": 3.88
+    },
+    "why": "unit too long (41)"
+  },
+  {
+    "table": "macro_points",
+    "row": {
+      "date": "2026-10-09",
+      "frequency": "daily",
+      "name": "   ",
+      "seriesId": "EFFR",
+      "source": "federal_reserve",
+      "unit": "percent",
+      "value": 3.88
+    },
+    "why": "blank name (trimmed empty)"
+  },
+  {
+    "table": "event_calendar",
+    "row": {
+      "date": "2026-10-14",
+      "detail": null,
+      "eventKey": "fedcal:beige_book:2026-10-14:14:00",
+      "kind": "beige_book",
+      "source": "federal_reserve",
+      "time": "24:00",
+      "title": "Beige Book"
+    },
+    "why": "time 24:00"
+  },
+  {
+    "table": "event_calendar",
+    "row": {
+      "date": "2026-10-14",
+      "detail": null,
+      "eventKey": "fedcal:beige_book:2026-10-14:14:00",
+      "kind": "fomc-meeting",
+      "source": "federal_reserve",
+      "time": "14:00",
+      "title": "Beige Book"
+    },
+    "why": "kind with a dash"
+  },
+  {
+    "table": "event_calendar",
+    "row": {
+      "date": "2026-10-14",
+      "detail": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "eventKey": "fedcal:beige_book:2026-10-14:14:00",
+      "kind": "beige_book",
+      "source": "federal_reserve",
+      "time": "14:00",
+      "title": "Beige Book"
+    },
+    "why": "detail of 2001 UTF-16 units"
+  },
+  {
+    "table": "event_calendar",
+    "row": {
+      "date": "2026-10-14",
+      "detail": null,
+      "eventKey": "fedcal:beige_book:2026-10-14:14:00",
+      "kind": "beige_book",
+      "source": "federal_reserve",
+      "time": "14:00",
+      "title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    },
+    "why": "title of 301 UTF-16 units (151 astral characters)"
+  },
+  {
+    "table": "finra_otc_weekly",
+    "row": {
+      "lastUpdated": "2026-10-05",
+      "shares": 27301288,
+      "symbol": "AAPL",
+      "tier": "T1",
+      "trades": 538096,
+      "venue": "dark",
+      "weekStart": "2026-09-14"
+    },
+    "why": "venue not in the enum"
+  },
+  {
+    "table": "short_interest",
+    "row": {
+      "avgDailyVolume": 45135477,
+      "daysToCover": -0.5,
+      "previousShortInterest": 139749097,
+      "settlementDate": "2026-09-15",
+      "shortInterest": 128753092,
+      "symbol": "AAPL"
+    },
+    "why": "negative days to cover"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-10-29",
+      "shortExemptVolume": 33562,
+      "shortVolume": 5760450,
+      "symbol": "AAPL",
+      "totalVolume": 9007199254740992
+    },
+    "why": "count above Number.MAX_SAFE_INTEGER"
+  },
+  {
+    "table": "sec_filings",
+    "row": {
+      "accessionNumber": "0000320193-26-000024",
+      "cik": "320193",
+      "description": "8-K (items 2.02,9.01)",
+      "filingDate": "2026-11-02",
+      "formType": "8-K",
+      "reportDate": "2026-11-02",
+      "symbol": "AAPL",
+      "url": "http://www.sec.gov/x"
+    },
+    "why": "url not https"
+  },
+  {
+    "table": "sec_filings",
+    "row": {
+      "accessionNumber": "000114036126042505",
+      "cik": "320193",
+      "description": "8-K (items 2.02,9.01)",
+      "filingDate": "2026-11-02",
+      "formType": "8-K",
+      "reportDate": "2026-11-02",
+      "symbol": "AAPL",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000024/aapl-20261102.htm"
+    },
+    "why": "accession without dashes"
+  },
+  {
+    "table": "sec_filings",
+    "row": {
+      "accessionNumber": "0000320193-26-000024",
+      "cik": "12345678901",
+      "description": "8-K (items 2.02,9.01)",
+      "filingDate": "2026-11-02",
+      "formType": "8-K",
+      "reportDate": "2026-11-02",
+      "symbol": "AAPL",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000024/aapl-20261102.htm"
+    },
+    "why": "cik of 11 digits"
+  },
+  {
+    "table": "sec_insider_trades",
+    "row": {
+      "accessionNumber": "0001140361-26-039785",
+      "acquiredDisposed": "a",
+      "filingDate": "2026-10-15",
+      "ownerName": "Newstead Jennifer",
+      "ownerTitle": "SVP, GC and Government Affairs",
+      "price": 345.0,
+      "rowNumber": 1,
+      "shares": 2399.0,
+      "sharesAfter": 37194.0,
+      "symbol": "AAPL",
+      "transactionCode": "S",
+      "transactionDate": "2026-10-13",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126039785/form4.xml"
+    },
+    "why": "acquiredDisposed lower case"
+  },
+  {
+    "table": "sec_insider_trades",
+    "row": {
+      "accessionNumber": "0001140361-26-039785",
+      "acquiredDisposed": "D",
+      "filingDate": "2026-10-15",
+      "ownerName": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "ownerTitle": "SVP, GC and Government Affairs",
+      "price": 345.0,
+      "rowNumber": 1,
+      "shares": 2399.0,
+      "sharesAfter": 37194.0,
+      "symbol": "AAPL",
+      "transactionCode": "S",
+      "transactionDate": "2026-10-13",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126039785/form4.xml"
+    },
+    "why": "owner name of 201 UTF-16 units (101 astral characters)"
+  },
+  {
+    "table": "sec_ftd",
+    "row": {
+      "cusip": "78462F10",
+      "price": 399.72,
+      "quantity": 253894,
+      "settlementDate": "2026-09-09",
+      "symbol": "GLD"
+    },
+    "why": "cusip of 8 characters"
+  },
+  {
+    "table": "sec_13f_holdings",
+    "row": {
+      "assetClass": "COM",
+      "cusip": "02005N100",
+      "filerCik": "1067983",
+      "filerName": "BERKSHIRE HATHAWAY INC",
+      "issuer": "ALLY FINL INC",
+      "optionType": "PUT",
+      "periodEnding": "2026-03-31",
+      "shares": 29000000,
+      "symbol": null,
+      "value": 1137670000.0,
+      "weight": 0.004324
+    },
+    "why": "optionType upper case"
+  },
+  {
+    "table": "sec_13f_holdings",
+    "row": {
+      "assetClass": "COM",
+      "cusip": "02005N100",
+      "filerCik": "1067983",
+      "filerName": "BERKSHIRE HATHAWAY INC",
+      "issuer": "ALLY FINL INC",
+      "optionType": "",
+      "periodEnding": "2026-03-31",
+      "shares": 29000000,
+      "symbol": "BRK B",
+      "value": 1137670000.0,
+      "weight": 0.004324
+    },
+    "why": "symbol with a space"
+  },
+  {
+    "table": "factor_returns",
+    "row": {
+      "date": "2026-07-01",
+      "factor": "umd",
+      "frequency": "monthly",
+      "value": 2.27
+    },
+    "why": "factor not in the enum"
+  },
+  {
+    "table": "factor_returns",
+    "row": {
+      "date": "2026-07-01",
+      "factor": "cma",
+      "frequency": "weekly",
+      "value": 2.27
+    },
+    "why": "frequency not in the enum"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 10.0001,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "atmIv30d above 10"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": -0.01,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "negative putIv25d30d"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 0
+    },
+    "why": "underlyingPrice zero"
+  },
+  {
+    "table": "option_iv_term",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv": 12.5,
+      "atmStrike": 373.0,
+      "callOi": 12691,
+      "callVolume": 13457,
+      "dte": 3,
+      "expiration": "2026-11-09",
+      "putOi": 3330,
+      "putVolume": 6328,
+      "underlying": "GLD"
+    },
+    "why": "atmIv above 10"
+  },
+  {
+    "table": "vx_curve",
+    "row": {
+      "asOf": "2026-11-06",
+      "contractMonth": "2026-11",
+      "price": 0
+    },
+    "why": "price zero"
+  },
+  {
+    "table": "vx_curve",
+    "row": {
+      "asOf": "2026-11-06",
+      "contractMonth": "2026-11",
+      "price": -1.5
+    },
+    "why": "negative price"
+  },
+  {
+    "table": "finra_otc_weekly",
+    "row": {
+      "lastUpdated": "2026-10-05",
+      "shares": 27301288,
+      "symbol": "AAPL",
+      "tier": "TTTTTTTTTTTTTTTTTTTT ",
+      "trades": 538096,
+      "venue": "ats",
+      "weekStart": "2026-09-14"
+    },
+    "why": "tier of 21 UTF-16 units before trimming (Zod max runs on the untrimmed value)"
+  },
+  {
+    "table": "macro_points",
+    "row": {
+      "date": "2026-10-09",
+      "frequency": "daily",
+      "name": "　",
+      "seriesId": "EFFR",
+      "source": "federal_reserve",
+      "unit": "percent",
+      "value": 3.88
+    },
+    "why": "name of only an ideographic space (JavaScript trim removes it)"
+  },
+  {
+    "table": "macro_points",
+    "row": {
+      "date": "2026-10-09",
+      "frequency": "daily",
+      "name": "Effective federal funds rate",
+      "seriesId": "EFFR",
+      "source": "﻿",
+      "unit": "percent",
+      "value": 3.88
+    },
+    "why": "source of only a byte-order mark (JavaScript trim removes it)"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 22.73,
+      "date": "２０２６-11-05",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "GVZ"
+    },
+    "why": "date with full-width digits"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-10-29",
+      "shortExemptVolume": 33562,
+      "shortVolume": 5760450,
+      "symbol": "ＳPY",
+      "totalVolume": 12426439
+    },
+    "why": "symbol with a full-width letter"
+  }
+]

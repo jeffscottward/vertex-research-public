@@ -4,7 +4,17 @@ import type {
   DeployServiceStatusOutput,
   DeploymentStatusOutput,
 } from "@darkfactory/api";
-import { Button } from "@darkfactory/ui";
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+} from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -198,72 +208,102 @@ const ServicesTable = ({
       // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
       tabIndex={0}
     >
-      <table className="w-full min-w-[56rem] text-sm">
-        <caption className="sr-only">QuantVPS container state</caption>
-        <thead>
-          <tr className="border-border border-b text-left text-muted-foreground text-xs">
-            <th className={cell} scope="col">
+      <Table
+        containerClassName="overflow-visible"
+        className="w-full min-w-[56rem] text-sm"
+      >
+        <TableCaption className="sr-only">
+          QuantVPS container state
+        </TableCaption>
+        <TableHeader>
+          <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               Service
-            </th>
-            <th className={cell} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               State
-            </th>
-            <th className={cell} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               Health
-            </th>
-            <th className={cell} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               Up since
-            </th>
-            <th className={`${cell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${cell} text-right`}
+              scope="col"
+            >
               Restarts
-            </th>
-            <th className={cell} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               Last log
-            </th>
-            <th className={`${cell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${cell} text-right`}
+              scope="col"
+            >
               Errors/Warns (last {DEPLOYMENT_LOG_WINDOW_LINES} lines)
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {services.map((service) => {
             return (
-              <tr
+              <TableRow
                 className={`border-border border-b ${isProblem(service) ? "text-destructive" : ""}`}
                 data-deployment-service={service.service}
                 key={service.service}
               >
-                <td className={`${cell} font-mono`}>
+                <TableCell className={`${cell} font-mono`}>
                   {service.service}
                   {service.image === null || service.image === "" ? null : (
                     <span className="block text-muted-foreground text-xs">
                       {service.image}
                     </span>
                   )}
-                </td>
-                <td className={`${cell} font-mono`}>{stateText(service)}</td>
-                <td className={`${cell} font-mono`}>{service.health ?? "—"}</td>
-                <td className={`${cell} font-mono text-xs`}>
+                </TableCell>
+                <TableCell className={`${cell} font-mono`}>
+                  {stateText(service)}
+                </TableCell>
+                <TableCell className={`${cell} font-mono`}>
+                  {service.health ?? "—"}
+                </TableCell>
+                <TableCell className={`${cell} font-mono text-xs`}>
                   {upSinceText(service, current)}
-                </td>
-                <td className={`${cell} text-right font-mono`}>
+                </TableCell>
+                <TableCell className={`${cell} text-right font-mono`}>
                   {service.restartCount ?? "—"}
-                </td>
-                <td className={`${cell} font-mono text-xs`}>
+                </TableCell>
+                <TableCell className={`${cell} font-mono text-xs`}>
                   {service.log === null
                     ? "—"
                     : formatUtc(service.log.lastLineAt)}
-                </td>
-                <td className={`${cell} text-right font-mono`}>
+                </TableCell>
+                <TableCell className={`${cell} text-right font-mono`}>
                   {service.log === null
                     ? "—"
                     : `${service.log.errorLines} / ${service.log.warnLines}`}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 };

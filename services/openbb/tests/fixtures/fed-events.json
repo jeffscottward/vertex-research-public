@@ -1,0 +1,1291 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "fed-events",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "event_calendar",
+      "rows": [
+        {
+          "date": "2026-10-14",
+          "detail": null,
+          "eventKey": "fedcal:beige_book:2026-10-14:14:00",
+          "kind": "beige_book",
+          "source": "federal_reserve",
+          "time": "14:00",
+          "title": "Beige Book"
+        },
+        {
+          "date": "2026-11-25",
+          "detail": null,
+          "eventKey": "fedcal:beige_book:2026-11-25:14:00",
+          "kind": "beige_book",
+          "source": "federal_reserve",
+          "time": "14:00",
+          "title": "Beige Book"
+        },
+        {
+          "date": "2026-10-28",
+          "detail": "Two-day meeting, October 27 - 28 Press Conference",
+          "eventKey": "fedcal:fomc_meeting:2026-10-28:14:00",
+          "kind": "fomc_meeting",
+          "source": "federal_reserve",
+          "time": "14:00",
+          "title": "FOMC Meeting"
+        },
+        {
+          "date": "2026-12-09",
+          "detail": "Two-day meeting, December 8 - 9 Press Conference",
+          "eventKey": "fedcal:fomc_meeting:2026-12-09:14:00",
+          "kind": "fomc_meeting",
+          "source": "federal_reserve",
+          "time": "14:00",
+          "title": "FOMC Meeting"
+        },
+        {
+          "date": "2026-11-18",
+          "detail": "Meeting of October 27-28",
+          "eventKey": "fedcal:fomc_minutes:2026-11-18:14:00",
+          "kind": "fomc_minutes",
+          "source": "federal_reserve",
+          "time": "14:00",
+          "title": "FOMC Minutes"
+        },
+        {
+          "date": "2026-12-30",
+          "detail": "Meeting of December 8-9",
+          "eventKey": "fedcal:fomc_minutes:2026-12-30:14:00",
+          "kind": "fomc_minutes",
+          "source": "federal_reserve",
+          "time": "14:00",
+          "title": "FOMC Minutes"
+        },
+        {
+          "date": "2026-10-28",
+          "detail": null,
+          "eventKey": "fedcal:fomc_press_conference:2026-10-28:14:30",
+          "kind": "fomc_press_conference",
+          "source": "federal_reserve",
+          "time": "14:30",
+          "title": "FOMC Press Conference"
+        },
+        {
+          "date": "2026-12-09",
+          "detail": null,
+          "eventKey": "fedcal:fomc_press_conference:2026-12-09:14:30",
+          "kind": "fomc_press_conference",
+          "source": "federal_reserve",
+          "time": "14:30",
+          "title": "FOMC Press Conference"
+        },
+        {
+          "date": "2026-10-09",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-09:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-09",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-09:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-09",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-09:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-10-13",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-13:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-13",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-13:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-10-13",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-13:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-14",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-14:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-14",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-14:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-15",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-15:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-15",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-15:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-15",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-15:h-4-1",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:30",
+          "title": "H.4.1 - Factors Affecting Reserve Balances"
+        },
+        {
+          "date": "2026-10-16",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-16:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-16",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-16:g-17",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "09:15",
+          "title": "G.17 - Industrial Production and Capacity Utilization"
+        },
+        {
+          "date": "2026-10-16",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-16:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-16",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-16:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-10-19",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-19:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-19",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-19:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-10-19",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-19:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-20",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-20:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-20",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-20:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-21",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-21:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-21",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-21:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-22",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-22:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-22",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-22:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-22",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-22:h-4-1",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:30",
+          "title": "H.4.1 - Factors Affecting Reserve Balances"
+        },
+        {
+          "date": "2026-10-23",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-23:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-23",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-23:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-23",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-23:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-10-26",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-26:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-26",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-26:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-10-26",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-26:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-27",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-27:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-27",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-27:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-27",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-27:h-6",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "H.6 - Money Stock Measures"
+        },
+        {
+          "date": "2026-10-28",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-28:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-28",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-28:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-29",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-29:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-29",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-29:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-29",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-29:h-4-1",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:30",
+          "title": "H.4.1 - Factors Affecting Reserve Balances"
+        },
+        {
+          "date": "2026-10-30",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-30:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-10-30",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-30:g-20",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": null,
+          "title": "G.20 - Finance Companies"
+        },
+        {
+          "date": "2026-10-30",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-30:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-30",
+          "detail": null,
+          "eventKey": "fedrel:2026-10-30:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-11-02",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-02:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-02",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-02:g-5",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "G.5 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-11-02",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-02:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-11-02",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-02:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-02",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-02:sloos",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "14:00",
+          "title": "Senior Loan Officer Opinion Survey on Bank Lending Practices (SLOOS)"
+        },
+        {
+          "date": "2026-11-03",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-03:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-03",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-03:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-04",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-04:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-04",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-04:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-05",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-05:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-05",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-05:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-05",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-05:h-4-1",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:30",
+          "title": "H.4.1 - Factors Affecting Reserve Balances"
+        },
+        {
+          "date": "2026-11-06",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-06:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-06",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-06:g-19",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "15:00",
+          "title": "G.19 - Consumer Credit"
+        },
+        {
+          "date": "2026-11-06",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-06:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-06",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-06:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-11-09",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-09:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-09",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-09:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-11-09",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-09:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-10",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-10:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-10",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-10:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-12",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-12:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-12",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-12:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-12",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-12:h-4-1",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:30",
+          "title": "H.4.1 - Factors Affecting Reserve Balances"
+        },
+        {
+          "date": "2026-11-13",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-13:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-13",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-13:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-13",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-13:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-11-16",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-16:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-16",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-16:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-11-16",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-16:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-17",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-17:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-17",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-17:g-17",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "09:15",
+          "title": "G.17 - Industrial Production and Capacity Utilization"
+        },
+        {
+          "date": "2026-11-17",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-17:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-18",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-18:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-18",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-18:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-19",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-19:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-19",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-19:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-19",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-19:h-4-1",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:30",
+          "title": "H.4.1 - Factors Affecting Reserve Balances"
+        },
+        {
+          "date": "2026-11-20",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-20:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-20",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-20:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-20",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-20:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-11-23",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-23:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-23",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-23:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-11-23",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-23:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-24",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-24:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-24",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-24:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-24",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-24:h-6",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "H.6 - Money Stock Measures"
+        },
+        {
+          "date": "2026-11-25",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-25:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-25",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-25:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-27",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-27:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-27",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-27:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-11-27",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-27:h-4-1",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:30",
+          "title": "H.4.1 - Factors Affecting Reserve Balances"
+        },
+        {
+          "date": "2026-11-27",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-27:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-11-30",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-30:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-11-30",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-30:g-20",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": null,
+          "title": "G.20 - Finance Companies"
+        },
+        {
+          "date": "2026-11-30",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-30:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-11-30",
+          "detail": null,
+          "eventKey": "fedrel:2026-11-30:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-12-01",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-01:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-12-01",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-01:g-5",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "G.5 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-12-01",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-01:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-12-02",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-02:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-12-02",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-02:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-12-03",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-03:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-12-03",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-03:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-12-03",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-03:h-4-1",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:30",
+          "title": "H.4.1 - Factors Affecting Reserve Balances"
+        },
+        {
+          "date": "2026-12-04",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-04:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-12-04",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-04:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-12-04",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-04:h-8",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.8 - Assets and Liabilities of Commercial Banks in the U.S."
+        },
+        {
+          "date": "2026-12-07",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-07:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-12-07",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-07:g-19",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "15:00",
+          "title": "G.19 - Consumer Credit"
+        },
+        {
+          "date": "2026-12-07",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-07:h-10",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.10 - Foreign Exchange Rates"
+        },
+        {
+          "date": "2026-12-07",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-07:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-12-08",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-08:cp",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "13:00",
+          "title": "CP - Commercial Paper"
+        },
+        {
+          "date": "2026-12-08",
+          "detail": null,
+          "eventKey": "fedrel:2026-12-08:h-15",
+          "kind": "fed_release",
+          "source": "federal_reserve",
+          "time": "16:15",
+          "title": "H.15 - Selected Interest Rates"
+        },
+        {
+          "date": "2026-10-14",
+          "detail": "https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20261014.pdf",
+          "eventKey": "fomcdoc:https://www.federalreserve.gov/monetarypolicy/files/BeigeBook_20261014.pdf",
+          "kind": "fomc_document",
+          "source": "federal_reserve",
+          "time": null,
+          "title": "FOMC beige book (pdf)"
+        },
+        {
+          "date": "2026-10-28",
+          "detail": "https://www.federalreserve.gov/monetarypolicy/files/monetary20261028a1.pdf",
+          "eventKey": "fomcdoc:https://www.federalreserve.gov/monetarypolicy/files/monetary20261028a1.pdf",
+          "kind": "fomc_document",
+          "source": "federal_reserve",
+          "time": null,
+          "title": "FOMC monetary policy (pdf)"
+        },
+        {
+          "date": "2026-10-28",
+          "detail": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20261028.htm",
+          "eventKey": "fomcdoc:https://www.federalreserve.gov/monetarypolicy/fomcpresconf20261028.htm",
+          "kind": "fomc_document",
+          "source": "federal_reserve",
+          "time": null,
+          "title": "FOMC press conference (htm)"
+        },
+        {
+          "date": "2026-11-09",
+          "detail": "announced 2026-11-05; issue 2026-11-12; offering $100.0 bn; reopening; CUSIP 912797TC1",
+          "eventKey": "auction:912797TC1:2026-11-09",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "6-Week Bill auction"
+        },
+        {
+          "date": "2026-11-16",
+          "detail": "announced 2026-11-12; issue 2026-11-19; reopening; CUSIP 912797TV9",
+          "eventKey": "auction:912797TV9:2026-11-16",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "13-Week Bill auction"
+        },
+        {
+          "date": "2026-11-09",
+          "detail": "announced 2026-11-05; issue 2026-11-12; offering $82.0 bn; reopening; CUSIP 912797UX3",
+          "eventKey": "auction:912797UX3:2026-11-09",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "26-Week Bill auction"
+        },
+        {
+          "date": "2026-11-17",
+          "detail": "announced 2026-11-12; issue 2026-11-19; reopening; CUSIP 912797VJ3",
+          "eventKey": "auction:912797VJ3:2026-11-17",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "6-Week Bill auction"
+        },
+        {
+          "date": "2026-11-09",
+          "detail": "announced 2026-11-05; issue 2026-11-12; offering $95.0 bn; reopening; CUSIP 912797WB9",
+          "eventKey": "auction:912797WB9:2026-11-09",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "13-Week Bill auction"
+        },
+        {
+          "date": "2026-11-12",
+          "detail": "announced 2026-11-10; issue 2026-11-17; reopening; CUSIP 912797WF0",
+          "eventKey": "auction:912797WF0:2026-11-12",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "4-Week Bill auction"
+        },
+        {
+          "date": "2026-11-12",
+          "detail": "announced 2026-11-10; issue 2026-11-17; reopening; CUSIP 912797WP8",
+          "eventKey": "auction:912797WP8:2026-11-12",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "8-Week Bill auction"
+        },
+        {
+          "date": "2026-11-16",
+          "detail": "announced 2026-11-12; issue 2026-11-19; CUSIP 912797XD4",
+          "eventKey": "auction:912797XD4:2026-11-16",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "26-Week Bill auction"
+        },
+        {
+          "date": "2026-11-12",
+          "detail": "announced 2026-11-10; issue 2026-11-17; CUSIP 912797XH5",
+          "eventKey": "auction:912797XH5:2026-11-12",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "17-Week Bill auction"
+        },
+        {
+          "date": "2026-11-12",
+          "detail": "announced 2026-11-04; issue 2026-11-16; offering $25.0 bn; CUSIP 912810UY2",
+          "eventKey": "auction:912810UY2:2026-11-12",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "30-Year Bond auction"
+        },
+        {
+          "date": "2026-11-18",
+          "detail": "announced 2026-11-12; issue 2026-11-30; CUSIP 912810UZ9",
+          "eventKey": "auction:912810UZ9:2026-11-18",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "20-Year Bond auction"
+        },
+        {
+          "date": "2026-11-19",
+          "detail": "announced 2026-11-12; issue 2026-11-30; reopening; CUSIP 91282CRE3",
+          "eventKey": "auction:91282CRE3:2026-11-19",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "9-Year 8-Month Note auction"
+        },
+        {
+          "date": "2026-11-09",
+          "detail": "announced 2026-11-04; issue 2026-11-16; offering $58.0 bn; CUSIP 91282CRW3",
+          "eventKey": "auction:91282CRW3:2026-11-09",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "3-Year Note auction"
+        },
+        {
+          "date": "2026-11-10",
+          "detail": "announced 2026-11-04; issue 2026-11-16; offering $42.0 bn; CUSIP 91282CRX1",
+          "eventKey": "auction:91282CRX1:2026-11-10",
+          "kind": "treasury_auction",
+          "source": "us_treasury",
+          "time": null,
+          "title": "10-Year Note auction"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

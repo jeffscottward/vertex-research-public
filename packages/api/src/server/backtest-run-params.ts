@@ -24,6 +24,9 @@ export const runParamsForSpec = (
   if (rule.kind === "dsl") {
     throw new Error("A strategy definition run has no fixed-rule parameters");
   }
+  if (rule.kind === "academy") {
+    throw new Error("An Academy run has no fixed-rule parameters");
+  }
   const costs = costsForSpec(spec);
   return {
     costBps: spec.costBps,

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "fed-rates",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "macro_points",
+      "rows": [
+        {
+          "seriesId": "EFFR",
+          "date": "2026-11-05",
+          "value": 3.88,
+          "source": "federal_reserve",
+          "name": "Effective federal funds rate",
+          "unit": "percent",
+          "frequency": "daily"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

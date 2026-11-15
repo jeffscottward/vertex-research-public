@@ -24,6 +24,7 @@ import {
   type DeployStatusConfig,
   type DeployStatusFetch,
 } from "./deploy-status.ts";
+import { redactIbkrAccounts } from "./ibkr-account-redaction.ts";
 import { requireOperator } from "./operator-access.ts";
 
 // Bounded, read-only fetch of IBKR historical bars, historical ticks and one-shot depth snapshots
@@ -53,10 +54,17 @@ export type MarketDataErrorCode =
 
 export class MarketDataError extends Error {
   code: MarketDataErrorCode;
-  constructor(code: MarketDataErrorCode, message: string) {
+  // PACED only: the service's wait, when it sent one.
+  retryAfterSeconds: number | null;
+  constructor(
+    code: MarketDataErrorCode,
+    message: string,
+    retryAfterSeconds: number | null = null
+  ) {
     super(message);
     this.name = "MarketDataError";
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -208,10 +216,8 @@ const UpstreamErrorSchema = z.object({
   retry_after_seconds: z.number().int().nonnegative().optional(),
 });
 
-const ACCOUNT_PATTERN = /\b(?:D?U|F|I)\d{5,}\b/g;
 const clean = (text: string): string => {
-  return text
-    .replace(ACCOUNT_PATTERN, "[account]")
+  return redactIbkrAccounts(text)
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .trim()
     .slice(0, 300);
@@ -293,7 +299,8 @@ const upstreamFailure = async (
       "PACED",
       retry === null
         ? "IBKR history pacing: retry later"
-        : `IBKR history pacing: retry in ${retry} s`
+        : `IBKR history pacing: retry in ${retry} s`,
+      retry
     );
   }
   if (body !== null) {
@@ -360,7 +367,8 @@ const toMarketBarsOutput = (
   };
 };
 
-const fetchHistoryDocument = async (
+// GET one history document (bearer, timeout, size cap, no redirects); also used by ibkr-history.ts.
+export const fetchHistoryDocument = async (
   config: DeployStatusConfig | null,
   buildUrl: (base: string) => string,
   defaultTimeoutMs: number,

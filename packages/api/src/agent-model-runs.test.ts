@@ -1081,6 +1081,7 @@ describe("model run frameworks service", () => {
       "tradingagents",
       "ai_hedge_fund",
       "vibe_trading",
+      "langalpha",
     ]);
     await expectCode(
       clientFor(

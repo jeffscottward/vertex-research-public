@@ -8,6 +8,7 @@ import {
 } from "@darkfactory/academy/schema";
 import { oc } from "@orpc/contract";
 import { z } from "zod";
+import { EngineComparisonTimingSchema } from "./engine-comparison.ts";
 
 // Vertex Academy. Three procedure groups:
 // - lessons, lesson: read the lesson catalog, operator-only (the transcripts are private). A course's
@@ -118,6 +119,8 @@ export const AcademyBacktestOutputSchema = z
         last: dateSchema,
       })
       .strict(),
+    /** Engine comparison (dual run) timing and group; absent when comparison is off. */
+    comparison: EngineComparisonTimingSchema.optional(),
   })
   .strict();
 

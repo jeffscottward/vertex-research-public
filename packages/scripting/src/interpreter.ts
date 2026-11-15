@@ -20,29 +20,29 @@ import {
 } from "./checker.ts";
 import { fail, type Position, START, toScriptError } from "./errors.ts";
 import {
-  type CompileResult,
-  type RunOptions,
-  type RunResult,
+  clip,
   SCRIPT_BARS_MAX,
+  SCRIPT_OPS_CEILING_FACTOR,
   SCRIPT_OPS_DEFAULT,
+  SCRIPT_SIGNAL_TEXT_MAX,
   SCRIPT_SIGNALS_MAX,
   SCRIPT_SOURCE_MAX,
-  type ScriptBar,
-  type ScriptError,
-  type ScriptInputSpec,
-  type ScriptInputValue,
-  type ScriptPlot,
-  type ScriptSignal,
-} from "./index.ts";
-import {
-  clip,
-  SCRIPT_OPS_CEILING_FACTOR,
-  SCRIPT_SIGNAL_TEXT_MAX,
   SCRIPT_STRING_MAX,
   STRING_TOO_LONG,
 } from "./limits.ts";
 import { parse } from "./parser.ts";
 import { Series, Site } from "./series.ts";
+import type {
+  CompileResult,
+  RunOptions,
+  RunResult,
+  ScriptBar,
+  ScriptError,
+  ScriptInputSpec,
+  ScriptInputValue,
+  ScriptPlot,
+  ScriptSignal,
+} from "./types.ts";
 import {
   color,
   num,
@@ -102,7 +102,6 @@ const COMPARE: ReadonlyMap<string, NumberOp<boolean>> = new Map<
 
 const BUDGET_MESSAGE = "Script stopped: operation budget used";
 // options.maxOps as a finite integer in [1, 10 x default]; anything unusable -> default.
-// (Computed per call: index.ts constants are not initialized while this module loads.)
 export const opsBudget = (maxOps: unknown): number => {
   if (typeof maxOps !== "number" || !Number.isFinite(maxOps)) {
     return SCRIPT_OPS_DEFAULT;

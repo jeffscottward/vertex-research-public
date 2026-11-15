@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Push the rig research-lens documents to the QuantVPS tailnet file root (read-only lens data).
-# Runs on dev-rig. Sources: the vertex-research data jobs. No credentials are read or written.
+# Runs on dev-rig. Sources: vertex-research-public scripts/research-lenses data jobs. No credentials are read or written.
 # Target: /opt/vertex-status/private-v2/research-lenses/ (mounted read-only into vertex-status-tailnet
 # as /srv/research-lenses and served at :8443/vertex-research-lenses/v1/*).
 set -euo pipefail
 
-ROTATION_JSON="${ROTATION_JSON:-$HOME/Github/trading/vertex-research/data/rotation-matrix/latest.json}"
-DEEP_VALUE_JSON="${DEEP_VALUE_JSON:-$HOME/Github/trading/vertex-research-wt-deep-value/data/deep-value/latest.json}"
+ROTATION_JSON="${ROTATION_JSON:-$HOME/.local/share/vertex-research-lenses/data/rotation-matrix/latest.json}"
+DEEP_VALUE_JSON="${DEEP_VALUE_JSON:-$HOME/.local/share/vertex-research-lenses/data/deep-value/latest.json}"
 QUANTVPS_HOST="${QUANTVPS_HOST:-quantvps}"
 DEST="${RESEARCH_LENSES_DEST:-/opt/vertex-status/private-v2/research-lenses}"
 SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes)

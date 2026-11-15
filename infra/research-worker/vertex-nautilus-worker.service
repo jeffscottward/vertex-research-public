@@ -13,6 +13,14 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# A restart starts a new request budget, but the agent key limiter keeps its count until more than
+# 60 s pass without an accepted request (README.md, request budget). With its own key (the rig
+# setup) a 65 s wait before the first claim resets that count, so two restarts close together
+# do not meet a 429 (one did on 2026-11-06 06:47Z). On a shared key another client keeps the
+# count alive: set the sleep to VERTEX_WORKER_QUIET_PAUSE_MS (125 s) and TimeoutStartSec to 180.
+# `systemctl --user restart` waits for the sleep; add --no-block to return at once.
+ExecStartPre=/usr/bin/sleep 65
+TimeoutStartSec=120
 ExecStart=%h/.local/bin/vertex-nautilus-worker-run
 Restart=always
 RestartSec=10

@@ -5,6 +5,12 @@ import {
   AGENT_OPS_API_ERRORS,
   BacktestResultSummarySchema,
 } from "./agent-ops.ts";
+import {
+  QC_PORT_STUDY_KIND,
+  QcPortStudySchema,
+  STRATEGY_BACKTEST_STUDY_KIND,
+  StrategyBacktestStudySchema,
+} from "./research-studies.ts";
 
 // Operator strategy library: strategies, typed parameter schemas, named presets and linked backtests.
 // Operator-only (requireOperator); agent keys may call it, read keys only list and get.
@@ -32,6 +38,9 @@ export const STRATEGY_SORT_VALUES = [
   "sharpe",
   "return",
 ] as const;
+// high lists a strategy first inside every sort.
+export const STRATEGY_PRIORITY_VALUES = ["normal", "high"] as const;
+export const STRATEGY_EXTERNAL_METRICS_LIMIT = 12;
 export const STRATEGY_LIST_MAX = 500;
 export const STRATEGY_PARAMS_LIMIT = 60;
 export const STRATEGY_TAGS_LIMIT = 20;
@@ -49,6 +58,7 @@ export const StrategyKindSchema = z.enum(STRATEGY_KIND_VALUES);
 export const StrategyStatusSchema = z.enum(STRATEGY_STATUS_VALUES);
 export const StrategyParamTypeSchema = z.enum(STRATEGY_PARAM_TYPE_VALUES);
 export const StrategySortSchema = z.enum(STRATEGY_SORT_VALUES);
+export const StrategyPrioritySchema = z.enum(STRATEGY_PRIORITY_VALUES);
 
 const IdSchema = z.string().trim().min(1).max(128);
 const requiredText = (max: number) => z.string().trim().min(1).max(max);
@@ -83,6 +93,26 @@ export const StrategyParamSchema = z.object({
   options: z.array(z.string()).optional(),
 });
 
+export const StrategyExternalMetricSchema = z
+  .object({ label: requiredText(60), value: requiredText(80) })
+  .strict();
+// A third party's published CLAIM about the strategy: where it was published, the method the source
+// describes and the metrics it reports. Non-null is the single source of the label "Externally
+// pre-validated". It never means validated by Vertex; null means no external claim.
+export const StrategyExternalValidationSchema = z
+  .object({
+    sourceUrl: z.url({ protocol: /^https$/u }).max(300),
+    sourceTitle: requiredText(200),
+    sourceAuthor: requiredText(120),
+    publishedOn: z.iso.date(),
+    claimedMethod: requiredText(1000),
+    claimedMetrics: z
+      .array(StrategyExternalMetricSchema)
+      .min(1)
+      .max(STRATEGY_EXTERNAL_METRICS_LIMIT),
+  })
+  .strict();
+
 export const StrategySchema = z.object({
   id: z.string().min(1),
   slug: z.string(),
@@ -95,6 +125,8 @@ export const StrategySchema = z.object({
   favorite: z.boolean(),
   section: z.string().nullable(),
   params: z.array(StrategyParamSchema),
+  priority: StrategyPrioritySchema,
+  externalValidation: StrategyExternalValidationSchema.nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -109,10 +141,27 @@ export const StrategyLatestBacktestSchema = z.object({
   maxDrawdown: z.number().nullable(),
 });
 
+// Vertex's own study result for a strategy: the kind and verdict of the study stored under its slug,
+// shown only when the strategy has the study tag for that kind (strategy-study-tags.ts). A research
+// result with no trading authority. The server reads the two keys without the full document and
+// trusts the full check the import CLI ran on write. Read-only agent keys see it through list/get
+// (owner decision 2026-11-13, private tracker card vertex-library-list-vertex-verdict).
+export const StrategyVertexStudySchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal(QC_PORT_STUDY_KIND),
+    verdict: QcPortStudySchema.shape.verdict,
+  }),
+  z.object({
+    kind: z.literal(STRATEGY_BACKTEST_STUDY_KIND),
+    verdict: StrategyBacktestStudySchema.shape.verdict,
+  }),
+]);
+
 export const StrategySummarySchema = StrategySchema.extend({
   presetCount: z.number().int().nonnegative(),
   backtestCount: z.number().int().nonnegative(),
   latestBacktest: StrategyLatestBacktestSchema.nullable(),
+  vertexStudy: StrategyVertexStudySchema.nullable(),
 });
 
 export const StrategyPresetSchema = z.object({
@@ -159,6 +208,9 @@ export const StrategyCreateInputSchema = z
     favorite: z.boolean().optional(),
     section: clearableText(80).optional(),
     params: ParamsInputSchema.optional(),
+    priority: StrategyPrioritySchema.optional(),
+    // null (or omitted on create) means no external claim.
+    externalValidation: StrategyExternalValidationSchema.nullable().optional(),
   })
   .strict();
 
@@ -173,6 +225,9 @@ export const StrategyUpdateInputSchema = z
     favorite: z.boolean().optional(),
     section: clearableText(80).optional(),
     params: ParamsInputSchema.optional(),
+    priority: StrategyPrioritySchema.optional(),
+    // null (or omitted on create) means no external claim.
+    externalValidation: StrategyExternalValidationSchema.nullable().optional(),
   })
   .strict()
   .refine(
@@ -186,6 +241,8 @@ export const StrategyUpdateInputSchema = z
         input.favorite,
         input.section,
         input.params,
+        input.priority,
+        input.externalValidation,
       ].some((value) => value !== undefined),
     { message: "Change at least one field" }
   );
@@ -293,9 +350,14 @@ export const strategyLibraryContract = {
 export type StrategyKindValue = z.infer<typeof StrategyKindSchema>;
 export type StrategyStatusValue = z.infer<typeof StrategyStatusSchema>;
 export type StrategySortValue = z.infer<typeof StrategySortSchema>;
+export type StrategyPriorityValue = z.infer<typeof StrategyPrioritySchema>;
+export type StrategyExternalValidationOutput = z.infer<
+  typeof StrategyExternalValidationSchema
+>;
 export type StrategyParamOutput = z.infer<typeof StrategyParamSchema>;
 export type StrategyOutput = z.infer<typeof StrategySchema>;
 export type StrategySummaryOutput = z.infer<typeof StrategySummarySchema>;
+export type StrategyVertexStudy = z.infer<typeof StrategyVertexStudySchema>;
 export type StrategyLatestBacktestOutput = z.infer<
   typeof StrategyLatestBacktestSchema
 >;

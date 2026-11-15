@@ -1,7 +1,8 @@
 """NautilusTrader execution engine for Quant Lab specs (research only).
 
-Select it with `python -m quantlab backtest --engine nautilus ...`. The default
-engine stays the standard-library simulator in engine.py. This module gives the
+The `python -m quantlab backtest` default since 2026-11-08 (`--engine stdlib` selects
+the standard-library simulator in engine.py; `run_spec` itself still defaults to
+stdlib). This module gives the
 same `Run` (daily returns, weights, trades) for the same frozen spec and frozen
 bars, so backtest.py builds the same result record from either engine.
 

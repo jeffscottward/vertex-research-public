@@ -33,9 +33,9 @@ Keep DarkFactory a small, truthful, swappable product template. Build features a
 1. **Contracts first.** Change the oRPC contract or Zod schema and its failing test before the implementation.
 2. **Ports and adapters.** Vendor SDKs are imported only in adapter files. Features and services depend on ports.
 3. **TypeScript strict.** No `any`, no `@ts-ignore`, no non-null assertions on untrusted data. Validate input with Zod at boundaries.
-4. **Tests and the 100% gate.** Every source file is measured. Cover new code with tests, not with coverage exclusions. Coverage ratchet (owner decision, 2026-10-11, reconfirmed 2026-10-16; ADR-016): files listed in `scripts/ci/coverage-baseline.json` were below 100% after the TypeScript port and keep recorded per-file minimums that may only rise; every other file must reach 100%. The list may only shrink. Never add a file to it or lower a minimum.
+4. **Tests and the 100% gate.** Every source file is measured. Cover new code with tests, not with coverage exclusions. Coverage ratchet (owner decision, 2026-10-11, reconfirmed 2026-10-16; ADR-016): files listed in `scripts/ci/coverage-baseline.json` were below 100% after the TypeScript port and keep recorded per-file minimums that may only rise; every other file must reach 100%. The list may only shrink. Never add a file to it or lower a minimum. One exception (owner decision, 2026-11-11; ADR-017): a proved pure-move split. A listed file may be split into new files when `bun run coverage:split-proof` prints `Result: PROVED`: only side-effect-free declarations moved, token for token, into new files in the same folder, every name, import and export of the original file resolves to the same declaration, the other modules load in the same order, and the covered and total lines, branches, functions and statements are the same in sum. The PR then sets the entries of the files after the split to the values the command prints: the original file's minimums may fall only to the values the command prints, new files are added only with those values, and everything else in the baseline list is unchanged (the command checks this). The PR shows the command output, and the reviewer reruns the command ([docs/testing.md](docs/testing.md#pure-move-split-of-a-listed-file)).
 5. **No secrets.** Never commit, log or print secrets, `.env` values, tokens or personal data. Seeded accounts are dev-only.
-6. **Drizzle only.** All Postgres access goes through `packages/db` repositories and generated migrations.
+6. **Drizzle only.** All Postgres access goes through `packages/db` repositories and generated migrations. When a base merge stops on `packages/db/migrations/meta/_journal.json` or `meta/NNNN_snapshot.json` (another branch took the same migration number), run `pnpm db:renumber`, check that `pnpm db:generate` reports no schema changes, then commit ([CONVENTIONS.md](CONVENTIONS.md#migration-numbers)).
 7. **oRPC only.** No ad hoc REST routes, server actions or direct database calls from pages.
 8. **Small, focused commits.** One change per commit, with its tests, generated artifacts and docs. Use Conventional Commits.
 9. **Never weaken a gate.** Do not lower thresholds, skip tests, add `.only`, widen allowlists or disable hooks to go green.
@@ -58,7 +58,7 @@ plan → contract → failing test → implement → bun run verify:prepush → 
 - **PR:** done when the eight required checks pass: the four CI lanes `Verification (core)`, `Verification (coverage)`, `Verification (integration)` and `Verification (browser)`, plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
 - **Exact-SHA evidence** is required only for a release or deploy. Dispatch `ci.yml` on the exact commit and confirm the run's `head_sha` before deploying ([docs/deploy.md](docs/deploy.md#release-checklist)).
 
-Graphify is optional: `bun run graph:build` builds a local graph for navigation. It is never committed or required.
+Graphify is optional: `bun run graph:build` builds a local graph for navigation. It is never committed or required. The wrapper always runs the Graphify pinned in `scripts/graph/requirements.lock` from a hash-locked venv in `${XDG_CACHE_HOME:-~/.cache}/darkfactory/graphify/`, never a `graphify` on `PATH`; it builds the venv with `uv` on first use, which needs network access for Python 3.12 and the locked wheels (one venv per lock, shared by all worktrees; delete it to force a rebuild). A relative `XDG_CACHE_HOME` is ignored.
 
 ## Agent roles
 
@@ -176,6 +176,10 @@ Private licensed security capabilities require explicit operator activation and 
 
 Before merging, inspect effective repository and organization rules and require successful current required checks, preserving every required check name/app identity, strict up-to-date checks, and other protections. Independent GitHub approval is mandatory only when those effective rules require it; documented exact-head technical review and real verification remain mandatory in every case. The approved solo-maintainer policy permits `required_approving_review_count: 0` and `require_last_push_approval: false`, but documentation is not evidence that live protection has changed. Unknown or incompatible rules block acceptance. Never invent approval, use an admin bypass, grant access, or change settings merely to obtain a merge.
 
+Merge only through `scripts/merge-pr <pr> --card <card> --head <reviewed-sha> [--repo <owner/name>] [--wait <minutes>]`, never with a plain `gh pr merge` (owner 2026-11-12, card vertex-base-merge-serialization). The base requires a strict up-to-date `ci-gate`, and GitHub's merge queue is not available for this user-owned repository, so parallel merges race and the loser must update and rerun CI. The script claims `branch:vertex-research-public:<base>` through `fm claim` (exit 4 while another card holds it; `--wait` retries), stops if the PR head is not the reviewed SHA, merges the base into the PR when it is behind (accepting only that exact update merge), reads the required checks from branch protection and rulesets and waits until each passed on that exact head from its required app, renews the claim, merges with a merge commit pinned to that head, checks that the merge tree equals the PR head tree, and releases the claim. The script names its repository on every GitHub call and never uses the `gh` default of the working folder or `GH_REPO`: `--repo` if given, else the repository of the checkout's Git remotes, and with remotes on more than one repository the one whose PR is at the reviewed head on GitHub; if that is not exactly one repository, it stops (exit 1) before any claim and asks for `--repo`. It never bypasses checks, force-pushes or reruns CI; on a conflict, merge the base locally, push, review the new head, and rerun it.
+
+Run `scripts/merge-pr` only after the PR's required checks passed once on the reviewed head: from its first claim to the merge it holds the base for everyone, including any update and CI rerun, so a PR that is still failing would block other merges for a whole CI run. Exit codes: 0 merged and verified; 1 stopped before merging (the message says why); 4 another card or run holds the base (wait with `--wait <minutes>` or talk to that card); 5 merged or possibly merged but the check after it failed (inspect the PR by hand); 6 the claim was lost before merging. A card that already held the base claim keeps it after the script and must release it with `fm release`.
+
 Record the final head, full reviewed scope, findings and resolutions, actual verification results, and remaining limitations. Security-bootstrap review covers the entire helper/generator/generated-artifact trust boundary and hosted consumers, not only the corrective diff. Successor publication remains held until the public follow-up is accepted; local integration of trusted-base consumers is not verified publication. A successful merge or generated bootstrap bytes prove neither analyzer execution nor SARIF ingestion. When effective rules require independent approval, it must qualify for the final head; owner/admin exemptions, local agent review, earlier-head approval, or a successful merge response cannot substitute for it. Invitations and access changes require a separate deliberate owner decision and are not approval.
 
 Use Bun as the primary script and TypeScript runtime, and use `bunx --bun --no-install` only for compatible local CLIs. Do not force Bun onto child-launching tools such as Turborepo when `BUN_BE_BUN` would leak into package-manager children; use `bunx --no-install turbo` for the task graph. Use pnpm for packages, workspaces, explicit package-local Vitest execution under Node, and the sole lockfile; never use Bun as a second package manager.
@@ -206,15 +210,41 @@ Do not use `pnpm run` for lifecycle commands or bare `pnpm ci` as a gate; pnpm i
 - Do not duplicate code, suppress failures, edit unrelated files, or bundle cleanup into a functional commit.
 - Focused commits contain one coherent change and its contract, tests, generated artifacts, Graphify update, and directly affected documentation.
 
+## Code stewardship
+
+Owner decision, 2026-11-11: the agents that work here own the quality of this code.
+
+- Leave the code you touch cleaner than you found it. A small refactor in files that your change already touches is welcome in any PR: a clearer name, an extracted function, deleted dead code, a helper moved to the module that owns it. Give it its own commit; the "Security and repository hygiene" rules stay (no cleanup inside a functional commit, no unrelated files).
+- A structure-only change keeps behavior: the tests are green before and after, coverage does not go down, and public contracts (oRPC, Zod, database schema, package `exports`) stay the same.
+- A behavior change needs its own PR. A bug found during a cleanup also gets its own PR.
+- A change to an order, execution, arming or risk path is never cleanup. It gets its own PR and the full review that "Code review practice" requires for these paths.
+- For an optimization, measure first. Put the number before and the number after in the PR.
+- Runtime import cycles are a lint error (`suspicious/noImportCycles` in `biome.jsonc`). Fix a cycle by moving the shared code into a leaf module, not with a lazy import. The override list for this rule only shrinks.
+
 ## Code review practice
 
-This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15). Machines do most of the reading; a person owns the outcome.
+This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15), with one change: only agents review code here. The owner does not read code (owner decision, 2026-11-10, [message](https://discord.com/channels/1511468532876185770/1569796763714457652/1569827457996029986)). The agent that opens a PR owns its outcome: tests, review findings, CI, merge and follow-up.
 
 - Verify before review: run the tests, build or browser check, and put the command and its output (or a screenshot) in the PR.
 - Before opening a PR, have a fresh-context reviewer (subagent or `/code-review`) read the diff. Fix each finding or answer it with a reason.
 - When the same finding appears twice, fix it at the source: a lint rule, a test, or a line in this file.
 - Cap review rounds at three, then reconsider the approach. After two rounds, review only the new diff. Flag the whole class of a bug once, so the author fixes every instance. This cap does not narrow the exact-head merge review or any full-scope review this file requires (security bootstrap, order or risk paths), and it never waives a required check or finding.
-- What the change touches, not who wrote it, decides how much review it needs: order, execution, risk, auth, CI and deploy paths always get a person's review. An agent's approval never replaces a required human approval. The person who prompted an agent-written change owns it.
+- What the change touches, not who wrote it, decides how much review it needs. A change to an order, execution, arming, risk, auth, CI or deploy path merges only when all of these are true:
+  - The required checks passed on the exact head commit.
+  - A fresh-context agent reviewed the full diff at that head, not only the newest review round.
+  - No review finding is open.
+  - If the change alters what an item in the owner-decision list below allows (for example a risk gate, cap, size limit or kill switch), the owner decided it before the merge, and the PR body links that decision.
+- No merge waits for a person to read code. A job never asks the owner to review code or a diff. Ask the owner only for a decision that only the owner can make. Ask it as one plain-English question about the effect (what changes for trading, money, risk, security or access), without implementation details.
+- Owner-decision list. The owner decides these, whatever the review result:
+  - Arming trading.
+  - Placing or changing live orders.
+  - Risk settings (sizes, caps, gates, kill switches), including a code change that changes what one of them allows.
+  - Starting, stopping or reconfiguring live trading units.
+  - Trading-engine deploys.
+  - Money movement.
+  - Security and access changes.
+- An agent review never authorizes an item in the owner-decision list. A PR that changes one of them, or changes what one of them allows, does not merge before the owner decides. Link the owner's decision (message or issue, with its date) in the PR body. A reviewer treats a missing link as an open finding.
+- Approvals that branch protection or rulesets require still apply ("Lifecycle gates").
 - Keep changes small, and state in the PR how to test and how to revert them.
 
 ## Deeper docs

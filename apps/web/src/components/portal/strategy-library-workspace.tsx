@@ -41,7 +41,11 @@ import {
   type StrategyLibraryGateway,
 } from "./agent-ops-client.tsx";
 import { formatPercent } from "./backtests-workspace.tsx";
-import { StrategyDetail, StrategyLinks } from "./strategy-library-detail.tsx";
+import {
+  StrategyBadges,
+  StrategyDetail,
+  StrategyLinks,
+} from "./strategy-library-detail.tsx";
 import {
   formatRatio,
   formatSignedPercent,
@@ -82,7 +86,7 @@ const describeStrategyFailure = (error: unknown): string => {
     error !== null &&
     Reflect.get(error, "code") === "STORAGE_ERROR"
   ) {
-    return "Strategy library storage unavailable (503). Apply migration 0019 if the tables are missing.";
+    return "Strategy library storage unavailable (503): its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).";
   }
   return describeAgentOpsFailure(error);
 };
@@ -283,10 +287,13 @@ const RowsView = ({
                 <FavoriteButton busy={busy} onToggle={onToggle} row={row} />
               </TableCell>
               <TableHead
-                className="whitespace-normal py-0 pr-3 font-normal"
+                className="h-auto whitespace-normal py-0 pr-3 font-normal"
                 scope="row"
               >
-                <NameLink onOpen={onOpen} row={row} />
+                <span className="flex flex-wrap items-center gap-x-2">
+                  <NameLink onOpen={onOpen} row={row} />
+                  <StrategyBadges strategy={row} />
+                </span>
               </TableHead>
               <TableCell
                 className="whitespace-normal py-1 pr-3 text-xs"
@@ -358,6 +365,7 @@ const CardsView = ({
             <NameLink onOpen={onOpen} row={row} />
             <FavoriteButton busy={busy} onToggle={onToggle} row={row} />
           </div>
+          <StrategyBadges strategy={row} />
           <p className="text-muted-foreground text-xs">
             {STRATEGY_STATUS_LABELS[row.status]} ·{" "}
             {STRATEGY_KIND_LABELS[row.kind] ?? row.kind}

@@ -1109,6 +1109,7 @@ describe("feature item mutation repository", () => {
       "assistant",
       "marketBars",
       "marketDailySeries",
+      "openbb",
       "backtestRuns",
       "forwardDrift",
       "agentModelRuns",
@@ -1124,6 +1125,10 @@ describe("feature item mutation repository", () => {
       "sectorRotation",
       "clickLog",
       "semanticLayer",
+      "breadth90",
+      "goLiveDrafts",
+      "leveragedEtfUniverse",
+      "marketNotes",
     ]);
     return expect(repositories.generated).toEqual({});
   });

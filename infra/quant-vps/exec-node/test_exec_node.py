@@ -258,6 +258,9 @@ class OwnedRuntimeTests(unittest.TestCase):
     # Test: test_arm_killswitch.py. arm_gate.py also carries the options-only, defined-risk order
     # policy in place_order (owner rule 2026-11-04: options only, risk always defined, max loss per
     # order <= 2% NLV, one working close per contract). Test: test_order_policy.py.
+    # Order policy v3 (owner decision 2026-11-11, card vertex-golive-spread-gate): defined-risk vertical
+    # spreads as one BAG order, behind NAUTILUS_ORDER_POLICY_ALLOW_DEFINED_RISK_SPREADS (off by default;
+    # off is the v2 behaviour), with per-name and total open-risk caps. Test: test_order_policy_v3.py.
     # The frozen close transmit script called client.placeOrder directly (gate bypass); the owned
     # refusal, now scripts/position_close.py (card move-close-off-charan-scripts), refuses every run.
     # Test: test_transmit_disabled.py.
@@ -266,7 +269,7 @@ class OwnedRuntimeTests(unittest.TestCase):
     # key. arm_gate.py needs it to tell option classes apart. Test: test_order_policy.py.
     safety_fix = {
         "watchdog/watchdog.py": "215229586079adeb034d912f955d39770d6817dcff8acbb347b4fdb1fe96afe9",
-        "nautilus/arm_gate.py": "501763f951408bdf0afe1ec26861890d61d2c579cde4cf86774657678a6fcb22",
+        "nautilus/arm_gate.py": "18506c58530db4a79901087ffce38ccfacb7cd03e67d30c561833e2e119147f4",
         "scripts/ibkr_account_snapshot.py": "42265a912c610a676c604692437d68612642884f6d1e20f7de3d82a87d35d2f4",
         "scripts/position_close.py": "c4052f9678f89bf0304807897c4c656674a117fc2e86fbc768bd97af50ecad7c",
     }
@@ -278,9 +281,11 @@ class OwnedRuntimeTests(unittest.TestCase):
     # portfolio-ui login that nautilus-trader received only for the retired intake's 2FA trigger. The gate
     # ignores those keys in the old root (en.retired_env). watchdog.py drops the CHARAN_* settings and the
     # CHARAN_LIVE_TRANSMIT_ENABLED term of live_broker_enabled (safety_fix digest above).
+    # docker-compose.yml also passes the order policy v3 switch and the total open-risk cap (with its
+    # source) to nautilus-trader; all three are empty by default (card vertex-golive-spread-gate).
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "32f2d6d7c677cc89081ffd41db671445dd44812e317d89cd067ee672031543e6",
+        "docker-compose.yml": "16480d28b43aa65eb40d8e804c7479194f6df8f1eb305c341f6e54eadc8f2c37",
         # Card move-close-off-charan-scripts: /api/position-close runs scripts/position_close.py; the
         # rescan request write for the retired intake (nothing reads it) is gone.
         "portfolio-ui/server.mjs": "2639b8126c88c2fd5fe896a01968832ad51ed97e83e07484ebece20cb3f73110",
