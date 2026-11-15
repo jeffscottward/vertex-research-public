@@ -233,9 +233,6 @@ class LiveInputs:
         except (ValueError, IndexError):
             return "unreadable", None
 
-    def inspect(self, service):
-        return self.inspect_status(service)[1]
-
     def docker_logs(self, service, tail):
         code, out, err = _sh(["docker", "logs", "--timestamps", "--tail", str(tail), PREFIX + service + "-1"], timeout=10)
         return (out or "") + (err or "") if code == 0 else None
@@ -336,9 +333,6 @@ class FixtureInputs(LiveInputs):
         if os.path.exists(self._file("inspect/%s.unreadable" % service)):
             return "unreadable", None
         return "missing", None
-
-    def inspect(self, service):
-        return self.inspect_status(service)[1]
 
     def docker_logs(self, service, tail):
         p = self._file("docker-logs/%s.txt" % service)

@@ -104,7 +104,7 @@ Last 50, newest first: `{time, symbol, side (buy|sell), qty, price, order_id_mas
 
 | Field | Notes |
 | --- | --- |
-| `kill_switch` | `engaged` if any kill-switch file exists or watchdog `live_flags.kill_switch_active` is true. `clear` if every file is confirmed absent. `unverified` otherwise: no indicator is engaged, but at least one file check gave no answer (`engaged: null` in `kill_switch_indicators`); it is never shown as clear. |
+| `kill_switch` | `engaged` if any kill-switch file exists or watchdog `live_flags.kill_switch_active` is true. `clear` if every file is confirmed absent. `unverified` otherwise: no indicator is engaged, but at least one file check gave no answer (`engaged: null` in `kill_switch_indicators`); it is never shown as clear. The source of a file indicator is `file <path>` (path below the exec-node root); the web names unread files by this format. |
 | `kill_switch_indicators[]` | `{source, engaged (bool\|null), as_of}`: files `data/KILL_SWITCH` and `portfolio-ui/data/KILL_SWITCH` (stat only), the watchdog flag, and the health.json flag. |
 | `limits` | block: allow-listed nautilus-trader env as lower-case keys, typed. Examples: `nautilus_risk_max_order_quantity`, `nautilus_risk_max_position_notional_usd`, `nautilus_risk_max_daily_loss_usd`, `nautilus_risk_allowed_instruments[]`, `risk_denied_instruments[]`, `nautilus_risk_orders_enabled`, `nautilus_risk_dry_run`, `trading_mode`, `enable_live_trading`, `synthetic_*`. |
 | `last_risk_check` | most recent Postgres `risk_events` row: `{time, event, allowed, dry_run, reason, strategy, requested_symbol, max_*}` or `null`. |

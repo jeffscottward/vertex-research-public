@@ -210,7 +210,7 @@ class StateMappingTest(unittest.TestCase):
         self.assertEqual(m(self.c("created"), None, None, False, None), "stopped")
         self.assertEqual(m(self.c("dead"), None, None, False, None), "error")
 
-    def test_no_mapping_returns_unknown(self):
+    def test_no_mapping_returns_unknown_never(self):
         m = collect.map_session_state
         for status in ("running", "restarting", "paused", "removing", "dead", "exited", "created", "weird", ""):
             self.assertNotEqual(m(self.c(status), None, None, False, None), "unknown", status)
@@ -315,6 +315,9 @@ class DefiniteStateTest(unittest.TestCase):
         risk = collect.build_risk(inp, inp.now(), None, None, None)
         self.assertEqual(risk["kill_switch"], "unverified")
         self.assertIsNone(risk["kill_switch_indicators"][0]["engaged"])
+        # The web names the unread files by this source format ("file <path>"); keep it.
+        files = [i["source"] for i in risk["kill_switch_indicators"][:len(collect.KILL_SWITCH_FILES)]]
+        self.assertEqual(files, ["file " + p.replace(collect.ROOT + "/", "") for p in collect.KILL_SWITCH_FILES])
 
 
 if __name__ == "__main__":

@@ -1181,11 +1181,10 @@ class NautilusArm:
         self._clock = clock
         self._log = log or (lambda *a, **k: None)
         self._change = threading.Lock()
-        # In memory only (None again after a service restart). Each is replaced by one assignment, so a
-        # concurrent status() reads the old or the new value; both are display data, no gate reads them.
         # (since, reason, last_good) of the latest container read, replaced as one tuple under _seen_lock.
         # since: first failed read of the current failure run; reason: docker-error or ambiguous-container;
-        # last_good: {state, since, at}, the last container state Docker answered. In memory only.
+        # last_good: {state, since, at}, the last container state Docker answered (since = when this
+        # service first saw it). In memory only (None again after a restart); display data, no gate reads it.
         self._seen_lock = threading.Lock()
         self._seen = (None, None, None)
 

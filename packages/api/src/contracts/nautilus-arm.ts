@@ -31,7 +31,8 @@ export const NAUTILUS_CONTAINER_STATES = [
 ] as const;
 
 // docker-unreadable only: the last container state Docker answered (in memory of the VPS service;
-// null when it saw none since it started). since: when that state began; at: when it was read.
+// null when it saw none since it started). since: when the service first saw that state; at: when it
+// last read it.
 export const NautilusContainerLastKnownSchema = z
   .object({
     at: z.string().max(40),
