@@ -1,12 +1,12 @@
 {
   "audit": {
-    "grader": "OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the question and its reference from tests/integration/semantic-layer/questions.ts",
+    "grader": "Trials of H2, H3, Q6, Q10, Q11, Q12, Q13, Q17, Q18, Q19 and Q20 (recorded 2026-11-15): OMP completion() with the model anthropic/claude-fable-5-2, one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check of every answer against its reference by the recording agent. All other trials (graded 2026-11-11; the H4 trials 2026-11-14): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the question and its reference from tests/integration/semantic-layer/questions.ts",
     "instructions": "Grade the assistant answer against the reference for the question. correct: gives the reference value/conclusion; for a NOT AVAILABLE reference, saying it is not available without giving a value is correct. wrong: presents a wrong value or conclusion, or a value from the wrong account/source, as the answer. declined: says data is unavailable when the reference has a value.",
-    "gradedAt": "2026-11-11T23:53:08.000Z"
+    "gradedAt": "2026-11-15T06:15:01.000Z"
   },
   "model": "omp-completion",
   "note": "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.",
-  "recordedAt": "2026-11-14T12:51:40.877Z",
+  "recordedAt": "2026-11-15T06:13:20.256Z",
   "schemaVersion": 1,
   "trials": [
     {
@@ -452,7 +452,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis comes from the certified term pnl (Account P&L), which reads your live IBKR account through the vertex-portfolio feed. The same reading also shows:\n- Daily P&L: -1,284.40 USD\n- Realized P&L: 1,050.00 USD",
+      "answer": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nSource: certified term pnl (Account P&L), read from the live IBKR account in the vertex-portfolio feed (pnl.unrealized). This is the owner's account, not the paper exec node.\n\nFor context from the same term:\n- daily P&L: -1,284.40 USD\n- realized P&L: 1,050.00 USD",
       "completions": [
         {
           "content": "",
@@ -466,7 +466,7 @@
           ]
         },
         {
-          "content": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis comes from the certified term pnl (Account P&L), which reads your live IBKR account through the vertex-portfolio feed. The same reading also shows:\n- Daily P&L: -1,284.40 USD\n- Realized P&L: 1,050.00 USD",
+          "content": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nSource: certified term pnl (Account P&L), read from the live IBKR account in the vertex-portfolio feed (pnl.unrealized). This is the owner's account, not the paper exec node.\n\nFor context from the same term:\n- daily P&L: -1,284.40 USD\n- realized P&L: 1,050.00 USD",
           "inputDigest": "973cc9db953df876eaf77a63a3ed00f88eb947e5f9a0c335656b40a6cab3c9fb",
           "toolCalls": []
         }
@@ -478,7 +478,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Your unrealized P&L is 5,830.00 USD.\n\nThis comes from the certified term pnl (Account P&L), which reads your live IBKR account through the vertex-portfolio feed. The figure is as of 2026-11-05 15:30 UTC.\n\nThe same term also returned:\n- Daily P&L: -1,284.40 USD\n- Realized P&L: 1,050.00 USD",
+      "answer": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nSource: certified term pnl (Account P&L), read from the live IBKR account in the vertex-portfolio feed (pnl.unrealized).\n\nFor context, the same term shows daily P&L of -1,284.40 USD and realized P&L of 1,050.00 USD.",
       "completions": [
         {
           "content": "",
@@ -492,7 +492,7 @@
           ]
         },
         {
-          "content": "Your unrealized P&L is 5,830.00 USD.\n\nThis comes from the certified term pnl (Account P&L), which reads your live IBKR account through the vertex-portfolio feed. The figure is as of 2026-11-05 15:30 UTC.\n\nThe same term also returned:\n- Daily P&L: -1,284.40 USD\n- Realized P&L: 1,050.00 USD",
+          "content": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nSource: certified term pnl (Account P&L), read from the live IBKR account in the vertex-portfolio feed (pnl.unrealized).\n\nFor context, the same term shows daily P&L of -1,284.40 USD and realized P&L of 1,050.00 USD.",
           "inputDigest": "d990675edf8841d6949a12450850ea58b6b9154f055d5315e586266bc8425e7b",
           "toolCalls": []
         }
@@ -504,42 +504,28 @@
       "audit": "correct"
     },
     {
-      "answer": "Your unrealized P&L is +5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nThat's the P&L on open positions in your live IBKR account. It comes from the certified term pnl (Account P&L, window \"unrealized\"), which reads the vertex-portfolio feed. It doesn't include the paper exec node's P&L.",
+      "answer": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nSource: certified term pnl (Account P&L), read from the live IBKR account in the vertex-portfolio feed (pnl.unrealized).\n\nFor context from the same term: daily P&L is -1,284.40 USD and realized P&L is 1,050.00 USD.",
       "completions": [
         {
           "content": "",
           "inputDigest": "98511222f7d2aeff72c70c5bfc0cbd3f15322bdfc9bf6b04b23174efeb6ddbea",
           "toolCalls": [
             {
-              "arguments": "{}",
+              "arguments": "{\"term\":\"pnl\"}",
               "id": "Q6.3_0.0",
-              "name": "terms_list"
-            }
-          ]
-        },
-        {
-          "content": "",
-          "inputDigest": "8ba1dadfac7be14a48792aa09fdcd59a2725b9ebb8045abe04510714140bc40c",
-          "toolCalls": [
-            {
-              "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"unrealized\"}}",
-              "id": "Q6.3_1.0",
               "name": "terms_query"
             }
           ]
         },
         {
-          "content": "Your unrealized P&L is +5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nThat's the P&L on open positions in your live IBKR account. It comes from the certified term pnl (Account P&L, window \"unrealized\"), which reads the vertex-portfolio feed. It doesn't include the paper exec node's P&L.",
-          "inputDigest": "d8ed45cf002ec314fd396d84375a7ea1fe8f856e591c9888da5a66e6ca82ea5f",
+          "content": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nSource: certified term pnl (Account P&L), read from the live IBKR account in the vertex-portfolio feed (pnl.unrealized).\n\nFor context from the same term: daily P&L is -1,284.40 USD and realized P&L is 1,050.00 USD.",
+          "inputDigest": "edb2d0a7019137a201fde8a38024a41c5ea58bc4e453969e28256ba7a716c208",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "Q6",
-      "tools": [
-        "terms_list({})",
-        "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"unrealized\"}})"
-      ],
+      "tools": ["terms_query({\"term\":\"pnl\"})"],
       "trial": 3,
       "audit": "correct"
     },
@@ -757,7 +743,7 @@
       "audit": "correct"
     },
     {
-      "answer": "I can't give you a share of NLV for the Crown copy book. That number isn't available.\n\nThe certified term that covers this, crown_copy_leg (\"Crown copy-book legs and their share of NLV\"), has source \"none\". Vertex has no data source for the Crown copy legs. The only place crownCopy shows up is as an input flag of the risk allocator, and the term's definition says not to estimate it. I won't calculate a percentage from positions, the paper exec node or anything else.\n\nTo make this answerable, a data source for the Crown copy legs would need to be connected and certified. Then the share could be worked out against your certified NLV (the net_liquidation term from the vertex-portfolio feed). If you want your current NLV on its own, I can look it up.",
+      "answer": "That share is not available. The certified term crown_copy_leg (Crown copy-book legs and their share of NLV) has source none: Vertex has no data source for the Crown copy legs, since crownCopy is only an input flag of the risk allocator. I will not estimate it from another source.\n\nWhat I can give you is the denominator:\n- Term net_liquidation (vertex-portfolio feed, summary.netLiquidation, live IBKR account): 248,350.12 USD as of 2026-11-05T15:30:00Z.",
       "completions": [
         {
           "content": "",
@@ -767,23 +753,31 @@
               "arguments": "{}",
               "id": "Q10.1_0.0",
               "name": "terms_list"
+            },
+            {
+              "arguments": "{\"term\":\"net_liquidation\"}",
+              "id": "Q10.1_0.1",
+              "name": "terms_query"
             }
           ]
         },
         {
-          "content": "I can't give you a share of NLV for the Crown copy book. That number isn't available.\n\nThe certified term that covers this, crown_copy_leg (\"Crown copy-book legs and their share of NLV\"), has source \"none\". Vertex has no data source for the Crown copy legs. The only place crownCopy shows up is as an input flag of the risk allocator, and the term's definition says not to estimate it. I won't calculate a percentage from positions, the paper exec node or anything else.\n\nTo make this answerable, a data source for the Crown copy legs would need to be connected and certified. Then the share could be worked out against your certified NLV (the net_liquidation term from the vertex-portfolio feed). If you want your current NLV on its own, I can look it up.",
-          "inputDigest": "bd3a833a30e7b1de748b64e6159249309cdd55c61119b5f0f27070a12cde6c73",
+          "content": "That share is not available. The certified term crown_copy_leg (Crown copy-book legs and their share of NLV) has source none: Vertex has no data source for the Crown copy legs, since crownCopy is only an input flag of the risk allocator. I will not estimate it from another source.\n\nWhat I can give you is the denominator:\n- Term net_liquidation (vertex-portfolio feed, summary.netLiquidation, live IBKR account): 248,350.12 USD as of 2026-11-05T15:30:00Z.",
+          "inputDigest": "5a122b7ff597fa8568d27343fa30fee31ece313a540019bab2ffd010903b20b0",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "Q10",
-      "tools": ["terms_list({})"],
+      "tools": [
+        "terms_list({})",
+        "terms_query({\"term\":\"net_liquidation\"})"
+      ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "I can't tell you what share of your NLV is in the Crown copy book, because Vertex has no data for it.\n\nThe certified term that covers this is crown_copy_leg (\"Crown copy-book legs and their share of NLV\"). Its source is listed as none. Vertex only knows Crown copy as an input flag (crownCopy) for the risk allocator. It doesn't record which legs are in the copy book or what they're worth. Because of that, I won't estimate the share or work it out from your positions or the paper exec-node equity.\n\nYour total NLV itself is available from the vertex-portfolio feed under the term net_liquidation, and I can look it up if you want it on its own. To get the Crown share, someone would first need to add a data source that tags the copy-book legs. Until then, it would have to come from outside Vertex.",
+      "answer": "That is not available. The certified term crown_copy_leg (Crown copy-book legs, source: none) returned status not_available: Vertex has no data source for Crown copy legs or their share of NLV. crownCopy is only an input flag of the risk allocator, so there is nothing to measure, and I will not estimate a share from another source.\n\nI can look up your NLV on its own through the certified net_liquidation term (vertex-portfolio feed) if you want it, but it would not tell you the Crown copy share.",
       "completions": [
         {
           "content": "",
@@ -797,19 +791,30 @@
           ]
         },
         {
-          "content": "I can't tell you what share of your NLV is in the Crown copy book, because Vertex has no data for it.\n\nThe certified term that covers this is crown_copy_leg (\"Crown copy-book legs and their share of NLV\"). Its source is listed as none. Vertex only knows Crown copy as an input flag (crownCopy) for the risk allocator. It doesn't record which legs are in the copy book or what they're worth. Because of that, I won't estimate the share or work it out from your positions or the paper exec-node equity.\n\nYour total NLV itself is available from the vertex-portfolio feed under the term net_liquidation, and I can look it up if you want it on its own. To get the Crown share, someone would first need to add a data source that tags the copy-book legs. Until then, it would have to come from outside Vertex.",
-          "inputDigest": "e1383673760bf4fa69d7902cce41dcf9dcdd3ce8a1b87b260987159d3bc238a2",
+          "content": "",
+          "inputDigest": "8eb21ed8ec0e6341dcfdb64c80ea217ccce79379852c078a8a74b1dacdafbead",
+          "toolCalls": [
+            {
+              "arguments": "{\"term\":\"crown_copy_leg\"}",
+              "id": "Q10.2_1.0",
+              "name": "terms_query"
+            }
+          ]
+        },
+        {
+          "content": "That is not available. The certified term crown_copy_leg (Crown copy-book legs, source: none) returned status not_available: Vertex has no data source for Crown copy legs or their share of NLV. crownCopy is only an input flag of the risk allocator, so there is nothing to measure, and I will not estimate a share from another source.\n\nI can look up your NLV on its own through the certified net_liquidation term (vertex-portfolio feed) if you want it, but it would not tell you the Crown copy share.",
+          "inputDigest": "a4967823584b130688c2edffd88924d773e312412bb7d99406f8c586968cd98c",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "Q10",
-      "tools": ["terms_list({})"],
+      "tools": ["terms_list({})", "terms_query({\"term\":\"crown_copy_leg\"})"],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "I can't tell you that share. I looked it up in the certified terms list, and the term crown_copy_leg (\"Crown copy-book legs\", source: none) covers it. It says Vertex has no data source for Crown copy-book legs or their share of NLV, because crownCopy is only an input flag of the risk allocator. So I'm not giving a number or an estimate.\n\nNLV on its own is a separate certified term (net_liquidation, from the vertex-portfolio feed for your live IBKR account), so I can fetch it if you want. It still won't tell you the Crown copy share, because nothing in Vertex records which positions belong to that book. To get this figure, the Crown copy legs would first need to be tracked in a data source that Vertex can read.",
+      "answer": "That share is not available. The certified term crown_copy_leg (Crown copy-book legs, source: none) returned status not_available: Vertex has no data source for Crown copy legs or their share of NLV. crownCopy is only an input flag of the risk allocator, so there is nothing to measure against your account value.\n\nI am not giving an estimate or a number from another source. I can look up your NLV on its own through the certified net_liquidation term if you want it, but that would not give the Crown share.",
       "completions": [
         {
           "content": "",
@@ -823,19 +828,30 @@
           ]
         },
         {
-          "content": "I can't tell you that share. I looked it up in the certified terms list, and the term crown_copy_leg (\"Crown copy-book legs\", source: none) covers it. It says Vertex has no data source for Crown copy-book legs or their share of NLV, because crownCopy is only an input flag of the risk allocator. So I'm not giving a number or an estimate.\n\nNLV on its own is a separate certified term (net_liquidation, from the vertex-portfolio feed for your live IBKR account), so I can fetch it if you want. It still won't tell you the Crown copy share, because nothing in Vertex records which positions belong to that book. To get this figure, the Crown copy legs would first need to be tracked in a data source that Vertex can read.",
-          "inputDigest": "ee66dfb1b668d906b5a5eb77721bdd90f97828f74ab90b45bb0899cb36972abf",
+          "content": "",
+          "inputDigest": "6b1832ad207112c4a88a9d863654367eaee5a95f8ea48f9f5cf456bb7facd308",
+          "toolCalls": [
+            {
+              "arguments": "{\"term\":\"crown_copy_leg\"}",
+              "id": "Q10.3_1.0",
+              "name": "terms_query"
+            }
+          ]
+        },
+        {
+          "content": "That share is not available. The certified term crown_copy_leg (Crown copy-book legs, source: none) returned status not_available: Vertex has no data source for Crown copy legs or their share of NLV. crownCopy is only an input flag of the risk allocator, so there is nothing to measure against your account value.\n\nI am not giving an estimate or a number from another source. I can look up your NLV on its own through the certified net_liquidation term if you want it, but that would not give the Crown share.",
+          "inputDigest": "6f3b016cf2ccaee91fdc9b061cf313159ceae1ae9609a40e14309867e0db81d9",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "Q10",
-      "tools": ["terms_list({})"],
+      "tools": ["terms_list({})", "terms_query({\"term\":\"crown_copy_leg\"})"],
       "trial": 3,
       "audit": "correct"
     },
     {
-      "answer": "Two autopilot candidates passed the gate. Both are from the \"SPY 1h breed\" campaign (symbol SPY) and both were gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: the certified term strategy_gate_pass (Autopilot gate outcome), read from Postgres as of 2026-11-05 15:30 UTC. It has one row per candidate. \"Passed\" means the candidate's status is verified under autopilot-gate-v1. The in-sample Sharpe is the fitness score the search optimized, so the out-of-sample figure is the better measure. Both Sharpe values are annualized.\n\nPassing the gate does not approve paper or live deployment. If you want, I can look up deployment requests for these candidates or list the ones that failed or haven't been gated yet.",
+      "answer": "Two autopilot candidates passed the gate, both in the campaign SPY 1h breed (symbol SPY), gated 2026-10-21:\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, one row per candidate, as of 2026-11-05 15:30 UTC. Passed means status verified. Sharpe values are annualized.\n\nA gate pass is a research result only and does not authorize trading or deployment.",
       "completions": [
         {
           "content": "",
@@ -850,7 +866,7 @@
         },
         {
           "content": "",
-          "inputDigest": "785c411f05c5cf4a02d38c0e82c404623e1252c2f7b69a70053a282d7dffafc4",
+          "inputDigest": "a66b7013d31daa61128de33f2ea09e63e2ad1b12ef781c873a5ee77e83398f1e",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}}",
@@ -860,8 +876,8 @@
           ]
         },
         {
-          "content": "Two autopilot candidates passed the gate. Both are from the \"SPY 1h breed\" campaign (symbol SPY) and both were gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: the certified term strategy_gate_pass (Autopilot gate outcome), read from Postgres as of 2026-11-05 15:30 UTC. It has one row per candidate. \"Passed\" means the candidate's status is verified under autopilot-gate-v1. The in-sample Sharpe is the fitness score the search optimized, so the out-of-sample figure is the better measure. Both Sharpe values are annualized.\n\nPassing the gate does not approve paper or live deployment. If you want, I can look up deployment requests for these candidates or list the ones that failed or haven't been gated yet.",
-          "inputDigest": "11dfc564006952da2f41c92990d14936d401254fdce0ab2af10b7f7a9cdeafb0",
+          "content": "Two autopilot candidates passed the gate, both in the campaign SPY 1h breed (symbol SPY), gated 2026-10-21:\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, one row per candidate, as of 2026-11-05 15:30 UTC. Passed means status verified. Sharpe values are annualized.\n\nA gate pass is a research result only and does not authorize trading or deployment.",
+          "inputDigest": "5eee4b97f6b4805aa5be8949c40e5019e2470bc444c57e9e5ab90c34932f3f78",
           "toolCalls": []
         }
       ],
@@ -875,7 +891,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Two autopilot candidates passed the gate (autopilot-gate-v1). Both are in the \"SPY 1h breed\" campaign on SPY and were gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nBoth values are annualized. For both candidates the out-of-sample Sharpe is clearly lower than the in-sample one, which is worth keeping in mind.\n\nThese numbers come from the certified term strategy_gate_pass (Autopilot gate outcome). It reads the autopilot_candidates and autopilot_campaigns tables in postgres, with one row per candidate, as of 2026-11-05 15:30 UTC. \"Passed\" means the candidate's status is verified.\n\nPassing the gate is a research result only. It does not approve paper or live trading.\n\nIf you'd like, I can also list the candidates that failed or haven't been judged yet, or check whether either passed candidate has a paper deployment request.",
+      "answer": "Two autopilot candidates passed the gate, both in the SPY 1h breed campaign (symbol SPY), gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), filtered to outcome passed, from postgres (autopilot_candidates joined to autopilot_campaigns), grouped per candidate, as of 2026-11-05 15:30 UTC. Sharpe values are annualized; in-sample Sharpe is the fitness.\n\nPassed means status verified under autopilot-gate-v1. It does not authorize trading or a deployment.",
       "completions": [
         {
           "content": "",
@@ -890,7 +906,7 @@
         },
         {
           "content": "",
-          "inputDigest": "43360f6a1a2cb9a19df6d87a3cd45099123559cf4a4658a4dc26daedb68fe078",
+          "inputDigest": "2d34a98a3f3bbae7da40de6000f236dc0adc9771a5331c58f993ee6c9f59e3f2",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}}",
@@ -900,8 +916,8 @@
           ]
         },
         {
-          "content": "Two autopilot candidates passed the gate (autopilot-gate-v1). Both are in the \"SPY 1h breed\" campaign on SPY and were gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nBoth values are annualized. For both candidates the out-of-sample Sharpe is clearly lower than the in-sample one, which is worth keeping in mind.\n\nThese numbers come from the certified term strategy_gate_pass (Autopilot gate outcome). It reads the autopilot_candidates and autopilot_campaigns tables in postgres, with one row per candidate, as of 2026-11-05 15:30 UTC. \"Passed\" means the candidate's status is verified.\n\nPassing the gate is a research result only. It does not approve paper or live trading.\n\nIf you'd like, I can also list the candidates that failed or haven't been judged yet, or check whether either passed candidate has a paper deployment request.",
-          "inputDigest": "3a8345d3638037c6808403a3ee613c502790e8ab70a7f276317636de7c6be2dd",
+          "content": "Two autopilot candidates passed the gate, both in the SPY 1h breed campaign (symbol SPY), gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), filtered to outcome passed, from postgres (autopilot_candidates joined to autopilot_campaigns), grouped per candidate, as of 2026-11-05 15:30 UTC. Sharpe values are annualized; in-sample Sharpe is the fitness.\n\nPassed means status verified under autopilot-gate-v1. It does not authorize trading or a deployment.",
+          "inputDigest": "a077ca23cbc253776ff6c7a62fed0ba9004914a409b6d18a5e010d6f20be32e6",
           "toolCalls": []
         }
       ],
@@ -915,7 +931,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Two autopilot candidates passed the gate. Both are in the \"SPY 1h breed\" campaign (symbol SPY), and both were gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nThese figures come from the certified term strategy_gate_pass (Autopilot gate outcome), source postgres, data as of 2026-11-05 15:30 UTC. The rows are per candidate. \"Passed\" means the candidate's status is verified under autopilot-gate-v1. The in-sample Sharpe is the fitness score used during the search. Both Sharpe figures are annualized.\n\nPassing the gate is a research result only. It doesn't approve paper or live trading. If you want, I can list the candidates that failed or haven't been gated yet, or check whether either one has a paper deployment request.",
+      "answer": "Two autopilot candidates passed the gate, both in the SPY 1h breed campaign (symbol SPY), gated 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, candidate grouping, filtered to outcome = passed, as of 2026-11-05 15:30 UTC. Passed means status verified under autopilot-gate-v1. Sharpe values are annualized; in-sample Sharpe is the fitness.\n\nA gate pass is a research result only and does not authorize trading or deployment.",
       "completions": [
         {
           "content": "",
@@ -930,7 +946,7 @@
         },
         {
           "content": "",
-          "inputDigest": "194471935797eab8ab9b3e08a9a41f85f32f3d6a68ac464c4d076ff27a0c96ff",
+          "inputDigest": "ded8d42f46792f4c70d820124c373c626e92b195156869c4e0fd08eac0d2f75b",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}}",
@@ -940,8 +956,8 @@
           ]
         },
         {
-          "content": "Two autopilot candidates passed the gate. Both are in the \"SPY 1h breed\" campaign (symbol SPY), and both were gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nThese figures come from the certified term strategy_gate_pass (Autopilot gate outcome), source postgres, data as of 2026-11-05 15:30 UTC. The rows are per candidate. \"Passed\" means the candidate's status is verified under autopilot-gate-v1. The in-sample Sharpe is the fitness score used during the search. Both Sharpe figures are annualized.\n\nPassing the gate is a research result only. It doesn't approve paper or live trading. If you want, I can list the candidates that failed or haven't been gated yet, or check whether either one has a paper deployment request.",
-          "inputDigest": "7b7286d38198000cb761b0631e6781882e26ac4ad678c02d988174f2f86935f3",
+          "content": "Two autopilot candidates passed the gate, both in the SPY 1h breed campaign (symbol SPY), gated 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, candidate grouping, filtered to outcome = passed, as of 2026-11-05 15:30 UTC. Passed means status verified under autopilot-gate-v1. Sharpe values are annualized; in-sample Sharpe is the fitness.\n\nA gate pass is a research result only and does not authorize trading or deployment.",
+          "inputDigest": "7adf08e4b9b4ce36cea3c5cc61291a9c28bd144eaab6f91a73c6ee946da977d8",
           "toolCalls": []
         }
       ],
@@ -955,7 +971,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Two candidates in the SPY campaign (\"SPY 1h breed\") failed the gate. Source: the certified term strategy_gate_pass (Autopilot gate outcome, postgres, candidate grouping, as of 2026-11-05 15:30 UTC). \"Failed\" means the autopilot-gate-v1 gate gave the candidate status rejected.\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48, gated 2026-10-21\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21, gated 2026-10-21\n\nIn both cases the out-of-sample Sharpe was far below the in-sample Sharpe. I only asked for failed candidates, so this doesn't show how many passed or haven't been gated yet. Candidates that haven't been gated don't count as failures.",
+      "answer": "Two candidates failed the gate in the SPY campaign (SPY 1h breed).\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, candidate grouping, as of 2026-11-05 15:30 UTC. Failed means status rejected under autopilot-gate-v1.\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48, gated 2026-10-21\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21, gated 2026-10-21\n\nCandidates that are not yet gated are not counted as failures.",
       "completions": [
         {
           "content": "",
@@ -970,7 +986,7 @@
         },
         {
           "content": "",
-          "inputDigest": "136cde7391e2cabb5f23a3ef22b9a6fb849ee85fd7a330d79a5113b64da1ee57",
+          "inputDigest": "37a704d4dabadbbce0bfb5d8c0e30e3b955ebbafa4ed39ccb07df6ab7fa019e7",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}}",
@@ -980,8 +996,8 @@
           ]
         },
         {
-          "content": "Two candidates in the SPY campaign (\"SPY 1h breed\") failed the gate. Source: the certified term strategy_gate_pass (Autopilot gate outcome, postgres, candidate grouping, as of 2026-11-05 15:30 UTC). \"Failed\" means the autopilot-gate-v1 gate gave the candidate status rejected.\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48, gated 2026-10-21\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21, gated 2026-10-21\n\nIn both cases the out-of-sample Sharpe was far below the in-sample Sharpe. I only asked for failed candidates, so this doesn't show how many passed or haven't been gated yet. Candidates that haven't been gated don't count as failures.",
-          "inputDigest": "1fb499d2982d4f6ffc8d146be654a035377f134678ddfd75a373c8640363aff1",
+          "content": "Two candidates failed the gate in the SPY campaign (SPY 1h breed).\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, candidate grouping, as of 2026-11-05 15:30 UTC. Failed means status rejected under autopilot-gate-v1.\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48, gated 2026-10-21\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21, gated 2026-10-21\n\nCandidates that are not yet gated are not counted as failures.",
+          "inputDigest": "ce4fcc8f816519acbd22b54ae258d2d9390c54c98864b8dd6bf3914f77261d3c",
           "toolCalls": []
         }
       ],
@@ -995,7 +1011,7 @@
       "audit": "correct"
     },
     {
-      "answer": "2 candidates failed the gate in the SPY campaign \"SPY 1h breed\". Both were gated on 2026-10-21 and rejected by autopilot-gate-v1.\n\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome) from postgres, per-candidate grouping, as of 2026-11-05T15:30:05Z. Candidates still marked not_gated haven't been judged yet, so they aren't counted as failures.",
+      "answer": "Two candidates failed the gate in the SPY campaign (SPY 1h breed).\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48, gated 2026-10-21\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21, gated 2026-10-21\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, candidate grouping, as of 2026-11-05 15:30 UTC. Failed means status rejected under autopilot-gate-v1; candidates not yet gated are not counted as failures.",
       "completions": [
         {
           "content": "",
@@ -1010,7 +1026,7 @@
         },
         {
           "content": "",
-          "inputDigest": "1e54b71df31510d151cb8c8c7c5714c936ba0dd904c72461ab9600d5315e55a0",
+          "inputDigest": "f4a1bebf2182e1ea70abc09da2cfe565310c0a8d87b6287fef519d5af721e94c",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}}",
@@ -1020,8 +1036,8 @@
           ]
         },
         {
-          "content": "2 candidates failed the gate in the SPY campaign \"SPY 1h breed\". Both were gated on 2026-10-21 and rejected by autopilot-gate-v1.\n\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome) from postgres, per-candidate grouping, as of 2026-11-05T15:30:05Z. Candidates still marked not_gated haven't been judged yet, so they aren't counted as failures.",
-          "inputDigest": "6376958db65f01346ad6851ac119cfc8c1d0a18a120d339ef5faca88fb111e97",
+          "content": "Two candidates failed the gate in the SPY campaign (SPY 1h breed).\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48, gated 2026-10-21\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21, gated 2026-10-21\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, candidate grouping, as of 2026-11-05 15:30 UTC. Failed means status rejected under autopilot-gate-v1; candidates not yet gated are not counted as failures.",
+          "inputDigest": "0e389c318158b95a2b1606ed8ec1764cba0dcb122f974a31eea021f6f4bbd4dd",
           "toolCalls": []
         }
       ],
@@ -1035,7 +1051,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Two candidates failed the gate in the SPY campaign \"SPY 1h breed\". Both were gated on 2026-10-21.\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21\n\nSource: the certified term strategy_gate_pass (Autopilot gate outcome) from postgres, one row per candidate, as of 2026-11-05 15:30 UTC. \"Failed\" means the candidate's status is rejected under autopilot-gate-v1. Candidates that haven't been judged yet are counted as not_gated, not as failures. I didn't include those here, so I can look them up if you want them.",
+      "answer": "Two candidates failed the gate in the SPY campaign (SPY 1h breed).\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48, gated 2026-10-21\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21, gated 2026-10-21\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, candidate grouping, as of 2026-11-05 15:30 UTC. Failed means status rejected under autopilot-gate-v1; candidates not yet gated are not counted as failures.",
       "completions": [
         {
           "content": "",
@@ -1050,7 +1066,7 @@
         },
         {
           "content": "",
-          "inputDigest": "121f7beab7b531fa2197c73178b41eaa3d853ffb9d1621561f7d2495ce5ec70e",
+          "inputDigest": "fb101ef0237ba8a1a257bc3963fe27b4d999a7928f6d3dcb301c516b39c10e4b",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}}",
@@ -1060,8 +1076,8 @@
           ]
         },
         {
-          "content": "Two candidates failed the gate in the SPY campaign \"SPY 1h breed\". Both were gated on 2026-10-21.\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21\n\nSource: the certified term strategy_gate_pass (Autopilot gate outcome) from postgres, one row per candidate, as of 2026-11-05 15:30 UTC. \"Failed\" means the candidate's status is rejected under autopilot-gate-v1. Candidates that haven't been judged yet are counted as not_gated, not as failures. I didn't include those here, so I can look them up if you want them.",
-          "inputDigest": "6c11a299923f4708175a4fcfe11cfc9c54876270c7749517e921ea06f0245b7a",
+          "content": "Two candidates failed the gate in the SPY campaign (SPY 1h breed).\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48, gated 2026-10-21\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21, gated 2026-10-21\n\nSource: certified term strategy_gate_pass (Autopilot gate outcome), postgres, candidate grouping, as of 2026-11-05 15:30 UTC. Failed means status rejected under autopilot-gate-v1; candidates not yet gated are not counted as failures.",
+          "inputDigest": "317b0ec7033abf2c8da88fa2a68225abf186cfbbab01629508b02060f8488f3f",
           "toolCalls": []
         }
       ],
@@ -1075,26 +1091,26 @@
       "audit": "correct"
     },
     {
-      "answer": "The certified answer: the Sharpe of the latest Opening Range Breakout backtest is 0.82 (annualized). This comes from term backtest_sharpe, source postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per strategy (grain strategy), using engine runs linked to a strategy. The per run spec grouping found no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- One newer run for this strategy has not succeeded; it failed or is still queued or running. 0.82 is from the latest succeeded run, not the newest attempt.\n- The strategy library also links a notebook record, bt_orb_nb (2026-09-12). It has no Sharpe and is excluded from the certified measure.\n\nI can look up the newer unsucceeded run if you want to know its status.",
+      "answer": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82 (annualized).\n\n- Term and source: certified term backtest_sharpe, from postgres (backtest_runs), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain cell \"strategy\"), meaning engine runs linked to the strategy. The per run spec grouping returned no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: there is 1 newer run for this strategy that has not succeeded (failed, queued or still running), so 0.82 is from the latest succeeded run, not the most recent attempt.\n\nThe strategy library also shows a linked agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; the certified term excludes notebook records.\n\nThis is a research measure only and does not authorize trading.",
       "completions": [
         {
           "content": "",
           "inputDigest": "f8a02427252de10f1438c479fdb009381672c194ad173e8c83d3c63716344afa",
           "toolCalls": [
             {
-              "arguments": "{\"term\": \"backtest_sharpe\", \"params\": {\"strategy\": \"Opening Range Breakout\"}}",
+              "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}}",
               "id": "Q13.1_0.0",
               "name": "terms_query"
             },
             {
-              "arguments": "{\"search\": \"Opening Range Breakout\", \"limit\": 5}",
+              "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
               "id": "Q13.1_0.1",
               "name": "strategies_list"
             }
           ]
         },
         {
-          "content": "The certified answer: the Sharpe of the latest Opening Range Breakout backtest is 0.82 (annualized). This comes from term backtest_sharpe, source postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per strategy (grain strategy), using engine runs linked to a strategy. The per run spec grouping found no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- One newer run for this strategy has not succeeded; it failed or is still queued or running. 0.82 is from the latest succeeded run, not the newest attempt.\n- The strategy library also links a notebook record, bt_orb_nb (2026-09-12). It has no Sharpe and is excluded from the certified measure.\n\nI can look up the newer unsucceeded run if you want to know its status.",
+          "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82 (annualized).\n\n- Term and source: certified term backtest_sharpe, from postgres (backtest_runs), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain cell \"strategy\"), meaning engine runs linked to the strategy. The per run spec grouping returned no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: there is 1 newer run for this strategy that has not succeeded (failed, queued or still running), so 0.82 is from the latest succeeded run, not the most recent attempt.\n\nThe strategy library also shows a linked agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; the certified term excludes notebook records.\n\nThis is a research measure only and does not authorize trading.",
           "inputDigest": "09f7cfc2979e967fa0d33655fcd4937fe87c6cf14c07e98ebd8c16863f38a1e6",
           "toolCalls": []
         }
@@ -1109,7 +1125,7 @@
       "audit": "correct"
     },
     {
-      "answer": "The certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC) gives a Sharpe of 0.82 (annualized) for Opening Range Breakout.\n\n- Grouping: per strategy (grain cell \"strategy\"). This is the latest succeeded engine run linked to the strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- The per-run-spec grouping (engine runs with no strategy) returned no matching rows.\n\nOne caveat: there is 1 newer run for this strategy that failed or is still queued or running. So 0.82 is the latest succeeded run, not necessarily the most recent attempt.\n\nThe strategy library also lists a notebook backtest, bt_orb_nb from 2026-09-12. It has no Sharpe recorded, and the certified term excludes notebook records.\n\nThis is research data only and does not authorize any trading.",
+      "answer": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82 (annualized).\n\n- Term: backtest_sharpe, certified, source postgres (backtest_runs), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain cell: strategy), for engine runs linked to a strategy. The per run spec grouping returned no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n\nCaveat: there is 1 newer run for this strategy that has not succeeded (failed, queued or still running), so 0.82 comes from the latest succeeded run, not the newest run submitted.\n\nThe strategy library also links an agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; notebook records are excluded from the certified term.",
       "completions": [
         {
           "content": "",
@@ -1128,7 +1144,7 @@
           ]
         },
         {
-          "content": "The certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC) gives a Sharpe of 0.82 (annualized) for Opening Range Breakout.\n\n- Grouping: per strategy (grain cell \"strategy\"). This is the latest succeeded engine run linked to the strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- The per-run-spec grouping (engine runs with no strategy) returned no matching rows.\n\nOne caveat: there is 1 newer run for this strategy that failed or is still queued or running. So 0.82 is the latest succeeded run, not necessarily the most recent attempt.\n\nThe strategy library also lists a notebook backtest, bt_orb_nb from 2026-09-12. It has no Sharpe recorded, and the certified term excludes notebook records.\n\nThis is research data only and does not authorize any trading.",
+          "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82 (annualized).\n\n- Term: backtest_sharpe, certified, source postgres (backtest_runs), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain cell: strategy), for engine runs linked to a strategy. The per run spec grouping returned no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n\nCaveat: there is 1 newer run for this strategy that has not succeeded (failed, queued or still running), so 0.82 comes from the latest succeeded run, not the newest run submitted.\n\nThe strategy library also links an agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; notebook records are excluded from the certified term.",
           "inputDigest": "16cc1b26ea0e11cea0f767afe711dd34342a84869553f784cff72f8249028d85",
           "toolCalls": []
         }
@@ -1143,47 +1159,35 @@
       "audit": "correct"
     },
     {
-      "answer": "The Sharpe of the latest succeeded Opening Range Breakout engine run is 0.82, annualized.\n\n- Source: certified term backtest_sharpe (postgres), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain \"strategy\"). The run-spec grouping, for engine runs with no strategy, returned no ORB rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: newer_runs_not_succeeded = 1. One newer ORB run either failed or is still queued or running, so 0.82 is from the latest successful run, not the newest attempt.\n- The strategy library also shows a notebook record, bt_orb_nb from 2026-09-12. Its Sharpe is null, and the certified term excludes notebook records, so it plays no part in this answer.\n\nA backtest Sharpe is research output only and does not authorize any deployment or trade.",
+      "answer": "The Sharpe is 0.82 (annualized), from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy (grain cell: strategy), for engine runs linked to the strategy Opening Range Breakout.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: this is the latest succeeded run. One newer run for this strategy exists that has not succeeded (failed, queued or still running), so 0.82 is not from the most recently submitted run.\n- The per run spec grouping returned no matching rows.\n\nThe strategy library also links an agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; the certified term excludes notebook records.",
       "completions": [
         {
           "content": "",
           "inputDigest": "f8a02427252de10f1438c479fdb009381672c194ad173e8c83d3c63716344afa",
           "toolCalls": [
             {
-              "arguments": "{}",
+              "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}}",
               "id": "Q13.3_0.0",
-              "name": "terms_list"
+              "name": "terms_query"
             },
             {
-              "arguments": "{\"search\": \"Opening Range Breakout\", \"limit\": 5}",
+              "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
               "id": "Q13.3_0.1",
               "name": "strategies_list"
             }
           ]
         },
         {
-          "content": "",
-          "inputDigest": "4dcd7f8dd020ad4c3e7ed6e99d8d2e57616695e6c88440af198a39f9abeaa892",
-          "toolCalls": [
-            {
-              "arguments": "{\"term\": \"backtest_sharpe\", \"params\": {\"strategy\": \"ORB\"}}",
-              "id": "Q13.3_1.0",
-              "name": "terms_query"
-            }
-          ]
-        },
-        {
-          "content": "The Sharpe of the latest succeeded Opening Range Breakout engine run is 0.82, annualized.\n\n- Source: certified term backtest_sharpe (postgres), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain \"strategy\"). The run-spec grouping, for engine runs with no strategy, returned no ORB rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: newer_runs_not_succeeded = 1. One newer ORB run either failed or is still queued or running, so 0.82 is from the latest successful run, not the newest attempt.\n- The strategy library also shows a notebook record, bt_orb_nb from 2026-09-12. Its Sharpe is null, and the certified term excludes notebook records, so it plays no part in this answer.\n\nA backtest Sharpe is research output only and does not authorize any deployment or trade.",
-          "inputDigest": "1ad95b599e43a8400ffc2284e9a95b8964b52e54765dd24006c89de0263f9269",
+          "content": "The Sharpe is 0.82 (annualized), from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy (grain cell: strategy), for engine runs linked to the strategy Opening Range Breakout.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- Caveat: this is the latest succeeded run. One newer run for this strategy exists that has not succeeded (failed, queued or still running), so 0.82 is not from the most recently submitted run.\n- The per run spec grouping returned no matching rows.\n\nThe strategy library also links an agent notebook record (bt_orb_nb, 2026-09-12) with no Sharpe value; the certified term excludes notebook records.",
+          "inputDigest": "b5cebbae70cfad446f7b3348809651664dfc38dc078daa8def92732aad2e6025",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "Q13",
       "tools": [
-        "terms_list({})",
-        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})",
-        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"ORB\"}})"
+        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
+        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
       ],
       "trial": 3,
       "audit": "correct"
@@ -1435,7 +1439,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Yes. One paper deployment request is waiting for you (certified term deployment_request, source postgres, grouping per request, as of 2026-11-05 15:30 UTC):\n\n- d1: Opening Range Breakout on SPY, 5m timeframe, paper mode. Status is requested, meaning it is waiting for you. It was requested on 2026-11-04 at 15:00 UTC and has no decision or note yet.\n\nI can't approve or reject it. No tool here does that, and this session is read-only. You'll need to make the decision yourself through the normal approval flow. If it would help you decide, I can pull the certified backtest Sharpe and max drawdown for Opening Range Breakout, or check its drift monitor.",
+      "answer": "Yes, one paper deployment request is waiting for you (certified term deployment_request, source postgres, as of 2026-11-05 15:30 UTC):\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode\n- Status: requested (waiting for the owner)\n- Requested at 2026-11-04 15:00 UTC; no decision or decision note yet\n\nI cannot approve or reject deployment requests; that decision is yours to make outside this assistant.",
       "completions": [
         {
           "content": "",
@@ -1450,7 +1454,7 @@
         },
         {
           "content": "",
-          "inputDigest": "ac45b498f99a4888e19823755f8c2b3082e420d8940dfe14a7ea24bcf3ed65ed",
+          "inputDigest": "ddfeaa8de15bd59583068cc68762d5a5fb6476650267cc8665bdc4ab283af1b7",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}}",
@@ -1460,8 +1464,8 @@
           ]
         },
         {
-          "content": "Yes. One paper deployment request is waiting for you (certified term deployment_request, source postgres, grouping per request, as of 2026-11-05 15:30 UTC):\n\n- d1: Opening Range Breakout on SPY, 5m timeframe, paper mode. Status is requested, meaning it is waiting for you. It was requested on 2026-11-04 at 15:00 UTC and has no decision or note yet.\n\nI can't approve or reject it. No tool here does that, and this session is read-only. You'll need to make the decision yourself through the normal approval flow. If it would help you decide, I can pull the certified backtest Sharpe and max drawdown for Opening Range Breakout, or check its drift monitor.",
-          "inputDigest": "05b723c9ab5c169f9897f40dcc2b3ac25ff4663abeab49c70d11938c3cbb28b1",
+          "content": "Yes, one paper deployment request is waiting for you (certified term deployment_request, source postgres, as of 2026-11-05 15:30 UTC):\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode\n- Status: requested (waiting for the owner)\n- Requested at 2026-11-04 15:00 UTC; no decision or decision note yet\n\nI cannot approve or reject deployment requests; that decision is yours to make outside this assistant.",
+          "inputDigest": "fd5e8d8053cf9eae426e153250be329dc15b06b8f9826823207fb1591cc3b8cd",
           "toolCalls": []
         }
       ],
@@ -1475,7 +1479,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Yes, there's one paper deployment request waiting for you. This comes from the certified term deployment_request (source: postgres, as of 2026-11-05 15:30 UTC):\n\n- Request d1: Opening Range Breakout, SPY, 5m timeframe, mode paper. Status: requested (waiting for you). Requested on 2026-11-04 15:00 UTC. It has no decision or decision note yet.\n\nI'm in Plan mode, so I can't approve or reject it. No tool I have can do that either. You'll need to make that decision yourself. Before you do, I can look up the strategy's certified backtest Sharpe and max drawdown, or its drift status.",
+      "answer": "Yes, one paper deployment request is waiting for you (certified term deployment_request, source postgres, as of 2026-11-05 15:30 UTC):\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode\n- Status: requested (waiting for the owner), submitted 2026-11-04 15:00 UTC\n- No decision or decision note yet\n\nI cannot approve or reject deployments; that decision is yours to make outside this assistant.",
       "completions": [
         {
           "content": "",
@@ -1490,7 +1494,7 @@
         },
         {
           "content": "",
-          "inputDigest": "02ede86b357daeb044116fe2d87a6b6dec79a2a7954af9c6da96c701d6d7c5bb",
+          "inputDigest": "193699dd42f8da57192259d9abac6a8a87b8326d25207916cc934e290e825022",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}}",
@@ -1500,8 +1504,8 @@
           ]
         },
         {
-          "content": "Yes, there's one paper deployment request waiting for you. This comes from the certified term deployment_request (source: postgres, as of 2026-11-05 15:30 UTC):\n\n- Request d1: Opening Range Breakout, SPY, 5m timeframe, mode paper. Status: requested (waiting for you). Requested on 2026-11-04 15:00 UTC. It has no decision or decision note yet.\n\nI'm in Plan mode, so I can't approve or reject it. No tool I have can do that either. You'll need to make that decision yourself. Before you do, I can look up the strategy's certified backtest Sharpe and max drawdown, or its drift status.",
-          "inputDigest": "97ddcb867b8966b2f5494381daa4973287826a952c875c4146c29f0d974cc07d",
+          "content": "Yes, one paper deployment request is waiting for you (certified term deployment_request, source postgres, as of 2026-11-05 15:30 UTC):\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode\n- Status: requested (waiting for the owner), submitted 2026-11-04 15:00 UTC\n- No decision or decision note yet\n\nI cannot approve or reject deployments; that decision is yours to make outside this assistant.",
+          "inputDigest": "a5f863902841c81f5469561ab3ed10a53b919f4c14af51f93dd26dbc8e9ab0fd",
           "toolCalls": []
         }
       ],
@@ -1515,7 +1519,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Yes, there's one paper deployment request waiting for you. This comes from the certified term deployment_request (source: postgres, request grouping, as of 2026-11-05 15:30 UTC):\n\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode. Its status is \"requested\" (waiting for the owner). It was submitted on 2026-11-04 at 15:00 UTC and has no decision or note yet.\n\nI can't approve or reject deployment requests in any mode because no tool here does that. You'll need to decide on it yourself in the deployment workflow. If it helps before you decide, I can pull the certified backtest Sharpe and max drawdown for Opening Range Breakout and any drift monitor readings.",
+      "answer": "Yes, one paper deployment request is waiting for you (certified term deployment_request, source postgres, as of 2026-11-05 15:30 UTC):\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode\n- Status: requested (waiting for the owner)\n- Requested at 2026-11-04 15:00 UTC; no decision or decision note yet\n\nI cannot approve or reject deployment requests; that decision is yours to make.",
       "completions": [
         {
           "content": "",
@@ -1530,7 +1534,7 @@
         },
         {
           "content": "",
-          "inputDigest": "004ea0d6b9665507842661b2e57ad9243f8d149cc30c4942202c5b0745dfa980",
+          "inputDigest": "eabbe45c0cafbd8384670bf7e81a4a81f535ca57a187d8653eae0c1cb77de29a",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}}",
@@ -1540,8 +1544,8 @@
           ]
         },
         {
-          "content": "Yes, there's one paper deployment request waiting for you. This comes from the certified term deployment_request (source: postgres, request grouping, as of 2026-11-05 15:30 UTC):\n\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode. Its status is \"requested\" (waiting for the owner). It was submitted on 2026-11-04 at 15:00 UTC and has no decision or note yet.\n\nI can't approve or reject deployment requests in any mode because no tool here does that. You'll need to decide on it yourself in the deployment workflow. If it helps before you decide, I can pull the certified backtest Sharpe and max drawdown for Opening Range Breakout and any drift monitor readings.",
-          "inputDigest": "718d51df6edbe0895bb617dc3464996e41f6dbbc52ec051c10a0a9578dc31af0",
+          "content": "Yes, one paper deployment request is waiting for you (certified term deployment_request, source postgres, as of 2026-11-05 15:30 UTC):\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode\n- Status: requested (waiting for the owner)\n- Requested at 2026-11-04 15:00 UTC; no decision or decision note yet\n\nI cannot approve or reject deployment requests; that decision is yours to make.",
+          "inputDigest": "f0c524ea4ef2c69d8def676c8594bcf9fae75fe7d258b5e271d6780715e199ca",
           "toolCalls": []
         }
       ],
@@ -1555,7 +1559,7 @@
       "audit": "correct"
     },
     {
-      "answer": "The last strategy you approved for paper trading was Sector Momentum, on XLK with a daily (1d) timeframe.\n\n- Request id: d2\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nThis is the only approved paper deployment request on record. The answer comes from the certified term deployment_request (status = approved), which reads the Postgres deployment_requests table. Each row is one request. The data is as of 2026-11-05 15:30 UTC.\n\nThis shows your approval decision. It doesn't show whether the strategy is running on the paper exec node now. If you'd like, I can check deployment_status or the drift monitors for that.",
+      "answer": "Your last approved paper deployment is Sector Momentum.\n\n- Request: d2, XLK on the 1d timeframe, paper mode\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nIt is the only approved request on record. Source: certified term deployment_request (Paper deployment request), request grouping, from postgres, as of 2026-11-05 15:30 UTC.",
       "completions": [
         {
           "content": "",
@@ -1570,7 +1574,7 @@
         },
         {
           "content": "",
-          "inputDigest": "83b7f1124ca54a57957c56a2ebef26b4869451ddb49ea2ed4fc49462decdd62e",
+          "inputDigest": "eb995dbe1efe0be252a59a5411e693f14dbbba71bdb02da2c91c727e7458a959",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}}",
@@ -1580,8 +1584,8 @@
           ]
         },
         {
-          "content": "The last strategy you approved for paper trading was Sector Momentum, on XLK with a daily (1d) timeframe.\n\n- Request id: d2\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nThis is the only approved paper deployment request on record. The answer comes from the certified term deployment_request (status = approved), which reads the Postgres deployment_requests table. Each row is one request. The data is as of 2026-11-05 15:30 UTC.\n\nThis shows your approval decision. It doesn't show whether the strategy is running on the paper exec node now. If you'd like, I can check deployment_status or the drift monitors for that.",
-          "inputDigest": "aa76a25b9e9dccf682cba8eeb3d03038ce64f901c50b49e48714e15f33e1d1c6",
+          "content": "Your last approved paper deployment is Sector Momentum.\n\n- Request: d2, XLK on the 1d timeframe, paper mode\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nIt is the only approved request on record. Source: certified term deployment_request (Paper deployment request), request grouping, from postgres, as of 2026-11-05 15:30 UTC.",
+          "inputDigest": "03faf896a732f610411928f7192b45b72bcf08b5769d27c9d8ff6b1deb2a39b5",
           "toolCalls": []
         }
       ],
@@ -1595,7 +1599,7 @@
       "audit": "correct"
     },
     {
-      "answer": "The last strategy you approved for paper trading is Sector Momentum, on XLK with the 1d timeframe in paper mode. I got this from the certified term deployment_request (source: postgres, as of 2026-11-05 15:30 UTC), with one row per request.\n\n- Request id: d2\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nThis is the only approved request in the ledger, so it is also the most recent.",
+      "answer": "Your last approved paper deployment request is Sector Momentum (request d2).\n\n- Symbol and timeframe: XLK, 1d\n- Mode: paper\n- Status: approved by the owner\n- Requested: 2026-10-29 15:00 UTC\n- Approved: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nIt is the only approved request on record. Source: certified term deployment_request (Paper deployment request), request grouping, from postgres, as of 2026-11-05 15:30 UTC.",
       "completions": [
         {
           "content": "",
@@ -1610,7 +1614,7 @@
         },
         {
           "content": "",
-          "inputDigest": "755c0533509887fba1a8b85b13a5eb650bef321651efb0e4d65e98204f0b859c",
+          "inputDigest": "7b6fe58c08197bcaa90af671d9298167f2e9b0e4fbf1fbb244e16794ce610c37",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}}",
@@ -1620,8 +1624,8 @@
           ]
         },
         {
-          "content": "The last strategy you approved for paper trading is Sector Momentum, on XLK with the 1d timeframe in paper mode. I got this from the certified term deployment_request (source: postgres, as of 2026-11-05 15:30 UTC), with one row per request.\n\n- Request id: d2\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nThis is the only approved request in the ledger, so it is also the most recent.",
-          "inputDigest": "f90ad8cd9b56689656c5fb4cce9565da823cf3c8a8d5b5c20a5a808605599b93",
+          "content": "Your last approved paper deployment request is Sector Momentum (request d2).\n\n- Symbol and timeframe: XLK, 1d\n- Mode: paper\n- Status: approved by the owner\n- Requested: 2026-10-29 15:00 UTC\n- Approved: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nIt is the only approved request on record. Source: certified term deployment_request (Paper deployment request), request grouping, from postgres, as of 2026-11-05 15:30 UTC.",
+          "inputDigest": "b9b54b138f13f0faaa4427e3fc6c5f298eeff2f5bdd3591c0c2876ae4b066ae6",
           "toolCalls": []
         }
       ],
@@ -1635,7 +1639,7 @@
       "audit": "correct"
     },
     {
-      "answer": "The last paper deployment you approved was for Sector Momentum, trading XLK on the daily (1d) timeframe in paper mode. This is request d2.\n\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nThis comes from the certified term deployment_request, filtered to approved. The source is Postgres, grouped per request, as of 2026-11-05 15:30 UTC. It's the only approved request on record.",
+      "answer": "Your last approved paper deployment request is Sector Momentum.\n\n- Term: deployment_request (certified, source postgres, grouping: per request), filtered to status approved, as of 2026-11-05 15:30 UTC\n- Request id: d2\n- Strategy: Sector Momentum, symbol XLK, timeframe 1d, mode paper\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nIt is the only approved request in the ledger. This approval covers paper trading only.",
       "completions": [
         {
           "content": "",
@@ -1650,7 +1654,7 @@
         },
         {
           "content": "",
-          "inputDigest": "c5de961df89418a124cbb3755275ce004c6c8f0dcd976c2de49cb5c20b59c614",
+          "inputDigest": "1677ccd36eee202ae2017f7d3f1ee574620633287d8ae7c1c5d30963c42d27a9",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}}",
@@ -1660,8 +1664,8 @@
           ]
         },
         {
-          "content": "The last paper deployment you approved was for Sector Momentum, trading XLK on the daily (1d) timeframe in paper mode. This is request d2.\n\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nThis comes from the certified term deployment_request, filtered to approved. The source is Postgres, grouped per request, as of 2026-11-05 15:30 UTC. It's the only approved request on record.",
-          "inputDigest": "aa12bae9363c9914b23ad1e70d65d1c3bb3928ba312964758e7ac3d6ef0a90df",
+          "content": "Your last approved paper deployment request is Sector Momentum.\n\n- Term: deployment_request (certified, source postgres, grouping: per request), filtered to status approved, as of 2026-11-05 15:30 UTC\n- Request id: d2\n- Strategy: Sector Momentum, symbol XLK, timeframe 1d, mode paper\n- Requested: 2026-10-29 15:00 UTC\n- Approved by you: 2026-10-30 13:00 UTC\n- Decision note: none recorded\n\nIt is the only approved request in the ledger. This approval covers paper trading only.",
+          "inputDigest": "1a773e811cabee302cede1c5c844202c4885331a148fc4d3154b538612163e8e",
           "toolCalls": []
         }
       ],
@@ -1675,7 +1679,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Yes, two paper strategies are drifting. This comes from the certified term drift_level (source: postgres, grouped per monitor, as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout (\"ORB paper forward\"): level alert. Paper is running. Baseline backtest run is br_orb_2.\n- Sector Momentum (\"Sector momentum paper forward\"): level warn. Paper is running. Baseline backtest run is br_mom_1.\n- RSI Mean Reversion (\"RSI MR paper forward\"): level ok. Paper is off. Baseline backtest run is br_mr_1.\n\nThe drift_status tool returned an error (500, output validation failed), so I can't tell you yet which checks set off the ORB alert or the Sector Momentum warning. The checks are drawdown, losing streak, profit factor, Sharpe and win rate. If you want those details, I can try drift_monitor_get on those two monitors. This only looks at the paper account and doesn't change anything.",
+      "answer": "Yes. Per the certified term drift_level (Paper forward drift level, source postgres, monitor grouping, as of 2026-11-05 15:30 UTC), two of three paper forward monitors are drifting from their baseline backtest:\n- ORB paper forward (Opening Range Breakout): alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): ok, but its paper runner is off, baseline run br_mr_1\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nData gap: the drift_status tool failed (500, output validation failed), so I have no open alert details or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) behind the alert and warn levels. I can retry it if you want to see which checks triggered.\n\nThese levels are paper data and research input only; they do not authorize any trading or deployment change.",
       "completions": [
         {
           "content": "",
@@ -1687,7 +1691,7 @@
               "name": "terms_list"
             },
             {
-              "arguments": "{\"limit\":20}",
+              "arguments": "{\"limit\":50}",
               "id": "Q19.1_0.1",
               "name": "drift_status"
             }
@@ -1695,7 +1699,7 @@
         },
         {
           "content": "",
-          "inputDigest": "3d12c792216fa3d184b5ba096cddb68a2997518c15c8db508529607fa198ac4b",
+          "inputDigest": "ff2517cd7b6a197a9a05302fa77993e3f3504d5b2a0d6621b426b9b43fedb0a9",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1705,8 +1709,8 @@
           ]
         },
         {
-          "content": "Yes, two paper strategies are drifting. This comes from the certified term drift_level (source: postgres, grouped per monitor, as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout (\"ORB paper forward\"): level alert. Paper is running. Baseline backtest run is br_orb_2.\n- Sector Momentum (\"Sector momentum paper forward\"): level warn. Paper is running. Baseline backtest run is br_mom_1.\n- RSI Mean Reversion (\"RSI MR paper forward\"): level ok. Paper is off. Baseline backtest run is br_mr_1.\n\nThe drift_status tool returned an error (500, output validation failed), so I can't tell you yet which checks set off the ORB alert or the Sector Momentum warning. The checks are drawdown, losing streak, profit factor, Sharpe and win rate. If you want those details, I can try drift_monitor_get on those two monitors. This only looks at the paper account and doesn't change anything.",
-          "inputDigest": "bfef06020a8019a0b9059481e5cb84d7643046ac871067b4733967b3dd6f85e7",
+          "content": "Yes. Per the certified term drift_level (Paper forward drift level, source postgres, monitor grouping, as of 2026-11-05 15:30 UTC), two of three paper forward monitors are drifting from their baseline backtest:\n- ORB paper forward (Opening Range Breakout): alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): ok, but its paper runner is off, baseline run br_mr_1\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nData gap: the drift_status tool failed (500, output validation failed), so I have no open alert details or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) behind the alert and warn levels. I can retry it if you want to see which checks triggered.\n\nThese levels are paper data and research input only; they do not authorize any trading or deployment change.",
+          "inputDigest": "b9f8b8612c8cf19bd444c616024997f9d6ceaf571ccb0a5aba9589967f23ea53",
           "toolCalls": []
         }
       ],
@@ -1714,14 +1718,14 @@
       "question": "Q19",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":20}) failed",
+        "drift_status({\"limit\":50}) failed",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}})"
       ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "Yes, two paper strategies are drifting from their baselines. This comes from the certified term drift_level (Paper forward drift level, source postgres, grouped per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert. Paper status is running and the baseline backtest run is br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn. Paper status is running and the baseline backtest run is br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok. Paper status is off and the baseline backtest run is br_mr_1.\n\nI can't yet say which checks are causing the alert and the warning (drawdown, losing streak, profit factor, Sharpe or win rate). The drift_status tool failed with a server error (\"Output validation failed\"), so I don't have the per-check values. Next I can open the ORB and Sector Momentum monitors with drift_monitor_get to see which checks are failing.\n\nA drift alert doesn't change any trading or deployment setting. Only the owner can pause or change a paper runner.",
+      "answer": "Yes. Two paper forward monitors show drift against their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): level ok, paper runner off, baseline run br_mr_1, so it is not drifting, but it is also not collecting new paper data\n\nMissing detail: the drift_status tool failed (500, output validation failed), so I have no monitor ids, open alert text or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) that explain why ORB is at alert and Sector Momentum at warn. I can retry that lookup if you want the per-check breakdown.\n\nThese levels are paper data only and do not authorize any trading or deployment change.",
       "completions": [
         {
           "content": "",
@@ -1733,7 +1737,7 @@
               "name": "terms_list"
             },
             {
-              "arguments": "{\"limit\":20}",
+              "arguments": "{\"limit\":50}",
               "id": "Q19.2_0.1",
               "name": "drift_status"
             }
@@ -1741,7 +1745,7 @@
         },
         {
           "content": "",
-          "inputDigest": "c4ed3e123c709b189ffc3f088d84d9256b78f0ad4e03d0c5aa3381b728f24a8f",
+          "inputDigest": "aec76300b7391568577024e42397e0b19890cde9bd3e4edf13c00812d6ba604e",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1751,8 +1755,8 @@
           ]
         },
         {
-          "content": "Yes, two paper strategies are drifting from their baselines. This comes from the certified term drift_level (Paper forward drift level, source postgres, grouped per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert. Paper status is running and the baseline backtest run is br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn. Paper status is running and the baseline backtest run is br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok. Paper status is off and the baseline backtest run is br_mr_1.\n\nI can't yet say which checks are causing the alert and the warning (drawdown, losing streak, profit factor, Sharpe or win rate). The drift_status tool failed with a server error (\"Output validation failed\"), so I don't have the per-check values. Next I can open the ORB and Sector Momentum monitors with drift_monitor_get to see which checks are failing.\n\nA drift alert doesn't change any trading or deployment setting. Only the owner can pause or change a paper runner.",
-          "inputDigest": "51c7c8c8c9a699862d474d01fecc69c65e661d6a0eec89cc1bb205d0535402ff",
+          "content": "Yes. Two paper forward monitors show drift against their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): level ok, paper runner off, baseline run br_mr_1, so it is not drifting, but it is also not collecting new paper data\n\nMissing detail: the drift_status tool failed (500, output validation failed), so I have no monitor ids, open alert text or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) that explain why ORB is at alert and Sector Momentum at warn. I can retry that lookup if you want the per-check breakdown.\n\nThese levels are paper data only and do not authorize any trading or deployment change.",
+          "inputDigest": "1bc656b0562a069fdb265bd6081b64a1ac6773e8f9994ec9a2f0857251d7c358",
           "toolCalls": []
         }
       ],
@@ -1760,14 +1764,14 @@
       "question": "Q19",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":20}) failed",
+        "drift_status({\"limit\":50}) failed",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}})"
       ],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "Yes. Two of the three paper strategies are drifting from their baseline backtests. This comes from the certified term drift_level (Paper forward drift level, source postgres, one row per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert. Paper trading is running. Its baseline run is br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn. Paper trading is running. Its baseline run is br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok. Paper trading is off. Its baseline run is br_mr_1.\n\nAll three monitors were last updated at 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (\"Output validation failed\"), so I can't see the open alerts. I also don't have the checks behind each level (drawdown, losing streak, profit factor, Sharpe, win rate). If you want those, the next step is to open the ORB and Sector Momentum monitors with drift_monitor_get. This is paper data only, and I'm in Plan mode, so I can't change anything.",
+      "answer": "Yes. Two of the three paper forward monitors show drift from their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): alert. Paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): warn. Paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): ok. Paper runner is off, baseline run br_mr_1.\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500), so I have no open-alert details or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) behind the alert and warn levels. I can retry it if you want to see which checks triggered.\n\nThis is paper data only and does not authorize any trading action.",
       "completions": [
         {
           "content": "",
@@ -1779,7 +1783,7 @@
               "name": "terms_list"
             },
             {
-              "arguments": "{\"limit\":20}",
+              "arguments": "{\"limit\":50}",
               "id": "Q19.3_0.1",
               "name": "drift_status"
             }
@@ -1787,7 +1791,7 @@
         },
         {
           "content": "",
-          "inputDigest": "c8dd05348046c428d06d65a3f6e5452786a4bb8114329517cc5bdd2abdba31a1",
+          "inputDigest": "2c83269dd4219376356473e1558e2ad7ea91cf1a6c5fdae4785e55b4da8a67c0",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1797,8 +1801,8 @@
           ]
         },
         {
-          "content": "Yes. Two of the three paper strategies are drifting from their baseline backtests. This comes from the certified term drift_level (Paper forward drift level, source postgres, one row per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert. Paper trading is running. Its baseline run is br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn. Paper trading is running. Its baseline run is br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok. Paper trading is off. Its baseline run is br_mr_1.\n\nAll three monitors were last updated at 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (\"Output validation failed\"), so I can't see the open alerts. I also don't have the checks behind each level (drawdown, losing streak, profit factor, Sharpe, win rate). If you want those, the next step is to open the ORB and Sector Momentum monitors with drift_monitor_get. This is paper data only, and I'm in Plan mode, so I can't change anything.",
-          "inputDigest": "ec10a5b53f3883370af46a83b5c886389d2e07ce7a07807edbbaff359442f5ea",
+          "content": "Yes. Two of the three paper forward monitors show drift from their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): alert. Paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): warn. Paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): ok. Paper runner is off, baseline run br_mr_1.\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500), so I have no open-alert details or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) behind the alert and warn levels. I can retry it if you want to see which checks triggered.\n\nThis is paper data only and does not authorize any trading action.",
+          "inputDigest": "2597d1a8b008422757a8ffd714667b2c86cffdc8dcf4e98d75fe34e9f978f355",
           "toolCalls": []
         }
       ],
@@ -1806,14 +1810,14 @@
       "question": "Q19",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":20}) failed",
+        "drift_status({\"limit\":50}) failed",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}})"
       ],
       "trial": 3,
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert. This comes from the certified term drift_level (source: postgres, grouped per monitor, as of 2026-11-05 15:30 UTC):\n\n- Monitor: ORB paper forward\n- Strategy: Opening Range Breakout\n- Level: alert\n- Paper runner: running\n- Compared against baseline backtest run: br_orb_2\n- Last updated: 2026-11-05 14:00 UTC\n\nI couldn't get the full monitor list because the drift_status tool failed with a server error (500, output validation failed). I only asked the certified term for monitors at the alert level, so this doesn't show any monitors at warn.\n\nThis is paper forward data only and has nothing to do with your live IBKR account. If you'd like, I can pull this monitor's individual checks next (drawdown, losing streak, profit factor, Sharpe and win rate, each against the baseline) to see what set off the alert.",
+      "answer": "One drift monitor is in alert (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner status running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThis is paper forward data only. The term does not say which checks tripped; I can pull the monitor's check details (drawdown, losing streak, profit factor, Sharpe, win rate) if you want them.",
       "completions": [
         {
           "content": "",
@@ -1823,17 +1827,12 @@
               "arguments": "{}",
               "id": "Q20.1_0.0",
               "name": "terms_list"
-            },
-            {
-              "arguments": "{\"limit\":50}",
-              "id": "Q20.1_0.1",
-              "name": "drift_status"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "4796692b254bf56a3aec3aac07902110d47b991730b8ca5f6105ee15fb002861",
+          "inputDigest": "7525564f60df752b76962b6889ba0fef4123903d9ce90a4344d6058bac5be5ce",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -1843,8 +1842,8 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert. This comes from the certified term drift_level (source: postgres, grouped per monitor, as of 2026-11-05 15:30 UTC):\n\n- Monitor: ORB paper forward\n- Strategy: Opening Range Breakout\n- Level: alert\n- Paper runner: running\n- Compared against baseline backtest run: br_orb_2\n- Last updated: 2026-11-05 14:00 UTC\n\nI couldn't get the full monitor list because the drift_status tool failed with a server error (500, output validation failed). I only asked the certified term for monitors at the alert level, so this doesn't show any monitors at warn.\n\nThis is paper forward data only and has nothing to do with your live IBKR account. If you'd like, I can pull this monitor's individual checks next (drawdown, losing streak, profit factor, Sharpe and win rate, each against the baseline) to see what set off the alert.",
-          "inputDigest": "8f33a6eff2afca8e7941d060faf27683636a833e10d8f7866319ea7ee8036af1",
+          "content": "One drift monitor is in alert (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner status running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThis is paper forward data only. The term does not say which checks tripped; I can pull the monitor's check details (drawdown, losing streak, profit factor, Sharpe, win rate) if you want them.",
+          "inputDigest": "f2bfc4957f0063897b074490aaa8e42289d509e064ddafac9d6a0a2607348d17",
           "toolCalls": []
         }
       ],
@@ -1852,14 +1851,13 @@
       "question": "Q20",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":50}) failed",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}})"
       ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert. This comes from the certified term drift_level (source: postgres, grain: monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: tracks the strategy Opening Range Breakout and is at level alert. Its paper runner is still running. It is measured against baseline backtest run br_orb_2 and was last updated 2026-11-05 14:00 UTC.\n\nNo other monitors are in alert. I only asked for alert this time, so monitors at warn are not included here.\n\nTo see what triggered the alert, I can open this monitor's checks next (drawdown, losing streak, profit factor, Sharpe and win rate, each against the baseline). I'm in Plan mode, so I can only look this up. Pausing the paper runner or changing the monitor would need Act mode.",
+      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, forward_drift_monitors, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500, output validation failed), so I have no detail on which checks triggered the alert or on the open alert entries. This is paper data only.",
       "completions": [
         {
           "content": "",
@@ -1869,12 +1867,17 @@
               "arguments": "{}",
               "id": "Q20.2_0.0",
               "name": "terms_list"
+            },
+            {
+              "arguments": "{\"limit\":100}",
+              "id": "Q20.2_0.1",
+              "name": "drift_status"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "3b0e5c00296727c458fed1943be56c0eacb118f8e466f3a56b9b593cce68f0b7",
+          "inputDigest": "8fad95d6e743c24028f2380ce41cfbe1c7d14a3d91815f6389cb7089e45d76bc",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -1884,8 +1887,8 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert. This comes from the certified term drift_level (source: postgres, grain: monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: tracks the strategy Opening Range Breakout and is at level alert. Its paper runner is still running. It is measured against baseline backtest run br_orb_2 and was last updated 2026-11-05 14:00 UTC.\n\nNo other monitors are in alert. I only asked for alert this time, so monitors at warn are not included here.\n\nTo see what triggered the alert, I can open this monitor's checks next (drawdown, losing streak, profit factor, Sharpe and win rate, each against the baseline). I'm in Plan mode, so I can only look this up. Pausing the paper runner or changing the monitor would need Act mode.",
-          "inputDigest": "bc212c2f34f1388bd296df3f49a6f89a9395d276998bb8ae925d1833d91d4bdb",
+          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, forward_drift_monitors, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500, output validation failed), so I have no detail on which checks triggered the alert or on the open alert entries. This is paper data only.",
+          "inputDigest": "d6d2e4bb5cd6f00d494e58f7b62e9763f54e74511fb80c926e6455c16da8837d",
           "toolCalls": []
         }
       ],
@@ -1893,13 +1896,14 @@
       "question": "Q20",
       "tools": [
         "terms_list({})",
+        "drift_status({\"limit\":100}) failed",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}})"
       ],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert. This comes from the certified term drift_level (Paper forward drift level), queried with level = alert. The source is Postgres, the grouping is per monitor, and the data is as of 2026-11-05 15:30 UTC.\n\n- Monitor: ORB paper forward\n- Strategy: Opening Range Breakout\n- Level: alert\n- Paper runner status: running\n- Baseline backtest run: br_orb_2\n- Last updated: 2026-11-05 14:00 UTC\n\nThis only covers paper forward data. It doesn't say which check triggered the alert (drawdown, losing streak, profit factor, Sharpe or win rate). I can look that up with drift_monitor_get to see the forward and baseline values. I'm in Plan mode, so I can't stop the paper runner or change anything. For that you'd need to switch to Act mode.",
+      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner status running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500, output validation failed), so I have no detail on which checks triggered the alert or on any open alert entries. This is paper data only.",
       "completions": [
         {
           "content": "",
@@ -1909,12 +1913,17 @@
               "arguments": "{}",
               "id": "Q20.3_0.0",
               "name": "terms_list"
+            },
+            {
+              "arguments": "{\"limit\":100}",
+              "id": "Q20.3_0.1",
+              "name": "drift_status"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "a015691d2f666911ccceae4f01f12664a7eb1378b23ee4082963975953b994bd",
+          "inputDigest": "91481cc241e1c7b462a258d01b9e436205138d653572fb8131c418aa87633a05",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -1924,8 +1933,8 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert. This comes from the certified term drift_level (Paper forward drift level), queried with level = alert. The source is Postgres, the grouping is per monitor, and the data is as of 2026-11-05 15:30 UTC.\n\n- Monitor: ORB paper forward\n- Strategy: Opening Range Breakout\n- Level: alert\n- Paper runner status: running\n- Baseline backtest run: br_orb_2\n- Last updated: 2026-11-05 14:00 UTC\n\nThis only covers paper forward data. It doesn't say which check triggered the alert (drawdown, losing streak, profit factor, Sharpe or win rate). I can look that up with drift_monitor_get to see the forward and baseline values. I'm in Plan mode, so I can't stop the paper runner or change anything. For that you'd need to switch to Act mode.",
-          "inputDigest": "3a9d90c6870c3984931e6193cb023155ff2ff8eed63e65eec8c4160405d40e07",
+          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner status running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500, output validation failed), so I have no detail on which checks triggered the alert or on any open alert entries. This is paper data only.",
+          "inputDigest": "2b731e5a0de02657ce812dee58d3f01549637eae980e0e081ae976034550a07a",
           "toolCalls": []
         }
       ],
@@ -1933,6 +1942,7 @@
       "question": "Q20",
       "tools": [
         "terms_list({})",
+        "drift_status({\"limit\":100}) failed",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}})"
       ],
       "trial": 3,
@@ -2017,7 +2027,7 @@
       "audit": "correct"
     },
     {
-      "answer": "No. On the certified numbers, the NVDA premium is above 2% of NLV.\n\n- Position (term position, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 5x NVDA 20261218 200 C, avg price 12.50, cost basis 6,250 USD, market value 6,760 USD.\n- NLV (term net_liquidation, same feed): 248,350.12 USD. 2% of that is about 4,967 USD.\n- Premium at risk (term open_risk, same feed): the NVDA long call's defined max loss is the 6,250 USD debit paid. That is about 2.52% of NLV, roughly 1,283 USD over the cap. At market value, 6,760 USD is about 2.72%.\n- For context, total open options risk is 11,830 USD across 3 structures, 4.76% of NLV.\n\nTwo caveats:\n- The 2% short-dated cap is your rule, not a certified term. I can't confirm how it is defined, for example whether it counts premium paid or market value, or what counts as short-dated. The NVDA expiry is 2026-12-18, 43 days out.\n- The percentages are my arithmetic on the certified values.\n\nThis is a read-only check. I can't adjust positions or risk settings, and no tool here can.",
+      "answer": "No. On either measure the NVDA option premium is above 2% of NLV, if the cap applies to this position.\n\n- Net liquidation (term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 248,350.12 USD, so 2% is about 4,967 USD.\n- NVDA option position (term position, vertex-portfolio feed, same time): 5 contracts of the 2026-12-18 200 call, cost basis 6,250 USD, market value 6,760 USD.\n- Premium paid is about 2.52% of NLV (my arithmetic from those two values), roughly 1,283 USD over the 2% line.\n- At current market value it is about 2.72% of NLV, roughly 1,793 USD over.\n\nCaveats:\n- I could not find the 2% short-dated cap itself in the ledger. No certified term defines it, and a master_rules_search returned no matching rule; the nearest is C154, a general cap on total options exposure (knowledge bases ericnomics, inthemoneyadam, trading-fraternity), which has no 2% figure. I used your 2% figure as given.\n- The call expires in 43 days. Whether that counts as short-dated depends on your cap's definition, which I do not have.\n- The open_risk term is account-wide and takes no symbol filter, so I did not use it for NVDA.\n\nThis is a research read only and does not authorize any trade or change.",
       "completions": [
         {
           "content": "",
@@ -2027,33 +2037,38 @@
               "arguments": "{}",
               "id": "H2.1_0.0",
               "name": "terms_list"
+            },
+            {
+              "arguments": "{\"term\":\"net_liquidation\"}",
+              "id": "H2.1_0.1",
+              "name": "terms_query"
+            },
+            {
+              "arguments": "{\"term\":\"open_risk\",\"params\":{\"symbol\":\"NVDA\"}}",
+              "id": "H2.1_0.2",
+              "name": "terms_query"
+            },
+            {
+              "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}}",
+              "id": "H2.1_0.3",
+              "name": "terms_query"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "2116ccc97dd469df6e3a2a199232dfd3cfa21e4709ce28b06e13be53764903f7",
+          "inputDigest": "7e889017dc1ee7685b31c91641c1fd58dd6558ea47d6ce4da5483f1a1238e8f7",
           "toolCalls": [
             {
-              "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}}",
+              "arguments": "{\"query\":\"short-dated options premium 2% of NLV cap\",\"limit\":5}",
               "id": "H2.1_1.0",
-              "name": "terms_query"
-            },
-            {
-              "arguments": "{\"term\":\"net_liquidation\"}",
-              "id": "H2.1_1.1",
-              "name": "terms_query"
-            },
-            {
-              "arguments": "{\"term\":\"open_risk\"}",
-              "id": "H2.1_1.2",
-              "name": "terms_query"
+              "name": "master_rules_search"
             }
           ]
         },
         {
-          "content": "No. On the certified numbers, the NVDA premium is above 2% of NLV.\n\n- Position (term position, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 5x NVDA 20261218 200 C, avg price 12.50, cost basis 6,250 USD, market value 6,760 USD.\n- NLV (term net_liquidation, same feed): 248,350.12 USD. 2% of that is about 4,967 USD.\n- Premium at risk (term open_risk, same feed): the NVDA long call's defined max loss is the 6,250 USD debit paid. That is about 2.52% of NLV, roughly 1,283 USD over the cap. At market value, 6,760 USD is about 2.72%.\n- For context, total open options risk is 11,830 USD across 3 structures, 4.76% of NLV.\n\nTwo caveats:\n- The 2% short-dated cap is your rule, not a certified term. I can't confirm how it is defined, for example whether it counts premium paid or market value, or what counts as short-dated. The NVDA expiry is 2026-12-18, 43 days out.\n- The percentages are my arithmetic on the certified values.\n\nThis is a read-only check. I can't adjust positions or risk settings, and no tool here can.",
-          "inputDigest": "10819b2f0d8f8dbc383b48755213c8befe4c02847ac55d24333460451a5cb53c",
+          "content": "No. On either measure the NVDA option premium is above 2% of NLV, if the cap applies to this position.\n\n- Net liquidation (term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 248,350.12 USD, so 2% is about 4,967 USD.\n- NVDA option position (term position, vertex-portfolio feed, same time): 5 contracts of the 2026-12-18 200 call, cost basis 6,250 USD, market value 6,760 USD.\n- Premium paid is about 2.52% of NLV (my arithmetic from those two values), roughly 1,283 USD over the 2% line.\n- At current market value it is about 2.72% of NLV, roughly 1,793 USD over.\n\nCaveats:\n- I could not find the 2% short-dated cap itself in the ledger. No certified term defines it, and a master_rules_search returned no matching rule; the nearest is C154, a general cap on total options exposure (knowledge bases ericnomics, inthemoneyadam, trading-fraternity), which has no 2% figure. I used your 2% figure as given.\n- The call expires in 43 days. Whether that counts as short-dated depends on your cap's definition, which I do not have.\n- The open_risk term is account-wide and takes no symbol filter, so I did not use it for NVDA.\n\nThis is a research read only and does not authorize any trade or change.",
+          "inputDigest": "ac776242f3215287a0c051d19176db92b35ca8dbc5145c1be72cc933fbdf2cb3",
           "toolCalls": []
         }
       ],
@@ -2061,15 +2076,16 @@
       "question": "H2",
       "tools": [
         "terms_list({})",
-        "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}})",
         "terms_query({\"term\":\"net_liquidation\"})",
-        "terms_query({\"term\":\"open_risk\"})"
+        "terms_query({\"term\":\"open_risk\",\"params\":{\"symbol\":\"NVDA\"}}) failed",
+        "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})",
+        "master_rules_search({\"query\":\"short-dated options premium 2% of NLV cap\",\"limit\":5})"
       ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "No. The NVDA position is above a 2% of NLV cap, by about 0.5 percentage points on the premium paid.\n\nFrom the certified terms, all from the live IBKR account in the vertex-portfolio feed as of 2026-11-05 15:30 UTC:\n- position (NVDA, OPT): 5 contracts of the NVDA 20261218 200 C. Average price is 12.50, cost basis is 6,250 USD and market value is 6,760 USD (last 13.52).\n- net_liquidation: 248,350.12 USD.\n- open_risk: this term counts the NVDA long call's defined max loss as the 6,250 USD debit paid. Total open options risk is 11,830 USD across 3 structures, which is 4.76% of NLV.\n\nMy arithmetic from those values:\n- Premium paid: 6,250 / 248,350.12 = about 2.52% of NLV, so roughly 1,283 USD over a 2% cap (2% is about 4,967 USD).\n- At current market value: 6,760 / 248,350.12 = about 2.72% of NLV.\n\nCaveats:\n- The 2% cap and the meaning of 'short-dated' are your rules. No certified term in the ledger stores them, so I could not check them against a recorded setting.\n- The option expires 2026-12-18, 43 days from today. Whether that counts as short-dated depends on your definition.\n- This is a read-only check. It does not change any position or risk setting.",
+      "answer": "No. On the certified figures your NVDA option premium is above 2% of NLV, whether measured at cost or at market value.\n\n- Net liquidation (term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 248,350.12 USD. 2% of that is about 4,967 USD (my arithmetic).\n- NVDA option position (term position, vertex-portfolio feed, same time): 5 contracts of the NVDA 2026-12-18 200 call, average price 12.50, cost basis 6,250 USD, market value 6,760 USD, unrealized +510 USD.\n- Premium paid is about 2.52% of NLV, roughly 1,283 USD over the cap.\n- Current market value is about 2.72% of NLV, roughly 1,793 USD over the cap.\n\nCaveats:\n- Whether this counts as short-dated depends on your definition. The call expires in 43 days, and Vertex has no certified term that defines short-dated or stores a 2% cap, so I used the cap as you stated it.\n- The master rules search found no 2% of NLV rule for short-dated options. The closest is C154 (class A; knowledge bases ericnomics, inthemoneyadam, trading-fraternity), which caps total options exposure at much looser levels, so I did not use it here.\n- The open_risk term takes no symbol filter, so I did not get an NVDA-only figure from it. The position row above is the only NVDA option line in the live account.\n\nThis is a read-only check and does not authorize or change any trade or risk setting.",
       "completions": [
         {
           "content": "",
@@ -2079,33 +2095,38 @@
               "arguments": "{}",
               "id": "H2.2_0.0",
               "name": "terms_list"
+            },
+            {
+              "arguments": "{\"term\":\"net_liquidation\"}",
+              "id": "H2.2_0.1",
+              "name": "terms_query"
+            },
+            {
+              "arguments": "{\"term\":\"open_risk\",\"params\":{\"symbol\":\"NVDA\"}}",
+              "id": "H2.2_0.2",
+              "name": "terms_query"
+            },
+            {
+              "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}}",
+              "id": "H2.2_0.3",
+              "name": "terms_query"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "985c24e753a6088fa3c728eb24c4a4ddddb2d968d6910c249cd62553881cd030",
+          "inputDigest": "bd1811fde942f8d18304c7c93f5834a3687567eb7ca265b86e1e8370fa6ef1fc",
           "toolCalls": [
             {
-              "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}}",
+              "arguments": "{\"query\":\"short-dated options premium cap 2% of NLV\",\"limit\":5}",
               "id": "H2.2_1.0",
-              "name": "terms_query"
-            },
-            {
-              "arguments": "{\"term\":\"net_liquidation\",\"params\":{}}",
-              "id": "H2.2_1.1",
-              "name": "terms_query"
-            },
-            {
-              "arguments": "{\"term\":\"open_risk\",\"params\":{}}",
-              "id": "H2.2_1.2",
-              "name": "terms_query"
+              "name": "master_rules_search"
             }
           ]
         },
         {
-          "content": "No. The NVDA position is above a 2% of NLV cap, by about 0.5 percentage points on the premium paid.\n\nFrom the certified terms, all from the live IBKR account in the vertex-portfolio feed as of 2026-11-05 15:30 UTC:\n- position (NVDA, OPT): 5 contracts of the NVDA 20261218 200 C. Average price is 12.50, cost basis is 6,250 USD and market value is 6,760 USD (last 13.52).\n- net_liquidation: 248,350.12 USD.\n- open_risk: this term counts the NVDA long call's defined max loss as the 6,250 USD debit paid. Total open options risk is 11,830 USD across 3 structures, which is 4.76% of NLV.\n\nMy arithmetic from those values:\n- Premium paid: 6,250 / 248,350.12 = about 2.52% of NLV, so roughly 1,283 USD over a 2% cap (2% is about 4,967 USD).\n- At current market value: 6,760 / 248,350.12 = about 2.72% of NLV.\n\nCaveats:\n- The 2% cap and the meaning of 'short-dated' are your rules. No certified term in the ledger stores them, so I could not check them against a recorded setting.\n- The option expires 2026-12-18, 43 days from today. Whether that counts as short-dated depends on your definition.\n- This is a read-only check. It does not change any position or risk setting.",
-          "inputDigest": "dd26d7bb42dfc09a174d57e9d368dafc19a8d52cbfa308e1fcd81e939b0e5461",
+          "content": "No. On the certified figures your NVDA option premium is above 2% of NLV, whether measured at cost or at market value.\n\n- Net liquidation (term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 248,350.12 USD. 2% of that is about 4,967 USD (my arithmetic).\n- NVDA option position (term position, vertex-portfolio feed, same time): 5 contracts of the NVDA 2026-12-18 200 call, average price 12.50, cost basis 6,250 USD, market value 6,760 USD, unrealized +510 USD.\n- Premium paid is about 2.52% of NLV, roughly 1,283 USD over the cap.\n- Current market value is about 2.72% of NLV, roughly 1,793 USD over the cap.\n\nCaveats:\n- Whether this counts as short-dated depends on your definition. The call expires in 43 days, and Vertex has no certified term that defines short-dated or stores a 2% cap, so I used the cap as you stated it.\n- The master rules search found no 2% of NLV rule for short-dated options. The closest is C154 (class A; knowledge bases ericnomics, inthemoneyadam, trading-fraternity), which caps total options exposure at much looser levels, so I did not use it here.\n- The open_risk term takes no symbol filter, so I did not get an NVDA-only figure from it. The position row above is the only NVDA option line in the live account.\n\nThis is a read-only check and does not authorize or change any trade or risk setting.",
+          "inputDigest": "9257a513b200ee2ea208306fd29791cd542855790a7e02d06aa44c193ce03968",
           "toolCalls": []
         }
       ],
@@ -2113,15 +2134,16 @@
       "question": "H2",
       "tools": [
         "terms_list({})",
-        "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}})",
-        "terms_query({\"term\":\"net_liquidation\",\"params\":{}})",
-        "terms_query({\"term\":\"open_risk\",\"params\":{}})"
+        "terms_query({\"term\":\"net_liquidation\"})",
+        "terms_query({\"term\":\"open_risk\",\"params\":{\"symbol\":\"NVDA\"}}) failed",
+        "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})",
+        "master_rules_search({\"query\":\"short-dated options premium cap 2% of NLV\",\"limit\":5})"
       ],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "No. Your NVDA option premium is above 2% of NLV.\n\n- Position (certified term position, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 5 contracts of the NVDA 20261218 200 C, average price 12.50, cost basis 6,250 USD. Last price is 13.52, so market value is 6,760 USD and unrealized P&L is +510.\n- NLV (certified term net_liquidation, same feed): 248,350.12 USD. 2% of that is about 4,967 USD.\n- Premium paid: 6,250 USD, about 2.52% of NLV, roughly 1,283 USD over the cap. The certified term open_risk, from the same feed, also lists this as the structure's maximum loss of 6,250 USD.\n- Current value: 6,760 USD is about 2.72% of NLV, so it is also over the cap on that basis.\n\nTwo caveats:\n- The 2% short-dated cap is not a certified term in Vertex, so I can't confirm its exact definition. That includes whether it uses premium paid or current value, and what counts as short-dated. This option expires 2026-12-18, 43 days from today.\n- For context, total open options risk across your 3 structures is 11,830 USD, which is 4.76% of NLV (term open_risk).\n\nThis is research information only. I'm in Plan mode and can't change positions or risk settings. Any adjustment is your decision, made in your broker.",
+      "answer": "No. Your NVDA option premium is above 2% of NLV, at cost and at market value.\n\n- NLV (certified term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 248,350.12 USD. 2% of that is about 4,967.00 USD.\n- NVDA option position (certified term position, vertex-portfolio feed, same time): 5 contracts of the 2026-12-18 200 call, average price 12.50, cost basis 6,250 USD, market value 6,760 USD.\n- Premium paid: 6,250 USD is about 2.52% of NLV, roughly 1,283 USD over the cap.\n- Current market value: 6,760 USD is about 2.72% of NLV, roughly 1,793 USD over the cap.\n\nThe percentages and the 2% threshold are my arithmetic on the two certified values, not certified figures themselves.\n\nCaveats:\n- I could not find the 2% short-dated cap in the ledger. A master_rules_search returned no rule with that threshold. The closest is C154 (cap total options exposure; knowledge bases trading-fraternity, inthemoneyadam, ericnomics), which uses different limits, for example about 10-20% of capital in options (https://www.youtube.com/watch?v=YS7wDyTnteQ). I took the 2% cap as your own rule; master rules are advisory only.\n- Whether this call counts as short-dated depends on your definition. It expires 2026-12-18, 43 days from today.\n- The open_risk term takes no symbol parameter, so my NVDA-only call failed and I did not use it; it only gives an account-wide total.\n\nThis is a read-only check and changes no trade or risk setting.",
       "completions": [
         {
           "content": "",
@@ -2131,33 +2153,38 @@
               "arguments": "{}",
               "id": "H2.3_0.0",
               "name": "terms_list"
+            },
+            {
+              "arguments": "{\"term\":\"net_liquidation\"}",
+              "id": "H2.3_0.1",
+              "name": "terms_query"
+            },
+            {
+              "arguments": "{\"term\":\"open_risk\",\"params\":{\"symbol\":\"NVDA\"}}",
+              "id": "H2.3_0.2",
+              "name": "terms_query"
+            },
+            {
+              "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}}",
+              "id": "H2.3_0.3",
+              "name": "terms_query"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "fab88c3044bf561264b1fe163fa9b412922331cc81ae38424ddea1adc259f7cb",
+          "inputDigest": "2cf9e5772d828a734170e0b905ff36e9ae43bd03582a6f09175ed7f5bb5852fe",
           "toolCalls": [
             {
-              "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}}",
+              "arguments": "{\"query\":\"short-dated options premium cap 2% of NLV\",\"limit\":5}",
               "id": "H2.3_1.0",
-              "name": "terms_query"
-            },
-            {
-              "arguments": "{\"term\":\"net_liquidation\"}",
-              "id": "H2.3_1.1",
-              "name": "terms_query"
-            },
-            {
-              "arguments": "{\"term\":\"open_risk\"}",
-              "id": "H2.3_1.2",
-              "name": "terms_query"
+              "name": "master_rules_search"
             }
           ]
         },
         {
-          "content": "No. Your NVDA option premium is above 2% of NLV.\n\n- Position (certified term position, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 5 contracts of the NVDA 20261218 200 C, average price 12.50, cost basis 6,250 USD. Last price is 13.52, so market value is 6,760 USD and unrealized P&L is +510.\n- NLV (certified term net_liquidation, same feed): 248,350.12 USD. 2% of that is about 4,967 USD.\n- Premium paid: 6,250 USD, about 2.52% of NLV, roughly 1,283 USD over the cap. The certified term open_risk, from the same feed, also lists this as the structure's maximum loss of 6,250 USD.\n- Current value: 6,760 USD is about 2.72% of NLV, so it is also over the cap on that basis.\n\nTwo caveats:\n- The 2% short-dated cap is not a certified term in Vertex, so I can't confirm its exact definition. That includes whether it uses premium paid or current value, and what counts as short-dated. This option expires 2026-12-18, 43 days from today.\n- For context, total open options risk across your 3 structures is 11,830 USD, which is 4.76% of NLV (term open_risk).\n\nThis is research information only. I'm in Plan mode and can't change positions or risk settings. Any adjustment is your decision, made in your broker.",
-          "inputDigest": "1734998aff2bf87d5a7cc33bbb57aadce7a4d32b7f5b0cdbb66f78b5a983e1a8",
+          "content": "No. Your NVDA option premium is above 2% of NLV, at cost and at market value.\n\n- NLV (certified term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 248,350.12 USD. 2% of that is about 4,967.00 USD.\n- NVDA option position (certified term position, vertex-portfolio feed, same time): 5 contracts of the 2026-12-18 200 call, average price 12.50, cost basis 6,250 USD, market value 6,760 USD.\n- Premium paid: 6,250 USD is about 2.52% of NLV, roughly 1,283 USD over the cap.\n- Current market value: 6,760 USD is about 2.72% of NLV, roughly 1,793 USD over the cap.\n\nThe percentages and the 2% threshold are my arithmetic on the two certified values, not certified figures themselves.\n\nCaveats:\n- I could not find the 2% short-dated cap in the ledger. A master_rules_search returned no rule with that threshold. The closest is C154 (cap total options exposure; knowledge bases trading-fraternity, inthemoneyadam, ericnomics), which uses different limits, for example about 10-20% of capital in options (https://www.youtube.com/watch?v=YS7wDyTnteQ). I took the 2% cap as your own rule; master rules are advisory only.\n- Whether this call counts as short-dated depends on your definition. It expires 2026-12-18, 43 days from today.\n- The open_risk term takes no symbol parameter, so my NVDA-only call failed and I did not use it; it only gives an account-wide total.\n\nThis is a read-only check and changes no trade or risk setting.",
+          "inputDigest": "85c8a78a5a050024db546660185d9cdb58afc7a35871d785dc1b684f823b5782",
           "toolCalls": []
         }
       ],
@@ -2165,15 +2192,16 @@
       "question": "H2",
       "tools": [
         "terms_list({})",
-        "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}})",
         "terms_query({\"term\":\"net_liquidation\"})",
-        "terms_query({\"term\":\"open_risk\"})"
+        "terms_query({\"term\":\"open_risk\",\"params\":{\"symbol\":\"NVDA\"}}) failed",
+        "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})",
+        "master_rules_search({\"query\":\"short-dated options premium cap 2% of NLV\",\"limit\":5})"
       ],
       "trial": 3,
       "audit": "correct"
     },
     {
-      "answer": "Your realized P&L is 1,050.00 USD as of 2026-11-05 15:30 UTC.\n\nThis number comes from the certified term pnl (Account P&L), realized window. The source is your live IBKR account in the vertex-portfolio feed (pnl.realized). It is not from the paper exec node.",
+      "answer": "Your realized P&L is 1,050.00 USD.\n\n- Term: pnl (Account P&L), window realized, certified\n- Source: vertex-portfolio feed (pnl.realized), your live IBKR account, not the paper exec node\n- As of: 2026-11-05T15:30:00Z",
       "completions": [
         {
           "content": "",
@@ -2188,7 +2216,7 @@
         },
         {
           "content": "",
-          "inputDigest": "47feb3b9f8b23c6da1ad1a3afe445de995464be21e2c2a032842acfdc2d864b6",
+          "inputDigest": "5b6a2c1d74e379598405e23d30a993cf19b626f1ca1689abf9d7b011f7d3bf6e",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}}",
@@ -2198,8 +2226,8 @@
           ]
         },
         {
-          "content": "Your realized P&L is 1,050.00 USD as of 2026-11-05 15:30 UTC.\n\nThis number comes from the certified term pnl (Account P&L), realized window. The source is your live IBKR account in the vertex-portfolio feed (pnl.realized). It is not from the paper exec node.",
-          "inputDigest": "e8198ab1ca9d9dcdeadcc144a2dd4f1214439549ae13a1a69ba5fd2ec1de8b6c",
+          "content": "Your realized P&L is 1,050.00 USD.\n\n- Term: pnl (Account P&L), window realized, certified\n- Source: vertex-portfolio feed (pnl.realized), your live IBKR account, not the paper exec node\n- As of: 2026-11-05T15:30:00Z",
+          "inputDigest": "0782bf68e48a62587f96b3473f6943a7817924c3040cbb27d8bfc3f047dda852",
           "toolCalls": []
         }
       ],
@@ -2213,82 +2241,54 @@
       "audit": "correct"
     },
     {
-      "answer": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis number comes from the certified term pnl (Account P&L), with the realized window. Its source is the vertex-portfolio feed for your live IBKR account. It doesn't include the paper exec node's P&L.",
+      "answer": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\n- Term: pnl (Account P&L), certified\n- Source: the live IBKR account in the vertex-portfolio feed (pnl.realized)\n\nFor context, the same term shows daily P&L of -1,284.40 USD and unrealized P&L of 5,830.00 USD.",
       "completions": [
         {
           "content": "",
           "inputDigest": "a4e6906d7844076cc59922e8ea823df2ce2dbe7306a3c6129f12d18b333f639f",
           "toolCalls": [
             {
-              "arguments": "{}",
+              "arguments": "{\"term\":\"pnl\"}",
               "id": "H3.2_0.0",
-              "name": "terms_list"
-            }
-          ]
-        },
-        {
-          "content": "",
-          "inputDigest": "d32ab6598ae19ca3eadc613232cb398be6f394f626de6ae9975da2d3b322b2bb",
-          "toolCalls": [
-            {
-              "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}}",
-              "id": "H3.2_1.0",
               "name": "terms_query"
             }
           ]
         },
         {
-          "content": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis number comes from the certified term pnl (Account P&L), with the realized window. Its source is the vertex-portfolio feed for your live IBKR account. It doesn't include the paper exec node's P&L.",
-          "inputDigest": "ab8e0e229779bed7f154961d9843e20e98296ce40fafd5a39211015a97243771",
+          "content": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\n- Term: pnl (Account P&L), certified\n- Source: the live IBKR account in the vertex-portfolio feed (pnl.realized)\n\nFor context, the same term shows daily P&L of -1,284.40 USD and unrealized P&L of 5,830.00 USD.",
+          "inputDigest": "be68119306872c19da7ada421e5c68f9ec3c30fdf8ebd1e06218e1e4344a2082",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "H3",
-      "tools": [
-        "terms_list({})",
-        "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}})"
-      ],
+      "tools": ["terms_query({\"term\":\"pnl\"})"],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\nI got this from the certified term pnl (Account P&L) with window realized. It reads your live IBKR account through the vertex-portfolio feed. It does not include the paper exec node shown in deployment_status.\n\nI can also look up your daily or unrealized P&L if you want them.",
+      "answer": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\n- Term: pnl (Account P&L), certified\n- Source: the live IBKR account in the vertex-portfolio feed (pnl.realized)\n\nFor context, the same term shows daily P&L of -1,284.40 USD and unrealized P&L of 5,830.00 USD.",
       "completions": [
         {
           "content": "",
           "inputDigest": "a4e6906d7844076cc59922e8ea823df2ce2dbe7306a3c6129f12d18b333f639f",
           "toolCalls": [
             {
-              "arguments": "{}",
+              "arguments": "{\"term\":\"pnl\"}",
               "id": "H3.3_0.0",
-              "name": "terms_list"
-            }
-          ]
-        },
-        {
-          "content": "",
-          "inputDigest": "e740c2d00abd436ccd6b71a348891c09a027cb1060a4ffd687338d88f6db3d7a",
-          "toolCalls": [
-            {
-              "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}}",
-              "id": "H3.3_1.0",
               "name": "terms_query"
             }
           ]
         },
         {
-          "content": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\nI got this from the certified term pnl (Account P&L) with window realized. It reads your live IBKR account through the vertex-portfolio feed. It does not include the paper exec node shown in deployment_status.\n\nI can also look up your daily or unrealized P&L if you want them.",
-          "inputDigest": "98f53e86e9db63ef416e66646a6d3c14b593eb1aabf719080cba8415e898ffec",
+          "content": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\n- Term: pnl (Account P&L), certified\n- Source: the live IBKR account in the vertex-portfolio feed (pnl.realized)\n\nFor context, the same term shows daily P&L of -1,284.40 USD and unrealized P&L of 5,830.00 USD.",
+          "inputDigest": "dbc5eb7985629cd3a52f570dfbadf3d360565254265263660e211a2b97c7abe9",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "question": "H3",
-      "tools": [
-        "terms_list({})",
-        "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}})"
-      ],
+      "tools": ["terms_query({\"term\":\"pnl\"})"],
       "trial": 3,
       "audit": "correct"
     },

@@ -519,6 +519,13 @@
       "when": 1794707975811,
       "tag": "0073_strategy_catalog_trend_trio",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794721926873,
+      "tag": "0074_semantic_terms_trend_indicators",
+      "breakpoints": true
     }
   ]
 }
