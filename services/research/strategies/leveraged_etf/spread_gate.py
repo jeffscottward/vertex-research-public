@@ -311,6 +311,14 @@ def session_result(day: date, expiry: date, cboe_reads: Sequence[Read],
         other_counted_reads=len(other_reads), other_value_pct=_value(other_reads))
 
 
+def judged_sessions(sessions: Sequence[SessionResult], build_day: date) -> list[SessionResult]:
+    """The newest judged sessions that decide the spread of a fund, at most 2, newest first: among the last 5
+    NYSE sessions up to `build_day`."""
+    lookback = sessions_back(build_day, GATE_V2["sessionLookback"])
+    judged = [item for item in sessions if item.result != "not-judged" and item.day in lookback]
+    return sorted(judged, key=lambda item: item.day, reverse=True)[:GATE_V2["minSessions"]]
+
+
 def fund_label(listed: bool, universe_reasons: Sequence[str], facts: FundFacts | None,
                sessions: Sequence[SessionResult], build_day: date) -> tuple[str, list[str]]:
     """(label, reasons) of a fund on `build_day`.
@@ -331,8 +339,7 @@ def fund_label(listed: bool, universe_reasons: Sequence[str], facts: FundFacts |
         return "fail", ["no-window-expiry"]
     if facts.band_open_interest is None or facts.band_open_interest < GATE_V2["minBandOpenInterest"]:
         return "fail", ["open-interest-below-minimum"]
-    judged = sorted((item for item in sessions if item.result != "not-judged" and item.day in lookback),
-                    key=lambda item: item.day, reverse=True)[:GATE_V2["minSessions"]]
+    judged = judged_sessions(sessions, build_day)
     if len(judged) < GATE_V2["minSessions"]:
         return "spread-not-measured", ["fewer-than-2-judged-sessions"]
     failed = {item.result for item in judged if item.result != "inside-limit"}
