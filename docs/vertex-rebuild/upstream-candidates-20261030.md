@@ -167,7 +167,7 @@ Neither package `__init__.py` is changed or re-exports the new modules; a caller
 * Errors: `DistributionDayError` for fewer than two bars (`index_posture`), bars out of order or with equal dates (`distribution_days` and `index_posture`), an invalidation source other than `high` or `close`, an empty list or an unknown level in `combine_index_risks`, and a symbol that appears twice.
 * `combine_index_risks` gives one level for a set of index results with the upstream policy, in this order: any SEVERE gives SEVERE; QQQ HIGH gives HIGH; QQQ NORMAL with SPY HIGH gives HIGH; QQQ CAUTION with SPY CAUTION or HIGH gives HIGH; otherwise the highest level. The symbols `QQQ` and `SPY` are matched exactly; any other symbol takes part only in "any SEVERE" and "the highest level".
 * Configuration: `DistributionDayRule` and `RiskThresholds` keep the fields and defaults of upstream `models.py`. The defaults are the rule `ibd_dd_v1.0`. One test and the differential run cover a non-default value.
-* Deviations from upstream: the moving averages use the trailing run of valid closes, so a bad bar that is older than the average period does not make the filter unknown. A close, volume or high that is not finite is a bad value; upstream rejects only a missing or non-positive value. A symbol may appear only once in `combine_index_risks`. `insufficient_lookback` does not use the upstream fetch window of 80 sessions.
+* Deviations from upstream: the moving averages use the trailing run of valid closes, so a bad bar that is older than the average period does not make the filter unknown. The averages are not bit-identical with the upstream functions, so a close that is equal to an average can compare differently. A close, volume or high that is not finite is a bad value; upstream rejects only a missing or non-positive value. Input checks raise `DistributionDayError` where upstream gives a result (one bar) or fails later (an unknown invalidation source or level). A symbol may appear only once in `combine_index_risks`. `insufficient_lookback` does not use the upstream fetch window of 80 sessions.
 * Not adapted: the paid data client, caching, the Japanese report text and the leveraged-fund exposure recommendation.
 
 ### Check against the upstream code (2026-11-15)
@@ -207,7 +207,7 @@ This change adds both new test files to `ci-suites.txt`. They need only the exis
 
 * **Pros**: The calibration module could read the upstream dataset layout on the first day the dataset exists.
 * **Cons**: DuckDB is not a dependency of this repository. The reader's two tests skip when DuckDB is missing, so CI would not run them unless a new hash-pinned lock and a new CI run are added. No caller exists, because the dataset download is deferred.
-* **Reason for Rejection**: A dependency, a lock file and a CI run for code without a caller and without data conflicts with rule 12 of [`AGENTS.md`](../../AGENTS.md) ("No speculative infrastructure"). The reader (64 lines, commit `cfacaf06` of the private branch, file `services/research/providers/prediction_markets_parquet.py`) is kept in the git bundle and is added with the dataset run.
+* **Reason for Rejection**: A dependency, a lock file and a CI run for code without a caller and without data conflicts with rule 12 of [`AGENTS.md`](../../AGENTS.md) ("No speculative infrastructure"). The reader (64 lines, commit `cfacaf06` of the private branch, file `prediction_markets_parquet.py` in the `providers` package) is kept in the git bundle and is added with the dataset run.
 
 ### Alternative B: Leave both modules outside this repository until a caller exists
 
@@ -379,7 +379,12 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
 #### 7. `services/research/tests/ci-suites.txt` (Modify)
 
 * **Type / Scope**: CI suite list (flat, one path for each line).
-* **Proposed Changes**: Append two lines after the last line (`tests/test_trend_trio_nautilus.py`), in this order: `tests/test_prediction_markets.py`, `tests/test_distribution_days.py`.
+* **Proposed Changes**: Append these two lines after the last line of the file (the `test_trend_trio_nautilus.py` suite). The paths are relative to `services/research`:
+
+  ```text
+  tests/test_prediction_markets.py
+  tests/test_distribution_days.py
+  ```
 
 #### 8. `services/research/pyproject.toml` (Modify)
 

@@ -149,7 +149,8 @@ insufficient_lookback flag of history_utils.py.
 
 Changes: typed bars in date order, oldest first; moving averages from the
 Vertex indicators package over the trailing run of valid closes; a value
-that is not finite is a bad value; a symbol may
+that is not finite is a bad value; input checks raise an error for one bar,
+an unknown invalidation source or an unknown level; a symbol may
 appear only once in the combined level; the insufficient_lookback flag does
 not use the upstream fetch window of 80 sessions; the data client, caching,
 report text and the exposure recommendation are not included.

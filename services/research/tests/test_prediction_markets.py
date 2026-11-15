@@ -62,6 +62,10 @@ def test_polymarket_half_cent_prices_round_like_upstream_sql():
     assert list(polymarket_positions([trade], {"111": True})) == [Position(58, True), Position(43, False)]
     trade = {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 5_750_000, "taker_amount": 10_000_000}
     assert next(polymarket_positions([trade], {"111": True})) == Position(58, True)
+    # 0.49999999999999994 is below a half cent: price 0, not 1 (adding 0.5 first gives exactly 1.0).
+    trade = {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 35_000_000_000_000,
+             "taker_amount": 7_000_000_000_000_001}
+    assert list(polymarket_positions([trade], {"111": True})) == [Position(0, True), Position(100, False)]
 
 
 def test_calibration_scores_from_hand_computed_values():

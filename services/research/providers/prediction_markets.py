@@ -99,7 +99,10 @@ def _join_key(value: Any) -> str | None:
 
 def _round_half_away(value: float) -> int:
     # DuckDB ROUND rounds half away from zero; Python round() rounds half to even.
-    return math.floor(value + 0.5) if value >= 0 else -math.floor(-value + 0.5)
+    # The fraction is compared with 0.5: floor(value + 0.5) is wrong just below a half.
+    whole = math.floor(abs(value))
+    rounded = whole + 1 if abs(value) - whole >= 0.5 else whole
+    return rounded if value >= 0 else -rounded
 
 
 def _kalshi_market(row: Mapping[str, Any]) -> tuple[str, str] | None:
