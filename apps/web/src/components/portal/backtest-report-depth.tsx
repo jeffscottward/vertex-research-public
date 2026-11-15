@@ -10,6 +10,15 @@ import {
   type TradeGroupRow,
   tradesAnalysis,
 } from "@darkfactory/api";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { useMemo, useState } from "react";
 
 // Backtest report depth (LuxAlgo gap P3): the Trades Analysis and Simulation tabs of a run report.
@@ -97,29 +106,47 @@ const GroupTable = ({
   caption,
   rows,
 }: Readonly<{ caption: string; rows: readonly TradeGroupRow[] }>) => (
-  <table className="w-full text-sm tabular-nums">
-    <caption className="pb-1 text-left font-medium">{caption}</caption>
-    <thead className="text-left text-muted-foreground">
-      <tr>
-        <th className="p-1">Group</th>
-        <th className="p-1">Trades</th>
-        <th className="p-1">Win rate</th>
-        <th className="p-1">Net P/L</th>
-        <th className="p-1">Avg P/L</th>
-      </tr>
-    </thead>
-    <tbody>
+  <Table className="w-full text-sm tabular-nums">
+    <TableCaption className="mt-0 caption-top pb-1 text-left font-medium text-foreground">
+      {caption}
+    </TableCaption>
+    <TableHeader className="text-left">
+      <TableRow>
+        <TableHead className="p-1" scope="col">
+          Group
+        </TableHead>
+        <TableHead className="p-1" scope="col">
+          Trades
+        </TableHead>
+        <TableHead className="p-1" scope="col">
+          Win rate
+        </TableHead>
+        <TableHead className="p-1" scope="col">
+          Net P/L
+        </TableHead>
+        <TableHead className="p-1" scope="col">
+          Avg P/L
+        </TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody>
       {rows.map((row) => (
-        <tr className="border-t" key={row.key}>
-          <td className="p-1">{row.key}</td>
-          <td className="p-1">{row.trades}</td>
-          <td className="p-1">{share(row.winRate)}</td>
-          <td className="p-1">{money(row.netPnl)}</td>
-          <td className="p-1">{money(row.avgPnl)}</td>
-        </tr>
+        <TableRow className="border-t" key={row.key}>
+          <TableCell className="whitespace-normal p-1">{row.key}</TableCell>
+          <TableCell className="whitespace-normal p-1">{row.trades}</TableCell>
+          <TableCell className="whitespace-normal p-1">
+            {share(row.winRate)}
+          </TableCell>
+          <TableCell className="whitespace-normal p-1">
+            {money(row.netPnl)}
+          </TableCell>
+          <TableCell className="whitespace-normal p-1">
+            {money(row.avgPnl)}
+          </TableCell>
+        </TableRow>
       ))}
-    </tbody>
-  </table>
+    </TableBody>
+  </Table>
 );
 
 export const TradesAnalysisPanel = ({
@@ -254,26 +281,43 @@ const PropRulesTable = ({
         Pass rate reshuffles the order of the same trading days.
       </p>
       <div className="overflow-auto rounded-md border">
-        <table className="w-full text-sm tabular-nums">
-          <thead className="text-left text-muted-foreground">
-            <tr>
-              <th className="p-2">Rule set</th>
-              <th className="p-2">Target / daily / max loss</th>
-              <th className="p-2">Result</th>
-              <th className="p-2">Why</th>
-              <th className="p-2">Pass rate</th>
-              <th className="p-2">Fail rate</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table
+          className="w-full text-sm tabular-nums"
+          containerClassName="overflow-visible"
+        >
+          <TableHeader className="text-left">
+            <TableRow>
+              <TableHead className="p-2" scope="col">
+                Rule set
+              </TableHead>
+              <TableHead className="p-2" scope="col">
+                Target / daily / max loss
+              </TableHead>
+              <TableHead className="p-2" scope="col">
+                Result
+              </TableHead>
+              <TableHead className="p-2" scope="col">
+                Why
+              </TableHead>
+              <TableHead className="p-2" scope="col">
+                Pass rate
+              </TableHead>
+              <TableHead className="p-2" scope="col">
+                Fail rate
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {results.map(({ rule, outcome, passRate, failRate, paths }) => (
-              <tr
+              <TableRow
                 className="border-t"
                 data-prop-status={outcome.status}
                 key={rule.id}
               >
-                <td className="p-2">{rule.label}</td>
-                <td className="p-2">
+                <TableCell className="whitespace-normal p-2">
+                  {rule.label}
+                </TableCell>
+                <TableCell className="whitespace-normal p-2">
                   {rule.profitTargetPct}% /{" "}
                   {rule.maxDailyLossPct === null
                     ? "none"
@@ -283,24 +327,28 @@ const PropRulesTable = ({
                     ? ""
                     : `, best day ≤ ${rule.consistencyPct}%`}
                   , min {rule.minTradingDays} days
-                </td>
-                <td className="p-2 font-medium">
+                </TableCell>
+                <TableCell className="whitespace-normal p-2 font-medium">
                   {outcome.status === "passed"
                     ? "Pass"
                     : outcome.status === "failed"
                       ? "Fail"
                       : "Not decided"}
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="whitespace-normal p-2">
                   {outcome.reason}
                   {outcome.decidedOn === null ? "" : ` (${outcome.decidedOn})`}
-                </td>
-                <td className="p-2">{paths === 0 ? "—" : share(passRate)}</td>
-                <td className="p-2">{paths === 0 ? "—" : share(failRate)}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="whitespace-normal p-2">
+                  {paths === 0 ? "—" : share(passRate)}
+                </TableCell>
+                <TableCell className="whitespace-normal p-2">
+                  {paths === 0 ? "—" : share(failRate)}
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </section>
   );

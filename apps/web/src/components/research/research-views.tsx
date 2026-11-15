@@ -136,7 +136,7 @@ export const ModuleResults = ({
             </div>
             <span className="vx-status">{module.lifecycleState}</span>
           </div>
-          <p className="vx-caption">
+          <p className="my-4 text-muted-foreground text-sm leading-relaxed">
             This status describes the catalog entry. A manifest does not prove
             runtime connection or grant execution permission.
           </p>
@@ -167,7 +167,9 @@ export const ModuleResults = ({
               ]}
             />
             {module.dataRequirements.length === 0 ? (
-              <p className="vx-caption">No data requirements declared.</p>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                No data requirements declared.
+              </p>
             ) : (
               <ul className="vx-requirements">
                 {module.dataRequirements.map((requirement, index) => (

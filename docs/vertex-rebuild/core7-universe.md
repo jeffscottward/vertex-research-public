@@ -35,9 +35,9 @@ The universes are defined in `packages/shared/src/universes/index.ts` (`CORE7_MA
 
 ## Data and roll method
 
-Source: Yahoo Finance daily bars through `yfinance` 0.2.66, `period="max"`, `interval="1d"`, `auto_adjust=False`. The script is `research/backtests/core7/fetch_data.py`. The data is not in the repository: the Yahoo terms do not allow redistribution. The fetch writes it to `~/Documents/reports/vertex-core7/data` on the rig.
+Source: IBKR first, Yahoo fills gaps (`research/backtests/core7/fetch_data.py` with `services/research/ibkr_history.py`). With `VERTEX_HISTORY_URL` and `VERTEX_DEPLOY_STATUS_TOKEN` set, the ETF twins come from IBKR `vertex-history` daily bars (`TRADES` for split-adjusted OHLC and volume, `ADJUSTED_LAST` for `adj_close`, about 30 years back) and the futures from IBKR `CONTFUT` (the latest window of about 2 years, all trading hours). Yahoo Finance daily bars through `yfinance` 0.2.66 (`period="max"`, `interval="1d"`, `auto_adjust=False`) fill the dates before IBKR's first date, and every date when IBKR fails or is not configured. The Yahoo part of an ETF `adj_close` or of a future is scaled to IBKR on the seam date; each daily file has a `source` column per row and each import manifest a `sources` record (rows per source, seams, warnings). The data is not in the repository: the IBKR and Yahoo terms do not allow redistribution. The fetch writes it to `~/Documents/reports/vertex-core7/data` on the rig.
 
-Futures (verified in the fetched data):
+Futures (verified in the Yahoo-only fetch of 2026-11-04; the Yahoo `=F` series remain the history before IBKR's `CONTFUT` window):
 
 - A Yahoo `=F` symbol is a continuous front-month series. It is not back-adjusted. When Yahoo moves to the next contract, the price jumps by the spread between the two contracts.
 - A strategy on these bars sees each roll gap as a return. Buy and hold on these bars is the price change of the series. It is not the return of a rolled futures position.
@@ -63,11 +63,11 @@ ETF twins:
 - Open, high, low and close are split-adjusted only. They do not include dividends. `adj_close` also includes dividends.
 - The import files (below) use the split-adjusted prices, the same basis as the stored `SPY` series. The re-run uses `parsePriceCsv` (`scripts/research/quantjourney.ts`), which scales OHLC by `adj_close / close`, so the ETF re-runs include dividends.
 
-Intraday route: IBKR `CONTFUT` bars through `vertex-history` (`docs/vertex-rebuild/quantvps-status-endpoint.md`) are the route for intraday futures bars where needed. That service allows at most 1 year of daily bars per request, so it is not used for this default daily history.
+Intraday route: IBKR `CONTFUT` bars through `vertex-history` (`docs/vertex-rebuild/quantvps-status-endpoint.md`) are also the route for intraday futures bars where needed. Since `vertex-history` 1.3.0 a daily request may span 30 years, and the fetch above uses it for the latest futures window; IBKR keeps expired contracts for about two years, so older futures history stays Yahoo.
 
 ## Coverage
 
-Fetched 2026-11-04T02:30:45Z with yfinance 0.2.66. Full data: `research/backtests/core7/coverage.json`.
+Fetched 2026-11-04T02:30:45Z with yfinance 0.2.66, before the IBKR merge: a Yahoo-only snapshot. Full data: `research/backtests/core7/coverage.json`, which holds counts, dates and percent changes only, no prices (the `--coverage` copy lives in the repository).
 
 - Reference calendar: the `SPY` trading dates of the same fetch.
 - Reference sessions: reference dates in [first, last] of the symbol.
@@ -97,7 +97,7 @@ Rows are the bars in the import file, after dropped rows. All 14 import files pa
 
 ## How to refresh
 
-1. Fetch (rig, public data, about 30 s):
+1. Fetch (rig). Set `VERTEX_HISTORY_URL` and `VERTEX_DEPLOY_STATUS_TOKEN` for the IBKR part; without them the fetch is Yahoo only (about 30 s). The history service paces requests (about 3 per minute), so a fetch with IBKR takes several minutes:
 
    ```sh
    uv run --no-project --python 3.12 --with yfinance==0.2.66 \
@@ -106,7 +106,7 @@ Rows are the bars in the import file, after dropped rows. All 14 import files pa
      --coverage research/backtests/core7/coverage.json
    ```
 
-   The script retries a symbol once after 60 s when Yahoo returns nothing or an error (for example HTTP 429).
+   The script retries a symbol once after 60 s when Yahoo returns nothing or an error (for example HTTP 429). An IBKR pacing answer (HTTP 429) is retried after the service's `retry_after_seconds`; any other IBKR failure leaves that symbol to Yahoo, recorded in the manifest's `sources.errors`. `--coverage` writes a copy of `coverage.json` into the repository; it carries no prices.
 
 2. Import the 14 series (one command per symbol; each import replaces the whole stored series):
 

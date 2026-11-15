@@ -23,7 +23,7 @@ import {
   TableScroll,
 } from "@darkfactory/ui";
 import { ChevronDown, Download, Pencil, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   createBrowserPapersGateway,
@@ -157,25 +157,35 @@ export const PapersWorkspace = ({
       isStage(initialStatus) ? initialStatus : null
     );
   const [page, setPage] = useState(0);
+  const [reload, setReload] = useState(0);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
-    setState({ type: "loading" });
-    try {
-      return setState({ papers: await gateway.list(), type: "ready" });
-    } catch (error) {
-      return setState(
-        isOperatorAccessDenied(error)
-          ? { type: "forbidden" }
-          : { message: describeAgentOpsFailure(error), type: "error" }
-      );
-    }
-  }, [gateway]);
-
+  // A list load that settles after unmount is ignored: its page is gone.
   useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const papers = await gateway.list();
+        if (active) setState({ papers, type: "ready" });
+      } catch (error) {
+        if (active)
+          setState(
+            isOperatorAccessDenied(error)
+              ? { type: "forbidden" }
+              : { message: describeAgentOpsFailure(error), type: "error" }
+          );
+      }
+    };
     void load();
-    return;
-  }, [load]);
+    return () => {
+      active = false;
+    };
+  }, [gateway, reload]);
+
+  const retry = (): void => {
+    setState({ type: "loading" });
+    setReload((count) => count + 1);
+  };
 
   const replace = (paper: ResearchPaperOutput): void => {
     setState((current) =>
@@ -458,11 +468,7 @@ export const PapersWorkspace = ({
         ) : state.type === "error" ? (
           <div className="space-y-2 p-4" role="alert">
             <p className="text-sm">{state.message}</p>
-            <Button
-              onClick={() => void load()}
-              type="button"
-              variant="secondary"
-            >
+            <Button onClick={retry} type="button" variant="secondary">
               Retry
             </Button>
           </div>
@@ -482,29 +488,50 @@ export const PapersWorkspace = ({
                 <TableCaption className="sr-only">Research papers</TableCaption>
                 <TableHeader>
                   <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Paper
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Stage
                       <InfoGlyph text="Queued → ingested → spec extracted → implemented → backtested → forward tested → verdict." />
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Verdict
                       <InfoGlyph text="Pending until a reproduced backtest and forward test exist." />
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Blockers
                       <InfoGlyph text="Unresolved specification details or missing data that stop the next stage." />
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Reported / reproduced
                       <InfoGlyph text="Reported: values claimed by the source, unverified. Reproduced: values from our own runs." />
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       Updated (UTC)
                     </TableHead>
-                    <TableHead className="text-muted-foreground" scope="col">
+                    <TableHead
+                      className="whitespace-normal text-muted-foreground"
+                      scope="col"
+                    >
                       <span className="sr-only">Actions</span>
                     </TableHead>
                   </TableRow>
@@ -520,7 +547,7 @@ export const PapersWorkspace = ({
                         key={paper.id}
                       >
                         <TableHead
-                          className="min-w-72 max-w-md whitespace-normal py-1 font-normal"
+                          className="h-auto min-w-72 max-w-md whitespace-normal py-1 font-normal"
                           scope="row"
                         >
                           {paper.sourceUrl === null ? (

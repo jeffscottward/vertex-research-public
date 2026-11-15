@@ -242,6 +242,8 @@ export const BacktestRunConfigSchema = z
     timeframe: requiredText(16).optional(),
     fillModel: z.enum(BACKTEST_FILL_MODEL_VALUES).optional(),
     leverage: positiveNumber.optional(),
+    // Backtest engine and version, e.g. "stdlib-daily-v1" or "nautilus-trader-1.227.0".
+    engine: requiredText(64).optional(),
   })
   .strict();
 export const BacktestBenchmarkSchema = z
@@ -850,6 +852,7 @@ export const BacktestResultSchema = z.object({
       timeframe: z.string().optional(),
       fillModel: z.enum(BACKTEST_FILL_MODEL_VALUES).optional(),
       leverage: z.number().optional(),
+      engine: z.string().optional(),
     })
     .nullable(),
   benchmark: z

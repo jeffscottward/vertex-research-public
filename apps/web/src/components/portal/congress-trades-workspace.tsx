@@ -130,7 +130,7 @@ const FilingsList = ({
                 {filing.filedOn}
               </TableCell>
               <TableHead
-                className="whitespace-normal text-left font-medium"
+                className="h-auto whitespace-normal text-left font-medium"
                 scope="row"
               >
                 {filing.member}

@@ -399,7 +399,7 @@ def _knowledge(context: Any, payload: dict[str, Any], lease: Mapping[str, Any]) 
                                parser=job.decoders, maximum_bytes=1_048_576).prepare(PaperInput(
                                    data=job.artifact(incoming["artifact"], collection_id=collection), **metadata))
         sources = prepared if isinstance(prepared, Unavailable) else (prepared,)
-    elif collection in ("deltatrendtrading", "verrillo-aleks", "define-your-risk"):
+    elif collection in ("deltatrendtrading", "verrillo-aleks", "define-your-risk", "jay-medrow"):
         incoming = _record(row["input"], {"manifest", "transcripts"})
         if not isinstance(incoming["transcripts"], dict) or len(incoming["transcripts"]) > 1000:
             raise AdapterUnavailable("transcript-membership-budget")
@@ -409,7 +409,7 @@ def _knowledge(context: Any, payload: dict[str, Any], lease: Mapping[str, Any]) 
             reference = incoming["transcripts"].get(source_id)
             return None if reference is None else job.artifact(reference, collection_id=collection)
         planner = {"deltatrendtrading": adapters.delta_trend, "verrillo-aleks": adapters.verrillo_aleks,
-                   "define-your-risk": adapters.define_your_risk}[collection]
+                   "define-your-risk": adapters.define_your_risk, "jay-medrow": adapters.jay_medrow}[collection]
         sources = planner(job.artifact(incoming["manifest"], collection_id=collection), load_transcript,
                           captured_at=row["captured_at"], rights_policy_id=row["rights_policy_id"])
     elif collection == "nicholas-crown":

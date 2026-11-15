@@ -352,6 +352,7 @@ export const basisNote = (symbol: FlowSymbol, gex: FlowGex): string => {
 
 const EVENT_KIND_LABELS: Readonly<Record<FlowEvent["kind"], string>> = {
   absorption: "Absorption",
+  exhaustion: "Exhaustion",
   large_print: "Large print",
   off_exchange_print: "Off-exchange print",
   option_block: "Option block",

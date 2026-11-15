@@ -126,6 +126,7 @@ const configuredExperts: readonly (readonly [string, string, string])[] = [
     "Nicholas Crown",
     "Configured corpus-based research perspective",
   ],
+  ["jay-medrow", "Jay Medrow", "Configured corpus-based research perspective"],
   [
     "defineyourrisk",
     "DefineYourRisk",

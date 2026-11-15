@@ -3,6 +3,8 @@
 // buildGolden to services/research/tests/fixtures/nautilus_backtest/golden.json. The TypeScript
 // code is the reference; the Python tests (test_nautilus_backtest_signals.py) compare against that
 // file, and nautilus-golden.test.ts checks that the committed file still matches this code.
+// The `definitionRefusals` section holds definitions that the schema refuses, each with the message
+// that the Python normalize_definition must raise (test_definition_refusal_matches_typescript).
 // Output is deterministic: no clock, no random source (a fixed LCG makes the synthetic bars).
 // NaN values are written as null.
 
@@ -478,6 +480,34 @@ const zab = (side: "long" | "short"): Json => {
   };
 };
 
+/** Chuk NQ noise band (session-open-momentum spec): entries on the 30-minute grid, exits every 5. */
+const CHUK_INTRADAY: Record<string, unknown> = {
+  ...NEW_YORK_SESSION,
+  decisionEvery: 30,
+  entryFrom: "10:00",
+  entryTo: "15:30",
+  exitEvery: 5,
+};
+const CHUK_LONG: Record<string, unknown> = {
+  entry: {
+    all: [
+      { left: closePrice, op: ">", right: noiseBand("upper") },
+      { left: closePrice, op: ">", right: vwap },
+    ],
+  },
+  exit: {
+    any: [
+      { left: closePrice, op: "<", right: noiseBand("upper") },
+      { left: closePrice, op: "<", right: vwap },
+    ],
+  },
+  intraday: CHUK_INTRADAY,
+  name: "Chuk noise band NQ long",
+  sizing: { mode: "allIn" },
+  stopLoss: { kind: "none" },
+  version: 1,
+};
+
 /** GHLZ r1 + r12: also the 15:00 to 15:30 return must have the same sign. */
 const GHLZ_R1_R12 = ghlz("long", {
   entry: {
@@ -529,10 +559,19 @@ const intradayDefinitions: { id: string; definition: Json; symbol: string }[] =
     { definition: GHLZ_R1_R12, id: "intraday:ghlz:r1r12", symbol: "session" },
     { definition: zab("long"), id: "intraday:zab:long", symbol: "session" },
     { definition: zab("short"), id: "intraday:zab:short", symbol: "session" },
+    { definition: CHUK_LONG, id: "intraday:chuk:long", symbol: "session" },
     { definition: SESSION_MIX, id: "intraday:mix", symbol: "session" },
     // Daily bars: refused (STRATEGY_INTRADAY_DAILY_UNSUPPORTED).
     { definition: ghlz("long"), id: "intraday:ghlz:long", symbol: "SPY" },
     // Off the 5-minute bar grid: refused (STRATEGY_INTRADAY_GRID_MISALIGNED).
+    {
+      definition: {
+        ...CHUK_LONG,
+        intraday: { ...CHUK_INTRADAY, exitEvery: 7 },
+      },
+      id: "intraday:grid:exitEvery",
+      symbol: "session",
+    },
     {
       definition: ghlz("long", {
         intraday: { ...NEW_YORK_SESSION, entryFrom: "15:32", entryTo: "15:32" },
@@ -1858,6 +1897,296 @@ const refusalCases: readonly RefusalCase[] = [
   },
 ];
 
+// 2d. Definition refusals.
+/**
+ * Definitions that StrategyDefinitionSchema refuses, for the Python normalize_definition. `python` is
+ * the message Python raises when it is not the first TypeScript message (see definitionRefusalJson).
+ */
+type DefinitionRefusalCase = Readonly<{
+  definition: Json;
+  id: string;
+  python?: string;
+}>;
+
+const plainDefinition = {
+  entry: { all: [always] },
+  name: "Refusal",
+  version: 1,
+};
+const optionsDefinition = { ...plainDefinition, options: OPTIONS_BLOCK };
+const riskPctSizing = { mode: "riskPct", riskPct: 1 };
+const volTargetSizing = {
+  length: 20,
+  maxLeverage: 2,
+  mode: "volTarget",
+  targetPct: 10,
+};
+const pctStop = { kind: "pct", pct: 5 };
+const management = { breakevenR: 1 };
+const rollPortfolio = { policy: "roll", symbols: ["SPY"] };
+const monthlyPortfolio = { ...rollPortfolio, frame: "monthly" };
+const shiftedPortfolio = { policy: "window", shift: 2, symbols: ["SPY"] };
+const alwaysExit = { any: [always] };
+const atrEntry = { all: [{ ...always, left: indicator("atr", 5) }] };
+const nySession = {
+  ...NEW_YORK_SESSION,
+  entryFrom: "09:45",
+  entryTo: "12:00",
+};
+const REMOVE_RISK_PCT =
+  "Option strategies size by options.maxLossPct; remove the riskPct sizing";
+const REMOVE_MANAGEMENT =
+  "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management";
+
+const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
+  // One cross-field check alone, in schema order (checks 2 and 5 cannot fail alone).
+  {
+    definition: { ...plainDefinition, sizing: riskPctSizing },
+    id: "riskPct:noStop",
+  },
+  {
+    definition: { ...optionsDefinition, stopLoss: pctStop },
+    id: "options:stopLoss",
+  },
+  { definition: { ...plainDefinition, management }, id: "management:noStop" },
+  {
+    definition: { ...optionsDefinition, sizing: volTargetSizing },
+    id: "options:volTarget",
+  },
+  {
+    definition: { ...plainDefinition, portfolio: rollPortfolio },
+    id: "portfolio:noOptions",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      management,
+      side: "short",
+      stopLoss: pctStop,
+    },
+    id: "short:management",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      exit: alwaysExit,
+      portfolio: shiftedPortfolio,
+    },
+    id: "shift:exit",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: atrEntry,
+      portfolio: monthlyPortfolio,
+    },
+    id: "monthly:atr",
+  },
+  { definition: { ...optionsDefinition, side: "short" }, id: "short:options" },
+  {
+    definition: { ...optionsDefinition, intraday: nySession },
+    id: "intraday:options",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      filters: [{ type: "calendarWindow", window: "opexWeek" }],
+      intraday: nySession,
+    },
+    id: "intraday:calendarWindow",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: { all: [{ ...always, left: vwap }] },
+    },
+    id: "session:noIntraday",
+  },
+  // Several cross-field checks: the first one in schema order.
+  {
+    definition: { ...plainDefinition, management, sizing: riskPctSizing },
+    id: "riskPct:noStop+management:noStop",
+  },
+  {
+    definition: { ...optionsDefinition, sizing: riskPctSizing },
+    id: "riskPct:noStop+options:riskPct",
+    python: REMOVE_RISK_PCT,
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      sizing: riskPctSizing,
+      stopLoss: pctStop,
+    },
+    id: "options:riskPct+options:stopLoss",
+  },
+  {
+    definition: { ...optionsDefinition, management },
+    id: "management:noStop+options:management",
+    python: REMOVE_MANAGEMENT,
+  },
+  {
+    definition: { ...optionsDefinition, management, stopLoss: pctStop },
+    id: "options:stopLoss+options:management",
+  },
+  {
+    definition: { ...plainDefinition, management, portfolio: rollPortfolio },
+    id: "management:noStop+portfolio:noOptions",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      exit: alwaysExit,
+      management,
+      portfolio: shiftedPortfolio,
+    },
+    id: "management:noStop+options:management+shift:exit",
+    python: REMOVE_MANAGEMENT,
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      exit: alwaysExit,
+      portfolio: shiftedPortfolio,
+      sizing: volTargetSizing,
+    },
+    id: "options:volTarget+shift:exit",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: atrEntry,
+      portfolio: monthlyPortfolio,
+      sizing: volTargetSizing,
+    },
+    id: "options:volTarget+monthly:atr",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      management,
+      portfolio: rollPortfolio,
+      side: "short",
+      stopLoss: pctStop,
+    },
+    id: "portfolio:noOptions+short:management",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      exit: alwaysExit,
+      portfolio: shiftedPortfolio,
+      side: "short",
+    },
+    id: "shift:exit+short:options",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: atrEntry,
+      portfolio: monthlyPortfolio,
+      side: "short",
+    },
+    id: "monthly:atr+short:options",
+  },
+  // A field error with a failed cross-field check: the field error.
+  {
+    definition: {
+      ...plainDefinition,
+      entry: { all: [] },
+      sizing: riskPctSizing,
+    },
+    id: "field:entry+riskPct:noStop",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      intraday: { ...nySession, open: "17:00" },
+      stopLoss: pctStop,
+    },
+    id: "field:intraday+options:stopLoss",
+  },
+  {
+    definition: { ...plainDefinition, management: {} },
+    id: "field:management+management:noStop",
+  },
+  {
+    definition: { ...plainDefinition, options: 5, stopLoss: pctStop },
+    id: "field:options+options:stopLoss",
+    python: "options must be an object",
+  },
+  {
+    definition: { ...plainDefinition, side: "sideways", sizing: riskPctSizing },
+    id: "field:side+riskPct:noStop",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      side: "sideways",
+      sizing: riskPctSizing,
+    },
+    id: "field:side+options:riskPct",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      portfolio: { ...rollPortfolio, bogus: 1 },
+      stopLoss: pctStop,
+    },
+    id: "field:portfolioKey+options:stopLoss",
+    python: "Unknown portfolio key: bogus",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      management: { trail: { activateR: 1, length: 0, multiple: 2 } },
+      sizing: riskPctSizing,
+    },
+    id: "field:trailLength+options:riskPct",
+    python: "management trail length must be a whole number from 1 to 1000",
+  },
+  {
+    definition: { ...plainDefinition, management: { bogus: 1, breakevenR: 1 } },
+    id: "field:managementKey+management:noStop",
+    python: "Unknown key in management: bogus",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      exit: { any: [{ ...always, op: "equals" }] },
+      management,
+    },
+    id: "field:operator+management:noStop",
+    python: "Unknown operator: equals",
+  },
+  {
+    definition: { ...optionsDefinition, management, side: "sideways" },
+    id: "field:side+options:management",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      portfolio: rollPortfolio,
+      side: "sideways",
+    },
+    id: "field:side+portfolio:noOptions",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: atrEntry,
+      portfolio: monthlyPortfolio,
+      side: "sideways",
+    },
+    id: "field:side+monthly:atr",
+    python: "Unknown side: sideways",
+  },
+];
+
 // 3. Fixed rules.
 const RULES: { id: string; rule: InstantRule }[] = [
   { id: "smaCross-10-30", rule: SMA_CROSS },
@@ -1930,12 +2259,12 @@ const costProfiles: Record<string, CostProfile> = {
 interface Spec {
   costBps: number;
   costs: { profile: CostProfile; capital: number } | null;
+  /** DSL rules only: the time exit (setup replay). */
+  maxHoldBars?: number;
   rule: Json;
   sectorQuadrants: SectorQuadrantSeries | null;
   stopLossPct: number;
   takeProfitPct: number;
-  /** DSL rules only: the time exit (setup replay). */
-  maxHoldBars?: number;
 }
 
 const LENGTHS = [2, 5, 14, 20, 50, 200];
@@ -2246,6 +2575,59 @@ const buildServerRefusals = (): Json[] =>
       ...(timeframe === undefined ? {} : { timeframe }),
     };
   });
+
+/**
+ * Number of top-level refinements of StrategyDefinitionSchema. Each one has a case in
+ * definitionRefusalCases; buildDefinitionRefusals compares the count only.
+ */
+const DEFINITION_REFINEMENT_COUNT = 14;
+
+/**
+ * One definitionRefusals entry: the definition and the message that normalize_definition raises.
+ * Without `python` that is the message of the first TypeScript issue, which must be one written
+ * in strategy-dsl.ts (zod code "custom"). With `python`: zod wrote the first issue (a field
+ * error, Python has its own text), or the definition has an options block and `python` is a later
+ * issue (Python skips the two "stop loss" refinements for an options definition).
+ */
+export const definitionRefusalJson = ({
+  definition,
+  id,
+  python,
+}: DefinitionRefusalCase): Json => {
+  const parsed = StrategyDefinitionSchema.safeParse(definition);
+  if (parsed.success)
+    throw new Error(`${id}: the schema accepts the definition`);
+  const [first, ...later] = parsed.error.issues;
+  const written = first?.code === "custom";
+  if (python === undefined) {
+    if (!written)
+      throw new Error(
+        `${id}: zod wrote the first issue; give the Python message`
+      );
+    return { definition, id, message: first.message };
+  }
+  const optionsCase =
+    typeof definition === "object" &&
+    definition !== null &&
+    "options" in definition &&
+    later.some((issue) => issue.message === python);
+  if (written && !optionsCase)
+    throw new Error(
+      `${id}: the Python message must be a later issue of an options definition`
+    );
+  return { definition, id, message: python };
+};
+
+/** 2d. Definition refusals (StrategyDefinitionSchema / normalize_definition). */
+export const buildDefinitionRefusals = (
+  refinements = StrategyDefinitionSchema._zod.def.checks?.length
+): Json[] => {
+  if (refinements !== DEFINITION_REFINEMENT_COUNT)
+    throw new Error(
+      `StrategyDefinitionSchema has ${refinements} refinements, not ${DEFINITION_REFINEMENT_COUNT}: add a definitionRefusalCases entry for each new one, port it to normalize_definition, then update DEFINITION_REFINEMENT_COUNT`
+    );
+  return definitionRefusalCases.map(definitionRefusalJson);
+};
 
 /** 3. Fixed-rule signals. */
 const buildFixedRules = (datasets: Record<string, BarColumns>): Json[] => {
@@ -2748,6 +3130,7 @@ const buildGolden = (io: GoldenIo): string => {
     calendars: calendars(),
     compiled,
     costs,
+    definitionRefusals: buildDefinitionRefusals(),
     engine,
     engineRefusals,
     expressions,

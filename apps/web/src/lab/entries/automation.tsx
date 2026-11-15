@@ -1,9 +1,15 @@
-// What: UI lab entries for Agents & Automation (/agents, benchmark, run detail, /deployments, /engines)
+// What: UI lab entries for Agents & Automation (/agents, benchmark, run detail, /deployments, /drafts, /engines)
 // and the linked /assistant and /knowledge pages: the real workspaces with fake gateways.
 // The run detail reads ?id= (default: the first fake run).
 "use client";
 
+import type {
+  GoLiveDraftApproveInput,
+  GoLiveDraftOutput,
+  GoLiveQueueOutput,
+} from "@darkfactory/api";
 import { PageHeader, Panel, StatusBadge } from "@darkfactory/ui";
+import { useState } from "react";
 
 import { AgentApiKeysSection } from "../../components/portal/agent-api-keys-section.tsx";
 import type { AgentFrameworksGateway } from "../../components/portal/agent-frameworks-client.ts";
@@ -29,6 +35,10 @@ import {
   EnginesWorkspace,
 } from "../../components/portal/engines-workspace.tsx";
 import {
+  GoLiveDraftQueue,
+  type GoLiveDraftsGateway,
+} from "../../components/portal/golive-draft-queue.tsx";
+import {
   LAB_AGENT_API_KEYS,
   LAB_AGENT_FRAMEWORKS,
   LAB_AGENT_TASKS,
@@ -37,6 +47,7 @@ import {
   LAB_DEPLOYMENT_REQUESTS,
   LAB_DEPLOYMENT_STATUS,
   LAB_ENGINES_STATUS,
+  LAB_GOLIVE_QUEUE,
   LAB_MODEL_BENCHMARK,
   LAB_MODEL_RUN_BREAKDOWN,
   LAB_MODEL_RUN_FACETS,
@@ -118,6 +129,81 @@ export const labDeploymentStrategies: StrategyLibraryGateway = {
   update: labReadOnly,
 };
 
+const labRefusal = (code: string, message: string): Promise<never> =>
+  Promise.reject(Object.assign(new Error(message), { code }));
+
+/**
+ * The order draft queue in memory. A decision changes only this gateway's copy of the fake
+ * drafts and is refused the way the real server refuses it; nothing leaves the browser.
+ */
+export const createLabGoLiveDraftsGateway = (
+  start: GoLiveQueueOutput = LAB_GOLIVE_QUEUE
+): GoLiveDraftsGateway => {
+  let { drafts } = start;
+  const decide = (
+    id: string,
+    approval: Pick<GoLiveDraftApproveInput, "order" | "revision"> | null,
+    note: string | null
+  ): Promise<GoLiveDraftOutput> => {
+    const draft = drafts.find((entry) => entry.id === id);
+    if (draft === undefined)
+      return labRefusal("NOT_FOUND", "UI lab: no such dummy draft");
+    if (draft.state !== "proposed")
+      return labRefusal("CONFLICT", "The draft is no longer proposed");
+    if (approval !== null && approval.revision !== draft.revision)
+      return labRefusal(
+        "CONFLICT",
+        `UI lab: revision ${approval.revision} was shown and the dummy draft is at revision ${draft.revision}`
+      );
+    if (approval !== null && draft.notApprovable.length > 0)
+      return labRefusal(
+        "CONFLICT",
+        `Draft cannot be approved: ${draft.notApprovable.join(", ")}`
+      );
+    const at = new Date();
+    const { maxLoss, maxLossPctNlv } = draft.sizing;
+    const decided: GoLiveDraftOutput = {
+      ...draft,
+      approvedOrder: approval?.order ?? null,
+      // The room an approval holds is the max loss of the order it approved.
+      approvedRoom:
+        approval === null || maxLoss === null
+          ? null
+          : { maxLoss, maxLossPctNlv },
+      decidedAt: at,
+      decidedBy: "demo-owner",
+      decisionNote: note,
+      nodeBadgeAtDecision: approval === null ? null : start.node.badge,
+      notApprovable: [...draft.notApprovable, "DRAFT_NOT_PROPOSED"],
+      // Every write to a draft adds 1 to its revision, as on the server.
+      revision: draft.revision + 1,
+      state: approval === null ? "rejected" : "approved",
+      updatedAt: at,
+    };
+    drafts = drafts.map((entry) => (entry.id === id ? decided : entry));
+    return Promise.resolve(decided);
+  };
+  return {
+    approve: (input) => decide(input.id, input, input.note ?? null),
+    queue: () => Promise.resolve({ ...start, drafts }),
+    reject: (input) => decide(input.id, null, input.note),
+    // The lab never reaches an order path: a send is refused as from a disarmed node.
+    sendApproved: () =>
+      Promise.resolve({
+        reasons: [
+          "GO-LIVE ENGINE_DISARMED: approved, engine running-disarmed (lab); the owner arms the node",
+        ],
+        sent: false as const,
+      }),
+  };
+};
+
+/** A fresh in-memory queue for each visit of the lab page. */
+const LabOrderDrafts = () => {
+  const [gateway] = useState(() => createLabGoLiveDraftsGateway());
+  return <GoLiveDraftQueue gateway={gateway} />;
+};
+
 const labEnginesGateway: EnginesGateway = {
   status: () => Promise.resolve(LAB_ENGINES_STATUS),
 };
@@ -188,6 +274,18 @@ export const AUTOMATION_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/deployments",
     title: "Deployments",
+  },
+  {
+    group: "Agents & Automation",
+    id: "drafts",
+    render: () => (
+      <div className="space-y-8">
+        <PageHeader title="Order drafts" />
+        <LabOrderDrafts />
+      </div>
+    ),
+    route: "/drafts",
+    title: "Order drafts",
   },
   {
     group: "Agents & Automation",

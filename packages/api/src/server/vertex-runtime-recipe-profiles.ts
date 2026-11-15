@@ -1200,6 +1200,7 @@ export const KnowledgeRecipeSchema = z
       "deltatrendtrading",
       "verrillo-aleks",
       "nicholas-crown",
+      "jay-medrow",
       "define-your-risk",
     ]),
     snapshot_id: id,

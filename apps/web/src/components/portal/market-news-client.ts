@@ -4,20 +4,24 @@ import {
   type ApiClient,
   createApiClient,
   type MarketNewsHours,
+  type MarketNewsInclude,
   type MarketNewsWatchlistOutput,
 } from "@darkfactory/api";
 
 // Read-only news monitor (marketNews.watchlist) for the signed-in user's watchlist.
+// `include: "filings"` reads 8-K filings only (the calendar), skipping every headline source.
 export interface MarketNewsGateway {
   readonly watchlist: (
-    hours: MarketNewsHours
+    hours: MarketNewsHours,
+    include?: MarketNewsInclude
   ) => Promise<MarketNewsWatchlistOutput>;
 }
 
 export const createMarketNewsGateway = (
   client: ApiClient
 ): MarketNewsGateway => ({
-  watchlist: (hours) => client.marketNews.watchlist({ hours }),
+  watchlist: (hours, include = "all") =>
+    client.marketNews.watchlist({ hours, include }),
 });
 
 export const createBrowserMarketNewsGateway = (): MarketNewsGateway => {
@@ -29,7 +33,8 @@ export const createBrowserMarketNewsGateway = (): MarketNewsGateway => {
     return gateway;
   };
   return Object.freeze({
-    watchlist: (hours: MarketNewsHours) => current().watchlist(hours),
+    watchlist: (hours: MarketNewsHours, include?: MarketNewsInclude) =>
+      current().watchlist(hours, include),
   });
 };
 

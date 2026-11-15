@@ -6,7 +6,7 @@ import {
   type ResultsDoc,
   type SeriesSummary,
   type StrategyResult,
-} from "./quantjourney.ts";
+} from "./quantjourney-schema.ts";
 
 const DASH = "—";
 

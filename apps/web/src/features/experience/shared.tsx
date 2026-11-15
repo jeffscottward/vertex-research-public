@@ -232,7 +232,7 @@ export const ScopeChooser = ({
     );
   if (state.value.length === 1)
     return (
-      <p className="vx-ex-scope-label">
+      <p className="py-2 font-semibold text-sm leading-[1.7] [overflow-wrap:anywhere]">
         <span className="sr-only">{label}: </span>
         {state.value[0]?.accountAlias}
         {" / "}
@@ -241,7 +241,7 @@ export const ScopeChooser = ({
       </p>
     );
   return (
-    <div className="vx-ex-scope">
+    <div className="my-6 grid @min-[42rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-4 border-border-strong border-y py-6 [&>:is(p,[role=alert])]:col-span-full">
       <label htmlFor={`${id}-scope`}>{label}</label>
       <select
         id={`${id}-scope`}
@@ -268,7 +268,7 @@ export const ScopeChooser = ({
 };
 
 export const ScopeLabel = ({ scope }: { readonly scope: ExperienceScope }) => (
-  <p className="vx-ex-scope-label">
+  <p className="py-2 font-semibold text-sm leading-[1.7] [overflow-wrap:anywhere]">
     {scope.accountAlias}
     {" / "}
     {scope.environment}

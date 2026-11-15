@@ -1126,6 +1126,9 @@ describe("feature item mutation repository", () => {
       "clickLog",
       "semanticLayer",
       "breadth90",
+      "goLiveDrafts",
+      "leveragedEtfUniverse",
+      "marketNotes",
     ]);
     return expect(repositories.generated).toEqual({});
   });

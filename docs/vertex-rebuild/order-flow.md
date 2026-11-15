@@ -25,6 +25,9 @@ does not hide the other views.
 - **Footprint.** The fetched prints bucketed by time and price: sell (bid-hit) and buy (ask-lift)
   volume per cell, delta and the point of control per bucket.
 - **Delta / CVD.** Delta per bucket and cumulative volume delta over the same prints.
+  Under the delta bars, exhaustion runs are listed: 3+ consecutive buckets that make new highs
+  (lows) while volume and the delta in that direction both shrink ("higher price, less fuel").
+  A heuristic research flag, not a signal.
 - **TPO.** Market profile from 30-minute bars of the last five sessions (regular hours): one letter
   per period at every price the period traded, point of control, 70% value area, initial balance
   (first two periods) and single prints. TPO needs only bars, so it works when ticks fail.

@@ -47,6 +47,7 @@ vi.mock("react", async (importOriginal) => ({
 }));
 
 import { AuditLedger } from "./utilities.tsx";
+import { experienceTableScroll } from "./experience-table.tsx";
 
 const scope: ExperienceScope = {
   accountAlias: "synthetic-account",
@@ -158,10 +159,10 @@ describe("Audit data-first presentation", () => {
     expect(html).toContain("Browser time does not determine this order");
     expect(visible).not.toContain("Browser time does not determine this order");
     expect(visible).toContain(
-      '<table id="audit-ledger-table" class="vx-ex-table" aria-labelledby="audit-ledger-heading">'
+      'data-slot="table" id="audit-ledger-table" aria-labelledby="audit-ledger-heading">'
     );
     expect(visible).toContain(
-      'class="vx-ex-table-scroll" role="region" aria-labelledby="audit-ledger-heading" tabindex="0"'
+      `class="${experienceTableScroll}" role="region" aria-labelledby="audit-ledger-heading" tabindex="0"`
     );
     for (const text of [
       "9007199254740993.000000001",

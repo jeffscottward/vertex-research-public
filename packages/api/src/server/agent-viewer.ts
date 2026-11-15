@@ -19,6 +19,7 @@ export const AGENT_VIEWER_READ_ONLY_MESSAGE =
 const READ_POST_PROCEDURES: ReadonlySet<string> = new Set([
   "agentModelRuns.list",
   "agentModelRuns.search",
+  "masterRules.search",
   "semanticTerms.query",
 ]);
 
@@ -30,6 +31,14 @@ const READ_POST_PROCEDURES: ReadonlySet<string> = new Set([
 const VIEWER_ASSISTANT_PROCEDURES: ReadonlySet<string> = new Set([
   "assistant.threads.create",
   "assistant.send",
+]);
+
+// Research runs a viewer may start (owner decision 2026-11-10, card vertex-academy-nautilus-options):
+// academy.backtest runs a MODELED options backtest over stored bars and, with engine comparison on,
+// queues its Nautilus dual run. It places no order and changes no setting. Academy deploy preview and
+// deploy request stay refused.
+const VIEWER_RESEARCH_PROCEDURES: ReadonlySet<string> = new Set([
+  "academy.backtest",
 ]);
 
 export const AGENT_VIEWER_PLAN_ONLY_MESSAGE =
@@ -88,7 +97,8 @@ export const agentViewerReadOnlyInterceptor = async (
   if (
     viewers.length === 0 ||
     isAgentViewerReadProcedure(options.path) ||
-    VIEWER_ASSISTANT_PROCEDURES.has(options.path.join("."))
+    VIEWER_ASSISTANT_PROCEDURES.has(options.path.join(".")) ||
+    VIEWER_RESEARCH_PROCEDURES.has(options.path.join("."))
   )
     return await options.next();
   // Checked also when an x-api-key header is present (a viewer cookie plus a made-up key). An

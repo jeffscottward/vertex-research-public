@@ -31,6 +31,7 @@ const BACKTEST_FOLD_LABEL_MAX_LENGTH = 64;
 const BACKTEST_FILL_MODELS = ["bar", "tick", "l2"] as const;
 const BACKTEST_TRADE_LABEL_MAX_LENGTH = 40;
 const BACKTEST_BENCHMARK_LABEL_MAX_LENGTH = 120;
+const BACKTEST_ENGINE_MAX_LENGTH = 64;
 const BACKTEST_TIMEFRAME_MAX_LENGTH = 16;
 const BACKTEST_RATING_DECISIONS_MIN = 2;
 const BACKTEST_RATING_DECISIONS_MAX = 520;
@@ -284,6 +285,29 @@ const optionalTradeFields = (
   return result;
 };
 
+// Run labels: timeframe, fill model and the engine (with version) that produced the result.
+const runConfigLabels = (
+  record: Record<string, unknown>
+): Pick<BacktestRunConfig, "engine" | "fillModel" | "timeframe"> => {
+  const labels: Pick<BacktestRunConfig, "engine" | "fillModel" | "timeframe"> =
+    {};
+  for (const [key, max] of [
+    ["timeframe", BACKTEST_TIMEFRAME_MAX_LENGTH],
+    ["engine", BACKTEST_ENGINE_MAX_LENGTH],
+  ] as const) {
+    const label = optionalText(record[key], `runConfig.${key}`, max);
+    if (label !== null) labels[key] = label;
+  }
+  if (record["fillModel"] !== undefined && record["fillModel"] !== null) {
+    if (
+      !BACKTEST_FILL_MODELS.includes(record["fillModel"] as BacktestFillModel)
+    )
+      fail("runConfig.fillModel must be bar, tick or l2");
+    labels.fillModel = record["fillModel"] as BacktestFillModel;
+  }
+  return labels;
+};
+
 // Run assumptions: every field optional; amounts non-negative, capital and leverage positive.
 const normalizeBacktestRunConfig = (
   value: unknown
@@ -302,6 +326,7 @@ const normalizeBacktestRunConfig = (
       "timeframe",
       "fillModel",
       "leverage",
+      "engine",
     ],
     "runConfig"
   );
@@ -325,19 +350,7 @@ const normalizeBacktestRunConfig = (
       result[key] = amount;
     }
   }
-  const timeframe = optionalText(
-    record["timeframe"],
-    "runConfig.timeframe",
-    BACKTEST_TIMEFRAME_MAX_LENGTH
-  );
-  if (timeframe !== null) result.timeframe = timeframe;
-  if (record["fillModel"] !== undefined && record["fillModel"] !== null) {
-    if (
-      !BACKTEST_FILL_MODELS.includes(record["fillModel"] as BacktestFillModel)
-    )
-      fail("runConfig.fillModel must be bar, tick or l2");
-    result.fillModel = record["fillModel"] as BacktestFillModel;
-  }
+  Object.assign(result, runConfigLabels(record));
   return Object.keys(result).length === 0 ? null : result;
 };
 

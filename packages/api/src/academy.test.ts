@@ -111,6 +111,7 @@ const row = (
     maxOrdersPerMinute: 4,
     dailyLossLimit: 1,
   },
+  options: null,
   status: "draft",
   requestedBy: "owner",
   requestedAt: null,

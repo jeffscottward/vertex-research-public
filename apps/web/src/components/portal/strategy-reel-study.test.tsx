@@ -428,6 +428,7 @@ describe("strategy library detail: strategy-backtest study section", () => {
     id: `strategy-seed-${SLUG}`,
     kind: "python",
     latestBacktest: null,
+    vertexStudy: null,
     name: "LD34 nested Donchian long-only breakout (reel)",
     params: [],
     presetCount: 0,

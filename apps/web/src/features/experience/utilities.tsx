@@ -1,6 +1,12 @@
 "use client";
 
-import { alertTitleClassName, alertVariants, Button } from "@darkfactory/ui";
+import {
+  Button,
+  TableBody,
+  TableRow,
+  alertTitleClassName,
+  alertVariants,
+} from "@darkfactory/ui";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -28,6 +34,14 @@ import {
   useExperienceResource,
   useExperienceServices,
 } from "./shared.tsx";
+import {
+  ExperienceTable,
+  ExperienceTableCaption,
+  ExperienceTableCell,
+  ExperienceTableHead,
+  ExperienceTableHeader,
+  experienceTableScroll,
+} from "./experience-table.tsx";
 
 type GatewayScope = Readonly<{
   gatewayId: string;
@@ -57,7 +71,7 @@ export const GatewayObservation = ({
     <header className="vx-artifact-heading">
       <p className="vx-eyebrow">Source observation / {status.environment}</p>
       <h2>{status.gatewayId}</h2>
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         The source observed this status at{" "}
         <time dateTime={status.observedAt}>{status.observedAt}</time>. This page
         does not check heartbeat freshness.
@@ -88,7 +102,7 @@ export const GatewayObservation = ({
         ],
       ]}
     />
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       This status does not include heartbeat freshness, account reconciliation
       evidence, a host fingerprint or a recovery challenge. These values remain
       unknown.
@@ -98,7 +112,7 @@ export const GatewayObservation = ({
 
 const HumanConnectionSteps = () => (
   <section
-    className="vx-boundary vx-ex-utility-section"
+    className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
     aria-labelledby="connection-human-steps"
   >
     <p className="vx-eyebrow">Required human actions</p>
@@ -128,7 +142,7 @@ const HumanConnectionSteps = () => (
         here does not restart, rescan or request recovery.
       </li>
     </ol>
-    <p className="vx-caption">
+    <p>
       Confirmation text, model responses and displayed reason codes do not grant
       authorization. This page cannot perform recovery actions.
     </p>
@@ -207,7 +221,7 @@ const ConnectionsContent = () => {
               </ReadNotice>
             ) : (
               <section
-                className="vx-ex-collection"
+                className="my-4 border-border border-y [&>summary]:cursor-pointer [&>summary]:py-4 [&>summary]:font-semibold"
                 aria-labelledby="gateway-list-title"
               >
                 <ResearchTableHeading
@@ -220,32 +234,43 @@ const ConnectionsContent = () => {
                     recovers a gateway.
                   </p>
                 </ResearchTableHeading>
-                <table
-                  className="vx-ex-table"
-                  aria-labelledby="gateway-list-title"
-                >
-                  <thead>
-                    <tr>
-                      <th scope="col">Gateway</th>
-                      <th scope="col">Environment</th>
-                      <th scope="col">Account</th>
-                      <th scope="col">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <ExperienceTable aria-labelledby="gateway-list-title">
+                  <ExperienceTableHeader>
+                    <TableRow>
+                      <ExperienceTableHead scope="col">
+                        Gateway
+                      </ExperienceTableHead>
+                      <ExperienceTableHead scope="col">
+                        Environment
+                      </ExperienceTableHead>
+                      <ExperienceTableHead scope="col">
+                        Account
+                      </ExperienceTableHead>
+                      <ExperienceTableHead scope="col">
+                        Status
+                      </ExperienceTableHead>
+                    </TableRow>
+                  </ExperienceTableHeader>
+                  <TableBody>
                     {rows.map((gateway) => {
                       const current =
                         selected !== null &&
                         gatewayKey(selected) === gatewayKey(gateway);
                       return (
-                        <tr
+                        <TableRow
                           key={gatewayKey(gateway)}
                           aria-current={current ? "true" : undefined}
                         >
-                          <th scope="row">{gateway.gatewayId}</th>
-                          <td>{gateway.environment} — observation only</td>
-                          <td>{gateway.accountAlias}</td>
-                          <td>
+                          <ExperienceTableHead scope="row">
+                            {gateway.gatewayId}
+                          </ExperienceTableHead>
+                          <ExperienceTableCell>
+                            {gateway.environment} — observation only
+                          </ExperienceTableCell>
+                          <ExperienceTableCell>
+                            {gateway.accountAlias}
+                          </ExperienceTableCell>
+                          <ExperienceTableCell>
                             <Button
                               variant="outline"
                               type="button"
@@ -256,12 +281,12 @@ const ConnectionsContent = () => {
                                 ? "Showing status"
                                 : `Read ${gateway.gatewayId} status`}
                             </Button>
-                          </td>
-                        </tr>
+                          </ExperienceTableCell>
+                        </TableRow>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </ExperienceTable>
               </section>
             )
           }
@@ -532,13 +557,13 @@ const NativeFactIdentity = ({
         ],
       ]}
     />
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       The service verifies the projection content hash, including the proof
       reference. This page cannot retrieve or replay the referenced journal
       proof. The hash does not independently verify economic facts, spendable
       assets, journal completeness or capital authority.
     </p>
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       Source occurrence, receipt and expiry timestamps remain unchanged. Expired
       observations are stale. This page does not continuously check freshness.
       Projection expiry does not establish admission validity or authorize
@@ -551,7 +576,7 @@ const NativeFactOutcome = ({ fact }: { readonly fact: NativeFact }) => (
   <>
     <strong>Native fact: {fact.kind}</strong>
     {fact.kind === "reconciliation" ? (
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         {!fact.reconciled || fact.unknownCount > 0
           ? `UNRESOLVED RECONCILIATION — ${fact.unknownCount} unknown (source)`
           : "Source reports reconciled with zero unknown; not an independent reconciliation certificate."}
@@ -560,19 +585,19 @@ const NativeFactOutcome = ({ fact }: { readonly fact: NativeFact }) => (
     {fact.kind === "assignment" ||
     fact.kind === "exercise" ||
     fact.kind === "option-expiry" ? (
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         {fact.settlementState === "pending"
           ? "PENDING OBLIGATION — deltas are not spendable cash or shares."
           : "Source reports settled; no economic authority is granted here."}
       </p>
     ) : null}
     {fact.kind === "kill-state" ? (
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         An observed pause or reset is not a control. A grant reference is not a
         new-risk authorization.
       </p>
     ) : null}
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       Paper simulation journal observation — not an order receipt.
     </p>
   </>
@@ -624,7 +649,7 @@ const ReceiptIdentity = ({
         ],
       ]}
     />
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       A reconciliation timestamp alone does not establish a known outcome. This
       view does not retrieve or verify the review or admission record and grants
       no execution permission.
@@ -669,7 +694,7 @@ export const AuditLedger = ({
   }
   return (
     <section
-      className="vx-ex-utility-section"
+      className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
       aria-labelledby="audit-ledger-heading"
     >
       <ResearchTableHeading
@@ -687,10 +712,10 @@ export const AuditLedger = ({
         </p>
       </ResearchTableHeading>
       <ScopeLabel scope={scope} />
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         Complete journal history and reconciliation remain unverified.
       </p>
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         This page does not continuously check freshness. Expired records do not
         confirm current readiness or authority.
       </p>
@@ -736,7 +761,7 @@ export const AuditLedger = ({
           warnings
         </summary>
         {index.issues.length === 0 ? (
-          <p className="vx-caption">
+          <p className="text-muted-foreground text-sm leading-relaxed">
             No gap or hash-chain mismatch detected within the returned range.
             Complete history, source authenticity and reconciliation remain
             unverified.
@@ -754,7 +779,7 @@ export const AuditLedger = ({
             ))}
           </ul>
         )}
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           These warnings cover all returned rows and remain visible regardless
           of search or page. Canonical content hashes are verified at the
           experience service boundary. The exact source-supplied hashes below
@@ -762,7 +787,7 @@ export const AuditLedger = ({
           source or prove complete reconciliation.
         </p>
       </details>
-      <div className="vx-lookup-form vx-ex-toolbar">
+      <div className="vx-lookup-form my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <label htmlFor="audit-search">
           Search returned identities, hashes, source or outcome
         </label>
@@ -779,7 +804,11 @@ export const AuditLedger = ({
             return setPage(0);
           }}
         />
-        <p className="vx-caption" role="status" aria-live="polite">
+        <p
+          className="text-muted-foreground text-sm leading-relaxed"
+          role="status"
+          aria-live="polite"
+        >
           {matches.length} matching of {projections.length} returned
           observations. Page {activePage + 1} of {pages}.
         </p>
@@ -791,47 +820,54 @@ export const AuditLedger = ({
         </ReadNotice>
       ) : (
         <div
-          className="vx-ex-table-scroll"
+          className={experienceTableScroll}
           role="region"
           aria-labelledby="audit-ledger-heading"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
           tabIndex={0}
         >
-          <table
+          <ExperienceTable
             id="audit-ledger-table"
-            className="vx-ex-table"
             aria-labelledby="audit-ledger-heading"
           >
-            <caption>
+            <ExperienceTableCaption>
               Observation-only receipts and native facts for{" "}
               {scope.accountAlias} / {scope.environment}. Exact quantities and
               hashes are preserved; no order actions or economic authority are
               available.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Stream / epoch / sequence</th>
-                <th scope="col">Outcome / fact kind</th>
-                <th scope="col">
+            </ExperienceTableCaption>
+            <ExperienceTableHeader>
+              <TableRow>
+                <ExperienceTableHead scope="col">
+                  Stream / epoch / sequence
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Outcome / fact kind
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
                   Exact receipt quantities / typed fact fields
-                </th>
-                <th scope="col">Source & hash chain</th>
-                <th scope="col">Receipt / proof identity</th>
-              </tr>
-            </thead>
-            <tbody>
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Source & hash chain
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Receipt / proof identity
+                </ExperienceTableHead>
+              </TableRow>
+            </ExperienceTableHeader>
+            <TableBody>
               {visible.map((projection, position) => (
-                <tr
+                <TableRow
                   key={`${projection.projectionId}-${activePage}-${position}`}
                 >
-                  <th scope="row">
+                  <ExperienceTableHead scope="row">
                     <span>{projection.streamId}</span>
                     <br />
                     Epoch {projection.ownerEpoch}
                     <br />
                     Sequence {projection.sequence}
-                  </th>
-                  <td>
+                  </ExperienceTableHead>
+                  <ExperienceTableCell>
                     {"fact" in projection ? (
                       <NativeFactOutcome fact={projection.fact} />
                     ) : (
@@ -841,17 +877,17 @@ export const AuditLedger = ({
                             ? "UNKNOWN OUTCOME — reconciliation required"
                             : projection.receipt.status}
                         </strong>
-                        <p className="vx-caption">
+                        <p className="text-muted-foreground text-sm leading-relaxed">
                           Error class:{" "}
                           {projection.receipt.errorClass ?? "None supplied"}
                         </p>
-                        <p className="vx-caption">
+                        <p className="text-muted-foreground text-sm leading-relaxed">
                           Observation, not an instruction
                         </p>
                       </>
                     )}
-                  </td>
-                  <td>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
                     {"fact" in projection ? (
                       <ArtifactFacts
                         entries={nativeFactEntries(projection.fact)}
@@ -866,8 +902,8 @@ export const AuditLedger = ({
                         <dd>{projection.receipt.remainingQuantity}</dd>
                       </dl>
                     )}
-                  </td>
-                  <td>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
                     <p>{projection.sourceKind}</p>
                     <dl className="vx-facts">
                       <div>
@@ -882,22 +918,22 @@ export const AuditLedger = ({
                         </dd>
                       </div>
                     </dl>
-                  </td>
-                  <td>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
                     {"fact" in projection ? (
                       <NativeFactIdentity projection={projection} />
                     ) : (
                       <ReceiptIdentity projection={projection} />
                     )}
-                  </td>
-                </tr>
+                  </ExperienceTableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </ExperienceTable>
         </div>
       )}
       <nav
-        className="vx-ex-toolbar vx-section-toolbar"
+        className="vx-section-toolbar my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]"
         aria-label="Audit observation pages"
       >
         <Button
@@ -908,7 +944,7 @@ export const AuditLedger = ({
         >
           Previous page
         </Button>
-        <span className="vx-caption">
+        <span className="text-muted-foreground text-sm leading-relaxed">
           Page {activePage + 1} of {pages}
         </span>
         <Button
@@ -997,7 +1033,7 @@ export const AuditWorkspace = () => (
 export const SettingsWorkspaceContent = () => (
   <>
     <section
-      className="vx-boundary vx-ex-utility-section"
+      className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
       aria-labelledby="settings-account-heading"
     >
       <h2 id="settings-account-heading">Account settings</h2>
@@ -1015,7 +1051,7 @@ export const SettingsWorkspaceContent = () => (
       </p>
     </section>
     <section
-      className="vx-boundary vx-ex-utility-section"
+      className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
       aria-labelledby="settings-privacy-heading"
     >
       <h2 id="settings-privacy-heading">Session privacy and temporary data</h2>
@@ -1038,7 +1074,7 @@ export const SettingsWorkspaceContent = () => (
       </p>
     </section>
     <section
-      className="vx-boundary vx-ex-utility-section"
+      className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
       aria-labelledby="settings-utilities-heading"
     >
       <h2 id="settings-utilities-heading">Workspace utilities</h2>

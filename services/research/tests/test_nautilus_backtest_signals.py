@@ -186,6 +186,19 @@ def test_server_refusal_matches_typescript(case: dict[str, Any]) -> None:
     assert str(refusal) == case["refusal"]["message"]
 
 
+DEFINITION_REFUSALS = golden()["definitionRefusals"]
+
+
+@pytest.mark.parametrize("case", DEFINITION_REFUSALS, ids=_ids(DEFINITION_REFUSALS, "id"))
+def test_definition_refusal_matches_typescript(case: dict[str, Any]) -> None:
+    """scripts/research/nautilus-golden.ts definitionRefusalCases: the first TypeScript issue, or the
+    Python text of a field error or of an options definition."""
+    with pytest.raises(InputError) as failed:
+        sig.normalize_definition(case["definition"])
+    assert not isinstance(failed.value, StrategyUnsupportedError)
+    assert str(failed.value) == case["message"]
+
+
 REFUSALS = golden()["engineRefusals"]
 
 
@@ -1125,6 +1138,10 @@ def _always(**block: Any) -> dict[str, Any]:
     ({"entryFrom": "10:30", "entryTo": "10:30"}, [0, -1, 1, -1, -1, 0, -1, -1], [0, 1, 1, 1, 1, 0, 1, 1]),
     # 60 and 120 minutes after 09:30: the bars closing at 10:30 and 11:30.
     ({"decisionEvery": 60}, [0, 0, 1, 0, -1, 0, 0, -1], [0, 0, 1, 0, 1, 0, 0, 1]),
+    # Entries on the 60-minute grid, exits on every 30-minute regular bar.
+    ({"decisionEvery": 60, "exitEvery": 30}, [0, -1, 1, -1, -1, 0, -1, -1], [0, 1, 1, 1, 1, 0, 1, 1]),
+    # Entries on every regular bar but the last, exits 60 and 120 minutes after 09:30.
+    ({"exitEvery": 60}, [0, 1, 1, 1, -1, 0, 1, -1], [0, 0, 1, 0, 1, 0, 0, 1]),
 ])
 def test_intraday_gates_entry_window_decision_grid_and_close(block, signals, exits) -> None:
     compiled = sig.compile_strategy(_intraday_bars(GATE_ROWS), _always(**block))
@@ -1160,6 +1177,7 @@ GRID_TAIL = (
     ({"entryFrom": "10:15"}, "entryFrom 10:15"),
     ({"entryTo": "11:10"}, "entryTo 11:10"),
     ({"decisionEvery": 45}, "decisionEvery 45"),
+    ({"exitEvery": 45}, "exitEvery 45"),
 ])
 def test_intraday_block_off_the_bar_grid_is_refused(block, field) -> None:
     # 30-minute bars: every time and decisionEvery must be a whole number of 30 minutes.
@@ -1251,6 +1269,8 @@ def test_intraday_side_and_vol_target_normalize_without_defaults() -> None:
      "The entry window must be inside the session: open < entryFrom <= entryTo < close"),
     ({**MINIMAL, "intraday": {**INTRADAY, "decisionEvery": 391}},
      "intraday decisionEvery must be a whole number from 1 to 390"),
+    ({**MINIMAL, "intraday": {**INTRADAY, "exitEvery": 0}},
+     "intraday exitEvery must be a whole number from 1 to 390"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "targetPct": 0}}, "volTarget targetPct must be above 0 and at most 100"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "length": 1}}, "volTarget length must be a whole number from 2 to 252"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "maxLeverage": 51}}, "volTarget maxLeverage must be above 0 and at most 50"),
@@ -1717,7 +1737,7 @@ def test_monthly_frame_refuses_bar_range_indicators_anywhere(name: str) -> None:
 
 
 def test_portfolio_and_series_checks_cover_entry_any() -> None:
-    """strategy-dsl.ts calendarOnly, definitionExprs and strategySeriesRefs read entry.any too."""
+    """strategy-dsl.ts calendarOnly, definitionExprPaths and strategySeriesRefs read entry.any too."""
     shifted = {"policy": "window", "shift": 2, "symbols": ["SPY"]}
     with pytest.raises(InputError, match="^A shifted window reads ahead"):
         sig.normalize_definition(_portfolio_definition(shifted, entry={"all": [ALWAYS], "any": [ALWAYS]}))
@@ -1728,6 +1748,56 @@ def test_portfolio_and_series_checks_cover_entry_any() -> None:
     vix = {**ALWAYS, "right": {"type": "series", "series": "VIX"}}
     normalized = sig.normalize_definition({"name": "any", "entry": {"all": [], "any": [vix]}})
     assert sig.strategy_series_refs(normalized) == ["VIX"]
+
+
+@pytest.mark.parametrize(
+    ("name", "indicator"),
+    [
+        ("vwap", {"type": "indicator", "name": "vwap"}),
+        ("sessionReturn", {"type": "indicator", "name": "sessionReturn", "from": "open", "to": "10:30"}),
+        ("noiseBand", {"type": "indicator", "name": "noiseBand", "band": "upper", "length": 14}),
+    ],
+)
+def test_session_indicators_are_refused_in_portfolio_legs_and_selection(name: str, indicator: dict[str, Any]) -> None:
+    """strategy-dsl.test.ts "refuses %s in a portfolio leg and in the selection score and tie break"."""
+    roll = {"policy": "roll", "symbols": ["SPY"]}
+    leg = {"entry": {"all": [ALWAYS]}, "options": OPTIONS}
+    nested = {"type": "math", "op": "sub", "left": CLOSE, "right": indicator}
+    # The same portfolio without a session indicator is valid.
+    sig.normalize_definition(
+        _portfolio_definition(
+            {**roll, "legs": [{**leg, "exit": {"any": [ALWAYS]}}], "select": {"score": CLOSE, "tieBreak": CLOSE, "top": 1}}
+        )
+    )
+    portfolios = [
+        {**roll, "legs": [{**leg, "entry": {"all": [{**ALWAYS, "left": indicator}]}}]},
+        {**roll, "legs": [leg, {**leg, "exit": {"any": [ALWAYS, {**ALWAYS, "right": nested}]}}]},
+        {**roll, "select": {"score": nested, "top": 1}},
+        {**roll, "select": {"score": CLOSE, "tieBreak": indicator, "top": 1}},
+    ]
+    message = f"^{re.escape(name)} reads the intraday session; add an intraday block$"
+    for portfolio in portfolios:
+        with pytest.raises(InputError, match=message):
+            sig.normalize_definition(_portfolio_definition(portfolio))
+
+
+def test_the_first_session_indicator_in_the_typescript_walk_order_is_raised() -> None:
+    """strategy-dsl.ts definitionExprPaths: the definition, then the legs, then the score and the tie break."""
+    vwap = {"type": "indicator", "name": "vwap"}
+    session_return = {"type": "indicator", "name": "sessionReturn", "from": "open", "to": "10:30"}
+    noise_band = {"type": "indicator", "name": "noiseBand", "band": "upper", "length": 14}
+    roll = {"policy": "roll", "symbols": ["SPY"]}
+    legs = [{"entry": {"all": [{**ALWAYS, "right": session_return}]}, "options": OPTIONS}]
+    tie_break = {"score": CLOSE, "tieBreak": noise_band, "top": 1}
+    cases = [
+        (_portfolio_definition({**roll, "legs": legs, "select": tie_break}, exit={"any": [{**ALWAYS, "left": vwap}]}),
+         "vwap"),
+        (_portfolio_definition({**roll, "legs": legs, "select": tie_break}), "sessionReturn"),
+        (_portfolio_definition({**roll, "select": {**tie_break, "score": vwap}}), "vwap"),
+    ]
+    for definition, name in cases:
+        with pytest.raises(InputError, match=f"^{name} reads the intraday session; add an intraday block$"):
+            sig.normalize_definition(definition)
 
 
 @pytest.mark.parametrize(

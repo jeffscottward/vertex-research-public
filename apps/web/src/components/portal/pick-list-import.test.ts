@@ -182,6 +182,12 @@ describe("pick-list manual import parser", () => {
     expect(parseWeight("5,5%", true)).toBe(0.055);
     expect(parseWeight("x", true)).toBeNull();
     expect(parseWeight("150%", true)).toBeNull();
+    // One "%" at most, before or after the number (CodeQL js/incomplete-sanitization, alert 9).
+    expect(parseWeight(" 5 % ", true)).toBe(0.05);
+    expect(parseWeight("% 5", true)).toBe(0.05);
+    expect(parseWeight("0,25", false)).toBe(0.25);
+    for (const bad of ["5%%", "%5%", "5%.5", "1,234.5", "1,2,3", "", "%", "5."])
+      expect(parseWeight(bad, true)).toBeNull();
     expect(isPercentColumn("Weight", ["0.5", "0.2"])).toBe(false);
     expect(isPercentColumn("Weight %", ["0.5"])).toBe(true);
     expect(isPercentColumn("Weight", ["0.5", "2"])).toBe(true);

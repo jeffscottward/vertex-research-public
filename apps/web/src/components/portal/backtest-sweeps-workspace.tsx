@@ -79,6 +79,14 @@ import {
 import { DEFAULT_INSTANT_PARAMS } from "./instant-backtest-workspace.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 
 // Parameter sweep: run a grid of backtests, read the heatmap of any two swept parameters for a
 // selected metric, compare each cell with its neighbours (robust rank, isolated spikes) and queue
@@ -410,34 +418,45 @@ const SweepResults = ({
         Cells with a warning icon are isolated spikes.
       </p>
       <div className="overflow-x-auto">
-        <table
+        <Table
+          containerClassName="overflow-visible"
           aria-labelledby={captionId}
-          className="text-xs tabular-nums"
+          className="w-auto text-xs tabular-nums"
           data-sweep-heatmap=""
         >
-          <thead>
-            <tr>
-              <th className="p-1 text-left" scope="col">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="h-auto p-1 text-left" scope="col">
                 {axes.y === null ? "" : `${label(axes.y)} / `}
                 {label(axes.x)}
-              </th>
+              </TableHead>
               {view.xValues.map((value) => (
-                <th className="p-1 text-right" key={value} scope="col">
+                <TableHead
+                  className="h-auto p-1 text-right"
+                  key={value}
+                  scope="col"
+                >
                   {value}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {view.rows.map((row, position) => (
-              <tr key={String(view.yValues[position])}>
-                <th className="p-1 text-left" scope="row">
+              <TableRow key={String(view.yValues[position])}>
+                <TableHead
+                  className="h-auto whitespace-normal p-1 text-left"
+                  scope="row"
+                >
                   {view.yValues[position] ?? ""}
-                </th>
+                </TableHead>
                 {row.map((cell) => {
                   const text = formatSweepMetric(metric, cell.value);
                   return (
-                    <td className={`p-0.5 ${cell.heat}`} key={cell.index}>
+                    <TableCell
+                      className={`whitespace-normal p-0.5 ${cell.heat}`}
+                      key={cell.index}
+                    >
                       <button
                         aria-label={`${describeCell(output, cell.index)}: ${SWEEP_METRIC_LABELS[metric]} ${text}${cell.rank === null ? ", not ranked" : `, robust rank ${cell.rank}`}${cell.spike ? ", isolated spike" : ""}`}
                         aria-pressed={selected === cell.index}
@@ -455,13 +474,13 @@ const SweepResults = ({
                         ) : null}
                         {text}
                       </button>
-                    </td>
+                    </TableCell>
                   );
                 })}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {selected === null ? null : (
         <SelectedCell
@@ -481,25 +500,44 @@ const SweepResults = ({
           parameter), not by the single best cell.
         </p>
         <div className="max-h-96 overflow-auto rounded-md border">
-          <table className="w-full text-sm tabular-nums">
-            <thead className="sticky top-0 bg-background text-left">
-              <tr>
-                <th className="p-2">Rank</th>
-                <th className="p-2">Settings</th>
-                <th className="p-2">Value</th>
-                <th className="p-2">Worst in neighbourhood</th>
-                <th className="p-2">Neighbour average</th>
-                <th className="p-2">Spike</th>
+          <Table
+            containerClassName="overflow-visible"
+            className="w-full text-sm tabular-nums"
+          >
+            <TableHeader className="sticky top-0 bg-background text-left">
+              <TableRow>
+                <TableHead className="p-2 text-muted-foreground">
+                  Rank
+                </TableHead>
+                <TableHead className="p-2 text-muted-foreground">
+                  Settings
+                </TableHead>
+                <TableHead className="p-2 text-muted-foreground">
+                  Value
+                </TableHead>
+                <TableHead className="p-2 text-muted-foreground">
+                  Worst in neighbourhood
+                </TableHead>
+                <TableHead className="p-2 text-muted-foreground">
+                  Neighbour average
+                </TableHead>
+                <TableHead className="p-2 text-muted-foreground">
+                  Spike
+                </TableHead>
                 {output.comparison === undefined ? null : (
-                  <th className="p-2">Nautilus</th>
+                  <TableHead className="p-2 text-muted-foreground">
+                    Nautilus
+                  </TableHead>
                 )}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {robustness.ranking.slice(0, RANKED_ROWS).map((index) => (
-                <tr className="border-t" key={index}>
-                  <td className="p-2">{robustness.rank[index]}</td>
-                  <td className="p-2">
+                <TableRow className="border-t" key={index}>
+                  <TableCell className="whitespace-normal p-2">
+                    {robustness.rank[index]}
+                  </TableCell>
+                  <TableCell className="whitespace-normal p-2">
                     <button
                       className="min-h-11 text-left underline"
                       onClick={() => select(index)}
@@ -507,36 +545,36 @@ const SweepResults = ({
                     >
                       {describeCell(output, index)}
                     </button>
-                  </td>
-                  <td className="p-2">
+                  </TableCell>
+                  <TableCell className="whitespace-normal p-2">
                     {formatSweepMetric(metric, cellAt(index).metrics[metric])}
-                  </td>
-                  <td className="p-2">
+                  </TableCell>
+                  <TableCell className="whitespace-normal p-2">
                     {formatSweepMetric(
                       metric,
                       robustness.worst[index] as number | null
                     )}
-                  </td>
-                  <td className="p-2">
+                  </TableCell>
+                  <TableCell className="whitespace-normal p-2">
                     {formatSweepMetric(
                       metric,
                       robustness.neighbourMean[index] as number | null
                     )}
-                  </td>
-                  <td className="p-2">
+                  </TableCell>
+                  <TableCell className="whitespace-normal p-2">
                     {robustness.spike[index] === true ? "Yes" : "No"}
-                  </td>
+                  </TableCell>
                   {output.comparison === undefined ? null : (
-                    <td className="p-2">
+                    <TableCell className="whitespace-normal p-2">
                       <NautilusRunStatus
                         run={nautilusByCell.get(String(index))?.[0]}
                       />
-                    </td>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </section>
     </section>

@@ -150,7 +150,10 @@ export const PlaysWorkspace = ({
                   : null;
                 return (
                   <TableRow data-play={play.id} key={play.id}>
-                    <TableHead className="font-mono" scope="row">
+                    <TableHead
+                      className="h-auto whitespace-normal font-mono"
+                      scope="row"
+                    >
                       {play.ticker}
                     </TableHead>
                     <TableCell>

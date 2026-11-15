@@ -79,14 +79,19 @@ const planPullRequest = (
 
 describe("ci-changes.sh", () => {
   it("treats Markdown and non-code files under docs, research and plans as docs", () => {
-    expect(classify(["README.md", "apps/web/notes.md"])).toBe("docs");
+    expect(classify(["CHANGELOG.md", "apps/web/notes.md"])).toBe("docs");
     expect(
       classify(["docs/a.png", "research/x/report.pdf", "plans/p.txt"])
     ).toBe("docs");
   });
 
+  it("treats the root README as code, because a test checks it", () => {
+    expect(classify(["README.md"])).toBe("code");
+    expect(classify(["infra/quantvps/README.md"])).toBe("docs");
+  });
+
   it("treats code, tested data and anything else as code", () => {
-    expect(classify(["README.md", "apps/web/src/page.civet"])).toBe("code");
+    expect(classify(["CHANGELOG.md", "apps/web/src/page.civet"])).toBe("code");
     expect(classify(["research/master-rules/check-master-rules.mjs"])).toBe(
       "code"
     );
@@ -165,13 +170,79 @@ describe("ci-changes.sh", () => {
   });
 
   it("keeps the light lane for a docs-only pull request and still reports the draft state", () => {
-    const ready = planPullRequest("true", "false", "README.md").out;
+    const ready = planPullRequest("true", "false", "CHANGELOG.md").out;
     expect(ready).toContain("kind=docs");
     expect(ready).toContain("heavy=false");
     expect(ready).toContain("draft=false");
-    const draft = planPullRequest("true", "true", "README.md").out;
+    const draft = planPullRequest("true", "true", "CHANGELOG.md").out;
     expect(draft).toContain("kind=docs");
     expect(draft).toContain("heavy=false");
     expect(draft).toContain("draft=true");
+  });
+
+  // Owner decision 2026-11-11 (card vertex-code-stewardship): the template init
+  // acceptance shard is the longest CI job, so it runs nightly and for changes to the
+  // init command instead of on every pull request.
+  describe("acceptance shard", () => {
+    const SKIPPED = 'skip_shards=[{"shard":"acceptance"}]';
+
+    it("skips the shard when no changed path belongs to the init command", () => {
+      const { out } = planPullRequest(
+        "false",
+        "false",
+        [
+          "apps/web/src/page.tsx",
+          "scripts/initial.ts",
+          "scripts/init.test.ts",
+          "docs/scripts/init/notes.py",
+        ].join("\n")
+      );
+      expect(out).toContain("heavy=true");
+      expect(out).toContain("acceptance=false");
+      expect(out).toContain(SKIPPED);
+    });
+
+    it.each([
+      ["scripts/init/plan.ts"],
+      ["scripts/init.ts"],
+      ["scripts/lib/git-env.ts"],
+      ["README.md\nscripts/init/init.acceptance.test.ts"],
+    ])("plans the shard for a pull request that changes %s", (files) => {
+      const { out } = planPullRequest("false", "false", files);
+      expect(out).toContain("heavy=true");
+      expect(out).toContain("acceptance=true");
+      expect(out).toContain("skip_shards=[]");
+    });
+
+    it.each([
+      ["a manual run", { EVENT: "workflow_dispatch" }],
+      ["the nightly run", { EVENT: "schedule" }],
+      [
+        "a push whose changed files cannot be listed",
+        { EVENT: "push", BEFORE: "0".repeat(40) },
+      ],
+    ])("plans the shard on %s without asking GitHub", (_label, env) => {
+      const { calls, out } = runPlan(env);
+      expect(calls).toEqual([]);
+      expect(out).toContain("kind=code");
+      expect(out).toContain("heavy=true");
+      expect(out).toContain("acceptance=true");
+      expect(out).toContain("skip_shards=[]");
+    });
+
+    it("plans the shard when the pull request lists no changed file", () => {
+      const { out } = planPullRequest("false", "false", "");
+      expect(out).toContain("kind=code");
+      expect(out).toContain("heavy=true");
+      expect(out).toContain("acceptance=true");
+      expect(out).toContain("skip_shards=[]");
+    });
+
+    it("plans no shard outside the full lane, even when the init command changed", () => {
+      const { out } = planPullRequest("true", "true", "scripts/init/plan.ts");
+      expect(out).toContain("heavy=false");
+      expect(out).toContain("acceptance=false");
+      expect(out).toContain(SKIPPED);
+    });
   });
 });

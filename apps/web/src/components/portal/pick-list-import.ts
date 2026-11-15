@@ -86,14 +86,26 @@ export const cleanSymbol = (raw: string): string =>
     .replace(/^\$/u, "")
     .toUpperCase();
 
+// One number with "." or "," as the decimal mark. Anything else ("1,234.5") is not a weight: the
+// row is reported, never guessed.
+const WEIGHT_NUMBER = /^(\d+)(?:[.,](\d+))?$/u;
+
+// The cell without its one "%" (before or after the number). A second "%" stays and fails the
+// number check.
+const withoutPercentSign = (cell: string): string => {
+  if (cell.startsWith("%")) return cell.slice(1).trimStart();
+  return cell.endsWith("%") ? cell.slice(0, -1).trimEnd() : cell;
+};
+
 /**
  * One weight cell as a fraction. `percent` is decided once per column (see isPercentColumn), so
  * "5", "1" and "0.5" in one percent column are 5%, 1% and 0.5%. Null when not a weight.
  */
 export const parseWeight = (raw: string, percent: boolean): number | null => {
-  const text = raw.replace("%", "").replace(",", ".").trim();
-  if (!/^\d+(\.\d+)?$/u.test(text)) return null;
-  const fraction = percent ? Number(text) / 100 : Number(text);
+  const match = WEIGHT_NUMBER.exec(withoutPercentSign(raw.trim()));
+  if (match === null) return null;
+  const value = Number(`${match[1]}.${match[2] ?? "0"}`);
+  const fraction = percent ? value / 100 : value;
   return fraction <= 1 ? fraction : null;
 };
 

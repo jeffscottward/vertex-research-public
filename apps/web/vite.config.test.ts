@@ -281,7 +281,7 @@ describe("Vite application plugin contract", () => {
       await readFile(new URL("../../package.json", import.meta.url), "utf8")
     ) as { scripts: Record<string, string> };
     expect(manifest.scripts["build"]).toBe(
-      "bun scripts/with-build-sha.ts bunx --no-install turbo run build"
+      "bun scripts/install-dependencies.ts && bun scripts/with-build-sha.ts bunx --no-install turbo run build"
     );
   });
 

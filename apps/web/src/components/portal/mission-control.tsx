@@ -13,6 +13,7 @@ import {
   Panel,
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -95,7 +96,7 @@ const TaskTable = ({
   return (
     <TableScroll label={caption}>
       <Table containerClassName="overflow-visible" data-click-private="">
-        <caption className="sr-only">{caption}</caption>
+        <TableCaption className="sr-only">{caption}</TableCaption>
         <TableHeader>
           <TableRow>
             <TableHead scope="col">Task</TableHead>
@@ -408,7 +409,9 @@ export const MissionControl = ({
         ) : (
           <TableScroll label="Latest task events">
             <Table containerClassName="overflow-visible">
-              <caption className="sr-only">Latest task events</caption>
+              <TableCaption className="sr-only">
+                Latest task events
+              </TableCaption>
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">Time (UTC)</TableHead>

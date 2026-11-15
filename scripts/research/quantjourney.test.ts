@@ -7,7 +7,6 @@ import type { AnalyticsEquityPoint } from "../../packages/api/src/backtest-analy
 import { fakeNautilus } from "./dsl-engine.test-support.ts";
 import { NAUTILUS_ENGINE_ID, TYPESCRIPT_ENGINE_ID } from "./dsl-engine.ts";
 import {
-  type AdapterRun,
   adapterRun,
   applyGates,
   beatsBothHalves,
@@ -19,24 +18,28 @@ import {
   equityFromReturns,
   failureNote,
   fileInputs,
-  type LibraryDoc,
-  type LibraryStrategy,
-  libraryDocSchema,
   loadLibrary,
-  type Published,
   parsePriceCsv,
-  primarySummary,
+  quantjourneySource,
   RESEARCH_DIR,
   type RerunInputs,
   rerunStrategy,
   runDslSleeves,
   runQuantJourneyCli,
-  type SeriesSummary,
-  type StrategyResult,
   summarize,
   TRIALS,
 } from "./quantjourney.ts";
 import { num, pct, renderDoc, verdict } from "./quantjourney-render.ts";
+import {
+  type AdapterRun,
+  type LibraryDoc,
+  type LibraryStrategy,
+  libraryDocSchema,
+  type Published,
+  primarySummary,
+  type SeriesSummary,
+  type StrategyResult,
+} from "./quantjourney-schema.ts";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
 const temps: string[] = [];
@@ -771,6 +774,26 @@ describe("CLI and rendering", () => {
     expect(text).toContain("|WF01|100.0% / 0.30 / -20.0%|—|—|—|—|");
     return expect(text).toContain(
       "Gates (3 trials, Vertex cost 10 bp per side): 1 pass."
+    );
+  });
+});
+
+describe("quantjourneySource", () => {
+  it("names the files per source when the manifest records them, else the old Yahoo label", () => {
+    expect(quantjourneySource("{}")).toBe(
+      "Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py)"
+    );
+    const manifest = JSON.stringify({
+      files: {
+        "daily/SPY.csv": {
+          sources: {
+            rows: { ibkr: { first: "1999-01-04", last: "2026-07-15" } },
+          },
+        },
+      },
+    });
+    expect(quantjourneySource(manifest)).toBe(
+      "daily files by source: ibkr 1 file; hourly: Yahoo via yfinance (research/backtests/quantjourney/fetch_data.py)"
     );
   });
 });

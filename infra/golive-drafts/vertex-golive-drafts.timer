@@ -1,0 +1,18 @@
+# Go-live draft collection on weekdays, New York time: 07:15, 12:40 and 15:40. The tested entry time
+# of the plan is the close, on the signal of the close before; the drafts of a day come from data that
+# ends the trading day before. 07:15 shows them before the open (quote: the 15:30 chain snapshot of
+# the day before). 12:40 and 15:40 follow the option-chain snapshots of 12:30 and 15:30
+# (infra/option-chain), so the delayed quote is from the same day before the close. The collect is
+# idempotent, and the run itself skips NYSE holidays.
+[Unit]
+Description=Vertex go-live draft collection timer (records only, no orders)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 07:15:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 12:40:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 15:40:00 America/New_York
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

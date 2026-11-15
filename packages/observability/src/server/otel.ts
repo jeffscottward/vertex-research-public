@@ -24,10 +24,10 @@ import {
   PeriodicExportingMetricReader,
 } from "@opentelemetry/sdk-metrics";
 import {
-  BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+  TracerProvider,
+} from "@opentelemetry/sdk-trace";
 
 import type {
   CorrelationContext,
@@ -419,9 +419,9 @@ export const initializeTelemetry = (
   const metricReader = new PeriodicExportingMetricReader({
     exporter: metricExporter,
   });
-  const tracerProvider = new BasicTracerProvider({
+  const tracerProvider = new TracerProvider({
     resource,
-    spanProcessors: [new SimpleSpanProcessor(traceExporter)],
+    spanProcessors: [new SimpleSpanProcessor({ exporter: traceExporter })],
   });
   const meterProvider = new MeterProvider({
     resource,

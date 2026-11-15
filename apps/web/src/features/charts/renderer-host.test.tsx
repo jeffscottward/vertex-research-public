@@ -110,7 +110,7 @@ describe("CandleCanvas optional studies and markers", () => {
     expect(renderer.replace).toHaveBeenCalledWith(candles);
     expect(renderer.setStudies).toHaveBeenLastCalledWith(studiesA);
     expect(renderer.setMarkers).toHaveBeenLastCalledWith(markersA);
-    const canvas = container.querySelector<HTMLElement>(".vx-chart-canvas");
+    const canvas = container.querySelector<HTMLElement>("[data-chart-canvas]");
     expect(canvas?.style.getPropertyValue("--vx-chart-sub-panes")).toBe("0");
     await render(studiesB, []);
     expect(renderer.setStudies).toHaveBeenLastCalledWith(studiesB);
@@ -147,7 +147,7 @@ describe("CandleCanvas optional studies and markers", () => {
       );
       return await flush();
     });
-    const canvas = container.querySelector<HTMLElement>(".vx-chart-canvas");
+    const canvas = container.querySelector<HTMLElement>("[data-chart-canvas]");
     expect(canvas?.style.getPropertyValue("--vx-chart-sub-panes")).toBe("3");
   });
 
