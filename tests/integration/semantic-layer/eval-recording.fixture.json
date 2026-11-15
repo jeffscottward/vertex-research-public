@@ -1,8 +1,8 @@
 {
   "audit": {
-    "grader": "Trials of H2, H3, Q6, Q10, Q11, Q12, Q13, Q17, Q18, Q19 and Q20 (recorded 2026-11-15): OMP completion() with the model anthropic/claude-fable-5-2, one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check of every answer against its reference by the recording agent. All other trials (graded 2026-11-11; the H4 trials 2026-11-14): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the question and its reference from tests/integration/semantic-layer/questions.ts",
+    "grader": "Trials of H2, H3, Q6, Q10, Q11, Q12, Q13, Q17 and Q18 (recorded 2026-11-15): OMP completion() with the model anthropic/claude-fable-5-2, one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check of every answer against its reference by the recording agent. Trials of Q19 and Q20 (recorded again 2026-11-15 after the drift_status fixture fix): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts; also graded the same way with OMP completion() (anthropic/claude-fable-5-2); both graders gave correct for all six answers; then a check of every answer against its reference by the recording agent. All other trials (graded 2026-11-11; the H4 trials 2026-11-14): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the question and its reference from tests/integration/semantic-layer/questions.ts",
     "instructions": "Grade the assistant answer against the reference for the question. correct: gives the reference value/conclusion; for a NOT AVAILABLE reference, saying it is not available without giving a value is correct. wrong: presents a wrong value or conclusion, or a value from the wrong account/source, as the answer. declined: says data is unavailable when the reference has a value.",
-    "gradedAt": "2026-11-15T06:15:01.000Z"
+    "gradedAt": "2026-11-15T13:27:39.000Z"
   },
   "note": "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.",
   "schemaVersion": 2,
@@ -1785,7 +1785,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Yes. Per the certified term drift_level (Paper forward drift level, source postgres, monitor grouping, as of 2026-11-05 15:30 UTC), two of three paper forward monitors are drifting from their baseline backtest:\n- ORB paper forward (Opening Range Breakout): alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): ok, but its paper runner is off, baseline run br_mr_1\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nData gap: the drift_status tool failed (500, output validation failed), so I have no open alert details or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) behind the alert and warn levels. I can retry it if you want to see which checks triggered.\n\nThese levels are paper data and research input only; they do not authorize any trading or deployment change.",
+      "answer": "Yes, two paper strategies are flagged as drifting from their baseline backtests. This is from the certified term drift_level (Paper forward drift level, source postgres, per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok, paper runner off, baseline run br_mr_1.\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status listing:\n- All three monitors show 0 forward points and 0 trades, and no tick time for the paper runner.\n- There are no open alert records, even though ORB is at alert.\n- So I cannot say which check (drawdown, losing streak, profit factor, Sharpe or win rate) is behind the alert or the warn; I have not opened the individual monitors.\n\nThese levels cover paper data only and do not authorize any trading action. I can open m_orb and m_mom to look at the evaluated checks if you want.",
       "completions": [
         {
           "content": "",
@@ -1797,7 +1797,7 @@
               "name": "terms_list"
             },
             {
-              "arguments": "{\"limit\":50}",
+              "arguments": "{\"limit\":20}",
               "id": "Q19.1_0.1",
               "name": "drift_status"
             }
@@ -1805,7 +1805,7 @@
         },
         {
           "content": "",
-          "inputDigest": "ff2517cd7b6a197a9a05302fa77993e3f3504d5b2a0d6621b426b9b43fedb0a9",
+          "inputDigest": "e6f0257a83fd2e594e166d08d4113abe42d5bf13d2ac6a7304f8d609e4f3f220",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1815,25 +1815,25 @@
           ]
         },
         {
-          "content": "Yes. Per the certified term drift_level (Paper forward drift level, source postgres, monitor grouping, as of 2026-11-05 15:30 UTC), two of three paper forward monitors are drifting from their baseline backtest:\n- ORB paper forward (Opening Range Breakout): alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): ok, but its paper runner is off, baseline run br_mr_1\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nData gap: the drift_status tool failed (500, output validation failed), so I have no open alert details or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) behind the alert and warn levels. I can retry it if you want to see which checks triggered.\n\nThese levels are paper data and research input only; they do not authorize any trading or deployment change.",
-          "inputDigest": "b9f8b8612c8cf19bd444c616024997f9d6ceaf571ccb0a5aba9589967f23ea53",
+          "content": "Yes, two paper strategies are flagged as drifting from their baseline backtests. This is from the certified term drift_level (Paper forward drift level, source postgres, per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok, paper runner off, baseline run br_mr_1.\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status listing:\n- All three monitors show 0 forward points and 0 trades, and no tick time for the paper runner.\n- There are no open alert records, even though ORB is at alert.\n- So I cannot say which check (drawdown, losing streak, profit factor, Sharpe or win rate) is behind the alert or the warn; I have not opened the individual monitors.\n\nThese levels cover paper data only and do not authorize any trading action. I can open m_orb and m_mom to look at the evaluated checks if you want.",
+          "inputDigest": "271ff8551eec5ffa622bb686c14c83ad95dbd3207573239a8250247fdc718c5f",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
-      "recordedAt": "2026-11-15T06:13:20.256Z",
+      "recordedAt": "2026-11-15T12:27:56.351Z",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":50}) failed",
+        "drift_status({\"limit\":20})",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}})"
       ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "Yes. Two paper forward monitors show drift against their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): level ok, paper runner off, baseline run br_mr_1, so it is not drifting, but it is also not collecting new paper data\n\nMissing detail: the drift_status tool failed (500, output validation failed), so I have no monitor ids, open alert text or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) that explain why ORB is at alert and Sector Momentum at warn. I can retry that lookup if you want the per-check breakdown.\n\nThese levels are paper data only and do not authorize any trading or deployment change.",
+      "answer": "Yes. Per the certified term drift_level (Paper forward drift level, source postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC), two of three paper monitors are off their baseline:\n\n- ORB paper forward (Opening Range Breakout): alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): ok, but its paper runner is off, so this level is not being refreshed by new paper activity; baseline run br_mr_1\n\nAll three were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status listing:\n- All three monitors show 0 points and 0 trades, and no tick time for the paper runner. I cannot tell from this data which check (drawdown, losing streak, profit factor, Sharpe, win rate) drove the alert and warn levels.\n- There are no open alerts listed, even though ORB is at alert level.\n\nSo the levels say ORB and Sector Momentum are drifting, but the supporting evidence is thin and worth checking before relying on it. I can pull the per-check detail for m_orb and m_mom (drift_monitor_get) if you want to see the forward versus baseline values.\n\nThis is paper data only and does not authorize any trading or deployment change.",
       "completions": [
         {
           "content": "",
@@ -1845,7 +1845,7 @@
               "name": "terms_list"
             },
             {
-              "arguments": "{\"limit\":50}",
+              "arguments": "{\"limit\":20}",
               "id": "Q19.2_0.1",
               "name": "drift_status"
             }
@@ -1853,7 +1853,7 @@
         },
         {
           "content": "",
-          "inputDigest": "aec76300b7391568577024e42397e0b19890cde9bd3e4edf13c00812d6ba604e",
+          "inputDigest": "547b99b2689c567cd862828a9e1a516784e6549baa586663d1ffca77bcd06a17",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1863,25 +1863,25 @@
           ]
         },
         {
-          "content": "Yes. Two paper forward monitors show drift against their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC):\n\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): level ok, paper runner off, baseline run br_mr_1, so it is not drifting, but it is also not collecting new paper data\n\nMissing detail: the drift_status tool failed (500, output validation failed), so I have no monitor ids, open alert text or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) that explain why ORB is at alert and Sector Momentum at warn. I can retry that lookup if you want the per-check breakdown.\n\nThese levels are paper data only and do not authorize any trading or deployment change.",
-          "inputDigest": "1bc656b0562a069fdb265bd6081b64a1ac6773e8f9994ec9a2f0857251d7c358",
+          "content": "Yes. Per the certified term drift_level (Paper forward drift level, source postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC), two of three paper monitors are off their baseline:\n\n- ORB paper forward (Opening Range Breakout): alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (Sector Momentum): warn, paper runner running, baseline run br_mom_1\n- RSI MR paper forward (RSI Mean Reversion): ok, but its paper runner is off, so this level is not being refreshed by new paper activity; baseline run br_mr_1\n\nAll three were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status listing:\n- All three monitors show 0 points and 0 trades, and no tick time for the paper runner. I cannot tell from this data which check (drawdown, losing streak, profit factor, Sharpe, win rate) drove the alert and warn levels.\n- There are no open alerts listed, even though ORB is at alert level.\n\nSo the levels say ORB and Sector Momentum are drifting, but the supporting evidence is thin and worth checking before relying on it. I can pull the per-check detail for m_orb and m_mom (drift_monitor_get) if you want to see the forward versus baseline values.\n\nThis is paper data only and does not authorize any trading or deployment change.",
+          "inputDigest": "851b54294db1c3ad019d137a0a846a84c945087c075f9f8bc69b7912ced007c5",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
-      "recordedAt": "2026-11-15T06:13:20.256Z",
+      "recordedAt": "2026-11-15T12:27:56.351Z",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":50}) failed",
+        "drift_status({\"limit\":20})",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}})"
       ],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "Yes. Two of the three paper forward monitors show drift from their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): alert. Paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): warn. Paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): ok. Paper runner is off, baseline run br_mr_1.\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500), so I have no open-alert details or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) behind the alert and warn levels. I can retry it if you want to see which checks triggered.\n\nThis is paper data only and does not authorize any trading action.",
+      "answer": "Yes. Per the certified term drift_level (Paper forward drift level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC), two paper monitors are drifting from their baseline backtest:\n\n- ORB paper forward (strategy Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (strategy Sector Momentum): level warn, paper runner running, baseline run br_mom_1\n\nBoth were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status lookup:\n- Both monitors show 0 points and 0 trades, and there are no open alerts listed, so I cannot say which check (drawdown, losing streak, profit factor, Sharpe or win rate) is behind either level.\n- A third monitor, RSI MR paper forward, shows level ok, but its paper runner is off and it also has 0 points, so that ok is not backed by forward data.\n\nIf you want, I can pull the evaluated checks for m_orb and m_mom to see what is driving the levels. These levels are paper data only and do not authorize any trading action.",
       "completions": [
         {
           "content": "",
@@ -1893,7 +1893,7 @@
               "name": "terms_list"
             },
             {
-              "arguments": "{\"limit\":50}",
+              "arguments": "{\"limit\":20}",
               "id": "Q19.3_0.1",
               "name": "drift_status"
             }
@@ -1901,35 +1901,35 @@
         },
         {
           "content": "",
-          "inputDigest": "2c83269dd4219376356473e1558e2ad7ea91cf1a6c5fdae4785e55b4da8a67c0",
+          "inputDigest": "8e855ac21f167e916c4265b0d5b0cca8f4b3659a9e995c64ee5e4f16678f4fa7",
           "toolCalls": [
             {
-              "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
+              "arguments": "{\"term\":\"drift_level\",\"params\":{}}",
               "id": "Q19.3_1.0",
               "name": "terms_query"
             }
           ]
         },
         {
-          "content": "Yes. Two of the three paper forward monitors show drift from their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): alert. Paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): warn. Paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): ok. Paper runner is off, baseline run br_mr_1.\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500), so I have no open-alert details or the individual checks (drawdown, losing streak, profit factor, Sharpe, win rate) behind the alert and warn levels. I can retry it if you want to see which checks triggered.\n\nThis is paper data only and does not authorize any trading action.",
-          "inputDigest": "2597d1a8b008422757a8ffd714667b2c86cffdc8dcf4e98d75fe34e9f978f355",
+          "content": "Yes. Per the certified term drift_level (Paper forward drift level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC), two paper monitors are drifting from their baseline backtest:\n\n- ORB paper forward (strategy Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2\n- Sector momentum paper forward (strategy Sector Momentum): level warn, paper runner running, baseline run br_mom_1\n\nBoth were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status lookup:\n- Both monitors show 0 points and 0 trades, and there are no open alerts listed, so I cannot say which check (drawdown, losing streak, profit factor, Sharpe or win rate) is behind either level.\n- A third monitor, RSI MR paper forward, shows level ok, but its paper runner is off and it also has 0 points, so that ok is not backed by forward data.\n\nIf you want, I can pull the evaluated checks for m_orb and m_mom to see what is driving the levels. These levels are paper data only and do not authorize any trading action.",
+          "inputDigest": "b795c930bbd711cf9546549a415579c125883c217ebd8843a647a823a472e2cd",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
-      "recordedAt": "2026-11-15T06:13:20.256Z",
+      "recordedAt": "2026-11-15T12:27:56.351Z",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":50}) failed",
-        "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}})"
+        "drift_status({\"limit\":20})",
+        "terms_query({\"term\":\"drift_level\",\"params\":{}})"
       ],
       "trial": 3,
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner status running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThis is paper forward data only. The term does not say which checks tripped; I can pull the monitor's check details (drawdown, losing streak, profit factor, Sharpe, win rate) if you want them.",
+      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, forward_drift_monitors, as of 2026-11-05 15:30:05 UTC, grouping: per monitor):\n\n- ORB paper forward: level alert, strategy Opening Range Breakout, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status (not the certified term):\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok.\n- The ORB monitor shows 0 points and 0 trades, and there are no open alert records, so the tool results do not show which check drove the alert level.\n\nThis is paper forward data only and does not authorize any trading action.",
       "completions": [
         {
           "content": "",
@@ -1939,12 +1939,17 @@
               "arguments": "{}",
               "id": "Q20.1_0.0",
               "name": "terms_list"
+            },
+            {
+              "arguments": "{\"limit\":50}",
+              "id": "Q20.1_0.1",
+              "name": "drift_status"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "7525564f60df752b76962b6889ba0fef4123903d9ce90a4344d6058bac5be5ce",
+          "inputDigest": "8685883c409d0ac69f9cb90b03638395720e444f382895986efac93cb8cfaf6a",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -1954,24 +1959,25 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner status running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThis is paper forward data only. The term does not say which checks tripped; I can pull the monitor's check details (drawdown, losing streak, profit factor, Sharpe, win rate) if you want them.",
-          "inputDigest": "f2bfc4957f0063897b074490aaa8e42289d509e064ddafac9d6a0a2607348d17",
+          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, forward_drift_monitors, as of 2026-11-05 15:30:05 UTC, grouping: per monitor):\n\n- ORB paper forward: level alert, strategy Opening Range Breakout, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status (not the certified term):\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok.\n- The ORB monitor shows 0 points and 0 trades, and there are no open alert records, so the tool results do not show which check drove the alert level.\n\nThis is paper forward data only and does not authorize any trading action.",
+          "inputDigest": "9229d921d604cf09bbaa5686d73b2b3a8c15c1e8ea3f00f71371372f487ec55f",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
-      "recordedAt": "2026-11-15T06:13:20.256Z",
+      "recordedAt": "2026-11-15T12:27:56.351Z",
       "tools": [
         "terms_list({})",
+        "drift_status({\"limit\":50})",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}})"
       ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, forward_drift_monitors, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500, output validation failed), so I have no detail on which checks triggered the alert or on the open alert entries. This is paper data only.",
+      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30:05 UTC):\n\n- ORB paper forward: level alert, strategy Opening Range Breakout, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status (not the certified term):\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok.\n- The ORB monitor shows 0 points and 0 trades and there are no open alert records, so the ledger does not show which check drove the alert level.\n\nThis is paper forward data only and does not authorize any trading action.",
       "completions": [
         {
           "content": "",
@@ -1983,7 +1989,7 @@
               "name": "terms_list"
             },
             {
-              "arguments": "{\"limit\":100}",
+              "arguments": "{\"limit\":50}",
               "id": "Q20.2_0.1",
               "name": "drift_status"
             }
@@ -1991,7 +1997,7 @@
         },
         {
           "content": "",
-          "inputDigest": "8fad95d6e743c24028f2380ce41cfbe1c7d14a3d91815f6389cb7089e45d76bc",
+          "inputDigest": "bc3bc74e5657b5b1e224fa65edf68a6d71d575fab0ddf8112af5ffe4d738fe84",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -2001,25 +2007,25 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, forward_drift_monitors, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500, output validation failed), so I have no detail on which checks triggered the alert or on the open alert entries. This is paper data only.",
-          "inputDigest": "d6d2e4bb5cd6f00d494e58f7b62e9763f54e74511fb80c926e6455c16da8837d",
+          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30:05 UTC):\n\n- ORB paper forward: level alert, strategy Opening Range Breakout, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status (not the certified term):\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok.\n- The ORB monitor shows 0 points and 0 trades and there are no open alert records, so the ledger does not show which check drove the alert level.\n\nThis is paper forward data only and does not authorize any trading action.",
+          "inputDigest": "6406e7c84a351db5cb9d167f49783c544d3bc2459b8c5cc134b67d74b9aeda4e",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
-      "recordedAt": "2026-11-15T06:13:20.256Z",
+      "recordedAt": "2026-11-15T12:27:56.351Z",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":100}) failed",
+        "drift_status({\"limit\":50})",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}})"
       ],
       "trial": 2,
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner status running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500, output validation failed), so I have no detail on which checks triggered the alert or on any open alert entries. This is paper data only.",
+      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: level alert, strategy Opening Range Breakout, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status:\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok (paper runner off).\n- The ORB monitor shows 0 points and 0 trades, and the open alerts list is empty, so the ledger gives no detail here on which check triggered the alert level.\n\nThis is paper data only. I can pull the evaluated checks for the ORB monitor (m_orb) if you want to see what is behind the alert.",
       "completions": [
         {
           "content": "",
@@ -2031,7 +2037,7 @@
               "name": "terms_list"
             },
             {
-              "arguments": "{\"limit\":100}",
+              "arguments": "{\"limit\":50}",
               "id": "Q20.3_0.1",
               "name": "drift_status"
             }
@@ -2039,7 +2045,7 @@
         },
         {
           "content": "",
-          "inputDigest": "91481cc241e1c7b462a258d01b9e436205138d653572fb8131c418aa87633a05",
+          "inputDigest": "9e49a0322903f65832a3d51280e9049cd074e19c3fbf280473dd142054867d24",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -2049,18 +2055,18 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner status running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nThe drift_status tool failed with a server error (500, output validation failed), so I have no detail on which checks triggered the alert or on any open alert entries. This is paper data only.",
-          "inputDigest": "2b731e5a0de02657ce812dee58d3f01549637eae980e0e081ae976034550a07a",
+          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: level alert, strategy Opening Range Breakout, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status:\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok (paper runner off).\n- The ORB monitor shows 0 points and 0 trades, and the open alerts list is empty, so the ledger gives no detail here on which check triggered the alert level.\n\nThis is paper data only. I can pull the evaluated checks for the ORB monitor (m_orb) if you want to see what is behind the alert.",
+          "inputDigest": "53c2fa58db65ae8000da63a2e5cf133ecadf864774bd0e7d866d6a60df095833",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
-      "recordedAt": "2026-11-15T06:13:20.256Z",
+      "recordedAt": "2026-11-15T12:27:56.351Z",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":100}) failed",
+        "drift_status({\"limit\":50})",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}})"
       ],
       "trial": 3,
