@@ -10,6 +10,10 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  CANONICAL_APP_URL,
+  isDevelopmentLocalhostHttpOrigin,
+} from "@darkfactory/config";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -155,6 +159,21 @@ describe("demo helpers", () => {
       waitForOk("http://x", { sleep, status: async () => 500 }, 2, 1)
     ).resolves.toBe(false);
   });
+
+  it("stops polling once the server has stopped", async () => {
+    const status = vi.fn(async () => 500);
+    const stopped = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
+    await expect(
+      waitForOk(
+        "http://x",
+        { sleep: async () => undefined, status },
+        150,
+        1,
+        stopped
+      )
+    ).resolves.toBe(false);
+    expect(status).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("runDemo", () => {
@@ -213,8 +232,88 @@ describe("runDemo", () => {
     await expect(done).resolves.toBe(1);
     expect(fake.tailscaleCalls).toEqual([]);
     expect(fake.written.get("/repo/apps/web/.dev.vars")).toContain(
-      "APP_URL=http://127.0.0.1:9451"
+      `APP_URL=${CANONICAL_APP_URL}`
     );
+  });
+
+  // The root layout and the portal session accept only an HTTPS app origin, or a
+  // portless http *.localhost one when APP_ENV=development; anything else is HTTP 500.
+  it.each([
+    [["--port=9451", "--no-serve", "--host=box.tail1.ts.net"]],
+    [["--port=9450", "--serve=8450"]],
+  ])("writes an app origin that the app accepts (%j)", async (argv) => {
+    const fake = fakeDependencies();
+    const done = runDemo(parseDemoArgs(argv), fake);
+    await vi.waitFor(() =>
+      expect(fake.written.has("/repo/apps/web/.dev.vars")).toBe(true)
+    );
+    fake.finish(0);
+    await done;
+    const bindings = new Map(
+      (fake.written.get("/repo/apps/web/.dev.vars") ?? "")
+        .split("\n")
+        .filter((line) => line.includes("="))
+        .map((line) => [
+          line.slice(0, line.indexOf("=")),
+          line.slice(line.indexOf("=") + 1),
+        ])
+    );
+    const appEnvironment = bindings.get("APP_ENV");
+    expect(appEnvironment).toBe("development");
+    for (const name of ["APP_URL", "BETTER_AUTH_URL"]) {
+      const url = new URL(bindings.get(name) ?? "");
+      expect(
+        url.protocol === "https:" ||
+          isDevelopmentLocalhostHttpOrigin(url, appEnvironment)
+      ).toBe(true);
+      expect(url.origin).toBe(bindings.get(name));
+    }
+  });
+
+  it("stops waiting for /lab when the server exits first", async () => {
+    const fake = fakeDependencies({ "http://127.0.0.1:9450/lab": 500 });
+    let polls = 0;
+    const status: DemoDependencies["status"] = async (url) => {
+      polls += 1;
+      if (polls === 2) fake.finish(1);
+      return fake.status(url);
+    };
+    await expect(
+      runDemo(parseDemoArgs(["--port=9450", "--no-serve"]), {
+        ...fake,
+        status,
+      })
+    ).resolves.toBe(1);
+    expect(polls).toBeLessThan(5);
+    expect(fake.killed).toEqual([]);
+    expect(fake.lines).toContain(
+      "The dev server exited before http://127.0.0.1:9450/lab answered"
+    );
+    expect(fake.removed).toEqual(["/repo/apps/web/.dev.vars"]);
+  });
+
+  it("keeps the server's exit code when it exits during the tailnet wait", async () => {
+    const tailnet = "https://demo-host.tail000000.ts.net:8450/lab";
+    const fake = fakeDependencies({ [tailnet]: null });
+    const status: DemoDependencies["status"] = async (url) => {
+      if (url === tailnet) fake.finish(null);
+      return fake.status(url);
+    };
+    await expect(
+      runDemo(parseDemoArgs(["--port=9450", "--serve=8450"]), {
+        ...fake,
+        status,
+      })
+    ).resolves.toBe(1);
+    expect(fake.lines).toContain(
+      `The dev server exited before ${tailnet} answered`
+    );
+    expect(fake.tailscaleCalls.at(-1)).toEqual([
+      "serve",
+      "--https=8450",
+      "off",
+    ]);
+    expect(fake.removed).toEqual(["/repo/apps/web/.dev.vars"]);
   });
 
   it("refuses a .dev.vars it did not write", async () => {
