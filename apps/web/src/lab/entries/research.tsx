@@ -33,6 +33,10 @@ import {
   ResearchReportsCatalog,
   type ResearchReportsGateway,
 } from "../../components/portal/research-reports.tsx";
+import {
+  type ResearchScreenGateway,
+  ResearchScreenWorkspace,
+} from "../../components/portal/research-screen.tsx";
 import type { WatchlistGateway } from "../../components/portal/watchlist-client.ts";
 import { WatchlistWorkspace } from "../../components/portal/watchlist-workspace.tsx";
 import {
@@ -63,6 +67,7 @@ import {
   LAB_RESEARCH_REPORTS,
   LAB_RESEARCH_ROSTER,
   LAB_RESEARCH_SCOPE,
+  LAB_RESEARCH_SCREEN,
   LAB_RESEARCH_THREAD_ID,
   LAB_RESEARCH_THREAD_PAGE,
   LAB_WATCHLIST,
@@ -111,6 +116,10 @@ const labResearchReportsGateway: ResearchReportsGateway = {
   dataset: (reportId, dataset) =>
     Promise.resolve(labResearchDataset(reportId, dataset)),
   list: () => Promise.resolve(LAB_RESEARCH_REPORTS),
+};
+
+const labResearchScreenGateway: ResearchScreenGateway = {
+  status: () => Promise.resolve(LAB_RESEARCH_SCREEN),
 };
 
 const labWatchlistGateway: WatchlistGateway = {
@@ -245,6 +254,15 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/research/reports/[reportId]",
     title: "Research dossier",
+  },
+  {
+    group: GROUP,
+    id: "research-screen",
+    render: () => (
+      <ResearchScreenWorkspace gateway={labResearchScreenGateway} />
+    ),
+    route: "/research/screen",
+    title: "Research screen",
   },
   {
     group: GROUP,
