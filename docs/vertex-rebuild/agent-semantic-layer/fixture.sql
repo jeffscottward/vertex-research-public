@@ -78,6 +78,11 @@ insert into forward_drift_monitors(id, label, baseline_run_id, thresholds, level
   ('m_orb', 'ORB paper forward',             'br_orb_2', '{}', 'alert', 'u_owner', 'running', '2026-10-21T14:00Z', '2026-11-05T14:00Z'),
   ('m_mom', 'Sector momentum paper forward', 'br_mom_1', '{}', 'warn',  'u_owner', 'running', '2026-10-29T14:00Z', '2026-11-05T14:00Z'),
   ('m_mr',  'RSI MR paper forward',          'br_mr_1',  '{}', 'ok',    'u_owner', 'off',     '2026-10-16T14:00Z', '2026-11-05T14:00Z');
+-- The API stores all five thresholds on every monitor and its list contract requires them
+-- (contracts/forward-drift.ts), so drift_status works on this fixture. Values: DEFAULT_DRIFT_THRESHOLDS
+-- (tests/integration/semantic-layer/drift-tools.test.ts compares them).
+update forward_drift_monitors set thresholds = '{"drawdown":{"alert":1.5,"warn":1},"losingStreak":{"alert":1.5,"warn":1.25},"profitFactor":{"alert":0.5,"warn":0.75},"sharpe":{"alert":0,"warn":0.5},"winRate":{"alert":0.6,"warn":0.8}}'
+  where thresholds = '{}';
 
 -- Give the engine rows the full spec and report shape the API validates (contracts/backtest-runs.ts), so
 -- backtest_runs_list and backtest_runs_get work on this fixture. The metrics and rules above win over these defaults.
