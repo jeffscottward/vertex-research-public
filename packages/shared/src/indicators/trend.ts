@@ -214,18 +214,27 @@ export const mfi = (
   const size = sameLength(src, volume);
   const up = new Float64Array(size).fill(Number.NaN);
   const down = new Float64Array(size).fill(Number.NaN);
+  const upBars = new Float64Array(size).fill(Number.NaN);
+  const downBars = new Float64Array(size).fill(Number.NaN);
   for (let i = 1; i < size; i += 1) {
     const change = at(src, i) - at(src, i - 1);
     up[i] = change <= 0 ? 0 : at(volume, i) * at(src, i);
     down[i] = change >= 0 ? 0 : at(volume, i) * at(src, i);
+    upBars[i] = at(up, i) > 0 ? 1 : 0;
+    downBars[i] = at(down, i) > 0 ? 1 : 0;
   }
   const span = checkLength("length", length);
   const sumUp = sma(up, span);
   const sumDown = sma(down, span);
+  // A window without any rising (falling) flow has a flow of exactly 0; the running sum can leave a remainder.
+  const anyUp = sma(upBars, span);
+  const anyDown = sma(downBars, span);
   const out = new Float64Array(size).fill(Number.NaN);
   for (let i = 0; i < size; i += 1) {
     if (!Number.isNaN(at(sumUp, i))) {
-      out[i] = oscillator(at(sumUp, i) * span, at(sumDown, i) * span);
+      const upper = at(anyUp, i) === 0 ? 0 : at(sumUp, i) * span;
+      const lower = at(anyDown, i) === 0 ? 0 : at(sumDown, i) * span;
+      out[i] = oscillator(upper, lower);
     }
   }
   return out;

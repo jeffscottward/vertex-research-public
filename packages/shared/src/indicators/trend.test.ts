@@ -149,6 +149,14 @@ describe("building blocks by hand", () => {
   it("mfi and rsi with no falling flow", () => {
     expect(plain(mfi([1, 2, 3], [1, 1, 1], 2))).toEqual([N, N, 100]);
     expect(plain(mfi([1, 1, 1], [1, 1, 1], 2))).toEqual([N, N, N]);
+    // A window whose falling flow left the running sum is exactly 0, not a rounding remainder.
+    expect(plain(mfi([1, 0.1, 0.05, 0.05, 0.05], [1, 1, 4, 1, 1], 2))).toEqual([
+      N,
+      N,
+      0,
+      0,
+      N,
+    ]);
     expect(plain(rsi([1, 2, 3], 2))).toEqual([N, N, 100]);
     expect(plain(rsi([1, 1, 1], 2))).toEqual([N, N, N]);
   });
