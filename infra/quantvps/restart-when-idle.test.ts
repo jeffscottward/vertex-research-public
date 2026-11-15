@@ -167,6 +167,8 @@ afterEach(() => {
 });
 
 const setup = (files: Record<string, string>) => {
+  // A test can call setup more than once: remove the folder of the call before.
+  if (dir) rmSync(dir, { force: true, recursive: true });
   dir = mkdtempSync(join(tmpdir(), "vertex-restart-"));
   writeFileSync(join(dir, "fake.sh"), FAKE);
   chmodSync(join(dir, "fake.sh"), 0o755);
