@@ -17,10 +17,10 @@
 // Each new trial stores its own `model` and `recordedAt` and has no `audit` grade until it is graded; the
 // replay test fails on it until then. The text of the `audit` header is not updated by the recorder.
 // The last line is "@@EVAL " + {"type":"finished","count": trials in the file,"recorded": trials of this run}.
+
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
-
 import type {
   AssistantCompletion,
   AssistantCompletionRequest,
@@ -31,6 +31,7 @@ import {
   staleReason,
   startEvalBackend,
 } from "./harness.ts";
+import { writeFrozenMasterRules } from "./master-rules-freeze.ts";
 import { EVAL_QUESTIONS, gradeAnswer } from "./questions.ts";
 import {
   assertTrialsHaveModelAndDate,
@@ -174,7 +175,7 @@ const selectJobs = async (evalBackend: EvalBackend): Promise<Job[]> => {
   return stale;
 };
 
-const backend = await startEvalBackend();
+const backend = await startEvalBackend({ masterRules: "record" });
 const results: RecordedTrial[] = [];
 let jobs: Job[] = [];
 let next = 0;
@@ -203,6 +204,8 @@ try {
   jobs = await selectJobs(backend);
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 } finally {
+  // Searches first seen in this run are frozen first, so a failed close cannot lose them.
+  writeFrozenMasterRules(backend.masterRules);
   await backend.close();
   lines.close();
 }
