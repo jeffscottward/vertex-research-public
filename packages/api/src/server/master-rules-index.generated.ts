@@ -3,7 +3,7 @@
 import type { MasterRulesIndexBase } from "../contracts/master-rules.ts";
 
 export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
-  "clusters": 864,
+  "clusters": 889,
   "debates": 12,
   "kbTiers": {
     "andrea-cimitan": null,
@@ -258,8 +258,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "After a level or value edge breaks, enter on the pullback or retest of that level, with targets at the next level.",
       "kind": "entry",
       "cls": "A",
-      "reason": "High conviction: 10 knowledge bases agree.",
-      "consensus": 10,
+      "reason": "High conviction: 11 knowledge bases agree.",
+      "consensus": 11,
       "kbs": [
         "andrea-cimitan",
         "bridgingcycles-instagram",
@@ -270,7 +270,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "nicholas-crown",
         "patrick-nill",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -279,8 +280,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Take partial profits (often ~50%) at the first target, move the stop on the remainder to breakeven, and let a runner work.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 10 knowledge bases agree.",
-      "consensus": 10,
+      "reason": "High conviction: 11 knowledge bases agree.",
+      "consensus": 11,
       "kbs": [
         "andrea-cimitan",
         "dumbmoneyhunter",
@@ -291,7 +292,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "nicholas-crown",
         "smbcapital",
         "trading-fraternity",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -521,15 +523,16 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Size stop width, and targets, to current volatility (ATR multiples, IV, VIX) and regime rather than using fixed points.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 6 knowledge bases agree.",
-      "consensus": 6,
+      "reason": "High conviction: 7 knowledge bases agree.",
+      "consensus": 7,
       "kbs": [
         "brandon-kioseff",
         "deltatrendtrading",
         "enrico-stucchi",
         "inthemoneyadam",
         "matteo-conti",
-        "skydweller"
+        "skydweller",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -571,8 +574,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Prefer simple strategies and a few core tools, removing extra indicators and complexity as noise and fragility.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 7 knowledge bases agree.",
-      "consensus": 7,
+      "reason": "High conviction: 8 knowledge bases agree.",
+      "consensus": 8,
       "kbs": [
         "dumbmoneyhunter",
         "ericnomics",
@@ -580,7 +583,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "matteo-conti",
         "not-a-lil-fish",
         "patrick-nill",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -948,13 +952,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "exit",
       "cls": "C",
       "reason": "Needs: Volume / market profile engine.",
-      "consensus": 5,
+      "consensus": 6,
       "kbs": [
         "brandon-kioseff",
         "fabio-valentini",
         "serge-hoffmann",
         "tom-vorwald",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -964,14 +969,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "exit",
       "cls": "D",
       "reason": "Debated in X12; the debate outcome rule X12 replaces both sides.",
-      "consensus": 6,
+      "consensus": 7,
       "kbs": [
         "dumbmoneyhunter",
         "fabio-valentini",
         "fredy-sarmiento",
         "inthemoneyadam",
         "smbcapital",
-        "tom-vorwald"
+        "tom-vorwald",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1139,13 +1145,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Ignore stop-hunting narratives in deep markets and focus on price, volume and hedging flows.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "matteo-conti",
         "patrick-nill",
         "serge-hoffmann",
-        "worldclassedge"
+        "worldclassedge",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1171,8 +1178,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Set profit targets at the next mapped structural level, such as daily highs/lows, value-area edges or liquidity.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 7 knowledge bases agree.",
-      "consensus": 7,
+      "reason": "High conviction: 8 knowledge bases agree.",
+      "consensus": 8,
       "kbs": [
         "fabio-valentini",
         "fredy-sarmiento",
@@ -1180,7 +1187,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "junnyyang",
         "not-a-lil-fish",
         "skydweller",
-        "tom-vorwald"
+        "tom-vorwald",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1221,11 +1229,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 3,
+      "consensus": 4,
       "kbs": [
         "dumbmoneyhunter",
         "matteo-conti",
-        "worldclassedge"
+        "worldclassedge",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1338,13 +1347,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Bias, location, then trigger",
       "rule": "Structure every trade as directional bias, then location, then a trigger or confirmation such as absorption or initiative flow.",
       "kind": "wisdom",
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 3,
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "consensus": 4,
       "kbs": [
         "andrea-cimitan",
         "fabio-valentini",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1368,11 +1378,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "entry",
       "cls": "D",
       "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 3,
+      "consensus": 4,
       "kbs": [
         "andrea-cimitan",
         "fabio-valentini",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1511,15 +1522,16 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Trade smaller in more volatile assets or stressed regimes, using volatility targeting.",
       "kind": "sizing",
       "cls": "A",
-      "reason": "High conviction: 6 knowledge bases agree.",
-      "consensus": 6,
+      "reason": "High conviction: 7 knowledge bases agree.",
+      "consensus": 7,
       "kbs": [
         "matteo-conti",
         "nicholas-crown",
         "not-a-lil-fish",
         "quantfinancetogo",
         "skydweller",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1737,12 +1749,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Choose or adapt a trading style that fits your own character instead of copying someone else's.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "jan-smolen",
         "patrick-nill",
-        "tom-vorwald"
+        "tom-vorwald",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1765,12 +1778,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Move the stop to breakeven once a defined trigger is hit, such as open profit equal to initial risk or price reaching a key gamma/call-wall level.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "fabio-valentini",
         "fredy-sarmiento",
-        "imre-gams"
+        "imre-gams",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -1826,12 +1840,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "sizing",
       "cls": "D",
       "reason": "Intraday scalping / prop-firm rules do not fit a swing and LEAPS options book.",
-      "consensus": 4,
+      "consensus": 5,
       "kbs": [
         "deltatrendtrading",
         "fabio-valentini",
         "not-a-lil-fish",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2027,12 +2042,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "entry",
       "cls": "D",
       "reason": "Debated in X10; the debate outcome rule X10 replaces both sides.",
-      "consensus": 4,
+      "consensus": 5,
       "kbs": [
         "inthemoneyadam",
         "jan-smolen",
         "jaymo-callsbyjmo",
-        "junnyyang"
+        "junnyyang",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2054,12 +2070,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Dealer hedging moves price",
       "rule": "Track options dealers' delta hedging in futures and avoid trading against those flows.",
       "kind": "wisdom",
-      "cls": "C",
-      "reason": "Needs: Order-flow / footprint feed.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
         "enrico-stucchi",
-        "fredy-sarmiento"
+        "fredy-sarmiento",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2095,12 +2112,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Estimate the daily expected move as IV (or VIX) divided by 16, scaled by the square root of trading days.",
       "kind": "indicator",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "define-your-risk-instagram",
         "skydweller",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2177,12 +2195,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Limit discretionary trading to a short early window and stop for the day after the first trade or profit, because decision quality declines.",
       "kind": "time_filter",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "not-a-lil-fish",
         "worldclassedge",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2220,13 +2239,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Mark zones in advance and trade only when price reaches a pre-mapped level.",
       "kind": "entry",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "junnyyang",
         "patrick-nill",
         "skydweller",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2318,13 +2338,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "D",
       "reason": "Debated in X11; the debate outcome rule X11 replaces both sides.",
-      "consensus": 5,
+      "consensus": 6,
       "kbs": [
         "dumbmoneyhunter",
         "inthemoneyadam",
         "jan-smolen",
         "junnyyang",
-        "smbcapital"
+        "smbcapital",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2553,12 +2574,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Use RSI or CVD divergence as an early warning only, never as a standalone trade.",
       "kind": "indicator",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "imre-gams",
         "inthemoneyadam",
-        "serge-hoffmann"
+        "serge-hoffmann",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2690,14 +2712,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Master one simple concept at a time instead of mixing many methods.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "dumbmoneyhunter",
         "junnyyang",
         "not-a-lil-fish",
         "patrick-nill",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2746,10 +2769,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "indicator",
       "cls": "D",
       "reason": "0DTE / same-day options are outside our style (short-dated premium is capped at 2% NLV and we do not trade same-day).",
-      "consensus": 2,
+      "consensus": 3,
       "kbs": [
         "andrea-cimitan",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2851,14 +2875,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Keep a structured trading journal and review it regularly to improve.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "ericnomics",
         "fredy-sarmiento",
         "inthemoneyadam",
         "not-a-lil-fish",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -2976,12 +3001,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Order flow is execution layer",
       "rule": "Use order flow for precise execution only after higher-level analysis sets the direction and context.",
       "kind": "wisdom",
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 2,
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "consensus": 3,
       "kbs": [
         "enrico-stucchi",
-        "worldclassedge"
+        "worldclassedge",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -3261,13 +3287,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Trade probabilities and accept individual losses as the cost of a consistent statistical edge.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "imre-gams",
         "quantfinancetogo",
         "serge-hoffmann",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -3472,12 +3499,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Take only planned trades where your edge is present and every checklist item is clear; skip impulse trades.",
       "kind": "entry",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "imre-gams",
         "not-a-lil-fish",
-        "smbcapital"
+        "smbcapital",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -3513,9 +3541,10 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "indicator",
       "cls": "C",
       "reason": "Needs: IV term-structure / skew surface and IV-rank history.",
-      "consensus": 1,
+      "consensus": 2,
       "kbs": [
-        "lars-schmeldtenkopf"
+        "lars-schmeldtenkopf",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -4224,13 +4253,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Stick with a plan that has an edge through losing periods while using stops.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "imre-gams",
         "not-a-lil-fish",
         "smbcapital",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -4579,10 +4609,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "When results disappoint, examine the strategy's validity before blaming psychology.",
       "kind": "wisdom",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "deltatrendtrading"
+        "deltatrendtrading",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -5238,10 +5269,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Intraday scalping / prop-firm rules do not fit a swing and LEAPS options book.",
-      "consensus": 2,
+      "consensus": 3,
       "kbs": [
         "deltatrendtrading",
-        "not-a-lil-fish"
+        "not-a-lil-fish",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -5324,10 +5356,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "regime",
       "cls": "D",
       "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 2,
+      "consensus": 3,
       "kbs": [
         "dumbmoneyhunter",
-        "not-a-lil-fish"
+        "not-a-lil-fish",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -5520,10 +5553,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Fix a routine with set market-review hours and consistent sleep to reduce decisions and support discipline.",
       "kind": "time_filter",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "imre-gams"
+        "imre-gams",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -6106,10 +6140,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Expect systematic edges to suffer when VIX is compressed below ~15.",
       "kind": "regime",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "enrico-stucchi"
+        "enrico-stucchi",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -8212,9 +8247,10 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "regime",
       "cls": "D",
       "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 1,
+      "consensus": 2,
       "kbs": [
-        "smbcapital"
+        "smbcapital",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -8246,11 +8282,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Grade trades C to A-plus and size by grade",
       "rule": "Grade each trade from C to A-plus and size up only on A and A-plus setups.",
       "kind": "sizing",
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 1,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "smbcapital"
+        "smbcapital",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -9458,10 +9495,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Do not trade chart patterns on the belief that they predict; pattern rules have not survived honest tests for data snooping and costs.",
       "kind": "wisdom",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "quantfinancetogo"
+        "quantfinancetogo",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -9974,11 +10012,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Trade the New York session only",
       "rule": "Trade the New York session, mainly the morning, and skip Asia and London unless conditions fit the edge unusually well.",
       "kind": "time_filter",
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 1,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "not-a-lil-fish"
+        "not-a-lil-fish",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -10083,10 +10122,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Hide the P&L display while trading if you catch yourself chasing dollars.",
       "kind": "wisdom",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "not-a-lil-fish"
+        "not-a-lil-fish",
+        "trading-verrillo-aleks"
       ]
     },
     {
@@ -11227,6 +11267,306 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "consensus": 1,
       "kbs": [
         "jay-medrow"
+      ]
+    },
+    {
+      "id": "C865",
+      "title": "Continuation only, with the side in control",
+      "rule": "Take continuation trades only, in the direction of the side in control in both futures order flow (deep trades) and options premium flow (net drift).",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C866",
+      "title": "Compounded QQQ/NDX gamma levels",
+      "rule": "Give top priority to zones where the QQQ and NDX gamma maps both show large exposure at the same time.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C867",
+      "title": "Pre-FOMC premium build sets direction",
+      "rule": "On FOMC day, read a large one-sided net premium build during the pre-event consolidation as the likely direction of the break, then time entries with order flow at a gamma level.",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C868",
+      "title": "VIX bands for intraday conditions",
+      "rule": "Read VIX below about 15 as low-probability intraday conditions, about 15-25 as a normal healthy range, and above about 25-30 as fear that is usually short-lived.",
+      "kind": "regime",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C869",
+      "title": "Gamma nodes on VIX",
+      "rule": "Mark positive gamma nodes on VIX as support and resistance and read them inversely for SPX and NQ: VIX rejecting lower from a node supports higher indices.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C870",
+      "title": "IV rank sets continuation vs base-hit day",
+      "rule": "Use IV rank to set the day style: high IV rank (with negative gamma) favors continuation trades; low IV rank favors small base hits without runners.",
+      "kind": "regime",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C871",
+      "title": "Steepening put skew signals fear",
+      "rule": "Treat downside puts getting more expensive relative to calls as fear building, even while price still looks fine.",
+      "kind": "regime",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C872",
+      "title": "Falling VIX favors longs (vanna)",
+      "rule": "Check VIX direction before trading index futures: falling VIX forces dealer buying, so lean long; rising VIX makes longs riskier.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C873",
+      "title": "Charm as a slow directional wind",
+      "rule": "Use charm (delta decay) as a supportive or suppressive lean that grows into the afternoon and pulls price toward key gamma levels; it never triggers a trade by itself.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C874",
+      "title": "SPX dealer data as context for NQ",
+      "rule": "Use SPX dealer gamma and SPX net premium flow as the higher-time-frame context for NQ, especially in the first minutes of the open, but do not execute on NQ from SPX data alone.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C875",
+      "title": "No trade when premium flow is flat",
+      "rule": "When call and put premium flow lines are flat and tangled, there is no conviction; take no setups.",
+      "kind": "regime",
+      "cls": "C",
+      "reason": "Needs: signed options premium flow (Quant Data Net Drift).",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C876",
+      "title": "Check regime before blaming yourself",
+      "rule": "When a working setup suddenly stops working, first check whether the volatility regime changed before blaming yourself or changing the strategy.",
+      "kind": "regime",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C877",
+      "title": "0DTE expiry gamma drives sharp moves",
+      "rule": "Expect sharp futures moves without news on 0DTE-heavy days, because gamma peaks at expiration and dealer delta snaps instead of drifting.",
+      "kind": "regime",
+      "cls": "D",
+      "reason": "0DTE / same-day options are outside our style (short-dated premium is capped at 2% NLV and we do not trade same-day).",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C878",
+      "title": "Gamma is not a direction call",
+      "rule": "Read a gamma level as a place where price will react if it arrives, and gamma sign as pinning vs acceleration, never as a buy or sell signal or a price forecast.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C879",
+      "title": "Choose GEX data source by product",
+      "rule": "Use exchange-tagged gamma data (real signs, SPX and VIX only) for SPX context and consolidated multi-exchange open-interest data (complete, assumed signs) for QQQ, NDX and stock levels.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C880",
+      "title": "Net drift settings and asset order",
+      "rule": "Filter net drift to out-of-the-money premium, exclude complex, tied, floor and cancelled trades, and for NQ read QQQ first with NDX as confirmation.",
+      "kind": "indicator",
+      "cls": "C",
+      "reason": "Needs: signed options premium flow (Quant Data Net Drift).",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C881",
+      "title": "Dealer delta exposure for daily bias",
+      "rule": "Set the daily bias from dealer net delta exposure (and its put/call ratio) before layering gamma regime, charm and gamma levels.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C882",
+      "title": "Minimal order-flow toolkit",
+      "rule": "Keep order flow to a few tools (big or deep trades, footprint, speed of tape) and use it only as confirmation.",
+      "kind": "indicator",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C883",
+      "title": "Ranked gamma strikes as targets",
+      "rule": "Use the top-ranked gamma strikes (GEX 1-10) as targets and confirmation, and build the trade narrative from the main levels (call resistance, put support, HVL, gamma wall, 0DTE versions).",
+      "kind": "indicator",
+      "cls": "D",
+      "reason": "0DTE / same-day options are outside our style (short-dated premium is capped at 2% NLV and we do not trade same-day).",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C884",
+      "title": "Treat gamma levels as zones",
+      "rule": "Treat a gamma exposure level as a zone, not an exact price.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C885",
+      "title": "Use multi-exchange options data",
+      "rule": "Use options-flow data built from multiple exchanges; cheap, low-quality data misleads.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: multi-exchange (OPRA) options trade feed.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C886",
+      "title": "Written pre-market plan with scenarios",
+      "rule": "Before every session, write a plan with macro context, options positioning, key levels and two or three scenarios, and later check whether it played out.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C887",
+      "title": "Discretion backed by statistics",
+      "rule": "Combine discretionary order-flow reading with statistics and backtesting rather than relying on either alone.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C888",
+      "title": "Dealer data instead of ICT liquidity concepts",
+      "rule": "Use gamma levels and net premium flow as points of interest and bias instead of FVGs, order blocks and liquidity-magnet narratives.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C889",
+      "title": "Aleks Rosme performance claims (unverified)",
+      "rule": "Record only, not a rule: Aleks Rosme states win rates, study hit rates and trade results that are unverified; do not use them as evidence of edge.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Unverified performance claims; not a rule.",
+      "consensus": 1,
+      "kbs": [
+        "trading-verrillo-aleks"
       ]
     },
     {
