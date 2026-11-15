@@ -254,4 +254,30 @@ describe("research study repository (Postgres)", () => {
     ]);
     expect(await repository.verdicts([])).toEqual([]);
   });
+
+  it("reports created only for the first write of an id inside one transaction", async () => {
+    class Rollback extends Error {}
+    const input = {
+      id: "created-flag-one-transaction",
+      ranOn: "2026-11-01",
+      specRef: "docs/specs/demo.md",
+      summary: {
+        id: "created-flag-one-transaction",
+        ran: "2026-11-01",
+        spec: "docs/specs/demo.md",
+      },
+    };
+    const flags: boolean[] = [];
+    // One transaction: both writes see the same now(), so the two timestamps of the row stay
+    // equal. The rollback leaves no row behind.
+    await expect(
+      database().transaction(async (transaction) => {
+        const repository = createResearchStudyRepository(transaction);
+        flags.push((await repository.upsert(input)).created);
+        flags.push((await repository.upsert(input)).created);
+        throw new Rollback();
+      })
+    ).rejects.toBeInstanceOf(Rollback);
+    expect(flags).toEqual([true, false]);
+  });
 });

@@ -476,6 +476,45 @@ describe("Graphify workflow", () => {
     ).toThrow(/indistinguishable semantic nodes/i);
   });
 
+  it("scopes a placeholder only by a snapshot directory name that starts a path segment", () => {
+    // Graphify joins the path segments of a file with `_`, so the snapshot
+    // directory name starts the id (a temporary base of `/`) or follows `_`.
+    const snapshot = (random: string) =>
+      `darkfactory_graph_f144a0e8dd46377b_${random}_active_`;
+    const digest = (ids: readonly string[]) =>
+      calculateGraphDigest(
+        JSON.stringify({
+          nodes: ids.map((id) => ({
+            id,
+            label: "Any",
+            file_type: "code",
+            source_file: "",
+            source_location: "",
+            _origin: "ast",
+          })),
+          links: [],
+        })
+      );
+    const files = (prefix: string) => [
+      `${prefix}one_py_any`,
+      `${prefix}two_py_any`,
+    ];
+
+    expect(digest(files(snapshot("baqvjk")))).toBe(
+      digest(files(snapshot("zwtd9f")).reverse())
+    );
+    // Text glued in front of the name is not the snapshot directory.
+    const glued = `tmp_x${snapshot("aaaaaa")}`;
+    expect(() => digest(files(glued))).toThrow(
+      /indistinguishable semantic nodes/i
+    );
+    // A glued look-alike in the temporary base does not hide the snapshot
+    // directory after it.
+    return expect(digest(files(`${glued}${snapshot("baqvjk")}`))).toBe(
+      digest(files(`${glued}${snapshot("zwtd9f")}`))
+    );
+  });
+
   it("rejects non-finite numeric graph values instead of hashing them as null", () => {
     const nonFinite = '{"nodes":[{"id":"route","score":1e400}],"links":[]}';
 
