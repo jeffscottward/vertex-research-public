@@ -27,6 +27,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
+from nautilus_backtest.bars import InputError
+
 from .book import PricedTrade, contracts_for
 from .calendar import is_bar_time
 
@@ -51,10 +53,10 @@ def timeline(trades: Sequence[PricedTrade], dates: Iterable[str] | None = None) 
     marked = {day for trade in trades for day, _ in trade.marks}
     days = tuple(sorted(set(dates))) if dates is not None else tuple(sorted(marked))
     if len({is_bar_time(day) for day in days}) > 1:
-        raise ValueError("The run days must be all days or all bar times")
+        raise InputError("The run days must be all days or all bar times")
     missing = marked.difference(days)
     if missing:
-        raise ValueError(f"Mark dates outside the run dates: {min(missing)}")
+        raise InputError(f"Mark dates outside the run dates: {min(missing)}")
     ids = [trade.trade_id for trade in trades]
     if len(set(ids)) != len(ids):
         raise ValueError("Trade ids must be unique")
@@ -81,7 +83,7 @@ def trade_record(trade: PricedTrade, contracts: int, entry_price: float, exit_pr
 def run_ledger(trades: Sequence[PricedTrade], capital: float = DEFAULT_CAPITAL,
                dates: Iterable[str] | None = None) -> LedgerResult:
     if not capital > 0:
-        raise ValueError("capital must be above 0")
+        raise InputError("capital must be above 0")
     days = timeline(trades, dates)
     marks = {trade.trade_id: dict(trade.marks) for trade in trades}
     entering: dict[str, list[PricedTrade]] = {}
