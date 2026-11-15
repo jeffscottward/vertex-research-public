@@ -525,9 +525,16 @@ the code is the reference:
 - A test that cannot be computed counts as not passed (it can decide the outcome).
 - The report also shows the look-ahead diagnostic next to P1 and the options-form arithmetic.
 - The 0074 descriptions name the script built-in, template, chart study and, for Ultimate MA and Slingshot, the DSL
-  composition; the DSL names of SuperTrend, AlphaTrend and Chandelier Exit arrive with PR 2 (a later migration then
-  updates the three descriptions and the eval is recorded again).
-- PR 2 (items 14-19) is not implemented yet.
+  composition. The DSL names of SuperTrend, AlphaTrend and Chandelier Exit arrived with PR 2 (PR #244). Migration
+  `0075_semantic_terms_trend_dsl_names.sql` (card `vertex-trend-terms-dsl-names`, 2026-11-15) then appended one
+  sentence to these three descriptions: the DSL indicator (`supertrend`, `alphaTrend`, `chandelierExit`), its fields
+  and outputs, the direction sign (+1 up, -1 down), one JSON example and the run limits (research runs on the rig
+  only; not on frame monthly bars). The update is guarded (unchanged 0074 text, no operator edit or certification),
+  the rollback `packages/db/rollback/0075_semantic_terms_trend_dsl_names.down.sql` removes the sentence, and the 9
+  eval questions with stale trials were recorded again (`docs/vertex-rebuild/agent-semantic-layer.md`,
+  "Re-recording 2026-11-15 (trend indicator DSL names ...)"). `tests/integration/semantic-layer/trend-terms.test.ts`
+  parses each JSON example with the DSL schema.
+- PR 2 (items 14-19) is merged (PR #244, 2026-11-15).
 - Agent vocabulary: the five `semantic_terms` rows are not in PR 1. Every new term enters the catalog that the
   recorded semantic-layer eval (`tests/integration/semantic-layer/eval-recording.fixture.json`) replays, so adding
   them needed a re-recording of that eval (Postgres and model calls). Card `vertex-trend-semantic-terms` added them
