@@ -80,6 +80,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
+from nautilus_backtest.bars import InputError
+
 from . import options as om
 from .calendar import TradingCalendar, day_left, expirations_after, parse
 from .data import INDEX_TENOR_DAYS, IV_INDEX, IV_TERM, Market
@@ -185,16 +187,16 @@ class Book:
 def _int_in(block: Mapping, key: str, low: int, high: int) -> int:
     value = block.get(key)
     if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ValueError(f"{key} must be an integer in {low}..{high}")
+        raise InputError(f"{key} must be an integer in {low}..{high}")
     return value
 
 
 def _num_in(block: Mapping, key: str, low: float, high: float, *, open_low: bool = False) -> float:
     value = block.get(key)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise ValueError(f"{key} must be a number")
+        raise InputError(f"{key} must be a number")
     if value > high or value < low or (open_low and value == low):
-        raise ValueError(f"{key} must be in {'(' if open_low else '['}{low:g}, {high:g}]")
+        raise InputError(f"{key} must be in {'(' if open_low else '['}{low:g}, {high:g}]")
     return float(value)
 
 
@@ -202,16 +204,16 @@ def parse_options(block: Mapping) -> OptionsSpec:
     """Validates the DSL `options` block. maxLossPct above 2 is refused."""
     unknown = set(block) - OPTION_KEYS
     if unknown:
-        raise ValueError(f"Unknown options field: {', '.join(sorted(unknown))}")
+        raise InputError(f"Unknown options field: {', '.join(sorted(unknown))}")
     structure = block.get("structure")
     if structure not in STRUCTURES:
-        raise ValueError(f"structure must be one of {', '.join(STRUCTURES)}")
+        raise InputError(f"structure must be one of {', '.join(STRUCTURES)}")
     dte = block.get("dte")
     if not isinstance(dte, Mapping) or set(dte) != {"target", "min"}:
-        raise ValueError("dte must be {target, min}")
+        raise InputError("dte must be {target, min}")
     max_loss = block.get("maxLossPct")
     if isinstance(max_loss, (int, float)) and not isinstance(max_loss, bool) and max_loss > MAX_LOSS_PCT_CAP:
-        raise ValueError(f"maxLossPct {max_loss:g} refused: the cap is {MAX_LOSS_PCT_CAP:g}% of equity per trade")
+        raise InputError(f"maxLossPct {max_loss:g} refused: the cap is {MAX_LOSS_PCT_CAP:g}% of equity per trade")
     return OptionsSpec(
         structure=structure,
         dte_target=_int_in(dte, "target", 7, 400),
@@ -448,7 +450,7 @@ class CalendarSpec:
 def _dte(block: Mapping, key: str) -> tuple[int, int]:
     dte = block.get(key)
     if not isinstance(dte, Mapping) or set(dte) != {"target", "min"}:
-        raise ValueError(f"{key} must be {{target, min}}")
+        raise InputError(f"{key} must be {{target, min}}")
     return _int_in(dte, "target", 7, 400), _int_in(dte, "min", 1, 400)
 
 
@@ -456,16 +458,16 @@ def parse_calendar(block: Mapping) -> CalendarSpec:
     """Validates a calendar block (CALENDAR_KEYS). maxLossPct above 2 is refused."""
     unknown = set(block) - CALENDAR_KEYS
     if unknown:
-        raise ValueError(f"Unknown calendar field: {', '.join(sorted(unknown))}")
+        raise InputError(f"Unknown calendar field: {', '.join(sorted(unknown))}")
     structure = block.get("structure")
     if structure not in CALENDARS:
         raise ValueError(f"structure must be one of {', '.join(CALENDARS)}")
     max_loss = block.get("maxLossPct")
     if isinstance(max_loss, (int, float)) and not isinstance(max_loss, bool) and max_loss > MAX_LOSS_PCT_CAP:
-        raise ValueError(f"maxLossPct {max_loss:g} refused: the cap is {MAX_LOSS_PCT_CAP:g}% of equity per trade")
+        raise InputError(f"maxLossPct {max_loss:g} refused: the cap is {MAX_LOSS_PCT_CAP:g}% of equity per trade")
     (dte_target, dte_min), (far_target, far_min) = _dte(block, "dte"), _dte(block, "farDte")
     if far_target <= dte_target:
-        raise ValueError("farDte.target must be above dte.target")
+        raise InputError("farDte.target must be above dte.target")
     return CalendarSpec(
         structure=structure, dte_target=dte_target, dte_min=dte_min, far_target=far_target, far_min=far_min,
         max_loss_pct=_num_in(block, "maxLossPct", 0, MAX_LOSS_PCT_CAP, open_low=True),

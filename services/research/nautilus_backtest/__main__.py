@@ -27,7 +27,6 @@ this process. Each entry is {"id": ..., "wallMs": ...} with exactly one of:
   "error": "..."    an input error (InputError): the request is at fault
   "crash": "..."    a case crash: any other Exception of the case, also a result that JSON cannot
                     hold; the text is "<class name>: <message>" on one line, at most 300 characters
-                    (the options route still turns ValueError and RuntimeError into input errors)
 
 Exit status of `batch`:
 
@@ -84,10 +83,7 @@ def _run_case(bars: Bars, spec: dict, rows: dict | None) -> dict:
 
         if not rows:
             raise InputError("An options definition needs the daily series rows")
-        try:
-            return run_spec_json(spec, rows)
-        except (ValueError, RuntimeError) as error:
-            raise InputError(str(error)) from error
+        return run_spec_json(spec, rows)
     if rule.get("kind") == "dsl" and rows and strategy_series_refs(normalize_definition(definition)):
         from strategies.qc_ports.portfolio import context_from_rows
 

@@ -1,8 +1,8 @@
 {
   "audit": {
-    "grader": "Trials of Q6 and Q13 (recorded 2026-11-15 after migration 0074): OMP completion() with the model anthropic/claude-fable-5-2, one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check of every answer against its reference by the recording agent. Trials of H2, H3, Q10, Q11, Q12, Q17 and Q18 (recorded again 2026-11-15 after migration 0075): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check of every answer against its reference by the recording agent. Trials of Q19 and Q20 (recorded again 2026-11-15 with both migration 0075 and the drift_status fixture fix): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check of every answer against its reference by the recording agent. All other trials (graded 2026-11-11; the H4 trials 2026-11-14): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the question and its reference from tests/integration/semantic-layer/questions.ts",
+    "grader": "Trials of Q6 and Q13 (recorded 2026-11-15 after migration 0074): OMP completion() with the model anthropic/claude-fable-5-2, one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check of every answer against its reference by the recording agent. Trials of H2, H3, Q10, Q11, Q12, Q17 and Q18 (recorded again 2026-11-15 after migration 0075): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check of every answer against its reference by the recording agent. Trials of Q19, Q20 and H4 (recorded again 2026-11-15 after the baseline runs of the fixture drift monitors got a profit factor, an equity series and a longest losing streak, card vertex-eval-fixture-baseline-run-metrics): OMP judge_batch (typesafe/jev-1.14-20261014), one item per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts; then a check of every answer against its reference by the recording agent. All other trials (graded 2026-11-11): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the question and its reference from tests/integration/semantic-layer/questions.ts",
     "instructions": "Grade the assistant answer against the reference for the question. correct: gives the reference value/conclusion; for a NOT AVAILABLE reference, saying it is not available without giving a value is correct. wrong: presents a wrong value or conclusion, or a value from the wrong account/source, as the answer. declined: says data is unavailable when the reference has a value.",
-    "gradedAt": "2026-11-15T16:30:40.000Z"
+    "gradedAt": "2026-11-15T18:44:00.000Z"
   },
   "note": "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.",
   "schemaVersion": 2,
@@ -1779,7 +1779,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Yes. Two paper strategies are drifting from their baseline backtest, per the certified term drift_level (Paper forward drift level; source postgres, forward_drift_monitors; grouping per monitor; as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout (monitor \"ORB paper forward\"): alert. Paper runner running, baseline run br_orb_2.\n- Sector Momentum (monitor \"Sector momentum paper forward\"): warn. Paper runner running, baseline run br_mom_1.\n- RSI Mean Reversion (monitor \"RSI MR paper forward\"): ok. Paper runner is off, baseline run br_mr_1.\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status tool:\n- All three monitors show 0 points and 0 trades, and no tick time for the paper runner, so I cannot say from this data which check (drawdown, losing streak, profit factor, Sharpe or win rate) drives the alert and warn levels.\n- The open alerts list is empty, even though ORB is at alert level.\n- The ok level for RSI Mean Reversion comes with the runner off, so it does not reflect current forward trading.\n\nThis is paper data only and does not authorize any trading action. If you want, I can open the ORB and Sector Momentum monitors (m_orb, m_mom) to look at the individual checks.",
+      "answer": "Yes. Two of the three paper forward monitors are drifting from their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC):\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok, but its paper runner is off, so it is not collecting new forward data; baseline run br_mr_1.\n\nThis term gives only the level, not which checks (drawdown, losing streak, profit factor, Sharpe, win rate) caused it. I can pull the check detail for the ORB and Sector Momentum monitors if you want it.\n\nThese levels are paper data and research input only; they do not authorize any trading or deployment change.",
       "completions": [
         {
           "content": "",
@@ -1789,17 +1789,12 @@
               "arguments": "{}",
               "id": "Q19.1_0.0",
               "name": "terms_list"
-            },
-            {
-              "arguments": "{\"limit\":20}",
-              "id": "Q19.1_0.1",
-              "name": "drift_status"
             }
           ]
         },
         {
           "content": "",
-          "inputDigest": "1a70ac73db808082a1c5513a92a14470efd9a580a29d1378f743f7da9a620e71",
+          "inputDigest": "a3ae18ecf1474151578d315afc6a477c8b38f4dcb7bbb504f29543f8a654ba59",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1809,25 +1804,24 @@
           ]
         },
         {
-          "content": "Yes. Two paper strategies are drifting from their baseline backtest, per the certified term drift_level (Paper forward drift level; source postgres, forward_drift_monitors; grouping per monitor; as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout (monitor \"ORB paper forward\"): alert. Paper runner running, baseline run br_orb_2.\n- Sector Momentum (monitor \"Sector momentum paper forward\"): warn. Paper runner running, baseline run br_mom_1.\n- RSI Mean Reversion (monitor \"RSI MR paper forward\"): ok. Paper runner is off, baseline run br_mr_1.\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status tool:\n- All three monitors show 0 points and 0 trades, and no tick time for the paper runner, so I cannot say from this data which check (drawdown, losing streak, profit factor, Sharpe or win rate) drives the alert and warn levels.\n- The open alerts list is empty, even though ORB is at alert level.\n- The ok level for RSI Mean Reversion comes with the runner off, so it does not reflect current forward trading.\n\nThis is paper data only and does not authorize any trading action. If you want, I can open the ORB and Sector Momentum monitors (m_orb, m_mom) to look at the individual checks.",
-          "inputDigest": "fc82e749d617a74f2f4221bd767e26456239171272a35319aad60787038aa8ea",
+          "content": "Yes. Two of the three paper forward monitors are drifting from their baseline backtest (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC):\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok, but its paper runner is off, so it is not collecting new forward data; baseline run br_mr_1.\n\nThis term gives only the level, not which checks (drawdown, losing streak, profit factor, Sharpe, win rate) caused it. I can pull the check detail for the ORB and Sector Momentum monitors if you want it.\n\nThese levels are paper data and research input only; they do not authorize any trading or deployment change.",
+          "inputDigest": "79a4e3cdc18191c7980e9a09db6a738587952dc1da28477d244ef43cb973fdb6",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
-      "recordedAt": "2026-11-15T16:29:52.081Z",
+      "recordedAt": "2026-11-15T18:43:01.747Z",
       "tools": [
         "terms_list({})",
-        "drift_status({\"limit\":20})",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}})"
       ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "Yes. Two of the three paper forward monitors are off their baseline, per the certified term drift_level (Paper forward drift level; source postgres, table forward_drift_monitors, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): alert. Paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): warn. Paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): ok. Paper runner is off, baseline run br_mr_1.\n\nAll three were last updated 2026-11-05 14:00 UTC.\n\nCaveats:\n- drift_status shows 0 points and 0 trades for every monitor, no tick time, and no open alerts. I have not seen which check (drawdown, losing streak, profit factor, Sharpe, win rate) drives the ORB alert or the Sector Momentum warn, so the levels are not explained by forward data I can see.\n- The RSI MR \"ok\" has little weight, since its paper runner is off and it has no forward data.\n\nI can pull the per-check detail for m_orb and m_mom next if you want the reasons. This is paper data only and does not authorize any trading change.",
+      "answer": "Yes. Two of the three paper forward monitors are drifting from their baseline backtests (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC).\n\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok, paper runner off, baseline run br_mr_1.\n\nDetail on the open alerts, from drift_status (paper data, not part of the certified term; none are acknowledged):\n- ORB rolling profit factor: forward 0.37 vs baseline 1.20, ratio 0.31 (alert at 0.5).\n- ORB Sharpe: forward -7.28 vs baseline 0.39 (alert at 0).\n- ORB rolling win rate: forward 23.08% vs baseline 52.00%, ratio 0.44 (alert at 0.6).\n- Sector momentum max drawdown: forward 24.37% vs baseline 22.50%, ratio 1.08 (warn at 1, alert at 1.5).\n\nCaveats:\n- Samples are small: ORB has 13 forward trades over 25 points, Sector momentum has 3 trades over 20 points.\n- RSI MR reads ok on 12 trades, but its paper runner is off, so that reading is not being refreshed by new paper trades.\n\nI can pull the full check list for the ORB monitor (m_orb) if you want to see the drawdown and losing streak checks as well.",
       "completions": [
         {
           "content": "",
@@ -1847,7 +1841,7 @@
         },
         {
           "content": "",
-          "inputDigest": "0d54a51f275d69421f9cae93188bd0e9c3f28bfbcbb6f2d719e59a1c8fd65ca2",
+          "inputDigest": "efb296675c388cc8c7776a0cd27fdebb14c822519148b7eecf2f138445352a8f",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1857,15 +1851,15 @@
           ]
         },
         {
-          "content": "Yes. Two of the three paper forward monitors are off their baseline, per the certified term drift_level (Paper forward drift level; source postgres, table forward_drift_monitors, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (Opening Range Breakout): alert. Paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): warn. Paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): ok. Paper runner is off, baseline run br_mr_1.\n\nAll three were last updated 2026-11-05 14:00 UTC.\n\nCaveats:\n- drift_status shows 0 points and 0 trades for every monitor, no tick time, and no open alerts. I have not seen which check (drawdown, losing streak, profit factor, Sharpe, win rate) drives the ORB alert or the Sector Momentum warn, so the levels are not explained by forward data I can see.\n- The RSI MR \"ok\" has little weight, since its paper runner is off and it has no forward data.\n\nI can pull the per-check detail for m_orb and m_mom next if you want the reasons. This is paper data only and does not authorize any trading change.",
-          "inputDigest": "5490ec327cf4402375b44551725c2391026be1b45da23da697aca9f1c23a6fa5",
+          "content": "Yes. Two of the three paper forward monitors are drifting from their baseline backtests (certified term drift_level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC).\n\n- ORB paper forward (Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): level warn, paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): level ok, paper runner off, baseline run br_mr_1.\n\nDetail on the open alerts, from drift_status (paper data, not part of the certified term; none are acknowledged):\n- ORB rolling profit factor: forward 0.37 vs baseline 1.20, ratio 0.31 (alert at 0.5).\n- ORB Sharpe: forward -7.28 vs baseline 0.39 (alert at 0).\n- ORB rolling win rate: forward 23.08% vs baseline 52.00%, ratio 0.44 (alert at 0.6).\n- Sector momentum max drawdown: forward 24.37% vs baseline 22.50%, ratio 1.08 (warn at 1, alert at 1.5).\n\nCaveats:\n- Samples are small: ORB has 13 forward trades over 25 points, Sector momentum has 3 trades over 20 points.\n- RSI MR reads ok on 12 trades, but its paper runner is off, so that reading is not being refreshed by new paper trades.\n\nI can pull the full check list for the ORB monitor (m_orb) if you want to see the drawdown and losing streak checks as well.",
+          "inputDigest": "a944def06e5c04c0a6a70dd25ca935220cb3a594b84bf858452ff76cda39d7c9",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
-      "recordedAt": "2026-11-15T16:29:52.753Z",
+      "recordedAt": "2026-11-15T18:43:03.900Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":20})",
@@ -1875,7 +1869,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Yes. Two paper strategies are drifting from their baseline backtests, per the certified term drift_level (Paper forward drift level; source postgres, table forward_drift_monitors, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout (monitor \"ORB paper forward\"): level alert, paper runner running, baseline run br_orb_2\n- Sector Momentum (monitor \"Sector momentum paper forward\"): level warn, paper runner running, baseline run br_mom_1\n- RSI Mean Reversion (monitor \"RSI MR paper forward\"): level ok, paper runner off, baseline run br_mr_1\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status tool:\n- All three monitors show 0 points and 0 trades and no paper tick time, so I cannot see what forward data the levels rest on.\n- The open alerts list is empty, even though ORB is at alert level.\n- I have not pulled which checks (drawdown, losing streak, profit factor, Sharpe, win rate) triggered the alert and warn levels. I can read the ORB and Sector Momentum monitors in detail if you want that.\n\nThis is paper data only and does not authorize any trading or deployment change.",
+      "answer": "Yes. Two of the three paper forward monitors are drifting from their baseline backtests, per the certified term drift_level (source: postgres, forward_drift_monitors, grouping: per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC).\n\n- ORB paper forward (Opening Range Breakout): alert. Paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): warn. Paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): ok. Paper runner is off, baseline run br_mr_1.\n\nDetail on the open alerts, from drift_status (paper data, none acknowledged):\n- ORB profit factor: forward 0.37 vs baseline 1.20, ratio 0.31 (alert at 0.5).\n- ORB Sharpe: forward -7.28 vs baseline 0.39 (alert at 0).\n- ORB win rate: forward 23.08% vs baseline 52.00%, ratio 0.44 (alert at 0.6).\n- Sector momentum max drawdown: forward 24.37% vs baseline 22.50%, ratio 1.08 (warn at 1, alert at 1.5).\n\nCaveats:\n- Samples are small: ORB has 13 trades over 25 points, and Sector momentum has only 3 trades over 20 points.\n- The RSI MR runner is off, so its ok level reflects 12 trades already recorded, not ongoing forward data.\n\nThis is paper data only and does not authorize or change any trading. I can pull the full check list for the ORB monitor (m_orb) if you want it.",
       "completions": [
         {
           "content": "",
@@ -1895,7 +1889,7 @@
         },
         {
           "content": "",
-          "inputDigest": "487f8474e13b3917d72bc43b0832e6144e7346b5502c3ba09c154372dbc83b2c",
+          "inputDigest": "dc39ff734ce2c169f90db86c078d7d3a9fa060792694b78de2240d2793ede72e",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1905,15 +1899,15 @@
           ]
         },
         {
-          "content": "Yes. Two paper strategies are drifting from their baseline backtests, per the certified term drift_level (Paper forward drift level; source postgres, table forward_drift_monitors, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout (monitor \"ORB paper forward\"): level alert, paper runner running, baseline run br_orb_2\n- Sector Momentum (monitor \"Sector momentum paper forward\"): level warn, paper runner running, baseline run br_mom_1\n- RSI Mean Reversion (monitor \"RSI MR paper forward\"): level ok, paper runner off, baseline run br_mr_1\n\nAll three monitors were last updated 2026-11-05 14:00 UTC.\n\nCaveats from the drift_status tool:\n- All three monitors show 0 points and 0 trades and no paper tick time, so I cannot see what forward data the levels rest on.\n- The open alerts list is empty, even though ORB is at alert level.\n- I have not pulled which checks (drawdown, losing streak, profit factor, Sharpe, win rate) triggered the alert and warn levels. I can read the ORB and Sector Momentum monitors in detail if you want that.\n\nThis is paper data only and does not authorize any trading or deployment change.",
-          "inputDigest": "27fc3927ce91049a8cf86df1620ff4625b423177a91b561d4339dde3fe67d3b6",
+          "content": "Yes. Two of the three paper forward monitors are drifting from their baseline backtests, per the certified term drift_level (source: postgres, forward_drift_monitors, grouping: per monitor, as of 2026-11-05 15:30 UTC; monitors last updated 14:00 UTC).\n\n- ORB paper forward (Opening Range Breakout): alert. Paper runner running, baseline run br_orb_2.\n- Sector momentum paper forward (Sector Momentum): warn. Paper runner running, baseline run br_mom_1.\n- RSI MR paper forward (RSI Mean Reversion): ok. Paper runner is off, baseline run br_mr_1.\n\nDetail on the open alerts, from drift_status (paper data, none acknowledged):\n- ORB profit factor: forward 0.37 vs baseline 1.20, ratio 0.31 (alert at 0.5).\n- ORB Sharpe: forward -7.28 vs baseline 0.39 (alert at 0).\n- ORB win rate: forward 23.08% vs baseline 52.00%, ratio 0.44 (alert at 0.6).\n- Sector momentum max drawdown: forward 24.37% vs baseline 22.50%, ratio 1.08 (warn at 1, alert at 1.5).\n\nCaveats:\n- Samples are small: ORB has 13 trades over 25 points, and Sector momentum has only 3 trades over 20 points.\n- The RSI MR runner is off, so its ok level reflects 12 trades already recorded, not ongoing forward data.\n\nThis is paper data only and does not authorize or change any trading. I can pull the full check list for the ORB monitor (m_orb) if you want it.",
+          "inputDigest": "b0eef3988745300a514a98d9beef2623b7e9f5200821d45379bbabdec2439b90",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
-      "recordedAt": "2026-11-15T16:29:50.929Z",
+      "recordedAt": "2026-11-15T18:43:04.477Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":20})",
@@ -1923,7 +1917,7 @@
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert, per the certified term drift_level (Paper forward drift level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: level alert, strategy Opening Range Breakout, baseline run br_orb_2, paper runner running, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status (not the certified source):\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok.\n- The ORB monitor shows 0 points and 0 trades and there are no open alert records, so the alert level has no forward data behind it in that view. I have not pulled the individual checks; drift_monitor_get on m_orb would show which check set the level.\n\nThis is paper data only.",
+      "answer": "One drift monitor is in alert, per the certified term drift_level (Paper forward drift level; source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (strategy Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2, updated 2026-11-05 14:00 UTC.\n\nOpen alerts behind it, from drift_status (monitor m_orb, 13 trades, 25 points, all unacknowledged):\n- Profit factor: forward 0.37 vs baseline 1.20 (ratio 0.31; alert at 0.5).\n- Sharpe: forward -7.28 vs baseline 0.39 (ratio -18.72; alert at 0).\n- Win rate: forward 23.08% vs baseline 52.00% (ratio 0.44; alert at 0.6).\n\nNot in alert, from drift_status: Sector momentum paper forward is at warn (max drawdown forward 24.37% vs baseline 22.50%, ratio 1.08), and RSI MR paper forward is ok.\n\nThis is paper data only and does not authorize any trading action.",
       "completions": [
         {
           "content": "",
@@ -1943,7 +1937,7 @@
         },
         {
           "content": "",
-          "inputDigest": "32352bea8cb13b1f96bd865ddac7a851f833854b83c3c3c1be67be0b2ba7febd",
+          "inputDigest": "8ea327f1e8dfaa598fad97df0fc66a1eb9d840e1d0dee2dded3e6cd98c7b42c6",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -1953,15 +1947,15 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert, per the certified term drift_level (Paper forward drift level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: level alert, strategy Opening Range Breakout, baseline run br_orb_2, paper runner running, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status (not the certified source):\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok.\n- The ORB monitor shows 0 points and 0 trades and there are no open alert records, so the alert level has no forward data behind it in that view. I have not pulled the individual checks; drift_monitor_get on m_orb would show which check set the level.\n\nThis is paper data only.",
-          "inputDigest": "e14b247294e6a80e356a2592489734b67137347c14fce800680b97fa6c416845",
+          "content": "One drift monitor is in alert, per the certified term drift_level (Paper forward drift level; source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (strategy Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2, updated 2026-11-05 14:00 UTC.\n\nOpen alerts behind it, from drift_status (monitor m_orb, 13 trades, 25 points, all unacknowledged):\n- Profit factor: forward 0.37 vs baseline 1.20 (ratio 0.31; alert at 0.5).\n- Sharpe: forward -7.28 vs baseline 0.39 (ratio -18.72; alert at 0).\n- Win rate: forward 23.08% vs baseline 52.00% (ratio 0.44; alert at 0.6).\n\nNot in alert, from drift_status: Sector momentum paper forward is at warn (max drawdown forward 24.37% vs baseline 22.50%, ratio 1.08), and RSI MR paper forward is ok.\n\nThis is paper data only and does not authorize any trading action.",
+          "inputDigest": "7ba90cdd38c395cfe39319b6c09379b40d1dd86e222f81a05ec3a610be32e394",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
-      "recordedAt": "2026-11-15T16:29:49.547Z",
+      "recordedAt": "2026-11-15T18:43:01.180Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":50})",
@@ -1971,7 +1965,7 @@
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert, per the certified term drift_level (Paper forward drift level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n- ORB paper forward: level alert, strategy Opening Range Breakout, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status (not the certified term):\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok.\n- The ORB monitor shows 0 points and 0 trades and there are no open alert records, so the ledger shows no forward data behind the alert level here.\n\nThis is paper data only. I can open the ORB monitor's individual checks if you want to see which one is driving the level.",
+      "answer": "One drift monitor is in alert, per the certified term drift_level (Paper forward drift level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (strategy Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2, updated 2026-11-05 14:00 UTC.\n\nOpen alerts behind it, from drift_status (monitor m_orb, 13 paper trades, all unacknowledged):\n- Profit factor: forward 0.37 vs baseline 1.20, ratio 0.31 (alert at 0.5).\n- Sharpe: forward -7.28 vs baseline 0.39, ratio -18.72 (alert at 0).\n- Win rate: forward 23.08% vs baseline 52.00%, ratio 0.44 (alert at 0.6).\n\nFor context, Sector momentum paper forward is at warn, not alert (drawdown 24.37% vs baseline 22.50%), and RSI MR paper forward is ok.\n\nThis is paper data only.",
       "completions": [
         {
           "content": "",
@@ -1991,7 +1985,7 @@
         },
         {
           "content": "",
-          "inputDigest": "2d178668506485745a8419846773b5d6ae6c99f1ad95d11e434fb65047ea75d5",
+          "inputDigest": "4c8d2696e1ac929da840c5008f0c44446ebc24f70242f0aaae3223b5cb79af64",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -2001,15 +1995,15 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert, per the certified term drift_level (Paper forward drift level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n- ORB paper forward: level alert, strategy Opening Range Breakout, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nContext from drift_status (not the certified term):\n- Sector momentum paper forward is at warn, not alert.\n- RSI MR paper forward is ok.\n- The ORB monitor shows 0 points and 0 trades and there are no open alert records, so the ledger shows no forward data behind the alert level here.\n\nThis is paper data only. I can open the ORB monitor's individual checks if you want to see which one is driving the level.",
-          "inputDigest": "579cad7457eea13906c282c56a10a1247b23037030b0113876313d3729febfe2",
+          "content": "One drift monitor is in alert, per the certified term drift_level (Paper forward drift level, source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (strategy Opening Range Breakout): level alert, paper runner running, baseline run br_orb_2, updated 2026-11-05 14:00 UTC.\n\nOpen alerts behind it, from drift_status (monitor m_orb, 13 paper trades, all unacknowledged):\n- Profit factor: forward 0.37 vs baseline 1.20, ratio 0.31 (alert at 0.5).\n- Sharpe: forward -7.28 vs baseline 0.39, ratio -18.72 (alert at 0).\n- Win rate: forward 23.08% vs baseline 52.00%, ratio 0.44 (alert at 0.6).\n\nFor context, Sector momentum paper forward is at warn, not alert (drawdown 24.37% vs baseline 22.50%), and RSI MR paper forward is ok.\n\nThis is paper data only.",
+          "inputDigest": "d8e6e62792a14740028a5f52c6c818ff764642e9d826c8b57db74823c60eb5e1",
           "toolCalls": []
         }
       ],
-      "grade": "correct",
+      "grade": "wrong",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
-      "recordedAt": "2026-11-15T16:29:57.805Z",
+      "recordedAt": "2026-11-15T18:43:10.126Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":50})",
@@ -2019,7 +2013,7 @@
       "audit": "correct"
     },
     {
-      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, forward_drift_monitors, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nFor context, drift_status also shows Sector momentum paper forward at warn and RSI MR paper forward at ok.\n\ndrift_status lists no open alert records and shows 0 points and 0 trades for the ORB monitor, so I cannot say from this data which check triggered the alert. This is paper data only.",
+      "answer": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (strategy: Opening Range Breakout), level alert, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nOpen alerts behind it, from drift_status (paper data only, all unacknowledged, raised 2026-11-05 14:00 UTC):\n- Profit factor: forward 0.37 vs baseline 1.20 (ratio 0.31; alert at 0.5)\n- Sharpe: forward -7.28 vs baseline 0.39 (ratio -18.72; alert at 0)\n- Win rate: forward 23.08% vs baseline 52.00% (ratio 0.44; alert at 0.6)\n\nThe monitor has 13 trades over 25 points, so the forward sample is small.\n\nNot in alert: Sector momentum paper forward is at warn (drawdown 24.37% vs baseline 22.50%, from drift_status), and RSI MR paper forward is ok.",
       "completions": [
         {
           "content": "",
@@ -2039,7 +2033,7 @@
         },
         {
           "content": "",
-          "inputDigest": "b6160ee6f6bf0f1bf8d1104b5748438d4bf03cdc3faff6b47b7ef0560fc371da",
+          "inputDigest": "43850a0ecd7e231a361f8d925e8becd43acbdda79c233b11c08c31c01e4b481e",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -2049,15 +2043,15 @@
           ]
         },
         {
-          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, forward_drift_monitors, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward: strategy Opening Range Breakout, level alert, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nFor context, drift_status also shows Sector momentum paper forward at warn and RSI MR paper forward at ok.\n\ndrift_status lists no open alert records and shows 0 points and 0 trades for the ORB monitor, so I cannot say from this data which check triggered the alert. This is paper data only.",
-          "inputDigest": "18310c97025a64bd19c3fa7058d00f969f0b88d96f724f78599c7ce424ac0763",
+          "content": "One drift monitor is in alert, per the certified term drift_level (source: postgres, grouping: per monitor, as of 2026-11-05 15:30 UTC):\n\n- ORB paper forward (strategy: Opening Range Breakout), level alert, paper runner running, baseline run br_orb_2, last updated 2026-11-05 14:00 UTC.\n\nOpen alerts behind it, from drift_status (paper data only, all unacknowledged, raised 2026-11-05 14:00 UTC):\n- Profit factor: forward 0.37 vs baseline 1.20 (ratio 0.31; alert at 0.5)\n- Sharpe: forward -7.28 vs baseline 0.39 (ratio -18.72; alert at 0)\n- Win rate: forward 23.08% vs baseline 52.00% (ratio 0.44; alert at 0.6)\n\nThe monitor has 13 trades over 25 points, so the forward sample is small.\n\nNot in alert: Sector momentum paper forward is at warn (drawdown 24.37% vs baseline 22.50%, from drift_status), and RSI MR paper forward is ok.",
+          "inputDigest": "72fbcbe432807a7c1653e1c07ce1865e5cc53898213c5c508fec2ce936e7e9a2",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
-      "recordedAt": "2026-11-15T16:29:58.850Z",
+      "recordedAt": "2026-11-15T18:43:10.657Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":50})",
@@ -2463,162 +2457,192 @@
       "audit": "correct"
     },
     {
-      "answer": "The latest engine backtest run linked to RSI Mean Reversion (s_mr) is br_mr_1. It finished 2026-10-15 on engine vx-engine-1.5, and its report shows a win rate of 0.61 (61%) over 96 trades.\n\nSome caveats about this run:\n- The spec does not match the strategy's name. The rule is an SMA crossover (fast 20, slow 50) on QQQ 1m bars from 2021-01-01 to 2026-09-30, with 1 bps cost and no stop loss or take profit. It is not an RSI rule, so the run may be mislinked or mislabeled.\n- The report looks internally inconsistent. It shows 96 total trades and a 0.61 win rate, but 0 profit trades, 0 loss trades, 0 net profit, final equity equal to the initial 100000, and a total return of 0.264. The series hash reads \"synthetic\" and the equity and trade lists are empty. I would not rely on these figures until the run is checked or re-run.\n- The strategy library lists no linked backtests for s_mr (backtestCount 0). This engine run exists, but it is not reflected there.\n- Win rate is not a certified term, so this number is the engine report value only. If you want the certified backtest Sharpe or max drawdown for this strategy, I can query those terms.",
-      "completions": [
-        {
-          "content": "Looking up the RSI Mean Reversion strategy first.",
-          "inputDigest": "9b3e6b18bfb0dde900544524841d56931d71098a722a4f6be770da42b4a62c5c",
-          "toolCalls": [
-            {
-              "arguments": "{\"search\": \"RSI Mean Reversion\", \"limit\": 5}",
-              "id": "H4.1_0.0",
-              "name": "strategies_list"
-            }
-          ]
-        },
-        {
-          "content": "The library shows no linked backtests for RSI Mean Reversion (s_mr). Checking engine backtest runs for this strategy before concluding.",
-          "inputDigest": "e4e30ed839a2cc16f67940e46a9a51629d09866fb8818cec93805507dd194472",
-          "toolCalls": [
-            {
-              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 3}",
-              "id": "H4.1_1.0",
-              "name": "backtest_runs_list"
-            }
-          ]
-        },
-        {
-          "content": "Found one succeeded engine run (br_mr_1) linked to RSI Mean Reversion. Fetching its report for the win rate.",
-          "inputDigest": "b1229362837b443a4fb064d5091fe6e85193d3806392f7a0752d370898fb795e",
-          "toolCalls": [
-            {
-              "arguments": "{\"id\": \"br_mr_1\"}",
-              "id": "H4.1_2.0",
-              "name": "backtest_runs_get"
-            }
-          ]
-        },
-        {
-          "content": "The latest engine backtest run linked to RSI Mean Reversion (s_mr) is br_mr_1. It finished 2026-10-15 on engine vx-engine-1.5, and its report shows a win rate of 0.61 (61%) over 96 trades.\n\nSome caveats about this run:\n- The spec does not match the strategy's name. The rule is an SMA crossover (fast 20, slow 50) on QQQ 1m bars from 2021-01-01 to 2026-09-30, with 1 bps cost and no stop loss or take profit. It is not an RSI rule, so the run may be mislinked or mislabeled.\n- The report looks internally inconsistent. It shows 96 total trades and a 0.61 win rate, but 0 profit trades, 0 loss trades, 0 net profit, final equity equal to the initial 100000, and a total return of 0.264. The series hash reads \"synthetic\" and the equity and trade lists are empty. I would not rely on these figures until the run is checked or re-run.\n- The strategy library lists no linked backtests for s_mr (backtestCount 0). This engine run exists, but it is not reflected there.\n- Win rate is not a certified term, so this number is the engine report value only. If you want the certified backtest Sharpe or max drawdown for this strategy, I can query those terms.",
-          "inputDigest": "033f3e62296fe1ef6cfdf1f54cd7e5ff224960b140934a7b27816b7e69bbe3d7",
-          "toolCalls": []
-        }
-      ],
-      "grade": "correct",
-      "model": "omp-completion",
-      "question": "H4",
-      "recordedAt": "2026-11-14T12:51:40.877Z",
-      "tools": [
-        "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
-        "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":3})",
-        "backtest_runs_get({\"id\":\"br_mr_1\"})"
-      ],
-      "trial": 1,
-      "audit": "correct"
-    },
-    {
-      "answer": "The latest backtest is engine run br_mr_1, which succeeded on 2026-10-15 on vx-engine-1.5. Its report shows a win rate of 0.61 (61%) over 96 total trades. Win rate is not a certified term, so this number comes straight from the engine report.\n\nI would not rely on this run without checking it first. Several things look wrong:\n- The spec does not match the strategy's name. The run uses an SMA cross (fast 20, slow 50) on QQQ, not an RSI rule. It also has no stop loss or take profit, 1 bp cost, and runs from 2021-01-01 to 2026-09-30.\n- The report contradicts itself. It says 96 trades and a 61% win rate, but profitTrades and lossTrades are both 0. Net profit is 0 and final equity equals the 100,000 starting capital, yet total return shows 0.264.\n- The data looks synthetic. The series hash is literally \"synthetic\", and the trade, equity and price lists are empty. It reports only 1000 bars, which is far too few for a 1m timeframe over almost six years.\n- The strategy has no strategy revision or snapshot attached, and the library row shows 0 linked backtests.\n\nThis looks like a placeholder or test run rather than a real result for RSI Mean Reversion. If you want a usable number, the next step would be a fresh engine run with an actual RSI rule. That needs Act mode.",
-      "completions": [
-        {
-          "content": "Looking up the RSI Mean Reversion strategy first.",
-          "inputDigest": "9b3e6b18bfb0dde900544524841d56931d71098a722a4f6be770da42b4a62c5c",
-          "toolCalls": [
-            {
-              "arguments": "{\"search\": \"RSI Mean Reversion\", \"limit\": 5}",
-              "id": "H4.2_0.0",
-              "name": "strategies_list"
-            }
-          ]
-        },
-        {
-          "content": "The library row shows no linked backtests. Checking engine runs for this strategy.",
-          "inputDigest": "1ca295b0ab9221e61a2e5beda108bdfd8d2da18e57aee9bd006e8be49f3129b9",
-          "toolCalls": [
-            {
-              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 5}",
-              "id": "H4.2_1.0",
-              "name": "backtest_runs_list"
-            }
-          ]
-        },
-        {
-          "content": "Found one succeeded engine run (br_mr_1). Fetching its report for the win rate.",
-          "inputDigest": "7f4c4bb43118d82fedf858638847c2fb721f3343751b9a01e008c045a06b511b",
-          "toolCalls": [
-            {
-              "arguments": "{\"id\": \"br_mr_1\"}",
-              "id": "H4.2_2.0",
-              "name": "backtest_runs_get"
-            }
-          ]
-        },
-        {
-          "content": "The latest backtest is engine run br_mr_1, which succeeded on 2026-10-15 on vx-engine-1.5. Its report shows a win rate of 0.61 (61%) over 96 total trades. Win rate is not a certified term, so this number comes straight from the engine report.\n\nI would not rely on this run without checking it first. Several things look wrong:\n- The spec does not match the strategy's name. The run uses an SMA cross (fast 20, slow 50) on QQQ, not an RSI rule. It also has no stop loss or take profit, 1 bp cost, and runs from 2021-01-01 to 2026-09-30.\n- The report contradicts itself. It says 96 trades and a 61% win rate, but profitTrades and lossTrades are both 0. Net profit is 0 and final equity equals the 100,000 starting capital, yet total return shows 0.264.\n- The data looks synthetic. The series hash is literally \"synthetic\", and the trade, equity and price lists are empty. It reports only 1000 bars, which is far too few for a 1m timeframe over almost six years.\n- The strategy has no strategy revision or snapshot attached, and the library row shows 0 linked backtests.\n\nThis looks like a placeholder or test run rather than a real result for RSI Mean Reversion. If you want a usable number, the next step would be a fresh engine run with an actual RSI rule. That needs Act mode.",
-          "inputDigest": "8604605687028e9db85155b703f01c3d4e6d34942c1e0753ea379fc096ae5a8f",
-          "toolCalls": []
-        }
-      ],
-      "grade": "correct",
-      "model": "omp-completion",
-      "question": "H4",
-      "recordedAt": "2026-11-14T12:51:40.877Z",
-      "tools": [
-        "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
-        "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
-        "backtest_runs_get({\"id\":\"br_mr_1\"})"
-      ],
-      "trial": 2,
-      "audit": "correct"
-    },
-    {
-      "answer": "The latest engine run linked to RSI Mean Reversion is br_mr_1 (vx-engine-1.5, finished 2026-10-15). Its report shows a win rate of 0.61 (61%) over 96 total trades.\n\nCaveats before relying on this number:\n- The run spec does not match the strategy name. It uses an smaCross 20/50 rule on QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit. It is not an RSI rule, so it may be mislinked or a placeholder.\n- The report looks internally inconsistent. It lists 96 trades and a 0.61 win rate, but profitTrades and lossTrades are both 0. Net profit is 0 and final equity equals the 100,000 deposit, yet total return is 0.264. The trade list and equity series are empty, and seriesSha256 is \"synthetic\". Treat the 61% as unverified.\n- The strategy library row shows no linked backtests (backtestCount 0), and the strategy has no params or saved revision on this run.\n\nWin rate is not a certified term, so this comes straight from the run report.\n\nIf you want, I can propose recording a follow-up to re-run RSI Mean Reversion with an actual RSI rule definition. That would need Act mode. A backtest result never authorizes trading.",
+      "answer": "The latest backtest of RSI Mean Reversion (engine run br_mr_1, succeeded 2026-10-15) reports a win rate of 0.61, i.e. 61%.\n\n- Source: report.metrics.winRate from backtest_runs_get. Win rate is not a certified term (only Sharpe and max drawdown are certified for backtests), so treat this as an uncertified engine report value.\n- Trade counts in the same report: 59 winning and 37 losing trades out of 96 total, which matches about 61%.\n- Run spec: QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit.\n\nTwo things to check before relying on it:\n- The run's rule is smaCross (fast 20, slow 50), not an RSI rule, although the run is linked to RSI Mean Reversion (s_mr). It may not test the strategy its name suggests.\n- The report shows maxConsecutiveWins of 0 despite 59 winning trades, and its seriesSha256 is \"synthetic\", so the report may not be fully reliable.\n\nIt is the only engine run for this strategy, and there are no agent notebook backtest records for it.",
       "completions": [
         {
           "content": "",
           "inputDigest": "9b3e6b18bfb0dde900544524841d56931d71098a722a4f6be770da42b4a62c5c",
           "toolCalls": [
             {
-              "arguments": "{\"search\": \"RSI Mean Reversion\", \"limit\": 5}",
+              "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
+              "id": "H4.1_0.0",
+              "name": "strategies_list"
+            }
+          ]
+        },
+        {
+          "content": "",
+          "inputDigest": "e4e30ed839a2cc16f67940e46a9a51629d09866fb8818cec93805507dd194472",
+          "toolCalls": [
+            {
+              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
+              "id": "H4.1_1.0",
+              "name": "backtest_runs_list"
+            },
+            {
+              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
+              "id": "H4.1_1.1",
+              "name": "backtests_list"
+            }
+          ]
+        },
+        {
+          "content": "",
+          "inputDigest": "aa1ccc32639ef073c5c6544a4b8219b80f774a0c8ca7e94be2d02892489df77c",
+          "toolCalls": [
+            {
+              "arguments": "{\"id\":\"br_mr_1\"}",
+              "id": "H4.1_2.0",
+              "name": "backtest_runs_get"
+            }
+          ]
+        },
+        {
+          "content": "",
+          "inputDigest": "943a173e5ebbb53f07c77482255ab69c2090d5c1e012e1eae9d6992b3cfefd6b",
+          "toolCalls": [
+            {
+              "arguments": "{}",
+              "id": "H4.1_3.0",
+              "name": "terms_list"
+            }
+          ]
+        },
+        {
+          "content": "The latest backtest of RSI Mean Reversion (engine run br_mr_1, succeeded 2026-10-15) reports a win rate of 0.61, i.e. 61%.\n\n- Source: report.metrics.winRate from backtest_runs_get. Win rate is not a certified term (only Sharpe and max drawdown are certified for backtests), so treat this as an uncertified engine report value.\n- Trade counts in the same report: 59 winning and 37 losing trades out of 96 total, which matches about 61%.\n- Run spec: QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit.\n\nTwo things to check before relying on it:\n- The run's rule is smaCross (fast 20, slow 50), not an RSI rule, although the run is linked to RSI Mean Reversion (s_mr). It may not test the strategy its name suggests.\n- The report shows maxConsecutiveWins of 0 despite 59 winning trades, and its seriesSha256 is \"synthetic\", so the report may not be fully reliable.\n\nIt is the only engine run for this strategy, and there are no agent notebook backtest records for it.",
+          "inputDigest": "bc5030de195ca9930c727202cb3a332dfc6fb20ca11ef7fa482f3e6d68f29081",
+          "toolCalls": []
+        }
+      ],
+      "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
+      "question": "H4",
+      "recordedAt": "2026-11-15T18:43:22.784Z",
+      "tools": [
+        "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
+        "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
+        "backtests_list({\"strategyId\":\"s_mr\",\"limit\":5})",
+        "backtest_runs_get({\"id\":\"br_mr_1\"})",
+        "terms_list({})"
+      ],
+      "trial": 1,
+      "audit": "correct"
+    },
+    {
+      "answer": "The win rate is 0.61 (61%) on the latest backtest run linked to RSI Mean Reversion (s_mr): 59 winning and 37 losing trades out of 96.\n\n- Run: br_mr_1, engine vx-engine-1.5, succeeded, finished 2026-10-15.\n- Spec: QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit.\n- Source: the run report from backtest_runs_get. I did not look win rate up as a certified term, so treat it as the raw engine figure.\n\nTwo things to check:\n- The run's rule is an SMA cross (fast 20, slow 50), not an RSI rule, and it has no strategy revision attached. It may not actually test the RSI Mean Reversion logic.\n- This is the only run linked to the strategy, and the strategy has no backtest results in the backtests ledger.",
+      "completions": [
+        {
+          "content": "",
+          "inputDigest": "9b3e6b18bfb0dde900544524841d56931d71098a722a4f6be770da42b4a62c5c",
+          "toolCalls": [
+            {
+              "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
+              "id": "H4.2_0.0",
+              "name": "strategies_list"
+            }
+          ]
+        },
+        {
+          "content": "",
+          "inputDigest": "1ca295b0ab9221e61a2e5beda108bdfd8d2da18e57aee9bd006e8be49f3129b9",
+          "toolCalls": [
+            {
+              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
+              "id": "H4.2_1.0",
+              "name": "backtest_runs_list"
+            },
+            {
+              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
+              "id": "H4.2_1.1",
+              "name": "backtests_list"
+            }
+          ]
+        },
+        {
+          "content": "",
+          "inputDigest": "d98aead1b41eef0539a448d7d27b058b6982ac2aba9ef062b0bcfe12e810ded3",
+          "toolCalls": [
+            {
+              "arguments": "{\"id\":\"br_mr_1\"}",
+              "id": "H4.2_2.0",
+              "name": "backtest_runs_get"
+            }
+          ]
+        },
+        {
+          "content": "The win rate is 0.61 (61%) on the latest backtest run linked to RSI Mean Reversion (s_mr): 59 winning and 37 losing trades out of 96.\n\n- Run: br_mr_1, engine vx-engine-1.5, succeeded, finished 2026-10-15.\n- Spec: QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit.\n- Source: the run report from backtest_runs_get. I did not look win rate up as a certified term, so treat it as the raw engine figure.\n\nTwo things to check:\n- The run's rule is an SMA cross (fast 20, slow 50), not an RSI rule, and it has no strategy revision attached. It may not actually test the RSI Mean Reversion logic.\n- This is the only run linked to the strategy, and the strategy has no backtest results in the backtests ledger.",
+          "inputDigest": "e859d5587f5e1c350a042568a59af9b1221a24d079488955eb4dfccd01dde849",
+          "toolCalls": []
+        }
+      ],
+      "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
+      "question": "H4",
+      "recordedAt": "2026-11-15T18:43:18.270Z",
+      "tools": [
+        "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
+        "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
+        "backtests_list({\"strategyId\":\"s_mr\",\"limit\":5})",
+        "backtest_runs_get({\"id\":\"br_mr_1\"})"
+      ],
+      "trial": 2,
+      "audit": "correct"
+    },
+    {
+      "answer": "The win rate of RSI Mean Reversion's latest backtest is 61% (0.61): 59 winning and 37 losing trades out of 96.\n\n- Source: engine run br_mr_1 (the only run linked to strategy s_mr), finished 2026-10-15, engine vx-engine-1.5. This comes from the run report, not from a certified term.\n- Spec: QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit, initial capital 100,000.\n\nTwo things to check before relying on it:\n- The run's rule is an SMA cross (fast 20, slow 50), not an RSI rule, and it has no strategy revision attached. It may not reflect the RSI Mean Reversion logic.\n- The report shows max consecutive wins of 0 despite 59 winning trades, and the average win and loss fields are empty, so some of its trade statistics look incomplete.",
+      "completions": [
+        {
+          "content": "",
+          "inputDigest": "9b3e6b18bfb0dde900544524841d56931d71098a722a4f6be770da42b4a62c5c",
+          "toolCalls": [
+            {
+              "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
               "id": "H4.3_0.0",
               "name": "strategies_list"
             }
           ]
         },
         {
-          "content": "The strategy library shows no linked backtests for RSI Mean Reversion. I'll check for engine backtest runs linked to it.",
+          "content": "",
           "inputDigest": "ec426b15e3c656ee734f770680c7310b13f63be6cc35d11e535332637d20ab7d",
           "toolCalls": [
             {
-              "arguments": "{\"strategyId\": \"s_mr\", \"limit\": 5}",
+              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
               "id": "H4.3_1.0",
               "name": "backtest_runs_list"
+            },
+            {
+              "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
+              "id": "H4.3_1.1",
+              "name": "backtests_list"
             }
           ]
         },
         {
-          "content": "Found one engine run linked to RSI Mean Reversion (br_mr_1, succeeded 2026-10-15). Note its spec uses an smaCross 20/50 rule on QQQ 1m, not an RSI rule. Fetching its report for the win rate.",
-          "inputDigest": "9753c8c707ed46ea8c5f9e9f5a4c2eca90c2ff2b5a6bb1ab9c9239ce228c5544",
+          "content": "",
+          "inputDigest": "3dc8cd56b7781d13b5bf882a428af4e5d5472a570fa7f4814e70ef8e40aacaa8",
           "toolCalls": [
             {
-              "arguments": "{\"id\": \"br_mr_1\"}",
+              "arguments": "{\"id\":\"br_mr_1\"}",
               "id": "H4.3_2.0",
               "name": "backtest_runs_get"
             }
           ]
         },
         {
-          "content": "The latest engine run linked to RSI Mean Reversion is br_mr_1 (vx-engine-1.5, finished 2026-10-15). Its report shows a win rate of 0.61 (61%) over 96 total trades.\n\nCaveats before relying on this number:\n- The run spec does not match the strategy name. It uses an smaCross 20/50 rule on QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit. It is not an RSI rule, so it may be mislinked or a placeholder.\n- The report looks internally inconsistent. It lists 96 trades and a 0.61 win rate, but profitTrades and lossTrades are both 0. Net profit is 0 and final equity equals the 100,000 deposit, yet total return is 0.264. The trade list and equity series are empty, and seriesSha256 is \"synthetic\". Treat the 61% as unverified.\n- The strategy library row shows no linked backtests (backtestCount 0), and the strategy has no params or saved revision on this run.\n\nWin rate is not a certified term, so this comes straight from the run report.\n\nIf you want, I can propose recording a follow-up to re-run RSI Mean Reversion with an actual RSI rule definition. That would need Act mode. A backtest result never authorizes trading.",
-          "inputDigest": "c99d27ea40e0d5bcde4b7fadb9b5a1dd9a039db634a7de53b97f9cfd235a27d2",
+          "content": "The win rate of RSI Mean Reversion's latest backtest is 61% (0.61): 59 winning and 37 losing trades out of 96.\n\n- Source: engine run br_mr_1 (the only run linked to strategy s_mr), finished 2026-10-15, engine vx-engine-1.5. This comes from the run report, not from a certified term.\n- Spec: QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, cost 1 bps, no stop loss or take profit, initial capital 100,000.\n\nTwo things to check before relying on it:\n- The run's rule is an SMA cross (fast 20, slow 50), not an RSI rule, and it has no strategy revision attached. It may not reflect the RSI Mean Reversion logic.\n- The report shows max consecutive wins of 0 despite 59 winning trades, and the average win and loss fields are empty, so some of its trade statistics look incomplete.",
+          "inputDigest": "69d9e996da97b22714eaf78096fd00d0fcfef6b8a9e9a4585045c92f2e037b8e",
           "toolCalls": []
         }
       ],
       "grade": "correct",
-      "model": "omp-completion",
+      "model": "anthropic/claude-fable-5-2",
       "question": "H4",
-      "recordedAt": "2026-11-14T12:51:40.877Z",
+      "recordedAt": "2026-11-15T18:43:23.301Z",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
+        "backtests_list({\"strategyId\":\"s_mr\",\"limit\":5})",
         "backtest_runs_get({\"id\":\"br_mr_1\"})"
       ],
       "trial": 3,

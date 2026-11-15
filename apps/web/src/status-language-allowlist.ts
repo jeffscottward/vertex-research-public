@@ -1386,14 +1386,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason: "Kept: En dash separates two real values.",
   },
   {
-    file: "components/portal/order-flow-views.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: side -> 'Unsigned (no quote at print time)'; spread -> 'One-sided book' or 'No depth received'; venue/conditions -> 'Not reported by feed'. bookState and counts already in scope; side label is a text change.",
-    open: true,
-  },
-  {
     file: "components/portal/owner-market-notes-card.tsx",
     text: "Owner market notes unavailable.",
     count: 1,

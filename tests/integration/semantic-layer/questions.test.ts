@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { EVAL_QUESTIONS, gradeAnswer } from "./questions.ts";
 
 // The Q20 rubric ("Which drift monitors are in alert?", reference: only ORB paper forward). The forbidden
-// pattern counts every "alert" after "Sector momentum" up to the next full stop as wrong. One exact line
-// that states the reference is removed before that check (`allowed`); nothing else is exempt.
+// pattern counts every "alert" after "Sector momentum" up to the next full stop as wrong. Two exact lines
+// that state the reference are removed before that check (`allowed`); nothing else is exempt.
 const ORB = "Only the ORB paper forward monitor is in alert.";
 
 describe("Q20 rubric", () => {
@@ -15,6 +15,8 @@ describe("Q20 rubric", () => {
     "Sector momentum paper forward is at warn, not alert.",
     "- Sector momentum paper forward is at warn, not alert.",
     "  * Sector momentum paper forward is at warn, not alert.  ",
+    "Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08). This is paper data only.",
+    "- Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08). This is paper data only.",
   ])("grades the allowed line as correct: %s", (line) => {
     expect(
       gradeAnswer(q20, `${ORB}\n${line}\n- RSI MR paper forward is ok.`)
@@ -40,6 +42,8 @@ describe("Q20 rubric", () => {
     "Sector momentum paper forward is __alert__ (previously warn, not alert).",
     "In alert: ORB paper forward and Sector momentum paper forward is at warn, not alert.",
     "Sector momentum paper forward is at warn, not alert, but it is in alert now.",
+    "Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08). This is paper data only. It is in alert now.",
+    "In alert: Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08). This is paper data only.",
   ])("grades Sector Momentum in alert as wrong: %s", (sentence) => {
     expect(gradeAnswer(q20, `${ORB}\n${sentence}`)).toBe("wrong");
   });
@@ -53,6 +57,20 @@ describe("Q20 rubric", () => {
     "Sector momentum isn't in alert.",
     "ORB paper forward is in alert; Sector momentum paper forward is at warn, not alert.",
   ])("still grades another correct wording as wrong: %s", (sentence) => {
+    expect(gradeAnswer(q20, `${ORB}\n${sentence}`)).toBe("wrong");
+  });
+
+  // The second allowed line is exact: a changed digit or a changed escaped character is not exempt.
+  it.each([
+    "Sector momentum paper forward is at warn, not alert (max drawdown 34.37% forward vs 22.50% baseline, ratio 1.08). This is paper data only.",
+    "Sector momentum paper forward is at warn, not alert (max drawdown 24x37% forward vs 22.50% baseline, ratio 1.08). This is paper data only.",
+    "Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22x50% baseline, ratio 1.08). This is paper data only.",
+    "Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1x08). This is paper data only.",
+    "Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08)x This is paper data only.",
+    "Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08). This is paper data onlyx",
+    "sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08). This is paper data only.",
+    "Sector momentum paper forward is at warn, not alert max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08. This is paper data only.",
+  ])("does not exempt the line when a character differs: %s", (sentence) => {
     expect(gradeAnswer(q20, `${ORB}\n${sentence}`)).toBe("wrong");
   });
 
