@@ -18,8 +18,8 @@ const fixture = (
     ? "vertex-research-web-staging"
     : "vertex-research-web";
   const origin = staging
-    ? "https://staging.vertex.xyz"
-    : "https://app.vertex.xyz";
+    ? "https://staging.no-approved-origin.invalid"
+    : "https://app.no-approved-origin.invalid";
   const selected = {
     name: workerName,
     account_id: destinationAccount,
@@ -102,6 +102,78 @@ describe("isolated web deployment destinations", () => {
     }
   });
 
+  it.each(["production", "staging"] as const)(
+    "blocks the retired %s origin with a complete matching configuration and receipt",
+    (environment) => {
+      const retired =
+        environment === "staging"
+          ? "https://staging.vertex.xyz"
+          : "https://app.vertex.xyz";
+      const request = fixture(environment);
+      const selected = selectedConfig(request);
+      selected["routes"] = [
+        { pattern: new URL(retired).hostname, custom_domain: true },
+      ];
+      selected["vars"] = {
+        ...(selected["vars"] as Record<string, unknown>),
+        APP_URL: retired,
+        BETTER_AUTH_URL: retired,
+      };
+      request.verification.origin = retired;
+      return expect(checkWebDeploymentDestination(request)).toEqual({
+        ok: false,
+        status: "blocked",
+        message:
+          "Inherited, apex, wildcard, foreign, or implicit delivery routes are forbidden",
+      });
+    }
+  );
+
+  it("keeps vertex.xyz out of the deploy gate and the committed Wrangler configuration", async () => {
+    // Owner decision of 2026-11-05 (docs/vertex-deployment-safety.md). Keep this test.
+    for (const path of ["./destination.ts", "../../apps/web/wrangler.jsonc"]) {
+      const text = await readFile(new URL(path, import.meta.url), "utf8");
+      expect(text.toLowerCase()).not.toContain("vertex.xyz");
+    }
+  });
+
+  it("keeps the committed Wrangler origins on the reserved placeholders", async () => {
+    const production = parseWranglerConfiguration(
+      await readFile(
+        new URL("../../apps/web/wrangler.jsonc", import.meta.url),
+        "utf8"
+      )
+    ) as {
+      routes?: unknown;
+      vars?: Record<string, unknown>;
+      env?: { staging?: { routes?: unknown; vars?: Record<string, unknown> } };
+    };
+    const staging = production.env?.staging;
+    expect({
+      production: {
+        routes: production.routes,
+        APP_URL: production.vars?.["APP_URL"],
+        BETTER_AUTH_URL: production.vars?.["BETTER_AUTH_URL"],
+      },
+      staging: {
+        routes: staging?.routes,
+        APP_URL: staging?.vars?.["APP_URL"],
+        BETTER_AUTH_URL: staging?.vars?.["BETTER_AUTH_URL"],
+      },
+    }).toEqual({
+      production: {
+        routes: [],
+        APP_URL: "https://app.no-approved-origin.invalid",
+        BETTER_AUTH_URL: "https://app.no-approved-origin.invalid",
+      },
+      staging: {
+        routes: [],
+        APP_URL: "https://staging.no-approved-origin.invalid",
+        BETTER_AUTH_URL: "https://staging.no-approved-origin.invalid",
+      },
+    });
+  });
+
   it("parses commented JSONC and rejects malformed configuration", () => {
     expect(
       parseWranglerConfiguration('{\n  // comment\n  "name": "web",\n}')
@@ -163,10 +235,11 @@ describe("isolated web deployment destinations", () => {
   it.each([
     "darkfactory.example.test",
     "staging.darkfactory.example.test",
-    "vertex.xyz",
-    "*.vertex.xyz",
-    "app.vertex.xyz/*",
-    "app.vertex.xyz.evil.test",
+    "app.vertex.xyz",
+    "no-approved-origin.invalid",
+    "*.no-approved-origin.invalid",
+    "app.no-approved-origin.invalid/*",
+    "app.no-approved-origin.invalid.evil.test",
   ])("blocks old, apex, wildcard, and foreign routes %s", (pattern) => {
     const request = fixture();
     selectedConfig(request)["routes"] = [{ pattern, custom_domain: true }];
@@ -177,19 +250,19 @@ describe("isolated web deployment destinations", () => {
     [
       undefined,
       [],
-      ["app.vertex.xyz"],
-      [{ pattern: "app.vertex.xyz" }],
-      [{ pattern: "app.vertex.xyz", custom_domain: false }],
+      ["app.no-approved-origin.invalid"],
+      [{ pattern: "app.no-approved-origin.invalid" }],
+      [{ pattern: "app.no-approved-origin.invalid", custom_domain: false }],
       [
         {
-          pattern: "app.vertex.xyz",
+          pattern: "app.no-approved-origin.invalid",
           custom_domain: true,
           zone_id: "unexpected",
         },
       ],
       [
-        { pattern: "app.vertex.xyz", custom_domain: true },
-        { pattern: "vertex.xyz", custom_domain: true },
+        { pattern: "app.no-approved-origin.invalid", custom_domain: true },
+        { pattern: "no-approved-origin.invalid", custom_domain: true },
       ],
     ].map((routes) => ({ routes }))
   )("blocks absent, implicit, or extra delivery routes %#", ({ routes }) => {
@@ -290,6 +363,8 @@ describe("isolated web deployment destinations", () => {
 
   it.each([
     ["APP_URL", "https://vertex.xyz"],
+    ["APP_URL", "https://app.vertex.xyz"],
+    ["BETTER_AUTH_URL", "https://app.vertex.xyz"],
     ["BETTER_AUTH_URL", "https://darkfactory.example.test"],
     ["EMAIL_PROVIDER", "resend"],
     ["EMAIL_TRANSPORT", "resend"],
@@ -311,6 +386,7 @@ describe("isolated web deployment destinations", () => {
     ["accountFingerprint", "c".repeat(64)],
     ["workerName", "darkfactory-web"],
     ["origin", "https://vertex.xyz"],
+    ["origin", "https://app.vertex.xyz"],
     ["exactSha", "c".repeat(40)],
     ["approvedBy", ""],
     ["approvedBy", "   "],
