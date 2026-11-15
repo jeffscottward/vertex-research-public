@@ -277,6 +277,10 @@ describe("ci-changes.sh", () => {
           "services/control-client/pyproject.toml",
           "services/market-data/pyproject.toml",
           "scripts/coverage-lane.test.ts",
+          "scripts/coverage-lane.tsx",
+          "services/research/knowledgebase/papers.py",
+          "services/control-client/vertex_control_tools/client.py",
+          "services/market-data/vertex_market_data_tools/calendar.py",
         ].join("\n")
       );
       expect(out).toContain("heavy=true");
