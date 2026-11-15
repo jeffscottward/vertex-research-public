@@ -51,14 +51,16 @@ const dailyBars = () =>
     };
   });
 
+// The 30-minute TPO bars stay unrounded (float noise down to a 1e-8 tick), so the TPO view is
+// checked against prices that do not sit on the cent grid (card vertex-tpo-unrounded-prices).
 const halfHourBars = () =>
   Array.from({ length: 13 }, (_, index) => {
-    const mid = cents(100 + Math.sin(index / 2));
+    const mid = 100 + Math.sin(index / 2);
     return {
-      c: cents(mid + 0.1),
-      h: cents(mid + 0.4),
-      l: cents(mid - 0.4),
-      o: cents(mid - 0.1),
+      c: mid + 0.1,
+      h: mid + 0.4,
+      l: mid - 0.4,
+      o: mid - 0.1,
       t: SESSION_OPEN + index * HALF_HOUR,
       v: 500,
     };
