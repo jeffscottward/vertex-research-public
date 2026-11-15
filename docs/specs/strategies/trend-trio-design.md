@@ -497,9 +497,9 @@ Python import root: `services/research` (pytest runs from it, `research/backtest
 
 - **Proposed Changes**: golden cases `supertrend-direction-5m`, `supertrend-line-1m`, `supertrend-two-multiples`, `alphatrend-mfi-15m`, `alphatrend-rsi-5m`, `chandelier-direction-1m`, `chandelier-stops-5m`, `uma-offset-buckets-5m`, `timeline-boundaries` (the timeline table); the regenerated golden diff adds cases only; a test recomputes the revision hash of every `STRATEGY_TEMPLATES` entry and compares it with the value before the change; refusal and refinement tests.
 
-#### 19. `services/research/strategies/trend_trio/dsl.py`, `services/research/tests/test_trend_trio_dsl.py` (Create)
+#### 19. `services/research/strategies/trend_trio/dsl.py` (created in PR 1 as data), a new DSL test file in `services/research/tests/` (Create)
 
-- **Proposed Changes**: the DSL definition above (long and short twins, as dicts); the test runs `nautilus_backtest.signals.plan_run` with `intradayIndicators` support on the synthetic multi-session series of item 10 and asserts the same entry and exit bars as `rules.trades` with variant V1.
+- **Proposed Changes**: the DSL definition above (long and short twins, as dicts, `definition(side, timeframe)`); the test (test_trend_trio_dsl.py) runs `nautilus_backtest.signals.plan_run` with `intradayIndicators` support on the synthetic multi-session series of item 10 and asserts the same entry and exit bars as `rules.trades` with variant V1.
 
 ### Verification Plan
 
