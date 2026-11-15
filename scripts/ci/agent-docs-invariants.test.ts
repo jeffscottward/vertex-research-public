@@ -51,6 +51,8 @@ describe("agent entry points", () => {
       "the owner decided it before the merge",
       "including a code change that changes what one of them allows",
       "does not merge before the owner decides",
+      "Link the owner's decision",
+      "A reviewer treats a missing link as an open finding",
       "Arming trading",
       "live orders",
       "Risk settings",
