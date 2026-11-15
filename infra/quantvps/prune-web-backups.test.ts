@@ -211,6 +211,41 @@ describe("rule (--plan)", { timeout: 30_000 }, () => {
     ]);
   });
 
+  it.each(["l", "f"])(
+    "does not finish a rename while a dist.bak name of type %s exists",
+    (type) => {
+      const lines = plan(
+        [
+          ...pairLines(2),
+          `N ${type} dist.bak-20261120T000000Z`,
+          "N d .wrangler.bak-20261120T000000Z",
+          "N d dist.prune-20261120T000000Z",
+        ],
+        ["--apply"]
+      );
+      expect(of(lines, "finish")).toEqual([]);
+      expect(of(lines, "skip").sort()).toEqual([
+        ".wrangler.bak-20261120T000000Z a renamed name with this timestamp exists; remove one by hand",
+        "dist.bak-20261120T000000Z not a directory",
+      ]);
+      expect(lines).toContain("waiting 0");
+    }
+  );
+
+  it("does not count a renamed folder beside a .wrangler.bak symlink as waiting", () => {
+    const lines = plan(
+      [
+        ...pairLines(12),
+        "N l .wrangler.bak-20261001T000000Z",
+        "N d dist.prune-20261001T000000Z",
+      ],
+      ["--apply"]
+    );
+    expect(of(lines, "finish")).toEqual([]);
+    expect(lines).toContain("waiting 0");
+    expect(of(lines, "delete")).toEqual([stamp(0), stamp(1)]);
+  });
+
   it("blocks a pair whose timestamp already has a renamed folder and goes on with the next pair", () => {
     const lines = plan(
       [...pairLines(13), `N d .wrangler.prune-${stamp(0)}`],
@@ -283,7 +318,16 @@ describe("preview", { timeout: 30_000 }, () => {
     expect(existsSync(join(dir, "state"))).toBe(false);
   });
 
-  it.skipIf(!homedir().startsWith("/home/"))(
+  const homeUsable = (): boolean => {
+    try {
+      accessSync(homedir(), constants.W_OK);
+      return homedir().startsWith("/home/");
+    } catch {
+      return false;
+    }
+  };
+  // The only test with a sandbox outside the temp folder: the mask applies to /home/<user>/.
+  it.skipIf(!homeUsable())(
     "prints a folder under /home without the user name",
     () => {
       sandbox(1, homedir());
@@ -454,7 +498,7 @@ describe("--apply", { timeout: 30_000 }, () => {
     });
     expect(failed.status).toBe(13);
     expect(failed.last).toBe(
-      "PARTIAL: 1 pair(s) renamed, 0 pair(s) deleted, 2 renamed folder(s) left; run --apply again"
+      "PARTIAL: the delete step failed; 1 pair(s) renamed, 0 pair(s) deleted, 2 renamed folder(s) left; run --apply again"
     );
     expect(renamed()).toEqual([
       `.wrangler.prune-${stamp(0)}`,
@@ -486,11 +530,16 @@ describe("--apply", { timeout: 30_000 }, () => {
     expect(pairStamps()).toEqual([stamp(0), ...stamps(2, 10)]);
   });
 
-  it.each(["file", "symlink"])(
-    "blocks a pair whose rename target is a %s and renames nothing of it",
-    (kind) => {
+  it.each([
+    ["dist.prune", "file"],
+    ["dist.prune", "symlink"],
+    [".wrangler.prune", "file"],
+    [".wrangler.prune", "symlink"],
+  ])(
+    "blocks a pair whose rename target %s is a %s and renames nothing of it",
+    (name, kind) => {
       sandbox(13);
-      const target = join(web(), `.wrangler.prune-${stamp(0)}`);
+      const target = join(web(), `${name}-${stamp(0)}`);
       if (kind === "file") {
         writeFileSync(target, "x");
       } else {
@@ -500,7 +549,32 @@ describe("--apply", { timeout: 30_000 }, () => {
         expect(run(["--apply"]).status).toBe(0);
       }
       expect(pairStamps()).toEqual([stamp(0), ...stamps(3, 10)]);
-      expect(renamed()).toEqual([`.wrangler.prune-${stamp(0)}`]);
+      expect(renamed()).toEqual([`${name}-${stamp(0)}`]);
+    }
+  );
+
+  it.each(["file", "symlink"])(
+    "leaves a .wrangler.bak alone when its dist.bak is a %s beside a renamed folder",
+    (kind) => {
+      sandbox(10);
+      const ts = "20261120T000000Z";
+      if (kind === "file") {
+        writeFileSync(join(web(), `dist.bak-${ts}`), "x");
+      } else {
+        symlinkSync("dist", join(web(), `dist.bak-${ts}`));
+      }
+      mkdirSync(join(web(), `.wrangler.bak-${ts}`, "deploy"), {
+        recursive: true,
+      });
+      mkdirSync(join(web(), `dist.prune-${ts}`));
+      const before = names();
+      const result = run(["--apply"]);
+      expect(result.status).toBe(0);
+      expect(result.stdout).not.toContain("finished");
+      expect(names()).toEqual(before);
+      expect(existsSync(join(web(), `.wrangler.bak-${ts}`, "deploy"))).toBe(
+        true
+      );
     }
   );
 
@@ -583,17 +657,59 @@ describe("remote call failures", { timeout: 30_000 }, () => {
 cmd="$1"; name="\${cmd#: }"; name="\${name%%;*}"
 echo "$name" >>"$CALLS"
 [ "$name:$(grep -cx "$name" "$CALLS")" = "$FAIL" ] && exit 255
+[ "$name" = prune-rename ] && [ -n "$BEFORE_RENAME" ] && bash -c "$BEFORE_RENAME"
 exec bash -c "$cmd"
 `;
-  const runWithFailure = (fail: string) => {
+  const runWithFailure = (fail: string, env: Record<string, string> = {}) => {
     writeFileSync(join(dir, "runner.sh"), RUNNER);
     chmodSync(join(dir, "runner.sh"), 0o755);
     return run(["--apply"], {
+      BEFORE_RENAME: "",
       CALLS: join(dir, "calls"),
       FAIL: fail,
       VERTEX_WEB_SSH: join(dir, "runner.sh"),
+      ...env,
     });
   };
+
+  it("plans again on the host, so pairs that a deploy adds before the rename count", () => {
+    sandbox(11);
+    const add = [stamp(11), stamp(12)]
+      .map(
+        (ts) =>
+          `mkdir -p "${web()}/dist.bak-${ts}" "${web()}/.wrangler.bak-${ts}"`
+      )
+      .join(" && ");
+    const result = runWithFailure("none", { BEFORE_RENAME: add });
+    expect(result.status).toBe(0);
+    expect(result.last).toBe("PRUNED: 3 pairs");
+    expect(pairStamps()).toEqual(stamps(3, 10));
+  });
+
+  it("still deletes renamed pairs that wait when a rename fails in every run", () => {
+    sandbox(16);
+    // A stub `mv` that fails for one .wrangler.bak folder: its pair stays half renamed.
+    mkdirSync(join(dir, "bin"));
+    writeFileSync(
+      join(dir, "bin", "mv"),
+      `#!/usr/bin/env bash\ncase "$*" in *.wrangler.bak-${stamp(0)}*) exit 1 ;; esac\nexec /usr/bin/env -u PATH PATH="$REAL_PATH" mv "$@"\n`
+    );
+    chmodSync(join(dir, "bin", "mv"), 0o755);
+    const env = {
+      PATH: `${join(dir, "bin")}:${process.env["PATH"] ?? ""}`,
+      REAL_PATH: process.env["PATH"] ?? "",
+    };
+    for (const _ of [1, 2, 3, 4]) {
+      const result = run(["--apply"], env);
+      expect(result.status).toBe(13);
+      expect(result.last).toContain("PARTIAL: a rename step failed");
+    }
+    // The half-renamed pair stays; the pairs after it were renamed and deleted in later runs.
+    expect(names()).toContain(`dist.prune-${stamp(0)}`);
+    expect(names()).toContain(`.wrangler.bak-${stamp(0)}`);
+    expect(renamed()).toEqual([`dist.prune-${stamp(0)}`]);
+    expect(pairStamps()).toEqual(stamps(6, 10));
+  });
 
   it("stops with exit 3 and takes no lock when the first listing fails", () => {
     sandbox(11);

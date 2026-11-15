@@ -85,9 +85,9 @@ $1 != "N" { next }
 NF != 3 || $0 != "N " $2 " " $3 || $3 !~ /^[A-Za-z0-9._-]+$/ { strange++; next }
 {
   type = $2; name = $3
-  # taken, takenw and wany hold a timestamp for a name of any type; dist, wr, pd and gone only
-  # for a directory.
-  if (name ~ /^dist\.bak-/) { t = substr(name, 10); if (note(name, type, t)) dist[t] = 1 }
+  # dany, wany, taken and takenw hold a timestamp for a name of any type; dist, wr, pd and gone
+  # only for a directory.
+  if (name ~ /^dist\.bak-/) { t = substr(name, 10); if (strict(t)) dany[t] = 1; if (note(name, type, t)) dist[t] = 1 }
   else if (name ~ /^\.wrangler\.bak-/) { t = substr(name, 15); if (strict(t)) wany[t] = 1; if (note(name, type, t)) wr[t] = 1 }
   else if (name ~ /^dist\.prune-/) { t = substr(name, 12); if (strict(t)) taken[t] = 1; if (note(name, type, t)) { pd[t] = 1; left[name] = 1; gone[t] = 1 } }
   else if (name ~ /^\.wrangler\.prune-/) { t = substr(name, 17); if (strict(t)) { taken[t] = 1; takenw[t] = 1 }; if (note(name, type, t)) { left[name] = 1; gone[t] = 1 } }
@@ -102,7 +102,7 @@ END {
   waiting = 0
   for (t in wr) {
     if (t in dist) continue
-    if ((t in pd) && !(t in takenw)) { fin[t] = 1; waiting++ }
+    if ((t in pd) && !(t in takenw) && !(t in dany)) { fin[t] = 1; waiting++ }
     else if (t in taken) odd[".wrangler.bak-" t] = "a renamed name with this timestamp exists; remove one by hand"
     else odd[".wrangler.bak-" t] = "no dist.bak pair"
   }
@@ -202,8 +202,8 @@ for d in dist.failed-* .wrangler.failed-* dist.undeployed-* .wrangler.undeployed
 
 # Runs while the rig holds the restart lock. It lists and plans again on the host, so the renames
 # never come from an earlier listing. Before the first rename it checks that every kept pair is on
-# disk. A rename stops when a target name exists, and the loop stops after 30 s, before the
-# local 60 s timeout releases the lock.
+# disk. A rename stops when a target name exists. The loop starts no rename later than 15 s after
+# the command started on the host; the rig releases the lock 60 s after it started ssh.
 RENAME=": prune-rename; $GUARD; start=\$(date +%s);
 plan=\$($NAMES | awk -v keep=$KEEP -v limit=$LIMIT -v mode=apply '$PLAN_AWK') || exit 3;
 case \"\$plan\" in *plan-ok) ;; *) echo \"\$plan\"; exit 3 ;; esac;
@@ -219,12 +219,13 @@ log=\"\${XDG_STATE_HOME:-\$HOME/.local/state}/vertex-web-prune.log\"; mkdir -p \
 while read -r kind t rest; do
   case \"\$kind\" in delete|finish) ;; *) continue ;; esac;
   case \"\$t\" in $TS_GLOB) ;; *) rc=1; break ;; esac;
-  [ \$(( \$(date +%s) - start )) -le 30 ] || { rc=1; break; };
+  [ \$(( \$(date +%s) - start )) -le 15 ] || { rc=1; break; };
   sha=;
   if [ \"\$kind\" = delete ]; then d=\"dist.bak-\$t\";
     [ -d \"\$d\" ] && [ ! -L \"\$d\" ] && [ -d \".wrangler.bak-\$t\" ] && [ ! -L \".wrangler.bak-\$t\" ] || { rc=1; break; };
     [ ! -e \"dist.prune-\$t\" ] && [ ! -L \"dist.prune-\$t\" ] && [ ! -e \".wrangler.prune-\$t\" ] && [ ! -L \".wrangler.prune-\$t\" ] || { rc=1; break; };
     sha=\$($SHA_OF); mv -T -- \"\$d\" \"dist.prune-\$t\" || { rc=1; break; }; fi;
+  if [ \"\$kind\" = finish ]; then [ ! -e \"dist.bak-\$t\" ] && [ ! -L \"dist.bak-\$t\" ] || { rc=1; break; }; fi;
   [ ! -e \".wrangler.prune-\$t\" ] && [ ! -L \".wrangler.prune-\$t\" ] && mv -T -- \".wrangler.bak-\$t\" \".wrangler.prune-\$t\" || { rc=1; break; };
   if [ \"\$kind\" = delete ]; then n=\$((n + 1)); echo \"renamed \$t \${sha:-none}\"; else echo \"finished \$t\"; fi;
   echo \"\$(date -u +%Y-%m-%dT%H:%M:%SZ) \$kind \$t \${sha:-none}\" >>\"\$log\" 2>/dev/null;
@@ -344,6 +345,7 @@ if [ "$N_DELETE" -eq 0 ] && [ "$N_LEFT" -eq 0 ]; then
 fi
 
 RENAMED=0
+rename_ok=1
 if [ "$N_DELETE" -gt 0 ] || [ "$N_FINISH" -gt 0 ]; then
   # Only flock's "lock held" answer (exit 1) is exit 8. A lock file that cannot be opened or any
   # other flock failure is exit 11. Same lock path as restart-when-idle.sh.
@@ -376,14 +378,20 @@ if [ "$N_DELETE" -gt 0 ] || [ "$N_FINISH" -gt 0 ]; then
   fi
   if [ $rename_rc -ne 0 ] || [ "$(tail -n 1 <<<"$RENAME_OUT")" != "@@END 0" ]; then
     grep -v '^renamed \|^finished \|^@@' <<<"$RENAME_OUT" >&2
-    echo "PARTIAL: the rename step did not complete (exit $rename_rc, $RENAMED pair(s) renamed); run --apply again"
-    exit 13
+    if [ "$(tail -n 1 <<<"$RENAME_OUT")" != "@@END 1" ]; then
+      # No answer or a cut answer: the state on the host is unknown. Stop here.
+      echo "PARTIAL: the rename step did not complete (exit $rename_rc, $RENAMED pair(s) renamed); run --apply again"
+      exit 13
+    fi
+    # The rename command ended and reported a failed step. Renamed pairs that wait are still
+    # deleted below, so a rename that fails in every run does not stop the deletes.
+    rename_ok=0
   fi
 fi
 
 DELETED=0
 delete_ok=1
-if [ "$RENAMED" -gt 0 ] || [ "$N_LEFT" -gt 0 ]; then
+if [ "$RENAMED" -gt 0 ] || [ "$N_LEFT" -gt 0 ] || [ "$rename_ok" = 0 ]; then
   DELETE_OUT="$(remote "$DELETE" 600 2>&1)"
   delete_rc=$?
   DELETED=$(grep -c '^deleted ' <<<"$DELETE_OUT" || true)
@@ -401,8 +409,10 @@ PAIRS_AFTER=$(( $(count keep) + $(count delete) + $(count blocked) ))
 OVER_AFTER="$(sed -n 's/^over //p' <<<"$PLAN")"
 LEFT_AFTER=$(( $(count leftover) + $(count finish) ))
 echo "summary mode=apply pairs_before=$PAIRS_BEFORE renamed=$RENAMED deleted=$DELETED pairs_after=$PAIRS_AFTER over_after=$OVER_AFTER leftover_folders=$LEFT_AFTER used_before_mib=$(( (USED_BEFORE + 512) / 1024 )) used_after_mib=$(( (DF_USED + 512) / 1024 ))"
-if [ "$delete_ok" = 0 ]; then
-  echo "PARTIAL: $RENAMED pair(s) renamed, $DELETED pair(s) deleted, $LEFT_AFTER renamed folder(s) left; run --apply again"
+if [ "$delete_ok" = 0 ] || [ "$rename_ok" = 0 ]; then
+  what="the delete step"
+  [ "$rename_ok" = 0 ] && what="a rename step"
+  echo "PARTIAL: $what failed; $RENAMED pair(s) renamed, $DELETED pair(s) deleted, $LEFT_AFTER renamed folder(s) left; run --apply again"
   exit 13
 fi
 finish_line "$DELETED" "$OVER_AFTER" "$(count blocked)" "$(sed -n 's/^waiting //p' <<<"$PLAN")"
