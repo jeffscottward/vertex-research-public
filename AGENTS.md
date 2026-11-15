@@ -223,15 +223,20 @@ Owner decision, 2026-11-11: the agents that work here own the quality of this co
 
 ## Code review practice
 
-This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15), with one change: the owner does not review code (owner decision, 2026-11-10, [message](https://discord.com/channels/1511468532876185770/1569796763714457652/1569827457996029986)), and no other person reviews code here. Agents do the reading, and the agent that opens a PR owns its outcome: tests, review findings, CI, merge and follow-up.
+This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15), with one change: only agents review code here. The owner does not read code (owner decision, 2026-11-10, [message](https://discord.com/channels/1511468532876185770/1569796763714457652/1569827457996029986)). The agent that opens a PR owns its outcome: tests, review findings, CI, merge and follow-up.
 
 - Verify before review: run the tests, build or browser check, and put the command and its output (or a screenshot) in the PR.
 - Before opening a PR, have a fresh-context reviewer (subagent or `/code-review`) read the diff. Fix each finding or answer it with a reason.
 - When the same finding appears twice, fix it at the source: a lint rule, a test, or a line in this file.
 - Cap review rounds at three, then reconsider the approach. After two rounds, review only the new diff. Flag the whole class of a bug once, so the author fixes every instance. This cap does not narrow the exact-head merge review or any full-scope review this file requires (security bootstrap, order or risk paths), and it never waives a required check or finding.
-- What the change touches, not who wrote it, decides how much review it needs. A change to an order, execution, arming, risk, auth, CI or deploy path merges only when all of these are true: the required checks passed on the exact head commit, a fresh-context agent reviewed the full diff at that head (not only the newest review round), and no review finding is open.
-- No merge waits for a person to read code, and a job never asks the owner to review code or a diff. Ask the owner only for a decision that only the owner can make, as one plain-English question about the effect (what changes for trading, money, risk, security or access), without implementation details.
-- These stay owner decisions whatever the review result, and an agent review never authorizes one of them: arming trading; placing or changing live orders; risk settings (sizes, caps, gates, kill switches), including a code change that changes what one of them allows; starting, stopping or reconfiguring live trading units; trading-engine deploys; money movement; security and access changes. Approvals that branch protection or rulesets require still apply ("Lifecycle gates").
+- What the change touches, not who wrote it, decides how much review it needs. A change to an order, execution, arming, risk, auth, CI or deploy path merges only when all of these are true:
+  - The required checks passed on the exact head commit.
+  - A fresh-context agent reviewed the full diff at that head, not only the newest review round.
+  - No review finding is open.
+  - If the change alters what an owner setting in the list below allows, the owner decided it.
+- No merge waits for a person to read code. A job never asks the owner to review code or a diff. Ask the owner only for a decision that only the owner can make. Ask it as one plain-English question about the effect (what changes for trading, money, risk, security or access), without implementation details.
+- The owner decides these, whatever the review result: arming trading; placing or changing live orders; risk settings (sizes, caps, gates, kill switches), including a code change that changes what one of them allows; starting, stopping or reconfiguring live trading units; trading-engine deploys; money movement; security and access changes. An agent review never authorizes one of them. A PR that changes one of them does not merge before the owner decides.
+- Approvals that branch protection or rulesets require still apply ("Lifecycle gates").
 - Keep changes small, and state in the PR how to test and how to revert them.
 
 ## Deeper docs

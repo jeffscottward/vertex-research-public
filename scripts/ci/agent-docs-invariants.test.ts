@@ -35,11 +35,16 @@ describe("agent entry points", () => {
   // CI and a fresh-context agent review; trading safety gates stay owner calls.
   it("never makes a person's code review a merge gate", async () => {
     const agents = await readFile(at("AGENTS.md"), "utf8");
-    expect(agents).not.toMatch(/person's review|a person reviews it/u);
+    expect(agents).not.toMatch(
+      /person's review|a person reviews it|person owns the outcome/u
+    );
+    expect(agents).not.toMatch(/\b(?:person|human)\b[^.\n]*\breview/iu);
     const section = /## Code review practice\n([\s\S]*?)\n## /u.exec(
       agents
     )?.[1];
+    expect(section, "Code review practice section").toBeDefined();
     expect(section).toContain("No merge waits for a person to read code");
+    expect(section).toContain("does not merge before the owner decides");
     for (const gate of ["arming trading", "live orders", "kill switches"]) {
       expect(section, gate).toContain(gate);
     }
