@@ -631,7 +631,7 @@ describe("OrderFlowPanel edge states", () => {
     );
     expect(viewText(container)).toContain("not reported by feed");
     expect(viewText(container)).toContain("no special conditions");
-    expect(viewText(container)).toContain("no quote within 5 s");
+    expect(viewText(container)).toContain("no quote in prior 5 s");
     await click(tab(container, "footprint"));
     expect(viewText(container)).toContain("derived from the prints");
     const cells = [...container.querySelectorAll<HTMLElement>("td[style]")];

@@ -48,7 +48,7 @@ import type { TpoProfile, TpoSession } from "../../features/order-flow/tpo.ts";
 // Missing values name their cause; a dash would read as zero or "nothing happened".
 const NOT_REPORTED_BY_FEED = "not reported by feed";
 // Trade signing drops a quote older than 5 s before the print (flow-trade-signing.ts).
-const NO_RECENT_QUOTE = "no quote within 5 s";
+const NO_RECENT_QUOTE = "no quote in prior 5 s";
 const headCell = "py-1 pr-3 font-normal text-muted-foreground";
 const numHead = `${headCell} text-right`;
 const numCell = "py-1 pr-3 text-right font-mono tabular-nums";
