@@ -3648,6 +3648,26 @@ describe("pinned Graphify toolchain", () => {
     return expect(await exists(recent)).toBe(false);
   });
 
+  it("provisions when the cache directory cannot be listed", async () => {
+    const state = await toolchainFixture();
+    const old = join(state.cacheRoot, ".provision-1-interrupted");
+    await mkdir(old, { recursive: true });
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
+    await utimes(old, twoDaysAgo, twoDaysAgo);
+    mocks.fileSystem.readdir.mockRejectedValueOnce(
+      Object.assign(new Error("cache listing denied"), { code: "EACCES" })
+    );
+
+    const python = await state.toolchain.provision(KEEP_EXISTING);
+    await expect(state.toolchain.pinnedPython()).resolves.toBe(python);
+    // The sweep is skipped as a whole: the old leftover waits for a later run.
+    expect(await stagingEntries(state.cacheRoot)).toEqual([
+      ".provision-1-interrupted",
+    ]);
+    await state.toolchain.provision(KEEP_EXISTING);
+    return expect(await stagingEntries(state.cacheRoot)).toEqual([]);
+  });
+
   it("reports uv failures and leaves no staging venv behind", async () => {
     const state = await toolchainFixture();
     state.failures.push({
