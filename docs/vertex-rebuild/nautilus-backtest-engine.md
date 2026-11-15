@@ -26,7 +26,7 @@ cd services/research && python -m nautilus_backtest run request.json
 # error) or "crash" (an unexpected Python exception of that case: "<class name>: <message>").
 # Exit 0: complete document, no crash. Exit 4: complete document, at least one crash (the other cases
 # keep their results; stderr has the traceback and a line `case <id> crashed: ...`). Exit 3: no
-# nautilus-trader. Exit 1: no document. The module docstring of nautilus_backtest/__main__.py has the table.
+# nautilus-trader. Exit 1, a signal or none: no document. The module docstring of nautilus_backtest/__main__.py has the table.
 cd services/research && python -m nautilus_backtest batch in.json out.json
 
 # Parity suite (needs the Core 7 data from research/backtests/core7/fetch_data.py and a venv with the Nautilus lock).

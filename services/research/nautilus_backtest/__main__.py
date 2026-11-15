@@ -38,7 +38,9 @@ Exit status of `batch`:
   3   nautilus-trader is missing; no document
   1   any other fault ends the batch without a document: the bars or the case list cannot be read
       (`cases` must be a list of objects with a string id), ImportError, MemoryError, an exception
-      that is not an Exception (KeyboardInterrupt, SystemExit, a Rust panic of the engine)
+      that is not an Exception (KeyboardInterrupt, a Rust panic of the engine, a case that calls
+      exit())
+  a signal, or none: the process was killed, aborted natively or timed out; no document
 
 A reader takes status 0 or 4 as a complete document and decides each case by its key (`crash` before
 `result`); every other status is a process failure.
@@ -136,7 +138,7 @@ def _crash_text(error: BaseException) -> str:
     """`<type>: <message>` on one line, at most CRASH_TEXT_MAX characters; the type alone without a message."""
     try:
         message = " ".join(str(error).split())
-    except Exception:
+    except Exception:  # noqa: BLE001 - an unreadable message is left out
         message = ""
     name = type(error).__name__
     return (f"{name}: {message}" if message else name)[:CRASH_TEXT_MAX]
@@ -162,7 +164,7 @@ def _batch_case(bars: Bars, case: dict, rows: dict | None = None, crashes: int =
         outcome = {"error": str(error)}
     except _BATCH_FAULTS:
         raise
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - the case guard records every Exception
         outcome = {"crash": _crash_text(error)}
         _report_crash(case["id"], outcome["crash"], crashes)
     return {"id": case["id"], "wallMs": (time.perf_counter() - started) * 1000, **outcome}
@@ -175,7 +177,7 @@ def _entry_text(entry: dict, crashes: int) -> tuple[str, bool]:
         return _dump(entry), "crash" in entry
     except MemoryError:
         raise
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - the case guard records every Exception
         text = _crash_text(error)
         _report_crash(entry["id"], text, crashes)
         return _dump({"id": entry["id"], "wallMs": entry["wallMs"], "crash": text}), True
@@ -246,6 +248,10 @@ def main(argv: list[str]) -> int:
         except NautilusUnavailable as error:
             print(str(error), file=sys.stderr)
             return 3
+        except SystemExit as error:
+            # A case that calls exit() must not end with a batch status (0 or 4) but no document.
+            print(f"a case called exit({error.code!r}); no document", file=sys.stderr)
+            return 1
         if argv[2] == "-":
             print(text)
             return status

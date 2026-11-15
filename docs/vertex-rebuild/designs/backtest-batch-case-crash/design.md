@@ -46,7 +46,7 @@ No incident is known: the worker journal since 2026-11-05 holds 61 cycles with r
 
 ## Non-Goals
 
-- NG1. Faults that the per-case guard does not catch: a native abort in the engine core, a process that the system kills, the 9-minute timeout of the worker, and every `BaseException` that is not an `Exception` (`KeyboardInterrupt`, `SystemExit`, a Rust panic of the engine). They end the process as today (row "Process failure" below).
+- NG1. Faults that the per-case guard does not catch: a native abort in the engine core, a process that the system kills, the 9-minute timeout of the worker, and every `BaseException` that is not an `Exception` (`KeyboardInterrupt`, `SystemExit`, a Rust panic of the engine). They end the process as today (row "Process failure" below). One exception: a case that calls `exit()` (`SystemExit`) ends the batch with status 1 and a stderr line, so that its own exit code (for example 4) never looks like a batch status.
 - NG2. The `run` and `academy` commands. They run one case and lose no other result.
 - NG3. A change to the API contract, the stored run format or the portal.
 - NG4. The options route, which turns every `ValueError` and `RuntimeError` of the options runner into an input error (`_run_case`). Card `vertex-options-route-crash-as-input-error` covers it.
@@ -109,7 +109,7 @@ The exit status belongs to the whole batch:
 |0|Complete document; no entry is a crash.|
 |4|Complete document; at least one entry is a crash.|
 |3|`NautilusUnavailable`; no document.|
-|1|Any other environment fault, batch input fault or uncaught exception; no document.|
+|1|Any other environment fault, batch input fault, uncaught exception or a case that calls `exit()`; no document.|
 |a signal, or none|The process was killed or timed out; no document.|
 
 The environment faults end the batch so that a broken setup fails loudly instead of failing every case one by one. `ImportError` is in this class although the imports in `_run_case` are lazy per case kind (options, Academy, and dsl cases that read series): in a mixed batch a missing module still ends the batch. `MemoryError` ends the batch because the next cases would run in a process that is short of memory.
@@ -277,7 +277,8 @@ Not changed: `packages/api/**`, `docs/vertex-rebuild/backtest-runs.md`, and the 
    - the good results next to a crash equal a clean batch (apart from `wallMs`);
    - the 4 case-input faults (spec missing, spec a list, rule a string, slice a number) are crashes;
    - a NaN result is a crash;
-   - `ImportError`, `ModuleNotFoundError`, `MemoryError`, `KeyboardInterrupt` and `SystemExit` end the batch with no document;
+   - `ImportError`, `ModuleNotFoundError`, `MemoryError` and `KeyboardInterrupt` end the batch with no document;
+   - a case that calls `exit(0)`, `exit(4)` or `exit(9)` ends the batch with status 1, no document and one stderr line;
    - `NautilusUnavailable` gives exit 3 and no document;
    - an input error stays `error`, exit 0, empty stderr;
    - a clean batch is one serialization of the whole document (time values fixed);
@@ -287,7 +288,7 @@ Not changed: `packages/api/**`, `docs/vertex-rebuild/backtest-runs.md`, and the 
    - a malformed case list raises before the first case runs.
 
    Tests with `@needs_nautilus` (Nautilus CI run): each of the 4 case-input faults in a subprocess batch keeps both good results equal to a clean batch; a fault inside `on_bar` of the middle case (engine `math.isnan` replaced) keeps the next case and a later clean batch equal to a clean batch.
-2. Change: add `import traceback` and the constants `CRASH_STATUS = 4`, `CRASH_TEXT_MAX = 300`, `FULL_TRACEBACKS = 3`, `_BATCH_FAULTS = (NautilusUnavailable, ImportError, MemoryError)`. New helpers: `_crash_text(error) -> str`, `_report_crash(case_id, text, crashes)`, `_entry_text(entry, crashes) -> tuple[str, bool]` (serialization guard; it raises `MemoryError` again, any other exception is a crash), `_cases(request) -> list` (raises `ValueError("cases must be a list of objects with a string id")`), `_run_batch(request, started) -> tuple[str, int]` (joins the entries; status 4 when any entry crashed). `_batch_case` gets the parameter `crashes: int = 0`, catches `Exception` after the re-raise of `_BATCH_FAULTS` and keeps its `dict` return. `main` returns the status after the write. The docstring gets the outcome and exit-status table (G7).
+2. Change: add `import traceback` and the constants `CRASH_STATUS = 4`, `CRASH_TEXT_MAX = 300`, `FULL_TRACEBACKS = 3`, `_BATCH_FAULTS = (NautilusUnavailable, ImportError, MemoryError)`. New helpers: `_crash_text(error) -> str`, `_report_crash(case_id, text, crashes)`, `_entry_text(entry, crashes) -> tuple[str, bool]` (serialization guard; it raises `MemoryError` again, any other exception is a crash), `_cases(request) -> list` (raises `ValueError("cases must be a list of objects with a string id")`), `_run_batch(request, started) -> tuple[str, int]` (joins the entries; status 4 when any entry crashed). `_batch_case` gets the parameter `crashes: int = 0`, catches `Exception` after the re-raise of `_BATCH_FAULTS` and keeps its `dict` return. `main` returns the status after the write, and status 1 when a case calls `exit()`. The docstring gets the outcome and exit-status table (G7).
 3. List the test file in `ci-suites.txt` (`scripts/ci/research-python.sh` stops when a test file is missing there) and in `ci-suites-nautilus.txt` (not checked; update by hand).
 
 ### Step 2: Worker

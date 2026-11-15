@@ -139,11 +139,18 @@ def test_a_result_that_json_cannot_hold_is_a_crash(tmp_path, capsys, fake_cases)
 
 
 @pytest.mark.parametrize("fault", [ImportError("no module"), ModuleNotFoundError("no module named x"),
-                                   MemoryError(), KeyboardInterrupt(), SystemExit(9)])
+                                   MemoryError(), KeyboardInterrupt()])
 def test_environment_and_process_faults_still_end_the_batch(tmp_path, fake_cases, fault):
     with pytest.raises(type(fault)):
         _batch(tmp_path, [_good("a"), _raising("b", fault)])
     assert not (tmp_path / "out.json").exists()
+
+
+@pytest.mark.parametrize("code", [0, 4, 9])
+def test_a_case_that_calls_exit_ends_the_batch_with_status_1(tmp_path, capsys, fake_cases, code):
+    assert _batch(tmp_path, [_good("a"), _raising("b", SystemExit(code))]) == 1
+    assert not (tmp_path / "out.json").exists()
+    assert capsys.readouterr().err.strip() == f"a case called exit({code}); no document"
 
 
 def test_nautilus_unavailable_still_exits_3_without_output(tmp_path, capsys, fake_cases):
