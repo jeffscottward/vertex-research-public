@@ -214,7 +214,12 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     set: "main",
   },
   {
-    forbidden: [...PAPER, /sector momentum[^.]*\balert\b/i],
+    // Wrong: Sector Momentum named as in alert. An "alert" that is negated right before it ("not alert",
+    // "not in alert", "not at alert") does not count: "is at warn, not alert" states the reference.
+    forbidden: [
+      ...PAPER,
+      /sector momentum[^.]*?(?<!\bnot (?:in |at )?)\balert\b/i,
+    ],
     id: "Q20",
     kind: "research",
     question: "Which drift monitors are in alert?",
