@@ -152,10 +152,19 @@ export const upSinceText = (
     : `stopped ${formatUtc(service.finishedAt)}`;
 };
 
+// The status collector reads logs only for these services (collect.py service_item).
+const LOGGED_SERVICES: ReadonlySet<string> = new Set([
+  "nautilus-trader",
+  "ib-gateway",
+]);
+
 // Why no log was read: the container is gone, stopped, or its log was not returned.
 const noLogText = (service: DeployServiceStatusOutput): string => {
   if (!service.present) return "no log read: container missing";
+  if (service.startedAt === null) return "no log read: container never started";
   if (!service.running) return "no log read: container stopped";
+  if (!LOGGED_SERVICES.has(service.service))
+    return "no log read: logs not collected for this service";
   return "no log read: not returned";
 };
 
@@ -288,7 +297,10 @@ const ServicesTable = ({
                   {stateText(service)}
                 </TableCell>
                 <TableCell className={`${cell} font-mono`}>
-                  {service.health ?? "no health reported"}
+                  {service.health ??
+                    (service.present
+                      ? "no healthcheck configured"
+                      : "container missing")}
                 </TableCell>
                 <TableCell className={`${cell} font-mono text-xs`}>
                   {upSinceText(service, current)}
@@ -300,7 +312,10 @@ const ServicesTable = ({
                 <TableCell className={`${cell} font-mono text-xs`}>
                   {service.log === null
                     ? noLogText(service)
-                    : formatUtc(service.log.lastLineAt, "no log line yet")}
+                    : formatUtc(
+                        service.log.lastLineAt,
+                        "no timestamped log line returned"
+                      )}
                 </TableCell>
                 <TableCell className={`${cell} text-right font-mono`}>
                   {service.log === null

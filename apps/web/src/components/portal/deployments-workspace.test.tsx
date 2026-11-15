@@ -193,6 +193,13 @@ describe("DeploymentsWorkspace", () => {
       }),
       service({ service: "idle", running: false, status: "exited" }),
       service({ service: "nolog" }),
+      service({ service: "ib-gateway" }),
+      service({
+        service: "fresh",
+        status: "created",
+        running: false,
+        startedAt: null,
+      }),
     ];
     window.history.replaceState(null, "", "/deployments?tab=services");
     const container = await mount(
@@ -208,7 +215,7 @@ describe("DeploymentsWorkspace", () => {
     expect(cells("gone")).toEqual([
       "goneredis:7",
       "missing",
-      "no health reported",
+      "container missing",
       "container missing",
       "container missing",
       "no log read: container missing",
@@ -217,9 +224,17 @@ describe("DeploymentsWorkspace", () => {
     const quiet = cells("quiet");
     expect(quiet[1]).toBe("status not reported");
     expect(quiet[4]).toBe("not reported");
-    expect(quiet[5]).toBe("no log line yet");
+    expect(quiet[2]).toBe("no healthcheck configured");
+    expect(quiet[5]).toBe("no timestamped log line returned");
+    expect(cells("fresh")[5]).toBe("no log read: container never started");
+    expect(cells("ib-gateway")[5]).toBe("no log read: not returned");
     expect(cells("idle")[5]).toBe("no log read: container stopped");
-    return expect(cells("nolog")[5]).toBe("no log read: not returned");
+    expect(cells("nolog")[5]).toBe(
+      "no log read: logs not collected for this service"
+    );
+    return expect(
+      container.querySelector("[data-deployment-alert='quiet']")
+    ).toBeNull();
   });
 
   it("renders the table, alert row and log counts without any service action controls", async () => {
