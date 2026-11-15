@@ -194,6 +194,22 @@ describe("oscillators", () => {
     expect(ta("ta.mom(close, 2)")[4]).toBe(1);
     expect(ta("ta.roc(close, 2)")[4]).toBe(r4(100 / 12));
   });
+
+  it("ta.mfi sums volume x source over rising and falling bars", () => {
+    const [b2, b3] = [SMALL_BARS[2], SMALL_BARS[3]];
+    const up = (b2?.volume ?? 0) * (b2?.close ?? 0);
+    const down = (b3?.volume ?? 0) * (b3?.close ?? 0);
+    expect(ta("ta.mfi(close, 2)")[3]).toBe(r4(100 - 100 / (1 + up / down)));
+    expect(ta("ta.mfi(10 + bar_index, 2)").slice(0, 3)).toEqual([
+      null,
+      null,
+      100,
+    ]);
+    expect(ta("ta.mfi(-bar_index, 2)")[2]).toBe(0);
+    // No flow either way, or no source: na (as the Python study).
+    expect(ta("ta.mfi(1, 2)").every((v) => v === null)).toBe(true);
+    expect(ta("ta.mfi(na, 2)").every((v) => v === null)).toBe(true);
+  });
 });
 
 describe("volatility", () => {
