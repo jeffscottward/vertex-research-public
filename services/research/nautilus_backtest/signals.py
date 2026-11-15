@@ -18,12 +18,15 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from indicators.trend import alphatrend, chandelier_exit, supertrend
+
 from .bars import (
     Bars,
     InputError,
     SectorQuadrantDataError,
     SeriesDataError,
     StrategyUnsupportedError,
+    _js_number,
     assert_columns,
     assert_params,
     assert_signal_options,
@@ -31,6 +34,7 @@ from .bars import (
     calendar_intraday_unsupported,
     intraday_daily_unsupported,
     intraday_grid_misaligned,
+    intraday_indicators_unsupported,
     is_finite_number,
     options_timeframe_unsupported,
     options_unsupported,
@@ -56,8 +60,26 @@ INDICATORS = (
 OPERATORS = (">", ">=", "<", "<=", "crossesAbove", "crossesBelow", "breaksAbove", "breaksBelow")
 # Operators that oncePerLevel may limit (strategy-dsl.ts STRATEGY_EVENT_OPERATORS).
 EVENT_OPERATORS = ("crossesAbove", "crossesBelow", "breaksAbove", "breaksBelow")
-# Indicator timeframes (STRATEGY_INDICATOR_TIMEFRAMES); a session day starts at 17:00 New York.
-INDICATOR_TIMEFRAMES = ("1d",)
+# Indicator timeframes (STRATEGY_INDICATOR_TIMEFRAMES). "1d": daily bars (a session day starts at 17:00
+# New York). "5m" and "15m" need an intraday block: buckets of its regular-session bars keyed by
+# floor(bar time / bucket length) in UTC ms; a signal bar closing at T reads the newest bucket ending at or
+# before T (the completed-bar rule of strategies/trend_trio/rules.py buckets). Their offset counts buckets.
+INDICATOR_TIMEFRAMES = ("1d", "5m", "15m")
+# Timeframes that need an intraday block, with their bucket length in minutes.
+INTRADAY_INDICATOR_MINUTES = {"5m": 5, "15m": 15}
+INTRADAY_TIMEFRAME_MESSAGE = "5m and 15m indicator timeframes need an intraday block"
+# Trend indicators (STRATEGY_TREND_INDICATORS; kernels in indicators.trend, direction +1 up / -1 down).
+# Every field is required except offset and timeframe (no defaults).
+TREND_INDICATORS = ("supertrend", "alphaTrend", "chandelierExit")
+TREND_MAX_LENGTH = 500
+TREND_MULTIPLE_MIN = 0.1
+TREND_MULTIPLE_MAX = 20
+TREND_OUTPUTS = {
+    "supertrend": ("line", "direction"),
+    "alphaTrend": ("line", "direction"),
+    "chandelierExit": ("longStop", "shortStop", "direction"),
+}
+TREND_MOMENTUM = ("mfi", "rsi")
 # Session indicators (STRATEGY_SESSION_INDICATORS): they need an intraday block.
 SESSION_INDICATORS = ("vwap", "sessionReturn", "noiseBand")
 NOISE_BANDS = ("upper", "lower")
@@ -629,6 +651,12 @@ _SESSION_EXPR_KEYS = {
     "sessionReturn": frozenset({"type", "name", "from", "to"}),
     "noiseBand": frozenset({"type", "name", "band", "length", "multiple"}),
 }
+# Trend indicators (TS SuperTrendExprSchema, AlphaTrendExprSchema, ChandelierExitExprSchema, all strict).
+_TREND_EXPR_KEYS = {
+    "supertrend": frozenset({"type", "name", "length", "multiple", "output", "offset", "timeframe"}),
+    "alphaTrend": frozenset({"type", "name", "length", "multiple", "momentum", "output", "offset", "timeframe"}),
+    "chandelierExit": frozenset({"type", "name", "length", "multiple", "output", "offset", "timeframe"}),
+}
 _INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery", "exitEvery"})
 _LEG_KEYS = frozenset({"entry", "exit", "filters", "options"})
 
@@ -733,12 +761,58 @@ def _normalize_session_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _is_trend_indicator(expr: Mapping[str, Any]) -> bool:
+    """TS isTrendIndicator: supertrend, alphaTrend and chandelierExit."""
+    return expr.get("type") == "indicator" and expr.get("name") in TREND_INDICATORS
+
+
+def _is_intraday_timeframe_indicator(expr: Mapping[str, Any]) -> bool:
+    """TS isIntradayTimeframeIndicator: an indicator on a 5m or 15m timeframe (it needs an intraday block)."""
+    return expr.get("type") == "indicator" and expr.get("timeframe") in INTRADAY_INDICATOR_MINUTES
+
+
+def _normalize_trend_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
+    """supertrend, alphaTrend and chandelierExit (TS schemas: length an integer from 1 to 500, multiple from
+    0.1 to 20, output and momentum enums, optional offset and timeframe; no defaults except offset 0)."""
+    name = expr["name"]
+    _strict(expr, _TREND_EXPR_KEYS[name], f"{name} expression")
+    length = _whole(expr.get("length"), f"{name} length", 1, TREND_MAX_LENGTH)
+    multiple = expr.get("multiple")
+    if not (is_finite_number(multiple) and TREND_MULTIPLE_MIN <= multiple <= TREND_MULTIPLE_MAX):
+        raise InputError(f"{name} multiple must be from {TREND_MULTIPLE_MIN} to {TREND_MULTIPLE_MAX}")
+    output = expr.get("output")
+    if output not in TREND_OUTPUTS[name]:
+        raise InputError(f"Unknown {name} output: {output}")
+    normalized: dict[str, Any] = {
+        "type": "indicator",
+        "name": name,
+        "length": length,
+        "multiple": float(multiple),
+        "output": output,
+    }
+    if name == "alphaTrend":
+        momentum = expr.get("momentum")
+        if momentum not in TREND_MOMENTUM:
+            raise InputError(f"Unknown alphaTrend momentum: {momentum}")
+        normalized["momentum"] = momentum
+    normalized["offset"] = _offset(expr)
+    timeframe = expr.get("timeframe")
+    if timeframe is not None and timeframe not in INDICATOR_TIMEFRAMES:
+        raise InputError(f"Unknown indicator timeframe: {timeframe}")
+    if timeframe is not None:
+        normalized["timeframe"] = timeframe
+    return normalized
+
+
+
 def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     """StrategyExprSchema defaults of one expression tree (idempotent); offsets default to 0."""
     _check_raw_expr_depth(expr)
     kind = expr.get("type")
     if _is_session_indicator(expr):
         return _normalize_session_expr(expr)
+    if _is_trend_indicator(expr):
+        return _normalize_trend_expr(expr)
     if kind in _EXPR_KEYS:
         _strict(expr, _EXPR_KEYS[kind], f"{kind} expression")
     if kind == "price":
@@ -904,8 +978,9 @@ def _close_only(expr: Mapping[str, Any]) -> bool:
         return True
     if expr["type"] == "price":
         return expr["field"] == "close"
-    # Session indicators read a regular session of intraday bars, which a series does not have.
-    if _is_session_indicator(expr):
+    # Session indicators read a regular session of intraday bars, which a series does not have; the trend
+    # indicators read high and low.
+    if _is_session_indicator(expr) or _is_trend_indicator(expr):
         return False
     if expr["type"] == "indicator":
         return expr["source"] == "close" and expr["name"] not in NON_CLOSE_INDICATORS
@@ -1089,10 +1164,10 @@ def _check_keys(block: Any, known: frozenset[str], name: str) -> None:
 
 
 def _with_expr_defaults(expr: Mapping[str, Any]) -> dict[str, Any]:
-    """The zod output of a validated raw expression: indicators get source close; offsets stay
-    absent when absent (unlike _normalize_expr)."""
+    """The zod output of a validated raw expression: indicators get source close (the trend indicators
+    have no source); offsets stay absent when absent (unlike _normalize_expr)."""
     out = dict(expr)
-    if out.get("type") == "indicator":
+    if out.get("type") == "indicator" and not _is_trend_indicator(out):
         out.setdefault("source", "close")
     for key in _RAW_EXPR_CHILD_KEYS.get(out.get("type"), ()):
         out[key] = _with_expr_defaults(out[key])
@@ -1154,13 +1229,23 @@ MONTHLY_UNSUPPORTED_INDICATORS = ("atr", "adx", "rvol")
 MONTHLY_INDICATOR_MESSAGE = (
     "frame monthly bars have high = low = close and no volume: atr, adx and rvol are not available"
 )
+MONTHLY_TREND_INDICATORS = ("supertrend", "chandelierExit", "alphaTrend")
+MONTHLY_TREND_MESSAGE = (
+    "frame monthly bars have high = low = close and no volume: supertrend, chandelierExit and"
+    " alphaTrend are not available"
+)
+
+
+def _uses_indicator_in(expr: Mapping[str, Any], names: tuple[str, ...]) -> bool:
+    """Whether a normalized expression reads one of `names` (TS usesIndicatorIn)."""
+    return (expr["type"] == "indicator" and expr["name"] in names) or any(
+        _uses_indicator_in(child, names) for child in _expr_children(expr)
+    )
 
 
 def _uses_bar_range_indicator(expr: Mapping[str, Any]) -> bool:
     """Whether a normalized expression reads atr, adx or rvol (TS usesBarRangeIndicator)."""
-    return (
-        expr["type"] == "indicator" and expr["name"] in MONTHLY_UNSUPPORTED_INDICATORS
-    ) or any(_uses_bar_range_indicator(child) for child in _expr_children(expr))
+    return _uses_indicator_in(expr, MONTHLY_UNSUPPORTED_INDICATORS)
 
 
 def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
@@ -1263,6 +1348,11 @@ def _normalize_vol_target(sizing: Mapping[str, Any]) -> dict[str, Any]:
     return {"mode": "volTarget", "targetPct": float(target), "length": int(length), "maxLeverage": float(cap)}
 
 
+def _some_expr(expr: Mapping[str, Any], test: Callable[[Mapping[str, Any]], bool]) -> bool:
+    """TS someExpr: whether `expr` or a sub-expression satisfies `test`."""
+    return test(expr) or any(_some_expr(child, test) for child in _expr_children(expr))
+
+
 def _session_indicator_in(expr: Mapping[str, Any]) -> str | None:
     """TS sessionIndicatorIn: the name of the first session indicator in an expression tree."""
     if _is_session_indicator(expr):
@@ -1339,6 +1429,10 @@ def _check_definition_refinements(
         _uses_bar_range_indicator(expr) for expr in _definition_exprs(normalized)
     ):
         raise InputError(MONTHLY_INDICATOR_MESSAGE)
+    if (normalized["portfolio"] or {}).get("frame") == "monthly" and any(
+        _uses_indicator_in(expr, MONTHLY_TREND_INDICATORS) for expr in _definition_exprs(normalized)
+    ):
+        raise InputError(MONTHLY_TREND_MESSAGE)
     if side == "short" and options is not None:
         raise InputError("Option strategies take their direction from options.structure; remove side")
     if intraday is not None and options is not None:
@@ -1350,6 +1444,8 @@ def _check_definition_refinements(
             name = _session_indicator_in(expr)
             if name is not None:
                 raise InputError(f"{name} reads the intraday session; add an intraday block")
+            if _some_expr(expr, _is_intraday_timeframe_indicator):
+                raise InputError(INTRADAY_TIMEFRAME_MESSAGE)
 
 
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
@@ -1714,6 +1810,105 @@ def session_indicator_series(bars: Bars, intraday: Mapping[str, Any], expr: Mapp
     return _session_indicator(_attach_sessions(bars, intraday), _normalize_session_expr(expr))
 
 
+@dataclass(frozen=True)
+class IndicatorBuckets:
+    """TS IndicatorBuckets: bucket bars and, for every signal bar, the index of the bucket it reads (-1: none)."""
+
+    bars: Bars
+    read: tuple[int, ...]
+
+
+def indicator_buckets(sessions: IntradaySessions, minutes: int) -> IndicatorBuckets:
+    """TS indicatorBuckets: buckets of `minutes` over the regular-session bars, the completed-bar rule of
+    strategies/trend_trio/rules.py buckets. Consecutive regular bars with the same key floor(t / period)
+    (t = bar open in UTC ms) form one bucket bar (first open, highest high, lowest low, last close, summed
+    volume; time of its first bar) that ends at (key + 1) x period. Every signal bar (regular or not)
+    closes at t + the bar duration and reads the newest bucket whose end is at or before that close."""
+    bars, duration, session = sessions.bars, sessions.duration, sessions.session
+    period = minutes * MINUTE_MS
+    t: list[float] = []
+    o: list[float] = []
+    h: list[float] = []
+    low: list[float] = []
+    c: list[float] = []
+    v: list[float] = []
+    end: list[float] = []
+    key = NAN
+    for index in range(len(bars.t)):
+        if session[index] < 0:
+            continue
+        start = bars.t[index]
+        nxt = math.floor(start / period)
+        high = bars.h[index]
+        bar_low = bars.l[index]
+        volume = 0.0 if bars.v is None else bars.v[index]
+        if nxt == key:
+            h[-1] = max(h[-1], high)
+            low[-1] = min(low[-1], bar_low)
+            v[-1] = v[-1] + volume
+        else:
+            key = nxt
+            t.append(start)
+            o.append(bars.o[index])
+            h.append(high)
+            low.append(bar_low)
+            v.append(volume)
+            c.append(0.0)
+            end.append((nxt + 1) * period)
+        c[-1] = bars.c[index]
+    read = [0] * len(bars.t)
+    newest = -1
+    for index in range(len(read)):
+        close = bars.t[index] + duration
+        while newest + 1 < len(end) and end[newest + 1] <= close:
+            newest += 1
+        read[index] = newest
+    return IndicatorBuckets(
+        bars=Bars(t=tuple(t), o=tuple(o), h=tuple(h), l=tuple(low), c=tuple(c),
+                  v=None if bars.v is None else tuple(v)),
+        read=tuple(read),
+    )
+
+
+def trend_series(bars: Bars, expr: Mapping[str, Any]) -> Series:
+    """TS trendSeries: supertrend, alphaTrend or chandelierExit on `bars` (kernels of indicators.trend)."""
+    name = expr["name"]
+    output = expr["output"]
+    if name == "supertrend":
+        line, direction = supertrend(bars.h, bars.l, bars.c, expr["length"], expr["multiple"])
+        return line if output == "line" else direction
+    if name == "chandelierExit":
+        long_stop, short_stop, direction = chandelier_exit(
+            bars.h, bars.l, bars.c, expr["length"], expr["multiple"]
+        )
+        return {"longStop": long_stop, "shortStop": short_stop, "direction": direction}[output]
+    momentum = expr["momentum"]
+    if momentum == "mfi" and bars.v is None:
+        raise InputError("alphaTrend momentum mfi needs bar volume; use momentum rsi")
+    line, direction = alphatrend(
+        bars.h, bars.l, bars.c, bars.v if momentum == "mfi" else None, expr["length"], expr["multiple"], momentum
+    )
+    return line if output == "line" else direction
+
+
+def _trend_key(expr: Mapping[str, Any]) -> str:
+    """TS trendIndicator cache key: name:length:multiple:output[:momentum]:offset[:timeframe]."""
+    momentum = f":{expr['momentum']}" if "momentum" in expr else ""
+    timeframe = expr.get("timeframe")
+    suffix = "" if timeframe is None else f":{timeframe}"
+    return (
+        f"{expr['name']}:{expr['length']}:{_js_number(expr['multiple'])}:{expr['output']}{momentum}"
+        f":{expr.get('offset', 0)}{suffix}"
+    )
+
+
+def intraday_indicator_series(bars: Bars, intraday: Mapping[str, Any], expr: Mapping[str, Any]) -> Series:
+    """TS intradayIndicatorSeries: one classic or trend indicator of the bars under an intraday block,
+    offset applied (the golden fixture reads it)."""
+    evaluator = _Evaluator(bars, sessions=_attach_sessions(bars, intraday))
+    return list(evaluator.evaluate(_normalize_expr(expr)))
+
+
 def vol_target_leverage(
     bars: Bars, sizing: Mapping[str, Any], sessions: IntradaySessions | None = None
 ) -> Series:
@@ -1925,6 +2120,7 @@ class _Evaluator:
         self._frame_builder = frame
         self._frame: _Frame | None = None
         self.sessions = sessions
+        self._buckets: dict[int, IndicatorBuckets] = {}
 
     def _daily_indicator(self, expr: Mapping[str, Any]) -> Series:
         """TS dailyIndicator: highest and lowest read day D, every other indicator day D - 1."""
@@ -1936,12 +2132,68 @@ class _Evaluator:
             raise InputError(
                 f"{expr['name']} length {expr['length']} is longer than the {count} daily bars"
             )
-        daily = _Evaluator(daily_bars)._current(
-            {"type": "indicator", "name": expr["name"], "length": expr["length"],
-             "source": expr["source"], "offset": 0}
-        )
+        if _is_trend_indicator(expr):
+            daily = trend_series(daily_bars, expr)
+        else:
+            daily = _Evaluator(daily_bars)._current(
+                {"type": "indicator", "name": expr["name"], "length": expr["length"],
+                 "source": expr["source"], "offset": 0}
+            )
         lag = 0 if expr["name"] in ("highest", "lowest") else 1
         return [NAN if at - lag < 0 else daily[at - lag] for at in day]
+
+    def _intraday_indicator(self, expr: Mapping[str, Any], offset: int) -> Series:
+        """TS intradayIndicator: the indicator on 5m or 15m buckets (indicator_buckets) of the intraday
+        block's regular bars, `offset` buckets ago, mapped to the signal bars by the completed-bar rule (NaN
+        while no bucket is readable). highest and lowest include the bucket read (their window is the
+        `length` buckets ending at it). A bucket length off the bar grid is refused (grid misaligned)."""
+        sessions = self.sessions
+        if sessions is None:
+            raise InputError(INTRADAY_TIMEFRAME_MESSAGE)
+        timeframe = expr["timeframe"]
+        minutes = INTRADAY_INDICATOR_MINUTES[timeframe]
+        _align_to_grid("timeframe", timeframe, minutes, sessions)
+        buckets = self._buckets.get(minutes)
+        if buckets is None:
+            buckets = indicator_buckets(sessions, minutes)
+            self._buckets[minutes] = buckets
+        count = len(buckets.bars.c)
+        name = expr["name"]
+        length = expr["length"]
+        if length > count:
+            raise InputError(f"{name} length {length} is longer than the {count} {timeframe} bars")
+        if _is_trend_indicator(expr):
+            values = trend_series(buckets.bars, expr)
+        elif name in ("highest", "lowest"):
+            padded = [*_column(buckets.bars, expr["source"]), NAN]
+            values = prior_extreme(padded, length, 1 if name == "highest" else -1)[1:]
+        else:
+            values = _Evaluator(buckets.bars)._current(
+                {"type": "indicator", "name": name, "length": length, "source": expr["source"], "offset": 0}
+            )
+        shifted = _shift(values, offset)
+        return [NAN if at < 0 else shifted[at] for at in buckets.read]
+
+    def _trend_indicator(self, expr: Mapping[str, Any]) -> Sequence[float]:
+        """TS trendIndicator, offset applied: on the signal bars without a timeframe and on 1d (offset in
+        signal bars after the mapping), on buckets for 5m and 15m (offset in buckets before the mapping)."""
+        offset = expr.get("offset", 0)
+        key = _trend_key(expr)
+        cached = self.cache.get(key)
+        if cached is not None:
+            return cached
+        timeframe = expr.get("timeframe")
+        if timeframe == "1d":
+            series = _shift(self._daily_indicator(expr), offset)
+        elif timeframe is None:
+            size = len(self.bars.c)
+            if expr["length"] > size:
+                raise InputError(f"{expr['name']} length {expr['length']} is longer than the {size} bars")
+            series = _shift(trend_series(self.bars, expr), offset)
+        else:
+            series = self._intraday_indicator(expr, offset)
+        self.cache[key] = series
+        return series
 
     def frame(self) -> _Frame:
         if self._frame is None:
@@ -1958,6 +2210,8 @@ class _Evaluator:
                 cached = self._tree(expr)
                 self.cache[key] = cached
             return cached
+        if _is_trend_indicator(expr):
+            return self._trend_indicator(expr)
         current = self._current(expr)
         if expr["type"] == "const":
             return current
@@ -1972,7 +2226,11 @@ class _Evaluator:
         cached = self.cache.get(key)
         if cached is not None:
             return cached
-        series = _shift(current, offset)
+        # 5m and 15m count the offset in buckets, before the mapping.
+        if expr["type"] == "indicator" and expr.get("timeframe") in INTRADAY_INDICATOR_MINUTES:
+            series = self._intraday_indicator(expr, offset)
+        else:
+            series = _shift(current, offset)
         self.cache[key] = series
         return series
 
@@ -2026,7 +2284,10 @@ class _Evaluator:
             key = _indicator_key(expr)
             cached = self.cache.get(key)
             if cached is None:
-                cached = self._daily_indicator(expr)
+                if expr["timeframe"] == "1d":
+                    cached = self._daily_indicator(expr)
+                else:
+                    cached = self._intraday_indicator(expr, 0)
                 self.cache[key] = cached
             return cached
         name = expr["name"]
@@ -2631,6 +2892,15 @@ def strategy_series_refs(definition: Mapping[str, Any]) -> list[str]:
     return list(dict.fromkeys(refs))
 
 
+def _uses_intraday_indicators(definition: Mapping[str, Any]) -> bool:
+    """TS usesIntradayIndicators: whether a normalized definition (its conditions, its legs' conditions and
+    its selection score and tie break) reads a 5m or 15m indicator timeframe or a trend indicator."""
+    return any(
+        _some_expr(expr, lambda node: _is_trend_indicator(node) or _is_intraday_timeframe_indicator(node))
+        for expr in _definition_exprs(definition)
+    )
+
+
 def server_refusal(
     definition: Mapping[str, Any],
     timeframe: str | None = None,
@@ -2638,8 +2908,8 @@ def server_refusal(
 ) -> StrategyUnsupportedError | None:
     """TS serverStrategyRefusal of a normalized definition. `support` says what the path loads:
     without "options" it refuses an options block (and options run on 1d only); without "series"
-    it refuses every filter or expression that reads a series; then calendar filters on a
-    non-daily `timeframe`."""
+    it refuses every filter or expression that reads a series; without "intradayIndicators" 5m/15m
+    indicator timeframes and the trend indicators; then calendar filters on a non-daily `timeframe`."""
     support = support or {}
     filters = definition["filters"]
     if definition["options"] is not None:
@@ -2647,6 +2917,8 @@ def server_refusal(
             return options_unsupported()
         if timeframe is not None and timeframe != "1d":
             return options_timeframe_unsupported()
+    if support.get("intradayIndicators") is not True and _uses_intraday_indicators(definition):
+        return intraday_indicators_unsupported()
     if support.get("series") is not True and strategy_series_refs(definition):
         types = list(dict.fromkeys(item["type"] for item in filters if _filter_reads(item)))
         what = f"the {', '.join(types)} filters" if types else "series expressions"
@@ -2672,7 +2944,8 @@ def plan_run(
     the runStrategyDefinition option of the same name (setup replay uses it). Fixed rules work like
     runInstantBacktest with the spec stop and target. Like the TypeScript server engine it refuses
     (StrategyUnsupportedError) an options block always, and filters and expressions that read
-    series unless `support["series"]` (default: when the spec has a "context"); then the spec
+    series unless `support["series"]` (default: when the spec has a "context"), and 5m/15m indicator
+    timeframes and the trend indicators unless `support["intradayIndicators"]`; then the spec
     "context", "symbol" and "calendar" are the series input.
     """
     rule = spec["rule"]
@@ -2683,9 +2956,12 @@ def plan_run(
         # The server equity engine (TS runStrategyDefinition): options are refused whatever
         # `support` says; series only load with series support.
         context = spec.get("context")
-        series = (support or {"series": context is not None}).get("series") is True
+        paths = support or {"series": context is not None}
+        series = paths.get("series") is True
         refusal = server_refusal(
-            definition, spec.get("timeframe"), {"series": True} if series else {}
+            definition,
+            spec.get("timeframe"),
+            {"series": series, "intradayIndicators": paths.get("intradayIndicators") is True},
         )
         if refusal is not None:
             raise refusal
@@ -2746,7 +3022,10 @@ __all__ = [
     "compile_strategy",
     "expression_values",
     "exponential_mean",
+    "IndicatorBuckets",
     "IntradaySessions",
+    "indicator_buckets",
+    "intraday_indicator_series",
     "intraday_sessions",
     "is_nyse_trading_day",
     "iv_rank_series",
@@ -2761,6 +3040,7 @@ __all__ = [
     "server_refusal",
     "session_daily_bars",
     "session_indicator_series",
+    "trend_series",
     "noise_band_series",
     "session_return_series",
     "vol_target_leverage",

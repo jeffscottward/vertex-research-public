@@ -11,19 +11,22 @@ import json
 import math
 import os
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from functools import cache
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from indicators import trend
 from nautilus_backtest import costs as cost_model
 from nautilus_backtest import signals as sig
 from nautilus_backtest.bars import (
     STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
     STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
     STRATEGY_INTRADAY_GRID_MISALIGNED,
+    STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED,
     STRATEGY_OPTIONS_UNSUPPORTED,
     Bars,
     InputError,
@@ -1736,6 +1739,25 @@ def test_monthly_frame_refuses_bar_range_indicators_anywhere(name: str) -> None:
     sig.normalize_definition(_portfolio_definition(monthly, entry={"all": [{**ALWAYS, "left": sma}]}))
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"name": "supertrend", "length": 10, "multiple": 3, "output": "direction"},
+        {"name": "chandelierExit", "length": 22, "multiple": 3, "output": "longStop"},
+        {"name": "alphaTrend", "length": 14, "multiple": 1, "momentum": "rsi", "output": "line"},
+    ],
+)
+def test_monthly_frame_refuses_trend_indicators(fields: dict[str, Any]) -> None:
+    """They read highs, lows and ATR, which monthly bars do not have (as strategy-dsl.ts)."""
+    condition = {**ALWAYS, "left": {"type": "indicator", **fields}}
+    roll = {"policy": "roll", "symbols": ["SPY"]}
+    sig.normalize_definition(_portfolio_definition(roll, entry={"all": [condition]}))
+    with pytest.raises(InputError, match=f"^{re.escape(sig.MONTHLY_TREND_MESSAGE)}$"):
+        sig.normalize_definition(
+            _portfolio_definition({**roll, "frame": "monthly"}, entry={"all": [condition]})
+        )
+
+
 def test_portfolio_and_series_checks_cover_entry_any() -> None:
     """strategy-dsl.ts calendarOnly, definitionExprPaths and strategySeriesRefs read entry.any too."""
     shifted = {"policy": "window", "shift": 2, "symbols": ["SPY"]}
@@ -1837,3 +1859,188 @@ def test_price_and_indicator_offsets_are_validated(kind: str, offset: Any) -> No
     assert sig.normalize_definition(
         _definition_of([{**ALWAYS, "left": {**leaf, "offset": 3.0}}])
     )["entry"]["all"][0]["left"]["offset"] == 3
+
+# ---------------------------------------------------------------------------------------------
+# Trend indicators and the 5m / 15m indicator timeframes (golden "trendIndicators").
+
+TREND_INDICATORS = golden()["trendIndicators"]
+
+
+@pytest.mark.parametrize("case", TREND_INDICATORS, ids=_ids(TREND_INDICATORS, "id"))
+def test_trend_indicator_series_match_typescript(case: dict[str, Any]) -> None:
+    bars = bars_of(case["symbol"], case["bars"])
+    assert len(case["exprs"]) == len(case["values"])
+    for expr, expected in zip(case["exprs"], case["values"], strict=True):
+        actual = sig.intraday_indicator_series(bars, case["intraday"], expr)
+        assert_series(actual, expected, f"{case['id']} {json.dumps(expr, sort_keys=True)}")
+
+
+def test_trend_golden_cases_are_the_design_list() -> None:
+    assert [case["id"] for case in TREND_INDICATORS] == [
+        "supertrend-direction-5m", "supertrend-line-1m", "supertrend-two-multiples", "alphatrend-mfi-15m",
+        "alphatrend-rsi-5m", "chandelier-direction-1m", "chandelier-stops-5m", "uma-offset-buckets-5m",
+        "timeline-boundaries",
+    ]
+
+
+def test_timeline_boundaries_follow_the_design_table() -> None:
+    """docs/specs/strategies/trend-trio-design.md, completed-bar rule: the 5m bucket close each 1-minute bar
+    reads (golden timeline-boundaries, first expression sma 1 close 5m)."""
+    case = next(item for item in TREND_INDICATORS if item["id"] == "timeline-boundaries")
+    assert case["exprs"][0] == {"length": 1, "name": "sma", "offset": 0, "source": "close", "timeframe": "5m",
+                                "type": "indicator"}
+    reads = case["values"][0]
+    bars = bars_of(case["symbol"])
+    new_york = ZoneInfo("America/New_York")
+    at = {datetime.fromtimestamp(t / 1000, new_york).strftime("%Y-%m-%d %H:%M"): i for i, t in enumerate(bars.t)}
+
+    def reads_close(stamps: list[str], bar: str) -> bool:
+        # sma 1 is a running sum, so the bucket close it reads may differ from the bar close by rounding.
+        return all(_same(reads[at[stamp]], bars.c[at[bar]]) for stamp in stamps)
+
+    # First session: nothing readable before 09:34 (pre-market bars never form buckets).
+    assert all(reads[at[f"2023-03-09 09:{m:02d}"]] is None for m in range(25, 34))
+    # 09:34 closes at 09:35 and reads 09:30-09:35; 09:35 ... 09:38 read it too; 09:39 reads 09:35-09:40.
+    assert reads_close([f"2023-03-09 09:{m}" for m in range(34, 39)], "2023-03-09 09:34")
+    assert reads_close(["2023-03-09 09:39"], "2023-03-09 09:39")
+    # 10:02 with 10:01 missing reads 09:55-10:00 (bucket 10:00-10:05 has 4 bars and ends at 10:05).
+    assert "2023-03-09 10:01" not in at
+    assert reads_close(["2023-03-09 10:02", "2023-03-09 10:03"], "2023-03-09 09:59")
+    assert reads_close(["2023-03-09 10:04"], "2023-03-09 10:04")
+    # 09:30 ... 09:33 read the last bucket of the previous session (after-hours bars are not in it).
+    assert "2023-03-09 16:04" in at
+    assert reads_close([f"2023-03-10 09:{m}" for m in range(25, 34)], "2023-03-09 15:59")
+    assert reads_close(["2023-03-10 09:34"], "2023-03-10 09:34")
+    # The first session after the DST change: 09:34 New York reads 09:30-09:35 New York.
+    assert reads_close(["2023-03-13 09:33"], "2023-03-10 15:59")
+    assert reads_close(["2023-03-13 09:34"], "2023-03-13 09:34")
+    # Early close: the 12:59 bar closes at 13:00 and reads 12:55-13:00, the session's last bucket.
+    assert "2023-07-03 13:00" not in at
+    assert reads_close(["2023-07-03 12:59", "2023-07-05 09:30"], "2023-07-03 12:59")
+
+
+# Trend indicators and 5m / 15m timeframes: hand-checked cases.
+
+# 1-minute bars of two sessions 09:30-09:40 New York, each after one 09:29 pre-market bar.
+MINUTE_INTRADAY = {"timezone": "America/New_York", "open": "09:30", "close": "09:40", "entryFrom": "09:35",
+                   "entryTo": "09:39"}
+
+
+def _minute_bars(volume: bool = True) -> Bars:
+    rows = [(day, k, (50.0 if k < 0 else 100.0 * (day + 1) + k)) for day in (0, 1) for k in range(-1, 10)]
+    columns: dict[str, list[float]] = {
+        "t": [NY_0930 + day * DAY_MS_ + k * MINUTE_MS for day, k, _ in rows],
+        "o": [c for _, _, c in rows],
+        "h": [c + 1 for _, _, c in rows],
+        "l": [c - 1 for _, _, c in rows],
+        "c": [c for _, _, c in rows],
+    }
+    if volume:
+        columns["v"] = [100.0] * len(rows)
+    return Bars.from_columns(columns)
+
+
+def _tf(name: str, length: int, timeframe: str, source: str = "close", offset: int = 0) -> dict[str, Any]:
+    return {"type": "indicator", "name": name, "length": length, "source": source, "offset": offset,
+            "timeframe": timeframe}
+
+
+def _minute_series(expr: dict[str, Any], volume: bool = True) -> list[float]:
+    return sig.intraday_indicator_series(_minute_bars(volume), MINUTE_INTRADAY, expr)
+
+
+def test_buckets_follow_the_completed_bar_rule() -> None:
+    # Signal bars: 09:29, 09:30 ... 09:39 on day 0, then the same on day 1. 5m buckets end at 09:35 and 09:40.
+    day0 = [NAN] * 5 + [104] * 5 + [109]
+    day1 = [109] * 5 + [204] * 5 + [209]
+    assert_series(_minute_series(_tf("sma", 1, "5m")), day0 + day1, "5m close")
+    # The offset counts buckets: one bucket ago.
+    assert_series(_minute_series(_tf("sma", 1, "5m", offset=1)),
+                  [NAN] * 10 + [104] + [104] * 5 + [109] * 5 + [204], "5m close one bucket ago")
+    # highest includes the bucket read (window of 2 buckets ending at it); bucket highs 105, 110, 205, 210.
+    assert_series(_minute_series(_tf("highest", 2, "5m", source="high")),
+                  [NAN] * 10 + [110] * 6 + [205] * 5 + [210], "highest of 2 buckets")
+    # A 15m bucket of a session closing at 09:40 ends at 09:45: readable only on the next day.
+    assert_series(_minute_series(_tf("sma", 1, "15m")), [NAN] * 11 + [109] * 11, "15m close")
+    with pytest.raises(InputError, match="^sma length 5 is longer than the 4 5m bars$"):
+        _minute_series(_tf("sma", 5, "5m"))
+
+
+def test_trend_indicators_on_bars_buckets_and_days() -> None:
+    supertrend = {"type": "indicator", "name": "supertrend", "length": 2, "multiple": 1, "output": "direction"}
+    on_bars = _minute_series(supertrend)
+    assert len(on_bars) == 22 and on_bars[0] != on_bars[0] and on_bars[-1] in (1.0, -1.0)
+    assert_series(_minute_series({**supertrend, "offset": 2}), [NAN, NAN, *on_bars[:-2]], "offset in bars")
+    buckets = sig.indicator_buckets(sig.intraday_sessions(_minute_bars(), MINUTE_INTRADAY), 5)
+    assert list(buckets.bars.c) == [104, 109, 204, 209] and list(buckets.bars.v or ()) == [500] * 4
+    _, direction = trend.supertrend(buckets.bars.h, buckets.bars.l, buckets.bars.c, 2, 1.0)
+    expected = [NAN if at < 0 else direction[at] for at in buckets.read]
+    assert_series(_minute_series({**supertrend, "timeframe": "5m"}), expected, "supertrend on 5m buckets")
+    with pytest.raises(InputError, match="^chandelierExit length 23 is longer than the 22 bars$"):
+        _minute_series({"type": "indicator", "name": "chandelierExit", "length": 23, "multiple": 3,
+                        "output": "longStop"})
+    alpha = {"type": "indicator", "name": "alphaTrend", "length": 2, "multiple": 1, "output": "line"}
+    with pytest.raises(InputError, match="^alphaTrend momentum mfi needs bar volume; use momentum rsi$"):
+        _minute_series({**alpha, "momentum": "mfi"}, volume=False)
+    assert len(_minute_series({**alpha, "momentum": "rsi"}, volume=False)) == 22
+
+
+def test_trend_expressions_follow_the_typescript_schemas() -> None:
+    base = {"type": "indicator", "name": "supertrend", "length": 10, "multiple": 3, "output": "direction"}
+    assert sig._normalize_expr({**base, "length": 10.0, "timeframe": "15m"}) == {
+        **base, "multiple": 3.0, "offset": 0, "timeframe": "15m"}
+    for bad, message in [
+        ({**base, "source": "close"}, "Unknown key in supertrend expression: source"),
+        ({**base, "length": 501}, "supertrend length must be a whole number from 1 to 500"),
+        ({**base, "length": 2.5}, "supertrend length must be a whole number from 1 to 500"),
+        ({**base, "multiple": 0.05}, "supertrend multiple must be from 0.1 to 20"),
+        ({**base, "multiple": 21}, "supertrend multiple must be from 0.1 to 20"),
+        ({**base, "output": "longStop"}, "Unknown supertrend output: longStop"),
+        ({**base, "name": "alphaTrend"}, "Unknown alphaTrend momentum: None"),
+        ({**base, "name": "alphaTrend", "momentum": "rsi", "output": "shortStop"}, "Unknown alphaTrend output"),
+        ({**base, "name": "chandelierExit", "momentum": "rsi"}, "Unknown key in chandelierExit expression"),
+        ({**base, "timeframe": "1h"}, "Unknown indicator timeframe: 1h"),
+        ({**base, "offset": -1}, "offset must be a whole number"),
+    ]:
+        with pytest.raises(InputError, match=re.escape(message)):
+            sig._normalize_expr(bad)
+    with pytest.raises(InputError, match="Unknown indicator timeframe: 30m"):
+        sig._normalize_expr(_tf("sma", 5, "30m"))
+
+
+def test_intraday_timeframes_need_an_intraday_block_and_the_bar_grid() -> None:
+    definition = {"version": 1, "name": "5m", "entry": {"all": [{"left": _tf("ema", 3, "5m"), "op": ">",
+                                                               "right": ZERO}]}}
+    with pytest.raises(InputError, match=f"^{sig.INTRADAY_TIMEFRAME_MESSAGE}$"):
+        sig.normalize_definition(definition)
+    with pytest.raises(InputError, match=f"^{sig.INTRADAY_TIMEFRAME_MESSAGE}$"):
+        sig.expression_values(_minute_bars(), _tf("ema", 3, "15m"))
+    # The trend indicators without a timeframe need no intraday block.
+    assert len(sig.expression_values(_minute_bars(), {"type": "indicator", "name": "chandelierExit",
+                                                     "length": 3, "multiple": 2, "output": "direction"})) == 22
+    # On 30-minute bars a 5m bucket is off the grid.
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.intraday_indicator_series(_intraday_bars(FOUR_DAYS), INTRADAY, _tf("sma", 1, "5m"))
+    assert raised.value.code == STRATEGY_INTRADAY_GRID_MISALIGNED
+    assert str(raised.value) == f"{STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday timeframe 5m{GRID_TAIL}"
+
+
+def test_intraday_indicators_need_server_support() -> None:
+    trend_condition = {"left": {"type": "indicator", "name": "supertrend", "length": 3, "multiple": 1,
+                                "output": "direction"}, "op": ">", "right": ZERO}
+    tf_condition = {"left": _tf("sma", 2, "5m"), "op": ">", "right": ZERO}
+    for condition in (trend_condition, tf_condition):
+        definition = sig.normalize_definition({"version": 1, "name": "t", "intraday": MINUTE_INTRADAY,
+                                               "entry": {"all": [condition]}})
+        refusal = sig.server_refusal(definition, "1m")
+        assert refusal is not None and refusal.code == STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED
+        assert str(refusal) == (
+            f"{STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED}: intraday indicator timeframes (5m, 15m) and the"
+            " supertrend, alphaTrend and chandelierExit indicators run only in research runs on the rig for now."
+        )
+        assert sig.server_refusal(definition, "1m", {"intradayIndicators": True}) is None
+        spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0, "timeframe": "1m"}
+        with pytest.raises(StrategyUnsupportedError):
+            sig.plan_run(_minute_bars(), spec)
+        compiled, _ = sig.plan_run(_minute_bars(), spec, {"intradayIndicators": True})
+        assert len(compiled.signals) == 22

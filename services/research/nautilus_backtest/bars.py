@@ -38,6 +38,7 @@ STRATEGY_SERIES_FILTERS_UNSUPPORTED = "STRATEGY_SERIES_FILTERS_UNSUPPORTED"
 STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED = "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
 STRATEGY_INTRADAY_DAILY_UNSUPPORTED = "STRATEGY_INTRADAY_DAILY_UNSUPPORTED"
 STRATEGY_INTRADAY_GRID_MISALIGNED = "STRATEGY_INTRADAY_GRID_MISALIGNED"
+STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED = "STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED"
 
 
 class StrategyUnsupportedError(InputError):
@@ -92,6 +93,16 @@ def intraday_daily_unsupported() -> StrategyUnsupportedError:
         STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
         f"{STRATEGY_INTRADAY_DAILY_UNSUPPORTED}: the intraday block needs intraday bars (two or more bars"
         " on one New York date); a daily or weekly run refuses it.",
+    )
+
+
+def intraday_indicators_unsupported() -> StrategyUnsupportedError:
+    """TS STRATEGY_INTRADAY_INDICATORS_REFUSAL: 5m/15m indicator timeframes and the trend indicators run in
+    research runs only."""
+    return StrategyUnsupportedError(
+        STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED,
+        f"{STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED}: intraday indicator timeframes (5m, 15m) and the"
+        " supertrend, alphaTrend and chandelierExit indicators run only in research runs on the rig for now.",
     )
 
 
