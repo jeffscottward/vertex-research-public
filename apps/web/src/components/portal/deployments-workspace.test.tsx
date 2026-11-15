@@ -197,6 +197,7 @@ describe("DeploymentsWorkspace", () => {
       service({
         service: "fresh",
         status: "created",
+        health: null,
         running: false,
         startedAt: null,
       }),
@@ -226,6 +227,7 @@ describe("DeploymentsWorkspace", () => {
     expect(quiet[4]).toBe("not reported");
     expect(quiet[2]).toBe("no healthcheck configured");
     expect(quiet[5]).toBe("no timestamped log line returned");
+    expect(cells("fresh")[2]).toBe("container never started");
     expect(cells("fresh")[5]).toBe("no log read: container never started");
     expect(cells("ib-gateway")[5]).toBe("no log read: not returned");
     expect(cells("idle")[5]).toBe("no log read: container stopped");

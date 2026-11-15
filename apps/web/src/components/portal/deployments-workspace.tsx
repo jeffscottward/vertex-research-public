@@ -152,6 +152,14 @@ export const upSinceText = (
     : `stopped ${formatUtc(service.finishedAt)}`;
 };
 
+// Docker creates State.Health only when a container starts, so a null health on a
+// never-started container says nothing about its healthcheck.
+const healthMissingText = (service: DeployServiceStatusOutput): string => {
+  if (!service.present) return "container missing";
+  if (service.startedAt === null) return "container never started";
+  return "no healthcheck configured";
+};
+
 // The status collector reads logs only for these services (collect.py service_item).
 const LOGGED_SERVICES: ReadonlySet<string> = new Set([
   "nautilus-trader",
@@ -297,10 +305,7 @@ const ServicesTable = ({
                   {stateText(service)}
                 </TableCell>
                 <TableCell className={`${cell} font-mono`}>
-                  {service.health ??
-                    (service.present
-                      ? "no healthcheck configured"
-                      : "container missing")}
+                  {service.health ?? healthMissingText(service)}
                 </TableCell>
                 <TableCell className={`${cell} font-mono text-xs`}>
                   {upSinceText(service, current)}
