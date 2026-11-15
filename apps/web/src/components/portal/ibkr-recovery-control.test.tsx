@@ -271,6 +271,19 @@ describe("recoveryView", () => {
     ).toBe(
       `IBKR login: no login line in the gateway log (gateway running since ${clock("2026-10-28T08:00:00Z")}) · last confirmed login ${clock("2026-10-28T07:30:00Z")} · checking again`
     );
+    expect(
+      undecided({
+        lastKnown: null,
+        loginState: "no-login-evidence",
+        reason: "log-window",
+        since: "2026-10-26T15:00:00Z",
+      }).badge?.label
+    ).toBe(
+      `IBKR login: no login line in the last 48 h of the gateway log (read from ${clock("2026-10-26T15:00:00Z")}) · no login seen since the recovery service started · checking again`
+    );
+    expect(undecided({ lastKnown: null, since: null }).badge?.label).toBe(
+      "IBKR login state not readable since a time not reported (docker error) · no earlier state since the recovery service started · checking again"
+    );
     return expect(
       noEvidence({
         at: "2026-10-28T07:59:00Z",

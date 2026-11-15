@@ -44,12 +44,19 @@ const undecidedLabel = (
   gateway: IbkrRecoveryStatusOutput["gateway"]
 ): string | null => {
   const last = gateway.lastKnown ?? null;
+  const since =
+    gateway.since === null ? "a time not reported" : clock(gateway.since);
   if (gateway.loginState === "no-login-evidence") {
     const login =
       last === null
         ? "no login seen since the recovery service started"
         : `last confirmed login ${clock(last.since ?? last.at)}`;
-    return `IBKR login: no login line in the gateway log (gateway running since ${clock(gateway.since)}) · ${login} · checking again`;
+    // log-window: the gateway log was too large, so only its last 48 h were read (since = window start).
+    const read =
+      gateway.reason === "log-window"
+        ? `no login line in the last 48 h of the gateway log (read from ${since})`
+        : `no login line in the gateway log (gateway running since ${since})`;
+    return `IBKR login: ${read} · ${login} · checking again`;
   }
   if (gateway.loginState === "gateway-unreadable") {
     const cause =
@@ -60,7 +67,7 @@ const undecidedLabel = (
       last === null
         ? "no earlier state since the recovery service started"
         : `last known: ${LOGIN_NAME[last.state]} at ${clock(last.at)}`;
-    return `IBKR login state not readable since ${clock(gateway.since)} (${cause}) · ${known} · checking again`;
+    return `IBKR login state not readable since ${since} (${cause}) · ${known} · checking again`;
   }
   return null;
 };
