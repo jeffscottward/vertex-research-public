@@ -9,8 +9,13 @@ QQQ/SPY risk) and the 21 EMA / 50 SMA filter in ``scripts/ibd_monitor.py``.
 Copyright (c) 2026 TraderMonty. MIT; see TRADERMONTY_LICENSE.txt.
 Changes from the original: bars are chronological (oldest first) typed rows
 instead of most-recent-first dictionaries; moving averages reuse
-``indicators.ema``/``indicators.sma`` (same SMA-seeded EMA); the FMP client,
-caching, Japanese report text and the TQQQ exposure recommendation are not ported.
+``indicators.ema``/``indicators.sma`` (same SMA-seeded EMA) over the trailing
+run of valid closes; a close, volume or high that is not finite is a bad value
+(upstream rejects only a missing or non-positive value); a symbol may appear
+only once in the combined level; ``insufficient_lookback`` (upstream
+``scripts/history_utils.py``) does not use the upstream fetch window of 80
+sessions; the FMP client, caching, Japanese report text and the TQQQ exposure
+recommendation are not ported.
 ``DistributionDayRule`` and ``RiskThresholds`` keep the upstream configuration
 fields and defaults (upstream ``models.py``); the defaults are rule ``ibd_dd_v1.0``.
 

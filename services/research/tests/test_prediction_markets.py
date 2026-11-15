@@ -125,6 +125,13 @@ def test_rows_without_a_join_key_never_join():
     assert token_won == {"111": True}
     no_token = {"maker_asset_id": None, "taker_asset_id": "0", "maker_amount": 10, "taker_amount": 5}
     assert list(polymarket_positions([no_token], {"None": True})) == []
+    # NaN is the missing marker of some row readers; it never joins either.
+    nan = float("nan")
+    assert kalshi_resolution([{"ticker": nan, "status": "finalized", "result": "yes"}]) == {}
+    assert list(kalshi_positions([dict(trade, ticker=nan)], {"nan": "yes"})) == []
+    assert polymarket_token_resolution(
+        [{"closed": True, "outcome_prices": '["1", "0"]', "clob_token_ids": '[NaN, "222"]'}]) == {"222": False}
+    assert list(polymarket_positions([dict(no_token, maker_asset_id=nan)], {"nan": True})) == []
 
 
 def test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted():
@@ -135,9 +142,19 @@ def test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted():
     assert list(kalshi_positions(kalshi, {"A": "yes"}, skipped)) == [Position(30, True), Position(70, False)]
     poly = [{"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 1.9, "taker_amount": 3},
             {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 10 ** 400, "taker_amount": 3},
-            {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 10 ** 307, "taker_amount": 3}]
+            {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 10 ** 307, "taker_amount": 3},
+            {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": "1" * 5000, "taker_amount": 3},
+            {"maker_asset_id": 10 ** 5000, "taker_asset_id": "0", "maker_amount": 3, "taker_amount": 1}]
     assert list(polymarket_positions(poly, {"111": True}, skipped)) == []
-    assert skipped.count == 5
+    assert skipped.count == 7
+    # More digits than the interpreter converts: the row is skipped, and the run goes on.
+    digits = [{"ticker": "A", "yes_price": "1" * 5000, "no_price": 1, "taker_side": "yes"},
+              {"ticker": 10 ** 5000, "yes_price": 60, "no_price": 40, "taker_side": "yes"}]
+    assert list(kalshi_positions(digits, {"A": "yes"}, skipped)) == []
+    assert skipped.count == 9
+    assert kalshi_resolution([{"ticker": 10 ** 5000, "status": "finalized", "result": "yes"}]) == {}
+    assert polymarket_token_resolution(
+        [{"closed": True, "outcome_prices": '["1", "0"]', "clob_token_ids": [10 ** 5000, 1]}]) == {}
 
 
 def test_only_whole_numbers_of_plain_types_are_read_as_prices():

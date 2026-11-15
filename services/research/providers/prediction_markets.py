@@ -19,7 +19,9 @@ maker) trades of 2020-2022 are not ported.
 
 Input values are the scalars that a JSON or row reader gives (text, numbers,
 booleans, ``None``) and two-item lists for the two Polymarket list fields. A
-bad scalar does not stop the run; other value types are outside the contract.
+row with a value that cannot be read is skipped, so a bad scalar does not stop
+the run; other value types are outside the contract. A missing join key
+(``None`` or NaN) never joins.
 
 Research only. The module reads only the rows that the caller passes in. It does
 not download the dataset, contact a venue, read an account, place or simulate
@@ -45,6 +47,8 @@ from typing import Any
 RESOLVED_HIGH = 0.99
 RESOLVED_LOW = 0.01
 LOG_LOSS_EPSILON = 1e-6
+# Errors of one row that cannot be read; such a row is skipped, and no row stops the run.
+_ROW_ERRORS = (TypeError, ValueError, OverflowError, RecursionError)
 
 
 @dataclass(frozen=True)
@@ -77,8 +81,20 @@ def _int_or_none(value: Any) -> int | None:
     if isinstance(value, str):
         text = value.strip()
         digits = text[1:] if text[:1] in ("+", "-") else text
-        return int(text) if digits.isascii() and digits.isdigit() else None
+        if not (digits.isascii() and digits.isdigit()):
+            return None
+        try:
+            return int(text)
+        except ValueError:  # More digits than the interpreter converts.
+            return None
     return None
+
+
+def _join_key(value: Any) -> str | None:
+    """Text of a ticker, asset id or token id; ``None`` for a missing value (``None`` or NaN)."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    return str(value)
 
 
 def _round_half_away(value: float) -> int:
@@ -86,47 +102,66 @@ def _round_half_away(value: float) -> int:
     return math.floor(value + 0.5) if value >= 0 else -math.floor(-value + 0.5)
 
 
+def _kalshi_market(row: Mapping[str, Any]) -> tuple[str, str] | None:
+    ticker, result = _join_key(row.get("ticker")), row.get("result")
+    if ticker is None or row.get("status") != "finalized" or result not in ("yes", "no"):
+        return None
+    return ticker, result
+
+
 def kalshi_resolution(markets: Iterable[Mapping[str, Any]]) -> dict[str, str]:
     """``ticker -> 'yes' | 'no'`` for finalized markets with a yes/no result.
 
-    Other market rows, and rows without a ticker, are left out without a count.
-    Two rows for one ticker give one entry (the later row); the upstream SQL
-    join would give the positions of each trade once for each market row.
+    Other market rows, rows without a ticker and rows with a value that cannot
+    be read are left out without a count. Two rows for one ticker give one
+    entry (the later row); the upstream SQL join would give the positions of
+    each trade once for each market row.
     """
     resolved: dict[str, str] = {}
     for row in markets:
-        ticker = row.get("ticker")
-        if ticker is not None and row.get("status") == "finalized" and row.get("result") in ("yes", "no"):
-            resolved[str(ticker)] = row["result"]
+        try:
+            entry = _kalshi_market(row)
+        except _ROW_ERRORS:
+            continue
+        if entry is not None:
+            resolved[entry[0]] = entry[1]
     return resolved
+
+
+def _kalshi_pair(trade: Mapping[str, Any], resolution: Mapping[str, str]) -> tuple[Position, ...]:
+    """Both positions of one trade; ``()`` for a join miss; ``ValueError`` for a bad row."""
+    ticker = _join_key(trade.get("ticker"))
+    result = None if ticker is None else resolution.get(ticker)
+    if result is None:
+        return ()
+    side = trade.get("taker_side")
+    yes_price, no_price = _int_or_none(trade.get("yes_price")), _int_or_none(trade.get("no_price"))
+    if side not in ("yes", "no") or yes_price is None or no_price is None:
+        raise ValueError("invalid taker side or price")
+    taker_price, maker_price = (yes_price, no_price) if side == "yes" else (no_price, yes_price)
+    return Position(taker_price, side == result), Position(maker_price, side != result)
 
 
 def kalshi_positions(trades: Iterable[Mapping[str, Any]], resolution: Mapping[str, str],
                      skipped: SkippedRows | None = None) -> Iterator[Position]:
     """Taker and maker (counterparty) positions for trades on resolved markets.
 
-    A trade on a market that is not resolved is left out without a count (the
-    inner join of the upstream SQL). Deviation from upstream SQL: a row with a
-    taker side other than yes/no, or with a missing, fractional or unreadable
-    price, is skipped and counted in ``skipped`` (when the caller passes it).
-    Upstream counts a row with an invalid taker side: with a missing taker side
-    both sides are losses, and with another value the taker loses and the maker
-    wins.
+    A trade on a market that is not resolved, or without a ticker, is left out
+    without a count (the inner join of the upstream SQL). Deviation from
+    upstream SQL: a row with a taker side other than yes/no, with a missing,
+    fractional or unreadable price, or with another value that cannot be read,
+    is skipped and counted in ``skipped`` (when the caller passes it). Upstream
+    counts a row with an invalid taker side: with a missing taker side both
+    sides are losses, and with another value the taker loses and the maker wins.
     """
     for trade in trades:
-        ticker = trade.get("ticker")
-        result = None if ticker is None else resolution.get(str(ticker))
-        if result is None:
-            continue
-        side = trade.get("taker_side")
-        yes_price, no_price = _int_or_none(trade.get("yes_price")), _int_or_none(trade.get("no_price"))
-        if side not in ("yes", "no") or yes_price is None or no_price is None:
+        try:
+            pair = _kalshi_pair(trade, resolution)
+        except _ROW_ERRORS:
             if skipped is not None:
                 skipped.count += 1
             continue
-        taker_price, maker_price = (yes_price, no_price) if side == "yes" else (no_price, yes_price)
-        yield Position(taker_price, side == result)
-        yield Position(maker_price, side != result)
+        yield from pair
 
 
 def _json_pair(value: Any) -> list[Any] | None:
@@ -141,35 +176,56 @@ def _json_pair(value: Any) -> list[Any] | None:
     return list(value)
 
 
+def _polymarket_market(row: Mapping[str, Any]) -> dict[str, bool]:
+    if row.get("closed") not in (True, 1):  # Equality, so numpy booleans also match.
+        return {}
+    prices = _json_pair(row.get("outcome_prices"))
+    tokens = _json_pair(row.get("clob_token_ids"))
+    if prices is None or tokens is None:
+        return {}
+    p0, p1 = float(prices[0]), float(prices[1])
+    if p0 > RESOLVED_HIGH and p1 < RESOLVED_LOW:
+        winner = 0
+    elif p0 < RESOLVED_LOW and p1 > RESOLVED_HIGH:
+        winner = 1
+    else:
+        return {}
+    keys = [_join_key(token) for token in tokens]  # A missing token id never joins a trade.
+    return {key: winner == index for index, key in enumerate(keys) if key is not None}
+
+
 def polymarket_token_resolution(markets: Iterable[Mapping[str, Any]]) -> dict[str, bool]:
     """``CTF token id -> won`` for closed two-outcome markets with a clear winner.
 
     A market counts as resolved when one outcome price is above 0.99 and the
-    other below 0.01. Markets with unparseable prices or token ids are skipped,
-    as upstream does.
+    other below 0.01. Markets with prices or token ids that cannot be read are
+    left out without a count, as upstream does.
     """
     token_won: dict[str, bool] = {}
     for row in markets:
-        if row.get("closed") not in (True, 1):  # Equality, so numpy/pyarrow booleans also match.
-            continue
-        prices = _json_pair(row.get("outcome_prices"))
-        tokens = _json_pair(row.get("clob_token_ids"))
-        if prices is None or tokens is None:
-            continue
         try:
-            p0, p1 = float(prices[0]), float(prices[1])
-        except (TypeError, ValueError, OverflowError):
+            token_won.update(_polymarket_market(row))
+        except _ROW_ERRORS:
             continue
-        if p0 > RESOLVED_HIGH and p1 < RESOLVED_LOW:
-            winner = 0
-        elif p0 < RESOLVED_LOW and p1 > RESOLVED_HIGH:
-            winner = 1
-        else:
-            continue
-        for index, token in enumerate(tokens):
-            if token is not None:  # A missing token id never joins a trade.
-                token_won[str(token)] = winner == index
     return token_won
+
+
+def _polymarket_pair(trade: Mapping[str, Any], token_won: Mapping[str, bool]) -> tuple[Position, ...]:
+    """Both positions of one trade; ``()`` for a join miss; an error of ``_ROW_ERRORS`` for a bad row."""
+    maker_amount, taker_amount = _int_or_none(trade.get("maker_amount")), _int_or_none(trade.get("taker_amount"))
+    if maker_amount is None or taker_amount is None or maker_amount <= 0 or taker_amount <= 0:
+        raise ValueError("invalid amount")
+    maker_asset = _join_key(trade.get("maker_asset_id"))
+    maker_pays_usdc = maker_asset == "0"
+    token = _join_key(trade.get("taker_asset_id")) if maker_pays_usdc else maker_asset
+    won = None if token is None else token_won.get(token)
+    if won is None:
+        return ()
+    usdc, tokens = (maker_amount, taker_amount) if maker_pays_usdc else (taker_amount, maker_amount)
+    # Multiply before dividing, as upstream SQL does, so half-cent prices round the same way.
+    # An amount too large for a 64-bit float raises OverflowError.
+    return (Position(_round_half_away(100.0 * usdc / tokens), won),
+            Position(_round_half_away(100.0 - 100.0 * usdc / tokens), not won))
 
 
 def polymarket_positions(trades: Iterable[Mapping[str, Any]], token_won: Mapping[str, bool],
@@ -183,32 +239,19 @@ def polymarket_positions(trades: Iterable[Mapping[str, Any]], token_won: Mapping
     they sum to 101 (30.5 gives 31 and 69.5 gives 70), as in the upstream SQL.
     Rows with missing, fractional, unreadable or non-positive amounts are
     dropped (upstream drops the non-positive ones) and counted, before the
-    token join. A row whose amounts are too large for a 64-bit float is also
-    counted. A trade on a token that is not resolved, or without a token id, is
-    left out without a count. Rows are not de-duplicated (as upstream).
+    token join. A row with amounts too large for a 64-bit float, or with
+    another value that cannot be read, is also counted. A trade on a token that
+    is not resolved, or without a token id, is left out without a count. Rows
+    are not de-duplicated (as upstream).
     """
     for trade in trades:
-        maker_amount, taker_amount = _int_or_none(trade.get("maker_amount")), _int_or_none(trade.get("taker_amount"))
-        if maker_amount is None or taker_amount is None or maker_amount <= 0 or taker_amount <= 0:
-            if skipped is not None:
-                skipped.count += 1
-            continue
-        maker_pays_usdc = str(trade.get("maker_asset_id")) == "0"
-        token = trade.get("taker_asset_id") if maker_pays_usdc else trade.get("maker_asset_id")
-        won = None if token is None else token_won.get(str(token))
-        if won is None:
-            continue
-        usdc, tokens = (maker_amount, taker_amount) if maker_pays_usdc else (taker_amount, maker_amount)
         try:
-            # Multiply before dividing, as upstream SQL does, so half-cent prices round the same way.
-            buyer = _round_half_away(100.0 * usdc / tokens)
-            counterparty = _round_half_away(100.0 - 100.0 * usdc / tokens)
-        except OverflowError:  # An amount too large for a 64-bit float.
+            pair = _polymarket_pair(trade, token_won)
+        except _ROW_ERRORS:
             if skipped is not None:
                 skipped.count += 1
             continue
-        yield Position(buyer, won)
-        yield Position(counterparty, not won)
+        yield from pair
 
 
 @dataclass(frozen=True)
