@@ -264,6 +264,8 @@ describe("GitHub workflow invariants", () => {
     const ids = steps.map((step) => step.id);
     const scan = steps.find((step) => step.id === "public-names")!;
     expect(scan.run).toMatch(/\bscripts\/public-names\.ts\b.*\$\{?RANGE\b/);
+    // The step fails when the scan fails: no `||` fallback masks the exit code.
+    expect(scan.run).not.toMatch(/\|\|/);
     expect(scan.env?.["RANGE"]).toMatch(
       /pull_request\.base\.sha.*pull_request\.head\.sha/
     );

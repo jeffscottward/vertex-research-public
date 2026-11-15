@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { withoutGitRepositoryEnvironment } from "../lib/git-env.ts";
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 import {
   realTailnetLabels,
@@ -56,8 +57,16 @@ describe("public tailnet names", () => {
   // Non-placeholder labels are joined at run time so this file passes its own scan.
   const leak = (label = "tail9f3a21") => `rig.${label}.ts.net`;
 
+  const tempDirs: string[] = [];
+  afterEach(async () => {
+    await Promise.all(
+      tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true }))
+    );
+  });
+
   async function tempRepo() {
     const dir = `${await mkdtemp(join(tmpdir(), "public-names-"))}/`;
+    tempDirs.push(dir);
     const git = async (...args: string[]) =>
       (
         await execFileAsync(
@@ -73,7 +82,8 @@ describe("public tailnet names", () => {
             "core.hooksPath=/dev/null",
             ...args,
           ],
-          { cwd: dir }
+          // A hook exports GIT_DIR and GIT_INDEX_FILE; without this the helper would write to the real repository.
+          { cwd: dir, env: withoutGitRepositoryEnvironment() }
         )
       ).stdout.trim();
     await git("init", "-q", "-b", "main");
