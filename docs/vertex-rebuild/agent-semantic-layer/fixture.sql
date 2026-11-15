@@ -84,6 +84,67 @@ insert into forward_drift_monitors(id, label, baseline_run_id, thresholds, level
 update forward_drift_monitors set thresholds = '{"drawdown":{"alert":1.5,"warn":1},"losingStreak":{"alert":1.5,"warn":1.25},"profitFactor":{"alert":0.5,"warn":0.75},"sharpe":{"alert":0,"warn":0.5},"winRate":{"alert":0.6,"warn":0.8}}'
   where thresholds = '{}';
 
+-- Forward data of the monitors, so that the stored level is backed by data: drift_monitor_get evaluates
+-- points and trades and must give the level that drift_status lists. Each monitor has one equity point
+-- per trading day from 2026-10-01 (the day after its baseline run ends) to 2026-11-04 and its closed
+-- trades; t is the bar time in epoch milliseconds, 00:00Z of the bar day.
+--   m_orb: equity is 100000 plus closed pnl. Rolling win rate 23.1% against 52%: alert. Five losses in a
+--          row are an alert too, but only because every run report of this fixture has the default
+--          longest losing streak 0 (set below), so two losses in a row already are one.
+--   m_mom: the open position is marked daily. Max drawdown 24.4% against 22.5%: warn.
+--   m_mr:  equity is 100000 plus closed pnl. Every check with enough data is inside its thresholds: ok.
+-- The profit factor and Sharpe checks stay insufficient: the run reports have no profit factor and no equity.
+-- The rows are what the API stores for this history, with one time (2026-11-05T14:00Z) for updated_at
+-- and the alert rows, a simplification: the monitor is created, its whole series is recorded by hand in
+-- one request (backtestRuns/drift/record, which saves through appendObservations), and for m_orb and
+-- m_mom the paper runner is then switched on and has not ticked yet. created_at keeps its earlier date
+-- (insert above) and is not compared. tests/integration/semantic-layer/drift-tools.test.ts runs that
+-- history on a new monitor and compares level, levels, version, strategy_revision, updated_at, the
+-- runner columns and the alert rows. After a change of the drift rules or of this data that test fails,
+-- and its diff shows the values the API stores now ("Expected"); copy them here.
+update forward_drift_monitors set version = 1,
+  levels = '{"drawdown":"ok","losingStreak":"alert","profitFactor":"insufficient","sharpe":"insufficient","winRate":"alert"}',
+  points = '[
+    {"equity":100420,"t":1790812800000},{"equity":100420,"t":1790899200000},{"equity":100110,"t":1791158400000},{"equity":100110,"t":1791244800000},{"equity":99820,"t":1791331200000},
+    {"equity":99820,"t":1791417600000},{"equity":100270,"t":1791504000000},{"equity":100270,"t":1791763200000},{"equity":99940,"t":1791849600000},{"equity":99940,"t":1791936000000},
+    {"equity":99590,"t":1792022400000},{"equity":99590,"t":1792108800000},{"equity":99180,"t":1792368000000},{"equity":99180,"t":1792454400000},{"equity":99580,"t":1792540800000},
+    {"equity":99280,"t":1792627200000},{"equity":98900,"t":1792713600000},{"equity":98900,"t":1792972800000},{"equity":98560,"t":1793059200000},{"equity":98560,"t":1793145600000},
+    {"equity":98200,"t":1793232000000},{"equity":98200,"t":1793318400000},{"equity":97880,"t":1793577600000},{"equity":97880,"t":1793664000000},{"equity":97880,"t":1793750400000}]',
+  trades = '[
+    {"pnl":420,"t":1790812800000},{"pnl":-310,"t":1791158400000},{"pnl":-290,"t":1791331200000},{"pnl":450,"t":1791504000000},{"pnl":-330,"t":1791849600000},
+    {"pnl":-350,"t":1792022400000},{"pnl":-410,"t":1792368000000},{"pnl":400,"t":1792540800000},{"pnl":-300,"t":1792627200000},{"pnl":-380,"t":1792713600000},
+    {"pnl":-340,"t":1793059200000},{"pnl":-360,"t":1793232000000},{"pnl":-320,"t":1793577600000}]'
+  where id = 'm_orb';
+update forward_drift_monitors set version = 1,
+  levels = '{"drawdown":"warn","losingStreak":"ok","profitFactor":"insufficient","sharpe":"insufficient","winRate":"insufficient"}',
+  points = '[
+    {"equity":100000,"t":1790812800000},{"equity":101200,"t":1790899200000},{"equity":102900,"t":1791158400000},{"equity":103800,"t":1791244800000},{"equity":103100,"t":1791331200000},
+    {"equity":101400,"t":1791417600000},{"equity":99800,"t":1791504000000},{"equity":98900,"t":1791763200000},{"equity":97200,"t":1791849600000},{"equity":95600,"t":1791936000000},
+    {"equity":94100,"t":1792022400000},{"equity":93300,"t":1792108800000},{"equity":91800,"t":1792368000000},{"equity":90200,"t":1792454400000},{"equity":89400,"t":1792540800000},
+    {"equity":88100,"t":1792627200000},{"equity":86900,"t":1792713600000},{"equity":85800,"t":1792972800000},{"equity":84900,"t":1793059200000},{"equity":84100,"t":1793145600000},
+    {"equity":82000,"t":1793232000000},{"equity":79800,"t":1793318400000},{"equity":78500,"t":1793577600000},{"equity":79600,"t":1793664000000},{"equity":81200,"t":1793750400000}]',
+  trades = '[
+    {"pnl":2100,"t":1791244800000},{"pnl":-1800,"t":1792108800000},{"pnl":900,"t":1793145600000}]'
+  where id = 'm_mom';
+update forward_drift_monitors set version = 1,
+  levels = '{"drawdown":"ok","losingStreak":"ok","profitFactor":"insufficient","sharpe":"insufficient","winRate":"ok"}',
+  points = '[
+    {"equity":100000,"t":1790812800000},{"equity":100520,"t":1790899200000},{"equity":100520,"t":1791158400000},{"equity":101130,"t":1791244800000},{"equity":101130,"t":1791331200000},
+    {"equity":100650,"t":1791417600000},{"equity":100650,"t":1791504000000},{"equity":101100,"t":1791763200000},{"equity":101100,"t":1791849600000},{"equity":101800,"t":1791936000000},
+    {"equity":101800,"t":1792022400000},{"equity":101270,"t":1792108800000},{"equity":101270,"t":1792368000000},{"equity":101660,"t":1792454400000},{"equity":101660,"t":1792540800000},
+    {"equity":102300,"t":1792627200000},{"equity":102300,"t":1792713600000},{"equity":102860,"t":1792972800000},{"equity":102860,"t":1793059200000},{"equity":102410,"t":1793145600000},
+    {"equity":102410,"t":1793232000000},{"equity":102890,"t":1793318400000},{"equity":102890,"t":1793577600000},{"equity":103480,"t":1793664000000},{"equity":103480,"t":1793750400000}]',
+  trades = '[
+    {"pnl":520,"t":1790899200000},{"pnl":610,"t":1791244800000},{"pnl":-480,"t":1791417600000},{"pnl":450,"t":1791763200000},{"pnl":700,"t":1791936000000},
+    {"pnl":-530,"t":1792108800000},{"pnl":390,"t":1792454400000},{"pnl":640,"t":1792627200000},{"pnl":560,"t":1792972800000},{"pnl":-450,"t":1793145600000},
+    {"pnl":480,"t":1793318400000},{"pnl":590,"t":1793664000000}]'
+  where id = 'm_mr';
+-- One open alert row per check that is at warn or alert.
+insert into forward_drift_alerts(id, monitor_id, check_key, level, message, forward_value, baseline_value, ratio, created_at) values
+  ('a_orb_losingStreak', 'm_orb', 'losingStreak', 'alert', 'Losing streak alert: forward 5 trades vs baseline 0 trades (ratio 5.00; warn at 1.25, alert at 1.5)', 5, 0, 5, '2026-11-05T14:00Z'),
+  ('a_orb_winRate', 'm_orb', 'winRate', 'alert', 'Rolling win rate alert: forward 23.08% vs baseline 52.00% (ratio 0.44; warn at 0.8, alert at 0.6)', 0.23076923076923078, 0.52, 0.4437869822485207, '2026-11-05T14:00Z'),
+  ('a_mom_drawdown', 'm_mom', 'drawdown', 'warn', 'Max drawdown warn: forward 24.37% vs baseline 22.50% (ratio 1.08; warn at 1, alert at 1.5)', 0.24373795761078998, 0.225, 1.083279811603511, '2026-11-05T14:00Z');
+
 -- Give the engine rows the full spec and report shape the API validates (contracts/backtest-runs.ts), so
 -- backtest_runs_list and backtest_runs_get work on this fixture. The metrics and rules above win over these defaults.
 update backtest_runs set spec = jsonb_build_object(
