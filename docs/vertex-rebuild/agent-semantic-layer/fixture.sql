@@ -202,8 +202,8 @@ update backtest_runs set spec = jsonb_build_object(
   'timeframe', case when spec->>'timeframe' = '1d' then '1d' else '1m' end);
 update backtest_runs set report = jsonb_build_object(
   'bars', 1000, 'equity', coalesce(report->'equity', '[]'::jsonb),
-  'firstT', coalesce((report->'equity'->0->'t')::bigint, 1609459200),
-  'lastT', coalesce((report->'equity'->-1->'t')::bigint, 1759190400), 'prices', '[]'::jsonb,
+  'firstT', coalesce((report->'equity'->0->'t')::bigint, 1609459200000),
+  'lastT', coalesce((report->'equity'->-1->'t')::bigint, 1790726400000), 'prices', '[]'::jsonb,
   'seriesSha256', 'synthetic', 'trades', '[]'::jsonb, 'tradesTruncated', false,
   'metrics', jsonb_build_object(
     'absoluteDrawdown', 0, 'averageLossTrade', null, 'averageProfitTrade', null, 'buyHoldReturn', 0,
