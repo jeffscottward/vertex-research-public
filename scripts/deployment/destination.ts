@@ -93,9 +93,14 @@ export const checkWebDeploymentDestination = (
   const workerName = staging
     ? "vertex-research-web-staging"
     : "vertex-research-web";
+  // No owner-approved origin exists (owner decision of 2026-11-05, see
+  // docs/vertex-deployment-safety.md). These hosts are placeholders on the
+  // reserved .invalid top-level domain (RFC 2606, RFC 6761): nobody can
+  // register them. Change them only to an owner-approved origin, and change
+  // apps/web/wrangler.jsonc and the deployment tests in the same commit.
   const origin = staging
-    ? "https://staging.vertex.xyz"
-    : "https://app.vertex.xyz";
+    ? "https://staging.no-approved-origin.invalid"
+    : "https://app.no-approved-origin.invalid";
   if (selected["name"] !== workerName) {
     return blocked(
       "The selected Worker must use the isolated environment-specific Vertex name"
