@@ -537,9 +537,17 @@ describe("every Vitest test file runs in the gates", {
     for (const shard of shards) {
       expect(orders.get(shard), shard).toBeGreaterThan(last);
     }
+    // The other named shards stay in the group of the unit project, where
+    // their files ran before they had their own projects.
+    expect(orders.has("unit")).toBe(true);
+    for (const shard of Object.keys(FILE_SHARDS)) {
+      if (!shards.includes(shard)) {
+        expect(orders.get(shard), shard).toBe(orders.get("unit"));
+      }
+    }
   });
 
-  return it("runs every unit, contract, operations, e2e-helpers and native-evidence file in verify:prepush", async () => {
+  return it("runs every unit, contract, operations, e2e-helpers and named-shard file in verify:prepush", async () => {
     // One after the other: a failing list then leaves nothing running.
     const files = await allTestFiles();
     const counts = await executionCounts("verify:prepush");

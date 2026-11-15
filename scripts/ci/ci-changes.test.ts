@@ -272,6 +272,11 @@ describe("ci-changes.sh", () => {
           "packages/db/src/server/vertex-authorization.tsx",
           "services/research/nautilus_backtest/signal.py",
           "packages/api/src/contracts/vertex-worker.test.ts",
+          "services/research/strategies/core.py",
+          "services/research/requirements-nautilus-linux-py312.lock",
+          "services/control-client/pyproject.toml",
+          "services/market-data/pyproject.toml",
+          "scripts/coverage-lane.test.ts",
         ].join("\n")
       );
       expect(out).toContain("heavy=true");
@@ -307,6 +312,10 @@ describe("ci-changes.sh", () => {
       ["services/control-client/vertex_control/client.py"],
       ["scripts/coverage-lane.ts"],
       ["services/research/requirements-sdk-linux-py312.lock"],
+      ["services/research/requirements-services-linux-py312.lock"],
+      ["services/research/requirements-linux-py312.lock"],
+      ["services/research/knowledge/papers.py"],
+      ["services/market-data/vertex_market_data/calendar.py"],
       ["vitest.config.ts"],
       [".github/workflows/ci.yml"],
       ["packages/api/src/contracts/vertex-worker.ts"],
