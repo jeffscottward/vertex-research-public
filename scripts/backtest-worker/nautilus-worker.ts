@@ -29,7 +29,8 @@
 // never write the pause file, but every copy holds that lock for its whole run (restartLockState).
 // SIGTERM stops the loop; a running engine process is killed and its run fails. After
 // ALERT_AFTER_FAILURES failed cycles in a row (API errors, a result that could not be delivered,
-// an engine crash or timeout; not an input error or an empty claim) it posts one alert line to
+// an engine process failure or timeout, a crashed case of a batch (exit 4: the other runs of the
+// process are still stored); not an input error or an empty claim) it posts one alert line to
 // VERTEX_ALERT_POST_URL / VERTEX_ALERT_CHANNEL (optional), and one recovery line on the next good
 // cycle. Alert lines carry counts and error classes only, never the key or a payload. Research only:
 // the worker sends HTTP requests to Vertex and starts the engine process, nothing else. The key
@@ -118,6 +119,12 @@ export const DELIVERY_MAX_BYTES = 900_000;
 const ALERT_AFTER_FAILURES = 3;
 /** Engine stderr kept for the worker log. */
 const STDERR_LOG_MAX = 2000;
+/** Exit status of `batch` when the document is complete and at least one case crashed. */
+const ENGINE_CRASH_STATUS = 4;
+/** Error text prefix of a run whose case crashed in Python (an unexpected exception). */
+const ENGINE_CRASH_PREFIX = "Nautilus engine crashed: ";
+/** Cycle failure class of a case crash; the infrastructure classes take precedence over it. */
+const CASE_CRASH_FAILURE = "case crash";
 
 export type CommandOutcome = Readonly<{
   code: number | null;
@@ -528,13 +535,16 @@ export const splitRuns = <T>(runs: readonly T[], parts: number): T[][] => {
 };
 
 /**
- * `batch - -` prints one result or input error per case and the process usage. A result is the
- * equity engine result or the options runner document (kind "options"); the API validates both.
+ * `batch - -` prints one entry per case and the process usage. An entry holds a result, an input
+ * error or a case crash (`crash`: an unexpected Python exception of that case; exit status 4). A
+ * result is the equity engine result or the options runner document (kind "options"); the API
+ * validates both.
  */
 const BatchOutputSchema = z.object({
   engine: z.string(),
   results: z.array(
     z.object({
+      crash: z.string().optional(),
       error: z.string().optional(),
       id: z.string(),
       result: z
@@ -594,7 +604,10 @@ const processFailure = (
 
 /**
  * Maps one engine process outcome to one completeMany item per run (exit 3: Nautilus missing). A
- * case's input error is that run's error and not a worker failure.
+ * case's input error is that run's error and not a worker failure. Exit 0 and exit 4 come with a
+ * complete document: a crashed case (exit 4) fails only its own run, the cycle counts as failed
+ * ("case crash", unless a missing entry makes it "engine output incomplete") and the stderr tail
+ * is kept as `detail`.
  */
 export const readBatchOutput = (
   outcome: CommandOutcome,
@@ -622,7 +635,10 @@ export const readBatchOutput = (
       detail
     );
   const parsed = BatchOutputSchema.safeParse(parseJson(outcome.stdout));
-  if (outcome.code !== 0 || !parsed.success)
+  if (
+    (outcome.code !== 0 && outcome.code !== ENGINE_CRASH_STATUS) ||
+    !parsed.success
+  )
     return processFailure(
       runs,
       `Nautilus engine failed (exit ${outcome.code})`,
@@ -638,8 +654,20 @@ export const readBatchOutput = (
     );
   const byId = new Map(results.map((entry) => [entry.id, entry]));
   let failure: string | null = null;
+  let crashed = false;
   const items = runs.map((run): BacktestRunEngineCompleteItem => {
     const entry = byId.get(run.id);
+    // A crash is checked first, so an entry that also held a result never counts as a success.
+    if (entry?.crash !== undefined) {
+      crashed = true;
+      return {
+        error: `${ENGINE_CRASH_PREFIX}${entry.crash}`.slice(
+          0,
+          BACKTEST_RUN_ENGINE_ERROR_MAX
+        ),
+        id: run.id,
+      };
+    }
     if (entry?.result !== undefined)
       return {
         engineRun: {
@@ -671,7 +699,12 @@ export const readBatchOutput = (
       id: run.id,
     };
   });
-  return { failure, items };
+  if (!crashed) return { failure, items };
+  return {
+    failure: failure ?? CASE_CRASH_FAILURE,
+    items,
+    ...(detail === "" ? {} : { detail }),
+  };
 };
 
 const messageOf = (error: unknown): string =>
@@ -888,10 +921,16 @@ const workOnce = async (
   const rejected = delivered.outcomes.some(
     (outcome) => outcome.error === "BAD_REQUEST"
   );
+  // A case crash names the cycle only when nothing else failed, so it never hides an outage.
+  const partFailures = outputs.flatMap((output) =>
+    output.failure === null ? [] : [output.failure]
+  );
   const failure =
     delivered.failure ??
-    outputs.find((output) => output.failure !== null)?.failure ??
-    (rejected ? "result rejected" : null);
+    partFailures.find((part) => part !== CASE_CRASH_FAILURE) ??
+    (rejected ? "result rejected" : null) ??
+    partFailures[0] ??
+    null;
   return { failure, found: true };
 };
 

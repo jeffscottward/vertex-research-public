@@ -174,6 +174,71 @@ describe("deploymentAlerts", () => {
 });
 
 describe("DeploymentsWorkspace", () => {
+  it("names why a service value is missing", async () => {
+    const services = [
+      service({
+        service: "gone",
+        present: false,
+        status: null,
+        running: false,
+        health: null,
+        restartCount: null,
+      }),
+      service({
+        service: "quiet",
+        status: null,
+        health: null,
+        restartCount: null,
+        log: { lastLineAt: null, lines: 0, errorLines: 0, warnLines: 0 },
+      }),
+      service({ service: "idle", running: false, status: "exited" }),
+      service({ service: "nolog" }),
+      service({ service: "ib-gateway" }),
+      service({
+        service: "fresh",
+        status: "created",
+        health: null,
+        running: false,
+        startedAt: null,
+      }),
+    ];
+    window.history.replaceState(null, "", "/deployments?tab=services");
+    const container = await mount(
+      <DeploymentsWorkspace
+        gateway={gatewayOf(async () => status(services))}
+        now={() => now}
+      />
+    );
+    const cells = (name: string) =>
+      [
+        ...container.querySelectorAll(`[data-deployment-service='${name}'] td`),
+      ].map((node) => node.textContent);
+    expect(cells("gone")).toEqual([
+      "goneredis:7",
+      "missing",
+      "container missing",
+      "container missing",
+      "container missing",
+      "no log read: container missing",
+      "no log read: container missing",
+    ]);
+    const quiet = cells("quiet");
+    expect(quiet[1]).toBe("status not reported");
+    expect(quiet[4]).toBe("not reported");
+    expect(quiet[2]).toBe("no healthcheck configured");
+    expect(quiet[5]).toBe("no timestamped log line returned");
+    expect(cells("fresh")[2]).toBe("container never started");
+    expect(cells("fresh")[5]).toBe("no log read: container never started");
+    expect(cells("ib-gateway")[5]).toBe("no log read: not returned");
+    expect(cells("idle")[5]).toBe("no log read: container stopped");
+    expect(cells("nolog")[5]).toBe(
+      "no log read: logs not collected for this service"
+    );
+    return expect(
+      container.querySelector("[data-deployment-alert='quiet']")
+    ).toBeNull();
+  });
+
   it("renders the table, alert row and log counts without any service action controls", async () => {
     const gateway = gatewayOf(async () =>
       status([neverStartedNautilus, healthyGateway])
