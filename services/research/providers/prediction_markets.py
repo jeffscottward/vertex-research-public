@@ -17,6 +17,10 @@ outside 1..99 cents are left out for both venues (upstream keeps them in the
 Kalshi table and drops them in its chart); legacy FPMM (fixed product market
 maker) trades of 2020-2022 are not ported.
 
+Input values are the scalars that a JSON or row reader gives (text, numbers,
+booleans, ``None``) and two-item lists for the two Polymarket list fields. A
+bad scalar does not stop the run; other value types are outside the contract.
+
 Research only. The module reads only the rows that the caller passes in. It does
 not download the dataset, contact a venue, read an account, place or simulate
 orders, or grant trading authority. Prices are implied probabilities in whole
@@ -33,6 +37,7 @@ from __future__ import annotations
 
 import json
 import math
+import numbers
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, replace
 from typing import Any
@@ -58,22 +63,22 @@ class SkippedRows:
 
 
 def _int_or_none(value: Any) -> int | None:
-    """A whole number as ``int``; ``None`` for a missing, boolean, fractional or unreadable value."""
-    if value is None or isinstance(value, bool):
+    """A whole number as ``int``: an integer, a float without a fraction or a string of digits.
+
+    ``None`` for every other value (missing, boolean, fractional, not finite,
+    unreadable text or another type), so the caller skips and counts the row.
+    """
+    if isinstance(value, bool):
         return None
-    index = getattr(value, "__index__", None)  # int and integer types of numpy or pyarrow.
-    if index is not None:
-        return int(index())
-    try:
-        if isinstance(value, str):
-            return int(value.strip())
-    except ValueError:
-        pass
-    try:
-        number = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    return int(number) if math.isfinite(number) and number == math.floor(number) else None
+    if isinstance(value, numbers.Integral):  # int and the integer types of numpy.
+        return int(value)
+    if isinstance(value, float):
+        return int(value) if math.isfinite(value) and value == math.floor(value) else None
+    if isinstance(value, str):
+        text = value.strip()
+        digits = text[1:] if text[:1] in ("+", "-") else text
+        return int(text) if digits.isascii() and digits.isdigit() else None
+    return None
 
 
 def _round_half_away(value: float) -> int:
@@ -103,8 +108,10 @@ def kalshi_positions(trades: Iterable[Mapping[str, Any]], resolution: Mapping[st
     A trade on a market that is not resolved is left out without a count (the
     inner join of the upstream SQL). Deviation from upstream SQL: a row with a
     taker side other than yes/no, or with a missing, fractional or unreadable
-    price, is skipped and counted in ``skipped`` (when the caller passes it). Upstream counts such a row: with a missing taker side both
-    sides are losses, and with another value the taker loses and the maker wins.
+    price, is skipped and counted in ``skipped`` (when the caller passes it).
+    Upstream counts a row with an invalid taker side: with a missing taker side
+    both sides are losses, and with another value the taker loses and the maker
+    wins.
     """
     for trade in trades:
         ticker = trade.get("ticker")
@@ -127,7 +134,7 @@ def _json_pair(value: Any) -> list[Any] | None:
     if isinstance(value, str):
         try:
             value = json.loads(value)
-        except ValueError:  # json.JSONDecodeError is a ValueError.
+        except (ValueError, RecursionError):  # json.JSONDecodeError is a ValueError.
             return None
     if not isinstance(value, (list, tuple)) or len(value) != 2:
         return None
@@ -151,7 +158,7 @@ def polymarket_token_resolution(markets: Iterable[Mapping[str, Any]]) -> dict[st
             continue
         try:
             p0, p1 = float(prices[0]), float(prices[1])
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if p0 > RESOLVED_HIGH and p1 < RESOLVED_LOW:
             winner = 0

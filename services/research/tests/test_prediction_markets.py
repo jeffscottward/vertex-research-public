@@ -140,6 +140,27 @@ def test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted():
     assert skipped.count == 5
 
 
+def test_only_whole_numbers_of_plain_types_are_read_as_prices():
+    class IndexOnly:  # has __index__ but is not an integer type (like a numpy boolean or array)
+        def __index__(self):
+            return 1
+
+    skipped = SkippedRows()
+    rows = [{"ticker": "A", "yes_price": price, "no_price": 50, "taker_side": "yes"}
+            for price in (IndexOnly(), "30.0", "1e2", "1_000", b"30", [30], float("nan"))]
+    assert list(kalshi_positions(rows, {"A": "yes"}, skipped)) == []
+    assert skipped.count == 7
+    good = [{"ticker": "A", "yes_price": price, "no_price": 70, "taker_side": "yes"} for price in (30, 30.0, " 30 ", "+30")]
+    assert list(kalshi_positions(good, {"A": "yes"}, skipped)) == [Position(30, True), Position(70, False)] * 4
+    assert skipped.count == 7
+
+
+def test_oversized_outcome_price_is_not_resolved():
+    huge = "[1" + "0" * 400 + ", 0]"
+    rows = [{"closed": True, "outcome_prices": huge, "clob_token_ids": '["111", "222"]'}]
+    assert polymarket_token_resolution(rows) == {}
+
+
 def test_market_fields_of_another_shape_are_not_resolved():
     rows = [{"closed": True, "outcome_prices": {"1": 0, "0": 0}, "clob_token_ids": '["111", "222"]'},
             {"closed": True, "outcome_prices": "", "clob_token_ids": '["333", "444"]'},
@@ -157,5 +178,5 @@ def test_domain_module_has_no_io_vendor_or_order_imports():
     tree = ast.parse((ROOT / "providers" / "prediction_markets.py").read_text())
     modules = {alias.name.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
     modules |= {node.module.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module}
-    assert modules <= {"__future__", "json", "math", "collections", "dataclasses", "typing"}
+    assert modules <= {"__future__", "json", "math", "numbers", "collections", "dataclasses", "typing"}
 

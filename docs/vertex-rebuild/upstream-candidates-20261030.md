@@ -34,7 +34,7 @@ State before this change:
 
 * The decision (WORTH or SKIP) for each of the ten projects is in this repository, with the license, the pinned commit and the reason.
 * The prediction-market calibration module and the distribution-day module are in `services/research` with their upstream MIT license files.
-* The CI step `scripts/ci/research-python.sh` runs every test of both modules. Acceptance: pytest reports 29 passed and 0 skipped for the two test files, neither test file contains a skip marker or `importorskip`, and the completeness check of the CI script passes.
+* The CI step `scripts/ci/research-python.sh` runs every test of both modules. Acceptance: pytest reports 31 passed and 0 skipped for the two test files, neither test file contains a skip marker or `importorskip`, and the completeness check of the CI script passes.
 * Each module docstring states that the module reads only what the caller passes in: no order, no account read, no network call.
 * The six private commits, which include the Parquet reader that this change leaves out, are kept in a second place (a git bundle in the owner's private report store).
 
@@ -138,7 +138,7 @@ Neither package `__init__.py` is changed or re-exports the new modules; a caller
   * Counted in `skipped_rows`: a Kalshi trade on a resolved market with a taker side other than yes or no, or with a missing, fractional or unreadable price; a Polymarket trade with a missing, fractional, unreadable or non-positive amount, or with amounts too large for a 64-bit float. Polymarket amounts are checked before the token join. The two calibration functions always count; a direct call of `kalshi_positions` or `polymarket_positions` counts only when the caller passes the optional `skipped` argument.
   * Left out without a count: a market row that is not resolved or cannot be parsed (as upstream), a market row without a ticker, a trade without a ticker or token id, and a trade on a market or token that is not resolved (the inner join of the upstream SQL).
   * Counted in `out_of_range_positions`: a position with a price outside 1 to 99 cents.
-  * A bad value in a row does not stop the run. The tests cover missing, fractional, boolean, infinite and oversized values and fields of another shape.
+  * Value contract: the values are the scalars that a JSON or row reader gives (text, numbers, booleans, null) and two-item lists for the two Polymarket list fields. A bad scalar does not stop the run; the tests cover missing, fractional, boolean, infinite, oversized and unreadable values. A number is read only from an integer, a float without a fraction or a string of digits. Other value types (for example arrays) are outside the contract.
 * Deviations from upstream:
   * A Kalshi trade with an invalid taker side is skipped and counted. Upstream counts it: with a missing taker side both sides are losses, and with another value the taker loses and the maker wins. A Kalshi trade with a missing price is also skipped and counted; the upstream analysis stops on it.
   * Two market rows for one Kalshi ticker give one resolution entry (the later row). The upstream SQL join gives the positions of each trade once for each market row.
@@ -255,7 +255,7 @@ This change adds both new test files to `ci-suites.txt`. They need only the exis
 
 | Risk | Mitigation |
 | --- | --- |
-| The calibration module was tested only with generated rows. Real dataset rows can have shapes that the tests do not cover. | No row stops the run; bad trade rows are counted, and the result reports `available = False` when nothing joins. A run on the real dataset is a later work item ([Future Improvements](#future-improvements)). The module docstring states this test status. |
+| The calibration module was tested only with generated rows. Real dataset rows can have shapes that the tests do not cover. | A bad scalar value does not stop the run; bad trade rows are counted, and the result reports `available = False` when nothing joins. A run on the real dataset is a later work item ([Future Improvements](#future-improvements)). The module docstring states this test status. |
 | Dataset rights are unknown ([Open Questions](#open-questions)). | This change ships no data and no download. The module docstring states the rights status. A rights check gates the dataset run. |
 | A reader takes the posture level as a trading instruction, or takes a level from a short history as a full result. | The module returns a description only; its docstring says that the result is not an order, an exposure change or a trading authorization. The exposure recommendation of the upstream skill is not adapted. `audit_flags` marks a short history (CUJ 5). |
 | The adapted rules do not follow later upstream changes. | Accepted. The docstrings and this document pin the upstream commits; the check against the upstream code was made once at those commits. Upstream changes are not tracked. |
@@ -304,7 +304,7 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
   * Remove `Venue`, `PredictionMarketDataError`, `PredictionMarketRows` and `venue_calibration`.
   * Add `kalshi_calibration(markets, trades)` and `polymarket_calibration(markets, trades)`. Each builds the resolution map, streams the positions into `calibration_by_price` and returns the report with `skipped_rows` set.
   * `kalshi_resolution`: leave out a row without a ticker (no `KeyError`).
-  * `_int_or_none`: return an `int` only for a whole number (an integer type, a float without a fraction or an integer string); return `None` for a missing, boolean, fractional, infinite or unreadable value.
+  * `_int_or_none`: return an `int` only for a whole number (an integer type, a float without a fraction or a string of digits); return `None` for every other value (missing, boolean, fractional, infinite, unreadable text or another type).
   * `_json_pair`: accept only a JSON string, a list or a tuple with two items.
   * A missing ticker, asset id or token id never joins (it is not turned into the text "None"). A Polymarket row whose amounts are too large for a 64-bit float is skipped and counted.
   * Docstrings: state the unit (positions), the weighting, the rounding at a half cent, the row contract, the deviations from upstream and the test status.
@@ -337,8 +337,8 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
   * Delete the last two test functions (`test_parquet_adapter_matches_in_memory_rows`, `test_parquet_adapter_rejects_missing_dataset`). They test the DuckDB Parquet reader of Alternative A. No import, fixture or helper is used only by them.
   * Delete the helper class `Rows` and call the two calibration functions with the fixture lists.
   * Rename `test_venue_calibration_reads_through_the_port` to `test_venue_calibration_reads_each_iterable_once_and_counts_skipped_rows` and pass iterators.
-  * Add `test_bad_rows_do_not_stop_the_run`, `test_rows_without_a_join_key_never_join`, `test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted`, `test_market_fields_of_another_shape_are_not_resolved` and `test_polymarket_half_cent_sides_sum_to_101_as_upstream`.
-* Fourteen tests:
+  * Add `test_bad_rows_do_not_stop_the_run`, `test_rows_without_a_join_key_never_join`, `test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted`, `test_only_whole_numbers_of_plain_types_are_read_as_prices`, `test_oversized_outcome_price_is_not_resolved`, `test_market_fields_of_another_shape_are_not_resolved` and `test_polymarket_half_cent_sides_sum_to_101_as_upstream`.
+* Sixteen tests:
   1. `test_kalshi_taker_and_maker_positions_on_resolved_markets_only`
   2. `test_polymarket_resolution_and_positions_match_upstream_rounding` (12.5 gives 13, 87.5 gives 88)
   3. `test_polymarket_half_cent_prices_round_like_upstream_sql` (57.5 gives 58, 42.5 gives 43)
@@ -350,9 +350,11 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
   9. `test_bad_rows_do_not_stop_the_run`
   10. `test_rows_without_a_join_key_never_join`
   11. `test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted`
-  12. `test_market_fields_of_another_shape_are_not_resolved`
-  13. `test_polymarket_half_cent_sides_sum_to_101_as_upstream`
-  14. `test_domain_module_has_no_io_vendor_or_order_imports` (the top-level packages that the module imports are a subset of `__future__`, `json`, `math`, `collections`, `dataclasses`, `typing`)
+  12. `test_only_whole_numbers_of_plain_types_are_read_as_prices`
+  13. `test_oversized_outcome_price_is_not_resolved`
+  14. `test_market_fields_of_another_shape_are_not_resolved`
+  15. `test_polymarket_half_cent_sides_sum_to_101_as_upstream`
+  16. `test_domain_module_has_no_io_vendor_or_order_imports` (the top-level packages that the module imports are a subset of `__future__`, `json`, `math`, `numbers`, `collections`, `dataclasses`, `typing`)
 
 #### 6. `services/research/tests/test_distribution_days.py` (Create)
 
@@ -443,7 +445,7 @@ Checkpoint: `bun run verify:prepush` passes and the scan steps of the [Verificat
 
 ### Verification Plan
 
-* **Unit Tests**: from `services/research`, `uv run --no-project --python 3.12 --with pytest==9.0.3 --with pydantic==2.13.4 --with tzdata==2026.2 python -m pytest -q -rs tests/test_prediction_markets.py tests/test_distribution_days.py`. Expected: 29 passed, no skipped test.
+* **Unit Tests**: from `services/research`, `uv run --no-project --python 3.12 --with pytest==9.0.3 --with pydantic==2.13.4 --with tzdata==2026.2 python -m pytest -q -rs tests/test_prediction_markets.py tests/test_distribution_days.py`. Expected: 31 passed, no skipped test.
 * **CI script**: from the repository root, `VERTEX_RESEARCH_PYTHON="$(uv python find 3.12)" bash scripts/ci/research-python.sh`. Expected: exit 0.
 * **Pre-push gate**: `bun run verify:prepush` (runs on `git push`). Expected: exit 0. It includes the Markdown lint and the documentation checks for the three changed Markdown files. No Python linter is configured in this repository.
 * **Public-repository scan** (the steps of [`ci-cutover.md`](ci-cutover.md); the scripts are on the owner's machine, and the agent that opens the pull request runs them): export the tree of the branch head to a temporary folder `<dir>`, then run:

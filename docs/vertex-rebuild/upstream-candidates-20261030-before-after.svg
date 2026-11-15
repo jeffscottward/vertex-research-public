@@ -206,7 +206,7 @@
       stroke-dasharray="5 5"
     />
     <text x="85" y="104" fill="#e8eaed" font-size="13" text-anchor="middle">
-      calibration, 14 tests
+      calibration, 16 tests
     </text>
   </g>
   <g transform="translate(934,246)">
@@ -252,7 +252,7 @@
       stroke-linejoin="round"
     />
     <text x="68" y="24" fill="#f5f5f5" font-size="18" font-weight="700">
-      CI runs all 29 tests
+      CI runs all 31 tests
     </text>
     <text x="68" y="48" fill="#9aa0a6" font-size="15">
       no dataset, no new dependency, no order path
