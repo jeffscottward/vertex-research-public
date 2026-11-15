@@ -268,10 +268,11 @@ const notRead = (
   block: Readonly<{ available: boolean; reason?: string }> | undefined,
   data: DeploymentStatusOutput
 ): string => {
-  if (block === undefined) return `not read: ${notConfiguredReason(data)}`;
-  if (!block.available && block.reason !== undefined)
-    return `not read: ${block.reason}`;
-  return "not reported";
+  const reason =
+    block === undefined || block.reason === undefined
+      ? notConfiguredReason(data)
+      : block.reason;
+  return `not read: ${reason}`;
 };
 
 // A missing side on an order or fill is a data fault, so it is flagged, not dashed.
@@ -286,18 +287,37 @@ const MissingSide = () => {
 // A missing price applies only when the order type uses it; otherwise the type has none.
 const missingPrice = (
   type: string | null | undefined,
-  uses: string,
+  uses: (type: string) => boolean,
   none: string
 ): string => {
   if (type === null || type === undefined) return NOT_REPORTED;
-  return type.toUpperCase().includes(uses) ? NOT_REPORTED : none;
+  return uses(type.toUpperCase()) ? NOT_REPORTED : none;
 };
+
+const usesLimitPrice = (type: string): boolean => {
+  return (
+    type.includes("LMT") ||
+    type.includes("LIMIT") ||
+    type === "LOC" ||
+    type === "LIT"
+  );
+};
+
+const usesStopPrice = (type: string): boolean => STOP_TYPES.has(type);
 
 const STOPPED_STATES: ReadonlySet<DeploySessionState> = new Set([
   "stopping",
   "stopped",
   "error",
-  "halted",
+]);
+
+// Order types whose stop column carries a price (collect.py moves aux into stop for trails).
+const STOP_TYPES: ReadonlySet<string> = new Set([
+  "STP",
+  "STP LMT",
+  "STP PRT",
+  "TRAIL",
+  "TRAIL LIMIT",
 ]);
 
 const startedMissing = (state: DeploySessionState): string => {
@@ -305,6 +325,8 @@ const startedMissing = (state: DeploySessionState): string => {
 };
 
 const stoppedMissing = (state: DeploySessionState): string => {
+  if (state === "unknown") return "container not inspected";
+  if (state === "halted") return "not stopped (kill switch engaged)";
   return STOPPED_STATES.has(state) ? "stop time not reported" : "not stopped";
 };
 
@@ -574,14 +596,22 @@ export const OrdersPanel = ({
                         {formatNumber(
                           item.price,
                           4,
-                          missingPrice(item.type, "LMT", "no limit price")
+                          missingPrice(
+                            item.type,
+                            usesLimitPrice,
+                            "no limit price"
+                          )
                         )}
                       </TableCell>
                       <TableCell className={tdNum}>
                         {formatNumber(
                           item.stop,
                           4,
-                          missingPrice(item.type, "STP", "no stop price")
+                          missingPrice(
+                            item.type,
+                            usesStopPrice,
+                            "no stop price"
+                          )
                         )}
                       </TableCell>
                       <TableCell className={tdNum}>
@@ -1039,7 +1069,9 @@ export const RiskPanel = ({
                       tone={watchdog.status === "ok" ? "success" : "warning"}
                     >
                       {watchdog.status ??
-                        `status not reported as of ${formatUtc(watchdog.as_of, "watchdog time not reported")}`}
+                        (watchdog.as_of === null
+                          ? "status and time not reported"
+                          : `status not reported as of ${formatUtc(watchdog.as_of)}`)}
                     </Chip>
                     <span className="font-mono">
                       safe mode {formatValue(watchdog.safe_mode)} · orders{" "}

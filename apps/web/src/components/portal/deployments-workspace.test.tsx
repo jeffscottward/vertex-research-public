@@ -536,6 +536,7 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
         status: null,
       },
       { ...order, symbol: "LMTX", type: "LMT", price: null, stop: null },
+      { ...order, symbol: "TRLX", type: "TRAIL", stop: null },
     ] as typeof orders.items;
     const fills = structuredClone(base.fills) as Extract<
       DeploymentStatusOutput["fills"],
@@ -598,11 +599,35 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
     expect(limit?.textContent).toContain("no stop price");
     expect(limit?.textContent).not.toContain("no limit price");
     expect(limit?.textContent).toContain("no aux price");
+    const trail = container.querySelector("[data-order-row='TRLX']");
+    expect(trail?.textContent).not.toContain("no stop price");
+    expect(trail?.textContent).toContain("no limit price");
     await clickTab(container, "fills");
     const fill = container.querySelector("[data-fill-row='AMZN']");
     expect(fill?.querySelector("[data-missing-side]")).not.toBeNull();
     expect(fill?.textContent).toContain("order id not reported");
     return expect(fill?.textContent).toContain("exec id not reported");
+  });
+
+  it("says when the watchdog sent neither status nor time", async () => {
+    const risk = structuredClone(v2Status().risk) as Extract<
+      DeploymentStatusOutput["risk"],
+      { available: true }
+    >;
+    risk.watchdog = {
+      ...risk.watchdog!,
+      as_of: null,
+      status: null,
+    } as typeof risk.watchdog;
+    const container = await mount(
+      <DeploymentsWorkspace
+        gateway={gatewayOf(async () => v2Status({ risk }))}
+        now={() => now}
+      />
+    );
+    return expect(
+      container.querySelector("[data-watchdog-status]")?.textContent
+    ).toBe("status and time not reported");
   });
 
   it("names the reason when session fields were not read", async () => {
@@ -625,6 +650,12 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
     const cases = [
       ["starting", "not started", "not stopped"],
       ["stopped", "start time not reported", "stop time not reported"],
+      [
+        "halted",
+        "start time not reported",
+        "not stopped (kill switch engaged)",
+      ],
+      ["unknown", "start time not reported", "container not inspected"],
     ] as const;
     for (const [state, started, stopped] of cases) {
       document.body.replaceChildren();
@@ -650,7 +681,7 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
       expect(field(shown, "stopped")).toBe(stopped);
       expect(field(shown, "heartbeat")).toBe("no heartbeat yet");
     }
-    return expect(cases).toHaveLength(2);
+    return expect(cases).toHaveLength(4);
   });
 
   it("falls back to v1 with the snapshot error and an engaged kill switch is prominent", async () => {
