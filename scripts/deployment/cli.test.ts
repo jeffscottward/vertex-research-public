@@ -9,8 +9,8 @@ const account = "a".repeat(32);
 const dependencies = (environment = "production") => {
   const staging = environment === "staging";
   const origin = staging
-    ? "https://staging.vertex.xyz"
-    : "https://app.vertex.xyz";
+    ? "https://staging.no-approved-origin.invalid"
+    : "https://app.no-approved-origin.invalid";
   const name = staging ? "vertex-research-web-staging" : "vertex-research-web";
   const selected = {
     account_id: account,

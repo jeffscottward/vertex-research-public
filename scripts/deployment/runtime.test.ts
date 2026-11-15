@@ -411,8 +411,8 @@ describe("deployment runtime adapters", () => {
       await mkdir(app, { recursive: true });
       const origin =
         environment === "staging"
-          ? "https://staging.vertex.xyz"
-          : "https://app.vertex.xyz";
+          ? "https://staging.no-approved-origin.invalid"
+          : "https://app.no-approved-origin.invalid";
       const name =
         environment === "staging"
           ? "vertex-research-web-staging"
