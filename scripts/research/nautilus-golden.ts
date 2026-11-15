@@ -2087,6 +2087,11 @@ const fieldRefusals: readonly (readonly [
   ],
   ["sessionEqual", { session: { endUtc: "09:30", startUtc: "09:30" } }],
   [
+    "stopLossKind",
+    { stopLoss: { kind: "trail" } },
+    "Unknown exit level kind: trail",
+  ],
+  [
     "stopLossKey",
     { stopLoss: { kind: "pct", pct: 5, x: 1 } },
     "Unknown key in stopLoss: x",
