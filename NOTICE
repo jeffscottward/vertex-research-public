@@ -124,3 +124,29 @@ where its own LICENSE and NOTICE files apply. services/vibe-trading/driver/
 vt_driver.py imports Vibe-Trading's modules at run time inside that clone's
 virtual environment.
 ------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+TradingView trend indicators (Trend Trio, card vertex-trend-trio)
+Checked 2026-11-14. No Pine Script source code is included in this repository.
+The formulas below are re-implemented from their public descriptions in
+services/research/indicators/trend.py, packages/shared/src/indicators/trend.ts,
+packages/scripting/src/ta.ts and the script templates in
+packages/scripting/src/templates.ts.
+
+- SuperTrend: TradingView built-in ta.supertrend, Pine Script reference manual,
+  https://www.tradingview.com/pine-script-reference/v6/#fun_ta.supertrend
+- Ultimate MA: ChrisMoody, CM_Ultimate_MA_MTF_V2,
+  https://www.tradingview.com/script/8KVcQiJM-CM-Ultimate-MA-MTF-V2/
+  (no licence header; published as open source under TradingView House Rules)
+- AlphaTrend: KivancOzbilgic, AlphaTrend,
+  https://www.tradingview.com/script/o50NYLAZ-AlphaTrend/
+  (the script states Mozilla Public License 2.0)
+- Chandelier Exit: the formula of Chuck LeBeau (highest high minus a multiple
+  of the average true range; StockCharts ChartSchool) in the ratcheting form of
+  everget, Chandelier Exit [everget],
+  https://www.tradingview.com/script/AqXxNS7j-Chandelier-Exit-everget/
+  (the script states GNU GPL 3.0; only the formula is used)
+- Slingshot: ChrisMoody, CM Sling Shot System (EMA 38 against EMA 62),
+  https://www.tradingview.com/script/GE7tSQK1-CM-Sling-Shot-System/
+  (no licence header; published as open source under TradingView House Rules)
+------------------------------------------------------------------------------
