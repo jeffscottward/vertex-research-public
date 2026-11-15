@@ -4,7 +4,10 @@ import { defineConfig } from "vitest/config";
 import coverageBaseline from "./scripts/ci/coverage-baseline.json" with {
   type: "json",
 };
-import { NATIVE_EVIDENCE_SHARDS } from "./scripts/lib/coverage-shards.ts";
+import {
+  FILE_SHARDS,
+  NATIVE_EVIDENCE_SHARDS,
+} from "./scripts/lib/coverage-shards.ts";
 import {
   resolveTimeoutScale,
   TIMEOUT_SCALE_ENV,
@@ -133,21 +136,25 @@ export default defineConfig({
             // Git-ignored local evidence keeps preimage copies of test files.
             "private/**",
             // Named coverage shards (scripts/lib/coverage-shards.ts) run these.
-            ...Object.values(NATIVE_EVIDENCE_SHARDS).flat().map(shardFile),
+            ...Object.values(FILE_SHARDS).flat().map(shardFile),
           ],
         },
       },
-      ...Object.entries(NATIVE_EVIDENCE_SHARDS).map(([name, include]) => ({
+      ...Object.entries(FILE_SHARDS).map(([name, include]) => ({
         extends: true,
         test: {
           name,
           include: include.map(shardFile),
-          // The JavaScript main thread of the worker limits these tests.
-          // Vitest runs the groups one after the other, so these files never
-          // run at the same time as the projects of a lower group (every
-          // project but the shards). With more than one worker they start when
-          // those projects have ended.
-          sequence: { groupOrder: 1 },
+          // The JavaScript main thread of the worker limits the
+          // native-evidence tests. Vitest runs the groups one after the other,
+          // so these files never run at the same time as the projects of a
+          // lower group (every other project). With more than one worker they
+          // start when those projects have ended. The five-turn debate file
+          // stays in the group of the unit project, where it ran before it had
+          // its own project.
+          sequence: {
+            groupOrder: Object.hasOwn(NATIVE_EVIDENCE_SHARDS, name) ? 1 : 0,
+          },
         },
       })),
       {
