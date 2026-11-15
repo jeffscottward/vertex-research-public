@@ -3187,6 +3187,18 @@ const definitionAcceptanceCases: readonly Readonly<{
     id: "bound:seriesFilters",
   },
   {
+    definition: {
+      ...filtersOf({
+        maxTermRatio: 1,
+        maxVix: 30,
+        trendLength: 1,
+        type: "volRegime",
+      }),
+      stopLoss: { kind: "atr", length: 1, multiple: 2 },
+    },
+    id: "bound:lowerLengths",
+  },
+  {
     definition: filtersOf(
       { ...opexWeek, fromDay: -10, toDay: 10, window: "turnOfMonth" },
       { ...opexWeek, fromDay: -1, toDay: 1, window: "turnOfMonth" },
