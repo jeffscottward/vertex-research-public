@@ -25,7 +25,7 @@ const repoFile = (path: string) =>
   existsSync(new URL(`../../../../${path}`, import.meta.url));
 
 const ROW =
-  /\('(strategy-seed-[a-z0-9-]+)', '([a-z0-9-]+)', '((?:[^']|'')+)', '((?:[^']|'')+)', '(python)', '([a-z_]+)', '([^']+)', '(\[[^\]]*\])'::jsonb, '([^']+)', '(\{(?:[^']|'')*\})'::jsonb, '(normal|high)', '((?:[^']|'')+)'::jsonb\)/g;
+  /\('(strategy-seed-[a-z0-9-]+)', '([a-z0-9-]+)', '((?:[^']|'')+)', '((?:[^']|'')+)', '(python)', '([a-z_]+)', '([^']+)', '(\[[^\]]*\])'::jsonb, '([^']+)', '(\[[^\]]*\])'::jsonb, '(normal|high)', '((?:[^']|'')+)'::jsonb\)/g;
 const rows = [...migration.matchAll(ROW)];
 
 describe("0073_strategy_catalog_trend_trio", () => {
@@ -63,7 +63,8 @@ describe("0073_strategy_catalog_trend_trio", () => {
     expect(normalizeStrategySourceRef(sourceRef)).toBe(sourceRef);
     expect(repoFile(sourceRef ?? "")).toBe(true);
     expect(normalizeStrategySection(section)).toBe(section);
-    expect(typeof JSON.parse(params ?? "null")).toBe("object");
+    // strategies_json_check (0019): params must be a JSON array (typed param specs), never an object.
+    expect(Array.isArray(JSON.parse(params ?? "null"))).toBe(true);
     const parsed = JSON.parse(tags ?? "[]");
     expect(normalizeStrategyTags(parsed)).toEqual(parsed);
     for (const tag of ["research-only", "backtest-study", "reconstruction"])
