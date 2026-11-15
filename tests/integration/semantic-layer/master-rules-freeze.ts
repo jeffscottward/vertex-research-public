@@ -18,7 +18,7 @@ import type {
 
 export const MASTER_RULES_PROCEDURE = "masterRules/search";
 
-export const MASTER_RULES_FIXTURE = fileURLToPath(
+const MASTER_RULES_FIXTURE = fileURLToPath(
   new URL("./master-rules.fixture.json", import.meta.url)
 );
 
