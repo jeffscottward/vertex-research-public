@@ -571,6 +571,23 @@ describe("options block", () => {
       issuesOf({ ...minimal, options: credit, sizing: { mode: "allIn" } })
     ).toEqual([]);
   });
+
+  it("refuses riskPct sizing or management with the options advice only", () => {
+    expect(
+      issuesOf({
+        ...minimal,
+        options: credit,
+        sizing: { mode: "riskPct", riskPct: 1 },
+      })
+    ).toEqual([
+      "sizing: Option strategies size by options.maxLossPct; remove the riskPct sizing",
+    ]);
+    expect(
+      issuesOf({ ...minimal, management: { breakevenR: 1 }, options: credit })
+    ).toEqual([
+      "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management",
+    ]);
+  });
 });
 
 describe("canonical JSON of existing definitions", () => {
@@ -1393,9 +1410,8 @@ describe("portfolio block", () => {
     }
   );
 
-  // The Python normalize_definition raises the first issue of each list; for an options definition
-  // it raises the options issue instead of a "stop loss" issue (definitionRefusalCases in
-  // scripts/research/nautilus-golden.ts, test_definition_refusal_matches_typescript).
+  // The Python normalize_definition raises the first issue of each list (definitionRefusalCases
+  // in scripts/research/nautilus-golden.ts, test_definition_refusal_matches_typescript).
   it.each([
     [
       "management without a stop loss before a portfolio without options",
@@ -1410,13 +1426,12 @@ describe("portfolio block", () => {
       ],
     ],
     [
-      "the management checks before a shifted window",
+      "management with options before a shifted window",
       withPortfolio(
         { policy: "window", shift: 2, symbols: ["SPY"] },
         { exit: { any: [always] }, management: { breakevenR: 1 } }
       ),
       [
-        "management: management moves the stop loss; add a stop loss",
         "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management",
         "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
       ],
@@ -1516,9 +1531,11 @@ describe("portfolio block", () => {
     expect(issues(definition)).toEqual(expected);
   });
 
-  // zod runs the cross-field checks only when every field is valid. The Python
-  // normalize_definition raises the field error first too
-  // (the field:side cases of definitionRefusalCases in scripts/research/nautilus-golden.ts).
+  // An unknown side is an invalid enum value: zod then lists only that issue. The Python
+  // normalize_definition raises the field error first too. For other field issues the field issue
+  // is the first issue of the list: the field: cases of definitionRefusalCases in
+  // scripts/research/nautilus-golden.ts pin it (definitionRefusalJson stops when a message written
+  // in strategy-dsl.ts comes first in a case with a `python` message).
   it.each([
     [
       "a portfolio without options",

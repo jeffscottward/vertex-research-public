@@ -192,7 +192,7 @@ DEFINITION_REFUSALS = golden()["definitionRefusals"]
 @pytest.mark.parametrize("case", DEFINITION_REFUSALS, ids=_ids(DEFINITION_REFUSALS, "id"))
 def test_definition_refusal_matches_typescript(case: dict[str, Any]) -> None:
     """scripts/research/nautilus-golden.ts definitionRefusalCases: the first TypeScript issue, or the
-    Python text of a field error or of an options definition."""
+    Python message of a field error whose TypeScript text zod writes."""
     with pytest.raises(InputError) as failed:
         sig.normalize_definition(case["definition"])
     assert not isinstance(failed.value, StrategyUnsupportedError)
