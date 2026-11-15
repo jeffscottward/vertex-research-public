@@ -216,11 +216,11 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
   {
     // Wrong: Sector Momentum named as in alert (any "alert" after the name, up to the next full stop). One
     // form is exempt, because it states the reference: "Sector momentum ... warn ... not alert" (also "not in
-    // alert", "not at alert") with no other monitor name before the negation and no later "alert" in the
-    // sentence.
+    // alert", "not at alert") where the negation ends the sentence, each gap is at most 120 characters, and
+    // no gap holds another monitor name or a word that starts with "alert".
     forbidden: [
       ...PAPER,
-      /sector momentum(?!(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b)[^.])*?\bwarn\b(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b)[^.])*?\bnot (?:in |at )?alert\b(?![^.]*\balert\b))[^.]*\balert\b/i,
+      /sector momentum(?!(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b|\balert)[^.]){0,120}?\bwarn\b(?:(?!\b(?:RSI MR|ORB|opening range breakout)\b|\balert)[^.]){0,120}?\bnot (?:in |at )?alert\b[\s)]*(?:\.|$))[^.]*\balert\b/i,
     ],
     id: "Q20",
     kind: "research",
