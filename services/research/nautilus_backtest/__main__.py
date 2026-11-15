@@ -29,6 +29,7 @@ import json
 import resource
 import sys
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -53,7 +54,9 @@ def _run_case(bars: Bars, spec: dict, rows: dict | None) -> dict:
     rule = spec.get("rule") or {}
     if rule.get("kind") == "academy":
         return _run_academy_case(bars, spec, rule)
-    if rule.get("kind") == "dsl" and rule.get("definition", {}).get("options") is not None:
+    definition = rule.get("definition")
+    # A definition that is not an object goes on to normalize_definition, which refuses it.
+    if rule.get("kind") == "dsl" and isinstance(definition, Mapping) and definition.get("options") is not None:
         from strategies.qc_ports.portfolio import run_spec_json
 
         if not rows:
@@ -62,7 +65,7 @@ def _run_case(bars: Bars, spec: dict, rows: dict | None) -> dict:
             return run_spec_json(spec, rows)
         except (ValueError, RuntimeError) as error:
             raise InputError(str(error)) from error
-    if rule.get("kind") == "dsl" and rows and strategy_series_refs(normalize_definition(rule["definition"])):
+    if rule.get("kind") == "dsl" and rows and strategy_series_refs(normalize_definition(definition)):
         from strategies.qc_ports.portfolio import context_from_rows
 
         last = spec.get("to") or _bar_date(bars.t[-1])

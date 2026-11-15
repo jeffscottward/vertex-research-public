@@ -1989,6 +1989,349 @@ const nySession = {
   entryTo: "12:00",
 };
 
+/**
+ * One field error each (card vertex-dsl-python-validator-field-guards): a value of the wrong type, a
+ * value outside its range, an unknown key or a list that is not a list. The third item is the Python
+ * message when zod writes the first TypeScript issue; without it, strategy-dsl.ts writes the message.
+ */
+const opexWeek = { type: "calendarWindow", window: "opexWeek" };
+const leftOf = (left: Json) => ({ entry: { all: [{ ...always, left }] } });
+const sectorFilter = (edit: Record<string, Json>) => ({
+  filters: [
+    {
+      quadrants: ["leading"],
+      sector: "XLK",
+      type: "sectorQuadrant",
+      ...edit,
+    },
+  ],
+});
+const legOf = (leg: Json) => ({
+  options: OPTIONS_BLOCK,
+  portfolio: { ...rollPortfolio, legs: [leg] },
+});
+const fieldRefusals: readonly (readonly [
+  id: string,
+  edit: Record<string, Json>,
+  python?: string,
+])[] = [
+  ["version", { version: 2 }, "Unknown definition version: 2"],
+  ["versionType", { version: true }, "Unknown definition version: True"],
+  ["name", { name: " " }, "name must be a text of 1 to 120 characters"],
+  ["nameType", { name: 5 }, "name must be a text of 1 to 120 characters"],
+  [
+    "nameLength",
+    { name: "n".repeat(121) },
+    "name must be a text of 1 to 120 characters",
+  ],
+  // JavaScript trim removes U+FEFF; zod counts the characters of a text as code points.
+  [
+    "nameTrim",
+    { name: "\ufeff" },
+    "name must be a text of 1 to 120 characters",
+  ],
+  [
+    "nameCodePoints",
+    { name: "😀".repeat(121) },
+    "name must be a text of 1 to 120 characters",
+  ],
+  [
+    "descriptionLength",
+    { description: "d".repeat(2001) },
+    "description must be a text of at most 2000 characters",
+  ],
+  [
+    "description",
+    { description: 5 },
+    "description must be a text of at most 2000 characters",
+  ],
+  ["entryAll", { entry: { all: 5 } }, "entry.all must be a list"],
+  [
+    "entryAny",
+    { entry: { all: [always], any: 5 } },
+    "entry.any must be a list",
+  ],
+  ["exitAny", { exit: { any: true } }, "exit.any must be a list"],
+  [
+    "entryAllCount",
+    { entry: { all: new Array(9).fill(always) } },
+    "entry.all needs 0 to 8 conditions",
+  ],
+  ["filtersType", { filters: 5 }, "filters must be a list"],
+  [
+    "filtersCount",
+    { filters: new Array(5).fill(opexWeek) },
+    "A definition needs 0 to 4 filters",
+  ],
+  ["filterType", { filters: [5] }, "filter must be an object"],
+  ["sizingMode", { sizing: {} }, "sizing needs mode"],
+  [
+    "riskPctType",
+    { sizing: { mode: "riskPct", riskPct: "x" }, stopLoss: pctStop },
+    "riskPct must be above 0 and at most 100",
+  ],
+  [
+    "riskPctAbsent",
+    { sizing: { mode: "riskPct" }, stopLoss: pctStop },
+    "riskPct must be above 0 and at most 100",
+  ],
+  [
+    "sessionKey",
+    { session: { endUtc: "16:00", startUtc: "09:30", x: 1 } },
+    "Unknown key in session: x",
+  ],
+  [
+    "sessionTime",
+    { session: { endUtc: "16:00", startUtc: "a" } },
+    "session startUtc: Expected HH:MM (UTC)",
+  ],
+  ["sessionEqual", { session: { endUtc: "09:30", startUtc: "09:30" } }],
+  [
+    "stopLossKind",
+    { stopLoss: { kind: "trail" } },
+    "Unknown exit level kind: trail",
+  ],
+  [
+    "stopLossKey",
+    { stopLoss: { kind: "pct", pct: 5, x: 1 } },
+    "Unknown key in stopLoss: x",
+  ],
+  [
+    "stopLossNoneKey",
+    { stopLoss: { kind: "none", pct: 5 } },
+    "Unknown key in stopLoss: pct",
+  ],
+  [
+    "stopLossPctAbsent",
+    { stopLoss: { kind: "pct" } },
+    "stopLoss pct must be above 0 and at most 99",
+  ],
+  [
+    "stopLossPct",
+    { stopLoss: { kind: "pct", pct: 100 } },
+    "stopLoss pct must be above 0 and at most 99",
+  ],
+  [
+    "stopLossLength",
+    { stopLoss: { kind: "atr", length: 0, multiple: 2 } },
+    "stopLoss length must be a whole number from 1 to 1000",
+  ],
+  [
+    "stopLossMultiple",
+    { stopLoss: { kind: "atr", length: 14, multiple: "x" } },
+    "stopLoss multiple must be above 0 and at most 100",
+  ],
+  [
+    "takeProfitPct",
+    { takeProfit: { kind: "pct", pct: 0 } },
+    "takeProfit pct must be above 0 and at most 99",
+  ],
+  ["expressionType", leftOf(5), "expression must be an object"],
+  [
+    "expressionChild",
+    leftOf({ left: closePrice, op: "add", type: "math" }),
+    "expression must be an object",
+  ],
+  ["expressionKind", leftOf({ type: [] }), "Unknown expression type: []"],
+  [
+    "constRange",
+    leftOf({ type: "const", value: 1e13 }),
+    "Constant value must be from -1e+12 to 1e+12",
+  ],
+  [
+    "indicatorLength",
+    leftOf({ length: 1001, name: "sma", type: "indicator" }),
+    "sma length must be at most 1000",
+  ],
+  ["rvolLength", leftOf({ length: 101, name: "rvol", type: "indicator" })],
+  ["zscoreLength", leftOf({ length: 1, name: "zscore", type: "indicator" })],
+  [
+    "filterKey",
+    { filters: [{ min: 10, type: "ivRank", x: 1 }] },
+    "Unknown key in ivRank filter: x",
+  ],
+  ["sector", sectorFilter({ sector: "XLZ" })],
+  [
+    "sectorType",
+    sectorFilter({ sector: 5 }),
+    "Unknown sector. Use a Select Sector SPDR symbol, for example XLK",
+  ],
+  [
+    "quadrantsType",
+    sectorFilter({ quadrants: "leading" }),
+    "sectorQuadrant quadrants must be a list",
+  ],
+  [
+    "quadrantsEmpty",
+    sectorFilter({ quadrants: [] }),
+    "sectorQuadrant needs at least one quadrant",
+  ],
+  ["quadrant", sectorFilter({ quadrants: ["up"] }), "Unknown quadrant: up"],
+  ["quadrantsRepeat", sectorFilter({ quadrants: ["leading", "leading"] })],
+  [
+    "filterTimeframe",
+    sectorFilter({ timeframe: "monthly" }),
+    "Unknown filter timeframe: monthly",
+  ],
+  [
+    "ivRankLength",
+    { filters: [{ length: 19, min: 10, type: "ivRank" }] },
+    "ivRank length must be a whole number from 20 to 1000",
+  ],
+  [
+    "ivRankMin",
+    { filters: [{ min: 101, type: "ivRank" }] },
+    "ivRank min must be from 0 to 100",
+  ],
+  ["ivRankOrder", { filters: [{ max: 10, min: 90, type: "ivRank" }] }],
+  [
+    "vixRatio",
+    { filters: [{ maxRatio: 11, type: "vixTermStructure" }] },
+    "vixTermStructure maxRatio must be above 0 and at most 10",
+  ],
+  [
+    "vixOrder",
+    { filters: [{ maxRatio: 1, minRatio: 2, type: "vixTermStructure" }] },
+  ],
+  [
+    "volRegimeVix",
+    { filters: [{ maxTermRatio: 1, maxVix: 201, type: "volRegime" }] },
+    "volRegime maxVix must be above 0 and at most 200",
+  ],
+  [
+    "volRegimeRatioAbsent",
+    { filters: [{ maxVix: 30, type: "volRegime" }] },
+    "volRegime maxTermRatio must be above 0 and at most 10",
+  ],
+  [
+    "volRegimeTrend",
+    {
+      filters: [
+        { maxTermRatio: 1, maxVix: 30, trendLength: 0, type: "volRegime" },
+      ],
+    },
+    "volRegime trendLength must be a whole number from 1 to 1000",
+  ],
+  [
+    "turnOfMonthFromDay",
+    { filters: [{ ...opexWeek, fromDay: 0, toDay: 3, window: "turnOfMonth" }] },
+    "turnOfMonth fromDay must be a whole number from -10 to -1",
+  ],
+  [
+    "turnOfMonthToDay",
+    {
+      filters: [{ ...opexWeek, fromDay: -1, toDay: 11, window: "turnOfMonth" }],
+    },
+    "turnOfMonth toDay must be a whole number from 1 to 10",
+  ],
+  [
+    "calendarKey",
+    { filters: [{ ...opexWeek, months: [1] }] },
+    "Unknown key in opexWeek filter: months",
+  ],
+  [
+    "monthsType",
+    { filters: [{ ...opexWeek, months: 5, window: "months" }] },
+    "calendarWindow months must be a list",
+  ],
+  [
+    "monthsEmpty",
+    { filters: [{ ...opexWeek, months: [], window: "months" }] },
+    "calendarWindow months needs 1 to 12 months",
+  ],
+  [
+    "month",
+    { filters: [{ ...opexWeek, months: [13], window: "months" }] },
+    "A calendarWindow month must be a whole number from 1 to 12",
+  ],
+  [
+    "monthsRepeat",
+    { filters: [{ ...opexWeek, months: [1, 1], window: "months" }] },
+  ],
+  [
+    "seriesKey",
+    { filters: [{ condition: always, series: "VIX", type: "series", x: 1 }] },
+    "Unknown key in series filter: x",
+  ],
+  [
+    "symbolsType",
+    { options: OPTIONS_BLOCK, portfolio: { policy: "roll", symbols: "SPY" } },
+    "portfolio symbols must be a list",
+  ],
+  [
+    "legsType",
+    { options: OPTIONS_BLOCK, portfolio: { ...rollPortfolio, legs: 5 } },
+    "portfolio legs must be a list",
+  ],
+  ["legType", legOf(5), "portfolio leg must be an object"],
+  [
+    "legEntryType",
+    legOf({ entry: 0, options: OPTIONS_BLOCK }),
+    "portfolio leg entry must be an object",
+  ],
+  [
+    "legEntryAll",
+    legOf({ entry: { all: 5 }, options: OPTIONS_BLOCK }),
+    "portfolio leg entry.all must be a list",
+  ],
+  [
+    "legExitAny",
+    legOf({
+      entry: { all: [always] },
+      exit: { any: 5 },
+      options: OPTIONS_BLOCK,
+    }),
+    "portfolio leg exit.any must be a list",
+  ],
+  [
+    "legFilters",
+    legOf({ entry: { all: [always] }, filters: 5, options: OPTIONS_BLOCK }),
+    "portfolio leg filters must be a list",
+  ],
+  [
+    "selectScore",
+    {
+      options: OPTIONS_BLOCK,
+      portfolio: { ...rollPortfolio, select: { top: 1 } },
+    },
+    "expression must be an object",
+  ],
+];
+const nullFieldRefusals: typeof fieldRefusals = [
+  [
+    "ivRankLengthNull",
+    { filters: [{ length: null, min: 10, type: "ivRank" }] },
+    "ivRank length must be a whole number from 20 to 1000",
+  ],
+  [
+    "volRegimeTrendNull",
+    {
+      filters: [
+        { maxTermRatio: 1, maxVix: 30, trendLength: null, type: "volRegime" },
+      ],
+    },
+    "volRegime trendLength must be a whole number from 1 to 1000",
+  ],
+  [
+    "filterTimeframeNull",
+    sectorFilter({ timeframe: null }),
+    "Unknown filter timeframe: None",
+  ],
+  [
+    "legExitAnyAbsent",
+    legOf({ entry: { all: [always] }, exit: {}, options: OPTIONS_BLOCK }),
+    "portfolio leg exit.any must be a list",
+  ],
+];
+const fieldRefusalCases: readonly DefinitionRefusalCase[] = [
+  ...fieldRefusals,
+  ...nullFieldRefusals,
+].map(([id, edit, python]) => ({
+  definition: { ...plainDefinition, ...edit },
+  id: `field:${id}`,
+  ...(python === undefined ? {} : { python }),
+}));
+
 const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
   // One cross-field check alone, in schema order.
   {
@@ -2330,6 +2673,7 @@ const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
     id: "field:conditionRight+management:noStop",
     python: "condition needs left, op and right",
   },
+  ...fieldRefusalCases,
 ];
 
 // 3. Fixed rules.
@@ -2755,6 +3099,138 @@ export const definitionRefusalJson = ({
       `${id}: strategy-dsl.ts wrote the first issue; remove the Python message`
     );
   return { definition, id, message: python };
+};
+
+/**
+ * Definitions with a value on each inclusive bound of a range (card
+ * vertex-dsl-python-validator-field-guards). The schema must accept each one, and so must the Python
+ * normalize_definition (test_a_value_on_the_bound_of_its_range_is_accepted). With the `field:*`
+ * refusal cases just outside the bounds, a changed bound of the schema stops the generator.
+ */
+const filtersOf = (...filters: Json[]) => ({ ...plainDefinition, filters });
+const definitionAcceptanceCases: readonly Readonly<{
+  definition: Json;
+  id: string;
+}>[] = [
+  {
+    definition: { ...plainDefinition, stopLoss: { kind: "pct", pct: 99 } },
+    id: "bound:stopLossPct",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      stopLoss: { kind: "atr", length: 1000, multiple: 100 },
+    },
+    id: "bound:stopLossAtr",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      sizing: { maxLeverage: 50, mode: "riskPct", riskPct: 100 },
+      stopLoss: pctStop,
+    },
+    id: "bound:riskPct",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: {
+        all: [
+          { ...always, right: { type: "const", value: 1e12 } },
+          { ...always, right: { type: "const", value: -1e12 } },
+          { ...always, left: { length: 1000, name: "sma", type: "indicator" } },
+          { ...always, left: { length: 100, name: "rvol", type: "indicator" } },
+          { ...always, left: { length: 2, name: "zscore", type: "indicator" } },
+        ],
+      },
+    },
+    id: "bound:expressions",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: {
+        all: new Array(8).fill(always),
+        any: new Array(8).fill(always),
+      },
+      exit: { any: new Array(8).fill(always) },
+    },
+    id: "bound:conditionCounts",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      session: { endUtc: "23:59", startUtc: "00:00" },
+    },
+    id: "bound:session",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      description: "d".repeat(2000),
+      name: "n".repeat(120),
+    },
+    id: "bound:textLengths",
+  },
+  // zod counts the characters of a text as code points, and JavaScript trim keeps U+001F.
+  {
+    definition: {
+      ...plainDefinition,
+      description: "😀".repeat(2000),
+      name: "😀".repeat(120),
+    },
+    id: "bound:textCodePoints",
+  },
+  { definition: { ...plainDefinition, name: "\u001f" }, id: "bound:nameTrim" },
+  {
+    definition: filtersOf(
+      { length: 20, max: 0, min: 0, type: "ivRank" },
+      { length: 1000, max: 100, min: 100, type: "ivRank" },
+      { maxRatio: 10, minRatio: 10, type: "vixTermStructure" },
+      { maxTermRatio: 10, maxVix: 200, trendLength: 1000, type: "volRegime" }
+    ),
+    id: "bound:seriesFilters",
+  },
+  {
+    definition: {
+      ...filtersOf({
+        maxTermRatio: 1,
+        maxVix: 30,
+        trendLength: 1,
+        type: "volRegime",
+      }),
+      stopLoss: { kind: "atr", length: 1, multiple: 2 },
+    },
+    id: "bound:lowerLengths",
+  },
+  {
+    definition: filtersOf(
+      { ...opexWeek, fromDay: -10, toDay: 10, window: "turnOfMonth" },
+      { ...opexWeek, fromDay: -1, toDay: 1, window: "turnOfMonth" },
+      {
+        ...opexWeek,
+        months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        window: "months",
+      },
+      {
+        quadrants: ["leading", "weakening", "lagging", "improving"],
+        sector: "XLRE",
+        timeframe: "daily",
+        type: "sectorQuadrant",
+      }
+    ),
+    id: "bound:calendarAndSectorFilters",
+  },
+];
+
+/** One definitionAcceptances entry; throws when the schema refuses the definition. */
+export const definitionAcceptanceJson = ({
+  definition,
+  id,
+}: Readonly<{ definition: Json; id: string }>): Json => {
+  if (!StrategyDefinitionSchema.safeParse(definition).success)
+    throw new Error(`${id}: the schema refuses the definition`);
+  return { definition, id };
 };
 
 /** 2d. Definition refusals (StrategyDefinitionSchema / normalize_definition). */
@@ -3436,6 +3912,9 @@ const buildGolden = (io: GoldenIo): string => {
     calendars: calendars(),
     compiled,
     costs,
+    definitionAcceptances: definitionAcceptanceCases.map(
+      definitionAcceptanceJson
+    ),
     definitionRefusals: buildDefinitionRefusals(),
     engine,
     engineRefusals,
