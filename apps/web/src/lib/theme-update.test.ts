@@ -4,8 +4,8 @@ import type {
 } from "@darkfactory/api";
 import { createUiStore } from "@darkfactory/state/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchThemeApiRequest } from "./lib/theme-api-timeout.ts";
-import { updateTrustedThemePreference } from "./lib/theme-update.ts";
+import { fetchThemeApiRequest } from "./theme-api-timeout.ts";
+import { updateTrustedThemePreference } from "./theme-update.ts";
 
 const deferred = <Value>() => {
   let resolve!: (value: Value) => void;
