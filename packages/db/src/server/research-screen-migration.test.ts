@@ -113,15 +113,16 @@ describe("0076_research_screen migration", () => {
     }
   });
 
-  it("is journaled as idx 75 after 0074", () => {
-    const index = journal.entries.findIndex(
-      (entry) => entry.tag === "0076_research_screen"
+  it("is journaled with the index of its file number, directly after the entry before it", () => {
+    // The number changes when another migration merges first (pnpm db:renumber), so the test reads it.
+    const index = journal.entries.findIndex((entry) =>
+      entry.tag.endsWith("_research_screen")
     );
-    expect(journal.entries[index]).toMatchObject({ idx: 75 });
-    expect(journal.entries[index - 1]).toMatchObject({
-      idx: 74,
-      tag: "0074_semantic_terms_trend_indicators",
-    });
+    const entry = journal.entries[index];
+    expect(entry?.tag).toBe(
+      `${String(entry?.idx).padStart(4, "0")}_research_screen`
+    );
+    expect(journal.entries[index - 1]?.idx).toBe((entry?.idx ?? 0) - 1);
   });
 
   it("has a rollback that drops exactly the 5 tables in order inside one transaction", () => {
