@@ -1531,9 +1531,11 @@ describe("portfolio block", () => {
     expect(issues(definition)).toEqual(expected);
   });
 
-  // zod runs the cross-field checks only when every field is valid. The Python
-  // normalize_definition raises the field error first too
-  // (the field:side cases of definitionRefusalCases in scripts/research/nautilus-golden.ts).
+  // An unknown side is an invalid enum value: zod then lists only that issue. The Python
+  // normalize_definition raises the field error first too. For other field issues the field issue
+  // is the first issue of the list: the field: cases of definitionRefusalCases in
+  // scripts/research/nautilus-golden.ts pin it (definitionRefusalJson stops when a message written
+  // in strategy-dsl.ts comes first in a case with a `python` message).
   it.each([
     [
       "a portfolio without options",
