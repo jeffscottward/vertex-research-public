@@ -31,6 +31,37 @@ describe("agent entry points", () => {
     );
   });
 
+  // Owner decision 2026-11-10: the owner never reviews code. Merges wait on
+  // CI and a fresh-context agent review; trading safety gates stay owner calls.
+  it("never makes a person's code review a merge gate", async () => {
+    const agents = await readFile(at("AGENTS.md"), "utf8");
+    expect(agents).not.toMatch(
+      /person's review|a person reviews it|person owns the outcome/u
+    );
+    // A person or human as the reviewer or approver of code, a diff or a PR.
+    expect(agents).not.toMatch(
+      /\b(?:person|human)(?:'s)?\s+(?:code\s+)?review\b|\breview(?:ed)?\s+by\s+a\s+(?:person|human)\b|\b(?:person|human)\s+(?:must\s+|should\s+|to\s+)?(?:review|approve)s?\s+(?:the\s+|each\s+|every\s+)?(?:code|diff|PR)\b/iu
+    );
+    const section = /## Code review practice\n([\s\S]*?)\n## /u.exec(
+      agents
+    )?.[1];
+    expect(section, "Code review practice section").toBeDefined();
+    for (const rule of [
+      "No merge waits for a person to read code",
+      "the owner decided it before the merge",
+      "including a code change that changes what one of them allows",
+      "does not merge before the owner decides",
+      "Link the owner's decision",
+      "A reviewer treats a missing link as an open finding",
+      "Arming trading",
+      "live orders",
+      "Risk settings",
+      "kill switches",
+    ]) {
+      expect(section, rule).toContain(rule);
+    }
+  });
+
   return it("gives every role skill matching name and description frontmatter", async () => {
     const roles = (await readdir(at(".agents/skills"))).sort();
     expect(roles).toEqual(SKILL_ROLES);
