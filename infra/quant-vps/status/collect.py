@@ -221,14 +221,20 @@ class LiveInputs:
     def now(self):
         return datetime.datetime.now(datetime.timezone.utc)
 
-    def inspect(self, service):
-        code, out, _ = _sh(["docker", "inspect", PREFIX + service + "-1"])
+    def inspect_status(self, service):
+        """-> ("ok", object), ("missing", None) when Docker answers that no such container exists, or
+        ("unreadable", None) when the Docker command fails in any other way."""
+        code, out, err = _sh(["docker", "inspect", PREFIX + service + "-1"])
         if code != 0:
-            return None
+            text = (out or "") + (err or "")
+            return ("missing", None) if "No such object" in text or "No such container" in text else ("unreadable", None)
         try:
-            return json.loads(out)[0]
+            return "ok", json.loads(out)[0]
         except (ValueError, IndexError):
-            return None
+            return "unreadable", None
+
+    def inspect(self, service):
+        return self.inspect_status(service)[1]
 
     def docker_logs(self, service, tail):
         code, out, err = _sh(["docker", "logs", "--timestamps", "--tail", str(tail), PREFIX + service + "-1"], timeout=10)
@@ -320,12 +326,19 @@ class FixtureInputs(LiveInputs):
     def now(self):
         return self._now
 
-    def inspect(self, service):
+    def inspect_status(self, service):
+        """Fixture: inspect/<service>.json is the container; inspect/<service>.unreadable is a failed
+        Docker command; neither file is a missing container."""
         p = self._file("inspect/%s.json" % service)
-        if not os.path.exists(p):
-            return None
-        with open(p) as f:
-            return json.load(f)
+        if os.path.exists(p):
+            with open(p) as f:
+                return "ok", json.load(f)
+        if os.path.exists(self._file("inspect/%s.unreadable" % service)):
+            return "unreadable", None
+        return "missing", None
+
+    def inspect(self, service):
+        return self.inspect_status(service)[1]
 
     def docker_logs(self, service, tail):
         p = self._file("docker-logs/%s.txt" % service)
@@ -407,6 +420,16 @@ def freshness(now, as_of, stale_after):
         return {"as_of": None, "age_seconds": None, "stale": True}
     age = int((now - dt).total_seconds())
     return {"as_of": iso(dt), "age_seconds": age, "stale": age > stale_after}
+
+
+def read_previous(path, max_bytes=2 * 1024 * 1024):
+    """The last snapshot this collector wrote, or None (absent, unreadable or not JSON)."""
+    try:
+        with open(path, "rb") as f:
+            data = load_json_text(f.read(max_bytes).decode("utf-8", "replace"))
+    except OSError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def load_json_text(text):
@@ -540,9 +563,11 @@ def watchdog_summary(inp):
     return None, lines
 
 
-def map_session_state(container, health, heartbeat_age, kill_engaged, last_event):
+def map_session_state(container, health, heartbeat_age, kill_engaged, last_event, absent="missing"):
+    """absent: why there is no container record: "missing" (Docker answered: no such container) or
+    "unreadable" (the Docker command failed)."""
     if container is None:
-        return "unknown"
+        return absent
     st = container.get("State", {}) or {}
     status = (st.get("Status") or "").lower()
     if status == "running":
@@ -567,10 +592,19 @@ def map_session_state(container, health, heartbeat_age, kill_engaged, last_event
         return "error" if st.get("ExitCode") not in (0, None) else "stopped"
     if status == "created":
         return "stopped"
-    return "unknown"
+    return "unrecognised"
 
 
-def build_session(inp, now, nautilus_raw, health, kill_engaged, account):
+def state_since(previous, state, now):
+    """Time the session state began: the previous snapshot's state_since when its state is the same,
+    else now (also on the first run and when the previous snapshot is not readable)."""
+    session = (previous or {}).get("session") if isinstance(previous, dict) else None
+    if isinstance(session, dict) and session.get("state") == state and parse_time(session.get("state_since")):
+        return iso(session.get("state_since"))
+    return iso(now)
+
+
+def build_session(inp, now, nautilus_raw, health, kill_engaged, account, read="ok", previous=None):
     redis = inp.redis_hgetall(REDIS_HEARTBEAT_KEY)
     events = runner_events(inp)
     last = events[-1] if events else {}
@@ -579,7 +613,8 @@ def build_session(inp, now, nautilus_raw, health, kill_engaged, account):
     hb_candidates += [parse_time(e.get("timestamp")) for e in events if e.get("event") == "strategy_heartbeat"]
     hb = max([d for d in hb_candidates if d is not None], default=None)
     hb_age = int((now - hb).total_seconds()) if hb else None
-    state = map_session_state(nautilus_raw, health, hb_age, kill_engaged, last_event)
+    state = map_session_state(nautilus_raw, health, hb_age, kill_engaged, last_event,
+                              absent="unreadable" if read == "unreadable" else "missing")
     st = (nautilus_raw or {}).get("State", {}) or {}
     runner_started = parse_time((health or {}).get("started_at"))
     strategies = strategies_from_pg(inp, runner_started)
@@ -610,10 +645,13 @@ def build_session(inp, now, nautilus_raw, health, kill_engaged, account):
     }
     trading_mode = (health or {}).get("trading_mode") or (redis or {}).get("trading_mode") or last.get("trading_mode")
     return {
-        "available": nautilus_raw is not None or health is not None,
+        # Always a definite state (missing and unreadable included); an unavailable block would need a
+        # reason and no other fields, which the reader requires.
+        "available": True,
         "source": "docker inspect nautilus-trader + data/nautilus/health.json + redis heartbeat + prototype-runner.log + " + strategy_source,
         "as_of": iso(now),
         "state": state,
+        "state_since": state_since(previous, state, now),
         "raw_state": raw,
         "trading_mode": scrub(trading_mode, 16) if trading_mode else None,
         "safe_mode": as_bool((health or {}).get("safe_mode")),
@@ -746,7 +784,7 @@ def build_risk(inp, now, nautilus_raw, health, wd):
     elif all(x is False for x in files_state):
         kill = "clear"
     else:
-        kill = "unknown"
+        kill = "unverified"  # no file engaged, at least one file check without answer: not clear
     env = typed_env(env_map(nautilus_raw))
     checks = {}
     for name, c in (summary.get("checks") or {}).items():
@@ -887,11 +925,13 @@ def enforce_size(doc):
     return data
 
 
-def build(inp, v2_enabled=True):
+def build(inp, v2_enabled=True, previous=None):
+    """previous: the last status-v2 document (or None); it carries session.state_since forward."""
     t0 = time.time()
     now = inp.now()
     now_iso = now.isoformat(timespec="seconds")
-    raws = {s: inp.inspect(s) for s in SERVICES}
+    reads = {s: inp.inspect_status(s) for s in SERVICES}
+    raws = {s: reads[s][1] for s in SERVICES}
     services = [service_item(inp, s, raws[s]) for s in SERVICES]
     v1 = {"schema": "vertex-deploy-status-v1", "host": "quantvps", "generatedAt": now_iso, "readOnly": True, "services": services}
     if not v2_enabled:
@@ -912,7 +952,8 @@ def build(inp, v2_enabled=True):
     v2 = dict(v1)
     v2["schema"] = "vertex-deploy-status-v2"
     v2.update({
-        "session": safe_block("session", build_session, inp, now, raws["nautilus-trader"], health, kill_engaged, account),
+        "session": safe_block("session", build_session, inp, now, raws["nautilus-trader"], health, kill_engaged, account,
+                              reads["nautilus-trader"][0], previous),
         "positions": positions,
         "orders": orders,
         "fills": safe_block("fills", build_fills, inp, now),
@@ -956,7 +997,8 @@ def main(argv):
     if v2_enabled and os.path.realpath(v2_dir) == os.path.realpath(OUT_DIR):
         sys.stderr.write("refusing to write v2 into the public directory %s\n" % OUT_DIR)
         v2_enabled = False
-    v1_text, v2_text, leaks = build(inp, v2_enabled)
+    previous = read_previous(os.path.join(v2_dir, "status-v2.json")) if v2_enabled else None
+    v1_text, v2_text, leaks = build(inp, v2_enabled, previous)
     write_atomic(out_dir, "status.json", v1_text)
     public_v2 = os.path.join(out_dir, "status-v2.json")
     if os.path.lexists(public_v2) and os.path.realpath(out_dir) != os.path.realpath(v2_dir):

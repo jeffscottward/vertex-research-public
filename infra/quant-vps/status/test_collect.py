@@ -194,7 +194,10 @@ class StateMappingTest(unittest.TestCase):
     def test_mapping(self):
         m = collect.map_session_state
         ok = {"status": "ok"}
-        self.assertEqual(m(None, None, None, False, None), "unknown")
+        self.assertEqual(m(None, None, None, False, None), "missing")
+        self.assertEqual(m(None, None, None, False, None, absent="unreadable"), "unreadable")
+        self.assertEqual(m(self.c("weird"), None, None, False, None), "unrecognised")
+        self.assertEqual(m({"State": {}}, None, None, False, None), "unrecognised")
         self.assertEqual(m(self.c("running", health="healthy"), ok, 10, False, "strategy_heartbeat"), "running")
         self.assertEqual(m(self.c("running", health="healthy"), ok, 10, True, None), "halted")
         self.assertEqual(m(self.c("running", health="healthy"), ok, 900, False, None), "degraded")
@@ -207,6 +210,11 @@ class StateMappingTest(unittest.TestCase):
         self.assertEqual(m(self.c("created"), None, None, False, None), "stopped")
         self.assertEqual(m(self.c("dead"), None, None, False, None), "error")
 
+    def test_no_mapping_returns_unknown(self):
+        m = collect.map_session_state
+        for status in ("running", "restarting", "paused", "removing", "dead", "exited", "created", "weird", ""):
+            self.assertNotEqual(m(self.c(status), None, None, False, None), "unknown", status)
+
     def test_scrub(self):
         s = collect.scrub
         self.assertEqual(s("acct U1234567 and DU0007654"), "acct ****4567 and ****7654")
@@ -218,6 +226,95 @@ class StateMappingTest(unittest.TestCase):
         self.assertEqual(collect.mask_account("U***9975"), "****9975")
         self.assertEqual(collect.iso("2026-09-29T23:45:02.407636734Z"), "2026-09-29T23:45:02Z")
         self.assertEqual(collect.iso("2026-09-18 16:24:08.74+00"), "2026-09-18T16:24:08Z")
+
+
+
+class DefiniteStateTest(unittest.TestCase):
+    """Card vertex-status-b1-quantvps: no session or kill-switch state is "unknown"."""
+
+    def fixture_copy(self):
+        import shutil
+        root = tempfile.mkdtemp(prefix="vx-status-fixture-")
+        shutil.copytree(FIXTURE, root, dirs_exist_ok=True)
+        return root
+
+    def run_v2(self, root, private=None, now=None):
+        out = tempfile.mkdtemp(prefix="vx-status-")
+        private = private or tempfile.mkdtemp(prefix="vx-status-private-")
+        args = ["--fixtures", root, "--out", out, "--v2", "--v2-out", private]
+        if now:
+            args += ["--now", now]
+        self.assertEqual(collect.main(args), 0)
+        with open(os.path.join(private, "status-v2.json")) as f:
+            return json.load(f), private
+
+    def test_missing_container(self):
+        root = self.fixture_copy()
+        os.remove(os.path.join(root, "inspect", "nautilus-trader.json"))
+        v2, _ = self.run_v2(root)
+        self.assertEqual(v2["session"]["state"], "missing")
+
+    def test_missing_container_and_health_file_still_names_the_state(self):
+        root = self.fixture_copy()
+        os.remove(os.path.join(root, "inspect", "nautilus-trader.json"))
+        manifest_path = os.path.join(root, "manifest.json")
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        health = [k for k, v in (manifest.get("files") or {}).items() if str(k).endswith("nautilus/health.json")]
+        for key in health:
+            del manifest["files"][key]
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f)
+        v2, _ = self.run_v2(root)
+        self.assertEqual((v2["session"]["available"], v2["session"]["state"]), (True, "missing"))
+        self.assertEqual(set(v2["session"]) - {"available", "source", "as_of"} >= {"state", "state_since"}, True)
+
+    def test_unreadable_docker(self):
+        root = self.fixture_copy()
+        os.remove(os.path.join(root, "inspect", "nautilus-trader.json"))
+        open(os.path.join(root, "inspect", "nautilus-trader.unreadable"), "w").close()
+        v2, _ = self.run_v2(root)
+        self.assertEqual(v2["session"]["state"], "unreadable")
+
+    def test_live_inspect_tells_missing_from_unreadable(self):
+        replies = {"missing": (1, "", "Error: No such object: x"), "gone": (1, "", "Error response from daemon: No such container: x"),
+                   "daemon": (1, "", "Cannot connect to the Docker daemon"), "timeout": (127, "", ""), "garbage": (0, "not json", "")}
+        real = collect._sh
+        try:
+            for name, reply in replies.items():
+                collect._sh = lambda args, timeout=8, stdin=None, reply=reply: reply
+                got = collect.LiveInputs().inspect_status("nautilus-trader")[0]
+                self.assertEqual(got, "missing" if name in ("missing", "gone") else "unreadable", name)
+            collect._sh = lambda args, timeout=8, stdin=None: (0, '[{"State": {}}]', "")
+            self.assertEqual(collect.LiveInputs().inspect_status("nautilus-trader"), ("ok", {"State": {}}))
+        finally:
+            collect._sh = real
+
+    def test_state_since_carries_forward_and_resets(self):
+        root = self.fixture_copy()
+        first, private = self.run_v2(root, now="2026-11-15T10:00:00Z")
+        state = first["session"]["state"]
+        self.assertEqual(first["session"]["state_since"], "2026-11-15T10:00:00Z")
+        second, _ = self.run_v2(root, private, now="2026-11-15T10:05:00Z")
+        self.assertEqual(second["session"]["state"], state)
+        self.assertEqual(second["session"]["state_since"], "2026-11-15T10:00:00Z")
+        os.remove(os.path.join(root, "inspect", "nautilus-trader.json"))
+        third, _ = self.run_v2(root, private, now="2026-11-15T10:10:00Z")
+        self.assertEqual((third["session"]["state"], third["session"]["state_since"]), ("missing", "2026-11-15T10:10:00Z"))
+
+    def test_state_since_ignores_a_bad_previous_snapshot(self):
+        now = collect.parse_time("2026-11-15T10:00:00Z")
+        for previous in (None, [], {"session": "x"}, {"session": {"state": "stopped", "state_since": "not a time"}}):
+            self.assertEqual(collect.state_since(previous, "stopped", now), "2026-11-15T10:00:00Z")
+
+    def test_kill_switch_unverified_when_a_file_check_has_no_answer(self):
+        class NoAnswer(collect.FixtureInputs):
+            def exists(self, path):
+                return None if path == collect.KILL_SWITCH_FILES[0] else False
+        inp = NoAnswer(FIXTURE)
+        risk = collect.build_risk(inp, inp.now(), None, None, None)
+        self.assertEqual(risk["kill_switch"], "unverified")
+        self.assertIsNone(risk["kill_switch_indicators"][0]["engaged"])
 
 
 if __name__ == "__main__":
