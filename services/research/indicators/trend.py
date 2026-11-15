@@ -17,7 +17,8 @@ authors are in NOTICE). Sources, checked 2026-11-14:
   ``ta.rsi`` in <https://www.tradingview.com/pine-script-reference/v6/>.
 
 Conventions (shared with packages/shared/src/indicators/trend.ts, operation for operation, so both give the
-same IEEE doubles; the reference values are services/research/tests/fixtures/trend-indicator-reference.json):
+same IEEE doubles; the reference values are the shared test fixture trend-indicator-reference in
+services/research/tests/fixtures):
 - Input: lists of finite floats in chronological order. Output: lists of the same length; ``nan`` is Pine's
   ``na`` (undefined).
 - Windowed averages (sma, wma) use the last ``length`` values that are not ``nan`` and are ``nan`` at a bar

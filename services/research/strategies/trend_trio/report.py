@@ -298,7 +298,7 @@ def _data(results: Mapping) -> str:
     files = results["data"].get("files", [])
     rows = [[_e(f["path"].rsplit("/", 1)[-1]), f"{f['bytes']:,}", f"<code>{_e(f['sha256'][:16])}</code>"]
             for f in files[:40]]
-    more = f"<p class='dim'>{len(files) - 40} more files in results.json.</p>" if len(files) > 40 else ""
+    more = f"<p class='dim'>{len(files) - 40} more files in results.json.</p>" if len(files) > 40 else ""  # json-data-ignore: report text naming the run's output file; nothing is read
     provenance = results.get("provenance", {})
     commit = provenance.get("commit", "unknown")
     return ("<h2>Data and provenance</h2>" + (_table(["File", "Bytes", "SHA-256"], rows) if rows else "") + more

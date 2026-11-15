@@ -88,8 +88,8 @@ class DataPaths:
     m1: Path = imom.DEFAULT_ROOT
     m1_full: Path = REPORTS / "vertex-trend-trio-data" / "m1-full"
     qqq: Path = REPORTS / "vertex-reel-dffkn31-data" / "ibkr5m" / "QQQ.csv.gz"
-    yahoo_ndx: Path = REPORTS / "vertex-session-open-momentum" / "data" / "yahoo-NDX.json"
-    yahoo_qqq: Path = REPORTS / "vertex-session-open-momentum" / "data" / "yahoo-QQQ.json"
+    yahoo_ndx: Path = REPORTS / "vertex-session-open-momentum" / "data" / "yahoo-NDX.json"  # json-data-ignore: Yahoo daily download on the rig (input of a research run, outside the repo); the app never reads it
+    yahoo_qqq: Path = REPORTS / "vertex-session-open-momentum" / "data" / "yahoo-QQQ.json"  # json-data-ignore: Yahoo daily download on the rig (input of a research run, outside the repo); the app never reads it
     nq: Path = REPORTS / "vertex-emt" / "futures"
 
 
@@ -526,7 +526,7 @@ def _row_trades(out_dir: Path, row: str, dataset: str, data: Datasets) -> list[d
     """The trades of a graded row from its job file, else computed now."""
     variant = BY_ROW[row]
     job = Job("trades", row, dataset, variant.params, 1)
-    stored = _finished(out_dir / f"{job.name}.json", job, data.stamp)
+    stored = _finished(out_dir / f"{job.name}.json", job, data.stamp)  # json-data-ignore: per-job result file in the run's --out folder under ~/Documents, outside the repo; the app never reads it
     if stored is not None and stored.get("status") == "ran":
         return stored["trades"]
     return trades_payload(data.sets[dataset], variant.params)["trades"]  # type: ignore[arg-type]
@@ -534,7 +534,7 @@ def _row_trades(out_dir: Path, row: str, dataset: str, data: Datasets) -> list[d
 
 def run_job(job: Job, out_dir: Path, data: Datasets | None = None) -> dict:
     """Runs one job unless its file is already there; returns {"job", "status", "seconds", "skipped"}."""
-    path = out_dir / f"{job.name}.json"
+    path = out_dir / f"{job.name}.json"  # json-data-ignore: per-job result file in the run's --out folder under ~/Documents, outside the repo; the app never reads it
     data = data or LOADED
     if data is None:
         raise RuntimeError("no datasets loaded (call study.use first)")
@@ -820,7 +820,7 @@ def mfi_agreement(a5: Minutes, c: Minutes, length: int = MFI_LENGTH) -> dict:
 # --- assemble ------------------------------------------------------------------------------------------
 
 def _load(out_dir: Path, name: str) -> dict | None:
-    path = out_dir / f"{name}.json"
+    path = out_dir / f"{name}.json"  # json-data-ignore: per-job result file in the run's --out folder under ~/Documents, outside the repo; the app never reads it
     return json.loads(path.read_text()) if path.exists() else None
 
 
@@ -952,7 +952,7 @@ def job_loader(out_dir: Path, stamp: Mapping[str, Any]) -> Callable[[str], dict 
     by_name = {job.name: job for job in jobs()}
 
     def load(name: str) -> dict | None:
-        return _finished(out_dir / f"{name}.json", by_name[name], stamp)
+        return _finished(out_dir / f"{name}.json", by_name[name], stamp)  # json-data-ignore: per-job result file in the run's --out folder under ~/Documents, outside the repo; the app never reads it
 
     return load
 
@@ -960,7 +960,7 @@ def job_loader(out_dir: Path, stamp: Mapping[str, Any]) -> Callable[[str], dict 
 def assemble(out_dir: Path, data_info: Mapping | None = None, *, pilot: bool = False,
              stamp: Mapping[str, Any] | None = None) -> dict:
     """The results document: every row at 0, 1 and 2 ticks, walk-forward, tests T1-T7, outcome, diagnostics,
-    data manifest (`data.json` written by run.py, or `data_info`). Only job files of this run's `stamp`
+    data manifest (the file run.py writes next to the results, or `data_info`). Only job files of this run's `stamp`
     (default: the "stamp" of the data info) count; others are treated as missing."""
     out_dir = Path(out_dir)
     info = data_info if data_info is not None else (_load(out_dir, "data") or {})
