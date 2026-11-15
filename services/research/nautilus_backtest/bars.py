@@ -13,7 +13,11 @@ from typing import Any
 
 
 class InputError(ValueError):
-    """Bad backtest input. Same messages as the TypeScript InstantBacktestInputError."""
+    """Bad backtest input: the request is at fault. Same messages as the TypeScript InstantBacktestInputError.
+
+    The options runner (strategies/qc_ports) raises it for a request that it refuses (the options block,
+    the spec or the rows), with the message of the TypeScript options runner where that runner has the
+    same check. A caller of those modules that has no request can treat it as a ValueError."""
 
 
 class SectorQuadrantDataError(InputError):

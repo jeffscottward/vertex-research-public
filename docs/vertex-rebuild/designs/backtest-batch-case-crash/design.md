@@ -36,7 +36,7 @@ No incident is known: the worker journal since 2026-11-05 holds 61 cycles with r
 
 ## Goals
 
-- G1. An unexpected Python exception in one case becomes the `crash` entry of that case. This includes a result that JSON cannot hold (for example NaN). Exception: in the options route, `ValueError` and `RuntimeError` stay input errors (NG4).
+- G1. An unexpected Python exception in one case becomes the `crash` entry of that case. This includes a result that JSON cannot hold (for example NaN). When this design was built, the options route kept `ValueError` and `RuntimeError` as input errors (NG4); card `vertex-options-route-crash-as-input-error` removed that exception.
 - G2. For the tested fault paths (the 4 case-input faults, a fault inside the engine run, a NaN result), the other cases keep their results, and each kept result is equal to the result of the same case in a batch without the faulty case (all fields apart from `wallMs`).
 - G3. A batch with a case crash writes the complete document and then returns exit status 4.
 - G4. A batch without a case crash gives the same bytes as before (apart from `results[].wallMs`, `usage.cpuMs` and `usage.wallMs`) and exit status 0.
@@ -49,7 +49,7 @@ No incident is known: the worker journal since 2026-11-05 holds 61 cycles with r
 - NG1. Faults that the per-case guard does not catch: a native abort in the engine core, a process that the system kills, the 9-minute timeout of the worker, and every `BaseException` that is not an `Exception` (`KeyboardInterrupt`, `SystemExit`, a Rust panic of the engine). They end the process as today (row "Process failure" below). One exception: a case that calls `exit()` (`SystemExit`) ends the batch with status 1 and a stderr line, so that its own exit code (for example 4) never looks like a batch status.
 - NG2. The `run` and `academy` commands. They run one case and lose no other result.
 - NG3. A change to the API contract, the stored run format or the portal.
-- NG4. The options route, which turns every `ValueError` and `RuntimeError` of the options runner into an input error (`_run_case`). Card `vertex-options-route-crash-as-input-error` covers it.
+- NG4. The options route, which turned every `ValueError` and `RuntimeError` of the options runner into an input error (`_run_case`) when this design was built. Card `vertex-options-route-crash-as-input-error` removed that catch afterwards: the options runner raises `InputError` for a request that it refuses, and every other exception of an options case is a `crash`.
 - NG5. A retry of crashed cases, a timeout per case, one process per case, output as a stream.
 - NG6. The update of the live worker's runner checkout (behind the base on 2026-11-15). Card `vertex-nautilus-runner-stale-1115` covers it and waits for this change. This design is verified with tests, not on the live worker.
 
@@ -188,7 +188,7 @@ So the worker needs a restart after its checkout is updated. The operator does t
 |Message content in the stored text (D2): an exception message can hold a file path or a value of the request.|security|The text goes to the same field and readers as input errors and the options-route errors, which already hold raw Python messages. The API is operator-only ([backtest-runs.md](../../backtest-runs.md)). The text is cut to 300 (Python) and 500 (API) characters. No secret is in the batch input.|A server path can show in a failed run.|
 |Stderr volume.|scalability|3 tracebacks per process, one line per crash; the worker logs the last 2000 characters.|After many crashes in one process, the last traceback can leave the logged tail; the crash lines stay.|
 |Alerting (D1).|failure|`case crash` counts as a failed cycle and never hides another class.|An idle or normal cycle resets the count, so a single crash does not alert; it shows in the journal and as a failed run. A crash that repeats over 3 cycles in a row alerts.|
-|Faults outside the guard (NG1) and the options route (NG4).|failure|—|They behave as today.|
+|Faults outside the guard (NG1).|failure|—|They behave as today. The options route (NG4) was changed later by card `vertex-options-route-crash-as-input-error`.|
 
 ## Alternatives Considered
 
