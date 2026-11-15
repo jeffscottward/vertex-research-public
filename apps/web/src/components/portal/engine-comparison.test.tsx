@@ -17,6 +17,7 @@ import {
 } from "vitest";
 
 import {
+  COMPARISON_EMPTY_POLL_MAX,
   COMPARISON_POLL_MAX,
   comparisonSummary,
   createBrowserEngineComparisonGateway,
@@ -386,6 +387,66 @@ describe("engine comparison components", () => {
     });
     expect(failing.comparisons).toHaveBeenCalledTimes(2);
     expect(COMPARISON_POLL_MAX).toBe(600);
+  });
+
+  it("keeps polling a group whose first reads are empty until its run row appears", async () => {
+    vi.useFakeTimers();
+    const gateway = answers([], [], [comparisonRun()], [done]);
+    const { container } = await mount(
+      <NautilusCard
+        gateway={gateway}
+        pollMs={10}
+        timing={{ groupId: "g-1", host: "web server", wallMs: 1 }}
+      />
+    );
+    const card = () => container.querySelector("[data-nautilus-card]");
+    expect(card()?.getAttribute("data-nautilus-card")).toBe("waiting");
+    expect(card()?.textContent).toContain("queued");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    expect(card()?.getAttribute("data-nautilus-card")).toBe("queued");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(card()?.getAttribute("data-nautilus-card")).toBe("succeeded");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(gateway.comparisons).toHaveBeenCalledTimes(4);
+  });
+
+  it("stops polling an empty group after the empty-read limit", async () => {
+    vi.useFakeTimers();
+    const gateway = answers([]);
+    await mount(
+      <NautilusCard
+        gateway={gateway}
+        pollMs={10}
+        timing={{ groupId: "g-1", host: "web server", wallMs: 1 }}
+      />
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * COMPARISON_EMPTY_POLL_MAX * 2);
+    });
+    expect(gateway.comparisons).toHaveBeenCalledTimes(
+      COMPARISON_EMPTY_POLL_MAX
+    );
+    expect(COMPARISON_EMPTY_POLL_MAX).toBe(15);
+    // The overall poll limit still caps empty reads below the empty-read limit.
+    const capped = answers([]);
+    await mount(
+      <NautilusCard
+        gateway={capped}
+        pollMax={3}
+        pollMs={10}
+        timing={{ groupId: "g-2", host: "h", wallMs: 1 }}
+      />
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(capped.comparisons).toHaveBeenCalledTimes(3);
   });
 
   it("shows a queue error instead of the Nautilus status, and reads nothing without a group", async () => {

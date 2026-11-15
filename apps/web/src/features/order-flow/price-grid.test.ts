@@ -84,8 +84,22 @@ describe("grid limits", () => {
   it("caps decimals at 8 for a price no short decimal writes", () => {
     expect(decimalsOf(Math.PI)).toBe(8);
   });
-  it("uses the largest step multiple when even it exceeds the level cap", () => {
-    expect(autoPriceStep(0.01, 0, 1_000_000, 10)).toBe(10);
+  it("never reads a tiny nonzero tick as 0 decimals (a 0 step)", () => {
+    expect(decimalsOf(1e-8)).toBe(8);
+    expect(decimalsOf(4e-7)).toBe(7);
+    expect(decimalsOf(0)).toBe(0);
+    expect(decimalsOf(-0.05)).toBe(2);
+  });
+  it("grows the step by decades past the largest multiple until the grid fits", () => {
+    expect(autoPriceStep(0.01, 0, 1_000_000, 10)).toBe(1_000_000);
+    expect(autoPriceStep(1e-8, 99.5, 101.7, 60)).toBe(0.1);
+  });
+  it("treats a tick finer than 8 decimals as 1e-8, so the step is never 0", () => {
+    expect(autoPriceStep(1e-9, 100, 100.000_000_2, 60)).toBe(1e-8);
+    expect(autoPriceStep(1e-12, 99.5, 101.7, 60)).toBe(0.1);
+  });
+  it("stops after the extra decades when even they exceed the level cap", () => {
+    expect(autoPriceStep(1e-8, 0, 1e20, 10)).toBe(1e10);
   });
   it("uses one-hour buckets when even they give more than 20", () => {
     expect(autoBucketSeconds(0, 3600 * 100)).toBe(3600);
