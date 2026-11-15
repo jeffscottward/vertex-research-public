@@ -6,6 +6,7 @@ import { z } from "zod";
 import { appContract } from "../contract.ts";
 import {
   IBKR_RECOVERY_LOGIN_STATES,
+  IbkrRecoveryLastKnownSchema,
   IBKR_RECOVERY_REQUEST_STATES,
   IBKR_RECOVERY_TERMINAL_STATES,
   type IbkrRecoveryRequest,
@@ -71,7 +72,8 @@ const iso = z.string().max(40);
 
 const UpstreamRequestSchema = z
   .object({
-    actorId: z.string().max(64),
+    // null: a request restored from an older state file without an actor (not recorded).
+    actorId: z.string().max(64).nullable(),
     detail: z.string().max(200),
     finishedAt: iso.nullable(),
     recheck: z
@@ -105,6 +107,7 @@ const UpstreamStatusSchema = z
         needsLogin: z.boolean(),
         reason: z.string().max(60),
         since: iso.nullable(),
+        lastKnown: IbkrRecoveryLastKnownSchema.nullable().optional(),
       })
       .strict(),
     generatedAt: iso,
@@ -253,7 +256,7 @@ const toRequest = (
   recheck: request.recheck,
   recheckAt: request.recheckAt,
   requestedAt: request.requestedAt,
-  requestedByYou: request.actorId === actorId,
+  requestedByYou: request.actorId !== null && request.actorId === actorId,
   requestId: request.requestId,
   scriptRunning: request.scriptRunning,
   state: request.state,
@@ -364,7 +367,8 @@ const auditResult = async (
       detail: request.detail,
       recoveryRequestId: request.requestId,
       requestedAt: request.requestedAt,
-      requestedBy: request.actorId,
+      // A request restored from an older VPS state file may have no actor: the field is left out.
+      ...(request.actorId === null ? {} : { requestedBy: request.actorId }),
       state: request.state,
     }
   );
