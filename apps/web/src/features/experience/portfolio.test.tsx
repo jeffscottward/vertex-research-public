@@ -1,4 +1,4 @@
-import { Button } from "@darkfactory/ui";
+import { Button, TableBody, TableRow } from "@darkfactory/ui";
 import {
   Children,
   isValidElement,
@@ -71,6 +71,7 @@ import {
 } from "./portfolio.tsx";
 import { TodayDecisionInbox, TodayWorkspace } from "./today.tsx";
 import { ResourcePanel, ScopeChooser } from "./shared.tsx";
+import { ExperienceTableCell } from "./experience-table.tsx";
 import {
   classifyVertexFailure,
   VertexReadError,
@@ -315,9 +316,11 @@ describe("portfolio source truthfulness", () => {
     );
     expect(visible).toContain(`aria-labelledby="${headingId}"`);
     expect(visible).toContain(
-      "<caption>Positions — exact source values; no calculated totals</caption>"
+      'data-slot="table-caption">Positions — exact source values; no calculated totals</caption>'
     );
-    expect(visible).toContain("<td>synthetic-instrument</td>");
+    expect(visible).toContain(
+      'data-slot="table-cell">synthetic-instrument</td>'
+    );
     expect(visible).toContain("1 supplied");
     return expect(visible).not.toContain("<details");
   });
@@ -375,7 +378,7 @@ describe("portfolio source truthfulness", () => {
       "This view cannot reserve, release, reconcile or submit",
       "Allocations neither create funds nor authorize spending",
       "This does not establish zero exposure",
-      "<td>unknown</td>",
+      'data-slot="table-cell">unknown</td>',
       "9007199254740993.000000001",
     ]) {
       expect(visible).toContain(critical);
@@ -606,7 +609,7 @@ describe("portfolio source truthfulness", () => {
     );
     expect(html).toContain("<dd>80</dd>");
     expect(html).toContain("<dd>100</dd>");
-    expect(html).toContain("<td>unknown</td>");
+    expect(html).toContain('data-slot="table-cell">unknown</td>');
     expect(html).not.toContain("<dd>73</dd>");
     expect(html).not.toContain("<dd>131</dd>");
     return expect(html).toContain("no calculated totals");
@@ -625,18 +628,22 @@ describe("portfolio source truthfulness", () => {
         identity: (row) => row.id,
       });
     let tree = render(page);
-    expect(elements(tree).filter((node) => node.type === "td")).toHaveLength(
-      25
-    );
+    expect(
+      elements(tree).filter((node) => node.type === ExperienceTableCell)
+    ).toHaveLength(25);
     click(tree, "Next");
     tree = render(page);
     expect(renderToStaticMarkup(tree)).toContain("fixture-25");
-    expect(renderToStaticMarkup(tree)).not.toContain("<td>fixture-0</td>");
+    expect(renderToStaticMarkup(tree)).not.toContain(
+      'data-slot="table-cell">fixture-0</td>'
+    );
     elements(tree)
       .find((node) => node.type === "input")
       ?.props.onChange?.({ target: { value: "fixture-52" } });
     tree = render(page);
-    expect(elements(tree).filter((node) => node.type === "td")).toHaveLength(1);
+    expect(
+      elements(tree).filter((node) => node.type === ExperienceTableCell)
+    ).toHaveLength(1);
     expect(renderToStaticMarkup(tree)).toContain("Page 1 of 1");
     elements(tree)
       .find((node) => node.type === "input")
@@ -645,7 +652,7 @@ describe("portfolio source truthfulness", () => {
     expect(renderToStaticMarkup(tree)).toContain("No matching observations");
     click(tree, "Clear search");
     return expect(
-      elements(render(page)).filter((node) => node.type === "td")
+      elements(render(page)).filter((node) => node.type === ExperienceTableCell)
     ).toHaveLength(25);
   });
 
@@ -819,8 +826,10 @@ describe("Today decision inbox", () => {
     tree = render(() => TodayDecisionInbox({ inbox, scope }));
     expect(
       elements(tree)
-        .filter((node) => node.type === "tbody")
-        .flatMap((body) => elements(body).filter((node) => node.type === "tr"))
+        .filter((node) => node.type === TableBody)
+        .flatMap((body) =>
+          elements(body).filter((node) => node.type === TableRow)
+        )
     ).toHaveLength(1);
     expect(renderToStaticMarkup(tree)).toContain("research: blocked");
     elements(tree)
@@ -832,8 +841,10 @@ describe("Today decision inbox", () => {
     tree = render(() => TodayDecisionInbox({ inbox, scope }));
     return expect(
       elements(tree)
-        .filter((node) => node.type === "tbody")
-        .flatMap((body) => elements(body).filter((node) => node.type === "tr"))
+        .filter((node) => node.type === TableBody)
+        .flatMap((body) =>
+          elements(body).filter((node) => node.type === TableRow)
+        )
     ).toHaveLength(3);
   });
 });

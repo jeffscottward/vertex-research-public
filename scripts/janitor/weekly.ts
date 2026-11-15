@@ -210,6 +210,35 @@ const must = (result: RunResult, what: string): RunResult => {
   return result;
 };
 
+/**
+ * Stage the model pass in the worktree and return `git diff --cached
+ * --name-status`. The worktree holds a node_modules symlink that must never
+ * be staged. It is NOT named in the add pathspec: when an exclude file
+ * ignores it (the shared .git/info/exclude does on the rig), naming it, even
+ * as an exclude, makes `git add` exit 1 ("paths are ignored"). When nothing
+ * ignores it (`node_modules/` matches directories only), the add stages it,
+ * so it is unstaged right after. Both setups end with it unstaged.
+ */
+export const stagePass = (run: Run, wt: string): string => {
+  must(
+    run("git", ["add", "-A", "--", ".", ":!JANITOR-REPORT.md"], { cwd: wt }),
+    "git add"
+  );
+  must(
+    run("git", ["reset", "-q", "--", "node_modules"], { cwd: wt }),
+    "git reset node_modules"
+  );
+  return must(
+    run(
+      "git",
+      // Raw paths: a quoted non-ASCII path would escape the busy check.
+      ["-c", "core.quotePath=false", "diff", "--cached", "--name-status", "-M"],
+      { cwd: wt }
+    ),
+    "git diff"
+  ).stdout;
+};
+
 const summary = (base: string, busy: BusyFiles): string => {
   const skipped =
     busy.unrelated.length === 0
@@ -268,7 +297,7 @@ export const runJanitorWeekly = (
   if (argv.includes("--dry-run")) mode = "dry-run";
   const main =
     env["VERTEX_MAIN_CHECKOUT"] ??
-    `${env["HOME"] ?? ""}/Github/trading/vertex-research`;
+    `${env["HOME"] ?? ""}/Github/trading/vertex-research-public`;
   // UTC minute stamp: a rerun on the same day gets its own branch and worktree.
   const stamp = deps.now
     .toISOString()
@@ -340,30 +369,7 @@ export const runJanitorWeekly = (
     ).stdout;
     if (head !== start)
       throw new Error("the model pass committed; nothing pushed");
-    must(
-      run(
-        "git",
-        ["add", "-A", "--", ".", ":!JANITOR-REPORT.md", ":!node_modules"],
-        { cwd: wt }
-      ),
-      "git add"
-    );
-    const staged = must(
-      run(
-        "git",
-        // Raw paths: a quoted non-ASCII path would escape the busy check.
-        [
-          "-c",
-          "core.quotePath=false",
-          "diff",
-          "--cached",
-          "--name-status",
-          "-M",
-        ],
-        { cwd: wt }
-      ),
-      "git diff"
-    ).stdout;
+    const staged = stagePass(run, wt);
     if (staged.trim().length === 0) {
       out.write("janitor: no safe moves\n");
       return 0;
@@ -396,7 +402,7 @@ export const runJanitorWeekly = (
     run("rm", ["-f", busyPath, `${wt}-pr-body.md`], { cwd: main });
     if (worktree) {
       // The node_modules link stays until here: the pre-commit hook (biome via
-      // `bunx --no-install`) needs it. `git add` excludes it by pathspec.
+      // `bunx --no-install`) needs it. stagePass keeps it out of the index.
       run("rm", ["-f", `${wt}/node_modules`], { cwd: main });
       run("git", ["worktree", "remove", "--force", wt], { cwd: main });
       // Keep a pushed branch; drop the local one of a pass that pushed nothing.

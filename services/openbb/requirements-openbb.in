@@ -1,0 +1,20 @@
+# Input of requirements-openbb-linux-py312.lock (OpenBB Platform, Apache-2.0; see NOTICE).
+# openbb-core plus only the provider packages the 18 jobs call. No OpenBB umbrella package and no
+# router extensions: the jobs call the provider fetchers directly, so there is no static build.
+# Regenerate (from services/openbb):
+#   uv pip compile --generate-hashes --only-binary :all: --python-version 3.12 \
+#     --python-platform x86_64-manylinux_2_28 --exclude-newer 2026-11-08T00:00:00Z \
+#     requirements-openbb.in -o requirements-openbb-linux-py312.lock
+openbb-core==2.0.1
+openbb-cboe==2.0.0
+openbb-cftc==2.0.0
+openbb-famafrench==2.0.0
+openbb-federal-reserve==2.0.0
+openbb-finra==2.0.0
+openbb-government-us==2.0.0
+openbb-oecd==2.0.0
+openbb-sec==2.0.0
+# Test runner (CI installs the same lock; the fetcher never imports it).
+pytest==9.0.3
+# Build backend of pyproject.toml, so the rig can install this package with --no-build-isolation.
+setuptools==84.2.1

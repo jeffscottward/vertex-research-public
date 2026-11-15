@@ -10,7 +10,20 @@ import {
   type AgentModelRunFacetName,
   type AgentModelRunFacetsOutput,
 } from "@darkfactory/api";
-import { Button, Input, SectionHeader, Skeleton } from "@darkfactory/ui";
+import {
+  Button,
+  Input,
+  SectionHeader,
+  Skeleton,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+} from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import Link from "next/link";
 import {
@@ -119,94 +132,155 @@ const ArmTable = ({
   readonly arms: readonly AgentModelBenchmarkArmOutput[];
 }) => (
   <div className="overflow-x-auto">
-    <table className={tableClass}>
-      <caption className="sr-only">Runs, coverage and usage per arm</caption>
-      <thead>
-        <tr>
-          <th className={headClass} scope="col">
+    <Table containerClassName="overflow-visible" className={tableClass}>
+      <TableCaption className="sr-only">
+        Runs, coverage and usage per arm
+      </TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Arm
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Runs
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Finished
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Failed
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Rated
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Unrated
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Cells (rated)
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Reruns agree
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Buy or sell
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Avg cost
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Tokens in / out
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             LLM / tool calls
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Median time
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Served models
-          </th>
-        </tr>
-      </thead>
-      <tbody>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {arms.map((arm) => (
-          <tr data-arm={arm.key} key={arm.key}>
-            <th className={cellClass} scope="row">
+          <TableRow data-arm={arm.key} key={arm.key}>
+            <TableHead
+              className={cn("h-auto whitespace-normal", cellClass)}
+              scope="row"
+            >
               {arm.key}
-            </th>
-            <td className={cellClass}>{arm.runs}</td>
-            <td className={cellClass}>{arm.finished}</td>
-            <td className={cellClass}>{arm.failed}</td>
-            <td className={cellClass}>{arm.rated}</td>
-            <td className={cellClass}>{arm.unrated}</td>
-            <td className={cellClass}>
+            </TableHead>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
+              {arm.runs}
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
+              {arm.finished}
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
+              {arm.failed}
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
+              {arm.rated}
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
+              {arm.unrated}
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
               {arm.cells} ({arm.ratedCells})
-            </td>
-            <td
-              className={cellClass}
+            </TableCell>
+            <TableCell
+              className={cn("whitespace-normal", cellClass)}
               title={`${arm.rerun.cells} cells with 2 or more rated runs; mean modal share ${formatShare(arm.rerun.meanModalShare)}`}
             >
               {formatShare(arm.rerun.allAgreeShare)}
-            </td>
-            <td className={cellClass}>{formatShare(arm.extremityShare)}</td>
-            <td className={cellClass}>{costLabel(arm)}</td>
-            <td className={cellClass}>
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
+              {formatShare(arm.extremityShare)}
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
+              {costLabel(arm)}
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
               {formatCount(arm.inputTokens)} / {formatCount(arm.outputTokens)}
-            </td>
-            <td className={cellClass}>
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
               {arm.llmCalls} / {arm.toolCalls}
-            </td>
-            <td className={cellClass}>
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", cellClass)}>
               {formatDuration(arm.medianDurationMs)}
-            </td>
-            <td className={`${cellClass} max-w-64 truncate`}>
+            </TableCell>
+            <TableCell className={`${cellClass} max-w-64 truncate`}>
               {arm.servedModels.length === 0
                 ? "—"
                 : arm.servedModels.join(", ")}
-            </td>
-          </tr>
+            </TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   </div>
 );
 
@@ -257,31 +331,42 @@ const AgreementMatrix = ({
   readonly matrix: AgentModelBenchmarkOutput["matrix"];
 }) => (
   <div className="overflow-x-auto">
-    <table className={tableClass} data-matrix="true">
-      <caption className="sr-only">
+    <Table
+      containerClassName="overflow-visible"
+      className={tableClass}
+      data-matrix="true"
+    >
+      <TableCaption className="sr-only">
         Share of shared cells where two arms give the same modal rating
-      </caption>
-      <thead>
-        <tr>
-          <td className={headClass} />
+      </TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableCell className={cn("text-muted-foreground", headClass)} />
           {matrix.arms.map((arm) => (
-            <th className={headClass} key={arm} scope="col">
+            <TableHead
+              className={cn("text-muted-foreground", headClass)}
+              key={arm}
+              scope="col"
+            >
               {arm}
-            </th>
+            </TableHead>
           ))}
-        </tr>
-      </thead>
-      <tbody>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {matrix.rows.map((row, rowIndex) => {
           const rowArm = matrix.arms[rowIndex] as string;
           return (
-            <tr key={rowArm}>
-              <th className={cellClass} scope="row">
+            <TableRow key={rowArm}>
+              <TableHead
+                className={cn("h-auto whitespace-normal", cellClass)}
+                scope="row"
+              >
                 {rowArm}
-              </th>
+              </TableHead>
               {row.map((value, columnIndex) => (
-                <td
-                  className={`${cellClass} ${agreementBand(value.agreeShare)}`}
+                <TableCell
+                  className={`whitespace-normal ${cellClass} ${agreementBand(value.agreeShare)}`}
                   key={matrix.arms[columnIndex]}
                 >
                   {formatShare(value.agreeShare)}
@@ -289,13 +374,13 @@ const AgreementMatrix = ({
                     {" "}
                     (n={value.sharedCells})
                   </span>
-                </td>
+                </TableCell>
               ))}
-            </tr>
+            </TableRow>
           );
         })}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   </div>
 );
 
@@ -307,51 +392,77 @@ const BaselineTable = ({
   readonly baselineArm: string;
 }) => (
   <div className="overflow-x-auto">
-    <table className={tableClass} data-baseline-table="true">
-      <caption className="text-left text-muted-foreground text-xs">
+    <Table
+      containerClassName="overflow-visible"
+      className={tableClass}
+      data-baseline-table="true"
+    >
+      <TableCaption className="mt-0 caption-top text-left text-muted-foreground text-xs">
         Against baseline {baselineArm}: the match rate counts cells where the
         arm's modal rating is one of the baseline's ratings; the distance is the
         step to the closest baseline rating (0-4).
-      </caption>
-      <thead>
-        <tr>
-          <th className={headClass} scope="col">
+      </TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Arm
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Avg cost
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Shared cells
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Match rate
-          </th>
-          <th className={headClass} scope="col">
+          </TableHead>
+          <TableHead
+            className={cn("text-muted-foreground", headClass)}
+            scope="col"
+          >
             Mean closest distance
-          </th>
-        </tr>
-      </thead>
-      <tbody>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {arms.map((arm) =>
           arm.baseline === null ? null : (
-            <tr key={arm.key}>
-              <th className={cellClass} scope="row">
+            <TableRow key={arm.key}>
+              <TableHead
+                className={cn("h-auto whitespace-normal", cellClass)}
+                scope="row"
+              >
                 {arm.key}
-              </th>
-              <td className={cellClass}>{costLabel(arm)}</td>
-              <td className={cellClass}>{arm.baseline.sharedCells}</td>
-              <td className={cellClass}>
+              </TableHead>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
+                {costLabel(arm)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
+                {arm.baseline.sharedCells}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
                 {formatShare(arm.baseline.matchRate)}
-              </td>
-              <td className={cellClass}>
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
                 {formatDistance(arm.baseline.meanClosestDistance)}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           )
         )}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   </div>
 );
 
@@ -382,54 +493,83 @@ const PairPanel = ({
       A directional hit is a research measure, not a trading result.
     </p>
     <div className="overflow-x-auto">
-      <table className={tableClass}>
-        <caption className="sr-only">Paired arms: hits and usage</caption>
-        <thead>
-          <tr>
-            <th className={headClass} scope="col">
+      <Table containerClassName="overflow-visible" className={tableClass}>
+        <TableCaption className="sr-only">
+          Paired arms: hits and usage
+        </TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead
+              className={cn("text-muted-foreground", headClass)}
+              scope="col"
+            >
               Arm
-            </th>
-            <th className={headClass} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", headClass)}
+              scope="col"
+            >
               Hits
-            </th>
-            <th className={headClass} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", headClass)}
+              scope="col"
+            >
               Runs
-            </th>
-            <th className={headClass} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", headClass)}
+              scope="col"
+            >
               Cost
-            </th>
-            <th className={headClass} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", headClass)}
+              scope="col"
+            >
               Tokens
-            </th>
-            <th className={headClass} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", headClass)}
+              scope="col"
+            >
               Median time
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {(
             [
               [`Control: ${pair.control}`, pair.controlArm],
               [`Treatment: ${pair.treatment}`, pair.treatmentArm],
             ] as const
           ).map(([label, arm]) => (
-            <tr key={label}>
-              <th className={cellClass} scope="row">
+            <TableRow key={label}>
+              <TableHead
+                className={cn("h-auto whitespace-normal", cellClass)}
+                scope="row"
+              >
                 {label}
-              </th>
-              <td className={cellClass}>
+              </TableHead>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
                 {arm.hits} of {pair.compared}
-              </td>
-              <td className={cellClass}>{arm.runs}</td>
-              <td className={cellClass}>{formatUsd(arm.totalCostUsd)}</td>
-              <td className={cellClass}>{formatCount(arm.totalTokens)}</td>
-              <td className={cellClass}>
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
+                {arm.runs}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
+                {formatUsd(arm.totalCostUsd)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
+                {formatCount(arm.totalTokens)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", cellClass)}>
                 {formatDuration(arm.medianDurationMs)}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   </div>
 );

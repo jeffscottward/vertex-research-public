@@ -45,6 +45,14 @@ configs:
         NOINHERIT
         NOREPLICATION
         PASSWORD 'darkfactory-app-local-only';
+      CREATE ROLE vertex_semantic_reader
+        LOGIN
+        NOSUPERUSER
+        NOCREATEDB
+        NOCREATEROLE
+        NOINHERIT
+        NOREPLICATION
+        PASSWORD 'semantic-reader-test-only';
       CREATE DATABASE darkfactory_dev OWNER darkfactory_app;
       REVOKE CONNECT ON DATABASE darkfactory_dev FROM PUBLIC;
       GRANT CONNECT ON DATABASE darkfactory_dev TO darkfactory_app;

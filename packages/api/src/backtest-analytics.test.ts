@@ -8,6 +8,7 @@ import {
   createRandom,
   drawdownSummary,
   monteCarlo,
+  sizeFromWorstRun,
   pnlBuckets,
   pnlDistribution,
   quantileSorted,
@@ -326,6 +327,64 @@ describe("computeBacktestAnalytics", () => {
       resamples: 1000,
     });
     return expect(first.monteCarlo?.reshuffle.finalPnl.p50).toBe(225);
+  });
+
+  it("runs Monte Carlo on every backtest and sizes from the worst run, never the median", () => {
+    const result = computeBacktestAnalytics({
+      id: "bt-1",
+      equity,
+      trades,
+      initialCapital: 10_000,
+    });
+    const mc = result.monteCarlo!;
+    expect(mc.paths).toBeGreaterThanOrEqual(1000);
+    expect(mc.seed).toBe(seedFrom("bt-1"));
+    expect(mc.pnlSource).toBe("trades");
+    const worstDd = Math.min(
+      mc.reshuffle.worst.maxDrawdown,
+      mc.bootstrap.worst.maxDrawdown
+    );
+    expect(mc.worst.maxDrawdown).toBe(worstDd);
+    expect(worstDd).toBeLessThanOrEqual(mc.bootstrap.maxDrawdown.p5);
+    expect(mc.sizing.basis).toBe("worst_run");
+    expect(mc.sizing.worstMaxDrawdown).toBe(worstDd);
+    const expected =
+      worstDd === 0 ? 1 : Math.min(1, mc.sizing.drawdownBudget / -worstDd);
+    return expect(mc.sizing.sizeScale).toBe(expected);
+  });
+
+  it("sizeFromWorstRun uses the deepest drawdown even when the median is mild", () => {
+    const run = (median: number, worst: number) => {
+      const level = {
+        p5: median,
+        p25: median,
+        p50: median,
+        p75: median,
+        p95: median,
+      };
+      return {
+        finalPnl: level,
+        maxDrawdown: level,
+        probabilityOfProfit: 1,
+        riskOfRuin: 0,
+        worst: { finalPnl: -1, maxDrawdown: worst },
+        fan: [],
+      };
+    };
+    const sizing = sizeFromWorstRun([run(-0.05, -0.4), run(-0.05, -0.1)], 0.2);
+    expect(sizing.worstMaxDrawdown).toBe(-0.4);
+    // The median (-5%) would allow full size; the worst run (-40%) halves it.
+    return expect(sizing.sizeScale).toBe(0.5);
+  });
+
+  it("simulates equity changes when a backtest stored no trades", () => {
+    const result = computeBacktestAnalytics({
+      id: "bt-eq",
+      equity,
+      trades: [],
+      initialCapital: 10_000,
+    });
+    return expect(result.monteCarlo?.pnlSource).toBe("equity");
   });
 
   it("adds multiple-testing results only when a trial ledger is supplied", () => {

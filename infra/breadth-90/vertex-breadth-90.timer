@@ -1,0 +1,22 @@
+# Breadth-90 ticks on weekdays, New York time: intraday 10:30, 12:00, 13:30, 14:30, 15:00, 15:30 and
+# 15:45; final 16:20 and 17:00 (the later run picks up corrected bars). The tick runs --mode auto
+# (final from 10 minutes after the close) and itself skips NYSE holidays. Alerts are insert-once, so a
+# repeat run never repeats an alert.
+[Unit]
+Description=Vertex breadth-90 tick timer (research only)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 10:30:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 12:00:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 13:30:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 14:30:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 15:00:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 15:30:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 15:45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 16:20:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 17:00:00 America/New_York
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

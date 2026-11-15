@@ -1,0 +1,200 @@
+{
+  "comparison": [
+    {
+      "cagr": 0.104,
+      "kind": "buy-and-hold",
+      "maxDrawdown": -0.552,
+      "name": "SPY buy and hold",
+      "sharpe": 0.62
+    },
+    {
+      "cagr": 0.048,
+      "kind": "library",
+      "maxDrawdown": -0.211,
+      "name": "Donchian breakout (library)",
+      "sharpe": 0.41
+    },
+    {
+      "cagr": 0.071,
+      "kind": "strategy",
+      "maxDrawdown": -0.143,
+      "name": "LD34 as stated, SPY",
+      "sharpe": 0.66
+    }
+  ],
+  "equity": [
+    {
+      "drawdown": 0,
+      "month": "2026-05",
+      "value": 0
+    },
+    {
+      "drawdown": 0,
+      "month": "2026-06",
+      "value": 0.012
+    },
+    {
+      "drawdown": -0.021,
+      "month": "2026-07",
+      "value": -0.009
+    },
+    {
+      "drawdown": 0,
+      "month": "2026-08",
+      "value": 0.018
+    },
+    {
+      "drawdown": -0.006,
+      "month": "2026-09",
+      "value": 0.012
+    },
+    {
+      "drawdown": 0,
+      "month": "2026-10",
+      "value": 0.031
+    }
+  ],
+  "equityLabel": "LD34 as stated on SPY: return since the first month",
+  "forms": [
+    {
+      "description": "Hourly close above the daily 20/50/100/200-day Donchian high ladder; 2x ATR(14) stop, 1% risk, 2x ATR trail from +1R, breakeven at +2R.",
+      "key": "underlying",
+      "label": "As stated (underlying)",
+      "runs": [
+        {
+          "buyHoldCagr": 0.104,
+          "buyHoldSharpe": 0.62,
+          "cagr": 0.071,
+          "exposure": 0.38,
+          "from": "2004-01-02",
+          "market": "US equity index ETF",
+          "maxDrawdown": -0.143,
+          "oosCagr": 0.052,
+          "oosSharpe": 0.48,
+          "profitFactor": 1.42,
+          "sharpe": 0.66,
+          "symbol": "SPY",
+          "to": "2026-11-06",
+          "trades": 1212,
+          "winRate": 0.41
+        },
+        {
+          "buyHoldCagr": null,
+          "buyHoldSharpe": null,
+          "cagr": 0,
+          "exposure": 0,
+          "from": "2018-01-02",
+          "market": "Crypto (no signal in the window)",
+          "maxDrawdown": 0,
+          "oosCagr": null,
+          "oosSharpe": null,
+          "profitFactor": null,
+          "sharpe": 0,
+          "symbol": "BTCUSD",
+          "to": "2026-11-06",
+          "trades": 0,
+          "winRate": 0
+        }
+      ]
+    },
+    {
+      "description": "Call debit vertical on the same signal, sized so the debit (the maximum loss) is at most 2% of equity.",
+      "key": "options",
+      "label": "Vertex form (options, defined risk)",
+      "runs": [
+        {
+          "buyHoldCagr": 0.104,
+          "buyHoldSharpe": 0.62,
+          "cagr": 0.058,
+          "exposure": 0.22,
+          "from": "2011-01-03",
+          "market": "US equity index ETF options (modeled)",
+          "maxDrawdown": -0.117,
+          "oosCagr": 0.031,
+          "oosSharpe": 0.29,
+          "profitFactor": 1.18,
+          "sharpe": 0.51,
+          "symbol": "SPY",
+          "to": "2026-11-06",
+          "trades": 344,
+          "winRate": 0.38
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "choice": "20/50/100/200 days, the ladder drawn on the chart.",
+      "gap": "The Donchian lookbacks are not spoken."
+    },
+    {
+      "choice": "0.5 bp per side plus one tick of slippage.",
+      "gap": "No costs are stated."
+    }
+  ],
+  "id": "ld34-nested-donchian-breakout",
+  "kind": "strategy-backtest",
+  "notes": "Test fixture: the numbers are illustrative, not study results.\nOption prices in the options form are modeled.",
+  "provenance": {
+    "commit": "bde73275e2a1",
+    "dataHash": "sha256:3f1c9a0e77d2",
+    "engine": "nautilus_trader 1.221.0",
+    "runId": "ld34-2026-11-08T21:00Z"
+  },
+  "ran": "2026-11-08",
+  "robustness": [
+    {
+      "check": "Walk-forward",
+      "pass": true,
+      "result": "OOS Sharpe 0.48 (above 0)"
+    },
+    {
+      "check": "Deflated Sharpe",
+      "pass": false,
+      "result": "0.41 after 24 trials (needs 0.95)"
+    },
+    {
+      "check": "Monte Carlo",
+      "pass": null,
+      "result": "5th percentile CAGR 2.1% over 1,000 reshuffles"
+    }
+  ],
+  "rules": [
+    {
+      "item": "Entry",
+      "rule": "Buy when an hourly bar closes above the 20-day Donchian high.",
+      "source": "transcript [18.50-22.70]"
+    },
+    {
+      "item": "Stop",
+      "rule": "2x ATR(14) below the entry.",
+      "source": "frames/k03_steps12_t33.jpg"
+    }
+  ],
+  "sensitivity": [
+    {
+      "cagr": 0.064,
+      "maxDrawdown": -0.151,
+      "param": "ATR stop multiple",
+      "sharpe": 0.6,
+      "trades": 1290,
+      "value": "1.5"
+    },
+    {
+      "cagr": 0.069,
+      "maxDrawdown": -0.139,
+      "param": "ATR stop multiple",
+      "sharpe": 0.63,
+      "trades": 1105,
+      "value": "2.5"
+    }
+  ],
+  "source": {
+    "label": "Instagram reel DffCOSDBMoC (hooper.algo.fxx)",
+    "url": "https://www.instagram.com/reel/DffCOSDBMoC/"
+  },
+  "spec": "docs/specs/strategies/ld34-nested-donchian-breakout.md",
+  "title": "LD34 nested Donchian long-only breakout",
+  "verdict": "needs-more-data",
+  "verdictReason": "Positive out-of-sample Sharpe on SPY, but the deflated Sharpe fails after 24 trials."
+}

@@ -269,6 +269,7 @@ describe("application navigation manifest", () => {
         [
           "/research",
           "/charts",
+          "/flow",
           "/watchlist",
           "/price-alerts",
           "/news",
@@ -305,7 +306,14 @@ describe("application navigation manifest", () => {
       ],
       [
         "Agents & Automation",
-        ["/agents", "/agents/benchmark", "/deployments", "/engines"],
+        [
+          "/agents",
+          "/agents/benchmark",
+          "/deployments",
+          "/drafts",
+          "/engines",
+          "/semantic-terms",
+        ],
       ],
       ["Data & Ops", ["/audit", "/modules", "/connections"]],
     ]);
@@ -829,8 +837,11 @@ describe("root metadata and theme contract", () => {
       "/optimizations",
       "/autopilot",
       "/charts",
+      "/flow",
       "/deployments",
+      "/drafts",
       "/engines",
+      "/semantic-terms",
       "/forgot-password",
       "/reset-password",
       "/settings",

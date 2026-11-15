@@ -2,8 +2,9 @@
 // (evaluateInSample runs on the in-sample bars alone). The gate runs the same definition over all
 // bars once (the engine is causal) and judges the out-of-sample part, forward folds, a Monte Carlo
 // trade bootstrap, costs, and the deflated Sharpe ratio and Benjamini-Hochberg q-value over every
-// trial of the series. Pure and deterministic. A passed gate is a research result; it never
-// authorizes a trade.
+// trial of the series. Pure and deterministic. Definitions whose filters read daily series run
+// with the campaign's series input (without one they are refused). A passed gate is a research
+// result; it never authorizes a trade.
 
 import {
   type AnalyticsEquityPoint,
@@ -27,6 +28,7 @@ import type { StrategyDefinition } from "./strategy-dsl.ts";
 import {
   runStrategyDefinition,
   type SectorQuadrantSeries,
+  type StrategySeriesInput,
 } from "./strategy-dsl-compile.ts";
 
 export const AUTOPILOT_GATE = Object.freeze({
@@ -178,22 +180,45 @@ const requireBars = (bars: BarColumns): void => {
     );
 };
 
+/**
+ * One engine run of a candidate: with `series` (the campaign filters' daily series) the engine
+ * reads series filters, without it it refuses them.
+ */
+const runDefinition = (
+  bars: BarColumns,
+  definition: StrategyDefinition,
+  costBps: number,
+  sectorQuadrants: SectorQuadrantSeries | undefined,
+  series: StrategySeriesInput | undefined
+): InstantRunResult =>
+  runStrategyDefinition(
+    bars,
+    definition,
+    costBps,
+    undefined,
+    sectorQuadrants,
+    undefined,
+    series === undefined ? {} : { series: true },
+    series
+  );
+
 /** Runs the definition on the in-sample bars only and scores it. Breeding uses nothing else. */
 export const evaluateInSample = (
   bars: BarColumns,
   definition: StrategyDefinition,
   costBps: number,
-  sectorQuadrants?: SectorQuadrantSeries
+  sectorQuadrants?: SectorQuadrantSeries,
+  dailySeries?: StrategySeriesInput
 ): InSampleResult => {
   requireBars(bars);
   const end = splitIndex(bars.c.length);
   const inSample = slice(bars, end);
-  const run = runStrategyDefinition(
+  const run = runDefinition(
     inSample,
     definition,
     costBps,
-    undefined,
-    sectorQuadrants
+    sectorQuadrants,
+    dailySeries
   );
   const series = points(inSample, run.equity, 0, end);
   const stats = statsOf(series);
@@ -223,18 +248,13 @@ export const outOfSampleSharpe = (
   bars: BarColumns,
   definition: StrategyDefinition,
   costBps: number,
-  sectorQuadrants?: SectorQuadrantSeries
+  sectorQuadrants?: SectorQuadrantSeries,
+  series?: StrategySeriesInput
 ): number | null => {
   requireBars(bars);
   return outOfSample(
     bars,
-    runStrategyDefinition(
-      bars,
-      definition,
-      costBps,
-      undefined,
-      sectorQuadrants
-    ),
+    runDefinition(bars, definition, costBps, sectorQuadrants, series),
     splitIndex(bars.c.length)
   ).sharpe;
 };
@@ -286,20 +306,23 @@ export const evaluateGate = (
     seed: string;
     /** Series for the definition's sector filters, when it has any. */
     sectorQuadrants?: SectorQuadrantSeries | undefined;
+    /** Daily series of the definition's series filters, when it has any. */
+    series?: StrategySeriesInput | undefined;
   }>
 ): GateReport => {
-  const { bars, costBps, definition, inSample, ledger, sectorQuadrants } =
-    input;
+  const {
+    bars,
+    costBps,
+    definition,
+    inSample,
+    ledger,
+    sectorQuadrants,
+    series,
+  } = input;
   const gate = AUTOPILOT_GATE;
   requireBars(bars);
   const end = splitIndex(bars.c.length);
-  const run = runStrategyDefinition(
-    bars,
-    definition,
-    costBps,
-    undefined,
-    sectorQuadrants
-  );
+  const run = runDefinition(bars, definition, costBps, sectorQuadrants, series);
   const oos = outOfSample(bars, run, end);
   const oosTrades = run.trades.filter((trade) => trade.entryIndex >= end);
   const folds = foldsOf(bars, run.equity, end);
@@ -316,13 +339,7 @@ export const evaluateGate = (
     Math.max(costBps, gate.minCostBps) * gate.costStressMultiple;
   const stressed = outOfSample(
     bars,
-    runStrategyDefinition(
-      bars,
-      definition,
-      stressBps,
-      undefined,
-      sectorQuadrants
-    ),
+    runDefinition(bars, definition, stressBps, sectorQuadrants, series),
     end
   );
   const testing = multipleTesting(

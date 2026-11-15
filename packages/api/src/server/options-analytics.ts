@@ -7,6 +7,7 @@ import type {
 } from "../contracts/options-analytics.ts";
 import type { ApiContext } from "./context.ts";
 import { buildGexContext, newYorkDate } from "./gex-context.ts";
+import { requireOperator } from "./operator-access.ts";
 import {
   exposure,
   ivSurface,
@@ -17,12 +18,12 @@ import {
   summarizeFlow,
   termStructure,
 } from "./options-analytics-engine.ts";
-import { requireOperator } from "./operator-access.ts";
 import {
   createQuantDataClient,
   type QuantDataClient,
   type QuantDataClientOptions,
   type QuantDataConfig,
+  type QuantDataResult,
 } from "./quantdata-client.ts";
 
 // Read-only options analytics (optionsAnalytics.snapshot). Three QuantData requests per
@@ -44,6 +45,49 @@ const OPTIONS_ANALYTICS_NOTES = [
 
 type Deps = Readonly<{ now: () => Date; client: QuantDataClient }>;
 
+/**
+ * The QuantData requests of one symbol. optionsAnalytics.snapshot and the options chain
+ * (options-chain-quantdata.ts) both build them here, so the payloads, TTLs and cache keys are
+ * the same: the two read one cached answer and spend the provider quota once.
+ */
+export const quantDataRequests = (
+  client: QuantDataClient,
+  symbol: string,
+  flowHours: number,
+  now: Date
+) => {
+  const filter = { filter: { ticker: symbol } };
+  const end = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+  const start = new Date(end.getTime() - flowHours * 3_600_000);
+  return {
+    openInterest: () => client.request("openInterest", filter, CHAIN_TTL_MS),
+    // Keyed by symbol and window (not the minute-rounded range): at most one flow call per
+    // symbol and window every 60 s.
+    orderFlow: () =>
+      client.request(
+        "orderFlow",
+        {
+          ...filter,
+          timeRange: {
+            endTime: end.toISOString(),
+            startTime: start.toISOString(),
+          },
+        },
+        FLOW_TTL_MS,
+        `${symbol} ${flowHours}h`
+      ),
+    termStructure: () => client.request("termStructure", filter, CHAIN_TTL_MS),
+  };
+};
+
+/** The underlying price of a term-structure answer; null when it failed or has none. */
+export const quantDataStockPrice = (result: QuantDataResult): number | null => {
+  const raw = result.ok ? result.body["stockPrice"] : undefined;
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0
+    ? raw
+    : null;
+};
+
 export const buildOptionsAnalytics = async (
   input: OptionsAnalyticsParsedInput,
   deps: Deps
@@ -52,36 +96,12 @@ export const buildOptionsAnalytics = async (
   // Expiry math follows the New York market day, not the UTC date.
   const today = newYorkDate(now);
   const { symbol, flowHours } = input;
-  const filter = { filter: { ticker: symbol } };
-  const end = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
-  const start = new Date(end.getTime() - flowHours * 3_600_000);
-  const chainResult = await deps.client.request(
-    "termStructure",
-    filter,
-    CHAIN_TTL_MS
-  );
-  const oiResult = await deps.client.request(
-    "openInterest",
-    filter,
-    CHAIN_TTL_MS
-  );
-  // Keyed by symbol and window (not the minute-rounded range): at most one flow call per
-  // symbol and window every 60 s.
-  const flowResult = await deps.client.request(
-    "orderFlow",
-    {
-      ...filter,
-      timeRange: { endTime: end.toISOString(), startTime: start.toISOString() },
-    },
-    FLOW_TTL_MS,
-    `${symbol} ${flowHours}h`
-  );
+  const requests = quantDataRequests(deps.client, symbol, flowHours, now);
+  const chainResult = await requests.termStructure();
+  const oiResult = await requests.openInterest();
+  const flowResult = await requests.orderFlow();
 
-  const spotRaw = chainResult.ok ? chainResult.body["stockPrice"] : undefined;
-  const spot =
-    typeof spotRaw === "number" && Number.isFinite(spotRaw) && spotRaw > 0
-      ? spotRaw
-      : null;
+  const spot = quantDataStockPrice(chainResult);
   const chain = chainResult.ok
     ? parseChain(chainResult.data, today)
     : { expired: 0, rows: [] };
@@ -199,7 +219,10 @@ export const setOptionsAnalyticsForTesting = (
   clock = now ?? systemClock;
 };
 
-const clientFor = (config: QuantDataConfig): QuantDataClient => {
+/** One shared client per configuration (rate limit, cooldown and cache), also used by flow.collect. */
+export const quantDataClientFor = (
+  config: QuantDataConfig
+): QuantDataClient => {
   if (
     cachedClient === null ||
     cachedClient.config.apiKey !== config.apiKey ||
@@ -220,7 +243,7 @@ const snapshot = api.optionsAnalytics.snapshot
     const config = context.quantData ?? null;
     if (config === null) throw errors.NOT_CONFIGURED();
     return await buildOptionsAnalytics(input, {
-      client: clientFor(config),
+      client: quantDataClientFor(config),
       now: clock,
     });
   });

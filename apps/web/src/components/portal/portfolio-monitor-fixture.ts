@@ -102,10 +102,17 @@ export const fixtureSnapshot = (
       generatedAt: at(1),
       receivedAt: at(0),
       lastError: null,
+      since: at(3600),
       clientId: 78,
       ...status,
     },
-    account: { mode: "paper", count: 1 },
+    account: {
+      mode: "paper",
+      modeSource: "confirmed",
+      modeConfirmedAt: at(2),
+      modeError: null,
+      count: 1,
+    },
     summary: {
       netLiquidation: 20_000,
       totalCashValue: 9000,

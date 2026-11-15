@@ -1,7 +1,7 @@
 // What: time & sales rows (newest first) and the coverage line for a fetched tick window, with
 // clock times in the contract's exchange time zone.
 // Used by: components/portal/order-flow-panel.tsx.
-import type { SignedTrade, SigningMethod, TradeSide } from "./trade-signing.ts";
+import type { SignedTrade, SigningMethod, TradeSide } from "@darkfactory/api";
 import { defined } from "./defined.ts";
 
 export type TimeAndSalesRow = Readonly<{

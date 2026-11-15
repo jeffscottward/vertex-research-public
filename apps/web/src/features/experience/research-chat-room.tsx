@@ -1747,10 +1747,7 @@ const ResearchRoom = ({
         onSendMessage={sendMessage}
         onRetry={refreshReads}
       />
-      <nav
-        className="vx-ex-table-pager"
-        aria-label="Research conversation pages"
-      >
+      <nav aria-label="Research conversation pages">
         <Button
           variant="outline"
           type="button"

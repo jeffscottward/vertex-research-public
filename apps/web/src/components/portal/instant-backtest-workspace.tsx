@@ -48,15 +48,15 @@ const LazyBacktestSeriesChart = lazy(async () => ({
 }));
 
 export interface InstantBacktestGateway {
-  readonly series: () => Promise<InstantBacktestSeriesListOutput>;
   readonly run: (
     input: InstantBacktestRunInput
   ) => Promise<InstantBacktestRunOutput>;
+  readonly series: () => Promise<InstantBacktestSeriesListOutput>;
 }
 
 const createGateway = (client: ApiClient): InstantBacktestGateway => ({
-  series: () => client.instantBacktest.series(),
   run: (input) => client.instantBacktest.run(input),
+  series: () => client.instantBacktest.series(),
 });
 
 const createBrowserInstantBacktestGateway = (): InstantBacktestGateway => {
@@ -68,8 +68,8 @@ const createBrowserInstantBacktestGateway = (): InstantBacktestGateway => {
     return gateway;
   };
   return Object.freeze({
-    series: () => current().series(),
     run: (input: InstantBacktestRunInput) => current().run(input),
+    series: () => current().series(),
   });
 };
 
@@ -86,15 +86,15 @@ export type InstantParams = Readonly<{
 }>;
 
 export const DEFAULT_INSTANT_PARAMS: InstantParams = {
-  ruleKind: "smaCross",
-  fast: 50,
-  slow: 200,
+  costBps: 2,
   entryLookback: 20,
   exitLookback: 10,
-  trendSma: 0,
+  fast: 50,
+  ruleKind: "smaCross",
+  slow: 200,
   stopLossPct: 0,
   takeProfitPct: 0,
-  costBps: 2,
+  trendSma: 0,
 };
 
 type NumericParam = Exclude<keyof InstantParams, "ruleKind">;
@@ -109,58 +109,58 @@ type FieldSpec = Readonly<{
 }>;
 
 const WINDOW_FIELDS: Record<InstantParams["ruleKind"], readonly FieldSpec[]> = {
-  smaCross: [
-    { key: "fast", label: "Fast average (bars)", min: 1, max: 500, step: 1 },
-    { key: "slow", label: "Slow average (bars)", min: 2, max: 1000, step: 1 },
-  ],
   breakout: [
     {
       key: "entryLookback",
       label: "Entry: close above high of last N bars",
-      min: 1,
       max: 500,
+      min: 1,
       step: 1,
     },
     {
       key: "exitLookback",
       label: "Exit: close below low of last N bars",
-      min: 1,
       max: 500,
+      min: 1,
       step: 1,
     },
     {
+      hint: "0 turns the filter off.",
       key: "trendSma",
       label: "Trend filter: close above average of N bars",
-      min: 0,
       max: 1000,
+      min: 0,
       step: 1,
-      hint: "0 turns the filter off.",
     },
+  ],
+  smaCross: [
+    { key: "fast", label: "Fast average (bars)", max: 500, min: 1, step: 1 },
+    { key: "slow", label: "Slow average (bars)", max: 1000, min: 2, step: 1 },
   ],
 };
 
 const RISK_FIELDS: readonly FieldSpec[] = [
   {
+    hint: "0 turns the stop off.",
     key: "stopLossPct",
     label: "Stop-loss (% below entry)",
-    min: 0,
     max: 50,
+    min: 0,
     step: 0.5,
-    hint: "0 turns the stop off.",
   },
   {
+    hint: "0 turns the target off.",
     key: "takeProfitPct",
     label: "Take-profit (% above entry)",
-    min: 0,
     max: 200,
+    min: 0,
     step: 1,
-    hint: "0 turns the target off.",
   },
   {
     key: "costBps",
     label: "Cost per side (basis points)",
-    min: 0,
     max: 50,
+    min: 0,
     step: 0.5,
   },
 ];
@@ -171,7 +171,7 @@ const seriesKey = (series: InstantBacktestSeries): string =>
 /** Builds the run request, or returns the reason the parameters cannot run. */
 export const toRunInput = (
   params: InstantParams,
-  series: InstantBacktestSeries
+  series: Pick<InstantBacktestSeries, "symbol" | "timeframe">
 ):
   | Readonly<{ input: InstantBacktestRunInput }>
   | Readonly<{ error: string }> => {
@@ -190,20 +190,20 @@ export const toRunInput = (
   }
   return {
     input: {
-      symbol: series.symbol,
-      timeframe: series.timeframe,
+      costBps: params.costBps,
       rule:
         params.ruleKind === "smaCross"
-          ? { kind: "smaCross", fast: params.fast, slow: params.slow }
+          ? { fast: params.fast, kind: "smaCross", slow: params.slow }
           : {
-              kind: "breakout",
               entryLookback: params.entryLookback,
               exitLookback: params.exitLookback,
+              kind: "breakout",
               trendSma: params.trendSma,
             },
       stopLossPct: params.stopLossPct,
+      symbol: series.symbol,
       takeProfitPct: params.takeProfitPct,
-      costBps: params.costBps,
+      timeframe: series.timeframe,
     },
   };
 };
@@ -360,9 +360,9 @@ const statusText = (run: RunState): string => {
 };
 
 export interface InstantBacktestWorkspaceProps {
-  readonly gateway?: InstantBacktestGateway;
   /** Engine comparison: where the Nautilus status of a run is read. */
   readonly comparisonGateway?: EngineComparisonGateway;
+  readonly gateway?: InstantBacktestGateway;
 }
 
 export const InstantBacktestWorkspace = ({
@@ -386,9 +386,9 @@ export const InstantBacktestWorkspace = ({
   universeRef.current = universe;
   const [params, setParams] = useState(DEFAULT_INSTANT_PARAMS);
   const [run, setRun] = useState<RunState>({
-    status: "idle",
-    result: null,
     message: null,
+    result: null,
+    status: "idle",
   });
   const generation = useRef(0);
   const inFlight = useRef(false);
@@ -401,7 +401,7 @@ export const InstantBacktestWorkspace = ({
     gateway.series().then(
       (output) => {
         if (!active) return;
-        setSeriesState({ type: "ready", series: output.series });
+        setSeriesState({ series: output.series, type: "ready" });
         // A reload keeps the user's universe choice; only the series pick follows it.
         setSelected(firstSeriesKey(output.series, universeRef.current));
       },
@@ -411,8 +411,8 @@ export const InstantBacktestWorkspace = ({
           isOperatorAccessDenied(error)
             ? { type: "forbidden" }
             : {
-                type: "error",
                 message: describeMarketDataFailure(error).message,
+                type: "error",
               }
         );
       }
@@ -449,20 +449,20 @@ export const InstantBacktestWorkspace = ({
         (output) => {
           if (sendQueued() || mine !== generation.current) return;
           setRun({
-            status: "ready",
+            message: null,
             result: {
               output,
               roundTripMs: performance.now() - pending.started,
             },
-            message: null,
+            status: "ready",
           });
         },
         (error: unknown) => {
           if (sendQueued() || mine !== generation.current) return;
           setRun((previous) => ({
             ...previous,
-            status: "error",
             message: describeMarketDataFailure(error).message,
+            status: "error",
           }));
         }
       );
@@ -476,10 +476,10 @@ export const InstantBacktestWorkspace = ({
     if ("error" in request) {
       // Invalid inputs: drop the old result, the queued request and any response in flight.
       queued.current = null;
-      setRun({ status: "idle", result: null, message: null });
+      setRun({ message: null, result: null, status: "idle" });
       return;
     }
-    setRun((previous) => ({ ...previous, status: "running", message: null }));
+    setRun((previous) => ({ ...previous, message: null, status: "running" }));
     const pending = { input: request.input, started: performance.now() };
     if (inFlight.current) queued.current = pending;
     else send(pending);

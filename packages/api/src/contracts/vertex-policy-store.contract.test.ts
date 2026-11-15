@@ -1,6 +1,11 @@
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
+import type {
+  PolicyHead,
+  PolicyHistory,
+  PolicySelection,
+} from "../../../config/src/vertex/ports.ts";
 import type { Transaction } from "../../../db/src/server/client.ts";
 import {
   createVertexPolicyStore,
@@ -8,6 +13,7 @@ import {
 } from "../../../db/src/server/vertex-policy-store.ts";
 import {
   fixtureBoundary,
+  fixtureHarness,
   fixtureScope,
   fixtureSelection,
 } from "./vertex-policy.test-support.ts";
@@ -43,6 +49,58 @@ const queryAt = (queries: readonly CapturedQuery[], index: number) => {
   if (query === undefined) throw new Error(`missing query ${index}`);
   return query;
 };
+
+const recordHash = async (value: unknown): Promise<string> =>
+  fixtureBoundary.digest(fixtureBoundary.encode(value));
+
+// A real activation receipt from the in-memory registry, so the SQL store sees
+// exactly the record shape the registry appends.
+const activatedReceipt = async () => {
+  const harness = fixtureHarness();
+  const selection = await fixtureSelection();
+  await harness.registry.stage({
+    ...harness.command(selection, "stage-1"),
+    selection,
+  });
+  await harness.registry.activate(harness.command(selection, "activate-1"));
+  const receipt = harness.state.history.get("activate-1");
+  if (receipt === undefined) throw new Error("missing activation receipt");
+  return { selection, receipt };
+};
+
+const selectionRow = (value: PolicySelection) => ({
+  selection_id: value.selectionId,
+  selection_sha256: value.selectionSha256,
+  revision: value.revision,
+  issued_at_ns: fixtureBoundary.epochNanoseconds(value.issuedAt).toString(),
+  expires_at_ns: fixtureBoundary.epochNanoseconds(value.expiresAt).toString(),
+  payload: value,
+});
+
+const headRow = async (head: PolicyHead) => ({
+  revision: head.revision,
+  selection_id: head.selectionId,
+  selection_sha256: head.selectionSha256,
+  state: head.state,
+  updated_at: head.updatedAt,
+  record_hash: await recordHash(head),
+  payload: head,
+});
+
+const historyRow = async (receipt: PolicyHistory) => ({
+  command_id: receipt.commandId,
+  record_hash: await recordHash(receipt),
+  request_sha256: receipt.requestSha256,
+  operation: receipt.operation,
+  actor_id: receipt.actorId,
+  selection_id: receipt.selectionId,
+  selection_sha256: receipt.selectionSha256,
+  revision: receipt.head.revision,
+  recorded_at_ns: fixtureBoundary
+    .epochNanoseconds(receipt.recordedAt)
+    .toString(),
+  payload: receipt,
+});
 
 describe("policy PostgreSQL ownership and integrity boundary", () => {
   it("joins the caller transaction without opening a nested transaction or obtaining a connection", async () => {
@@ -181,4 +239,71 @@ describe("policy PostgreSQL ownership and integrity boundary", () => {
       });
     }
   );
+
+  it("returns a stored activation receipt only when both bound heads stay in scope", async () => {
+    const { receipt } = await activatedReceipt();
+    const stored = createVertexPolicyStoreForTransaction(
+      driver([[], [], [await historyRow(receipt)]]).tx,
+      { boundary: fixtureBoundary }
+    );
+    await expect(
+      stored.transaction(fixtureScope, (tx) => tx.getHistory("activate-1"))
+    ).resolves.toEqual(receipt);
+    // A recomputed record hash cannot move the next head to another account.
+    const moved = {
+      ...receipt,
+      head: { ...receipt.head, accountAlias: "synthetic-policy-other" },
+    };
+    const tampered = createVertexPolicyStoreForTransaction(
+      driver([[], [], [await historyRow(moved)]]).tx,
+      { boundary: fixtureBoundary }
+    );
+    await expect(
+      tampered.transaction(fixtureScope, (tx) => tx.getHistory("activate-1"))
+    ).rejects.toMatchObject({ code: "integrity" });
+  });
+
+  it("appends history only for the exact current head one revision past the previous head", async () => {
+    const { selection, receipt } = await activatedReceipt();
+    const current = async () => [
+      [],
+      [],
+      [await headRow(receipt.head)],
+      [selectionRow(selection)],
+    ];
+    const accepted = driver(await current());
+    await expect(
+      createVertexPolicyStoreForTransaction(accepted.tx, {
+        boundary: fixtureBoundary,
+      }).transaction(fixtureScope, (tx) => tx.appendHistory(receipt))
+    ).resolves.toBeUndefined();
+    const insert = accepted.queries.find((query) =>
+      query.sql.startsWith("insert into vertex_policy_history")
+    );
+    if (insert === undefined) throw new Error("missing history insert");
+    expect(insert.params).toContain(receipt.commandId);
+    expect(insert.params).toContain(await recordHash(receipt));
+
+    const noHead = driver([[], [], []]);
+    await expect(
+      createVertexPolicyStoreForTransaction(noHead.tx, {
+        boundary: fixtureBoundary,
+      }).transaction(fixtureScope, (tx) => tx.appendHistory(receipt))
+    ).rejects.toMatchObject({ code: "integrity" });
+    const otherScope = driver(await current());
+    await expect(
+      createVertexPolicyStoreForTransaction(otherScope.tx, {
+        boundary: fixtureBoundary,
+      }).transaction(fixtureScope, (tx) =>
+        tx.appendHistory({
+          ...receipt,
+          scope: { ...receipt.scope, accountAlias: "synthetic-policy-other" },
+        })
+      )
+    ).rejects.toMatchObject({ code: "integrity" });
+    for (const db of [noHead, otherScope])
+      expect(db.queries.some((query) => query.sql.startsWith("insert"))).toBe(
+        false
+      );
+  });
 });

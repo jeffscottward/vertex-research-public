@@ -1,0 +1,468 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "treasury-tga",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "macro_points",
+      "rows": [
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 872526000000.0
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 920214000000.0
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 885823000000.0
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 934690000000.0
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 948492000000.0
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 965045000000.0
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 973653000000.0
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 945153000000.0
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 961759000000.0
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 982489000000.0
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 1020700000000.0
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 1052530000000.0
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 1015632000000.0
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 1040236000000.0
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 951593000000.0
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 930757000000.0
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 938208000000.0
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 936248000000.0
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury General Account closing balance (Daily Treasury Statement)",
+          "seriesId": "TGA",
+          "source": "us_treasury",
+          "unit": "usd",
+          "value": 922752000000.0
+        }
+      ]
+    },
+    {
+      "table": "event_calendar",
+      "rows": [
+        {
+          "date": "2026-10-13",
+          "detail": "high discount rate 3.980%; bid-to-cover 2.58; offered $95.0 bn; CUSIP 912797SU2",
+          "eventKey": "auction-result:912797SU2:2026-10-13",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "6-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-19",
+          "detail": "high discount rate 4.095%; bid-to-cover 2.77; offered $95.0 bn; CUSIP 912797TM9",
+          "eventKey": "auction-result:912797TM9:2026-10-19",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "13-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-13",
+          "detail": "high discount rate 4.200%; bid-to-cover 2.76; offered $82.0 bn; CUSIP 912797UE5",
+          "eventKey": "auction-result:912797UE5:2026-10-13",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "26-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-20",
+          "detail": "high discount rate 3.975%; bid-to-cover 2.74; offered $95.0 bn; CUSIP 912797VA2",
+          "eventKey": "auction-result:912797VA2:2026-10-20",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "6-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-27",
+          "detail": "high discount rate 3.950%; bid-to-cover 2.83; offered $95.0 bn; CUSIP 912797VG9",
+          "eventKey": "auction-result:912797VG9:2026-10-27",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "6-Week Bill auction results"
+        },
+        {
+          "date": "2026-11-03",
+          "detail": "high discount rate 3.940%; bid-to-cover 2.88; offered $100.0 bn; CUSIP 912797VH7",
+          "eventKey": "auction-result:912797VH7:2026-11-03",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "6-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-13",
+          "detail": "high discount rate 4.085%; bid-to-cover 2.68; offered $95.0 bn; CUSIP 912797VT1",
+          "eventKey": "auction-result:912797VT1:2026-10-13",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "13-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-26",
+          "detail": "high discount rate 4.050%; bid-to-cover 3.07; offered $95.0 bn; CUSIP 912797VU8",
+          "eventKey": "auction-result:912797VU8:2026-10-26",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "13-Week Bill auction results"
+        },
+        {
+          "date": "2026-11-02",
+          "detail": "high discount rate 4.040%; bid-to-cover 2.88; offered $95.0 bn; CUSIP 912797VV6",
+          "eventKey": "auction-result:912797VV6:2026-11-02",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "13-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-15",
+          "detail": "high discount rate 4.000%; bid-to-cover 2.56; offered $110.0 bn; CUSIP 912797VX2",
+          "eventKey": "auction-result:912797VX2:2026-10-15",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "4-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-22",
+          "detail": "high discount rate 3.945%; bid-to-cover 2.82; offered $110.0 bn; CUSIP 912797VY0",
+          "eventKey": "auction-result:912797VY0:2026-10-22",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "4-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-29",
+          "detail": "high discount rate 3.910%; bid-to-cover 3.10; offered $115.0 bn; CUSIP 912797VZ7",
+          "eventKey": "auction-result:912797VZ7:2026-10-29",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "4-Week Bill auction results"
+        },
+        {
+          "date": "2026-11-05",
+          "detail": "high discount rate 3.890%; bid-to-cover 2.46; offered $115.0 bn; CUSIP 912797WE3",
+          "eventKey": "auction-result:912797WE3:2026-11-05",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "4-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-15",
+          "detail": "high discount rate 4.050%; bid-to-cover 2.26; offered $105.0 bn; CUSIP 912797WF0",
+          "eventKey": "auction-result:912797WF0:2026-10-15",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "8-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-22",
+          "detail": "high discount rate 4.015%; bid-to-cover 2.57; offered $105.0 bn; CUSIP 912797WG8",
+          "eventKey": "auction-result:912797WG8:2026-10-22",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "8-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-29",
+          "detail": "high discount rate 4.020%; bid-to-cover 2.63; offered $110.0 bn; CUSIP 912797WH6",
+          "eventKey": "auction-result:912797WH6:2026-10-29",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "8-Week Bill auction results"
+        },
+        {
+          "date": "2026-11-05",
+          "detail": "high discount rate 3.975%; bid-to-cover 2.68; offered $110.0 bn; CUSIP 912797WN3",
+          "eventKey": "auction-result:912797WN3:2026-11-05",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "8-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-27",
+          "detail": "high discount rate 4.290%; bid-to-cover 3.15; offered $54.0 bn; CUSIP 912797WT0",
+          "eventKey": "auction-result:912797WT0:2026-10-27",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "52-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-19",
+          "detail": "high discount rate 4.220%; bid-to-cover 2.84; offered $82.0 bn; CUSIP 912797WV5",
+          "eventKey": "auction-result:912797WV5:2026-10-19",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "26-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-26",
+          "detail": "high discount rate 4.210%; bid-to-cover 2.63; offered $82.0 bn; CUSIP 912797WW3",
+          "eventKey": "auction-result:912797WW3:2026-10-26",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "26-Week Bill auction results"
+        },
+        {
+          "date": "2026-11-02",
+          "detail": "high discount rate 4.150%; bid-to-cover 2.89; offered $82.0 bn; CUSIP 912797WX1",
+          "eventKey": "auction-result:912797WX1:2026-11-02",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "26-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-14",
+          "detail": "high discount rate 4.195%; bid-to-cover 2.79; offered $75.0 bn; CUSIP 912797WZ6",
+          "eventKey": "auction-result:912797WZ6:2026-10-14",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "17-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-21",
+          "detail": "high discount rate 4.155%; bid-to-cover 2.76; offered $75.0 bn; CUSIP 912797XA0",
+          "eventKey": "auction-result:912797XA0:2026-10-21",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "17-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-28",
+          "detail": "high discount rate 4.140%; bid-to-cover 3.08; offered $75.0 bn; CUSIP 912797XB8",
+          "eventKey": "auction-result:912797XB8:2026-10-28",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "17-Week Bill auction results"
+        },
+        {
+          "date": "2026-11-04",
+          "detail": "high discount rate 4.090%; bid-to-cover 3.26; offered $75.0 bn; CUSIP 912797XG7",
+          "eventKey": "auction-result:912797XG7:2026-11-04",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "17-Week Bill auction results"
+        },
+        {
+          "date": "2026-10-21",
+          "detail": "high yield 5.469%; coupon 5.125%; bid-to-cover 2.73; offered $13.0 bn; CUSIP 912810UX4",
+          "eventKey": "auction-result:912810UX4:2026-10-21",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "19-Year 10-Month Bond auction results"
+        },
+        {
+          "date": "2026-10-22",
+          "detail": "high yield 2.367%; coupon 2.250%; bid-to-cover 2.41; offered $26.0 bn; CUSIP 91282CRR4",
+          "eventKey": "auction-result:91282CRR4:2026-10-22",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "5-Year Note auction results"
+        },
+        {
+          "date": "2026-10-28",
+          "detail": "bid-to-cover 3.05; offered $30.0 bn; CUSIP 91282CRS2",
+          "eventKey": "auction-result:91282CRS2:2026-10-28",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "2-Year Note auction results"
+        },
+        {
+          "date": "2026-10-27",
+          "detail": "high yield 4.845%; coupon 4.750%; bid-to-cover 2.33; offered $70.0 bn; CUSIP 91282CRT0",
+          "eventKey": "auction-result:91282CRT0:2026-10-27",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "5-Year Note auction results"
+        },
+        {
+          "date": "2026-10-26",
+          "detail": "high yield 4.708%; coupon 4.625%; bid-to-cover 2.59; offered $69.0 bn; CUSIP 91282CRU7",
+          "eventKey": "auction-result:91282CRU7:2026-10-26",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "2-Year Note auction results"
+        },
+        {
+          "date": "2026-10-29",
+          "detail": "high yield 4.894%; coupon 4.875%; bid-to-cover 2.46; offered $44.0 bn; CUSIP 91282CRV5",
+          "eventKey": "auction-result:91282CRV5:2026-10-29",
+          "kind": "treasury_auction_result",
+          "source": "us_treasury",
+          "time": null,
+          "title": "7-Year Note auction results"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

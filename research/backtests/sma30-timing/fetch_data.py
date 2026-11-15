@@ -8,10 +8,15 @@ Run (rig):
 Output:
 * french_daily.csv: date,mkt_rf,rf in percent per day, from the Kenneth R. French Data Library file
   F-F_Research_Data_Factors_daily_CSV.zip (CRSP value-weighted US market, nominal, total return).
-* <SYMBOL>.adj.csv: Yahoo daily open and close adjusted for splits and dividends
-  (auto_adjust=True), for SPY, BIL and SHV.
-* manifest.json: row counts, date ranges and SHA-256 of every file.
-The data is not committed: the French library and Yahoo terms do not allow redistribution.
+* <SYMBOL>.adj.csv: daily open and close adjusted for splits and dividends, for SPY, BIL and SHV, with
+  the header date,open,close,source (`source`: ibkr or yahoo per row).
+  Source: IBKR first, Yahoo fills gaps (services/research/ibkr_history.py). With VERTEX_HISTORY_URL and
+  VERTEX_DEPLOY_STATUS_TOKEN set, IBKR ADJUSTED_LAST daily bars (split and dividend adjusted, about 30
+  years back); Yahoo (auto_adjust=True) fills the dates before IBKR's first date, rescaled to IBKR's
+  close on the seam date, and everything when IBKR fails or is not configured.
+* manifest.json: row counts, date ranges and SHA-256 of every file; `sources` (rows per source, failed
+  sources, seams) for the price files.
+The data is not committed: the French library, IBKR and Yahoo terms do not allow redistribution.
 """
 from __future__ import annotations
 
@@ -19,11 +24,15 @@ import argparse
 import hashlib
 import io
 import json
+import sys
 import urllib.request
 import zipfile
 from pathlib import Path
 
 import yfinance as yf
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "services" / "research"))
+import ibkr_history as ih  # noqa: E402
 
 FRENCH = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip"
 YAHOO = ["SPY", "BIL", "SHV"]
@@ -53,14 +62,20 @@ def fetch_french(out: Path) -> list[Path]:
     return [archive, path]
 
 
-def fetch_yahoo(symbol: str, out: Path) -> Path:
-    frame = yf.Ticker(symbol).history(start=START, end=END, interval="1d", auto_adjust=True, actions=False)
+def fetch_prices(symbol: str, out: Path) -> tuple[Path, dict]:
+    def yahoo() -> list[dict]:
+        frame = yf.Ticker(symbol).history(start=START, end=END, interval="1d", auto_adjust=True, actions=False)
+        return [{"date": ts.date().isoformat(), "open": float(row["Open"]), "high": float(row["High"]),
+                 "low": float(row["Low"]), "close": float(row["Close"])} for ts, row in frame.iterrows()]
+
+    merged = ih.merged_daily(symbol, yahoo, start=START, end=END, adjust="ohlc")
     path = out / f"{symbol}.adj.csv"
     with path.open("w") as fh:
-        fh.write("date,open,close\n")
-        for ts, row in frame.iterrows():
-            fh.write(f"{ts.date().isoformat()},{float(row['Open'])!r},{float(row['Close'])!r}\n")
-    return path
+        fh.write("date,open,close,source\n")
+        for row in merged.rows:
+            fh.write(f"{row['date']},{float(row['open'])!r},{float(row['close'])!r},{row['source']}\n")
+    print(f"{symbol}: {ih.source_note(merged)}")
+    return path, merged.summary()
 
 
 def main() -> None:
@@ -69,7 +84,8 @@ def main() -> None:
     args = parser.parse_args()
     out: Path = args.out.expanduser()
     out.mkdir(parents=True, exist_ok=True)
-    files = fetch_french(out) + [fetch_yahoo(s, out) for s in YAHOO]
+    sources = dict(fetch_prices(s, out) for s in YAHOO)
+    files = fetch_french(out) + list(sources)
     manifest = {}
     for path in files:
         lines = path.read_text().splitlines()[1:] if path.suffix == ".csv" else []
@@ -77,6 +93,7 @@ def main() -> None:
         manifest[path.name] = {
             "sha256": sha256(path),
             **({"rows": len(days), "first": days[0], "last": days[-1]} if days else {}),
+            **({"sources": sources[path]} if path in sources else {}),
         }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
     print(json.dumps(manifest, indent=1, sort_keys=True))

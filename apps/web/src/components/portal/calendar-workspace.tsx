@@ -201,7 +201,8 @@ export const CalendarWorkspace = ({
     let current = true;
     void newsReload;
     setNews({ type: "loading" });
-    newsGateway.watchlist(CALENDAR_NEWS_HOURS).then(
+    // Earnings dates come from 8-K filings only: no headline source is read for the calendar.
+    newsGateway.watchlist(CALENDAR_NEWS_HOURS, "filings").then(
       (result) => {
         if (current) setNews({ news: result, type: "ready" });
       },

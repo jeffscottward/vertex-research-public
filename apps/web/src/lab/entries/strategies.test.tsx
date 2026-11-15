@@ -62,6 +62,17 @@ describe("strategies lab fixtures", () => {
     StrategyListOutputSchema.parse({ strategies: LAB_STRATEGY_ROWS });
     for (const row of LAB_STRATEGY_ROWS)
       StrategyGetOutputSchema.parse(labStrategyDetail(row.id));
+    // One fixture is high priority with an external claim; the others carry neither.
+    expect(
+      LAB_STRATEGY_ROWS.filter(
+        (row) => row.priority === "high" && row.externalValidation !== null
+      ).map((row) => [row.id, row.tags.includes("research-only")])
+    ).toEqual([["s-demo-volume-spike", true]]);
+    expect(
+      LAB_STRATEGY_ROWS.filter(
+        (row) => row.priority === "normal" && row.externalValidation === null
+      )
+    ).toHaveLength(LAB_STRATEGY_ROWS.length - 1);
     BacktestListOutputSchema.parse({ backtests: LAB_BACKTEST_ROWS });
     for (const row of LAB_BACKTEST_ROWS)
       BacktestGetOutputSchema.parse(labBacktestDetail(row.id));
@@ -130,6 +141,9 @@ describe("strategies lab entries", () => {
   it("renders the Academy gallery and a lesson from ?slug=", async () => {
     const gallery = await mountEntry("academy");
     expect(gallery.querySelector("h1")?.textContent).toContain("Academy");
+    await unmountLab();
+    const course = await mountEntry("academy-course");
+    expect(course.querySelector('[data-academy-gallery="dyr"]')).not.toBeNull();
     await unmountLab();
     const lesson = await mountEntry("academy-lesson");
     expect(lesson.querySelector("h1")?.textContent).not.toBe("");

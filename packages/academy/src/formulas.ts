@@ -1,6 +1,26 @@
 // What: Formula library for lesson pages. Each formula has a MathML rendering (shown in the data
 // tables; MathML renders natively in current browsers) and a plain-text form for captions and tests.
-import type { FormulaId } from "./schema.ts";
+import {
+  frac,
+  math,
+  mi,
+  mn,
+  mo,
+  paren,
+  row,
+  sqrt,
+  sub,
+  sup,
+} from "./mathml.ts";
+import { GROWTH_FORMULAS } from "./quant/growth-formulas.ts";
+import { OPTIONS_FORMULAS } from "./quant/options-formulas.ts";
+import { PORTFOLIO_FORMULAS } from "./quant/portfolio-formulas.ts";
+import { PROCESS_FORMULAS } from "./quant/process-formulas.ts";
+import { STATISTICS_FORMULAS } from "./quant/statistics-formulas.ts";
+import { TESTING_FORMULAS } from "./quant/testing-formulas.ts";
+import { TRADING_FORMULAS } from "./quant/trading-formulas.ts";
+import { VOLATILITY_FORMULAS } from "./quant/volatility-formulas.ts";
+import type { BaseFormulaId, FormulaId } from "./schema.ts";
 
 export type Formula = Readonly<{
   id: FormulaId;
@@ -9,26 +29,13 @@ export type Formula = Readonly<{
   mathml: string;
 }>;
 
-const mi = (value: string): string => `<mi>${value}</mi>`;
-const mo = (value: string): string => `<mo>${value}</mo>`;
-const mn = (value: string): string => `<mn>${value}</mn>`;
-const sub = (base: string, index: string): string =>
-  `<msub>${base}${index}</msub>`;
-const sup = (base: string, power: string): string =>
-  `<msup>${base}${power}</msup>`;
-const frac = (top: string, bottom: string): string =>
-  `<mfrac><mrow>${top}</mrow><mrow>${bottom}</mrow></mfrac>`;
-const row = (...parts: string[]): string => `<mrow>${parts.join("")}</mrow>`;
-const sqrt = (value: string): string => `<msqrt>${value}</msqrt>`;
-const paren = (value: string): string => row(mo("("), value, mo(")"));
-const math = (body: string): string => `<math display="block">${body}</math>`;
 const N = (value: string): string => row(mi("N"), paren(value));
 const d1 = sub(mi("d"), mn("1"));
 const d2 = sub(mi("d"), mn("2"));
 const sigma = mi("σ");
 const T = mi("T");
 
-export const FORMULAS: Readonly<Record<FormulaId, Formula>> = {
+const BASE_FORMULAS: Readonly<Record<BaseFormulaId, Formula>> = {
   blackScholes: {
     id: "blackScholes",
     title: "Black-Scholes call price",
@@ -326,4 +333,16 @@ export const FORMULAS: Readonly<Record<FormulaId, Formula>> = {
       )
     ),
   },
+};
+
+export const FORMULAS: Readonly<Record<FormulaId, Formula>> = {
+  ...BASE_FORMULAS,
+  ...PROCESS_FORMULAS,
+  ...GROWTH_FORMULAS,
+  ...PORTFOLIO_FORMULAS,
+  ...STATISTICS_FORMULAS,
+  ...TESTING_FORMULAS,
+  ...VOLATILITY_FORMULAS,
+  ...TRADING_FORMULAS,
+  ...OPTIONS_FORMULAS,
 };

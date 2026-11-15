@@ -4,6 +4,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  AudioWaveform,
   BellRing,
   Blocks,
   BookOpen,
@@ -16,6 +17,7 @@ import {
   ChartLine,
   ClipboardCheck,
   Dna,
+  FileCheck,
   FileText,
   FlaskConical,
   Gauge,
@@ -56,6 +58,7 @@ import {
   ShoppingBasket,
   SlidersHorizontal,
   Sparkles,
+  SpellCheck,
   Timer,
   UserPlus,
   UserRound,
@@ -124,6 +127,7 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
   Object.freeze([
     { href: "/research", icon: MessageSquare, label: "Research" },
     { href: "/charts", icon: ChartCandlestick, label: "Charts" },
+    { href: "/flow", icon: AudioWaveform, label: "Flow" },
     { href: "/watchlist", icon: ListChecks, label: "Watchlist" },
     { href: "/price-alerts", icon: BellRing, label: "Price alerts" },
     { href: "/news", icon: Newspaper, label: "News monitor" },
@@ -196,7 +200,9 @@ export const PORTAL_AUTOMATION_NAVIGATION: readonly NavigationItem[] =
       label: "Model benchmark",
     },
     { href: "/deployments", icon: Server, label: "Deployments" },
+    { href: "/drafts", icon: FileCheck, label: "Order drafts" },
     { href: "/engines", icon: Timer, label: "Engines" },
+    { href: "/semantic-terms", icon: SpellCheck, label: "Semantic terms" },
   ]);
 
 /** Data & Ops: scoped readers of governed records. */
@@ -312,8 +318,11 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/optimizations",
   "/autopilot",
   "/charts",
+  "/flow",
   "/deployments",
+  "/drafts",
   "/engines",
+  "/semantic-terms",
   "/watchlist",
   "/price-alerts",
   "/news",
@@ -384,11 +393,14 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/optimizations",
   "/autopilot",
   "/charts",
+  "/flow",
   "/deployments",
+  "/drafts",
   "/baskets",
   "/pick-lists",
   "/plays",
   "/engines",
+  "/semantic-terms",
   "/journal",
   "/calendar",
 ] as const);

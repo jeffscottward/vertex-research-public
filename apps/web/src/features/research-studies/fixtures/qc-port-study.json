@@ -1,0 +1,182 @@
+{
+  "id": "qc-iv-rank-gate",
+  "spec": "docs/specs/strategies/qc-iv-rank-gate.md",
+  "ran": "2026-11-08",
+  "kind": "qc-port",
+  "verdict": "FAIL",
+  "title": "IV-Rank Gate for Credit Spreads",
+  "criteria": {
+    "minSharpe": 0.5,
+    "minDeflatedSharpe": 0.9,
+    "maxDrawdown": 0.25,
+    "beatBaseline": true
+  },
+  "provenance": {
+    "codeRevision": "0123456789abcdef0123456789abcdef01234567",
+    "engine": "nautilus_trader 1.221.0",
+    "dataSha256": "abababababababababababababababababababababababababababababababab",
+    "runId": "qc-ports-2026-11-08"
+  },
+  "runs": [
+    {
+      "name": "SPY put credit vertical, ungated",
+      "symbols": ["SPY"],
+      "cagr": 0.031,
+      "sharpe": 0.48,
+      "deflatedSharpe": 0.41,
+      "maxDrawdown": -0.142,
+      "worstMonth": {
+        "month": "2024-05",
+        "ret": -0.051
+      },
+      "trades": 96,
+      "winRate": 0.69,
+      "exposure": 0.44,
+      "skipped": 3
+    },
+    {
+      "name": "SPY put credit vertical, IV rank >= 50",
+      "symbols": ["SPY"],
+      "cagr": 0.024,
+      "sharpe": 0.52,
+      "deflatedSharpe": 0.37,
+      "maxDrawdown": -0.098,
+      "worstMonth": {
+        "month": "2025-05",
+        "ret": -0.032
+      },
+      "trades": 41,
+      "winRate": 0.73,
+      "exposure": 0.21,
+      "skipped": 1
+    },
+    {
+      "name": "Core 7 ETFs, IV rank >= 50",
+      "symbols": ["SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"],
+      "cagr": null,
+      "sharpe": null,
+      "deflatedSharpe": null,
+      "maxDrawdown": 0,
+      "worstMonth": null,
+      "trades": 0,
+      "winRate": null,
+      "exposure": 0,
+      "skipped": 12
+    }
+  ],
+  "equity": [
+    {
+      "t": "2024-01",
+      "v": 101200
+    },
+    {
+      "t": "2024-02",
+      "v": 100390
+    },
+    {
+      "t": "2024-03",
+      "v": 102398
+    },
+    {
+      "t": "2024-04",
+      "v": 102910
+    },
+    {
+      "t": "2024-05",
+      "v": 101366
+    },
+    {
+      "t": "2024-06",
+      "v": 102380
+    },
+    {
+      "t": "2024-07",
+      "v": 103609
+    },
+    {
+      "t": "2024-08",
+      "v": 102780
+    },
+    {
+      "t": "2024-09",
+      "v": 104836
+    },
+    {
+      "t": "2024-10",
+      "v": 105360
+    },
+    {
+      "t": "2024-11",
+      "v": 103780
+    },
+    {
+      "t": "2024-12",
+      "v": 104818
+    },
+    {
+      "t": "2025-01",
+      "v": 106076
+    },
+    {
+      "t": "2025-02",
+      "v": 105227
+    },
+    {
+      "t": "2025-03",
+      "v": 107332
+    },
+    {
+      "t": "2025-04",
+      "v": 107869
+    },
+    {
+      "t": "2025-05",
+      "v": 106251
+    },
+    {
+      "t": "2025-06",
+      "v": 107314
+    },
+    {
+      "t": "2025-07",
+      "v": 108602
+    },
+    {
+      "t": "2025-08",
+      "v": 107733
+    },
+    {
+      "t": "2025-09",
+      "v": 109888
+    },
+    {
+      "t": "2025-10",
+      "v": 110437
+    },
+    {
+      "t": "2025-11",
+      "v": 108780
+    },
+    {
+      "t": "2025-12",
+      "v": 109868
+    }
+  ],
+  "gates": [
+    {
+      "gate": "IV rank >= 50",
+      "host": "qc-regime-put-vrp",
+      "before": {
+        "sharpe": 0.48,
+        "maxDrawdown": -0.142,
+        "trades": 96
+      },
+      "after": {
+        "sharpe": 0.52,
+        "maxDrawdown": -0.098,
+        "trades": 41
+      }
+    }
+  ],
+  "notes": "Test fixture (synthetic numbers). Option prices MODELED with Black-Scholes on CBOE vol-index proxies."
+}

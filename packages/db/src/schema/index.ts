@@ -26,7 +26,15 @@ export * from "./vertex-research-chat-debate.ts";
 export * from "./vertex-research-chat-native-evidence.ts";
 export * from "./research-reports.ts";
 export * from "./research-studies.ts";
+export * from "./flow.ts";
+export * from "./openbb.ts";
+export * from "./semantic-layer.ts";
+export * from "./academy-content.ts";
+export * from "./golive.ts";
+export * from "./leveraged-etf.ts";
+export * from "./vertex-order-claims.ts";
 
+import type { DeploymentRequestOptions } from "../server/deployment-requests.ts";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -911,6 +919,24 @@ export interface StrategyParam {
   options?: string[];
 }
 export type StrategyPresetValues = Record<string, StrategyParamValue>;
+// high lists a strategy first inside every library sort.
+export const STRATEGY_PRIORITIES = ["normal", "high"] as const;
+export type StrategyPriority = (typeof STRATEGY_PRIORITIES)[number];
+// A third party's published claim about a strategy (source, claimed method, claimed metrics).
+// Non-null is the single source of the label "Externally pre-validated"; it never means
+// validated by Vertex. null means no external claim.
+export interface StrategyExternalValidationMetric {
+  label: string;
+  value: string;
+}
+export interface StrategyExternalValidation {
+  sourceUrl: string;
+  sourceTitle: string;
+  sourceAuthor: string;
+  publishedOn: string;
+  claimedMethod: string;
+  claimedMetrics: StrategyExternalValidationMetric[];
+}
 
 export const strategies = pgTable(
   "strategies",
@@ -926,6 +952,13 @@ export const strategies = pgTable(
     favorite: boolean("favorite").default(false).notNull(),
     section: text("section"),
     params: jsonb("params").$type<StrategyParam[]>().default([]).notNull(),
+    priority: text("priority")
+      .$type<StrategyPriority>()
+      .default("normal")
+      .notNull(),
+    externalValidation: jsonb(
+      "external_validation"
+    ).$type<StrategyExternalValidation>(),
     createdAt: utcTimestamp("created_at").defaultNow().notNull(),
     updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
   },
@@ -956,6 +989,14 @@ export const strategies = pgTable(
     check(
       "strategies_json_check",
       sql`jsonb_typeof(${table.tags}) = 'array' and jsonb_array_length(${table.tags}) <= 20 and octet_length(${table.tags}::text) <= 2048 and jsonb_typeof(${table.params}) = 'array' and jsonb_array_length(${table.params}) <= 60 and octet_length(${table.params}::text) <= 65536`
+    ),
+    check(
+      "strategies_priority_check",
+      sql`${table.priority} in ('normal', 'high')`
+    ),
+    check(
+      "strategies_external_validation_check",
+      sql`${table.externalValidation} is null or jsonb_typeof(${table.externalValidation}) = 'object'`
     ),
   ]
 );
@@ -1041,6 +1082,8 @@ export interface BacktestRunConfig {
   timeframe?: string;
   fillModel?: BacktestFillModel;
   leverage?: number;
+  // Backtest engine and version that produced the result, e.g. "nautilus-trader-1.227.0".
+  engine?: string;
 }
 // Benchmark equity on the same timestamps as the strategy equity (for alpha/beta).
 export interface BacktestBenchmark {
@@ -1701,6 +1744,8 @@ export const deploymentRequests = pgTable(
       .default("paper")
       .notNull(),
     limits: jsonb("limits").$type<DeploymentRequestLimits>().notNull(),
+    // Optional options block (migration 0067); null on every request in the old format.
+    options: jsonb("options").$type<DeploymentRequestOptions>(),
     status: text("status")
       .$type<DeploymentRequestStatus>()
       .default("draft")
@@ -1743,6 +1788,10 @@ export const deploymentRequests = pgTable(
     check(
       "deployment_requests_limits_check",
       sql`jsonb_typeof(${table.limits}) = 'object' and ${table.limits} ?& array['maxOrderSize', 'maxPosition', 'maxOrdersPerMinute', 'dailyLossLimit'] and ${table.limits} - array['maxOrderSize', 'maxPosition', 'maxOrdersPerMinute', 'dailyLossLimit'] = '{}'::jsonb and (case when jsonb_typeof(${table.limits}->'maxOrderSize') = 'number' and jsonb_typeof(${table.limits}->'maxPosition') = 'number' and jsonb_typeof(${table.limits}->'maxOrdersPerMinute') = 'number' and jsonb_typeof(${table.limits}->'dailyLossLimit') = 'number' then (${table.limits}->>'maxOrderSize')::numeric > 0 and (${table.limits}->>'maxPosition')::numeric > 0 and (${table.limits}->>'maxOrderSize')::numeric <= (${table.limits}->>'maxPosition')::numeric and (${table.limits}->>'maxOrdersPerMinute')::numeric between 1 and 1000 and (${table.limits}->>'maxOrdersPerMinute')::numeric = trunc((${table.limits}->>'maxOrdersPerMinute')::numeric) and (${table.limits}->>'dailyLossLimit')::numeric > 0 else false end)`
+    ),
+    check(
+      "deployment_requests_options_check",
+      sql`${table.options} is null or (case when jsonb_typeof(${table.options}) = 'object' and jsonb_typeof(${table.options}->'structure') = 'string' and jsonb_typeof(${table.options}->'maxLossPctOfAccount') = 'number' then octet_length(${table.options}::text) <= 4096 and ${table.options}->>'structure' in ('callDebitVertical', 'putDebitVertical', 'putCreditVertical', 'callCreditVertical') and (${table.options}->>'maxLossPctOfAccount')::numeric > 0 and (${table.options}->>'maxLossPctOfAccount')::numeric <= 2 else false end)`
     ),
     check(
       "deployment_requests_lifecycle_check",
@@ -2141,6 +2190,66 @@ export const marketBars = pgTable(
   ]
 );
 
+// Stored daily research series of the QuantConnect idea ports (ETFs, continuous futures,
+// volatility and rate indices, and derived series such as EY_TNX_RATIO). One row per series with
+// the source file's SHA-256 for provenance; points keep every row whose close is a finite number,
+// with open, high, low and adj_close null where the source has no usable value. Research input
+// only; nothing here places orders.
+export const MARKET_DAILY_SERIES_KINDS = [
+  "etf",
+  "future",
+  "index",
+  "derived",
+] as const;
+export type MarketDailySeriesKind = (typeof MARKET_DAILY_SERIES_KINDS)[number];
+
+export const marketDailySeries = pgTable(
+  "market_daily_series",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").$type<MarketDailySeriesKind>().notNull(),
+    source: text("source").notNull(),
+    sourceSha256: text("source_sha256").notNull(),
+    pointCount: integer("point_count").notNull(),
+    firstDate: date("first_date", { mode: "string" }).notNull(),
+    lastDate: date("last_date", { mode: "string" }).notNull(),
+    importedAt: utcTimestamp("imported_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "market_daily_series_text_check",
+      sql`${table.id} ~ '^[A-Z0-9._^=-]{1,20}$' and ${table.kind} in ('etf', 'future', 'index', 'derived') and char_length(trim(${table.source})) between 1 and 300 and ${table.sourceSha256} ~ '^[0-9a-f]{64}$'`
+    ),
+    check(
+      "market_daily_series_range_check",
+      sql`${table.pointCount} >= 1 and ${table.firstDate} <= ${table.lastDate} and (${table.pointCount} > 1 or ${table.firstDate} = ${table.lastDate})`
+    ),
+  ]
+);
+
+export const marketDailyPoints = pgTable(
+  "market_daily_points",
+  {
+    seriesId: text("series_id")
+      .notNull()
+      .references(() => marketDailySeries.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    open: doublePrecision("open"),
+    high: doublePrecision("high"),
+    low: doublePrecision("low"),
+    close: doublePrecision("close").notNull(),
+    adjClose: doublePrecision("adj_close"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.seriesId, table.date] }),
+    // NaN sorts above Infinity in Postgres, so `< 'Infinity'` also refuses NaN.
+    check(
+      "market_daily_points_finite_check",
+      sql`${table.close} > '-Infinity'::float8 and ${table.close} < 'Infinity'::float8 and (${table.open} is null or (${table.open} > '-Infinity'::float8 and ${table.open} < 'Infinity'::float8)) and (${table.high} is null or (${table.high} > '-Infinity'::float8 and ${table.high} < 'Infinity'::float8)) and (${table.low} is null or (${table.low} > '-Infinity'::float8 and ${table.low} < 'Infinity'::float8)) and (${table.adjClose} is null or (${table.adjClose} > '-Infinity'::float8 and ${table.adjClose} < 'Infinity'::float8))`
+    ),
+  ]
+);
+
 // Backtest runs started from the portal or MCP. A row is created queued, claimed once, then
 // completed or failed. The spec and the strategy revision snapshot are written at submit time and
 // never updated; only status, timing, error and report change. Research only; no order path.
@@ -2169,6 +2278,14 @@ export interface BacktestRunSpec {
         kind: "dsl";
         /** Strategy definition (version 1), validated by the API contract. */
         definition: Record<string, unknown>;
+      }
+    | {
+        /** Academy comparison runs only: a modelled options structure on the daily closes. */
+        kind: "academy";
+        structure: string;
+        rules: Record<string, number>;
+        /** One implied volatility (or null) per bar from `from` to `to`; absent: modelled. */
+        iv?: (number | null)[];
       };
   stopLossPct: number;
   takeProfitPct: number;
@@ -2176,6 +2293,8 @@ export interface BacktestRunSpec {
   /** Resolved cost profile (shape owned by the API cost-profile contract); absent: none. */
   costProfile?: Record<string, unknown>;
   initialCapital: number;
+  /** DSL rules only: time exit after this many bars (setup replay comparison runs). */
+  maxHoldBars?: number;
   /**
    * Engine comparison (dual run): the feature, group and label of a Nautilus run that repeats a
    * TypeScript result, with that result (shape owned by the API engine-comparison contract).
@@ -2898,3 +3017,198 @@ export const sectorRotationAlerts = pgTable(
 );
 
 export type SectorRotationAlertRow = typeof sectorRotationAlerts.$inferSelect;
+
+// Breadth-90 signal (breadth90.*): NYSE up/down volume and advance/decline sessions pushed by the
+// rig tick (scripts/breadth-90), the ARMED/FORMING/FIRED/THRUST events (insert-once by kind, date
+// and tier) and one status row per market. Research only: no order path.
+export type Breadth90DayKindValue =
+  | "UP_90"
+  | "UP_80"
+  | "NEUTRAL"
+  | "DOWN_80"
+  | "DOWN_90";
+export type Breadth90StateValue = "IDLE" | "ARMED" | "FORMING" | "FIRED";
+export type Breadth90EventKindValue = "ARMED" | "FORMING" | "FIRED" | "THRUST";
+export type Breadth90TierValue =
+  | "strict"
+  | "standard"
+  | "major"
+  | "volume-only";
+export type Breadth90TriggerValue = "UP_90" | "UP_80_X2";
+export type Breadth90GradeValue = "major" | "volume-only";
+export interface Breadth90BasketValue {
+  asOf: string | null;
+  reportPath: string | null;
+  rulesNote: string | null;
+  summary: string | null;
+  tiers: {
+    id: string;
+    label: string;
+    tickers: string[];
+    weightPctNlv: number | null;
+  }[];
+}
+
+export const breadth90Days = pgTable(
+  "breadth90_days",
+  {
+    date: date("date", { mode: "string" }).primaryKey(),
+    uvol: doublePrecision("uvol").notNull(),
+    dvol: doublePrecision("dvol").notNull(),
+    adv: integer("adv").notNull(),
+    decl: integer("decl").notNull(),
+    upPct: doublePrecision("up_pct").notNull(),
+    advPct: doublePrecision("adv_pct"),
+    kind: text("kind").$type<Breadth90DayKindValue>().notNull(),
+    final: boolean("final").notNull(),
+    source: text("source").notNull(),
+    /** The source's own timestamp, kept as sent (sources differ in format). */
+    sourceAsOf: text("source_as_of").notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "breadth90_days_fields_check",
+      sql`${table.kind} in ('UP_90', 'UP_80', 'NEUTRAL', 'DOWN_80', 'DOWN_90') and char_length(${table.source}) between 1 and 40 and char_length(${table.sourceAsOf}) between 1 and 64`
+    ),
+    check(
+      "breadth90_days_values_check",
+      sql`${table.uvol} >= 0 and ${table.uvol} < 'Infinity'::double precision and ${table.dvol} >= 0 and ${table.dvol} < 'Infinity'::double precision and ${table.adv} >= 0 and ${table.decl} >= 0 and ${table.upPct} between 0 and 100 and (${table.advPct} is null or ${table.advPct} between 0 and 100)`
+    ),
+  ]
+);
+
+export type Breadth90DayRow = typeof breadth90Days.$inferSelect;
+
+export const breadth90Events = pgTable(
+  "breadth90_events",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").$type<Breadth90EventKindValue>().notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    tier: text("tier").$type<Breadth90TierValue>().notNull(),
+    upPct: doublePrecision("up_pct").notNull(),
+    advPct: doublePrecision("adv_pct"),
+    armedOn: date("armed_on", { mode: "string" }),
+    strict: boolean("strict").notNull(),
+    trigger: text("trigger").$type<Breadth90TriggerValue>(),
+    grade: text("grade").$type<Breadth90GradeValue>(),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("breadth90_events_kind_date_tier_idx").on(
+      table.kind,
+      table.date,
+      table.tier
+    ),
+    index("breadth90_events_date_idx").on(table.date),
+    check(
+      "breadth90_events_fields_check",
+      sql`${table.kind} in ('ARMED', 'FORMING', 'FIRED', 'THRUST') and ${table.tier} in ('strict', 'standard', 'major', 'volume-only') and (${table.trigger} is null or ${table.trigger} in ('UP_90', 'UP_80_X2')) and (${table.grade} is null or ${table.grade} in ('major', 'volume-only')) and ${table.upPct} between 0 and 100 and (${table.advPct} is null or ${table.advPct} between 0 and 100)`
+    ),
+  ]
+);
+
+export type Breadth90EventRow = typeof breadth90Events.$inferSelect;
+
+export const breadth90Status = pgTable(
+  "breadth90_status",
+  {
+    id: text("id").primaryKey(),
+    state: text("state").$type<Breadth90StateValue>().notNull(),
+    armedOn: date("armed_on", { mode: "string" }),
+    strict: boolean("strict").notNull(),
+    sessionsLeft: integer("sessions_left"),
+    asOf: utcTimestamp("as_of").notNull(),
+    basket: jsonb("basket").$type<Breadth90BasketValue>(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "breadth90_status_fields_check",
+      sql`${table.id} = 'nyse' and ${table.state} in ('IDLE', 'ARMED', 'FORMING', 'FIRED') and (${table.sessionsLeft} is null or ${table.sessionsLeft} >= 0)`
+    ),
+  ]
+);
+
+export type Breadth90StatusRow = typeof breadth90Status.$inferSelect;
+
+// Owner market notes (marketNotes.*): dated narrative context the owner sends (a reel, an article
+// or plain text). One row per source (source_key is the normalized URL, or a hash of the text for
+// owner text), with the claims and their verification status in jsonb. "expired" is derived from
+// review_by and never stored. Research context only: no order path.
+export type MarketNoteSourceKindValue = "reel" | "article" | "owner-text";
+export type MarketNoteStanceValue = "risk-on" | "risk-off" | "neutral";
+export type MarketNoteConfidenceValue = "low" | "medium" | "high";
+export type MarketNoteStoredStatusValue = "active" | "retired";
+export type MarketNoteClaimStatusValue =
+  | "unverified"
+  | "supported"
+  | "contradicted"
+  | "cannot-check";
+export interface MarketNoteClaimValue {
+  id: string;
+  text: string;
+  status: MarketNoteClaimStatusValue;
+  evidence: string | null;
+  /** ISO timestamp of the check; null while the claim is unverified. */
+  checkedAt: string | null;
+}
+export interface MarketNoteAffectedValue {
+  tickers: string[];
+  sectors: string[];
+  strategies: string[];
+}
+
+export const marketNotes = pgTable(
+  "market_notes",
+  {
+    id: text("id").primaryKey(),
+    sourceKey: text("source_key").notNull(),
+    receivedAt: utcTimestamp("received_at").notNull(),
+    asOf: date("as_of", { mode: "string" }).notNull(),
+    sourceKind: text("source_kind")
+      .$type<MarketNoteSourceKindValue>()
+      .notNull(),
+    sourceUrl: text("source_url"),
+    sourceAuthor: text("source_author"),
+    rawText: text("raw_text").notNull(),
+    theme: text("theme").notNull(),
+    claims: jsonb("claims").$type<MarketNoteClaimValue[]>().notNull(),
+    affected: jsonb("affected").$type<MarketNoteAffectedValue>().notNull(),
+    stance: text("stance").$type<MarketNoteStanceValue>().notNull(),
+    stanceConfidence: text("stance_confidence")
+      .$type<MarketNoteConfidenceValue>()
+      .notNull(),
+    reviewBy: date("review_by", { mode: "string" }).notNull(),
+    status: text("status")
+      .$type<MarketNoteStoredStatusValue>()
+      .notNull()
+      .default("active"),
+    ownerMessageUrl: text("owner_message_url"),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // One note per source: a second add of the same source returns the stored note.
+    uniqueIndex("market_notes_source_key_idx").on(table.sourceKey),
+    index("market_notes_received_at_idx").on(table.receivedAt),
+    check(
+      "market_notes_fields_check",
+      sql`${table.sourceKind} in ('reel', 'article', 'owner-text') and ${table.stance} in ('risk-on', 'risk-off', 'neutral') and ${table.stanceConfidence} in ('low', 'medium', 'high') and ${table.status} in ('active', 'retired') and char_length(${table.rawText}) between 1 and 200000`
+    ),
+    // The same limits as the oRPC contract: 1 to 12 claims in an array, an object for the affected
+    // area, a theme of 1 to 300 characters and a review date on or after the market date.
+    check(
+      "market_notes_content_check",
+      sql`case when jsonb_typeof(${table.claims}) = 'array' then jsonb_array_length(${table.claims}) between 1 and 12 else false end and jsonb_typeof(${table.affected}) = 'object' and char_length(${table.theme}) between 1 and 300 and ${table.reviewBy} >= ${table.asOf}`
+    ),
+    // Owner text has no URL; a reel or an article always has one.
+    check(
+      "market_notes_source_check",
+      sql`(${table.sourceKind} = 'owner-text' and ${table.sourceUrl} is null) or (${table.sourceKind} in ('reel', 'article') and ${table.sourceUrl} is not null)`
+    ),
+  ]
+);
+
+export type MarketNoteRow = typeof marketNotes.$inferSelect;

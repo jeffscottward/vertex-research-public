@@ -33,6 +33,29 @@ vi.mock("@darkfactory/academy", async (importOriginal) => {
   return { ...actual, ...academy };
 });
 
+// A Define Your Risk strategy lesson re-labelled as a QuantFinanceToGo lesson, so the deploy path
+// can be checked for a second course without shipping a QuantFinanceToGo strategy spec.
+const QFTG_SLUG = "qftg-course-fixture";
+vi.mock("@darkfactory/academy/lessons", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@darkfactory/academy/lessons")>();
+  return {
+    ...actual,
+    lessonBySlug: (slug: string) => {
+      if (slug !== QFTG_SLUG) return actual.lessonBySlug(slug);
+      const lesson = actual.lessonBySlug("deep-itm-call-stock-replacement");
+      return lesson === null
+        ? null
+        : {
+            ...lesson,
+            course: "quantfinancetogo",
+            slug: QFTG_SLUG,
+            source: { ...lesson.source, course: "quantfinancetogo" },
+          };
+    },
+  };
+});
+
 vi.mock("./server/portfolio-monitor.ts", () => ({
   fetchPortfolioMonitor: vi.fn(),
 }));
@@ -483,6 +506,34 @@ describe("academy.deployRequest storage paths", () => {
     await request(contextFor({ store }));
     expect(store.strategyLibrary.create).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "external", status: "idea" })
+    );
+  });
+
+  it("labels the lesson strategy from the course registry", async () => {
+    const store = stores();
+    await request(contextFor({ store }));
+    expect(store.strategyLibrary.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: expect.stringMatching(/^DYR: /u),
+        section: "Define Your Risk Academy",
+        slug: `dyr-${PASSING.slug}`,
+        sourceRef: `packages/academy/src/lessons/specs/${PASSING.slug}.json`,
+        tags: expect.arrayContaining(["define-your-risk"]),
+      })
+    );
+    const qftg = stores();
+    await request(contextFor({ store: qftg }), { ...PASSING, slug: QFTG_SLUG });
+    expect(qftg.strategyLibrary.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: expect.stringMatching(/^QFTG: /u),
+        section: "QuantFinanceToGo Academy",
+        slug: `qftg-${QFTG_SLUG}`,
+        sourceRef: `scripts/academy/lessons/quantfinancetogo/specs/${QFTG_SLUG}.ts`,
+        tags: expect.arrayContaining(["quantfinancetogo"]),
+      })
+    );
+    expect(qftg.deploymentRequests.create).toHaveBeenCalledWith(
+      expect.objectContaining({ strategyId: "st-new" })
     );
   });
 

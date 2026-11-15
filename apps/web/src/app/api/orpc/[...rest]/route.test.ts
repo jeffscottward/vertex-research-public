@@ -81,6 +81,7 @@ vi.mock("../../../../server/request-scope.ts", () => ({
 // Inert Vertex stubs shaped as route.ts consumes them: no runtime options, no
 // extra context dependencies and no local setup service.
 vi.mock("@darkfactory/api/server", () => ({
+  bridgeQuotesReaderFor: vi.fn(() => async () => null),
   createApiContext: mocks.createApiContext,
   createVertexLocalSetupService: vi.fn(() => undefined),
   createVertexPlatformRequestDependencies: vi.fn(() => ({
@@ -88,9 +89,9 @@ vi.mock("@darkfactory/api/server", () => ({
   })),
   createVertexRuntimeConfiguredOptions: vi.fn(() => ({ options: {} })),
   resolveDeployStatusConfig: vi.fn(() => null),
-  resolvePriceAlertsNtfyConfig: vi.fn(() => null),
   resolveJevConfig: vi.fn(() => null),
   resolveMarketHistoryConfig: vi.fn(() => null),
+  resolvePriceAlertsNtfyConfig: vi.fn(() => null),
   resolveQuantDataConfig: vi.fn(() => null),
   setResearchContactEmail: vi.fn(),
 }));

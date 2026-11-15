@@ -103,11 +103,15 @@ const PreviewChart = ({
 
 export const LessonVideo = ({
   lesson,
-  media,
+  media: rendered,
+  narrated = true,
 }: {
   readonly lesson: Lesson;
   readonly media: AcademyMediaEntry | null;
+  /** False for courses without narration (courses.ts): the live animation is the lesson video. */
+  readonly narrated?: boolean;
 }) => {
+  const media = narrated ? rendered : null;
   const { palette } = useAcademyTheme();
   const timeline = useMemo(() => lessonTimeline(lesson), [lesson]);
   const colors = useMemo(() => elementColors(lesson), [lesson]);
@@ -213,8 +217,17 @@ export const LessonVideo = ({
                 <RotateCcw aria-hidden className="size-4" />
               </button>
               <span className="text-muted-foreground">
-                Live preview {time.toFixed(1)} / {timeline.total.toFixed(1)} s.
-                The MP4 for this lesson is not rendered yet.
+                {narrated ? (
+                  <>
+                    Live preview {time.toFixed(1)} / {timeline.total.toFixed(1)}{" "}
+                    s. The MP4 for this lesson is not rendered yet.
+                  </>
+                ) : (
+                  <>
+                    Live animation {time.toFixed(1)} /{" "}
+                    {timeline.total.toFixed(1)} s.
+                  </>
+                )}
               </span>
             </div>
           </div>

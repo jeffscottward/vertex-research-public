@@ -321,7 +321,7 @@ const RotationTable = ({
           onMouseLeave={() => onHighlight(null)}
         >
           <TableHead
-            className="font-mono"
+            className="h-auto whitespace-normal font-mono"
             onBlur={() => onHighlight(null)}
             onFocus={() => onHighlight(row.symbol)}
             scope="row"

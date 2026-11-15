@@ -5,19 +5,29 @@ Run (rig):
   uv run --no-project --python 3.12 --with yfinance==0.2.66 --with xlrd==2.0.2 \
       python research/backtests/carousel/fetch_data.py --out ~/Documents/reports/vertex-ig-carousel-strategies/data
 
+Source: IBKR first, Yahoo fills gaps (services/research/ibkr_history.py). With VERTEX_HISTORY_URL and
+VERTEX_DEPLOY_STATUS_TOKEN set, <SYMBOL>.raw.csv bars come from IBKR TRADES (split-adjusted) and
+<SYMBOL>.adj.csv bars from IBKR ADJUSTED_LAST (split and dividend adjusted, about 30 years back). Yahoo
+fills the dates before IBKR's first date (adjusted Yahoo prices rescaled to IBKR's on the seam date) and
+everything when IBKR fails or is not configured. Cash dividends stay Yahoo only (IBKR history has no
+dividend feed), so the Yahoo download still runs and a Yahoo failure still stops the script.
+
 Output:
-* <SYMBOL>.raw.csv: Yahoo daily OHLC, split-adjusted only, with cash dividends (auto_adjust=False).
-* <SYMBOL>.adj.csv: Yahoo daily OHLC adjusted for splits and dividends (auto_adjust=True).
+* <SYMBOL>.raw.csv: daily OHLC, split-adjusted only, with cash dividends (Yahoo auto_adjust=False twin).
+* <SYMBOL>.adj.csv: daily OHLC adjusted for splits and dividends (Yahoo auto_adjust=True twin).
+  Both have the header date,open,high,low,close,dividend,source (`source`: ibkr or yahoo per row).
 * chan/GLD.csv, chan/GDX.csv: date,adj_close from the GLD.xls and GDX.xls files that accompany
   Ernest Chan's *Quantitative Trading* example 3.6 (copy at github.com/egorpe/EPChan-QuantitativeTrading).
-* manifest.json: row counts, date ranges and SHA-256 of every file.
-The data is not committed: Yahoo terms and the book data licence do not allow redistribution.
+* manifest.json: row counts, date ranges and SHA-256 of every file; `sources` (rows per source, failed
+  sources, seams) for the price files.
+The data is not committed: Yahoo and IBKR terms and the book data licence do not allow redistribution.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import sys
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -25,25 +35,35 @@ from pathlib import Path
 import xlrd
 import yfinance as yf
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "services" / "research"))
+import ibkr_history as ih  # noqa: E402
+
 RAW = ["SPY"]
 ADJUSTED = ["SPY", "QQQ", "AAPL", "MSFT", "JPM", "XLE"]
 CHAN = "https://raw.githubusercontent.com/egorpe/EPChan-QuantitativeTrading/master/{name}.xls"
 START, END = "1993-01-01", "2026-10-29"
+PRICES = ("Open", "High", "Low", "Close")
 
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def fetch_yahoo(symbol: str, adjusted: bool, out: Path) -> Path:
+def fetch_prices(symbol: str, adjusted: bool, out: Path) -> tuple[Path, dict]:
     frame = yf.Ticker(symbol).history(start=START, end=END, interval="1d", auto_adjust=adjusted, actions=True)
+    yahoo = [{"date": ts.date().isoformat(), **{col.lower(): float(row[col]) for col in PRICES},
+              "dividend": float(row["Dividends"])} for ts, row in frame.iterrows()]
+    dividends = {row["date"]: row["dividend"] for row in yahoo}
+    merged = ih.merged_daily(symbol, lambda: yahoo, start=START, end=END, adjust="ohlc" if adjusted else "none")
     path = out / f"{symbol}.{'adj' if adjusted else 'raw'}.csv"
     with path.open("w") as fh:
-        fh.write("date,open,high,low,close,dividend\n")
-        for ts, row in frame.iterrows():
-            values = ",".join(repr(float(row[col])) for col in ("Open", "High", "Low", "Close", "Dividends"))
-            fh.write(f"{ts.date().isoformat()},{values}\n")
-    return path
+        fh.write("date,open,high,low,close,dividend,source\n")
+        for row in merged.rows:
+            dividend = row["dividend"] if row["source"] == "yahoo" else dividends.get(row["date"], 0.0)
+            values = ",".join(repr(float(value)) for value in (*(row[col.lower()] for col in PRICES), dividend))
+            fh.write(f"{row['date']},{values},{row['source']}\n")
+    print(f"{path.name}: {ih.source_note(merged)}")
+    return path, merged.summary()
 
 
 def fetch_chan(name: str, out: Path) -> Path:
@@ -71,7 +91,8 @@ def main() -> None:
     args = parser.parse_args()
     out: Path = args.out.expanduser()
     (out / "chan").mkdir(parents=True, exist_ok=True)
-    files = [fetch_yahoo(s, False, out) for s in RAW] + [fetch_yahoo(s, True, out) for s in ADJUSTED]
+    sources = dict([fetch_prices(s, False, out) for s in RAW] + [fetch_prices(s, True, out) for s in ADJUSTED])
+    files = list(sources)
     for name in ("GLD", "GDX"):
         files += [out / "chan" / f"{name}.xls", fetch_chan(name, out / "chan")]
     manifest = {}
@@ -81,6 +102,7 @@ def main() -> None:
         manifest[str(path.relative_to(out))] = {
             "sha256": sha256(path),
             **({"rows": len(days), "first": days[0], "last": days[-1]} if days else {}),
+            **({"sources": sources[path]} if path in sources else {}),
         }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
     print(json.dumps(manifest, indent=1, sort_keys=True))

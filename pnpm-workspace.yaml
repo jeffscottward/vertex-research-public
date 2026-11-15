@@ -2,6 +2,24 @@ packages:
   - "apps/*"
   - "packages/*"
 
+# Pinned so every shell records the same pnpm workspace state. pnpm sets it to
+# false when it detects CI (ci-info: CI=true, BUILD_ID and similar variables)
+# and leaves it unset otherwise (both mean off), and `pnpm run`/`pnpm exec`
+# reinstall when the recorded value differs. A shell with CI=true (agent
+# shells) and one without would reinstall in turns (card
+# vertex-prepush-api-task-serial-install, 2026-11-08).
+enableGlobalVirtualStore: false
+
+# pnpm 11 checks node_modules before each `pnpm run`/`pnpm exec` and by
+# default installs when it is out of date. Turbo starts one `pnpm run` per
+# task, so after a lockfile-changing pull every parallel task installed into
+# the same node_modules at once (ERR_PNPM_ENOTEMPTY, "Failed to create bin").
+# `error` stops a stale run with "Run pnpm install" instead. The root scripts
+# that start turbo, and verify:core and verify:coverage, run one install first
+# (scripts/install-dependencies.ts; card vertex-manual-turbo-stale-deps-race,
+# 2026-11-10).
+verifyDepsBeforeRun: error
+
 allowBuilds:
   esbuild: true
   sharp: true
@@ -20,17 +38,15 @@ overrides:
   "fast-uri@>=3.0.0 <3.1.7": ^3.1.7
   "fflate@>=0.7.0 <0.7.5": ^0.7.5
   "image-size@<2.0.3": ^2.0.3
+  # seroval: every advisory up to GHSA-f86p-h4j2-7qgj is fixed in 1.6.11. solid-js
+  # 1.9.14 asks for ~1.5.4. Keep this entry over any weaker upstream seroval entry.
+  "seroval@<1.6.11": ~1.6.11
   "sharp@<0.35.4": ^0.35.4
   "undici@>=7.0.0 <7.29.1": ^7.29.1
-  # Hold: ast-v8-to-istanbul 1.0.7 also counts functions and branches nested in
-  # logical expressions, which lowers measured coverage below the ratchet
-  # minimums. Remove this hold only together with the tests that cover them
-  # (card vertex-cov-astv8-107).
-  "@vitest/coverage-v8@5.0.5>ast-v8-to-istanbul": 1.0.5
-  # One OTel API copy: better-auth and drizzle-orm auto-install the optional
-  # @opentelemetry/api peer at its latest version, which would add a second
-  # global API next to the catalog pin.
-  "@opentelemetry/api": 1.9.1
+  # One OTel API copy: better-auth, drizzle-orm and orpc auto-install the
+  # optional @opentelemetry/api peer at its latest version; follow the catalog
+  # pin so a newer api cannot sit next to the one the 3.x SDK peers on.
+  "@opentelemetry/api": "catalog:"
 
 catalog:
   "@axe-core/playwright": 4.14.0
@@ -41,15 +57,14 @@ catalog:
   "@vitest/coverage-v8": 5.0.5
   "@fontsource-variable/geist": 5.3.0
   "@fontsource-variable/geist-mono": 5.3.0
-  # Hold the OTel API and OTLP exporters on the 2.x SDK line: api 1.10.0 and
-  # exporters 0.300.0 belong to the 3.0 SDK (2.12 peers need api <1.10.0) and
-  # would mix with the 2.x resources/sdk-metrics/sdk-trace-base below.
-  "@opentelemetry/api": 1.9.1
-  "@opentelemetry/exporter-metrics-otlp-http": 0.223.0
-  "@opentelemetry/exporter-trace-otlp-http": 0.223.0
-  "@opentelemetry/resources": 2.12.0
-  "@opentelemetry/sdk-metrics": 2.12.0
-  "@opentelemetry/sdk-trace-base": 2.12.0
+  # OpenTelemetry 3.x SDK line: the 3.x SDK packages peer on api >=1.10.0
+  # <1.11.0 and the 0.30x OTLP exporters belong to the same release train.
+  "@opentelemetry/api": 1.10.0
+  "@opentelemetry/exporter-metrics-otlp-http": 0.301.0
+  "@opentelemetry/exporter-trace-otlp-http": 0.301.0
+  "@opentelemetry/resources": 3.1.0
+  "@opentelemetry/sdk-metrics": 3.1.0
+  "@opentelemetry/sdk-trace": 3.1.0
   "@orpc/client": 1.16.1
   "@orpc/contract": 1.16.1
   "@orpc/openapi": 1.16.1
@@ -69,6 +84,7 @@ catalog:
   better-auth: 1.7.14
   class-variance-authority: 0.7.1
   clsx: 2.1.1
+  cmdk: 1.1.1
   drizzle-kit: 0.31.11
   drizzle-orm: 0.45.4
   esbuild: 0.28.2

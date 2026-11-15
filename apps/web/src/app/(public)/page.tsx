@@ -48,7 +48,7 @@ export default function HomePage() {
               <ArrowDown aria-hidden="true" className="size-4" />
             </PublicLink>
           </div>
-          <p className="vx-caption">
+          <p className="text-muted-foreground text-sm leading-relaxed">
             Research tooling. Not investment advice or an execution service.
           </p>
         </div>

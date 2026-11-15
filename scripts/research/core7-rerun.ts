@@ -1,7 +1,12 @@
 // Core 7 re-run of the QuantJourney strategy library (research only). Nothing here creates,
 // routes or simulates broker orders, and nothing is promoted to paper trading.
 //
-//   bun run research:core7 -- --data ~/Documents/reports/vertex-core7/data
+//   bun run research:core7 -- --data ~/Documents/reports/vertex-core7/data \
+//     [--engine nautilus|typescript] [--python <venv python with the Nautilus lock>]
+//
+// NautilusTrader is the default engine (switch plan step 3, docs/vertex-rebuild/
+// nautilus-backtest-engine.md). A Nautilus run also runs each job on the TypeScript engine and
+// writes nothing when the unit equity differs by more than the parity tolerance (dsl-engine.ts).
 //
 // Runs every library strategy with a daily Vertex DSL definition on each member of the
 // "Core 7 futures" and "Core 7 ETF twins" universes (packages/shared/src/universes/index.ts),
@@ -13,41 +18,63 @@ import { z } from "zod";
 import type { AnalyticsEquityPoint } from "../../packages/api/src/backtest-analytics.ts";
 import { at } from "../../packages/api/src/quant-arrays.ts";
 import type { StrategyDefinition } from "../../packages/api/src/strategy-dsl.ts";
-import { runStrategyDefinition } from "../../packages/api/src/strategy-dsl-compile.ts";
 import {
   BACKTEST_UNIVERSES,
   type BacktestUniverse,
   type BacktestUniverseId,
 } from "../../packages/shared/src/universes/index.ts";
 import {
+  catchNautilusErrors,
+  type DslJob,
+  type DslRunner,
+  type EngineParity,
+  engineOptions,
+  type NautilusIo,
+  type PreparedEngine,
+  parityFailure,
+  prepareEngine,
+  typescriptEngine,
+  typescriptRunner,
+} from "./dsl-engine.ts";
+import { describeSpans, sourceSpans, spanNames } from "./fetch-sources.ts";
+import {
   combineSleeves,
-  type LibraryDoc,
-  type LibraryStrategy,
   loadLibrary,
   type PriceTable,
   parsePriceCsv,
-  type SeriesSummary,
   summarize,
 } from "./quantjourney.ts";
+import type {
+  LibraryDoc,
+  LibraryStrategy,
+  SeriesSummary,
+} from "./quantjourney-schema.ts";
 
 export const CORE7_DIR = "research/backtests/core7";
 export const RESULTS_PATH = `${CORE7_DIR}/rerun-results.json`;
 // Vertex research cost: 10 bp per side, the same value as VERTEX_COST_BPS in quantjourney.ts.
 export const CORE7_COST_BPS = 10;
-const DATA_SOURCE =
+// Data fetched before 2026-11-10 (no per-source record in the manifests) is Yahoo only.
+const YAHOO_DATA_SOURCE =
   "Yahoo Finance via yfinance 0.2.66 (research/backtests/core7/fetch_data.py)";
+const MERGED_DATA_SOURCE =
+  "research/backtests/core7/fetch_data.py; sources per symbol, see data.symbols.<SYMBOL>.source";
 export const ADAPTER_REASON =
   "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7";
 export const HOURLY_REASON =
   "hourly (1h) definition; the Core 7 data set is daily only; not re-run on Core 7";
-const METHOD = [
-  "Each symbol runs on its full Yahoo daily history, so per-symbol figures cover different periods.",
+const methodLines = (ibkr: boolean): readonly string[] => [
+  ibkr
+    ? "Each symbol runs on its full daily history (sources per symbol, see data.symbols.<SYMBOL>.source; Yahoo fills the dates before IBKR's first), so per-symbol figures cover different periods."
+    : "Each symbol runs on its full Yahoo daily history, so per-symbol figures cover different periods.",
   "Prices come from parsePriceCsv (scripts/research/quantjourney.ts): OHLC scaled by adj_close / close, so ETF runs include dividends. For the futures adj_close equals close.",
   "Rows that the Vertex bar importer rejects (non-positive price, low above open or close, high below open or close) are dropped, as in the import files.",
   "Combined: equal starting capital per member, never rebalanced (combineSleeves), on the common window of all members. Each sleeve is rebased to 1 at the window start.",
-  "The futures are Yahoo continuous front-month series, not back-adjusted: a roll gap counts as a return.",
+  ibkr
+    ? "The futures are continuous front-month series (sources per symbol, see data.symbols.<SYMBOL>.source; where IBKR CONTFUT covers the latest window, the Yahoo part before it is scaled to IBKR at the seam), not back-adjusted by Vertex: a roll gap counts as a return."
+    : "The futures are Yahoo continuous front-month series, not back-adjusted: a roll gap counts as a return.",
   "Statistics: Vertex returnStats (risk-free rate 0). Cost: 10 bp per side on every position change.",
-] as const;
+];
 
 export type Compact = Readonly<{
   cagr: number;
@@ -83,6 +110,8 @@ export type DataFile = Readonly<{
   manifestSha256: string;
   normalizedSha256: string;
   sourceSha256: string;
+  // Where the bars came from: the manifest's per-source spans, else its source text (absent in old fixtures).
+  source?: string;
 }>;
 
 export type Core7Results = Readonly<{
@@ -97,6 +126,10 @@ export type Core7Results = Readonly<{
       >
     >;
   }>;
+  /** Engine id of the strategy runs (buy and hold is closed-form). */
+  engine: string;
+  /** Nautilus runs only: every job compared with the TypeScript engine. */
+  engineParity: EngineParity | null;
   generated: string;
   method: readonly string[];
   promoted: readonly string[];
@@ -153,11 +186,10 @@ export const buyAndHoldEquity = (table: PriceTable): AnalyticsEquityPoint[] =>
 export const dslEquity = (
   table: PriceTable,
   definition: StrategyDefinition,
-  costBps: number = CORE7_COST_BPS
+  costBps: number = CORE7_COST_BPS,
+  runner: DslRunner = typescriptRunner
 ): AnalyticsEquityPoint[] => {
-  const equity = Array.from(
-    runStrategyDefinition(table.bars, definition, costBps).equity
-  );
+  const equity = runner(table.bars, definition, costBps);
   return table.dates.map((date, i) => point(date, at(equity, i)));
 };
 
@@ -229,7 +261,8 @@ const tableOf =
 
 export const rerunOnCore7 = (
   strategy: LibraryStrategy,
-  tables: ReadonlyMap<string, PriceTable>
+  tables: ReadonlyMap<string, PriceTable>,
+  runner: DslRunner = typescriptRunner
 ): StrategyRun => {
   const { dsl, id, name } = strategy;
   if (dsl === null)
@@ -242,16 +275,37 @@ export const rerunOnCore7 = (
     name,
     status: "run",
     universes: BACKTEST_UNIVERSES.map((universe) =>
-      universeRun(universe, (symbol) => dslEquity(table(symbol), dsl))
+      universeRun(universe, (symbol) =>
+        dslEquity(table(symbol), dsl, CORE7_COST_BPS, runner)
+      )
     ),
   };
 };
 
-/** Builds rerun-results.json from the library and the daily CSV text of each symbol. */
+/** Every engine run of the re-run: each daily DSL strategy on each Core 7 symbol. */
+const core7Jobs = (
+  library: LibraryDoc,
+  tables: ReadonlyMap<string, PriceTable>
+): DslJob[] =>
+  library.strategies.flatMap(({ dsl, granularity }) =>
+    dsl === null || granularity !== "1d"
+      ? []
+      : [...tables.values()].map((table) => ({
+          bars: table.bars,
+          costBps: CORE7_COST_BPS,
+          definition: dsl,
+        }))
+  );
+
+/**
+ * Builds rerun-results.json from the library and the daily CSV text of each symbol. `prepare`
+ * picks the engine; it gets every job first, so Nautilus runs one batch per symbol.
+ */
 export const buildCore7Results = (
   library: LibraryDoc,
   texts: ReadonlyMap<string, string>,
-  meta: Readonly<{ files: ReadonlyMap<string, DataFile>; generated: string }>
+  meta: Readonly<{ files: ReadonlyMap<string, DataFile>; generated: string }>,
+  prepare: (jobs: readonly DslJob[]) => PreparedEngine = typescriptEngine
 ): Core7Results => {
   const tables = new Map(
     core7Symbols().map((symbol) => {
@@ -261,6 +315,7 @@ export const buildCore7Results = (
     })
   );
   const table = tableOf(tables);
+  const engine = prepare(core7Jobs(library, tables));
   const symbols = Object.fromEntries(
     [...tables].map(([symbol, t]) => {
       const file = meta.files.get(symbol);
@@ -276,18 +331,24 @@ export const buildCore7Results = (
       ];
     })
   );
+  // IBKR rows in any symbol (manifest spans): label the data and method per symbol, else the old Yahoo texts.
+  const ibkr = Object.values(symbols).some((file) =>
+    spanNames(file.source ?? "").includes("ibkr")
+  );
   return {
     buyAndHold: BACKTEST_UNIVERSES.map((universe) =>
       universeRun(universe, (symbol) => buyAndHoldEquity(table(symbol)))
     ),
     costBps: CORE7_COST_BPS,
-    data: { source: DATA_SOURCE, symbols },
+    data: { source: ibkr ? MERGED_DATA_SOURCE : YAHOO_DATA_SOURCE, symbols },
+    engine: engine.engine,
+    engineParity: engine.parity,
     generated: meta.generated,
-    method: METHOD,
+    method: methodLines(ibkr),
     promoted: [],
     researchOnly: true,
     strategies: library.strategies.map((strategy) =>
-      rerunOnCore7(strategy, tables)
+      rerunOnCore7(strategy, tables, engine.runner)
     ),
   };
 };
@@ -296,10 +357,34 @@ export const buildCore7Results = (
 
 const manifestSchema = z.object({
   normalizedSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  source: z.string().optional(),
   sourceSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  sources: z.unknown().optional(),
 });
 
+/** One import manifest's DataFile fields: the source label from `sources` (spans), else `source`, else the old Yahoo label. */
+export const manifestDataFile = (
+  text: string,
+  manifestSha256: string
+): DataFile => {
+  const { normalizedSha256, source, sourceSha256, sources } =
+    manifestSchema.parse(JSON.parse(text));
+  return {
+    manifestSha256,
+    normalizedSha256,
+    source: describeSpans(
+      sourceSpans(sources),
+      source ?? "Yahoo Finance via yfinance 0.2.66"
+    ),
+    sourceSha256,
+  };
+};
+
 type Output = Readonly<{ write: (text: string) => unknown }>;
+
+const USAGE =
+  "usage: bun run research:core7 -- --data <dir> [--engine nautilus|typescript] [--python <path>]\n";
+const FLAGS = ["--data", "--engine", "--python"];
 
 export const runCore7RerunCli = async (
   args: readonly string[],
@@ -309,13 +394,25 @@ export const runCore7RerunCli = async (
     sha256: (text: string) => string;
     stderr: Output;
     stdout: Output;
+    /** Python of the Nautilus lock when --python is absent (VERTEX_NAUTILUS_PYTHON; else python3). */
+    defaultPython: string | undefined;
+    nautilus: Omit<NautilusIo, "python" | "root">;
   }>
 ): Promise<number> => {
-  if (args.length !== 2 || args[0] !== "--data") {
-    io.stderr.write("usage: bun run research:core7 -- --data <dir>\n");
+  const options = engineOptions(args, io.defaultPython);
+  const pairs =
+    args.length % 2 === 0 &&
+    args.every(
+      (arg, i) =>
+        i % 2 === 1 ||
+        (FLAGS.includes(arg) && args.indexOf(arg) === args.lastIndexOf(arg))
+    );
+  const dataIndex = args.indexOf("--data");
+  if (options === null || !pairs || dataIndex === -1) {
+    io.stderr.write(USAGE);
     return 2;
   }
-  const data = at(args, 1);
+  const data = at(args, dataIndex + 1);
   const library = await loadLibrary(io.root);
   const texts = new Map<string, string>();
   const files = new Map<string, DataFile>();
@@ -328,20 +425,33 @@ export const runCore7RerunCli = async (
       join(data, "import", `${symbol}-1d.manifest.json`),
       "utf8"
     );
-    files.set(symbol, {
-      ...manifestSchema.parse(JSON.parse(manifest)),
-      manifestSha256: io.sha256(manifest),
-    });
+    files.set(symbol, manifestDataFile(manifest, io.sha256(manifest)));
   }
-  const results = buildCore7Results(library, texts, {
-    files,
-    generated: io.now().toISOString(),
-  });
+  const results = catchNautilusErrors(
+    () =>
+      buildCore7Results(
+        library,
+        texts,
+        { files, generated: io.now().toISOString() },
+        prepareEngine(options.engine, {
+          ...io.nautilus,
+          python: options.python,
+          root: io.root,
+        })
+      ),
+    io.stderr
+  );
+  if (results === null) return 1;
+  const failure = parityFailure(results.engineParity);
+  if (failure !== null) {
+    io.stderr.write(failure);
+    return 1;
+  }
   await writeFile(
     join(io.root, RESULTS_PATH),
     `${JSON.stringify(results, null, 2)}\n`,
     "utf8"
   );
-  io.stdout.write(`wrote ${RESULTS_PATH}\n`);
+  io.stdout.write(`wrote ${RESULTS_PATH} (${results.engine})\n`);
   return 0;
 };

@@ -451,6 +451,28 @@ describe("relationships tab", () => {
     return expect(marketData.bars).toHaveBeenCalledTimes(1);
   });
 
+  it("does not show withheld positions as an empty portfolio", async () => {
+    await mount({
+      gateway: listGateway(async () => [item("SA"), item("SB")]),
+      marketData: { bars: vi.fn(async () => Promise.reject(new Error("x"))) },
+      portfolio: {
+        snapshot: vi.fn(async () =>
+          fixtureSnapshot({
+            positions: [],
+            status: { connected: false, gateway: "disconnected" },
+          })
+        ),
+      },
+    });
+    await open("Exposure");
+    expect(panel("Exposure").textContent).toContain(
+      "The IBKR gateway is disconnected, so account data is withheld until it reconnects."
+    );
+    expect(panel("Exposure").textContent).not.toContain(
+      "No positions with a market value"
+    );
+  });
+
   it("caps the analysis to twelve symbols and needs two with bars", async () => {
     const symbols = Array.from(
       { length: 13 },

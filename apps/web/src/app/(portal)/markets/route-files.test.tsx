@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ReactElement } from "react";
+import { act, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -7,8 +7,24 @@ import MarketsError from "./error.tsx";
 import MarketsLoading from "./loading.tsx";
 import MarketsPage, { metadata } from "./page.tsx";
 
+vi.mock("../../../components/portal/breadth-90-card.tsx", () => ({
+  Breadth90Card: () => <div data-workspace="breadth-90" />,
+}));
+
 vi.mock("../../../components/portal/market-context-page.tsx", () => ({
-  MarketContextPage: () => <div data-workspace="markets" />,
+  MarketContextPage: (props: { belowHeader?: ReactNode }) => (
+    <div data-workspace="markets">{props.belowHeader}</div>
+  ),
+}));
+
+vi.mock("../../../components/portal/owner-market-notes-card.tsx", () => ({
+  OwnerMarketNotesCard: () => <div data-workspace="owner-market-notes" />,
+}));
+
+vi.mock("../../../features/openbb/openbb-panels.tsx", () => ({
+  OpenbbMarketsSection: (props: { symbol?: string }) => (
+    <div data-openbb="markets" data-symbol={props.symbol} />
+  ),
 }));
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -38,6 +54,16 @@ describe("market context route files", () => {
     expect(
       container.querySelector('[data-workspace="markets"]')
     ).not.toBeNull();
+    // The slot under the client page's header holds the owner market notes card, then the
+    // breadth-90 signal card, as direct children (the page spaces its children).
+    expect(
+      [
+        ...container.querySelectorAll<HTMLElement>(
+          '[data-workspace="markets"] > [data-workspace]'
+        ),
+      ].map((child) => child.dataset["workspace"])
+    ).toEqual(["owner-market-notes", "breadth-90"]);
+    expect(container.querySelector('[data-openbb="markets"]')).not.toBeNull();
   });
 
   it("renders an accessible loading state", async () => {

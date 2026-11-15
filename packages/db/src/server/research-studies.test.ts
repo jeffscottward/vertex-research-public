@@ -29,6 +29,11 @@ const createDouble = (outcome: Outcome) => {
       calls["onConflict"] = config;
       return chain;
     },
+    // Awaiting the chain itself (a select that ends at where) settles the outcome.
+    then: (
+      onFulfilled: (value: unknown) => unknown,
+      onRejected: (reason: unknown) => unknown
+    ) => settle().then(onFulfilled, onRejected),
     returning: (columns: unknown) => {
       calls["returning"] = columns;
       return settle();
@@ -47,7 +52,10 @@ const createDouble = (outcome: Outcome) => {
       calls["insert"] = table;
       return chain;
     },
-    select: () => chain,
+    select: (columns?: unknown) => {
+      calls["select"] = columns;
+      return chain;
+    },
   } as unknown as DatabaseExecutor;
   return { calls, database };
 };
@@ -85,6 +93,41 @@ describe("research study repository", () => {
     expect(double.calls["from"]).toBe(researchStudies);
     expect(double.calls["limit"]).toBe(1);
     expect(double.calls["where"]).toBeDefined();
+  });
+
+  it("reads only the id, kind and verdict keys of the requested studies", async () => {
+    const rows = [
+      { id: "triple-rsi", kind: "strategy-backtest", verdict: "no-edge" },
+      { id: "adx-rvol-filters", kind: null, verdict: null },
+    ];
+    const double = createDouble(rows);
+    const repository = createResearchStudyRepository(double.database);
+    await expect(
+      repository.verdicts(["triple-rsi", "adx-rvol-filters"])
+    ).resolves.toEqual(rows);
+    expect(Object.keys(double.calls["select"] as object).sort()).toEqual([
+      "id",
+      "kind",
+      "verdict",
+    ]);
+    expect(double.calls["from"]).toBe(researchStudies);
+    expect(double.calls["where"]).toBeDefined();
+  });
+
+  it("makes no query for an empty verdict lookup", async () => {
+    const double = createDouble(new Error("must not run"));
+    const repository = createResearchStudyRepository(double.database);
+    await expect(repository.verdicts([])).resolves.toEqual([]);
+    expect(double.calls["from"]).toBeUndefined();
+  });
+
+  it("maps a database error in the verdict lookup", async () => {
+    const repository = createResearchStudyRepository(
+      createDouble(postgresError("57P01")).database
+    );
+    await expect(repository.verdicts(["triple-rsi"])).rejects.toBeInstanceOf(
+      DatabasePersistenceError
+    );
   });
 
   it("returns null for an unknown id", async () => {
@@ -166,6 +209,104 @@ describe("research study repository", () => {
       );
     await expect(
       createResearchStudyRepository(createDouble([]).database).upsert(INPUT)
+    ).rejects.toThrow("Database operation failed: research study write");
+  });
+});
+
+describe("research study repository upsertMany", () => {
+  // A transaction double: each write in the transaction settles with the next outcome; a rejected
+  // write rejects the transaction, as drizzle rolls back and rethrows.
+  const transactional = (outcomes: readonly Outcome[]) => {
+    const written: unknown[] = [];
+    let transactions = 0;
+    let next = 0;
+    const transaction = {
+      insert: () => ({
+        values: (values: unknown) => ({
+          onConflictDoUpdate: () => ({
+            returning: () => {
+              const outcome = outcomes[next++] as Outcome;
+              if (outcome instanceof Error) return Promise.reject(outcome);
+              written.push(values);
+              return Promise.resolve(outcome);
+            },
+          }),
+        }),
+      }),
+    };
+    const database = {
+      transaction: async (
+        operation: (executor: typeof transaction) => Promise<unknown>
+      ) => {
+        transactions += 1;
+        return operation(transaction);
+      },
+    } as unknown as DatabaseExecutor;
+    return {
+      database,
+      transactions: () => transactions,
+      written,
+    };
+  };
+  const SECOND = { ...INPUT, id: "qc-opex-week" };
+
+  it("writes every study in one transaction and returns results in input order", async () => {
+    const double = transactional([
+      [{ createdAt: AT, id: INPUT.id, updatedAt: LATER }],
+      [{ createdAt: AT, id: SECOND.id, updatedAt: AT }],
+    ]);
+    await expect(
+      createResearchStudyRepository(double.database).upsertMany([INPUT, SECOND])
+    ).resolves.toEqual([
+      { created: false, id: INPUT.id, updatedAt: LATER },
+      { created: true, id: SECOND.id, updatedAt: AT },
+    ]);
+    expect(double.transactions()).toBe(1);
+    expect(double.written).toEqual([INPUT, SECOND]);
+  });
+
+  it("refuses a repeated id before opening a transaction", async () => {
+    const double = transactional([]);
+    await expect(
+      createResearchStudyRepository(double.database).upsertMany([
+        INPUT,
+        SECOND,
+        { ...INPUT, ranOn: "2026-11-01" },
+      ])
+    ).rejects.toThrow(
+      new InvalidRepositoryInputError(
+        "research study adx-rvol-filters appears more than once in one batch"
+      )
+    );
+    expect(double.transactions()).toBe(0);
+    expect(double.written).toEqual([]);
+  });
+
+  it("opens no transaction for no studies", async () => {
+    const double = transactional([]);
+    await expect(
+      createResearchStudyRepository(double.database).upsertMany([])
+    ).resolves.toEqual([]);
+    expect(double.transactions()).toBe(0);
+  });
+
+  it("maps a failed write in the transaction like a single upsert", async () => {
+    await expect(
+      createResearchStudyRepository(
+        transactional([
+          [{ createdAt: AT, id: INPUT.id, updatedAt: AT }],
+          postgresError("23514", "research_studies_summary_check"),
+        ]).database
+      ).upsertMany([INPUT, SECOND])
+    ).rejects.toThrow(
+      new InvalidRepositoryInputError(
+        "research study fails research_studies_summary_check"
+      )
+    );
+    await expect(
+      createResearchStudyRepository(transactional([[]]).database).upsertMany([
+        INPUT,
+      ])
     ).rejects.toThrow("Database operation failed: research study write");
   });
 });

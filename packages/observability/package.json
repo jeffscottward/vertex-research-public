@@ -62,7 +62,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "catalog:",
     "@opentelemetry/resources": "catalog:",
     "@opentelemetry/sdk-metrics": "catalog:",
-    "@opentelemetry/sdk-trace-base": "catalog:",
+    "@opentelemetry/sdk-trace": "catalog:",
     "evlog": "catalog:"
   },
   "devDependencies": {

@@ -4,11 +4,14 @@ Not a test and not a runtime dependency. Run it only to rebuild the fixture:
 
     python3 services/research/tests/golden/fetch_yahoo.py
 
-Source: the public Yahoo Finance chart endpoint (v8, interval 1d), the same free
-source that the instant-backtest evidence and the quant-lab research branch use.
-No account, key or payment is needed. The output is a frozen copy: a new download
-can differ, because Yahoo restates adjusted closes after each dividend. Do not
-rebuild the fixture unless the golden reference is also rebuilt.
+Source: the public Yahoo Finance chart endpoint (v8, interval 1d) only, on purpose.
+Unlike the research fetchers (services/research/ibkr_history.py: IBKR first, Yahoo
+fills gaps), this script never reads IBKR history, even when VERTEX_HISTORY_URL and
+VERTEX_DEPLOY_STATUS_TOKEN are set: the fixture is committed to a public repository
+and IBKR market data must never land there. No account, key or payment is needed.
+The output is a frozen copy: a new download can differ, because Yahoo restates
+adjusted closes after each dividend. Do not rebuild the fixture unless the golden
+reference is also rebuilt.
 
 Writes tests/fixtures/golden/<SYMBOL>-1d.csv and tests/fixtures/golden/manifest.json.
 """
@@ -19,6 +22,7 @@ import csv
 import hashlib
 import io
 import json
+import os
 import sys
 import urllib.request
 from datetime import UTC, datetime
@@ -80,6 +84,8 @@ def _rows(raw: bytes) -> list[dict[str, str]]:
 
 
 def main() -> int:
+    if os.environ.get("VERTEX_HISTORY_URL"):
+        print("IBKR history is configured but not used: the golden fixture is Yahoo only (public repository).")
     TARGET.mkdir(parents=True, exist_ok=True)
     files = {}
     for symbol in SYMBOLS:
@@ -116,8 +122,8 @@ def main() -> int:
         "delay": "End-of-day history only; the newest bar is from 2024-12-31. No live or intraday data.",
         "license": (
             "Yahoo Finance data is for personal, non-commercial use and must not be redistributed. "
-            "This copy is a test fixture in a private repository. Do not publish it, copy it to "
-            "report pages or ship it in a build."
+            "This copy is a frozen test fixture for the golden backtest battery only. Do not copy it to "
+            "report pages, other data sets or a build."
         ),
         "files": files,
     }

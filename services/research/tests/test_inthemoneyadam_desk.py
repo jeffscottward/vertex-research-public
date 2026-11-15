@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import ast
+import http.server
 import json
+import threading
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -155,3 +158,40 @@ def test_recorder_only_writes_research_run_records(kb: Path) -> None:
     assert any(e["kind"] == "tool_result" and e["toolName"] == "kb_citation" for e in events)
     assert events[-1] == {"agent": "inthemoneyadam", "kind": "flag", "seq": len(events) - 1, "title": "research_only"}
     assert [e["seq"] for e in events] == list(range(len(events)))
+
+
+def test_recorder_refuses_redirects_so_the_key_never_reaches_another_location() -> None:
+    from agents import inthemoneyadam_record as rec
+
+    key = "synthetic-test-key-not-a-secret"
+    seen: list[dict[str, str]] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            seen.append({"path": self.path, "key": self.headers.get("x-api-key") or ""})
+            self.rfile.read(int(self.headers.get("content-length") or 0))
+            if self.path.startswith("/api/"):
+                self.send_response(302)
+                self.send_header("location", f"http://127.0.0.1:{port}/elsewhere")
+                self.end_headers()
+            else:
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"json": {"id": "stolen"}}')
+
+        do_GET = do_POST  # noqa: N815 - a followed 302 arrives as GET
+
+        def log_message(self, *_: Any) -> None:
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with pytest.raises(RuntimeError) as refused:
+            rec._call(f"http://127.0.0.1:{port}", key, "record", {"runKey": "k"})
+    finally:
+        server.shutdown()
+    assert "record failed with HTTP 302" in str(refused.value)
+    assert key not in str(refused.value)
+    assert [hit["path"] for hit in seen] == ["/api/orpc/agentModelRuns/record"]
