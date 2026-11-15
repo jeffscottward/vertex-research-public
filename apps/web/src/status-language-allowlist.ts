@@ -2591,14 +2591,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "features/order-flow/order-flow-client.ts",
-    text: "The IBKR history service (QuantVPS IB Gateway) is unavailable right now, so ${} could not be fetched. Nothing shown here is estimated.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Names the service but not since-when or the next step. Use 'IBKR history service not responding since HH:MM · last data HH:MM · retry in a minute'. The API must return the since/last-ok time.",
-    open: true,
-  },
-  {
     file: "features/research-reports/view-model.ts",
     text: "—",
     count: 2,

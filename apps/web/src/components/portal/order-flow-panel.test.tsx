@@ -574,6 +574,29 @@ describe("OrderFlowPanel edge states", () => {
       expect(container.querySelector("[role=alert]")).not.toBeNull();
       expect(viewText(container)).not.toContain("No trade prints");
     }
+    // The TPO view failed with UNAVAILABLE: since when, what was not fetched, the next step.
+    const tpo = container.querySelector("[role=alert]")?.textContent;
+    expect(tpo).toContain("every request of this panel has failed since");
+    expect(tpo).toContain("30-minute bars for the TPO profile not fetched");
+    expect(tpo).toContain("press Refresh to try again");
+  });
+
+  it("names the last successful request when a refresh fails with UNAVAILABLE", async () => {
+    const gates = gateways({
+      ticks: vi
+        .fn<(input: MarketTicksInput) => Promise<MarketTicksOutput>>()
+        .mockResolvedValueOnce(ticksOutput())
+        .mockRejectedValue(failure("UNAVAILABLE")),
+    });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    expect(container.querySelector("[role=alert]")).toBeNull();
+    await click(container.querySelector('[aria-label="Refresh trade prints"]'));
+    const alert = container.querySelector("[role=alert]")?.textContent;
+    expect(alert).toContain("every request of this panel has failed since");
+    expect(alert).toContain("last successful request");
+    expect(alert).toContain("trade prints not fetched");
+    expect(alert).toContain("IBKR service said: UNAVAILABLE from service");
   });
 
   it("handles a one-sided futures book with zero sizes and no venues", async () => {
