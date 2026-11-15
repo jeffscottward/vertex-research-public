@@ -145,13 +145,9 @@ describe("definitionRefusalJson", () => {
     });
   });
 
-  it("writes the Python message of an options definition", () => {
+  it("writes the first TypeScript message of an options definition", () => {
     expect(
-      definitionRefusalJson({
-        definition: optionsRiskPct,
-        id: "c",
-        python: REMOVE_RISK_PCT,
-      })
+      definitionRefusalJson({ definition: optionsRiskPct, id: "c" })
     ).toEqual({
       definition: optionsRiskPct,
       id: "c",
@@ -171,31 +167,15 @@ describe("definitionRefusalJson", () => {
     ).toThrow("e: zod wrote the first issue; give the Python message");
   });
 
-  it("refuses a Python message that is not a later issue", () => {
+  it("refuses a Python message when strategy-dsl.ts wrote the first issue", () => {
     expect(() =>
       definitionRefusalJson({
         definition: optionsRiskPct,
         id: "f",
-        python: "Unknown side: sideways",
+        python: REMOVE_RISK_PCT,
       })
     ).toThrow(
-      "f: the Python message must be a later issue of an options definition"
-    );
-  });
-
-  it("refuses a later issue without an options block", () => {
-    expect(() =>
-      definitionRefusalJson({
-        definition: {
-          ...refusalBase,
-          management: { breakevenR: 1 },
-          sizing: riskPct,
-        },
-        id: "g",
-        python: "management moves the stop loss; add a stop loss",
-      })
-    ).toThrow(
-      "g: the Python message must be a later issue of an options definition"
+      "f: strategy-dsl.ts wrote the first issue; remove the Python message"
     );
   });
 });
