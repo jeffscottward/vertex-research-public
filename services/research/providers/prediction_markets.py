@@ -58,10 +58,22 @@ class SkippedRows:
 
 
 def _int_or_none(value: Any) -> int | None:
-    try:
-        return None if value is None else int(value)
-    except (TypeError, ValueError, OverflowError):  # OverflowError: a float infinity.
+    """A whole number as ``int``; ``None`` for a missing, boolean, fractional or unreadable value."""
+    if value is None or isinstance(value, bool):
         return None
+    index = getattr(value, "__index__", None)  # int and integer types of numpy or pyarrow.
+    if index is not None:
+        return int(index())
+    try:
+        if isinstance(value, str):
+            return int(value.strip())
+    except ValueError:
+        pass
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return int(number) if math.isfinite(number) and number == math.floor(number) else None
 
 
 def _round_half_away(value: float) -> int:
@@ -73,6 +85,8 @@ def kalshi_resolution(markets: Iterable[Mapping[str, Any]]) -> dict[str, str]:
     """``ticker -> 'yes' | 'no'`` for finalized markets with a yes/no result.
 
     Other market rows, and rows without a ticker, are left out without a count.
+    Two rows for one ticker give one entry (the later row); the upstream SQL
+    join would give the positions of each trade once for each market row.
     """
     resolved: dict[str, str] = {}
     for row in markets:
@@ -88,12 +102,13 @@ def kalshi_positions(trades: Iterable[Mapping[str, Any]], resolution: Mapping[st
 
     A trade on a market that is not resolved is left out without a count (the
     inner join of the upstream SQL). Deviation from upstream SQL: a row with a
-    taker side other than yes/no or a missing price is skipped and counted in
-    ``skipped``. Upstream counts such a row: with a missing taker side both
+    taker side other than yes/no, or with a missing, fractional or unreadable
+    price, is skipped and counted in ``skipped`` (when the caller passes it). Upstream counts such a row: with a missing taker side both
     sides are losses, and with another value the taker loses and the maker wins.
     """
     for trade in trades:
-        result = resolution.get(str(trade.get("ticker")))
+        ticker = trade.get("ticker")
+        result = None if ticker is None else resolution.get(str(ticker))
         if result is None:
             continue
         side = trade.get("taker_side")
@@ -108,13 +123,15 @@ def kalshi_positions(trades: Iterable[Mapping[str, Any]], resolution: Mapping[st
 
 
 def _json_pair(value: Any) -> list[Any] | None:
-    if not value:
+    """A two-item list from a JSON string, a list or a tuple; ``None`` for any other value."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:  # json.JSONDecodeError is a ValueError.
+            return None
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
         return None
-    try:
-        parsed = json.loads(value) if isinstance(value, str) else list(value)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return None
-    return parsed if isinstance(parsed, list) and len(parsed) == 2 else None
+    return list(value)
 
 
 def polymarket_token_resolution(markets: Iterable[Mapping[str, Any]]) -> dict[str, bool]:
@@ -142,8 +159,9 @@ def polymarket_token_resolution(markets: Iterable[Mapping[str, Any]]) -> dict[st
             winner = 1
         else:
             continue
-        token_won[str(tokens[0])] = winner == 0
-        token_won[str(tokens[1])] = winner == 1
+        for index, token in enumerate(tokens):
+            if token is not None:  # A missing token id never joins a trade.
+                token_won[str(token)] = winner == index
     return token_won
 
 
@@ -156,9 +174,11 @@ def polymarket_positions(trades: Iterable[Mapping[str, Any]], token_won: Mapping
     counterparty's price is ``100 - 100 * usdc_amount / token_amount``, rounded
     the same way. The two prices sum to 100, except at an exact half cent, where
     they sum to 101 (30.5 gives 31 and 69.5 gives 70), as in the upstream SQL.
-    Rows with missing or non-positive amounts are dropped (as upstream) and
-    counted. A trade on a token that is not resolved is left out without a
-    count. Rows are not de-duplicated (as upstream).
+    Rows with missing, fractional, unreadable or non-positive amounts are
+    dropped (upstream drops the non-positive ones) and counted, before the
+    token join. A row whose amounts are too large for a 64-bit float is also
+    counted. A trade on a token that is not resolved, or without a token id, is
+    left out without a count. Rows are not de-duplicated (as upstream).
     """
     for trade in trades:
         maker_amount, taker_amount = _int_or_none(trade.get("maker_amount")), _int_or_none(trade.get("taker_amount"))
@@ -167,14 +187,21 @@ def polymarket_positions(trades: Iterable[Mapping[str, Any]], token_won: Mapping
                 skipped.count += 1
             continue
         maker_pays_usdc = str(trade.get("maker_asset_id")) == "0"
-        token = str(trade.get("taker_asset_id") if maker_pays_usdc else trade.get("maker_asset_id"))
-        won = token_won.get(token)
+        token = trade.get("taker_asset_id") if maker_pays_usdc else trade.get("maker_asset_id")
+        won = None if token is None else token_won.get(str(token))
         if won is None:
             continue
         usdc, tokens = (maker_amount, taker_amount) if maker_pays_usdc else (taker_amount, maker_amount)
-        # Multiply before dividing, as upstream SQL does, so half-cent prices round the same way.
-        yield Position(_round_half_away(100.0 * usdc / tokens), won)
-        yield Position(_round_half_away(100.0 - 100.0 * usdc / tokens), not won)
+        try:
+            # Multiply before dividing, as upstream SQL does, so half-cent prices round the same way.
+            buyer = _round_half_away(100.0 * usdc / tokens)
+            counterparty = _round_half_away(100.0 - 100.0 * usdc / tokens)
+        except OverflowError:  # An amount too large for a 64-bit float.
+            if skipped is not None:
+                skipped.count += 1
+            continue
+        yield Position(buyer, won)
+        yield Position(counterparty, not won)
 
 
 @dataclass(frozen=True)
@@ -193,7 +220,10 @@ class CalibrationReport:
     notes that a Brier score near 0.17 is expected for a calibrated market with
     trades at all price levels; scores from prices near resolution look lower.
     Scores are ``None`` when no position falls in 1..99 cents: an empty or
-    mis-joined input is unavailable, not a perfect score.
+    mis-joined input is unavailable, not a perfect score (upstream gives 0.0).
+    ``buckets`` holds only the prices that have a position. ``win_rate_pct`` is
+    in percent (0..100). The scores are rounded to 4 decimals; the log loss
+    clips the probability to ``LOG_LOSS_EPSILON`` from 0 and 1, as upstream.
     """
 
     buckets: tuple[PriceBucket, ...]

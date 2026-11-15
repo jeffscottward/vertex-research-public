@@ -115,6 +115,38 @@ def test_bad_rows_do_not_stop_the_run():
     assert skipped.count == 2
 
 
+def test_rows_without_a_join_key_never_join():
+    # A missing ticker, asset id or token id is not the text "None".
+    resolution = kalshi_resolution([{"ticker": "None", "status": "finalized", "result": "yes"}])
+    trade = {"yes_price": 60, "no_price": 40, "taker_side": "yes"}
+    assert list(kalshi_positions([trade], resolution)) == []
+    token_won = polymarket_token_resolution(
+        [{"closed": True, "outcome_prices": '["1", "0"]', "clob_token_ids": '["111", null]'}])
+    assert token_won == {"111": True}
+    no_token = {"maker_asset_id": None, "taker_asset_id": "0", "maker_amount": 10, "taker_amount": 5}
+    assert list(polymarket_positions([no_token], {"None": True})) == []
+
+
+def test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted():
+    skipped = SkippedRows()
+    kalshi = [{"ticker": "A", "yes_price": 30.7, "no_price": 69.3, "taker_side": "yes"},
+              {"ticker": "A", "yes_price": True, "no_price": 99, "taker_side": "yes"},
+              {"ticker": "A", "yes_price": "30", "no_price": 70.0, "taker_side": "yes"}]
+    assert list(kalshi_positions(kalshi, {"A": "yes"}, skipped)) == [Position(30, True), Position(70, False)]
+    poly = [{"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 1.9, "taker_amount": 3},
+            {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 10 ** 400, "taker_amount": 3},
+            {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 10 ** 307, "taker_amount": 3}]
+    assert list(polymarket_positions(poly, {"111": True}, skipped)) == []
+    assert skipped.count == 5
+
+
+def test_market_fields_of_another_shape_are_not_resolved():
+    rows = [{"closed": True, "outcome_prices": {"1": 0, "0": 0}, "clob_token_ids": '["111", "222"]'},
+            {"closed": True, "outcome_prices": "", "clob_token_ids": '["333", "444"]'},
+            {"closed": True, "outcome_prices": ["1", "0"], "clob_token_ids": ("555", "666")}]
+    assert polymarket_token_resolution(rows) == {"555": True, "666": False}
+
+
 def test_polymarket_half_cent_sides_sum_to_101_as_upstream():
     # 100 * 305 / 1000 = 30.5 -> 31 and 100 - 30.5 = 69.5 -> 70: each side is rounded on its own.
     trade = {"maker_asset_id": "0", "taker_asset_id": "111", "maker_amount": 305, "taker_amount": 1000}

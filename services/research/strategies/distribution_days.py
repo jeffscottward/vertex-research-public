@@ -136,6 +136,9 @@ def distribution_days(bars: Sequence[DailyBar], rule: DistributionDayRule = DEFA
     """
     if rule.invalidation_price_source not in ("high", "close"):
         raise DistributionDayError("invalidation_price_source must be 'high' or 'close'")
+    dates = [bar.date for bar in bars]
+    if dates != sorted(dates) or len(set(dates)) != len(dates):
+        raise DistributionDayError("bars must be in strictly increasing date order")
     recent = list(reversed(bars))  # Upstream indexing: recent[0] is the evaluation session.
     found: list[DistributionDay] = []
     skipped: list[str] = []
@@ -194,10 +197,7 @@ def index_posture(symbol: str, bars: Sequence[DailyBar], *, rule: DistributionDa
     """
     if len(bars) < 2:
         raise DistributionDayError("at least two daily bars are required")
-    dates = [bar.date for bar in bars]
-    if dates != sorted(dates) or len(set(dates)) != len(dates):
-        raise DistributionDayError("bars must be in strictly increasing date order")
-    days, skipped = distribution_days(bars, rule)
+    days, skipped = distribution_days(bars, rule)  # Also checks the date order.
     d5, d15, d25 = count_active(days, 5), count_active(days, 15), count_active(days, 25)
     # Averages use the trailing run of valid closes, so an old bad bar does not switch the filter off.
     closes: list[float] = []
@@ -240,6 +240,8 @@ def combine_index_risks(postures: Sequence[IndexPosture]) -> RiskLevel:
     if len(set(symbols)) != len(symbols):
         raise DistributionDayError("each index symbol may appear only once")
     levels = {posture.symbol: posture.risk_level for posture in postures}
+    if any(level not in _RISK_ORDER for level in levels.values()):
+        raise DistributionDayError("risk_level must be NORMAL, CAUTION, HIGH or SEVERE")
     if "SEVERE" in levels.values():
         return "SEVERE"
     qqq, spy = levels.get("QQQ"), levels.get("SPY")

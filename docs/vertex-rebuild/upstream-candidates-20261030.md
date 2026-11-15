@@ -34,7 +34,7 @@ State before this change:
 
 * The decision (WORTH or SKIP) for each of the ten projects is in this repository, with the license, the pinned commit and the reason.
 * The prediction-market calibration module and the distribution-day module are in `services/research` with their upstream MIT license files.
-* The CI step `scripts/ci/research-python.sh` runs every test of both modules. Acceptance: pytest reports 22 passed and 0 skipped for the two test files, neither test file contains a skip marker or `importorskip`, and the completeness check of the CI script passes.
+* The CI step `scripts/ci/research-python.sh` runs every test of both modules. Acceptance: pytest reports 29 passed and 0 skipped for the two test files, neither test file contains a skip marker or `importorskip`, and the completeness check of the CI script passes.
 * Each module docstring states that the module reads only what the caller passes in: no order, no account read, no network call.
 * The six private commits, which include the Parquet reader that this change leaves out, are kept in a second place (a git bundle in the owner's private report store).
 
@@ -56,7 +56,7 @@ State before this change:
 
 * **Given**: An iterable of market rows and an iterable of trade rows for Kalshi or Polymarket, in the upstream column names (see [Prediction-market calibration](#prediction-market-calibration)).
 * **When**: The caller runs `kalshi_calibration(markets, trades)` or `polymarket_calibration(markets, trades)`.
-* **Then**: The result (`CalibrationReport`) holds the win rate for each price from 1 to 99 cents, the Brier score, the log loss, the expected calibration error (ECE), the number of skipped trade rows and the number of positions outside 1 to 99 cents.
+* **Then**: The result (`CalibrationReport`) holds the win rate for each price from 1 to 99 cents that has a position, the Brier score, the log loss, the expected calibration error (ECE), the number of skipped trade rows and the number of positions outside 1 to 99 cents.
 
 ### CUJ 2: Empty or mis-joined input
 
@@ -78,9 +78,9 @@ State before this change:
 
 ### CUJ 5: Short history or a bad bar
 
-* **Given**: Fewer than 50 bars, or a bar with a missing or non-positive close or volume.
+* **Given**: Fewer than 50 bars, or a bar with a missing, non-finite or non-positive close or volume.
 * **When**: The caller runs `index_posture`.
-* **Then**: The result still has a level. `audit_flags` holds `insufficient_lookback` or `insufficient_data_for_moving_average` for a short history, and `skipped_dates` lists each day pair that was not evaluated. The reader must not take a NORMAL level with a flag as a full-history result.
+* **Then**: The result still has a level. `audit_flags` holds `insufficient_lookback` for a short history and `insufficient_data_for_moving_average` when an average is unknown (a short history, or a bad close within the last 50 sessions), and `skipped_dates` lists each day pair that was not evaluated. The reader must not take a NORMAL level with a flag as a full-history result.
 
 ## Technical Plan (Architecture)
 
@@ -132,15 +132,16 @@ Neither package `__init__.py` is changed or re-exports the new modules; a caller
 * Kalshi: a market counts when its status is `finalized` and its result is `yes` or `no`. Each trade on such a market gives two positions: the taker at the taker-side price and the maker at the other price.
 * Polymarket: a closed two-outcome market counts as resolved when one outcome price is above 0.99 and the other is below 0.01. Each trade row gives the buyer's position at `100 * usdc_amount / token_amount` cents and the counterparty's position at 100 minus that value. Each side is rounded half away from zero after the multiplication, which is the behavior of DuckDB `ROUND` in the upstream SQL. At an exact half cent the two sides therefore sum to 101 (30.5 gives 31 and 69.5 gives 70), as upstream. Rows are not de-duplicated, as upstream.
 * Unit: one trade gives two positions. `total_trades` (the upstream column name) counts positions, so the curve is mirror-symmetric by construction. Each position has weight 1; contract count and notional are not used.
-* Scores: the forecast of a position is its price divided by 100 and the outcome is whether the position won. The Brier score is the mean squared difference, the log loss is the mean negative log likelihood, and the ECE is the mean absolute difference between win rate and price over the 99 price buckets, weighted by positions.
-* Output: `CalibrationReport` with one bucket for each price from 1 to 99 cents (positions, wins, win rate), the three scores, `skipped_rows`, `out_of_range_positions` and the property `available`.
+* Scores: the forecast of a position is its price divided by 100 and the outcome is whether the position won. The Brier score is the mean squared difference, the log loss is the mean negative log likelihood, and the ECE is the mean absolute difference between win rate and price over the price buckets, weighted by positions. The log loss clips the probability to 0.000001 from 0 and 1, as upstream. The three scores are rounded to 4 decimals.
+* Output: `CalibrationReport` with one bucket (`PriceBucket`) for each price from 1 to 99 cents that has a position (`price_cents`, `total_trades`, `wins`, `win_rate_pct` in percent), `total_trades`, the three scores, `skipped_rows`, `out_of_range_positions` and the property `available`.
 * Row contract:
-  * Counted in `skipped_rows`: a Kalshi trade on a resolved market with a taker side other than yes or no, or with a missing or unreadable price; a Polymarket trade with a missing or non-positive amount.
-  * Left out without a count: a market row that is not resolved or cannot be parsed (as upstream), a market row without a ticker, and a trade on a market or token that is not resolved (the inner join of the upstream SQL).
+  * Counted in `skipped_rows`: a Kalshi trade on a resolved market with a taker side other than yes or no, or with a missing, fractional or unreadable price; a Polymarket trade with a missing, fractional, unreadable or non-positive amount, or with amounts too large for a 64-bit float. Polymarket amounts are checked before the token join. The two calibration functions always count; a direct call of `kalshi_positions` or `polymarket_positions` counts only when the caller passes the optional `skipped` argument.
+  * Left out without a count: a market row that is not resolved or cannot be parsed (as upstream), a market row without a ticker, a trade without a ticker or token id, and a trade on a market or token that is not resolved (the inner join of the upstream SQL).
   * Counted in `out_of_range_positions`: a position with a price outside 1 to 99 cents.
-  * No row stops the run.
+  * A bad value in a row does not stop the run. The tests cover missing, fractional, boolean, infinite and oversized values and fields of another shape.
 * Deviations from upstream:
-  * A Kalshi trade with an invalid taker side is skipped and counted. Upstream counts it: with a missing taker side both sides are losses, and with another value the taker loses and the maker wins.
+  * A Kalshi trade with an invalid taker side is skipped and counted. Upstream counts it: with a missing taker side both sides are losses, and with another value the taker loses and the maker wins. A Kalshi trade with a missing price is also skipped and counted; the upstream analysis stops on it.
+  * Two market rows for one Kalshi ticker give one resolution entry (the later row). The upstream SQL join gives the positions of each trade once for each market row.
   * Prices outside 1 to 99 cents are left out for both venues. Upstream keeps them in the Kalshi table and leaves them out of its chart and of the Polymarket table.
   * Empty input gives `None` scores. Upstream gives 0.0.
 * Not adapted: legacy fixed-product-market-maker (FPMM) trades of 2020 to 2022, the collectors (venue API and blockchain) and the charts.
@@ -150,8 +151,8 @@ Neither package `__init__.py` is changed or re-exports the new modules; a caller
 * Upstream sources adapted: `skills/ibd-distribution-day-monitor/scripts/distribution_day_tracker.py`, `risk_classifier.py`, `models.py` and the moving-average filter and audit flags of `ibd_monitor.py` at commit `c9b84196a44a56a553293114fdae1f30bdd08c58`. "IBD" is Investor's Business Daily, the publisher of the distribution-day method. The rule version is `ibd_dd_v1.0`.
 * Input: daily bars with an ISO 8601 date (`YYYY-MM-DD`), high, close and volume, one bar for each session, oldest first. The module cannot detect a session without a bar; the comparison then spans the gap.
 * Rule: a distribution day closes at least 0.2% lower than the prior close on higher volume. It stops counting when a later high reaches 5% above its close, or when it is older than 25 sessions.
-* Bad bars: a day pair is not evaluated when the close or volume of either of its two bars is missing or not positive. The date of the later bar of the pair is listed in `skipped_dates`. One bad bar therefore removes two day pairs.
-* Moving-average filter: `market_below_ma` is true when the close is below both the 21-session exponential average and the 50-session simple average. It is `None` when an average is unknown (short history).
+* Bad bars: a day pair is not evaluated when the close or volume of either of its two bars is missing, not finite or not positive. The date of the later bar of the pair is listed in `skipped_dates`. One bad bar therefore removes two day pairs.
+* Moving-average filter: `market_below_ma` is true when the close is not above the 21-session exponential average and not above the 50-session simple average (as upstream; `close_above_ema` and `close_above_sma` hold the two comparisons). The periods are the parameters `ema_period` and `sma_period` of `index_posture`. The averages use the trailing run of valid closes. `market_below_ma` is `None` when an average is unknown: that run is shorter than the period, because the history is short or a close within the last 50 sessions is bad.
 * Level from the counts of active distribution days within 5, 15 and 25 sessions (`d5`, `d15`, `d25`), first match from the top:
 
   | Level | Default condition |
@@ -162,9 +163,11 @@ Neither package `__init__.py` is changed or re-exports the new modules; a caller
   | NORMAL | otherwise |
 
 * Short history: `audit_flags` uses the upstream flag names. `insufficient_lookback` is set for fewer than 50 bars (the larger of the two average periods and the expiry window plus 2). `insufficient_data_for_moving_average` is set when an average is unknown; the moving-average SEVERE condition is then off.
+* Result fields: `IndexPosture` holds `symbol`, `as_of` (the date of the last bar), `is_distribution_day_today`, the three counts, the three filter values, `risk_level`, `distribution_days`, `skipped_dates`, `audit_flags` and `rule_version`. Each `DistributionDay` holds `date`, `age_sessions`, `close`, `pct_change`, `volume_change_pct`, `high_since`, `invalidation_price`, `invalidation_date`, `status` (active, invalidated or expired) and `expires_in_sessions`.
+* Errors: `DistributionDayError` for fewer than two bars (`index_posture`), bars out of order or with equal dates (`distribution_days` and `index_posture`), an invalidation source other than `high` or `close`, an empty list or an unknown level in `combine_index_risks`, and a symbol that appears twice.
 * `combine_index_risks` gives one level for a set of index results with the upstream policy, in this order: any SEVERE gives SEVERE; QQQ HIGH gives HIGH; QQQ NORMAL with SPY HIGH gives HIGH; QQQ CAUTION with SPY CAUTION or HIGH gives HIGH; otherwise the highest level. The symbols `QQQ` and `SPY` are matched exactly; any other symbol takes part only in "any SEVERE" and "the highest level".
 * Configuration: `DistributionDayRule` and `RiskThresholds` keep the fields and defaults of upstream `models.py`. The defaults are the rule `ibd_dd_v1.0`. One test and the differential run cover a non-default value.
-* Deviations from upstream: the moving averages use the trailing run of valid closes, so an old bad bar does not make the filter unknown. A symbol may appear only once in `combine_index_risks`. `insufficient_lookback` does not use the upstream fetch window of 80 sessions.
+* Deviations from upstream: the moving averages use the trailing run of valid closes, so a bad bar that is older than the average period does not make the filter unknown. A symbol may appear only once in `combine_index_risks`. `insufficient_lookback` does not use the upstream fetch window of 80 sessions.
 * Not adapted: the paid data client, caching, the Japanese report text and the leveraged-fund exposure recommendation.
 
 ### Check against the upstream code (2026-11-15)
@@ -262,7 +265,7 @@ This change adds both new test files to `ci-suites.txt`. They need only the exis
 ## Non-Functional Requirements
 
 * **Security and privacy**: no secret, account data, network call or file write. The modules read only the rows and bars that the caller passes in. A test checks the imports of each module.
-* **Performance**: see "Order and memory" above for the calibration module. The distribution-day module is linear in the number of bars for detection and bounded by the 25-session window for invalidation. No performance target is set, because no runtime uses the modules.
+* **Performance**: see "Order and memory" above for the calibration module. The distribution-day module reads each bar once for detection; for each distribution day it also reads the bars since that day (`high_since`) and at most 25 bars for invalidation. No performance target is set, because no runtime uses the modules.
 * **Rollout and rollback**: no runtime uses the modules. A revert of the merge commit removes them.
 
 --------------------------------------------------------------------------------
@@ -301,7 +304,9 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
   * Remove `Venue`, `PredictionMarketDataError`, `PredictionMarketRows` and `venue_calibration`.
   * Add `kalshi_calibration(markets, trades)` and `polymarket_calibration(markets, trades)`. Each builds the resolution map, streams the positions into `calibration_by_price` and returns the report with `skipped_rows` set.
   * `kalshi_resolution`: leave out a row without a ticker (no `KeyError`).
-  * `_int_or_none`: also return `None` on `OverflowError` (a float infinity).
+  * `_int_or_none`: return an `int` only for a whole number (an integer type, a float without a fraction or an integer string); return `None` for a missing, boolean, fractional, infinite or unreadable value.
+  * `_json_pair`: accept only a JSON string, a list or a tuple with two items.
+  * A missing ticker, asset id or token id never joins (it is not turned into the text "None"). A Polymarket row whose amounts are too large for a 64-bit float is skipped and counted.
   * Docstrings: state the unit (positions), the weighting, the rounding at a half cent, the row contract, the deviations from upstream and the test status.
 * Public classes and functions after the change: `Position`, `SkippedRows`, `PriceBucket`, `CalibrationReport`, `kalshi_resolution`, `kalshi_positions`, `polymarket_token_resolution`, `polymarket_positions`, `calibration_by_price`, `kalshi_calibration`, `polymarket_calibration`. Constants: `RESOLVED_HIGH`, `RESOLVED_LOW`, `LOG_LOSS_EPSILON`.
 
@@ -315,6 +320,7 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
 * **Type / Scope**: Python module, standard library and the first-party `indicators` package.
 * **Proposed Changes**: Take the source file and make these changes:
   * Add the field `audit_flags: tuple[str, ...] = ()` to `IndexPosture`, before `rule_version`.
+  * `distribution_days` checks the date order and equal dates itself (the source checked only in `index_posture`). `combine_index_risks` raises `DistributionDayError` for an unknown level.
   * `index_posture` sets `insufficient_lookback` when `len(bars) < max(ema_period, sma_period, rule.expiration_sessions + 2)` and `insufficient_data_for_moving_average` when `close_above_ema` or `close_above_sma` is `None`, in this order.
   * Docstrings: state the bar contract (ISO 8601 dates, one bar for each session), no file, account or network read, the upstream origin of the configuration fields, the audit flags and the test status.
 * Public classes and functions after the change: `DistributionDayError`, `DailyBar`, `DistributionDayRule`, `RiskThresholds`, `DistributionDay`, `IndexPosture`, `distribution_days`, `count_active`, `classify_risk`, `index_posture`, `combine_index_risks`. Constants and types: `RULE_VERSION`, `EPSILON`, `DEFAULT_RULE`, `DEFAULT_THRESHOLDS`, `RiskLevel`, `Status`.
@@ -331,8 +337,8 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
   * Delete the last two test functions (`test_parquet_adapter_matches_in_memory_rows`, `test_parquet_adapter_rejects_missing_dataset`). They test the DuckDB Parquet reader of Alternative A. No import, fixture or helper is used only by them.
   * Delete the helper class `Rows` and call the two calibration functions with the fixture lists.
   * Rename `test_venue_calibration_reads_through_the_port` to `test_venue_calibration_reads_each_iterable_once_and_counts_skipped_rows` and pass iterators.
-  * Add `test_bad_rows_do_not_stop_the_run` and `test_polymarket_half_cent_sides_sum_to_101_as_upstream`.
-* Eleven tests:
+  * Add `test_bad_rows_do_not_stop_the_run`, `test_rows_without_a_join_key_never_join`, `test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted`, `test_market_fields_of_another_shape_are_not_resolved` and `test_polymarket_half_cent_sides_sum_to_101_as_upstream`.
+* Fourteen tests:
   1. `test_kalshi_taker_and_maker_positions_on_resolved_markets_only`
   2. `test_polymarket_resolution_and_positions_match_upstream_rounding` (12.5 gives 13, 87.5 gives 88)
   3. `test_polymarket_half_cent_prices_round_like_upstream_sql` (57.5 gives 58, 42.5 gives 43)
@@ -342,13 +348,16 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
   7. `test_venue_calibration_reads_each_iterable_once_and_counts_skipped_rows`
   8. `test_invalid_kalshi_rows_are_skipped`
   9. `test_bad_rows_do_not_stop_the_run`
-  10. `test_polymarket_half_cent_sides_sum_to_101_as_upstream`
-  11. `test_domain_module_has_no_io_vendor_or_order_imports` (the top-level packages that the module imports are a subset of `__future__`, `json`, `math`, `collections`, `dataclasses`, `typing`)
+  10. `test_rows_without_a_join_key_never_join`
+  11. `test_fractional_boolean_and_oversized_numbers_are_skipped_and_counted`
+  12. `test_market_fields_of_another_shape_are_not_resolved`
+  13. `test_polymarket_half_cent_sides_sum_to_101_as_upstream`
+  14. `test_domain_module_has_no_io_vendor_or_order_imports` (the top-level packages that the module imports are a subset of `__future__`, `json`, `math`, `collections`, `dataclasses`, `typing`)
 
 #### 6. `services/research/tests/test_distribution_days.py` (Create)
 
 * **Type / Scope**: pytest unit tests.
-* **Proposed Changes**: Take the source file and add three tests (9 to 11). Eleven tests:
+* **Proposed Changes**: Take the source file, make tests 3 and 4 exact (the invalidation date; age 25 active and age 26 expired) and add seven tests (9 to 15). Fifteen tests:
   1. `test_detects_active_day_with_age_and_window_counts`
   2. `test_decline_on_lower_volume_or_small_decline_is_not_counted`
   3. `test_five_percent_gain_after_the_day_invalidates_it`
@@ -360,6 +369,10 @@ Checkpoint: the unit test command and the CI script of the [Verification Plan](#
   9. `test_short_history_sets_the_upstream_audit_flags`
   10. `test_non_default_rule_and_thresholds_follow_the_upstream_fields`
   11. `test_module_imports_only_the_standard_library_and_indicators`
+  12. `test_exact_minimum_decline_counts`
+  13. `test_bars_out_of_order_or_with_equal_dates_are_rejected_by_both_functions`
+  14. `test_market_below_ma_needs_a_close_below_both_averages`
+  15. `test_unknown_level_is_rejected`
 
 #### 7. `services/research/tests/ci-suites.txt` (Modify)
 
@@ -382,11 +395,11 @@ Checkpoint: `bun run verify:prepush` passes and the scan steps of the [Verificat
 
   ```text
   - providers/prediction_markets.py adapts Jon-Becker/prediction-market-analysis
-      code (upstream commit 2d69f733) under the MIT license
-      (providers/PREDICTION_MARKET_ANALYSIS_LICENSE.txt; repository root NOTICE).
+    code (upstream commit 2d69f733) under the MIT license
+    (providers/PREDICTION_MARKET_ANALYSIS_LICENSE.txt; repository root NOTICE).
   - strategies/distribution_days.py adapts tradermonty/claude-trading-skills code
-      (skills/ibd-distribution-day-monitor, upstream commit c9b84196) under the MIT
-      license (strategies/TRADERMONTY_LICENSE.txt; repository root NOTICE).
+    (skills/ibd-distribution-day-monitor, upstream commit c9b84196) under the MIT
+    license (strategies/TRADERMONTY_LICENSE.txt; repository root NOTICE).
   ```
 
 #### 10. `NOTICE` (Modify)
@@ -430,9 +443,9 @@ Checkpoint: `bun run verify:prepush` passes and the scan steps of the [Verificat
 
 ### Verification Plan
 
-* **Unit Tests**: from `services/research`, `uv run --no-project --python 3.12 --with pytest==9.0.3 --with pydantic==2.13.4 --with tzdata==2026.2 python -m pytest -q -rs tests/test_prediction_markets.py tests/test_distribution_days.py`. Expected: 22 passed, no skipped test.
+* **Unit Tests**: from `services/research`, `uv run --no-project --python 3.12 --with pytest==9.0.3 --with pydantic==2.13.4 --with tzdata==2026.2 python -m pytest -q -rs tests/test_prediction_markets.py tests/test_distribution_days.py`. Expected: 29 passed, no skipped test.
 * **CI script**: from the repository root, `VERTEX_RESEARCH_PYTHON="$(uv python find 3.12)" bash scripts/ci/research-python.sh`. Expected: exit 0.
-* **Pre-push gate**: `bun run verify:prepush` (runs on `git push`). Expected: exit 0. It includes the Markdown lint and the documentation checks for the four changed Markdown files. No Python linter is configured in this repository.
+* **Pre-push gate**: `bun run verify:prepush` (runs on `git push`). Expected: exit 0. It includes the Markdown lint and the documentation checks for the three changed Markdown files. No Python linter is configured in this repository.
 * **Public-repository scan** (the steps of [`ci-cutover.md`](ci-cutover.md); the scripts are on the owner's machine, and the agent that opens the pull request runs them): export the tree of the branch head to a temporary folder `<dir>`, then run:
   1. `python3 ~/Documents/reports/vertex-public-audit/scan_tree.py <dir> <out.json>`. Expected: no file of this change is listed in `<out.json>`.
   2. `gitleaks dir <dir> --redact --report-format json --report-path <report.json>`. Expected: no finding in a file of this change.
