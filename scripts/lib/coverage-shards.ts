@@ -28,8 +28,11 @@ export const NATIVE_EVIDENCE_SHARDS = {
 // vertex-debate-5turn-ci-speed): it is its own named shard. The nightly run,
 // a manual run (the exact-SHA run before a deploy) and a pull request or push
 // that changes a debate file run it (scripts/ci/ci-changes.sh). Pre-push still
-// runs it through the packages/api test:unit script, which selects its
-// project; the project stays in the sequence group of the unit project.
+// selects it through the packages/api test:unit script; the project stays in
+// the sequence group of the unit project. As before the split, the test runs
+// there only with a parity interpreter (VERTEX_TEST_PYTHON or
+// private/tools/research-py312) and skips without one
+// (packages/api/src/server/research-python.test-support.ts).
 const DEBATE_FIVE_TURN_SHARD = "debate-five-turn";
 const DEBATE_FIVE_TURN_SHARDS = {
   [DEBATE_FIVE_TURN_SHARD]: [

@@ -81,7 +81,8 @@ touches_init() {
 # in any package.
 # The rule is a chosen subset, not the import closure of the test: Python modules that
 # the consumer imports inside a function, other transitive imports and package.json are
-# left to the nightly run and the pre-push hook.
+# left to the nightly run, the manual run before a deploy, and the pre-push hook of a
+# machine that has a parity interpreter (the test skips locally without one).
 touches_debate() {
   grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale)\.ts$|^services/research/((adapters|agents|providers|knowledge)/|requirements-((sdk|services)-)?linux-py312\.lock$)|^services/(control-client/vertex_control|market-data/vertex_market_data)/|^scripts/coverage-lane\.ts$|^scripts/ci/(ci-changes|test-python)\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
 }
