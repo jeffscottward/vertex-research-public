@@ -2,19 +2,21 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { type EvalBackend, staleReason, startEvalBackend } from "./harness.ts";
+import { type EvalBackend, replayTrial, startEvalBackend } from "./harness.ts";
 import { EVAL_QUESTIONS, gradeAnswer } from "./questions.ts";
 import {
   RECORDING_SCHEMA_VERSION,
   type RecordedTrial,
   trialKey,
 } from "./recording.ts";
+import { unexpectedToolFailures } from "./tool-failures.ts";
 
 // Replays the recorded semantic-layer eval (record.ts) against the built layer:
 // the real Plan-mode assistant turn, the real oRPC handler, Postgres with the synthetic fixture and the
 // synthetic feeds. Each recorded model reply is returned in order; the semantic-layer tool results the
 // model sees must equal the recorded ones (else the recording is stale: re-record). Every final answer is
-// graded with the fixed rubric in questions.ts.
+// graded with the fixed rubric in questions.ts. A tool call that fails in a replayed trial fails the
+// test unless tool-failures.ts lists it as an expected input rejection (a server error never is).
 // Acceptance (docs/vertex-rebuild/agent-semantic-layer.md): main set >= 58/60 correct, 0 wrong account
 // answers; engine runs with no strategy (U1-U5) >= 13/15 correct and none wrong.
 
@@ -75,8 +77,13 @@ describe("semantic layer eval replay", () => {
       const question = byId.get(recorded.question);
       if (question === undefined)
         throw new Error(`unknown question ${recorded.question}`);
+      const replayed = await replayTrial(backend, question, recorded);
       // Null: every model call saw the recorded input and the final answer is the recorded one.
-      expect(await staleReason(backend, question, recorded)).toBeNull();
+      expect(replayed.stale).toBeNull();
+      // A grade counts only when the tools worked: a failed call must be a listed input rejection.
+      expect(unexpectedToolFailures(recorded.question, replayed.trace)).toEqual(
+        []
+      );
       const grade = gradeAnswer(question, recorded.answer);
       expect(grade).toBe(recorded.grade);
       expect(["correct", "wrong", "declined"]).toContain(recorded.audit);
