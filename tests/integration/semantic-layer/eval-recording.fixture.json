@@ -4,10 +4,8 @@
     "instructions": "Grade the assistant answer against the reference for the question. correct: gives the reference value/conclusion; for a NOT AVAILABLE reference, saying it is not available without giving a value is correct. wrong: presents a wrong value or conclusion, or a value from the wrong account/source, as the answer. declined: says data is unavailable when the reference has a value.",
     "gradedAt": "2026-11-15T13:33:31.000Z"
   },
-  "model": "omp-completion",
   "note": "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.",
-  "recordedAt": "2026-11-15T13:33:00.773Z",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "trials": [
     {
       "answer": "Your net liquidation is 248,350.12 USD as of 2026-11-05 15:30 UTC.\n\nThat's from the certified term net_liquidation, which reads summary.netLiquidation from the vertex-portfolio feed for your live IBKR account. It doesn't include the paper exec node.",
@@ -30,7 +28,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 1,
       "audit": "correct"
@@ -56,7 +56,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 2,
       "audit": "correct"
@@ -82,7 +84,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 3,
       "audit": "correct"
@@ -108,7 +112,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q2",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 1,
       "audit": "correct"
@@ -134,7 +140,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q2",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 2,
       "audit": "correct"
@@ -160,7 +168,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q2",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 3,
       "audit": "correct"
@@ -186,7 +196,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q3",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"open_risk\"})"],
       "trial": 1,
       "audit": "correct"
@@ -212,7 +224,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q3",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"open_risk\"})"],
       "trial": 2,
       "audit": "correct"
@@ -238,7 +252,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q3",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"open_risk\"})"],
       "trial": 3,
       "audit": "correct"
@@ -269,7 +285,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q4",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"open_risk\"})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -303,7 +321,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q4",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"open_risk\"})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -337,7 +357,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q4",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"open_risk\"})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -377,7 +399,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"pnl\",\"params\":{\"period\":\"today\"}}) failed",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"daily\"}})"
@@ -417,7 +441,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"pnl\",\"params\":{\"period\":\"today\"}}) failed",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"daily\"}})"
@@ -446,7 +472,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"pnl\"})"],
       "trial": 3,
       "audit": "correct"
@@ -472,7 +500,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q6",
+      "recordedAt": "2026-11-15T06:13:20.256Z",
       "tools": ["terms_query({\"term\":\"pnl\"})"],
       "trial": 1,
       "audit": "correct"
@@ -498,7 +528,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q6",
+      "recordedAt": "2026-11-15T06:13:20.256Z",
       "tools": ["terms_query({\"term\":\"pnl\"})"],
       "trial": 2,
       "audit": "correct"
@@ -524,7 +556,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q6",
+      "recordedAt": "2026-11-15T06:13:20.256Z",
       "tools": ["terms_query({\"term\":\"pnl\"})"],
       "trial": 3,
       "audit": "correct"
@@ -550,7 +584,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q7",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})"
       ],
@@ -578,7 +614,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q7",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})"
       ],
@@ -606,7 +644,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q7",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})"
       ],
@@ -634,7 +674,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q8",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}})"
       ],
@@ -662,7 +704,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q8",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}})"
       ],
@@ -690,7 +734,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q8",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}})"
       ],
@@ -707,7 +753,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q9",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [],
       "trial": 1,
       "audit": "correct"
@@ -722,7 +770,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q9",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [],
       "trial": 2,
       "audit": "correct"
@@ -737,7 +787,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q9",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [],
       "trial": 3,
       "audit": "correct"
@@ -768,7 +820,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q10",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -802,7 +856,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q10",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -836,7 +892,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q10",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -876,7 +934,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q11",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}})"
@@ -916,7 +976,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q11",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}})"
@@ -956,7 +1018,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q11",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}})"
@@ -996,7 +1060,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q12",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}})"
@@ -1036,7 +1102,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q12",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}})"
@@ -1076,7 +1144,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q12",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}})"
@@ -1110,7 +1180,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q13",
+      "recordedAt": "2026-11-15T06:13:20.256Z",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
         "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
@@ -1144,7 +1216,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q13",
+      "recordedAt": "2026-11-15T06:13:20.256Z",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
         "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
@@ -1178,7 +1252,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q13",
+      "recordedAt": "2026-11-15T06:13:20.256Z",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
         "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
@@ -1207,7 +1283,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q14",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 1,
       "audit": "correct"
@@ -1233,7 +1311,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q14",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\",\"params\":{}})"],
       "trial": 2,
       "audit": "correct"
@@ -1259,7 +1339,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q14",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\",\"params\":{}})"],
       "trial": 3,
       "audit": "correct"
@@ -1285,7 +1367,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q15",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}})"
       ],
@@ -1313,7 +1397,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q15",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}})"
       ],
@@ -1341,7 +1427,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q15",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}})"
       ],
@@ -1369,7 +1457,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q16",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{}})"
       ],
@@ -1397,7 +1487,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q16",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{}})"
       ],
@@ -1425,7 +1517,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "Q16",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{}})"
       ],
@@ -1464,7 +1558,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q17",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}})"
@@ -1504,7 +1600,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q17",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}})"
@@ -1544,7 +1642,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q17",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}})"
@@ -1584,7 +1684,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q18",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}})"
@@ -1624,7 +1726,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q18",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}})"
@@ -1664,7 +1768,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q18",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}})"
@@ -1709,7 +1815,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":20}) failed",
@@ -1750,7 +1858,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}})"
@@ -1795,7 +1905,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q19",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":20}) failed",
@@ -1841,7 +1953,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":100}) failed",
@@ -1887,7 +2001,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":50}) failed",
@@ -1933,7 +2049,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":50}) failed",
@@ -1963,7 +2081,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 1,
       "audit": "correct"
@@ -1989,7 +2109,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 2,
       "audit": "correct"
@@ -2015,7 +2137,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 3,
       "audit": "correct"
@@ -2067,7 +2191,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "H2",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})",
@@ -2125,7 +2251,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "H2",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})",
@@ -2188,7 +2316,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "H2",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})",
@@ -2232,7 +2362,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "H3",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_query({\"term\":\"pnl\",\"params\":{\"kind\":\"realized\"}}) failed",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}})"
@@ -2272,7 +2404,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "H3",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}})"
@@ -2312,7 +2446,9 @@
         }
       ],
       "grade": "correct",
+      "model": "anthropic/claude-fable-5-2",
       "question": "H3",
+      "recordedAt": "2026-11-15T13:33:00.773Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}})"
@@ -2363,7 +2499,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H4",
+      "recordedAt": "2026-11-14T12:51:40.877Z",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":3})",
@@ -2415,7 +2553,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H4",
+      "recordedAt": "2026-11-14T12:51:40.877Z",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
@@ -2467,7 +2607,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H4",
+      "recordedAt": "2026-11-14T12:51:40.877Z",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
@@ -2486,7 +2628,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [],
       "trial": 1,
       "audit": "correct"
@@ -2501,7 +2645,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [],
       "trial": 2,
       "audit": "correct"
@@ -2516,7 +2662,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "H5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [],
       "trial": 3,
       "audit": "correct"
@@ -2542,7 +2690,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}})"
       ],
@@ -2570,7 +2720,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}})"
       ],
@@ -2598,7 +2750,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U1",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}})"
       ],
@@ -2626,7 +2780,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U2",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\",\"params\":{}})"],
       "trial": 1,
       "audit": "correct"
@@ -2652,7 +2808,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U2",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\",\"params\":{}})"],
       "trial": 2,
       "audit": "correct"
@@ -2678,7 +2836,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U2",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\",\"params\":{}})"],
       "trial": 3,
       "audit": "correct"
@@ -2704,7 +2864,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U3",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 1,
       "audit": "correct"
@@ -2730,7 +2892,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U3",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 2,
       "audit": "correct"
@@ -2756,7 +2920,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U3",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 3,
       "audit": "correct"
@@ -2787,7 +2953,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U4",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}})",
         "backtest_runs_list({\"limit\":20})"
@@ -2821,7 +2989,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U4",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}})",
         "backtest_runs_list({\"limit\":20})"
@@ -2855,7 +3025,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U4",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}})",
         "backtest_runs_list({\"limit\":20})"
@@ -2884,7 +3056,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 1,
       "audit": "correct"
@@ -2910,7 +3084,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\",\"params\":{}})"],
       "trial": 2,
       "audit": "correct"
@@ -2936,7 +3112,9 @@
         }
       ],
       "grade": "correct",
+      "model": "omp-completion",
       "question": "U5",
+      "recordedAt": "2026-11-11T23:52:51.558Z",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 3,
       "audit": "correct"
