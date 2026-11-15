@@ -113,9 +113,9 @@ const TaskDetail = ({ detail }: { readonly detail: AgentTaskGetOutput }) => {
           </ul>
         )}
         <p className="text-muted-foreground text-xs">
-          Started {formatTimestamp(detail.task.startedAt)} · finished{" "}
-          {formatTimestamp(detail.task.finishedAt)} · created{" "}
-          {formatTimestamp(detail.task.createdAt)}
+          Started {formatTimestamp(detail.task.startedAt, "not started")} ·
+          finished {formatTimestamp(detail.task.finishedAt, "running")} ·
+          created {formatTimestamp(detail.task.createdAt)}
         </p>
       </section>
       <section aria-label="Task events" className="space-y-1">

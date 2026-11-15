@@ -132,8 +132,14 @@ const StaleChip = () => {
   );
 };
 
-const formatUtc = (value: string | null | undefined): string => {
-  if (value === null || value === undefined) return "—";
+// A missing value names why it is missing; a dash would read as zero or "nothing to show".
+const NOT_REPORTED = "not reported";
+
+const formatUtc = (
+  value: string | null | undefined,
+  missing = NOT_REPORTED
+): string => {
+  if (value === null || value === undefined) return missing;
   const time = Date.parse(value);
   if (!Number.isFinite(time)) return value;
   return `${new Date(time).toISOString().slice(0, 19).replace("T", " ")} UTC`;
@@ -147,15 +153,21 @@ const formatAge = (seconds: number): string => {
   return `${Math.floor(seconds / 86_400)}d ${Math.floor((seconds % 86_400) / 3600)}h`;
 };
 
-const formatNumber = (value: number | null | undefined, digits = 2): string => {
-  if (value === null || value === undefined) return "—";
+const formatNumber = (
+  value: number | null | undefined,
+  digits = 2,
+  missing = NOT_REPORTED
+): string => {
+  if (value === null || value === undefined) return missing;
   return value.toLocaleString("en-US", { maximumFractionDigits: digits });
 };
 
-const formatValue = (value: unknown): string => {
-  if (value === null || value === undefined) return "—";
+const formatValue = (value: unknown, missing = NOT_REPORTED): string => {
+  if (value === null || value === undefined) return missing;
   if (Array.isArray(value))
-    return value.length === 0 ? "none" : value.map(formatValue).join(", ");
+    return value.length === 0
+      ? "none"
+      : value.map((item) => formatValue(item)).join(", ");
   if (typeof value === "boolean") return value ? "yes" : "no";
   if (typeof value === "number") return formatNumber(value, 6);
   return String(value);
@@ -248,6 +260,26 @@ const notConfiguredReason = (data: DeploymentStatusOutput): string => {
   return (
     data.snapshotError ??
     "tailnet snapshot not configured (VERTEX_DEPLOY_STATUS_V2_URL)"
+  );
+};
+
+// A field of a block that was not read names the block's reason, so it never reads as empty.
+const notRead = (
+  block: Readonly<{ available: boolean; reason?: string }> | undefined,
+  data: DeploymentStatusOutput
+): string => {
+  if (block === undefined) return `not read: ${notConfiguredReason(data)}`;
+  if (!block.available && block.reason !== undefined)
+    return `not read: ${block.reason}`;
+  return "not reported";
+};
+
+// A missing side on an order or fill is a data fault, so it is flagged, not dashed.
+const MissingSide = () => {
+  return (
+    <span className="text-destructive" data-missing-side="">
+      side not reported
+    </span>
   );
 };
 
@@ -410,7 +442,7 @@ export const PositionsPanel = ({
                           : ""}
                       </TableCell>
                       <TableCell className={td}>
-                        {item.sec_type ?? "—"}
+                        {item.sec_type ?? "type not reported"}
                       </TableCell>
                       <TableCell className={tdNum}>
                         {formatNumber(item.qty, 4)}
@@ -431,7 +463,7 @@ export const PositionsPanel = ({
                         {formatNumber(item.realized_pnl)}
                       </TableCell>
                       <TableCell className={td}>
-                        {item.currency ?? "—"}
+                        {item.currency ?? "currency not reported"}
                       </TableCell>
                     </TableRow>
                   );
@@ -495,11 +527,18 @@ export const OrdersPanel = ({
                       key={`${item.order_id_masked ?? "order"}-${index}`}
                     >
                       <TableCell className={td}>
-                        {item.order_id_masked ?? "—"}
+                        {item.order_id_masked ??
+                          (item.status === null || item.status === undefined
+                            ? "order id not reported"
+                            : "no id yet")}
                       </TableCell>
                       <TableCell className={td}>{item.symbol}</TableCell>
-                      <TableCell className={td}>{item.side ?? "—"}</TableCell>
-                      <TableCell className={td}>{item.type ?? "—"}</TableCell>
+                      <TableCell className={td}>
+                        {item.side ?? <MissingSide />}
+                      </TableCell>
+                      <TableCell className={td}>
+                        {item.type ?? "type not reported"}
+                      </TableCell>
                       <TableCell className={tdNum}>
                         {formatNumber(item.qty, 4)}
                       </TableCell>
@@ -518,8 +557,13 @@ export const OrdersPanel = ({
                       <TableCell className={tdNum}>
                         {formatNumber(item.aux_price, 4)}
                       </TableCell>
-                      <TableCell className={td}>{item.tif ?? "—"}</TableCell>
-                      <TableCell className={td}>{item.status ?? "—"}</TableCell>
+                      <TableCell className={td}>
+                        {item.tif ?? "TIF not reported"}
+                      </TableCell>
+                      <TableCell className={td}>
+                        {item.status ??
+                          `status not reported by IBKR since ${formatUtc(block.as_of, "last read")}`}
+                      </TableCell>
                       <TableCell className={`${td} text-warning-foreground`}>
                         {item.warning ?? ""}
                       </TableCell>
@@ -582,7 +626,9 @@ export const FillsPanel = ({
                         {formatUtc(item.time)}
                       </TableCell>
                       <TableCell className={td}>{item.symbol}</TableCell>
-                      <TableCell className={td}>{item.side ?? "—"}</TableCell>
+                      <TableCell className={td}>
+                        {item.side ?? <MissingSide />}
+                      </TableCell>
                       <TableCell className={tdNum}>
                         {formatNumber(item.qty, 4)}
                       </TableCell>
@@ -590,10 +636,10 @@ export const FillsPanel = ({
                         {formatNumber(item.price, 4)}
                       </TableCell>
                       <TableCell className={td}>
-                        {item.order_id_masked ?? "—"}
+                        {item.order_id_masked ?? "order id not reported"}
                       </TableCell>
                       <TableCell className={td}>
-                        {item.exec_id_masked ?? "—"}
+                        {item.exec_id_masked ?? "exec id not reported"}
                       </TableCell>
                     </TableRow>
                   );
@@ -758,29 +804,40 @@ export const StatusStrip = ({
         </Field>
         <Field label="Strategies" name="strategies">
           {live === null
-            ? "—"
+            ? notRead(session, data)
             : live.strategies.length === 0
               ? "none"
               : live.strategies.map((strategy) => strategy.name).join(", ")}
         </Field>
         <Field label="Symbols" name="symbols">
           {live === null
-            ? "—"
+            ? notRead(session, data)
             : live.symbols.length === 0
               ? "none"
               : live.symbols.join(", ")}
         </Field>
         <Field label="Account" name="account">
-          {live?.account_masked ?? "—"}
+          {live === null
+            ? notRead(session, data)
+            : (live.account_masked ?? "account not reported")}
         </Field>
         <Field label="Started" name="started">
-          {formatUtc(live?.started_at)}
+          {formatUtc(
+            live?.started_at,
+            live === null ? notRead(session, data) : "not started"
+          )}
         </Field>
         <Field label="Stopped" name="stopped">
-          {formatUtc(live?.stopped_at)}
+          {formatUtc(
+            live?.stopped_at,
+            live === null ? notRead(session, data) : "not stopped"
+          )}
         </Field>
         <Field label="Last heartbeat" name="heartbeat">
-          {formatUtc(live?.last_heartbeat_at)}
+          {formatUtc(
+            live?.last_heartbeat_at,
+            live === null ? notRead(session, data) : "no heartbeat yet"
+          )}
         </Field>
         <Field label="Data age" name="age">
           <span className="inline-flex flex-wrap items-center gap-1">
@@ -887,7 +944,7 @@ export const RiskPanel = ({
                             {key}
                           </TableCell>
                           <TableCell className={`${td} text-xs`}>
-                            {formatValue(value)}
+                            {formatValue(value, "no limit configured")}
                           </TableCell>
                         </TableRow>
                       );
@@ -946,17 +1003,13 @@ export const RiskPanel = ({
                   <p className="flex flex-wrap items-center gap-2">
                     <Chip
                       data={{
-                        "data-watchdog-status": watchdog.status ?? "unknown",
+                        "data-watchdog-status":
+                          watchdog.status ?? "not-reported",
                       }}
-                      tone={
-                        watchdog.status === "ok"
-                          ? "success"
-                          : watchdog.status === null
-                            ? "neutral"
-                            : "warning"
-                      }
+                      tone={watchdog.status === "ok" ? "success" : "warning"}
                     >
-                      {watchdog.status ?? "unknown"}
+                      {watchdog.status ??
+                        `status not reported since ${formatUtc(risk.as_of, "last read")}`}
                     </Chip>
                     <span className="font-mono">
                       safe mode {formatValue(watchdog.safe_mode)} · orders{" "}

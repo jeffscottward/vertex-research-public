@@ -519,6 +519,123 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
     ).toBe("unknown");
   });
 
+  it("names every missing field instead of showing a dash", async () => {
+    const base = v2Status();
+    const orders = structuredClone(base.orders) as Extract<
+      DeploymentStatusOutput["orders"],
+      { available: true }
+    >;
+    const order = orders.items[0]!;
+    orders.items = [
+      {
+        ...order,
+        order_id_masked: null,
+        side: null,
+        type: null,
+        tif: null,
+        status: null,
+      },
+      { ...order, symbol: "ACKD", order_id_masked: null },
+    ] as typeof orders.items;
+    const fills = structuredClone(base.fills) as Extract<
+      DeploymentStatusOutput["fills"],
+      { available: true }
+    >;
+    fills.items = [
+      {
+        ...fills.items[0]!,
+        side: null,
+        order_id_masked: null,
+        exec_id_masked: null,
+      },
+    ] as typeof fills.items;
+    const positions = structuredClone(base.positions) as Extract<
+      DeploymentStatusOutput["positions"],
+      { available: true }
+    >;
+    positions.items = [
+      { ...positions.items[0]!, sec_type: null, currency: null },
+    ] as typeof positions.items;
+    const risk = structuredClone(base.risk) as Extract<
+      DeploymentStatusOutput["risk"],
+      { available: true }
+    >;
+    risk.watchdog = { ...risk.watchdog!, status: null } as typeof risk.watchdog;
+    const container = await mount(
+      <DeploymentsWorkspace
+        gateway={gatewayOf(async () =>
+          v2Status({ fills, orders, positions, risk })
+        )}
+        now={() => now}
+      />
+    );
+    const position = container.querySelector("[data-position-row='ORCL']");
+    expect(position?.textContent).toContain("type not reported");
+    expect(position?.textContent).toContain("currency not reported");
+    const watchdog = container.querySelector("[data-watchdog-status]");
+    expect(watchdog?.getAttribute("data-watchdog-status")).toBe("not-reported");
+    expect(watchdog?.textContent).toBe(
+      "status not reported since 2026-10-03 11:18:30 UTC"
+    );
+    await clickTab(container, "orders");
+    const missing = container.querySelector("[data-order-row='ORCL']");
+    expect(missing?.textContent).toContain("order id not reported");
+    expect(missing?.querySelector("[data-missing-side]")?.textContent).toBe(
+      "side not reported"
+    );
+    expect(missing?.textContent).toContain("TIF not reported");
+    expect(missing?.textContent).toMatch(
+      /status not reported by IBKR since \d{4}-\d{2}-\d{2} [\d:]{8} UTC/
+    );
+    expect(
+      container.querySelector("[data-order-row='ACKD']")?.textContent
+    ).toContain("no id yet");
+    await clickTab(container, "fills");
+    const fill = container.querySelector("[data-fill-row='AMZN']");
+    expect(fill?.querySelector("[data-missing-side]")).not.toBeNull();
+    expect(fill?.textContent).toContain("order id not reported");
+    return expect(fill?.textContent).toContain("exec id not reported");
+  });
+
+  it("names the reason when session fields were not read", async () => {
+    const withheld = {
+      available: false as const,
+      source: "guard",
+      reason: "withheld: leak pattern",
+    };
+    const field = (container: HTMLElement, name: string) =>
+      container.querySelector(`[data-strip-field='${name}'] dd`)?.textContent;
+    const blocked = await mount(
+      <DeploymentsWorkspace
+        gateway={gatewayOf(async () => v2Status({ session: withheld }))}
+        now={() => now}
+      />
+    );
+    for (const name of ["strategies", "symbols", "account", "started"])
+      expect(field(blocked, name)).toBe("not read: withheld: leak pattern");
+    const base = v2Status();
+    const session = {
+      ...(base.session as Extract<
+        DeploymentStatusOutput["session"],
+        { available: true }
+      >),
+      account_masked: null,
+      started_at: null,
+      stopped_at: null,
+      last_heartbeat_at: null,
+    } as DeploymentStatusOutput["session"];
+    const running = await mount(
+      <DeploymentsWorkspace
+        gateway={gatewayOf(async () => v2Status({ session }))}
+        now={() => now}
+      />
+    );
+    expect(field(running, "account")).toBe("account not reported");
+    expect(field(running, "started")).toBe("not started");
+    expect(field(running, "stopped")).toBe("not stopped");
+    return expect(field(running, "heartbeat")).toBe("no heartbeat yet");
+  });
+
   it("falls back to v1 with the snapshot error and an engaged kill switch is prominent", async () => {
     const fallback = {
       ...status([neverStartedNautilus, healthyGateway]),
