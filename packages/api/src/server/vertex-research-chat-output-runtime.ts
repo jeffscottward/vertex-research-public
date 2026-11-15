@@ -19,10 +19,12 @@ import {
   insert,
   object,
   one,
+  reusePredecessorRead,
   rows,
   string,
   time,
   type PersistenceContext,
+  withPredecessorWalk,
 } from "@darkfactory/db/server/vertex-research-chat-runtime";
 import type {
   ResearchChatWorkerOperations,
@@ -54,7 +56,10 @@ import {
   VertexResearchChatNativeEvidencePlanV1Schema,
   VertexResearchChatNativeEvidenceConfigurationV1Schema,
 } from "../contracts/vertex-research-chat-execution.ts";
-import { VertexResearchChatPublishedPredecessorV1Schema } from "../contracts/vertex-research-chat-debate.ts";
+import {
+  VertexResearchChatPublishedPredecessorV1Schema,
+  type VertexResearchChatPublishedPredecessorV1,
+} from "../contracts/vertex-research-chat-debate.ts";
 import { VertexResearchChatAdvisoryV2ProfileSchema } from "../contracts/vertex-research-chat-conversation.ts";
 import { PolicyArtifactPinSchema } from "../contracts/vertex-policy.ts";
 import {
@@ -1901,6 +1906,9 @@ export const createVertexResearchChatOutputRuntime = (
             : 3)
       )
         return null;
+      // Inside one predecessor walk both reads can return the same kept
+      // original, so this comparison only catches changes between walks. An
+      // insert in between drops the kept read.
       const after = await worker.derivedForTransaction(
         tx,
         scope,
@@ -2065,14 +2073,13 @@ export const createVertexResearchChatOutputRuntime = (
   // redisclosure authority. No caller-supplied reader or accepted boolean here.
   // SQL metadata/proof join ONLY. Source use also requires this owner's fresh
   // invocation-private external-read bundle; these projections are not authority.
-  const readPublishedPredecessorForTransaction = async (
+  const readPublishedPredecessorOnce = async (
     tx: Transaction,
     principal: VertexPrincipal,
     scope: Scope,
-    supplied: VertexRecord,
+    pin: VertexResearchChatPublishedPredecessorV1,
     at: string
   ) => {
-    const pin = VertexResearchChatPublishedPredecessorV1Schema.parse(supplied);
     const caller = await conversationCallerForTransaction(
       tx,
       principal,
@@ -2112,23 +2119,28 @@ export const createVertexResearchChatOutputRuntime = (
       publishedAt: before.publication.publishedAt,
     };
     if (!same(pin, expected)) return fail("integrity");
-    await ctx.authorize(
-      principal,
-      scope,
-      identifier(original["collectionId"]),
-      pin.copyId,
-      "read",
-      ctx.now()
-    );
-    for (const action of ["derive", "export"] as const)
-      await ctx.rights(
-        tx,
+    // Grants and rights hold only at the moment they are checked, so a reuse
+    // inside a predecessor walk runs these checks again.
+    const authority = async (): Promise<void> => {
+      await ctx.authorize(
+        principal,
         scope,
         identifier(original["collectionId"]),
-        before.joined.queuedMetadata.rights,
-        action,
+        pin.copyId,
+        "read",
         ctx.now()
       );
+      for (const action of ["derive", "export"] as const)
+        await ctx.rights(
+          tx,
+          scope,
+          identifier(original["collectionId"]),
+          before.joined.queuedMetadata.rights,
+          action,
+          ctx.now()
+        );
+    };
+    await authority();
     const live = await worker.copies.advisoryLiveProofForTransaction(
       tx,
       scope,
@@ -2155,15 +2167,61 @@ export const createVertexResearchChatOutputRuntime = (
     if (time(ctx.now()) < time(at) || time(ctx.now()) >= time(expiresAt))
       return fail("stale");
     return {
-      pin: expected,
-      plan: original,
-      metadata: before.metadata,
-      bindingSha256: await ctx.hash(live.binding),
-      proofSha256: await ctx.hash(live.proof),
-      authoritySha256,
-      expiresAt,
+      source: {
+        pin: expected,
+        plan: original,
+        metadata: before.metadata,
+        bindingSha256: await ctx.hash(live.binding),
+        proofSha256: await ctx.hash(live.proof),
+        authoritySha256,
+        expiresAt,
+      },
+      // A reuse also checks the caller grants again.
+      recheck: async (): Promise<void> => {
+        await authority();
+        const again = await conversationCallerForTransaction(
+          tx,
+          principal,
+          scope,
+          ctx.now(),
+          false,
+          caller
+        );
+        if (time(ctx.now()) >= time(again.expiresAt)) fail("stale");
+      },
     };
   };
+  // A nested currency check of an earlier debate turn reads the same exact pins
+  // again. Inside one predecessor walk (withPredecessorWalk) a completed read is
+  // reused. The key binds the caller, the scope and the full pin. A reuse runs
+  // the copy read grant, rights and caller grant checks again, then the same
+  // final clock checks as a fresh read.
+  const readPublishedPredecessorForTransaction = (
+    tx: Transaction,
+    principal: VertexPrincipal,
+    scope: Scope,
+    supplied: VertexRecord,
+    at: string
+  ) =>
+    withPredecessorWalk(tx, async () => {
+      const pin =
+        VertexResearchChatPublishedPredecessorV1Schema.parse(supplied);
+      const read = await reusePredecessorRead(
+        tx,
+        readPublishedPredecessorOnce,
+        canonicalArtifactJson({ actorId: principal.actorId, scope, pin }),
+        () => readPublishedPredecessorOnce(tx, principal, scope, pin, at),
+        async (kept) => {
+          await kept.recheck();
+          if (
+            time(ctx.now()) < time(at) ||
+            time(ctx.now()) >= time(kept.source.expiresAt)
+          )
+            fail("stale");
+        }
+      );
+      return read.source;
+    });
   type SourceSnapshot = Awaited<
     ReturnType<typeof readPublishedPredecessorForTransaction>
   > &
@@ -2260,37 +2318,40 @@ export const createVertexResearchChatOutputRuntime = (
     }[] = [];
     let expiresAt = state.expiresAt;
     try {
-      for (const held of state.sources) {
-        const current = await readPublishedPredecessorForTransaction(
-          tx,
-          principal,
-          scope,
-          held.pin,
-          ctx.now()
-        );
-        if (
-          !(
-            same(held.pin, current.pin) &&
-            same(held.plan, current.plan) &&
-            same(held.metadata, current.metadata)
-          ) ||
-          held.bindingSha256 !== current.bindingSha256 ||
-          held.proofSha256 !== current.proofSha256 ||
-          held.authoritySha256 !== current.authoritySha256 ||
-          held.bytes.byteLength !== current.pin.byteLength ||
-          (await ctx.digest(held.bytes)) !== current.pin.contentSha256
-        )
-          return fail("denied");
-        expiresAt =
-          time(current.expiresAt) < time(expiresAt)
-            ? current.expiresAt
-            : expiresAt;
-        sources.push({
-          pin: current.pin,
-          expiresAt: current.expiresAt,
-          ...(includeBytes ? { bytes: new Uint8Array(held.bytes) } : {}),
-        });
-      }
+      // One walk: a later pin's nested checks reuse the earlier pins' reads.
+      await withPredecessorWalk(tx, async () => {
+        for (const held of state.sources) {
+          const current = await readPublishedPredecessorForTransaction(
+            tx,
+            principal,
+            scope,
+            held.pin,
+            ctx.now()
+          );
+          if (
+            !(
+              same(held.pin, current.pin) &&
+              same(held.plan, current.plan) &&
+              same(held.metadata, current.metadata)
+            ) ||
+            held.bindingSha256 !== current.bindingSha256 ||
+            held.proofSha256 !== current.proofSha256 ||
+            held.authoritySha256 !== current.authoritySha256 ||
+            held.bytes.byteLength !== current.pin.byteLength ||
+            (await ctx.digest(held.bytes)) !== current.pin.contentSha256
+          )
+            return fail("denied");
+          expiresAt =
+            time(current.expiresAt) < time(expiresAt)
+              ? current.expiresAt
+              : expiresAt;
+          sources.push({
+            pin: current.pin,
+            expiresAt: current.expiresAt,
+            ...(includeBytes ? { bytes: new Uint8Array(held.bytes) } : {}),
+          });
+        }
+      });
       const caller = await conversationCallerForTransaction(
         tx,
         principal,
@@ -2331,21 +2392,24 @@ export const createVertexResearchChatOutputRuntime = (
       const sources: Awaited<
         ReturnType<typeof readPublishedPredecessorForTransaction>
       >[] = [];
-      for (const pin of request.predecessors) {
-        const source = await readPublishedPredecessorForTransaction(
-          tx,
-          principal,
-          scope,
-          pin,
-          ctx.now()
-        );
-        if (
-          source.plan["ownerActorId"] !== request.ownerActorId ||
-          source.plan["threadId"] !== request.threadId
-        )
-          return fail("denied");
-        sources.push(source);
-      }
+      // One walk: a later pin's nested checks reuse the earlier pins' reads.
+      await withPredecessorWalk(tx, async () => {
+        for (const pin of request.predecessors) {
+          const source = await readPublishedPredecessorForTransaction(
+            tx,
+            principal,
+            scope,
+            pin,
+            ctx.now()
+          );
+          if (
+            source.plan["ownerActorId"] !== request.ownerActorId ||
+            source.plan["threadId"] !== request.threadId
+          )
+            return fail("denied");
+          sources.push(source);
+        }
+      });
       return { caller, sources };
     });
     const held: SourceSnapshot[] = [];
