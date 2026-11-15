@@ -18,8 +18,8 @@
 #     VERTEX_RUNTIME_MIN_FREE_KB (default 5 GiB). Backups of earlier swaps are never deleted here.
 #     Up to this point nothing on QuantVPS changed: an earlier stage is still usable.
 #  4. Remove an old .runtime-next/ in the checkout and copy the runtime tree into a new one with
-#     rsync. Files with the same content and attributes as the live ones become hard links
-#     (--link-dest with --checksum). Failure: exit 5.
+#     rsync. Files with the same content, owner and mode as the live ones become hard links
+#     (--link-dest with --checksum; file times are not copied and do not count). Failure: exit 5.
 #  5. Program check in the staged tree, with the Node.js of the unit: `vite --version` and
 #     `workerd --version`. It shows that these two programs execute on QuantVPS. Failure: exit 4.
 #  6. Write .runtime-next/PATHS (the swap units, one per line) and .runtime-next/RUNTIME_SHA (HEAD).
@@ -137,9 +137,11 @@ prepared="$(remote "$PREPARE" 300 2>&1)" ||
 
 TARGET="${VERTEX_RUNTIME_RSYNC_TARGET:-quantvps:$CHECKOUT}"
 echo "copying the runtime tree of $SHA to $TARGET/.runtime-next ($(tr -cd '\0' <"$WORK/list" | wc -c) list entries)"
-# -r: --files-from turns off the recursion that -a implies. --checksum: a file becomes a hard link to
-# the live file only when its content is equal (size and time alone can match by accident).
-timeout 3600 rsync -a -r --checksum --from0 --files-from="$WORK/list" --link-dest="$CHECKOUT" ./ "$TARGET/.runtime-next/" ||
+# -rlpgoD is -a without -t: file times are not copied, so they do not count for --link-dest, and a
+# file becomes a hard link to the live file whenever content (--checksum), owner and mode are equal.
+# With -t, package files from another package store (other file times) would never link, and every
+# stage and every backup would cost the full tree (measured 2026-11-15: 1.8 GB, 0 links).
+timeout 3600 rsync -rlpgoD --checksum --from0 --files-from="$WORK/list" --link-dest="$CHECKOUT" ./ "$TARGET/.runtime-next/" ||
   refuse "rsync of the runtime tree failed (exit $?); .runtime-next is incomplete and will not be used" 5
 
 if [ -n "${VERTEX_RUNTIME_NODE:-}" ]; then
@@ -154,8 +156,8 @@ for w in ../../node_modules/.pnpm/@cloudflare+workerd-linux-64@*/node_modules/@c
 smoke="$(remote "$SMOKE" 120 2>&1)" ||
   refuse "the staged programs do not start on QuantVPS: ${smoke:-no answer}. .runtime-next has no RUNTIME_SHA and will not be used." 4
 
-timeout 300 rsync -a "$WORK/PATHS" "$TARGET/.runtime-next/PATHS" &&
-  timeout 300 rsync -a "$WORK/RUNTIME_SHA" "$TARGET/.runtime-next/RUNTIME_SHA" ||
+timeout 300 rsync -rlpgoD "$WORK/PATHS" "$TARGET/.runtime-next/PATHS" &&
+  timeout 300 rsync -rlpgoD "$WORK/RUNTIME_SHA" "$TARGET/.runtime-next/RUNTIME_SHA" ||
   refuse "could not write PATHS and RUNTIME_SHA; .runtime-next is incomplete and will not be used" 5
 
 echo "program check: $(paste -sd ',' <<<"$smoke" | sed 's/,/, /g')"

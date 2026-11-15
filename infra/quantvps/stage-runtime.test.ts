@@ -123,11 +123,11 @@ const setup = () => {
   put(checkout, "RUNTIME_SHA", "0ld0000\n");
   put(checkout, ".runtime-next/RUNTIME_SHA", "stale\n");
   put(checkout, ".runtime-next/stale-file", "from an earlier stage");
-  // The same package file as in the worktree (same bytes and time): it must become a hard link.
+  // The same package file as in the worktree (same bytes, another file time, as from another
+  // package store): it must become a hard link.
   const packageFile = ".pnpm/a@1.0.0/node_modules/a/index.js";
   put(checkout, `node_modules/${packageFile}`, "a");
   const when = new Date("2026-10-21T20:44:17Z");
-  utimesSync(join(repo, "node_modules", packageFile), when, when);
   utimesSync(join(checkout, "node_modules", packageFile), when, when);
   writeFileSync(join(dir, "fake.sh"), FAKE);
   chmodSync(join(dir, "fake.sh"), 0o755);
@@ -225,7 +225,8 @@ describe("stage-runtime.sh", () => {
     expect(existsSync(join(stage, "notes.txt"))).toBe(false);
     expect(existsSync(join(stage, "apps/web/dist"))).toBe(false);
     expect(existsSync(join(stage, "stale-file"))).toBe(false);
-    // An unchanged package file shares its data with the live file.
+    // An unchanged package file shares its data with the live file, although the file times
+    // differ. A file with other content of the same size (apps/web/package.json above) does not.
     const packageFile = "node_modules/.pnpm/a@1.0.0/node_modules/a/index.js";
     expect(statSync(join(stage, packageFile)).ino).toBe(
       statSync(join(checkout, packageFile)).ino
