@@ -376,7 +376,12 @@ export type Row = Readonly<{
   to: string;
   universe: string;
   comparison: Comparison | null;
-  errors?: Readonly<{ nautilus: string | null; ts: string | null }>;
+  /** `nautilus`: the Nautilus input error; `nautilusCrash`: the case crashed in Python (never passes). */
+  errors?: Readonly<{
+    nautilus: string | null;
+    nautilusCrash?: string;
+    ts: string | null;
+  }>;
   pass: boolean;
 }>;
 
@@ -386,6 +391,8 @@ export type Batch = Readonly<{
     id: string;
     result?: PyResult;
     error?: string;
+    /** An unexpected Python exception of the case: `<class name>: <message>` (exit status 4). */
+    crash?: string;
   }>[];
 }>;
 
@@ -424,6 +431,9 @@ export type ParityIo = Readonly<{
   stdout: Readonly<{ write: (text: string) => unknown }>;
 }>;
 
+/** Exit status of `nautilus_backtest batch`: complete document, at least one case crashed. */
+export const NAUTILUS_CRASH_STATUS = 4;
+
 /** Runs every case on one bar series in one Python process. */
 const runNautilusBatch = (
   io: ParityIo,
@@ -439,12 +449,13 @@ const runNautilusBatch = (
     ["-m", "nautilus_backtest", "batch", input, output],
     join(io.root, "services/research")
   );
-  if (run.status !== 0)
+  // Status 4: the document is complete and at least one case crashed (its entry has `crash`).
+  if (run.status !== 0 && run.status !== NAUTILUS_CRASH_STATUS)
     throw new Error(`nautilus batch failed for ${input}: ${run.stderr}`);
   return JSON.parse(io.readText(output)) as Batch;
 };
 
-/** Both engines must agree, also on input errors (the same message). */
+/** Both engines must agree, also on input errors (the same message). A Nautilus case crash fails. */
 export const compareCase = (
   bars: BarColumns,
   entry: Case,
@@ -457,6 +468,12 @@ export const compareCase = (
   } catch (error) {
     tsError = (error as Error).message;
   }
+  if (py?.crash !== undefined)
+    return {
+      comparison: null,
+      errors: { nautilus: null, nautilusCrash: py.crash, ts: tsError },
+      pass: false,
+    };
   if (ts === null || py?.result === undefined) {
     return {
       comparison: null,
