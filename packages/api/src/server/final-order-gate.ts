@@ -1,4 +1,5 @@
 import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
+import { utcClock } from "./status-time.ts";
 import {
   daysToExpiry,
   type OrderPosition,
@@ -247,9 +248,12 @@ export const evaluateFinalOrderGate = (
     reasons.push("OPTIONS_ONLY is not confirmed on: no new positions.");
 
   let maxLossPct: number | null = null;
+  // Both cases deny. `now` is the time of the IBKR account read the caller passes in.
   if (accountValue === null || !(accountValue > 0))
     reasons.push(
-      "Account value is unknown: cannot check the 2% max-loss gate."
+      accountValue === null
+        ? `Account value (net liquidation) not received from IBKR in the account read at ${utcClock(now, now)}: the 2% max-loss gate cannot be checked · no new position · refresh the account`
+        : `Account value (net liquidation) reported as ${accountValue} (not above zero) in the account read at ${utcClock(now, now)}: the 2% max-loss gate cannot be checked · no new position`
     );
   else if (structure.maxLoss !== null) {
     maxLossPct = round2((structure.maxLoss / accountValue) * 100);

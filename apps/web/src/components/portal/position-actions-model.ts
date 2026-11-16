@@ -156,9 +156,10 @@ export const actionsUnavailableReason = (
   position: Pick<PortfolioMonitorPosition, "secType">
 ): string => {
   const code = position.secType.trim().toUpperCase();
-  return code === "OPT"
-    ? "Contract not recognized"
-    : `Not supported here (${code || "unknown"})`;
+  if (code === "OPT") return "Contract not recognized";
+  return code === ""
+    ? "Security type not reported by IBKR; orders are not offered for this row"
+    : `Not supported here (${code})`;
 };
 
 export const draftFor = (
