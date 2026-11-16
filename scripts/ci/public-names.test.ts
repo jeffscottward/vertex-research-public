@@ -36,7 +36,7 @@ describe("public tailnet names", () => {
     ]);
     expect(realTailnetLabels(`vps.${real[1]}.ts.net`)).toEqual([real[1]]);
     // Regex-escaped names and names after `.`, `*` or `_` are still names.
-    expect(realTailnetLabels(`omarchy-rig\\.${real[0]}\\.ts\\.net`)).toEqual([
+    expect(realTailnetLabels(`dev-rig\\.${real[0]}\\.ts\\.net`)).toEqual([
       real[0],
     ]);
     expect(

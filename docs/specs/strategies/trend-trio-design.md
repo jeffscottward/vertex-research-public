@@ -24,7 +24,7 @@ Research only. Nothing here places, arms or sizes an order.
 
 - **The trio**: the three voting indicators, SuperTrend, Ultimate MA and AlphaTrend. **Filter**: Slingshot. **Exit**: Chandelier Exit.
 - **Bucket**: a 5- or 15-minute bar built from 1-minute bars.
-- **Rig**: `omarchy-rig`, the research workstation where the data files live and the backtests run (never the trading server, QuantVPS).
+- **Rig**: `dev-rig`, the research workstation where the data files live and the backtests run (never the trading server, QuantVPS).
 - **Decision record**: `~/Documents/reports/web/vertex-trend-trio/kb-consult/decision-record.md` on the rig. The owner's rule of 2026-11-14 sends trading research method questions to internal knowledge bases (KB): collections of public trading material, each with a question-answering agent. The record lists the eight questions (Q1 data, Q2 session, Q3 costs, Q4 entry, Q5 exit, Q6 parameters, Q7 pass/fail, Q8 options form), each answer with its sources, and the decision.
 - **Intraday block**: the existing `intraday` object of a DSL definition (`StrategyIntradaySchema` in `packages/api/src/strategy-dsl.ts`: session open and close in New York time, decision and exit grids, market on close).
 - **ETH / full session**: the CFD's extended trading hours (about 23 hours a day), against the regular session 09:30-16:00 New York.
