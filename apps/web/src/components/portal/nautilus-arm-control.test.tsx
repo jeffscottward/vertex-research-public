@@ -319,6 +319,40 @@ describe("nautilusArmView", () => {
     ).toContain("at time not recorded");
   });
 
+  it("offers Arm only for running-disarmed with a disarmed record; Disarm for every other badge", () => {
+    const badges = [
+      "running-disarmed",
+      "running-armed",
+      "down",
+      "unknown",
+    ] as const;
+    for (const key of badges)
+      for (const record of [null, armState(), ARMED]) {
+        const view = nautilusArmView(status({ arm: record, badge: key }));
+        const armable =
+          key === "running-disarmed" && record !== null && !record.armed;
+        expect(view.arm !== null).toBe(armable);
+        expect(view.disarm).toBe(!armable);
+      }
+  });
+
+  it("sends the node's exact image version as the arm payload", async () => {
+    const version = "2.0.0-rc.1+build.7";
+    const gateway = gatewayOf(
+      status({ arm: armState({ imageVersion: version }) })
+    );
+    await mount(monitor(gateway));
+    await run(() => armButton()?.click());
+    expect(dialog()?.textContent).toContain(`Image version: ${version}.`);
+    await fill();
+    await run(() => submit()?.click());
+    return expect(gateway.arm).toHaveBeenCalledWith({
+      imageVersion: version,
+      password: PASSWORD,
+      reason: REASON,
+    });
+  });
+
   it("checks the reason like the server", () => {
     expect(reasonProblem(REASON)).toBeNull();
     expect(reasonProblem("short")).toBe("Write at least 10 characters.");

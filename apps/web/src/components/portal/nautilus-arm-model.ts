@@ -121,15 +121,18 @@ export const nautilusArmView = (
     };
   }
   const arm = status.arm;
-  if (arm === null || status.badge === "down")
-    return { arm: null, badge, detail: null, disarm: true };
-  if (arm.armed)
+  // Allow list: Arm only for a confirmed running-disarmed node with an arm record that is not armed.
+  // Every other badge or record shows Disarm (safe and idempotent on the node).
+  if (status.badge !== "running-disarmed" || arm === null || arm.armed) {
+    if (arm === null || !arm.armed)
+      return { arm: null, badge, detail: null, disarm: true };
     return {
       arm: null,
       badge,
       detail: `Armed by ${arm.armedBy ?? "arming user not recorded by the node"} at ${arm.armedAt ?? "arm time not recorded by the node"}${arm.reason === null ? "" : `: ${arm.reason}`}`,
       disarm: true,
     };
+  }
   const hint = DETAIL_HINT[arm.detail] ?? null;
   return {
     arm: { enabled: !arm.killSwitchActive, hint },
