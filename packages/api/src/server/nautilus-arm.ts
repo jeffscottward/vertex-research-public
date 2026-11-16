@@ -6,6 +6,7 @@ import { appContract } from "../contract.ts";
 import {
   NAUTILUS_ARM_STATEMENT,
   NAUTILUS_CONTAINER_STATES,
+  NautilusContainerLastKnownSchema,
   type NautilusArmChangeOutput,
   type NautilusArmStatusOutput,
   type NautilusNodeBadge,
@@ -74,6 +75,8 @@ const UpstreamStatusSchema = z
     container: z
       .object({
         health: z.enum(["healthy", "unhealthy", "starting"]).nullable(),
+        lastKnown: NautilusContainerLastKnownSchema.nullable().optional(),
+        since: z.string().max(40).nullable().optional(),
         state: z.enum(NAUTILUS_CONTAINER_STATES),
       })
       .strict(),
@@ -212,6 +215,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
   invalid_actor: "The node refused the operator id",
   invalid_reason: "The node refused the reason",
   kill_switch_active: "The kill switch is active; the node cannot be armed",
+  node_unreadable:
+    "The node container is not readable (docker error or more than one node container); nothing was changed",
   not_running: "The Nautilus node is not running",
   version_mismatch:
     "The running image version changed; reload the status and try again",

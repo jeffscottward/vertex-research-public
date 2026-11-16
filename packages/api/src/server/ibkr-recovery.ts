@@ -6,6 +6,7 @@ import { z } from "zod";
 import { appContract } from "../contract.ts";
 import {
   IBKR_RECOVERY_LOGIN_STATES,
+  IbkrRecoveryLastKnownSchema,
   IBKR_RECOVERY_REQUEST_STATES,
   IBKR_RECOVERY_TERMINAL_STATES,
   type IbkrRecoveryRequest,
@@ -71,7 +72,8 @@ const iso = z.string().max(40);
 
 const UpstreamRequestSchema = z
   .object({
-    actorId: z.string().max(64),
+    // null: a request restored from an older state file without an actor (not recorded).
+    actorId: z.string().max(64).nullable(),
     detail: z.string().max(200),
     finishedAt: iso.nullable(),
     recheck: z
@@ -89,6 +91,13 @@ const UpstreamRequestSchema = z
   })
   .strict();
 
+// The VPS cannot decide the login in these states (card vertex-status-b1-quantvps).
+const UNDECIDED_LOGIN_STATES: ReadonlySet<string> = new Set([
+  "no-login-evidence",
+  "gateway-unreadable",
+  "unknown",
+]);
+
 const UpstreamStatusSchema = z
   .object({
     cooldown: z
@@ -105,6 +114,7 @@ const UpstreamStatusSchema = z
         needsLogin: z.boolean(),
         reason: z.string().max(60),
         since: iso.nullable(),
+        lastKnown: IbkrRecoveryLastKnownSchema.nullable().optional(),
       })
       .strict(),
     generatedAt: iso,
@@ -253,7 +263,7 @@ const toRequest = (
   recheck: request.recheck,
   recheckAt: request.recheckAt,
   requestedAt: request.requestedAt,
-  requestedByYou: request.actorId === actorId,
+  requestedByYou: request.actorId !== null && request.actorId === actorId,
   requestId: request.requestId,
   scriptRunning: request.scriptRunning,
   state: request.state,
@@ -364,7 +374,8 @@ const auditResult = async (
       detail: request.detail,
       recoveryRequestId: request.requestId,
       requestedAt: request.requestedAt,
-      requestedBy: request.actorId,
+      // A request restored from an older VPS state file may have no actor: the field is left out.
+      ...(request.actorId === null ? {} : { requestedBy: request.actorId }),
       state: request.state,
     }
   );
@@ -424,7 +435,9 @@ const refusalBeforeSend = (
   if (!recoveryNeeded(upstream))
     return new IbkrRecoveryError(
       "NOT_NEEDED",
-      `The IBKR gateway login state is ${upstream.gateway.loginState}; no 2FA request is needed`
+      UNDECIDED_LOGIN_STATES.has(upstream.gateway.loginState)
+        ? `The IBKR gateway login state is ${upstream.gateway.loginState}; the login cannot be decided, so no 2FA request is sent`
+        : `The IBKR gateway login state is ${upstream.gateway.loginState}; no 2FA request is needed`
     );
   return null;
 };

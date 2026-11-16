@@ -340,6 +340,9 @@ describe("nautilusArm access", () => {
     expect(nodeBadge(running, null)).toBe("unknown");
     expect(nodeBadge({ health: null, state: "exited" }, null)).toBe("down");
     expect(nodeBadge({ health: null, state: "missing" }, null)).toBe("down");
+    expect(nodeBadge({ health: null, state: "docker-unreadable" }, null)).toBe(
+      "unknown"
+    );
     return expect(nodeBadge({ health: null, state: "unknown" }, null)).toBe(
       "unknown"
     );
@@ -374,6 +377,35 @@ describe("nautilusArm.status", () => {
       );
     const down = await clientFor().nautilusArm.status({});
     return expect(down.badge).toBe("down");
+  });
+
+  it("passes a docker-unreadable node with since and lastKnown through", async () => {
+    const container = {
+      health: null,
+      lastKnown: {
+        at: "2026-10-28T14:40:00Z",
+        since: "2026-10-28T09:00:00Z",
+        state: "running",
+      },
+      since: "2026-10-28T14:45:00Z",
+      state: "docker-unreadable",
+    };
+    routes.status = () =>
+      json(upstreamStatus({ arm: null, armError: "docker-error", container }));
+    const status = await clientFor().nautilusArm.status({});
+    expect(status.container).toEqual(container);
+    expect(status.armError).toBe("docker-error");
+    expect(status.badge).toBe("unknown");
+    routes.status = () =>
+      json(
+        upstreamStatus({
+          arm: null,
+          armError: "docker-error",
+          container: { health: null, state: "unknown" },
+        })
+      );
+    const old = await clientFor().nautilusArm.status({});
+    return expect(old.badge).toBe("unknown");
   });
 
   it("reports configuration, transport and schema failures", async () => {
@@ -559,6 +591,8 @@ describe("nautilusArm.arm", () => {
       invalid_actor: "The node refused the operator id",
       invalid_reason: "The node refused the reason",
       kill_switch_active: "The kill switch is active; the node cannot be armed",
+      node_unreadable:
+        "The node container is not readable (docker error or more than one node container); nothing was changed",
       not_running: "The Nautilus node is not running",
       version_mismatch:
         "The running image version changed; reload the status and try again",
