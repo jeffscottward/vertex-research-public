@@ -26,6 +26,7 @@ import {
   PapersAddInputSchema,
   PapersUpdateInputSchema,
 } from "./contracts/agent-ops.ts";
+import { STORAGE_NOT_CONFIGURED_MESSAGE } from "./server/agent-ops.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 
@@ -362,7 +363,11 @@ describe("agent ops oRPC procedures", () => {
   it("returns STORAGE_ERROR when the repositories are not wired", async () => {
     const client = clientFor(session("user-a"));
     await expectCode(client.agentOps.tasks.list({}), "STORAGE_ERROR", 503);
-    return await expectCode(client.papers.list({}), "STORAGE_ERROR", 503);
+    await expectCode(client.papers.list({}), "STORAGE_ERROR", 503);
+    // No repository: the message names configuration, not a database that did not answer.
+    return await expect(client.papers.list({})).rejects.toMatchObject({
+      message: STORAGE_NOT_CONFIGURED_MESSAGE,
+    });
   });
 
   it("shares workspace tasks across sessions: create, list, update, append event, get", async () => {

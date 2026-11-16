@@ -23784,7 +23784,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -26394,6 +26394,7 @@
                                 "reason": {
                                   "enum": [
                                     "no_bars",
+                                    "not_configured",
                                     "bad_bars",
                                     "outside_history",
                                     "too_few_decisions",
@@ -27345,7 +27346,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -29446,6 +29447,7 @@
                                     "reason": {
                                       "enum": [
                                         "no_bars",
+                                        "not_configured",
                                         "bad_bars",
                                         "outside_history",
                                         "too_few_decisions",
@@ -30555,7 +30557,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -33102,7 +33104,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -34091,7 +34093,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -37544,7 +37546,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -39711,7 +39713,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -40349,7 +40351,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -41078,7 +41080,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -41862,7 +41864,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -42589,7 +42591,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -43361,7 +43363,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -43961,7 +43963,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -44683,7 +44685,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -45389,7 +45391,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -46016,7 +46018,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -47051,7 +47053,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -49506,7 +49508,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -50542,7 +50544,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -51942,7 +51944,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -53916,7 +53918,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -54975,7 +54977,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -61875,7 +61877,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -62954,7 +62956,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -63588,7 +63590,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -94104,7 +94106,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -95247,7 +95249,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -96151,7 +96153,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -97292,7 +97294,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -98220,7 +98222,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -99144,7 +99146,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -100048,7 +100050,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -100952,7 +100954,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -102107,7 +102109,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -102729,7 +102731,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -116226,7 +116228,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -117574,7 +117576,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -118285,7 +118287,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -120008,7 +120010,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -122907,7 +122909,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR recovery service unavailable",
+                          "default": "IBKR recovery service did not answer; the request may not have been processed. Check the status before you retry.",
                           "type": "string"
                         },
                         "status": {
@@ -123592,7 +123594,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR recovery service unavailable",
+                          "default": "IBKR recovery service did not answer; the request may not have been processed. Check the status before you retry.",
                           "type": "string"
                         },
                         "status": {
@@ -127329,7 +127331,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -145514,7 +145516,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -146269,7 +146271,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -147057,7 +147059,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -147774,7 +147776,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -192186,7 +192188,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -193116,7 +193118,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -194303,7 +194305,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -195233,7 +195235,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -195865,7 +195867,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -196421,7 +196423,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage unavailable",
+                          "default": "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {

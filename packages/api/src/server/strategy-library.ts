@@ -29,6 +29,7 @@ import {
 } from "./agent-ops.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Operator strategy library. Every procedure uses requireOperator; agent keys reach it through the
 // handler scope list, and read keys may call only list and get. The repository owns all field,
@@ -54,7 +55,10 @@ const strategiesFor = (
   errors: unknown
 ): StrategyLibraryRepository => {
   const repository = context.repositories.strategyLibrary;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Strategy library"),
+    });
   return repository;
 };
 

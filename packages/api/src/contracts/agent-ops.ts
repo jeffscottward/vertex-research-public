@@ -739,6 +739,8 @@ export const RATING_EVALUATION_STRATEGY_KEYS = [
 ] as const;
 export const RATING_EVALUATION_UNAVAILABLE_REASONS = [
   "no_bars",
+  // This server has no market bar repository wired, so it never looked for bars.
+  "not_configured",
   "bad_bars",
   "outside_history",
   "too_few_decisions",
@@ -1306,7 +1308,8 @@ export const AGENT_OPS_API_ERRORS = {
   VALIDATION_ERROR: { status: 422, message: "Record validation failed" },
   STORAGE_ERROR: {
     status: 503,
-    message: "Agent operations storage unavailable",
+    message:
+      "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
   },
   UPSTREAM_ERROR: { status: 502, message: "Upstream metadata source failed" },
   NOT_CONFIGURED: {

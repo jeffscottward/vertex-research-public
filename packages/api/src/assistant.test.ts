@@ -2001,7 +2001,7 @@ describe("assistant confirm card procedures", () => {
     );
     expect(memory.actions).toHaveLength(1);
     expect(memory.actions[0]?.messageId).toBe(memory.messages.at(-1)?.id);
-    await expectCode(
+    const unwired = await expectCode(
       clientFor({
         actions: null,
         repository: memory.repository,
@@ -2011,6 +2011,9 @@ describe("assistant confirm card procedures", () => {
       }),
       "STORAGE_ERROR",
       503
+    );
+    expect(unwired.message).toBe(
+      "Assistant action storage is not configured on this server; nothing was saved. Set the database connection, then retry."
     );
     return expectCode(
       clientFor({
