@@ -254,7 +254,7 @@ class OwnedRuntimeTests(unittest.TestCase):
     # watchdog's IB Gateway API check fails 5 minutes in a row (the Sunday IBC auto-restart needs a
     # 2FA login) and once on recovery; read-only. Test: test_nautilus_health_alert.py.
     status_text_fix = {
-        "scripts/nautilus_health_alert.py": "692cbd9e6cc92e0e230ff2de90163fbbd7b99688ed500c44aeed559c2bc61bbc",
+        "scripts/nautilus_health_alert.py": "e30798e1fcf840ad6303bef388289a42ba56c181284c9b35ed1831a3471b3d2c",
     }
     # The live tree paired the new snapshot script with an old reader (TypeError on
     # market_values_timeout_seconds), so the 2FA readiness check always failed. The owned reader is

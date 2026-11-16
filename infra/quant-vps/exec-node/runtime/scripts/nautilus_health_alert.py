@@ -14,7 +14,7 @@ health file and the watchdog's ``/status`` (through ``docker exec``). It never
 starts, stops or arms the node or the gateway. Standard library only.
 
 It also alerts when the IB Gateway API stays unreachable for 5 checks in a row
-(card ibkr-drop-1845). Each Sunday the 23:45 UTC (18:45 ET) IBC auto-restart
+(card ibkr-drop-1845). Each Sunday the 23:45 UTC IBC auto-restart
 needs a full login with 2FA, and the gateway then waits at the login dialog
 until the owner asks for a 2FA push. Before this alert, nobody was told.
 """
@@ -275,19 +275,23 @@ def step(
 
 WATCHDOG_SERVICE = "watchdog"
 GATEWAY_FAILURE_THRESHOLD = 5  # checks, one per minute
+GATEWAY_CHECK_MAX_AGE_SECONDS = 180  # an older watchdog check means a stuck watchdog loop
 # Runs inside the watchdog container; prints the watchdog's own ib_gateway check as JSON.
 WATCHDOG_STATUS_PROBE = (
-    "import json,urllib.request;"
-    "d=json.load(urllib.request.urlopen('http://127.0.0.1:8081/status',timeout=10));"
+    "import json,os,urllib.request;"
+    "p=os.getenv('WATCHDOG_HEALTH_PORT','8081');"
+    "d=json.load(urllib.request.urlopen(f'http://127.0.0.1:{p}/status',timeout=10));"
     "print(json.dumps(d.get('checks',{}).get('ib_gateway')))"
 )
 GATEWAY_OWNER_STEP = (
-    "Owner step: Vertex Mission control, account card, press \"Send IBKR 2FA request\", "
+    "Owner step: on Vertex Mission control, account card, use the IBKR 2FA request button, "
     "then approve the IBKR push on your phone."
 )
 
 
-def gateway_check(run: Callable[..., Any] = subprocess.run) -> tuple[bool, str]:
+def gateway_check(
+    now: datetime, run: Callable[..., Any] = subprocess.run
+) -> tuple[bool, str]:
     """-> (ok, detail) from the watchdog's ib_gateway check. A watchdog that cannot be read is
     not ok: the gateway state cannot be verified."""
     unreadable = (False, "cannot verify: watchdog status not readable")
@@ -306,7 +310,7 @@ def gateway_check(run: Callable[..., Any] = subprocess.run) -> tuple[bool, str]:
             ],
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=10,
             check=False,
         )
         ids = [line for line in (listed.stdout or "").split() if line]
@@ -316,7 +320,7 @@ def gateway_check(run: Callable[..., Any] = subprocess.run) -> tuple[bool, str]:
             [DOCKER, "exec", ids[0], "python", "-c", WATCHDOG_STATUS_PROBE],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=15,
             check=False,
         )
     except (OSError, subprocess.SubprocessError):
@@ -332,6 +336,9 @@ def gateway_check(run: Callable[..., Any] = subprocess.run) -> tuple[bool, str]:
     detail = str(check.get("detail") or "no detail")
     if not check.get("required"):
         return True, f"not required by the watchdog ({detail})"
+    checked = _parse_time(check.get("checked_at"))
+    if checked is None or (now - checked).total_seconds() > GATEWAY_CHECK_MAX_AGE_SECONDS:
+        return False, f"cannot verify: watchdog gateway check stale ({check.get('checked_at')})"
     return bool(check.get("ok")), detail
 
 
@@ -353,8 +360,8 @@ def gateway_step(
         state["last_ok_at"] = stamp
         if state.get("alert_open"):
             text = (
-                "✅ IBKR gateway API (QuantVPS) reachable again. "
-                f"Unreachable since {state.get('incident_started_at')}."
+                f"✅ IBKR gateway API (QuantVPS) check passes again: {detail}. "
+                f"Failing since {state.get('incident_started_at')}."
             )
             if post(text):
                 state["alert_open"] = False
@@ -366,10 +373,20 @@ def gateway_step(
         state["incident_started_at"] = stamp
     if failures >= threshold and not state.get("alert_open"):
         last_ok = state.get("last_ok_at") or "none recorded"
+        if detail.startswith("cannot verify"):
+            text = (
+                "⚠️ IBKR gateway API (QuantVPS) cannot be verified since "
+                f"{state.get('incident_started_at')}: {detail}; {failures} checks in a row; "
+                f"last good check {last_ok}. Check: ssh quantvps docker ps --filter "
+                "label=com.docker.compose.service=watchdog"
+            )
+            if post(text):
+                state["alert_open"] = True
+            return state
         text = (
             f"⚠️ IBKR gateway API (QuantVPS) not reachable since {state.get('incident_started_at')}: "
             f"{detail}; {failures} failed checks in a row; last good check {last_ok}. "
-            "Likely cause: the IBC auto-restart (23:45 UTC, 18:45 ET) needs a full login; "
+            "Likely cause: the IBC auto-restart (23:45 UTC) needs a full login; "
             f"IBKR requires one each week. {GATEWAY_OWNER_STEP}"
         )
         if post(text):
@@ -397,7 +414,13 @@ def main(argv: list[str] | None = None) -> int:
 
     state_path = Path(args.state_file)
     state = step(load_state(state_path), check, now, post)
-    gateway_ok, gateway_detail = gateway_check()
+    if not args.dry_run:
+        # Saved first, so a slow gateway probe cannot cost the Nautilus alert its state.
+        save_state(state_path, state)
+    try:
+        gateway_ok, gateway_detail = gateway_check(now)
+    except Exception as exc:  # noqa: BLE001 - never let the gateway check stop the run
+        gateway_ok, gateway_detail = False, f"cannot verify: gateway check error {type(exc).__name__}"
     state["gateway"] = gateway_step(
         state.get("gateway") or {}, gateway_ok, gateway_detail, now, post
     )
