@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { IBKR_BUDGET_MINUTES } from "../../../scripts/research-lenses/history-bars.ts";
 
 // The rig runs the research-lens data jobs from an export of this repo, pushes their output to
 // QuantVPS, and the tailnet Caddy serves it. These tests keep the three files that must agree
@@ -70,14 +71,30 @@ describe("research-lens rig units", () => {
     );
   });
 
-  it("use the bun version the repo pins", () => {
+  it("allow the IBKR run budget plus 15 minutes for the other sources and the lock wait", () => {
+    for (const unit of [
+      "./vertex-rotation-matrix.service",
+      "./vertex-deep-value.service",
+    ]) {
+      const timeout = read(unit)
+        .split("\n")
+        .find((row) => row.startsWith("TimeoutStartSec="));
+      expect(timeout, unit).toBe(
+        `TimeoutStartSec=${IBKR_BUDGET_MINUTES * 60 + 900}`
+      );
+    }
+  });
+
+  it("run one job at a time under one lock, with the bun version the repo pins", () => {
     const pinned = JSON.parse(
       readFileSync(join(repoRoot, "package.json"), "utf8")
     ).engines.bun;
     for (const argv of [rotation, deepValue]) {
-      expect(argv[0]).toBe(
-        `%h/.local/share/mise/installs/bun/${pinned}/bin/bun`
-      );
+      expect(argv.slice(0, 3)).toEqual([
+        "/usr/bin/flock",
+        "%h/.local/share/vertex-research-lenses/jobs.lock",
+        `%h/.local/share/mise/installs/bun/${pinned}/bin/bun`,
+      ]);
     }
   });
 

@@ -22,7 +22,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now vertex-research-lenses-push.path vertex-rotation-matrix.timer vertex-deep-value.timer
 ```
 
-Optional `~/.config/vertex/research-lenses.env`: `VERTEX_RESEARCH_CONTACT_EMAIL` (SEC User-Agent contact) and `LENSES_BRANCH` (branch override).
+Optional `~/.config/vertex/research-lenses.env` (mode 0600): `VERTEX_RESEARCH_CONTACT_EMAIL` (SEC User-Agent contact), `LENSES_BRANCH` (branch override), and `VERTEX_HISTORY_URL` with `VERTEX_DEPLOY_STATUS_TOKEN` (IBKR daily bars for our names; without them Yahoo only) plus `LENS_IBKR_BUDGET_MINUTES` (default 75, 0 = IBKR off). See "IBKR first" in [`docs/vertex-rebuild/research-lenses.md`](../../../docs/vertex-rebuild/research-lenses.md#ibkr-first).
 
 On QuantVPS the route is `@lens_caller` in `infra/quant-vps/status/Caddyfile.tailnet`; the install scripts that render that template keep it. Set `VERTEX_RESEARCH_LENSES_URL` in the web app's private `.dev.vars`.
 

@@ -2462,7 +2462,7 @@
   },
   "sourcePins": {
     "packages/api/src/contracts/vertex.ts": "fbf398e006d9d9620702eb633cf3b08e727e517b06b2677b77b81768234cd2a8",
-    "packages/api/src/contracts/vertex-control.ts": "9f6211a55b3025d803f6fc947eefae9fa533e062205958f3c461b69d2854a52b",
+    "packages/api/src/contracts/vertex-control.ts": "1e6d7d0db8fc809159b95da16be35bee5311e8a7efea33d111e3d417b2a3b1ba",
     "packages/api/src/contracts/vertex-native-facts.ts": "23986e92b94ddac46a766f6b841d4ac51d2deaf2fda24c04dfe7092c528bb753",
     "packages/api/src/contracts/vertex-worker.ts": "b29af7c3a35f6f970b15db2bfd4b85f32c912d61649e14a0e1eb4526cd69b65a",
     "packages/api/src/contracts/vertex-worker-experiment.ts": "1ed0cf2122afce607582fb1847337b0c314cdcdfa41d241a1126ccc0d350a4e8",
