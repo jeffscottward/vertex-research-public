@@ -108,7 +108,7 @@ const fakeClient = (
       ? responses[endpoint]
       : ok({ data: {} })
   );
-  return { cooldownSeconds: () => 0, request };
+  return { cooldownSeconds: () => 0, freeStarts: () => 30, request };
 };
 
 // The rows of EXPIRY.

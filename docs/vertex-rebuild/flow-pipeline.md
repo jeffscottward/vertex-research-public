@@ -155,6 +155,26 @@ limit of 240 per 60 s. A refused request stops the run's paging; the gap stays f
 If the gap list cannot be read (for example before 0053 is applied), the options sample is
 `unavailable` while the session is open; after the close the run is skipped ("gaps unavailable").
 
+Caller reserve: the collector uses a view of the shared QuantData client
+(`withCallerReserve`, `FLOW_QUANTDATA_CALLER_RESERVE = 6`). Its requests (option pages, GEX) are
+refused with the reason `reserved` once only 6 of the 30 starts per 60 s are left, so two `/charts`
+option reads of 3 requests each always fit, across runs. Before each QuantData source the run
+compares the free starts beyond the reserve with the source's worst case (8 for options, 3 for GEX);
+when they do not fit, the run entry is `skipped` with "budget: <free> QuantData starts free beyond
+the reserve of 6, <n> needed" and no sample is stored, so the source stays due. Seed runs keep this
+check. One GEX estimate runs per run: after one symbol ran it, the others are `skipped` ("staggered:
+GEX ran for another symbol in this run") and stay due.
+
+Storage errors: a repository error inside one source becomes that source's sample (`unavailable`,
+"storage: write failed (<error class>)", no SQL text), and the run goes on with the next source. When
+the sample write fails too, the run entry is still returned. An error while reading the last samples
+or while pruning ends the run.
+
+Budget line: the collect output carries `budget` (free QuantData starts beyond the reserve at the
+end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6, the run time), and
+`vertex:flow:tick` prints it after the run lines:
+`budget quantdata_free=17 reserve=6 ibkr=2/6 run=41s` (`unread` when a value was not read).
+
 ## Known gaps
 
 - Options totals cover the stored prints. A busy window that is still in `flow_option_gaps` (see
@@ -171,7 +191,8 @@ If the gap list cannot be read (for example before 0053 is applied), the options
 QuantData terms (quantdata.us/legal/terms): personal use, no redistribution. `/flow` is operator-only
 on the tailnet and nothing is redistributed. QuantData allows 240 requests per 60 s per account,
 shared with `/charts` and the market-watch bot; the shared client keeps its own limits
-(`packages/api/src/server/quantdata-client.ts`). No new paid provider was added.
+(`packages/api/src/server/quantdata-client.ts`), and the collector's caller reserve keeps 6 of the
+client's 30 starts per 60 s free for `/charts`. No new paid provider was added.
 
 ## Deploy
 

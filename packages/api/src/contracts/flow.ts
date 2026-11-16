@@ -187,6 +187,19 @@ export const FlowCollectRunSchema = z
   })
   .strict();
 
+/** The budget line of one collect run (scripts/flow/tick.ts prints it). */
+export const FlowCollectBudgetSchema = z
+  .object({
+    /** Free QuantData starts beyond the caller reserve at the end of the run; null without QuantData. */
+    quantDataFree: count.nullable(),
+    quantDataReserve: count,
+    /** IBKR history requests in the last 120 s; null when the run did not read the window. */
+    ibkrRecent: count.nullable(),
+    ibkrLimit: count,
+    runSeconds: count,
+  })
+  .strict();
+
 export const FlowCollectOutputSchema = z
   .object({
     at: timestamp,
@@ -194,6 +207,7 @@ export const FlowCollectOutputSchema = z
     busy: z.boolean(),
     dryRun: z.boolean(),
     runs: z.array(FlowCollectRunSchema),
+    budget: FlowCollectBudgetSchema,
     /** Rows removed by the retention rule (per-table retention). */
     pruned: count,
   })
@@ -446,6 +460,7 @@ export type FlowCollectInput = z.input<typeof FlowCollectInputSchema>;
 export type FlowCollectParsedInput = z.output<typeof FlowCollectInputSchema>;
 export type FlowCollectOutput = z.infer<typeof FlowCollectOutputSchema>;
 export type FlowCollectRun = z.infer<typeof FlowCollectRunSchema>;
+export type FlowCollectBudget = z.infer<typeof FlowCollectBudgetSchema>;
 export type FlowSnapshotInput = z.input<typeof FlowSnapshotInputSchema>;
 export type FlowSnapshotParsedInput = z.output<typeof FlowSnapshotInputSchema>;
 export type FlowSnapshot = z.infer<typeof FlowSnapshotSchema>;

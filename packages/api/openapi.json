@@ -106157,6 +106157,58 @@
                       "maxLength": 40,
                       "type": "string"
                     },
+                    "budget": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ibkrLimit": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "ibkrRecent": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantDataFree": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantDataReserve": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "runSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "quantDataFree",
+                        "quantDataReserve",
+                        "ibkrRecent",
+                        "ibkrLimit",
+                        "runSeconds"
+                      ],
+                      "type": "object"
+                    },
                     "busy": {
                       "type": "boolean"
                     },
@@ -106237,6 +106289,7 @@
                     "busy",
                     "dryRun",
                     "runs",
+                    "budget",
                     "pruned"
                   ],
                   "type": "object"

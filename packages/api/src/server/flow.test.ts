@@ -188,6 +188,13 @@ describe("flow.collect", () => {
     const first = client.collect({ dryRun: true });
     await expect(client.collect({ dryRun: true })).resolves.toEqual({
       at: OPEN.toISOString(),
+      budget: {
+        ibkrLimit: 6,
+        ibkrRecent: null,
+        quantDataFree: null,
+        quantDataReserve: 6,
+        runSeconds: 0,
+      },
       busy: true,
       dryRun: true,
       pruned: 0,
@@ -290,6 +297,14 @@ describe("flow.collect", () => {
     expect(urls.some((url) => url.includes("/ticks"))).toBe(true);
     expect(urls.some((url) => url.includes("/depth"))).toBe(true);
     expect(quantDataFetch).toHaveBeenCalled();
+    // Every collector request (option pages and GEX) went through the reserve view of the shared client.
+    expect(output.budget).toEqual({
+      ibkrLimit: 6,
+      ibkrRecent: expect.any(Number),
+      quantDataFree: 24 - quantDataFetch.mock.calls.length,
+      quantDataReserve: 6,
+      runSeconds: 0,
+    });
   });
 });
 

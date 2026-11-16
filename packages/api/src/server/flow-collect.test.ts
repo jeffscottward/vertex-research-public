@@ -274,6 +274,7 @@ const fakeQuantData = (results: QuantDataResult[] = [page([optionRow()])]) => {
   const queue = [...results];
   return {
     cooldownSeconds: () => 0,
+    freeStarts: vi.fn(() => 24),
     request: vi.fn<QuantDataClient["request"]>(
       async () => queue.shift() ?? page([])
     ),
@@ -288,6 +289,7 @@ type Deps = Omit<FlowCollectDeps, "repository" | "quantData"> & {
 const depsWith = (overrides: Partial<Deps> = {}): Deps => ({
   analytics: vi.fn(async () => analyticsOutput()),
   depth: vi.fn(async () => depthOutput()),
+  elapsedMs: () => 1500,
   now: OPEN,
   pacing: vi.fn(async () => ({ backoffSeconds: 0, recentRequests: 0 })),
   pruneDue: false,
@@ -395,8 +397,13 @@ describe("runFlowCollect seed (operator backfill)", () => {
     });
     const { run } = await collect(deps, { seed: true });
     for (const symbol of ["SPY", "ES"] as const)
-      for (const source of ["depth", "ticks", "options", "gex"] as const)
+      for (const source of ["depth", "ticks", "options"] as const)
         expect(run(symbol, source).status).not.toBe("skipped");
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(run("ES", "gex")).toMatchObject({
+      message: "staggered: GEX ran for another symbol in this run",
+      status: "skipped",
+    });
     expect(run("SPY", "ticks").status).toBe("ok");
     expect(run("ES", "ticks").status).toBe("ok");
     expect(deps.ticks).toHaveBeenCalledTimes(2);
@@ -989,7 +996,11 @@ const flowSource = (times: readonly number[], size = 2) => {
     );
   });
   return {
-    client: { cooldownSeconds: () => 0, request } satisfies QuantDataClient,
+    client: {
+      cooldownSeconds: () => 0,
+      freeStarts: vi.fn(() => 24),
+      request,
+    } satisfies QuantDataClient,
     ids: rows.map((row) => row.id),
     request,
   };
@@ -1258,9 +1269,11 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
     const repository = fakeRepository([], undefined, gaps);
     repository.insertOptionPrints.mockRejectedValueOnce(new Error("db down"));
     const deps = depsWith({ quantData: source.client, repository });
-    await expect(collect(deps, { symbols: ["SPY"] })).rejects.toThrow(
-      "db down"
-    );
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options")).toMatchObject({
+      message: "storage: write failed (Error)",
+      status: "unavailable",
+    });
     expect(gaps.rows()).toHaveLength(1);
   });
 
@@ -1645,7 +1658,6 @@ describe("runFlowCollect storage", () => {
       "SPY:options:ok",
       "ES:options:empty",
       "SPY:gex:ok",
-      "ES:gex:ok",
     ]);
     expect(output.at).toBe(OPEN.toISOString());
   });
@@ -1678,5 +1690,113 @@ describe("runFlowCollect storage", () => {
     );
     expect(deps.repository.latestSamples).toHaveBeenCalledWith("ES");
     expect(deps.repository.latestSamples).toHaveBeenCalledWith("SPY");
+  });
+});
+
+describe("runFlowCollect storage errors and the run budget", () => {
+  it("records a storage error as a sample and continues with the next source", async () => {
+    const deps = depsWith();
+    deps.repository.upsertMinutes.mockRejectedValueOnce(
+      new TypeError("relation missing: secret sql")
+    );
+    const { output, run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks")).toMatchObject({
+      events: 0,
+      items: 0,
+      message: "storage: write failed (TypeError)",
+      status: "unavailable",
+    });
+    expect(JSON.stringify(output)).not.toContain("secret sql");
+    expect(run("SPY", "options").status).toBe("ok");
+    expect(recorded(deps)).toContain("SPY:ticks:unavailable");
+  });
+
+  it("names a thrown value that is not an error by its type", async () => {
+    const deps = depsWith();
+    deps.repository.upsertMinutes.mockRejectedValueOnce("plain text");
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks").message).toBe("storage: write failed (string)");
+  });
+
+  it("returns the run entry when the sample write also fails", async () => {
+    const deps = depsWith();
+    deps.repository.recordSample.mockRejectedValue(new Error("db down"));
+    const { output } = await collect(deps, { symbols: ["SPY"] });
+    expect(output.runs.map((row) => row.source)).toEqual([
+      "depth",
+      "ticks",
+      "options",
+      "gex",
+    ]);
+  });
+
+  it("ends the run when the sample lookup fails", async () => {
+    const deps = depsWith();
+    deps.repository.latestSamples.mockRejectedValueOnce(new Error("db down"));
+    await expect(collect(deps)).rejects.toThrow("db down");
+  });
+
+  it("runs GEX for one symbol per run", async () => {
+    const deps = depsWith();
+    const { run } = await collect(deps);
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(run("ES", "gex")).toMatchObject({
+      message: "staggered: GEX ran for another symbol in this run",
+      status: "skipped",
+    });
+    expect(deps.analytics).toHaveBeenCalledTimes(1);
+    expect(recorded(deps)).not.toContain("ES:gex:skipped");
+  });
+
+  it("skips a source whose worst case does not fit in the free starts and stores no sample for it", async () => {
+    const quantData = fakeQuantData();
+    quantData.freeStarts.mockReturnValue(7);
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options")).toMatchObject({
+      message:
+        "budget: 7 QuantData starts free beyond the reserve of 6, 8 needed",
+      status: "skipped",
+    });
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(quantData.request).not.toHaveBeenCalled();
+    expect(recorded(deps)).not.toContain("SPY:options:skipped");
+    quantData.freeStarts.mockReturnValue(2);
+    const second = await collect(depsWith({ quantData }), { symbols: ["SPY"] });
+    expect(second.run("SPY", "gex").message).toBe(
+      "budget: 2 QuantData starts free beyond the reserve of 6, 3 needed"
+    );
+  });
+
+  it("applies the free-start check on a seed run", async () => {
+    const quantData = fakeQuantData();
+    quantData.freeStarts.mockReturnValue(0);
+    const deps = depsWith({
+      now: new Date("2026-11-07T15:00:00.000Z"),
+      quantData,
+    });
+    const { run } = await collect(deps, { seed: true, symbols: ["SPY"] });
+    expect(run("SPY", "options").message).toBe(
+      "budget: 0 QuantData starts free beyond the reserve of 6, 8 needed"
+    );
+    expect(run("SPY", "gex").status).toBe("skipped");
+  });
+
+  it("reports the free starts, the reserve, the IBKR window and the run time", async () => {
+    const { output } = await collect(depsWith({ elapsedMs: () => 12_600 }));
+    expect(output.budget).toEqual({
+      ibkrLimit: 6,
+      ibkrRecent: 2,
+      quantDataFree: 24,
+      quantDataReserve: 6,
+      runSeconds: 13,
+    });
+    const closed = await collect(
+      depsWith({ now: new Date("2026-11-08T15:00:00.000Z"), quantData: null })
+    );
+    expect(closed.output.budget).toMatchObject({
+      ibkrRecent: null,
+      quantDataFree: null,
+    });
   });
 });

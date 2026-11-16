@@ -14,6 +14,7 @@ import type { ApiContext } from "./context.ts";
 import {
   FLOW_DEPTH_ROWS,
   FLOW_PRUNE_INTERVAL_MS,
+  FLOW_QUANTDATA_CALLER_RESERVE,
   FLOW_TICKS_COUNT,
   runFlowCollect,
 } from "./flow-collect.ts";
@@ -28,6 +29,7 @@ import {
   buildOptionsAnalytics,
   quantDataClientFor,
 } from "./options-analytics.ts";
+import { withCallerReserve } from "./quantdata-client.ts";
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -81,7 +83,15 @@ const collect = api.flow.collect
     const repository = repositoryFor(context, failures);
     const history = context.marketHistory ?? null;
     const quantData = context.quantData ?? null;
-    const client = quantData === null ? null : quantDataClientFor(quantData);
+    // The collector's view keeps FLOW_QUANTDATA_CALLER_RESERVE starts free in the shared client, so
+    // /charts option reads (the shared client without the view) always find room.
+    const client =
+      quantData === null
+        ? null
+        : withCallerReserve(
+            quantDataClientFor(quantData),
+            FLOW_QUANTDATA_CALLER_RESERVE
+          );
     const now = clock();
     if (
       collectingSince !== null &&
@@ -89,6 +99,13 @@ const collect = api.flow.collect
     )
       return {
         at: now.toISOString(),
+        budget: {
+          ibkrLimit: 6,
+          ibkrRecent: null,
+          quantDataFree: null,
+          quantDataReserve: FLOW_QUANTDATA_CALLER_RESERVE,
+          runSeconds: 0,
+        },
         busy: true,
         dryRun: input.dryRun,
         pruned: 0,
@@ -113,6 +130,7 @@ const collect = api.flow.collect
             ...instrumentInput(instrument),
             rows: FLOW_DEPTH_ROWS,
           }),
+        elapsedMs: () => clock().getTime() - started,
         now,
         pacing: () => fetchMarketHistoryPacing(history),
         pruneDue,

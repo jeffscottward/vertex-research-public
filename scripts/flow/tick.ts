@@ -5,7 +5,8 @@
 // and stores features and events. --dry-run fetches and computes only: nothing is stored. --seed is an
 // operator backfill (ignores sessions and due times, options look-back 72 h; IBKR budget checks still
 // apply), so a closed market shows its last session. Each run
-// prints one line per symbol and source (the journal is the record of IBKR sampling). The key is
+// prints one line per symbol and source (the journal is the record of IBKR sampling), then one budget
+// line: free QuantData starts beyond the caller reserve, the IBKR window and the run time. The key is
 // never printed. Doc: docs/vertex-rebuild/flow-pipeline.md.
 
 import { z } from "zod";
@@ -23,6 +24,16 @@ const CollectSchema = z.object({
     at: z.string(),
     busy: z.boolean(),
     pruned: z.number(),
+    // Optional, so the script also works against the previous app after a rollback.
+    budget: z
+      .object({
+        quantDataFree: z.number().nullable(),
+        quantDataReserve: z.number(),
+        ibkrRecent: z.number().nullable(),
+        ibkrLimit: z.number(),
+        runSeconds: z.number(),
+      })
+      .optional(),
     runs: z.array(
       z.object({
         events: z.number(),
@@ -106,7 +117,7 @@ const tick = async (io: FlowTickIo): Promise<string[]> => {
         .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
         .join("; ")}`
     );
-  const { at, busy, pruned, runs } = parsed.data.json;
+  const { at, budget, busy, pruned, runs } = parsed.data.json;
   if (busy) return [`flow collect ${at}: another run is still active; skipped`];
   return [
     `flow collect ${at}: ${runs.length} run(s), pruned ${pruned}`,
@@ -118,6 +129,11 @@ const tick = async (io: FlowTickIo): Promise<string[]> => {
         (run) =>
           `${run.symbol} ${run.source} ${run.status} items=${run.items} events=${run.events}${run.message ? ` ${run.message}` : ""}`
       ),
+    ...(budget === undefined
+      ? []
+      : [
+          `budget quantdata_free=${budget.quantDataFree ?? "unread"} reserve=${budget.quantDataReserve} ibkr=${budget.ibkrRecent ?? "unread"}/${budget.ibkrLimit} run=${budget.runSeconds}s`,
+        ]),
   ];
 };
 

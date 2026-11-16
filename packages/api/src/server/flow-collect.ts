@@ -92,6 +92,21 @@ export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
   flow_option_prints: 14,
   flow_samples: 14,
 };
+/**
+ * Collector calls leave 6 of the shared client's 30 starts per 60 s free, so two /charts option reads
+ * of 3 requests each always fit; the client holds the window (withCallerReserve).
+ */
+export const FLOW_QUANTDATA_CALLER_RESERVE = 6;
+/** One GEX estimate sends three QuantData requests; one estimate runs per run. */
+const FLOW_GEX_REQUESTS_PER_RUN = 3;
+/** QuantData worst case of one source for one symbol; a source with less free starts is skipped. */
+const FLOW_QUANTDATA_SOURCE_MAX: Readonly<Partial<Record<FlowSource, number>>> =
+  {
+    gex: FLOW_GEX_REQUESTS_PER_RUN,
+    options: FLOW_OPTION_RUN_PAGES_MAX,
+  };
+/** The IBKR history window of vertex-history: 6 requests per 120 s. */
+const FLOW_IBKR_LIMIT = 6;
 /** The caller prunes at most once per this interval (deps.pruneDue). */
 export const FLOW_PRUNE_INTERVAL_MS = 3_600_000;
 
@@ -107,6 +122,8 @@ export type FlowCollectDeps = Readonly<{
   analytics:
     | ((ticker: FlowOptionTicker) => Promise<OptionsAnalyticsOutput>)
     | null;
+  /** Milliseconds since the run started (the budget line). */
+  elapsedMs: () => number;
 }>;
 
 type Run = FlowCollectOutput["runs"][number];
@@ -130,6 +147,8 @@ interface RunState {
   readonly prices: Map<FlowSymbol, number>;
   /** Operator backfill: no session or due checks, longer options look-back. */
   readonly seed: boolean;
+  /** true once one symbol ran its GEX estimate in this run. */
+  gexDone: boolean;
 }
 
 const sampleKey = (symbol: FlowSymbol, source: FlowSource) =>
@@ -794,22 +813,41 @@ const COLLECTORS: Readonly<
   ticks: collectTicks,
 };
 
+/** Why a source must wait for this run (GEX stagger, QuantData starts), or null. */
+const runGate = (state: RunState, source: FlowSource): Attempt | null => {
+  if (source === "gex" && state.gexDone)
+    return notDue("staggered: GEX ran for another symbol in this run");
+  const needed = FLOW_QUANTDATA_SOURCE_MAX[source];
+  const client = state.deps.quantData;
+  if (needed === undefined || client === null) return null;
+  const free = client.freeStarts();
+  if (free >= needed) return null;
+  return notDue(
+    `budget: ${free} QuantData starts free beyond the reserve of ${FLOW_QUANTDATA_CALLER_RESERVE}, ${needed} needed`
+  );
+};
+
 const attempt = async (
   state: RunState,
   instrument: FlowInstrument,
   source: FlowSource
 ): Promise<Attempt> => {
-  if (state.seed) return await COLLECTORS[source](state, instrument);
-  const open = flowSessionOpen(source, instrument.symbol, state.deps.now);
-  // Options keep reading their unfetched gaps after the close; without gaps collectOptions answers
-  // "market closed" before any QuantData request.
-  if (!open && source !== "options") return notDue("market closed");
-  const age = secondsSince(
-    state,
-    state.last.get(sampleKey(instrument.symbol, source))
-  );
-  if (age < FLOW_DUE_SECONDS[source])
-    return notDue(`not due (last attempt ${Math.round(age)} s ago)`);
+  const open =
+    state.seed || flowSessionOpen(source, instrument.symbol, state.deps.now);
+  if (!state.seed) {
+    // Options keep reading their unfetched gaps after the close; without gaps collectOptions answers
+    // "market closed" before any QuantData request.
+    if (!open && source !== "options") return notDue("market closed");
+    const age = secondsSince(
+      state,
+      state.last.get(sampleKey(instrument.symbol, source))
+    );
+    if (age < FLOW_DUE_SECONDS[source])
+      return notDue(`not due (last attempt ${Math.round(age)} s ago)`);
+  }
+  const held = runGate(state, source);
+  if (held !== null) return held;
+  if (source === "gex") state.gexDone = true;
   return open
     ? await COLLECTORS[source](state, instrument)
     : await collectOptions(state, instrument, false);
@@ -843,7 +881,30 @@ const recordSample = async (
     status: result.status,
     symbol,
   };
-  await state.deps.repository.recordSample(sample);
+  try {
+    await state.deps.repository.recordSample(sample);
+  } catch {
+    // The run entry still reports the attempt; the next run retries the source.
+  }
+};
+
+/** A repository error of one source becomes its sample; the run goes on with the next source. */
+const isolated = async (
+  state: RunState,
+  instrument: FlowInstrument,
+  source: FlowSource
+): Promise<Attempt> => {
+  try {
+    return await attempt(state, instrument, source);
+  } catch (error) {
+    return {
+      events: 0,
+      items: 0,
+      message: `storage: write failed (${error instanceof Error ? error.name : typeof error})`,
+      record: true,
+      status: "unavailable",
+    };
+  }
 };
 
 const pruneIfDue = async (state: RunState): Promise<number> => {
@@ -873,13 +934,14 @@ export const runFlowCollect = async (
     dryRun: input.dryRun,
     last: await lastAttempts(deps.repository, FLOW_SYMBOLS),
     pacing: undefined,
+    gexDone: false,
     prices: new Map(),
     seed: input.seed,
   };
   const runs: Run[] = [];
   for (const source of SOURCE_ORDER)
     for (const symbol of symbols) {
-      const result = await attempt(state, FLOW_INSTRUMENTS[symbol], source);
+      const result = await isolated(state, FLOW_INSTRUMENTS[symbol], source);
       await recordSample(state, symbol, source, result);
       runs.push({
         events: result.events,
@@ -890,11 +952,19 @@ export const runFlowCollect = async (
         symbol,
       });
     }
+  const pruned = await pruneIfDue(state);
   return {
     at: deps.now.toISOString(),
+    budget: {
+      ibkrLimit: FLOW_IBKR_LIMIT,
+      ibkrRecent: state.pacing?.recentRequests ?? null,
+      quantDataFree: deps.quantData?.freeStarts() ?? null,
+      quantDataReserve: FLOW_QUANTDATA_CALLER_RESERVE,
+      runSeconds: Math.round(deps.elapsedMs() / 1000),
+    },
     busy: false,
     dryRun: input.dryRun,
-    pruned: await pruneIfDue(state),
+    pruned,
     runs,
   };
 };
