@@ -278,6 +278,7 @@ describe("stage-runtime.sh", () => {
     expect(low.status).toBe(3);
     expect(low.stdout).toContain("MiB free on QuantVPS");
     expect(low.stdout).toContain("owner decision");
+    expect(low.stdout).toContain("prune-runtime-backups.sh --apply");
     // A refusal changes nothing on the target: the earlier stage is still there.
     expect(low.calls).toEqual(["checkout", "space"]);
     expect(
