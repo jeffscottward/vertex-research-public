@@ -569,7 +569,6 @@ const DatasetPanels = ({
   </div>
 );
 
-/** One tab: StickyTabs mounts only the open tab, so each opening reads its dataset afresh. */
 const RowsTable = ({
   label,
   rows,
@@ -672,7 +671,7 @@ const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
           <RowsTable label="Nearest pivots" rows={view.pivots.rows} />
           <details className="px-4 py-2">
             <summary className="min-h-11 cursor-pointer content-center font-medium">
-              All pivots of the last 60 sessions ({view.pivots.items.length})
+              {view.pivots.listLabel}
             </summary>
             <ul className="space-y-1 pb-2">
               {view.pivots.items.map((pivot) => (
@@ -716,10 +715,11 @@ const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
               price first)
             </summary>
             <ul className="space-y-0.5 pb-2" data-technicals-bins="">
-              {view.volumeProfile.bins.map((bin) => (
+              {view.volumeProfile.bins.map((bin, index) => (
                 <li
                   className="grid grid-cols-[minmax(0,10rem)_1fr] items-center gap-2 text-xs"
-                  key={bin.range}
+                  // Bins are fixed by position (highest price first).
+                  key={index}
                 >
                   <span className="tabular-nums">{bin.range}</span>
                   <span className="flex items-center gap-2">
@@ -781,6 +781,7 @@ const TechnicalsPanels = ({
   );
 };
 
+/** One tab: StickyTabs mounts only the open tab, so each opening reads its dataset afresh. */
 const DatasetTab = ({
   dataset,
   gateway,

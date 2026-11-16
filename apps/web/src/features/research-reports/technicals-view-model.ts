@@ -46,6 +46,7 @@ export type TechnicalsView = Readonly<{
   pivots: Readonly<{
     rows: readonly TechnicalsRow[];
     items: readonly PivotRowView[];
+    listLabel: string;
   }> | null;
   fibonacci: Readonly<{
     heading: string;
@@ -61,19 +62,34 @@ export type TechnicalsView = Readonly<{
 
 const UNAVAILABLE = "Unavailable";
 const grouped = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
-const price = new Intl.NumberFormat("en-US", {
+const percent = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
   minimumFractionDigits: 2,
 });
+
+/**
+ * Price decimals from the report's own price level, so instruments that trade near 1 (FX-like
+ * futures) or below 1 keep their levels and bins apart: 2 decimals from 10, 4 from 1, else 6.
+ */
+export const priceFormatFor = (reference: number | null): Intl.NumberFormat => {
+  const level = Math.abs(reference ?? 100);
+  const digits = level >= 10 ? 2 : level >= 1 ? 4 : 6;
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
+};
 const oneDecimal = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
   minimumFractionDigits: 1,
 });
 
-const formatPrice = (value: number | null): string =>
-  value === null ? UNAVAILABLE : price.format(value);
+const formatPrice = (
+  prices: Intl.NumberFormat,
+  value: number | null
+): string => (value === null ? UNAVAILABLE : prices.format(value));
 const signedPct = (value: number): string =>
-  `${value > 0 ? "+" : ""}${price.format(value)}%`;
+  `${value > 0 ? "+" : ""}${percent.format(value)}%`;
 
 const TREND_CHECK_LABELS: Readonly<
   Record<ResearchReportTrendCheck["key"], string>
@@ -120,29 +136,44 @@ const checkView = (data: ResearchReportTechnicals): TechnicalsView["check"] => {
   };
 };
 
-const indicatorRows = (data: ResearchReportTechnicals): TechnicalsRow[] => {
+const indicatorRows = (
+  data: ResearchReportTechnicals,
+  prices: Intl.NumberFormat
+): TechnicalsRow[] => {
   const { stored } = data;
   const close = stored.latestClose;
   const atrPct =
     stored.atr14 !== null && close !== null && close > 0
-      ? `${price.format((100 * stored.atr14) / close)}% of the close`
+      ? `${percent.format((100 * stored.atr14) / close)}% of the close`
       : null;
   const slope = stored.sma200Slope;
   const range = stored.range52Week;
   const high = stored.maximumObservedHigh;
   return [
-    { detail: stored.asOf, label: "Close", value: formatPrice(close) },
+    { detail: stored.asOf, label: "Close", value: formatPrice(prices, close) },
     {
       detail: "Wilder, 14 sessions",
       label: "RSI 14",
       value:
         stored.rsi14 === null ? UNAVAILABLE : oneDecimal.format(stored.rsi14),
     },
-    { detail: atrPct, label: "ATR 14", value: formatPrice(stored.atr14) },
-    { detail: null, label: "SMA 20", value: formatPrice(stored.sma20) },
-    { detail: null, label: "SMA 50", value: formatPrice(stored.sma50) },
-    { detail: null, label: "SMA 150", value: formatPrice(stored.sma150) },
-    { detail: null, label: "SMA 200", value: formatPrice(stored.sma200) },
+    {
+      detail: atrPct,
+      label: "ATR 14",
+      value: formatPrice(prices, stored.atr14),
+    },
+    { detail: null, label: "SMA 20", value: formatPrice(prices, stored.sma20) },
+    { detail: null, label: "SMA 50", value: formatPrice(prices, stored.sma50) },
+    {
+      detail: null,
+      label: "SMA 150",
+      value: formatPrice(prices, stored.sma150),
+    },
+    {
+      detail: null,
+      label: "SMA 200",
+      value: formatPrice(prices, stored.sma200),
+    },
     {
       detail:
         slope === null
@@ -156,17 +187,17 @@ const indicatorRows = (data: ResearchReportTechnicals): TechnicalsRow[] => {
               .filter((part) => part !== null)
               .join(", ") || null,
       label: "SMA 200 change, 20 sessions",
-      value: slope === null ? UNAVAILABLE : price.format(slope.change),
+      value: slope === null ? UNAVAILABLE : prices.format(slope.change),
     },
     {
       detail: range?.lowDate ?? null,
       label: "52-week low",
-      value: formatPrice(range?.low ?? null),
+      value: formatPrice(prices, range?.low ?? null),
     },
     {
       detail: range?.highDate ?? null,
       label: "52-week high",
-      value: formatPrice(range?.high ?? null),
+      value: formatPrice(prices, range?.high ?? null),
     },
     {
       detail:
@@ -181,43 +212,58 @@ const indicatorRows = (data: ResearchReportTechnicals): TechnicalsRow[] => {
               .filter((part) => part !== null)
               .join(", ") || null,
       label: "Maximum observed high",
-      value: formatPrice(high?.price ?? null),
+      value: formatPrice(prices, high?.price ?? null),
     },
   ];
 };
 
-const pivotText = (pivot: ResearchReportPivot | null): string =>
+const pivotText = (
+  prices: Intl.NumberFormat,
+  pivot: ResearchReportPivot | null,
+  sessions: number
+): string =>
   pivot === null
-    ? "None in the last 60 sessions"
-    : `${price.format(pivot.price)} (${pivot.date})`;
+    ? `None in the last ${sessions} sessions`
+    : `${prices.format(pivot.price)} (${pivot.date})`;
 
 const pivotsView = (
-  pivots: NonNullable<ResearchReportTechnicals["pivots"]>
+  pivots: NonNullable<ResearchReportTechnicals["pivots"]>,
+  prices: Intl.NumberFormat
 ): NonNullable<TechnicalsView["pivots"]> => ({
   items: [...pivots.items].reverse().map((pivot) => ({
     confirmedOn: pivot.confirmedOn,
     date: pivot.date,
     kind: pivot.kind === "support" ? "Support" : "Resistance",
-    price: price.format(pivot.price),
+    price: prices.format(pivot.price),
   })),
+  listLabel: `All pivots of the last ${pivots.lookbackSessions} sessions (${pivots.items.length})`,
   rows: [
     {
       detail: "Newest swing low below the close",
       label: "Support pivot",
-      value: pivotText(pivots.candidateSupport),
+      value: pivotText(
+        prices,
+        pivots.candidateSupport,
+        pivots.lookbackSessions
+      ),
     },
     {
       detail: "Newest swing high above the close",
       label: "Resistance pivot",
-      value: pivotText(pivots.candidateResistance),
+      value: pivotText(
+        prices,
+        pivots.candidateResistance,
+        pivots.lookbackSessions
+      ),
     },
   ],
 });
 
 const fibonacciView = (
-  fibonacci: NonNullable<ResearchReportTechnicals["fibonacci"]>
+  fibonacci: NonNullable<ResearchReportTechnicals["fibonacci"]>,
+  prices: Intl.NumberFormat
 ): NonNullable<TechnicalsView["fibonacci"]> => ({
-  heading: `${fibonacci.direction === "up" ? "Up" : "Down"} swing over ${fibonacci.window} sessions: low ${price.format(fibonacci.swingLow.price)} (${fibonacci.swingLow.date}), high ${price.format(fibonacci.swingHigh.price)} (${fibonacci.swingHigh.date}).`,
+  heading: `${fibonacci.direction === "up" ? "Up" : "Down"} swing over ${fibonacci.window} sessions: low ${prices.format(fibonacci.swingLow.price)} (${fibonacci.swingLow.date}), high ${prices.format(fibonacci.swingHigh.price)} (${fibonacci.swingHigh.date}).`,
   rows: fibonacci.levels.map((level) => ({
     mark:
       level.ratio === fibonacci.nearestBelow?.ratio
@@ -225,7 +271,7 @@ const fibonacciView = (
         : level.ratio === fibonacci.nearestAbove?.ratio
           ? "Nearest above the close"
           : null,
-    price: price.format(level.price),
+    price: prices.format(level.price),
     ratio: `${oneDecimal.format(level.ratio * 100)}%`,
   })),
 });
@@ -237,7 +283,8 @@ const CLOSE_LOCATION = {
 } as const;
 
 const volumeProfileView = (
-  profile: NonNullable<ResearchReportTechnicals["volumeProfile"]>
+  profile: NonNullable<ResearchReportTechnicals["volumeProfile"]>,
+  prices: Intl.NumberFormat
 ): NonNullable<TechnicalsView["volumeProfile"]> => {
   const largest = profile.poc.volume;
   return {
@@ -247,7 +294,7 @@ const volumeProfileView = (
       return {
         mark:
           bin.low === profile.poc.low ? "POC" : inside ? "Value area" : null,
-        range: `${price.format(bin.low)} to ${price.format(bin.high)}`,
+        range: `${prices.format(bin.low)} to ${prices.format(bin.high)}`,
         volume: grouped.format(bin.volume),
         width: largest > 0 ? Math.round((100 * bin.volume) / largest) : 0,
       };
@@ -256,12 +303,12 @@ const volumeProfileView = (
       {
         detail: `${grouped.format(profile.poc.volume)} shares or contracts`,
         label: "Point of control (POC)",
-        value: `${price.format(profile.poc.low)} to ${price.format(profile.poc.high)}`,
+        value: `${prices.format(profile.poc.low)} to ${prices.format(profile.poc.high)}`,
       },
       {
         detail: `${oneDecimal.format(profile.valueAreaVolumePct)}% of the volume`,
         label: "Value area (VAL to VAH)",
-        value: `${price.format(profile.valueAreaLow)} to ${price.format(profile.valueAreaHigh)}`,
+        value: `${prices.format(profile.valueAreaLow)} to ${prices.format(profile.valueAreaHigh)}`,
       },
       {
         detail: null,
@@ -271,7 +318,7 @@ const volumeProfileView = (
       {
         detail: `${profile.startDate} to ${profile.endDate}`,
         label: "Window",
-        value: `${profile.sessions} sessions, ${profile.bins.length} bins of ${price.format(profile.binWidth)}`,
+        value: `${profile.sessions} sessions, ${profile.bins.length} bins of ${prices.format(profile.binWidth)}`,
       },
     ],
   };
@@ -282,16 +329,20 @@ export const toTechnicalsViewModel = (
   data: ResearchReportTechnicals
 ): TechnicalsView => {
   const { bars, method, weinstein } = data;
+  const prices = priceFormatFor(
+    data.stored.latestClose ?? data.recomputed?.latestClose ?? null
+  );
   return {
     barsLine:
       bars === null
         ? "No stored daily bars in this revision."
         : `${grouped.format(bars.count)} stored daily bars, ${bars.firstDate} to ${bars.lastDate}${bars.collectedAt === null ? "" : `; collected ${bars.collectedAt}`}.`,
     check: checkView(data),
-    fibonacci: data.fibonacci === null ? null : fibonacciView(data.fibonacci),
-    indicators: indicatorRows(data),
-    methodNote: `Method version ${method.version}. Pivots: 2 bars on each side, last ${method.pivotLookbackSessions} sessions. Fibonacci: high and low of the last ${method.fibonacciWindowSessions} sessions. Weinstein stage: ${method.weinstein.smaWeeks}-week SMA, ${method.weinstein.slopeWeeks}-week slope, flat within ${method.weinstein.flatBandPct}%. Volume profile: ${method.volumeProfile.sessions} sessions, ${method.volumeProfile.bins} bins, ${method.volumeProfile.valueAreaPct}% value area, daily-bar approximation. The Weinstein and volume-profile rules are model-reasoned defaults without an archive source. Context only, not signals.`,
-    pivots: data.pivots === null ? null : pivotsView(data.pivots),
+    fibonacci:
+      data.fibonacci === null ? null : fibonacciView(data.fibonacci, prices),
+    indicators: indicatorRows(data, prices),
+    methodNote: `Method version ${method.version}. Pivots: 2 bars on each side, last ${method.pivotLookbackSessions} sessions. Fibonacci: high and low of the last ${method.fibonacciWindowSessions} sessions. Weinstein stage: ${method.weinstein.smaWeeks}-week SMA, ${method.weinstein.slopeWeeks}-week slope, flat within ${method.weinstein.flatBandPct}%, last ${method.weinstein.historyWeeks} complete weeks. Volume profile: ${method.volumeProfile.sessions} sessions, ${method.volumeProfile.bins} bins, ${method.volumeProfile.valueAreaPct}% value area, daily-bar approximation. The Weinstein and volume-profile rules are model-reasoned defaults without an archive source. Context only, not signals.`,
+    pivots: data.pivots === null ? null : pivotsView(data.pivots, prices),
     revision: data.dataRevision.slice(0, 12),
     trendChecks: data.stored.trendChecks.map((check) => ({
       label: TREND_CHECK_LABELS[check.key],
@@ -301,7 +352,7 @@ export const toTechnicalsViewModel = (
     volumeProfile:
       data.volumeProfile === null
         ? null
-        : volumeProfileView(data.volumeProfile),
+        : volumeProfileView(data.volumeProfile, prices),
     warnings: data.warnings,
     weinstein:
       weinstein === null
@@ -311,12 +362,12 @@ export const toTechnicalsViewModel = (
               {
                 detail: `Week ending ${weinstein.weekEnding}`,
                 label: "Weekly close",
-                value: price.format(weinstein.weeklyClose),
+                value: prices.format(weinstein.weeklyClose),
               },
               {
-                detail: `${signedPct(weinstein.sma30ChangePct)} over 4 weeks`,
+                detail: `${signedPct(weinstein.sma30ChangePct)} over ${method.weinstein.slopeWeeks} weeks`,
                 label: "30-week SMA",
-                value: price.format(weinstein.sma30),
+                value: prices.format(weinstein.sma30),
               },
               {
                 detail: null,

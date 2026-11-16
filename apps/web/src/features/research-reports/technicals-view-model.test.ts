@@ -2,7 +2,10 @@ import type { ResearchReportTechnicals } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
 import { labResearchTechnicals } from "../../lab/fixtures/research.ts";
-import { toTechnicalsViewModel } from "./technicals-view-model.ts";
+import {
+  priceFormatFor,
+  toTechnicalsViewModel,
+} from "./technicals-view-model.ts";
 
 const base = labResearchTechnicals("SPY");
 const withStored = (
@@ -171,6 +174,9 @@ describe("toTechnicalsViewModel", () => {
     expect(view.weinstein?.rows[1]?.detail).toBe("+2.10% over 4 weeks");
     expect(view.weinstein?.rows[2]?.value).toBe("520");
     expect(view.pivots?.rows[0]?.label).toBe("Support pivot");
+    expect(view.pivots?.listLabel).toBe(
+      "All pivots of the last 60 sessions (2)"
+    );
     expect(view.pivots?.items[0]?.kind).toBe("Support");
     expect(view.pivots?.items[1]?.kind).toBe("Resistance");
     expect(view.fibonacci?.heading).toMatch(
@@ -261,5 +267,54 @@ describe("toTechnicalsViewModel", () => {
       toTechnicalsViewModel({ ...base, bars: { ...bars, collectedAt: null } })
         .barsLine
     ).toMatch(/to \d{4}-\d{2}-\d{2}\.$/u);
+  });
+
+  it("keeps narrow price ranges apart with more decimals", () => {
+    expect(priceFormatFor(581.4).format(1.08)).toBe("1.08");
+    expect(priceFormatFor(1.0842).format(1.084_21)).toBe("1.0842");
+    expect(priceFormatFor(0.05).format(0.051_234_5)).toBe("0.051235");
+    expect(priceFormatFor(null).format(3)).toBe("3.00");
+    const profile = base.volumeProfile as NonNullable<
+      ResearchReportTechnicals["volumeProfile"]
+    >;
+    const narrow = toTechnicalsViewModel({
+      ...base,
+      recomputed: null,
+      stored: { ...base.stored, latestClose: null },
+      volumeProfile: {
+        ...profile,
+        bins: profile.bins.map((_, index) => ({
+          high: 1.08 + (index + 1) * 0.0004,
+          low: 1.08 + index * 0.0004,
+          volume: 1,
+        })),
+      },
+    });
+    expect(narrow.indicators[0]?.value).toBe("Unavailable");
+    expect(
+      toTechnicalsViewModel({
+        ...base,
+        recomputed: {
+          ...(base.recomputed as NonNullable<
+            ResearchReportTechnicals["recomputed"]
+          >),
+          latestClose: 1.09,
+        },
+        stored: { ...base.stored, latestClose: null },
+        volumeProfile:
+          narrow.volumeProfile === null
+            ? null
+            : {
+                ...profile,
+                bins: profile.bins.map((_, index) => ({
+                  high: 1.08 + (index + 1) * 0.0004,
+                  low: 1.08 + index * 0.0004,
+                  volume: 1,
+                })),
+              },
+      })
+        .volumeProfile?.bins.map((bin) => bin.range)
+        .filter((range, index, all) => all.indexOf(range) === index)
+    ).toHaveLength(50);
   });
 });
