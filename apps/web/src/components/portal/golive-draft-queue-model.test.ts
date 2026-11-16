@@ -688,17 +688,17 @@ describe("status row", () => {
         container: { health: "healthy", state: "running" },
       });
     expect(running("cli-timeout")).toBe(
-      `Running · arm state not read · The arm command in the node did not answer (timeout) at 10:30 EST · ${next}`
+      `Running · arm state not read · The arm command in the node did not answer (timeout) at 2026-11-11 10:30 ET · ${next}`
     );
     expect(running("cli-crash")).toBe(
-      `Running · arm state not read · The arm command in the node failed (code cli-crash) at 10:30 EST · ${next}`
+      `Running · arm state not read · The arm command in the node failed (code cli-crash) at 2026-11-11 10:30 ET · ${next}`
     );
     // A code that names an Object property is a code, not a cause.
     expect(running("constructor")).toBe(
-      `Running · arm state not read · The arm command in the node failed (code constructor) at 10:30 EST · ${next}`
+      `Running · arm state not read · The arm command in the node failed (code constructor) at 2026-11-11 10:30 ET · ${next}`
     );
     expect(running(null)).toBe(
-      `Running · arm state not read · The arm command in the node sent no arm state and no error code at 10:30 EST · ${next}`
+      `Running · arm state not read · The arm command in the node sent no arm state and no error code at 2026-11-11 10:30 ET · ${next}`
     );
     expect(
       nodeText({
@@ -716,7 +716,7 @@ describe("status row", () => {
         },
       })
     ).toBe(
-      `Node state not read · Docker did not answer since 10:25 EST (docker error) · last read: running at 10:20 EST · ${next}`
+      `Node state not read · Docker did not answer since 2026-11-11 10:25 ET (docker error) · last read: running at 2026-11-11 10:20 ET · ${next}`
     );
     expect(
       nodeText({
@@ -725,7 +725,7 @@ describe("status row", () => {
         container: { health: null, state: "docker-unreadable" },
       })
     ).toBe(
-      `Node state not read · More than one node container matches · start time not recorded (checked 10:30 EST) · no container read recorded since the VPS service started · ${next}`
+      `Node state not read · More than one node container matches · start time not recorded (checked 2026-11-11 10:30 ET) · no container read recorded since the VPS service started · ${next}`
     );
     expect(
       nodeText({
@@ -739,7 +739,7 @@ describe("status row", () => {
         },
       })
     ).toBe(
-      `Node state not read · Docker could not be read · start time not recorded (checked 10:30 EST) (code not sent) · last read: exited at time not recorded · ${next}`
+      `Node state not read · Docker could not be read · start time not recorded (checked 2026-11-11 10:30 ET) (code not sent) · last read: exited at time not recorded · ${next}`
     );
   });
 

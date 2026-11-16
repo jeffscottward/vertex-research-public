@@ -452,6 +452,12 @@ const NODE_NOT_READ_NEXT =
  * Why a node badge is "unknown", from the cause the server passed on (readFailure, or armError and
  * the container read), or null when it passed none (an older server).
  */
+// unknownView's clock on this page: New York time with the date; a missing or bad time is named.
+const etClockText = (value: string | null | undefined): string => {
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? etDayClock(new Date(ms)) : "time not recorded";
+};
+
 const nodeNotReadText = (node: GoLiveQueueOutput["node"]): string | null => {
   const checked = etDayClock(node.checkedAt);
   if (node.readFailure === "agent-key-refused")
@@ -467,7 +473,8 @@ const nodeNotReadText = (node: GoLiveQueueOutput["node"]): string | null => {
       checkedAt: node.checkedAt.toISOString(),
       container,
     },
-    null
+    null,
+    etClockText
   );
   return `${unknown.label} · ${unknown.detail} · ${NODE_NOT_READ_NEXT}`;
 };

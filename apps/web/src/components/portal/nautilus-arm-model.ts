@@ -35,15 +35,22 @@ const CLI_CAUSE: Readonly<Record<string, string>> = {
   "cli-timeout": "did not answer (timeout)",
 };
 
-const clock = (value: string | null | undefined, nowMs: number): string =>
-  sinceClock(value, nowMs) ?? "time not recorded";
+const localClockText = (
+  value: string | null | undefined,
+  nowMs: number
+): string => sinceClock(value, nowMs) ?? "time not recorded";
 
 // Badge "unknown" (wire value): the arm CLI did not answer while the container runs, or Docker was not
 // readable. The label and the cause, with the last badge this page confirmed; the caller adds what it
 // holds back (the arm switch: Arm hidden; the go-live queue: sends refused).
 export const unknownView = (
   status: Pick<NautilusArmStatusOutput, "armError" | "checkedAt" | "container">,
-  confirmed: NautilusConfirmed | null
+  confirmed: NautilusConfirmed | null,
+  // How a time reads on the caller's page (the go-live queue shows New York time with the date).
+  clock: (
+    value: string | null | undefined,
+    nowMs: number
+  ) => string = localClockText
 ): Readonly<{ label: string; detail: string }> => {
   const nowMs = Date.parse(status.checkedAt);
   const checked = clock(status.checkedAt, nowMs);
