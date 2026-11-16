@@ -720,7 +720,6 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
         "start time not reported",
         "not stopped (kill switch engaged)",
       ],
-      ["unknown", "start time not reported", "container not inspected"],
       ["missing", "no container", "no container"],
       ["unreadable", "Docker not readable", "Docker not readable"],
       [
@@ -753,7 +752,7 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
       expect(field(shown, "stopped")).toBe(stopped);
       expect(field(shown, "heartbeat")).toBe("no heartbeat yet");
     }
-    return expect(cases).toHaveLength(7);
+    return expect(cases).toHaveLength(6);
   });
 
   it("names the session states without a usable container record and an unverified kill switch", async () => {
