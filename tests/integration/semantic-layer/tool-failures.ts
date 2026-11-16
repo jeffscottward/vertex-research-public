@@ -9,8 +9,9 @@ import type { ProcedureResult } from "../../../packages/api/src/server/mcp.ts";
 // does not exist (404), a refused session (401, 403), a tool the turn does not have.
 // A terms_query answer with status unknown also fails the replay (unknownTermAnswer below). The call
 // worked, so the trace marks it ok, but the answer gives no value: the certified SQL failed, the feed was
-// unavailable or stale, or the feed data has no value for the term. The synthetic fixture and feed give
-// every certified term a value, so this rule has no list of expected answers.
+// unavailable or stale, or the feed data has no value for the term. The synthetic fixture and the
+// synthetic live-account feed give every certified term a value (read-tools.test.ts checks each term with
+// its default parameters), so this rule has no list of expected answers.
 
 /** One failed tool call that the recorded trials of a question are expected to make. */
 export type ExpectedRejection = Readonly<{
