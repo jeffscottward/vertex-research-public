@@ -26,7 +26,7 @@ import {
   type GatheredFacts,
   PRICE_LABELS,
 } from "./deep-value-sources.ts";
-import { IBKR_CACHE_DIR } from "./history-bars.ts";
+import { IBKR_CACHE_DIR, lensDay } from "./history-bars.ts";
 import {
   argValue,
   dig,
@@ -192,7 +192,7 @@ const collect = async (io: LensIo): Promise<void> => {
     join(
       dirname(options.rotationFile),
       "cache",
-      io.now().toISOString().slice(0, 10),
+      lensDay(io.now()),
       IBKR_CACHE_DIR
     )
   );

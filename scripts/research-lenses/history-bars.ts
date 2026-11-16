@@ -342,7 +342,7 @@ export type HistoryReader = Readonly<{
 }>;
 
 /**
- * The IBKR run budget in minutes from LENS_IBKR_BUDGET_MINUTES: a whole number 0..240; unset or
+ * The IBKR run budget in minutes from LENS_IBKR_BUDGET_MINUTES: a whole number 0..75; unset or
  * empty is IBKR_BUDGET_MINUTES; anything else is null (not acceptable).
  */
 export const ibkrBudgetMinutes = (env: LensIo["env"]): number | null => {
@@ -359,6 +359,19 @@ export const ibkrBudgetMinutes = (env: LensIo["env"]): number | null => {
  * IBKR request, and a second run of either job costs none either.
  */
 export const IBKR_CACHE_DIR = "_ibkr-bars";
+
+/**
+ * The trading day of a run (YYYY-MM-DD, New York): the name of the per-day cache folders. A UTC date
+ * would file an evening run's bars under the next day, and the next day's run would read them as
+ * that day's bars.
+ */
+export const lensDay = (now: Date): string =>
+  new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/New_York",
+    year: "numeric",
+  }).format(now);
 
 /** The day-cache file of one IBKR request: "BRK B" + "1 Y" -> "BRK_B.1Y.json". */
 export const cacheName = (symbol: string, duration: string): string =>
@@ -529,8 +542,11 @@ export const createHistoryReader = (
           );
           queue = turn;
           answer = await turn;
+          // The bars are used even when the day cache cannot be written.
           if (file !== null && answer.length > 0)
-            await writeAtomic(io.fs, file, JSON.stringify(answer));
+            await writeAtomic(io.fs, file, JSON.stringify(answer)).catch(() =>
+              logLine(io, `${plan.symbol}: IBKR day cache not written`)
+            );
         } else answer = cached;
       }
       const ibkr = answer.map((bar) => plan.fromIbkr(bar));

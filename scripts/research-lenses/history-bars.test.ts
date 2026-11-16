@@ -13,6 +13,7 @@ import {
   IBKR_PACED_TRIES,
   ibkrBudgetMinutes,
   ibkrSymbol,
+  lensDay,
   type MergedBarsPlan,
   mergeBars,
   parseHistoryBars,
@@ -559,6 +560,17 @@ describe("fillBeforeDay", () => {
   });
 });
 
+describe("lensDay", () => {
+  it("is the New York date, also after the UTC day rolls over", () => {
+    expect(lensDay(new Date("2026-11-16T23:59:00Z"))).toBe("2026-11-16");
+    expect(lensDay(new Date("2026-11-17T00:01:00Z"))).toBe("2026-11-16");
+    expect(lensDay(new Date("2026-11-17T04:59:00Z"))).toBe("2026-11-16");
+    expect(lensDay(new Date("2026-11-17T05:00:00Z"))).toBe("2026-11-17");
+    // Summer: UTC-4.
+    expect(lensDay(new Date("2026-07-01T03:59:00Z"))).toBe("2026-06-30");
+  });
+});
+
 describe("ibkrBudgetMinutes", () => {
   it("reads a whole number of minutes from 0 to 75, else the default when unset", () => {
     expect(IBKR_BUDGET_MINUTES).toBe(75);
@@ -958,6 +970,27 @@ describe("createHistoryReader", () => {
     expect(JSON.parse(files.get("/day/MSFT.7M.json") ?? "")).toEqual([
       { close: 10, date: "2026-11-08", volume: 1_000_000 },
       { close: 11, date: "2026-11-09", volume: 1_000_000 },
+    ]);
+  });
+
+  it("keeps the IBKR bars when the day cache cannot be written", async () => {
+    const { io, stderr } = testIo({
+      env: HISTORY_ENV,
+      fetch: historyFetch({ AAPL: [10, 11] }),
+    });
+    const failing = {
+      ...io,
+      fs: {
+        ...io.fs,
+        writeFile: async () => {
+          throw new Error("disk full");
+        },
+      },
+    };
+    const reader = createHistoryReader(failing, ["AAPL"], "/day");
+    expect(seriesSource(await reader.load(planFor("AAPL").plan))).toBe("ibkr");
+    expect(stderr).toEqual([
+      "2026-11-10T12:00:00.000Z AAPL: IBKR day cache not written\n",
     ]);
   });
 

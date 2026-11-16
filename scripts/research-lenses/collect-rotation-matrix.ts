@@ -16,6 +16,7 @@ import {
   fillBeforeDay,
   type HistoryReader,
   IBKR_CACHE_DIR,
+  lensDay,
   type SeriesSource,
   seriesSource,
   sourceCounts,
@@ -76,7 +77,7 @@ export const rotationJobOptions = (io: LensIo): RotationJobOptions => {
   const arg = (name: string, fallback: string): string =>
     argValue(io.argv, name, fallback);
   const out = resolve(io.rootDir, arg("--out", "data/rotation-matrix"));
-  const today = io.now().toISOString().slice(0, 10);
+  const today = lensDay(io.now());
   return {
     cacheDir: join(out, "cache", today),
     concurrency: Number(arg("--concurrency", "8")),
