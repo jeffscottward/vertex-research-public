@@ -269,7 +269,7 @@ describe("nautilusArmView", () => {
     });
     expect(cli("cli-error").detail).toContain("failed (error)");
     expect(cli("cli-bad-output").detail).toContain(
-      "answered in a form the VPS service could not read"
+      "returned a failing exit or output the VPS service could not read"
     );
     expect(cli("cli-new-code").detail).toContain("failed (code cli-new-code)");
     expect(cli(null).detail).toContain("sent no arm state and no error code");
@@ -304,11 +304,11 @@ describe("nautilusArmView", () => {
         since: null,
       }).detail
     ).toBe(
-      `More than one node container matches since ${at("2026-10-30T15:00:00.000Z")} · no container read recorded since the VPS service started · last confirmed on this page: Running · Disarmed at ${at("2026-10-30T14:55:00.000Z")} · ${tail}`
+      `More than one node container matches · start time not recorded (checked ${at("2026-10-30T15:00:00.000Z")}) · no container read recorded since the VPS service started · last confirmed on this page: Running · Disarmed at ${at("2026-10-30T14:55:00.000Z")} · ${tail}`
     );
     expect(
       docker("docker-new", { health: null, state: "docker-unreadable" }).detail
-    ).toContain("Docker could not be read since");
+    ).toContain("Docker could not be read · start time not recorded (checked");
     expect(
       docker(null, { health: null, state: "docker-unreadable" }).detail
     ).toContain("(code not sent)");
@@ -448,7 +448,7 @@ describe("Nautilus arm switch in the Monitor", () => {
     expect(
       document.querySelector("[data-nautilus-arm] [role=alert]")?.textContent
     ).toBe(
-      "No answer from the VPS (UNAVAILABLE: Nautilus arm request timed out). The node may have changed; check the badge."
+      "UNAVAILABLE: Nautilus arm request timed out. The node may have changed; check the badge."
     );
     gateway.disarm.mockRejectedValueOnce(null);
     await run(() => disarmButton()?.click());
@@ -573,7 +573,7 @@ describe("Nautilus arm switch in the Monitor", () => {
     ).not.toContain("last confirmed");
   });
 
-  it("never opens the arm dialog or sends without an image version from the node", async () => {
+  it("renders no arm dialog when the node sent no arm record", async () => {
     const arm = vi.fn(async () => undefined);
     const model: NautilusArmModel = {
       arm,
@@ -594,6 +594,37 @@ describe("Nautilus arm switch in the Monitor", () => {
     };
     await mount(<NautilusArmPanel model={model} />);
     expect(dialog()).toBeNull();
+    return expect(arm).not.toHaveBeenCalled();
+  });
+
+  it("keeps Arm the node disabled and sends nothing when the node reports no image version", async () => {
+    const arm = vi.fn(async () => undefined);
+    const model: NautilusArmModel = {
+      arm,
+      cancel: () => undefined,
+      dialogOpen: true,
+      disarm: async () => undefined,
+      error: null,
+      failure: null,
+      hidden: false,
+      lastConfirmed: null,
+      open: () => undefined,
+      password: PASSWORD,
+      reason: REASON,
+      sending: null,
+      setPassword: () => undefined,
+      setReason: () => undefined,
+      // Defence check: the contract requires a string; simulate a node that sent none.
+      status: status({
+        arm: { ...armState(), imageVersion: null as unknown as string },
+      }),
+    };
+    await mount(<NautilusArmPanel model={model} />);
+    expect(dialog()?.textContent).toContain(
+      "Image version: not reported by the node."
+    );
+    expect(submit()?.disabled).toBe(true);
+    await run(() => dialog()?.requestSubmit());
     return expect(arm).not.toHaveBeenCalled();
   });
 

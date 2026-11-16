@@ -372,15 +372,18 @@ const change = async (
       ...(auditDegraded ? { auditDegraded: true } : {}),
     }
   );
-  const fail = async (error: NautilusArmError): Promise<never> => {
+  const fail = async (error: unknown): Promise<never> => {
     // The node may have changed when the bridge did not answer; the status poll shows the real state.
-    await record("result", { outcome: error.code }).catch(() => undefined);
-    await emit(context, action, "failure", {
-      armRequestId,
-      outcome: error.code,
-    });
+    const outcome =
+      error instanceof NautilusArmError ? error.code : "UPSTREAM_ERROR";
+    await record("result", { outcome }).catch(() => undefined);
+    await emit(context, action, "failure", { armRequestId, outcome });
     // 409: the node refused, nothing was changed. Otherwise the request may have reached the node.
-    if (error.code === "CONFLICT" || error.code === "NOT_CONFIGURED")
+    if (
+      !(error instanceof NautilusArmError) ||
+      error.code === "CONFLICT" ||
+      error.code === "NOT_CONFIGURED"
+    )
       throw error;
     throw new NautilusArmError(
       error.code,
@@ -399,14 +402,14 @@ const change = async (
       })
     );
   } catch (error) {
-    return await fail(error as NautilusArmError);
+    return await fail(error);
   }
   if (reply.status !== 200) return await fail(refusalOf(reply));
   let result: z.infer<typeof UpstreamResultSchema>;
   try {
     result = parseOrFail(UpstreamResultSchema, reply.json);
   } catch (error) {
-    return await fail(error as NautilusArmError);
+    return await fail(error);
   }
   // The node changed already; a failed result row cannot undo it, so the answer still reports it.
   await record("result", {

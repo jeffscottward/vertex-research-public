@@ -68,7 +68,7 @@ const failureText = (error: unknown, action: "arm" | "disarm"): string => {
   const raw = (error as { message?: unknown } | null | undefined)?.message;
   const reason = `${described.code}: ${typeof raw === "string" && raw !== "" ? raw : described.message}`;
   return described.kind === "unavailable"
-    ? `No answer from the VPS (${reason}). The node may have changed; check the badge.`
+    ? `${reason}. The node may have changed; check the badge.`
     : `The node was not ${action === "arm" ? "armed" : "disarmed"} (${reason}).`;
 };
 

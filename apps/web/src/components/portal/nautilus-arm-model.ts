@@ -29,7 +29,8 @@ export type NautilusConfirmed = Readonly<{
 }>;
 
 const CLI_CAUSE: Readonly<Record<string, string>> = {
-  "cli-bad-output": "answered in a form the VPS service could not read",
+  "cli-bad-output":
+    "returned a failing exit or output the VPS service could not read",
   "cli-error": "failed (error)",
   "cli-timeout": "did not answer (timeout)",
 };
@@ -57,13 +58,18 @@ const unknownView = (
     parts.push(`The arm command in the node ${cause} at ${checked}`);
   } else {
     label = "Node state not read";
-    const since = clock(status.container.since ?? status.checkedAt, nowMs);
+    const sinceAt = status.container.since;
+    // No fallback to checkedAt: a check time is not the start of the failure.
+    const since =
+      sinceAt === null || sinceAt === undefined
+        ? `· start time not recorded (checked ${checked})`
+        : `since ${clock(sinceAt, nowMs)}`;
     parts.push(
       code === "ambiguous-container"
-        ? `More than one node container matches since ${since}`
+        ? `More than one node container matches ${since}`
         : code === "docker-error"
-          ? `Docker did not answer since ${since} (docker error)`
-          : `Docker could not be read since ${since} (code ${code ?? "not sent"})`
+          ? `Docker did not answer ${since} (docker error)`
+          : `Docker could not be read ${since} (code ${code ?? "not sent"})`
     );
     const last = status.container.lastKnown;
     parts.push(

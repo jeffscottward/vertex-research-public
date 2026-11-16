@@ -724,6 +724,25 @@ describe("nautilusArm.arm", () => {
     return expect(posts()).toHaveLength(0);
   });
 
+  it("maps a non-arm error thrown during the bridge call to an upstream error", async () => {
+    let fetched = false;
+    setNautilusArmDependenciesForTesting({
+      fetch: async () => {
+        fetched = true;
+        throw new Error("refused");
+      },
+      now: () => {
+        // The clock fails only while the transport error text is built.
+        if (fetched) throw new Error("clock broke");
+        return new Date(nowMs);
+      },
+    });
+    const error = await expectCode(arm(), "UPSTREAM_ERROR", 502);
+    return expect(error).toMatchObject({
+      message: "Nautilus arm request failed",
+    });
+  });
+
   it("uses a random request id by default", async () => {
     setNautilusArmDependenciesForTesting({ fetch: fakeFetch });
     await arm();
