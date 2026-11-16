@@ -12,15 +12,11 @@ import { type EvalBackend, startEvalBackend } from "./harness.ts";
 // synthetic feeds). The recorded eval only proves the tools that a recorded trial calls; a tool that no
 // trial calls could answer a server error on the fixture and no test would show it. Each tool must answer
 // exactly what READ_TOOL_CALLS says: a result, or the refusal that the eval backend gives by its setup.
-// Limit: a tool with a refusal in the table is proven to refuse, not to return a result, and a list or
-// search tool with no row in the fixture returns an empty result (optimizations_list, model_runs_list,
-// model_runs_search, model_runs_benchmark).
+// Limit: a tool with a refusal in the table is proven to refuse, not to return a result.
 
 type Answer =
   /** The tool returns a result. */
   | "ok"
-  /** fixture.sql has no row of this kind (model runs, optimizer runs), so the tool answers "not found". */
-  | "NOT_FOUND (404)"
   /**
    * The tool reads an outside service. startEvalBackend passes no configuration for it to
    * createApiContext, which reads no environment variable, so the tool refuses on every machine.
@@ -48,13 +44,10 @@ const READ_TOOL_CALLS: Readonly<Record<string, ReadToolCall>> = {
     query: "short-dated options premium cap 2% of NLV",
   }),
   model_runs_benchmark: ok({ armBy: "model" }),
-  model_runs_get: { answer: "NOT_FOUND (404)", args: { id: "no-such-run" } },
+  model_runs_get: ok({ id: "mr_nvda_1" }),
   model_runs_list: ok(),
   model_runs_search: ok({ query: "claude" }),
-  optimizations_get: {
-    answer: "NOT_FOUND (404)",
-    args: { id: "no-such-run" },
-  },
+  optimizations_get: ok({ id: "opt_orb_1" }),
   optimizations_list: ok(),
   options_gex_context: {
     answer: "NOT_CONFIGURED (503)",
