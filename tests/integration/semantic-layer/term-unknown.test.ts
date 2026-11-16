@@ -9,6 +9,7 @@ import {
   replayTrial,
   runTrial,
   setLiveAccountFeed,
+  staleReason,
   startEvalBackend,
 } from "./harness.ts";
 import { EVAL_QUESTIONS, type EvalQuestion } from "./questions.ts";
@@ -92,6 +93,10 @@ describe("a terms_query answer with status unknown in a replayed trial", () => {
     expect(replayed.trace.map((call) => call.ok)).toEqual([true]);
     expect(replayed.unknownTerms).toHaveLength(1);
     expect(replayed.unknownTerms[0]).toMatch(UNKNOWN_LINE);
+    // The recorder's stale selection prints the same cause.
+    expect(await staleReason(backend, question, recorded)).toBe(
+      `${replayed.stale}; ${replayed.unknownTerms[0]}`
+    );
   });
 
   it("is not reported when the feed is live", async () => {

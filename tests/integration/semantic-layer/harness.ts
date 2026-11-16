@@ -362,7 +362,8 @@ export const replayTrial = async (
 /**
  * Null when the recorded trial replays unchanged; else the first difference (the trial is stale: record
  * it again). The replay test (through `replayTrial`) and the recorder's `stale` selection share this one
- * definition.
+ * definition. A terms_query answer with status unknown in a stale replay is added to the reason: it is
+ * then the likely cause, and recording the trial again does not remove it (correct the layer first).
  */
 export const staleReason = async (
   backend: EvalBackend,
@@ -371,5 +372,12 @@ export const staleReason = async (
     answer: string;
     completions: readonly RecordedCompletion[];
   }>
-): Promise<string | null> =>
-  (await replayTrial(backend, question, recorded)).stale;
+): Promise<string | null> => {
+  const { stale, unknownTerms } = await replayTrial(
+    backend,
+    question,
+    recorded
+  );
+  if (stale === null || unknownTerms.length === 0) return stale;
+  return `${stale}; ${unknownTerms.join("; ")}`;
+};
