@@ -71,6 +71,17 @@ const DAYS_PER_YEAR = 365;
 /** Strike search range around the spot in ATM standard deviations, and its minimum in grid steps. */
 const STRIKE_SEARCH_SIGMAS = 4;
 const STRIKE_SEARCH_MIN_STEPS = 20;
+/**
+ * Most grid strikes one strike search prices. The SPY high (about 700) at the VIX closing high (82.69)
+ * with 15 months to expiry needs about 4,600; a close or an IV level far above real data needs millions
+ * (Python book.py too).
+ */
+const STRIKE_SEARCH_MAX_STEPS = 25_000;
+/**
+ * Highest IV index level the options model takes, in index points. The highest Cboe IV index close is about
+ * 325 (OVX, April 2020); far higher levels (1e300) overflow the option prices (Python book.py too).
+ */
+const IV_LEVEL_MAX = 10_000;
 const OPTION_KEYS = new Set([
   "structure",
   "dte",
@@ -346,6 +357,15 @@ const priceAt = (pricing: Pricing, right: Right, strike: number): number =>
 const grid = (value: number, step: number): number =>
   pyRound(roundHalfEven(value / step) * step, 6);
 
+/** atmIv; a level above IV_LEVEL_MAX is the request's fault. */
+const boundedAtmIv = (indexId: string, level: number): number => {
+  if (level > IV_LEVEL_MAX)
+    throw new Error(
+      `${indexId} level ${formatG(level)} is above ${IV_LEVEL_MAX}: far above real data`
+    );
+  return atmIv(indexId, level);
+};
+
 /** [long strike, short strike, width] on the grid, or null when the far leg would be <= 0. */
 export const chooseStrikes = (
   right: Right,
@@ -366,6 +386,10 @@ export const chooseStrikes = (
     STRIKE_SEARCH_SIGMAS * atm * Math.sqrt(t) * spot,
     STRIKE_SEARCH_MIN_STEPS * step
   );
+  if (!((2 * reach) / step <= STRIKE_SEARCH_MAX_STEPS))
+    throw new Error(
+      `The strike search needs more than ${STRIKE_SEARCH_MAX_STEPS} grid strikes: a close or an IV level is far above real data`
+    );
   const low = Math.max(step, grid(spot - reach, step));
   const count = roundHalfEven((grid(spot + reach, step) - low) / step);
   // Key (|delta| distance to the target, distance to the spot, strike), compared as a tuple.
@@ -570,7 +594,7 @@ const openSpread = (
     t: dte / DAYS_PER_YEAR,
     r: rate,
     q,
-    atm: atmIv(indexId, level),
+    atm: boundedAtmIv(indexId, level),
     slope,
   };
   const strikes = chooseStrikes(
@@ -644,7 +668,7 @@ const priceEvent = (
       t: Math.max(0, daysLeft) / DAYS_PER_YEAR,
       r: rate,
       q,
-      atm: atmIv(indexId, level),
+      atm: boundedAtmIv(indexId, level),
       slope,
     };
     const longMid = priceAt(pricing, right, longStrike);
