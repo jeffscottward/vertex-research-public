@@ -7,6 +7,11 @@ import JournalError from "./error.tsx";
 import JournalLoading from "./loading.tsx";
 import JournalPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 const mocks = vi.hoisted(() => ({
   resolveJournalSource: vi.fn(() => "ibkr-monitor" as const),
 }));
@@ -65,6 +70,8 @@ describe("trade journal route files", () => {
     const container = await render(<JournalError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Trade journal unavailable");
+    expect(container.textContent).toContain(
+      "Trade journal failed to render at"
+    );
   });
 });

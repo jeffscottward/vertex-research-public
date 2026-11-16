@@ -7,6 +7,7 @@ import {
   DashboardPersistenceError,
   type DashboardRepository,
   DatabaseConflictError,
+  DatabasePersistenceError,
   InvalidAdminUsersCursorError,
   InvalidRepositoryInputError,
   type ProfileRepository,
@@ -497,7 +498,16 @@ describe("account service", () => {
     {
       failure: new Error("private account adapter details"),
       code: "STORAGE_ERROR",
-      message: "Account storage is unavailable",
+      message: expect.stringMatching(
+        /^Account data could not be read: unexpected server error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
+      ),
+    },
+    {
+      failure: new DatabasePersistenceError("load profile"),
+      code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Account data could not be read: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
+      ),
     },
   ] as const)(
     "maps repository failures to the stable $code contract",
@@ -511,6 +521,38 @@ describe("account service", () => {
         name: "AccountServiceError",
         code,
         message,
+      });
+    }
+  );
+
+  it.each([
+    {
+      failure: new DatabasePersistenceError("remove address"),
+      message:
+        /^Account change failed: the database returned an error at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/u,
+    },
+    {
+      failure: new Error("private account adapter details"),
+      message:
+        /^Account change failed: unexpected server error at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/u,
+    },
+  ] as const)(
+    "reports a failed write as an unknown outcome: $message",
+    async ({ failure, message }) => {
+      const repositories = accountRepositories();
+      vi.mocked(repositories.addresses.removeOptimistic).mockRejectedValue(
+        failure
+      );
+
+      return await expect(
+        createAccountService(repositories).removeAddress(principal, {
+          id: "address-1",
+          expectedUpdatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        })
+      ).rejects.toMatchObject({
+        name: "AccountServiceError",
+        code: "STORAGE_ERROR",
+        message: expect.stringMatching(message),
       });
     }
   );
