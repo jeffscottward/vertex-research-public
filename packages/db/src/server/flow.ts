@@ -5,6 +5,7 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   lt,
   lte,
   max,
@@ -14,12 +15,14 @@ import {
 import {
   FLOW_SOURCE_VALUES,
   type FlowNetDriftTickerValue,
+  type FlowOptionTickerValue,
   type FlowSampleStatusValue,
   type FlowSourceValue,
   type FlowSymbolValue,
   flowBook,
   flowEvents,
   flowGex,
+  flowLargeTrades,
   flowMinutes,
   flowNetDrift,
   flowOptionGaps,
@@ -47,6 +50,12 @@ export type FlowOptionGapRecord = typeof flowOptionGaps.$inferSelect;
 export type FlowEventRecord = typeof flowEvents.$inferSelect;
 export type FlowGexRecord = typeof flowGex.$inferSelect;
 export type FlowNetDriftRecord = typeof flowNetDrift.$inferSelect;
+export type FlowLargeTradeRecord = typeof flowLargeTrades.$inferSelect;
+export type FlowLargeTradeQuery = Readonly<{
+  symbol: "ES" | "NQ";
+  from: Date;
+  to: Date;
+}>;
 export type FlowPruneTable =
   | "flow_samples"
   | "flow_minutes"
@@ -55,7 +64,8 @@ export type FlowPruneTable =
   | "flow_events"
   | "flow_gex"
   | "flow_option_gaps"
-  | "flow_net_drift";
+  | "flow_net_drift"
+  | "flow_large_trades";
 export type FlowNetDriftQuery = Readonly<{
   tickers: readonly FlowNetDriftTickerValue[];
   /** Inclusive. */
@@ -101,6 +111,25 @@ export type FlowRepository = Readonly<{
   ) => Promise<number>;
   insertEvents: (rows: readonly FlowEventRecord[]) => Promise<number>;
   insertGex: (rows: readonly FlowGexRecord[]) => Promise<number>;
+  /**
+   * Stores the events and the deep trades of one futures tick sample in one transaction
+   * (both or none); insert-once, so a stored key is never rewritten. Returns the new rows.
+   */
+  insertTickSample: (
+    input: Readonly<{
+      events: readonly FlowEventRecord[];
+      trades: readonly FlowLargeTradeRecord[];
+    }>
+  ) => Promise<Readonly<{ events: number; trades: number }>>;
+  /** Deep trades of a symbol with from <= second < to (end-exclusive), by second, then seq. */
+  readLargeTrades: (
+    query: FlowLargeTradeQuery
+  ) => Promise<FlowLargeTradeRecord[]>;
+  /** Newest priced total net drift row of a ticker with minute <= at, or null. */
+  netDriftPriceAtOrBefore: (
+    ticker: FlowOptionTickerValue,
+    at: Date
+  ) => Promise<Readonly<{ minute: Date; price: number }> | null>;
   /** Deletes rows older than each table's cutoff; returns the rows removed. */
   prune: (cutoffs: Readonly<Record<FlowPruneTable, Date>>) => Promise<number>;
   /** Upserts by (ticker, part, minute); a row is rewritten only when a value or the filter profile changed. */
@@ -242,6 +271,31 @@ export const createFlowRepository = (
           .onConflictDoNothing()
           .returning({ id: flowOptionPrints.id })
       ),
+    insertTickSample: async ({ events, trades }) => {
+      if (events.length === 0 && trades.length === 0)
+        return { events: 0, trades: 0 };
+      return await database.transaction(async (tx) => {
+        let newTrades = 0;
+        for (const batch of batches(trades))
+          newTrades += (
+            await tx
+              .insert(flowLargeTrades)
+              .values(batch)
+              .onConflictDoNothing()
+              .returning({ seq: flowLargeTrades.seq })
+          ).length;
+        let newEvents = 0;
+        for (const batch of batches(events))
+          newEvents += (
+            await tx
+              .insert(flowEvents)
+              .values(batch)
+              .onConflictDoNothing()
+              .returning({ key: flowEvents.key })
+          ).length;
+        return { events: newEvents, trades: newTrades };
+      });
+    },
     latestSamples: async (symbol) => {
       const latest: FlowSampleRecord[] = [];
       const latestOk: FlowSampleRecord[] = [];
@@ -263,6 +317,26 @@ export const createFlowRepository = (
             eq(flowOptionGaps.startTime, startTime)
           )
         );
+    },
+    netDriftPriceAtOrBefore: async (ticker, at) => {
+      const [row] = await database
+        .select({
+          minute: flowNetDrift.minute,
+          price: flowNetDrift.underlyingPrice,
+        })
+        .from(flowNetDrift)
+        .where(
+          and(
+            eq(flowNetDrift.ticker, ticker),
+            eq(flowNetDrift.part, "total"),
+            lte(flowNetDrift.minute, at),
+            isNotNull(flowNetDrift.underlyingPrice)
+          )
+        )
+        .orderBy(desc(flowNetDrift.minute))
+        .limit(1);
+      if (row === undefined || row.price === null) return null;
+      return { minute: row.minute, price: row.price };
     },
     newestDataAt: async (symbol) => {
       const [minute] = await database
@@ -340,9 +414,25 @@ export const createFlowRepository = (
           .delete(flowNetDrift)
           .where(lt(flowNetDrift.minute, cutoffs.flow_net_drift))
           .returning({ at: flowNetDrift.minute }),
+        await database
+          .delete(flowLargeTrades)
+          .where(lt(flowLargeTrades.second, cutoffs.flow_large_trades))
+          .returning({ at: flowLargeTrades.second }),
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
+    readLargeTrades: ({ symbol, from, to }) =>
+      database
+        .select()
+        .from(flowLargeTrades)
+        .where(
+          and(
+            eq(flowLargeTrades.symbol, symbol),
+            gte(flowLargeTrades.second, from),
+            lt(flowLargeTrades.second, to)
+          )
+        )
+        .orderBy(asc(flowLargeTrades.second), asc(flowLargeTrades.seq)),
     readNetDrift: ({ tickers, from, to }) =>
       database
         .select()

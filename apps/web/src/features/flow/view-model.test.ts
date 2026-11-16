@@ -4,15 +4,13 @@ import { labFlowSnapshot } from "../../lab/fixtures/flow.ts";
 import { MISSING } from "./format.ts";
 import {
   basisNote,
-  FLOW_VIEW_SYMBOLS,
-  notCollectedLine,
-  shortTermBadge,
   bookMetrics,
   buildFlowChart,
   CHART_HEIGHT,
   CHART_SLOT_WIDTH,
   coverageText,
   eventRows,
+  FLOW_VIEW_SYMBOLS,
   type FlowFreshness,
   type FlowGex,
   type FlowMinute,
@@ -21,10 +19,12 @@ import {
   gexLevelRows,
   gexMetrics,
   neverCollected,
+  notCollectedLine,
   optionPrintRows,
   optionsMetrics,
   orderFlowMetrics,
   pressureText,
+  shortTermBadge,
   windowLabel,
 } from "./view-model.ts";
 
@@ -319,16 +319,23 @@ describe("flow minute chart", () => {
 });
 
 describe("lab fixture for QQQ and NQ", () => {
-  it("has no minutes, no prints and depth and GEX freshness only", () => {
-    for (const symbol of ["QQQ", "NQ"] as const) {
-      const snapshot = labFlowSnapshot(symbol, 60);
-      expect(snapshot.minutes).toEqual([]);
-      expect(snapshot.optionsFlow.topPrints).toEqual([]);
-      expect(snapshot.freshness.map((row) => row.source)).toEqual([
-        "depth",
-        "gex",
-      ]);
-    }
+  it("QQQ has no minutes, no prints and depth and GEX freshness only", () => {
+    const snapshot = labFlowSnapshot("QQQ", 60);
+    expect(snapshot.minutes).toEqual([]);
+    expect(snapshot.optionsFlow.topPrints).toEqual([]);
+    expect(snapshot.freshness.map((row) => row.source)).toEqual([
+      "depth",
+      "gex",
+    ]);
+  });
+
+  it("NQ has sampled minutes and ticks freshness but no option prints", () => {
+    const snapshot = labFlowSnapshot("NQ", 60);
+    expect(snapshot.minutes.length).toBeGreaterThan(0);
+    expect(snapshot.optionsFlow.topPrints).toEqual([]);
+    const sources = snapshot.freshness.map((row) => row.source);
+    expect(sources).toContain("ticks");
+    expect(sources).not.toContain("options");
   });
 });
 
@@ -365,8 +372,10 @@ describe("four symbols and the short-term badge", () => {
     expect(notCollectedLine("SPY")).toBeNull();
     expect(notCollectedLine("ES")).toBeNull();
     expect(notCollectedLine("QQQ")).toBe(
-      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES and SPY."
+      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
     );
-    expect(notCollectedLine("NQ")).toContain("Not collected for NQ");
+    expect(notCollectedLine("NQ")).toBe(
+      "Not collected for NQ: option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+    );
   });
 });

@@ -15,8 +15,8 @@ import {
 
 import { formatAge, formatMoney, formatNyTime } from "./format.ts";
 import {
-  FRESHNESS_TONE,
   type FlowSymbol,
+  FRESHNESS_TONE,
   type Metric,
   type Tone,
 } from "./view-model.ts";
@@ -234,3 +234,168 @@ export const controlFreshnessRows = (
         : `${row.instrument} net drift: ${row.state}, last answer ${formatNyTime(row.lastOkAt)}`,
     tone: FRESHNESS_TONE[row.state],
   }));
+
+type DeepTrades = FlowControl["deepTrades"];
+
+const wholeNumber = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
+const priceText = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2,
+});
+const etSeconds = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  hourCycle: "h23",
+  minute: "2-digit",
+  second: "2-digit",
+  timeZone: "America/New_York",
+});
+const etMinutes = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  hourCycle: "h23",
+  minute: "2-digit",
+  timeZone: "America/New_York",
+});
+
+/** "A deep trade is one print of at least 40 contracts on ES." plus the signing rule; null without a limit. */
+export const deepTradesLimitLine = (deep: DeepTrades): string | null => {
+  if (deep.limitSize === null) return null;
+  const limit = `A deep trade is one print of at least ${wholeNumber.format(deep.limitSize)} contracts on ${deep.symbol}.`;
+  if (deep.signing === "tick") return `${limit} Sides come from the tick rule.`;
+  if (deep.signing === "quote")
+    return `${limit} Sides come from the quote rule.`;
+  if (deep.trades.length === 0) return limit;
+  const byTick = deep.trades.filter((trade) => trade.signing === "tick").length;
+  return `${limit} Sides come from the quote rule where a quote was seen, else from the tick rule; the tick rule signed ${byTick} of the ${deep.trades.length} trades listed.`;
+};
+
+/** How much of the trailing window the sampled tape saw; every sum is a lower bound. */
+export const deepTradesCoverageLine = (deep: DeepTrades): string => {
+  const { coverage } = deep;
+  if (coverage.share === null)
+    return "Tape seen: no sampled second in this window yet.";
+  return `Tape seen: about ${Math.round(coverage.share * 100)}% of seconds in the last ${Math.round(coverage.windowSeconds / 60)} min (${wholeNumber.format(coverage.seenSeconds)} of ${wholeNumber.format(coverage.windowSeconds)} s). Busy periods are seen least: each fetch holds the newest 1000 prints, which span less time when trading is busy. The figure is approximate: it counts the first and last second of each sample, which deep-trade detection leaves out. Every sum is a lower bound.`;
+};
+
+const signedContracts = (value: number): string => {
+  const magnitude = wholeNumber.format(Math.abs(value));
+  return value > 0 ? `+${magnitude}` : value < 0 ? `−${magnitude}` : "0";
+};
+
+export const deepTradesSum = (deep: DeepTrades): Metric => ({
+  label: "Sum of sampled deep trades since 09:30 ET",
+  value: `${signedContracts(deep.sums.netVolume)} contracts (buy ${wholeNumber.format(deep.sums.buyVolume)}, sell ${wholeNumber.format(deep.sums.sellVolume)})`,
+});
+
+export type DeepTradesChart = Readonly<{
+  width: 320;
+  height: 96;
+  segments: readonly string[];
+  zeroY: number;
+  min: number;
+  max: number;
+}>;
+
+const SESSION_LAST_MINUTE = 389;
+
+/**
+ * The running signed sum (buy minus sell) at each sampled minute, placed by its minute after 09:30
+ * ET; one segment per run of consecutive minutes, so an unsampled stretch is a visible gap.
+ */
+export const buildDeepTradesChart = (deep: DeepTrades): DeepTradesChart => {
+  if (deep.minutes.length === 0)
+    return { height: 96, max: 0, min: 0, segments: [], width: 320, zeroY: 48 };
+  let running = 0;
+  const points = deep.minutes.map((entry) => {
+    running += entry.buyVolume - entry.sellVolume;
+    // "HH:MM" in New York; n = minutes after 09:30 ET.
+    const clock = etMinutes.format(new Date(entry.minute));
+    return {
+      n: Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5)) - 570,
+      value: running,
+    };
+  });
+  const values = points.map((point) => point.value);
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const y = (value: number) =>
+    max === min ? 48 : 4 + ((max - value) / (max - min)) * 88;
+  const x = (n: number) => (n / SESSION_LAST_MINUTE) * 320;
+  const runs: (typeof points)[] = [];
+  let previousN = Number.NEGATIVE_INFINITY;
+  let run: typeof points = [];
+  for (const point of points) {
+    if (point.n !== previousN + 1) {
+      run = [];
+      runs.push(run);
+    }
+    run.push(point);
+    previousN = point.n;
+  }
+  const pair = (xValue: number, value: number) =>
+    `${xValue.toFixed(1)},${y(value).toFixed(1)}`;
+  // A run of one minute is drawn from x to x + 1 at its y.
+  const segments = runs.map((entries) =>
+    entries
+      .flatMap((point) =>
+        entries.length === 1
+          ? [pair(x(point.n), point.value), pair(x(point.n) + 1, point.value)]
+          : [pair(x(point.n), point.value)]
+      )
+      .join(" ")
+  );
+  return { height: 96, max, min, segments, width: 320, zeroY: y(0) };
+};
+
+export type DeepTradeRow = Readonly<{
+  key: string;
+  time: string;
+  side: "Buy" | "Sell";
+  tone: Tone;
+  size: string;
+  price: string;
+  signing: "tick rule" | "quote rule";
+}>;
+
+export const deepTradeRows = (deep: DeepTrades): readonly DeepTradeRow[] =>
+  deep.trades.map((trade, index) => ({
+    key: `${trade.at}:${index}`,
+    price: priceText.format(trade.price),
+    side: trade.side === "buy" ? "Buy" : "Sell",
+    signing: trade.signing === "tick" ? "tick rule" : "quote rule",
+    size: wholeNumber.format(trade.size),
+    time: `${etSeconds.format(new Date(trade.at))} ET`,
+    tone: trade.side === "buy" ? STATE_TONE.buyers : STATE_TONE.sellers,
+  }));
+
+/** "Showing the newest 60 of 143 deep trades"; null when every trade is listed. */
+export const deepTradesMoreLine = (deep: DeepTrades): string | null =>
+  deep.totalTrades > deep.trades.length
+    ? `Showing the newest ${deep.trades.length} of ${wholeNumber.format(deep.totalTrades)} deep trades`
+    : null;
+
+export const absorptionMarks = (
+  deep: DeepTrades
+): readonly Readonly<{ key: string; time: string; text: string }>[] =>
+  deep.absorptions.map((mark, index) => ({
+    key: `${mark.at}:${index}`,
+    text:
+      mark.price === null
+        ? mark.detail
+        : `${mark.detail} at ${priceText.format(mark.price)}`,
+    time: `${etMinutes.format(new Date(mark.at))} ET`,
+  }));
+
+/** "FOMC meeting day." on an event day, else null. */
+export const sessionEventLine = (control: FlowControl): string | null =>
+  control.session.event === "fomc" ? "FOMC meeting day." : null;
+
+/** The session levels from one-minute closes; a missing part reads "no value yet". */
+export const levelsLine = (control: FlowControl): string | null => {
+  const { levels } = control;
+  if (levels === null) return null;
+  const part = (value: number | null) =>
+    value === null ? "no value yet" : priceText.format(value);
+  return `${levels.ticker} session (from one-minute closes; on a half day this is not the official close): open ${part(levels.sessionOpen)}, high ${part(levels.sessionHigh)}, low ${part(levels.sessionLow)}, previous close ${part(levels.previousClose)}`;
+};

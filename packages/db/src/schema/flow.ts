@@ -14,7 +14,8 @@ import {
 
 // Flow pipeline (docs/vertex-rebuild/flow-pipeline.md): flow.collect writes, flow.snapshot reads.
 // The collector prunes each table with its own retention (FLOW_RETENTION_DAYS in
-// packages/api/src/server/flow-collect.ts): 730 days for flow_net_drift, 14 days for the others.
+// packages/api/src/server/flow-collect.ts): 730 days for flow_net_drift and flow_large_trades,
+// 14 days for the others.
 
 export const FLOW_SYMBOL_VALUES = ["SPY", "ES", "QQQ", "NQ"] as const;
 export const FLOW_OPTION_TICKER_VALUES = ["SPY", "SPX", "QQQ", "NDX"] as const;
@@ -63,6 +64,13 @@ export const FLOW_NET_DRIFT_PART_VALUES = ["total", "zero_dte"] as const;
 export type FlowNetDriftTickerValue =
   (typeof FLOW_NET_DRIFT_TICKER_VALUES)[number];
 export type FlowNetDriftPartValue = (typeof FLOW_NET_DRIFT_PART_VALUES)[number];
+export const FLOW_TRADE_SIDE_VALUES = ["buy", "sell"] as const;
+export const FLOW_SIGNING_VALUES = ["quote", "tick"] as const;
+/** One capture mode today; a later migration widens the check when another is built. */
+export const FLOW_CAPTURE_VALUES = ["sampled"] as const;
+export type FlowTradeSideValue = (typeof FLOW_TRADE_SIDE_VALUES)[number];
+export type FlowSigningValue = (typeof FLOW_SIGNING_VALUES)[number];
+export type FlowCaptureValue = (typeof FLOW_CAPTURE_VALUES)[number];
 
 const utc = (name: string) =>
   timestamp(name, { mode: "date", withTimezone: true });
@@ -276,6 +284,33 @@ export const flowNetDrift = pgTable(
     check(
       "flow_net_drift_check",
       sql`${table.ticker} in ('SPY', 'SPX', 'QQQ', 'NDX') and ${table.part} in ('total', 'zero_dte') and length(${table.filterProfile}) <= 40`
+    ),
+  ]
+);
+
+/**
+ * Deep trades: single futures prints at or above the deep-trade limit, from a
+ * sampled tape. Insert-once by (symbol, second, seq); futures only.
+ */
+export const flowLargeTrades = pgTable(
+  "flow_large_trades",
+  {
+    capture: text("capture").$type<FlowCaptureValue>().notNull(),
+    limitSize: doublePrecision("limit_size").notNull(),
+    price: doublePrecision("price").notNull(),
+    sampledAt: utc("sampled_at").notNull(),
+    second: utc("second").notNull(),
+    seq: integer("seq").notNull(),
+    side: text("side").$type<FlowTradeSideValue>().notNull(),
+    signing: text("signing").$type<FlowSigningValue>().notNull(),
+    size: doublePrecision("size").notNull(),
+    symbol: text("symbol").$type<"ES" | "NQ">().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.symbol, table.second, table.seq] }),
+    check(
+      "flow_large_trades_check",
+      sql`${table.symbol} in ('ES', 'NQ') and ${table.side} in ('buy', 'sell') and ${table.signing} in ('quote', 'tick') and ${table.capture} in ('sampled') and ${table.seq} >= 0 and ${table.price} > 0 and ${table.limitSize} > 0 and ${table.size} >= ${table.limitSize}`
     ),
   ]
 );

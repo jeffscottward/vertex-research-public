@@ -72,7 +72,7 @@ describe("FlowControlPanel", () => {
     expect(options?.textContent).toContain("as of ");
   });
 
-  it("shows one futures line that joins the not-collected label and the agreement sentence, and no agreement row", async () => {
+  it("shows the futures row with the sampled-tape label and the agreement detail, and no agreement row", async () => {
     const { container } = await mount(panel());
     expect(container.querySelectorAll("[data-flow-control-side]")).toHaveLength(
       2
@@ -80,7 +80,7 @@ describe("FlowControlPanel", () => {
     expect(
       container.querySelector('[data-flow-control-side="futures"]')?.textContent
     ).toContain(
-      "Futures: deep trades not collected yet; futures and options agreement is not compared or tested"
+      "Futures: deep trades only (sampled tape, no state); futures and options agreement is not compared or tested"
     );
     expect(container.textContent).not.toContain("Cannot compare");
   });
@@ -227,5 +227,105 @@ describe("FlowControlPanel", () => {
     ).toMatch(
       /^Refresh failed \(STORAGE_ERROR: down\)\. Showing the document of /u
     );
+  });
+
+  it("shows the deep trades section: limit, coverage sentence, labelled sum, chart name", async () => {
+    const { container } = await mount(panel());
+    const section = container.querySelector('[data-flow-deep-trades="ES"]');
+    expect(section?.querySelector("h3")?.textContent).toBe("Deep trades: ES");
+    expect(section?.textContent).toContain(
+      "A deep trade is one print of at least 40 contracts on ES."
+    );
+    expect(
+      section?.querySelector("[data-flow-deep-coverage]")?.textContent
+    ).toContain("Tape seen: about 31% of seconds in the last 30 min");
+    expect(section?.textContent).toContain(
+      "Sum of sampled deep trades since 09:30 ET"
+    );
+    const chart = section?.querySelector("[data-flow-deep-chart]");
+    expect(chart?.getAttribute("role")).toBe("img");
+    expect(chart?.getAttribute("aria-label")).toMatch(
+      /^Sum of sampled deep trades: /u
+    );
+    expect(chart?.querySelectorAll("polyline")).toHaveLength(3);
+  });
+
+  it("lists trades and absorption marks", async () => {
+    const { container } = await mount(panel());
+    const trades = container.querySelectorAll("[data-flow-deep-trade]");
+    expect(trades).toHaveLength(14);
+    expect(trades[0]?.textContent).toMatch(/ ET.*(Buy|Sell)/u);
+    expect(container.querySelectorAll("[data-flow-absorption]")).toHaveLength(
+      2
+    );
+    expect(container.querySelector("[data-flow-deep-empty]")).toBeNull();
+    const more = await mount(
+      panel({
+        control: {
+          ...sp500,
+          deepTrades: { ...sp500.deepTrades, totalTrades: 143 },
+        },
+      })
+    );
+    expect(more.container.textContent).toContain(
+      "Showing the newest 14 of 143 deep trades"
+    );
+  });
+
+  it("names the deep trades table and its scroll region for assistive technology", async () => {
+    const { container } = await mount(panel());
+    const region = container.querySelector(
+      '[data-flow-deep-trades="ES"] [role="region"]'
+    );
+    expect(region?.getAttribute("aria-label")).toBe(
+      "Deep trades, newest first"
+    );
+    expect(region?.getAttribute("tabindex")).toBe("0");
+    expect(region?.querySelector("caption")?.textContent).toBe(
+      "Deep trades of ES, newest first"
+    );
+    const heads = [...(region?.querySelectorAll("th") ?? [])];
+    expect(heads.map((head) => head.textContent)).toEqual([
+      "Time",
+      "Side",
+      "Size",
+      "Price",
+      "Rule",
+    ]);
+    for (const head of heads) expect(head.getAttribute("scope")).toBe("col");
+  });
+
+  it("says that the sampled tape holds no deep trade", async () => {
+    const { container } = await mount(
+      panel({
+        control: {
+          ...sp500,
+          deepTrades: {
+            ...sp500.deepTrades,
+            absorptions: [],
+            limitSize: null,
+            trades: [],
+          },
+        },
+      })
+    );
+    expect(container.querySelector("[data-flow-deep-empty]")?.textContent).toBe(
+      "No deep trade in the sampled tape since 09:30 ET."
+    );
+    expect(container.querySelector("[data-flow-absorption]")).toBeNull();
+    expect(container.textContent).not.toContain("A deep trade is one print");
+  });
+
+  it("shows the FOMC line and the levels line", async () => {
+    const { container } = await mount(panel({ control: nasdaq }));
+    expect(
+      container.querySelector("[data-flow-session-event]")?.textContent
+    ).toBe("FOMC meeting day.");
+    expect(container.querySelector("[data-flow-levels]")).toBeNull();
+    const sp = await mount(panel());
+    expect(sp.container.querySelector("[data-flow-session-event]")).toBeNull();
+    expect(
+      sp.container.querySelector("[data-flow-levels]")?.textContent
+    ).toContain("SPX session (from one-minute closes");
   });
 });

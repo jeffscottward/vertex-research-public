@@ -312,7 +312,14 @@ export const labFlowSnapshot = (
     windowStart: new Date(start).toISOString(),
   };
   if (symbol === "SPY" || symbol === "ES") return snapshot;
-  // QQQ and NQ collect depth and GEX only: no sampled minutes, no option prints.
+  // NQ samples ticks but has no option prints.
+  if (symbol === "NQ")
+    return {
+      ...snapshot,
+      freshness: snapshot.freshness.filter((row) => row.source !== "options"),
+      optionsFlow: { ...snapshot.optionsFlow, topPrints: [] },
+    };
+  // QQQ collects depth and GEX only: no sampled minutes, no option prints.
   return {
     ...snapshot,
     freshness: snapshot.freshness.filter(
@@ -369,6 +376,88 @@ const labSeries = (
   };
 };
 
+/**
+ * Fictional deep trades: ES has 14 trades (9 by the quote rule), 90 sampled minutes with two gaps
+ * and 2 absorption marks; NQ has 3 trades by the tick rule.
+ */
+const labDeepTrades = (sp500: boolean): FlowControl["deepTrades"] => {
+  const at = (minute: number, second = 0) =>
+    new Date(LAB_SESSION_OPEN + minute * 60_000 + second * 1000).toISOString();
+  const count = sp500 ? 14 : 3;
+  const trades = Array.from({ length: count }, (_, index) => {
+    const minute = 100 - index * 6;
+    return {
+      at: at(minute, 7 + index),
+      price: sp500 ? 6870.5 - index * 0.25 : 21_450.25 + index,
+      side: index % 3 === 1 ? ("sell" as const) : ("buy" as const),
+      signing: !sp500 || index >= 9 ? ("tick" as const) : ("quote" as const),
+      size: (sp500 ? 40 : 10) + (index % 4) * 3,
+    };
+  });
+  // Sampled minutes 0..99 without two gaps (minutes 20-24 and 60-64): 90 minutes.
+  const sampledMinutes = Array.from(
+    { length: 100 },
+    (_, index) => index
+  ).filter(
+    (index) => !((index >= 20 && index < 25) || (index >= 60 && index < 65))
+  );
+  const minutes = sampledMinutes.map((minute) => {
+    const inMinute = trades.filter(
+      (trade) => trade.at.slice(0, 16) === at(minute).slice(0, 16)
+    );
+    const volume = (side: "buy" | "sell") =>
+      inMinute
+        .filter((trade) => trade.side === side)
+        .reduce((sum, trade) => sum + trade.size, 0);
+    return {
+      buyVolume: volume("buy"),
+      coveredSeconds: minute % 7 === 0 ? 20 : 30,
+      minute: at(minute),
+      sellVolume: volume("sell"),
+    };
+  });
+  const buyVolume = trades
+    .filter((trade) => trade.side === "buy")
+    .reduce((sum, trade) => sum + trade.size, 0);
+  const sellVolume = trades
+    .filter((trade) => trade.side === "sell")
+    .reduce((sum, trade) => sum + trade.size, 0);
+  return {
+    absorptions: sp500
+      ? [
+          {
+            at: at(98),
+            detail: "Buy absorption: heavy buying, price held",
+            direction: "bearish",
+            price: 6871.25,
+          },
+          {
+            at: at(71),
+            detail: "Sell absorption: heavy selling, price held",
+            direction: "bullish",
+            price: null,
+          },
+        ]
+      : [],
+    capture: "sampled",
+    coverage: sp500
+      ? { seenSeconds: 558, share: 0.31, windowSeconds: 1800 }
+      : { seenSeconds: 108, share: 0.06, windowSeconds: 1800 },
+    limitSize: sp500 ? 40 : 10,
+    minutes: sp500 ? minutes : minutes.slice(-6),
+    signing: sp500 ? null : "tick",
+    sums: {
+      buyVolume,
+      cumulativeFrom: new Date(LAB_SESSION_OPEN).toISOString(),
+      netVolume: buyVolume - sellVolume,
+      sellVolume,
+    },
+    symbol: sp500 ? "ES" : "NQ",
+    totalTrades: count,
+    trades,
+  };
+};
+
 /** A fictional flow-control.v1 document: sp500 buyers since 10:31, nasdaq100 mixed. */
 export const labFlowControl = (group: FlowGroupId): FlowControl => {
   const sp500 = group === "sp500";
@@ -377,7 +466,7 @@ export const labFlowControl = (group: FlowGroupId): FlowControl => {
   const future = sp500 ? "ES" : "NQ";
   return {
     agreement: {
-      detail: `Futures: deep trades not collected yet: ${future} deep trades are not collected yet`,
+      detail: `Futures: deep trades only (sampled tape, no state): ${future} deep trades are listed below; a futures state needs the full tape`,
       direction: "neutral",
       label: "Cannot compare",
       since: null,
@@ -401,18 +490,7 @@ export const labFlowControl = (group: FlowGroupId): FlowControl => {
           ticker: "QQQ",
           unreadRanges: 0,
         },
-    deepTrades: {
-      absorptions: [],
-      capture: "sampled",
-      coverage: { seenSeconds: 0, share: null, windowSeconds: 1800 },
-      limitSize: null,
-      minutes: [],
-      signing: null,
-      sums: { buyVolume: 0, cumulativeFrom: null, netVolume: 0, sellVolume: 0 },
-      symbol: future,
-      totalTrades: 0,
-      trades: [],
-    },
+    deepTrades: labDeepTrades(sp500),
     freshness: [primary, check].map((instrument) => ({
       ageSeconds: 60,
       instrument,
@@ -422,14 +500,14 @@ export const labFlowControl = (group: FlowGroupId): FlowControl => {
       state: "fresh" as const,
     })),
     futures: {
-      asOf: null,
-      detail: `${future} deep trades are not collected yet`,
+      asOf: labMinutesAgo(2),
+      detail: `${future} deep trades are listed below; a futures state needs the full tape`,
       direction: "neutral",
       enterRatio: 0.3,
-      inputs: { denominator: null, numerator: null, rows: 0 },
+      inputs: { denominator: null, numerator: null, rows: sp500 ? 14 : 3 },
       instrument: future,
-      label: "Futures: deep trades not collected yet",
-      noDataReason: "not_collected",
+      label: "Futures: deep trades only (sampled tape, no state)",
+      noDataReason: "sampled_tape",
       ratio: null,
       since: null,
       state: "no_data",
@@ -438,7 +516,16 @@ export const labFlowControl = (group: FlowGroupId): FlowControl => {
     },
     generatedAt: LAB_NOW_ISO,
     group,
-    levels: null,
+    levels: sp500
+      ? {
+          previousClose: 6848.3,
+          sessionHigh: 6880.4,
+          sessionLow: 6841,
+          sessionOpen: 6852.1,
+          source: "one_minute_closes",
+          ticker: "SPX",
+        }
+      : null,
     netDrift: [
       labSeries(primary, "primary", sp500 ? 1.4 : 1.2),
       labSeries(check, "check", sp500 ? 1.1 : 0.4),
@@ -480,7 +567,7 @@ export const labFlowControl = (group: FlowGroupId): FlowControl => {
     schemaVersion: "flow-control.v1",
     session: {
       date: "2026-10-30",
-      event: null,
+      event: sp500 ? null : "fomc",
       futuresOpen: true,
       open: true,
       optionsOpen: true,
