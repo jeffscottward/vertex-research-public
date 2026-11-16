@@ -135,6 +135,16 @@ describe("dataset from series-store rows", () => {
     expect(() => marketOf(optionsDatasetFromRows(noRate), "SPY")).toThrow(
       "Series data is not available for IRX"
     );
+    const vxn = data.series["VXN"] ?? {};
+    const [firstDay = ""] = Object.keys(vxn);
+    const high = (level: number) => ({
+      ...data,
+      series: { ...data.series, VXN: { ...vxn, [firstDay]: level } },
+    });
+    expect(marketOf(high(10_000), "QQQ").ivIndex).toContain(10_000);
+    expect(() => marketOf(high(10_001), "QQQ")).toThrow(
+      "Market IV index values must be at most 10000"
+    );
   });
 });
 
