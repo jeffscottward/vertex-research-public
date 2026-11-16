@@ -23,6 +23,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
   }),
 }));
 
+import { labResearchTechnicals } from "../../lab/fixtures/research.ts";
 import {
   createBrowserResearchReportsGateway,
   ResearchReportDetail,
@@ -136,6 +137,7 @@ const gatewayOf = (
       warnings: ["Fixture warning"],
     }),
   list: async () => catalog(),
+  technicals: async (reportId) => labResearchTechnicals(reportId),
   ...overrides,
 });
 
@@ -559,18 +561,135 @@ describe("research dossier dataset panels", () => {
   });
 });
 
+describe("research dossier technicals", () => {
+  it("shows the computed technicals above the technicals dataset panels", async () => {
+    const technicals = vi.fn(gatewayOf().technicals);
+    window.history.replaceState(
+      null,
+      "",
+      "/research/reports/AAA?tab=technicals"
+    );
+    const container = await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({ technicals })}
+        initialTab="technicals"
+        reportId="AAA"
+      />
+    );
+    expect(technicals).toHaveBeenCalledWith("AAA");
+    expect(state(container, "data-research-technicals-state")).toBe("ready");
+    expect(state(container, "data-research-report-state")).toBe("ready");
+    expect(state(container, "data-technicals-check")).toBe("success");
+    expect(text(container, "[data-technicals-stage]")).toBe(
+      "Stage 2: advancing"
+    );
+    expect(container.textContent).toContain(
+      "all 9 checked values equal the stored values"
+    );
+    expect(container.textContent).toContain("Close above SMA 20");
+    expect(container.textContent).toContain("Nearest below the close");
+    expect(container.textContent).toContain("Inside the value area");
+    expect(
+      container.querySelectorAll("[data-technicals-bins] li")
+    ).toHaveLength(50);
+    expect(
+      container.querySelectorAll("[data-technicals-warnings] li")
+    ).toHaveLength(1);
+    expect(container.textContent).toContain("Method version 1.");
+  });
+
+  it("does not read the technicals on other tabs", async () => {
+    window.history.replaceState(null, "", "/research/reports/AAA");
+    const technicals = vi.fn(gatewayOf().technicals);
+    await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({ technicals })}
+        reportId="AAA"
+      />
+    );
+    expect(technicals).not.toHaveBeenCalled();
+  });
+
+  it("shows Unavailable for markers the server did not compute and no warning list", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/research/reports/AAA?tab=technicals"
+    );
+    const container = await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({
+          technicals: async (reportId) => ({
+            ...labResearchTechnicals(reportId),
+            fibonacci: null,
+            pivots: null,
+            volumeProfile: null,
+            warnings: [],
+            weinstein: null,
+          }),
+        })}
+        initialTab="technicals"
+        reportId="AAA"
+      />
+    );
+    expect(
+      [...container.querySelectorAll("[data-technicals] p")].filter(
+        (node) => node.textContent === "Unavailable."
+      )
+    ).toHaveLength(4);
+    expect(container.querySelector("[data-technicals-warnings]")).toBeNull();
+  });
+
+  it("keeps the dataset panels when the technicals read fails and retries it", async () => {
+    let calls = 0;
+    window.history.replaceState(
+      null,
+      "",
+      "/research/reports/AAA?tab=technicals"
+    );
+    const container = await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({
+          technicals: async (reportId) => {
+            calls += 1;
+            if (calls === 1)
+              throw { code: "STORAGE_ERROR", message: "storage down" };
+            return labResearchTechnicals(reportId);
+          },
+        })}
+        initialTab="technicals"
+        reportId="AAA"
+      />
+    );
+    expect(state(container, "data-research-technicals-state")).toBe("error");
+    expect(container.querySelector("[role='alert']")?.textContent).toBe(
+      "Technicals unavailable. STORAGE_ERROR: storage down"
+    );
+    expect(state(container, "data-research-report-state")).toBe("ready");
+    await act(async () =>
+      (
+        container.querySelector("[role='alert'] + button") as HTMLButtonElement
+      ).click()
+    );
+    expect(state(container, "data-research-technicals-state")).toBe("ready");
+  });
+});
+
 describe("research dossier gateway and entry point", () => {
   it("creates the browser client lazily, once, on the page origin", async () => {
     const list = vi.fn(async () => catalog());
     const read = vi.fn(async () => dataset("market", {}));
+    const technicals = vi.fn(async () => labResearchTechnicals("AAA"));
     runtime.client = {
-      researchReports: { dataset: read, list },
+      researchReports: { dataset: read, list, technicals },
     } as unknown as ApiClient;
     const gateway = createBrowserResearchReportsGateway();
     expect(runtime.origins).toEqual([]);
     await gateway.list();
     await gateway.dataset("AAA", "market");
     expect(read).toHaveBeenCalledWith({ dataset: "market", reportId: "AAA" });
+    await gateway.technicals("AAA");
+    expect(technicals).toHaveBeenCalledWith({ reportId: "AAA" });
     expect(runtime.origins).toEqual([window.location.origin]);
     expect(Object.isFrozen(gateway)).toBe(true);
     await mount(<ResearchReportsCatalog />);
