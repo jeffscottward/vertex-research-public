@@ -86,6 +86,8 @@ This repository is Vertex Research, a downstream of [DarkFactory](https://github
 
 Development repository (owner 2026-11-04): open PRs on the public repository `vertex-research-public` and read CI there; every job runs on GitHub-hosted runners, never on self-hosted or rig runners. The private `vertex-research` is a read-only backup with unrelated history. Sanitize and scan every change before it reaches the public repository ([ci-cutover.md](docs/vertex-rebuild/ci-cutover.md)).
 
+No links to the owner's Discord server in tracked files (owner decision 2026-11-16, card vertex-public-scan-hits-1109): cite an owner decision by date and the words "owner Discord message (private)". `scripts/ci/public-names.ts` fails CI on a `discord.com/channels/<server id>` link with a real 17-20 digit server ID.
+
 ### Vertex Research specialization — 2026-09-21
 
 This isolated project specializes the inherited DarkFactory foundation for Vertex Research. The current authority is the implementation plan and traceability ledger under `docs/vertex-rebuild/`; the original consolidation report remains evidence, not permission to reinstate its superseded Next.js stack or copy another application shell. Keep this file and `CLAUDE.md` byte-identical.
@@ -223,7 +225,7 @@ Owner decision, 2026-11-11: the agents that work here own the quality of this co
 
 ## Code review practice
 
-This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15), with one change: only agents review code here. The owner does not read code (owner decision, 2026-11-10, [message](https://discord.com/channels/1511468532876185770/1569796763714457652/1569827457996029986)). The agent that opens a PR owns its outcome: tests, review findings, CI, merge and follow-up.
+This repository follows the Claude Code team's review practice ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), 2026-10-15), with one change: only agents review code here. The owner does not read code (owner decision, 2026-11-10, owner Discord message (private)). The agent that opens a PR owns its outcome: tests, review findings, CI, merge and follow-up.
 
 - Verify before review: run the tests, build or browser check, and put the command and its output (or a screenshot) in the PR.
 - Before opening a PR, have a fresh-context reviewer (subagent or `/code-review`) read the diff. Fix each finding or answer it with a reason.

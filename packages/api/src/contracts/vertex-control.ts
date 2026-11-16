@@ -441,6 +441,7 @@ export const VertexPortfolioReadSchema = z
         reason: z.enum([
           "capability-disabled",
           "source-unavailable",
+          "not-configured",
           "not-found",
         ]),
         executionAuthorized: z.literal(false),

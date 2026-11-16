@@ -47,6 +47,7 @@ export const createVertexStore = (
     appendExecutionProjection: projection.appendExecutionProjection,
     recordPortfolioSnapshot: projection.recordPortfolioSnapshot,
     getPortfolioSnapshot: projection.getPortfolioSnapshot,
+    getPortfolioRead: projection.getPortfolioRead,
     getContinuity: projection.getContinuity,
     enqueueEvent: outbox.enqueueEvent,
     claimOutbox: outbox.claimOutbox,

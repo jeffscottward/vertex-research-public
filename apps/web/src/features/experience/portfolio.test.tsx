@@ -368,6 +368,8 @@ describe("portfolio source truthfulness", () => {
       "PAPER-SIMULATION observations only",
       "not broker-paper holdings or live balances",
       "stale · freshness: stale",
+      `Portfolio source not responding for paper: no newer observation since ${snapshot.asOfAt}`,
+      "No newer portfolio observation arrived within the age limit of 1000 ms",
       "Values are historical observations",
       "Current balances are unconfirmed",
       "Unknown — not supplied",
@@ -416,10 +418,10 @@ describe("portfolio source truthfulness", () => {
       if (observation.sourceKind === "source-unavailable") {
         // Names the state, the environment, when the source said so, and what happens next.
         expect(visible).toContain(
-          `Portfolio source sent no portfolio data for ${observation.environment}`
+          `Portfolio source reported no portfolio data for ${observation.environment} at ${observation.asOfAt}`
         );
         expect(visible).toContain(
-          `The source reported this at ${observation.asOfAt} (sequence ${observation.sequence})`
+          `The source reported at ${observation.asOfAt} (sequence ${observation.sequence}) that it has no portfolio data`
         );
         expect(visible).toContain("Refresh reads the source again");
         // The protocol value is not printed.
@@ -503,16 +505,14 @@ describe("portfolio source truthfulness", () => {
   });
 
   it("names the no-source continuity state with its time, sequence and next step", () => {
-    expect(continuityStateLabel("unavailable")).toBe(
-      "source sent no portfolio data"
-    );
+    expect(continuityStateLabel("unavailable")).toBe("source reported no data");
     expect(continuityStateLabel("gap")).toBe("gap");
     expect(sourceKindLabel("source-unavailable")).toBe(
-      "source sent no portfolio data"
+      "source reported no data"
     );
     expect(sourceKindLabel("broker-observation")).toBe("broker-observation");
     expect(continuityMessage({ ...continuity, state: "unavailable" })).toBe(
-      `Portfolio source sent no portfolio data. The source reported this at ${continuity.lastOccurredAt} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`
+      `Portfolio source reported no portfolio data. The source reported this at ${continuity.lastOccurredAt} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`
     );
     return expect(
       continuityMessage({
@@ -564,22 +564,47 @@ describe("portfolio source truthfulness", () => {
     ).toContain("9007199254740998");
   });
 
-  it("distinguishes unavailable capability, source and record from an empty successful read", () => {
-    for (const reason of [
-      "capability-disabled",
-      "source-unavailable",
-      "not-found",
-    ] as const) {
+  it("names each portfolio read state with the environment and never prints the protocol word", () => {
+    const cases = [
+      [
+        "not-configured",
+        "Portfolio source not configured for paper",
+        "No native source has opened a projection stream for this account and environment",
+      ],
+      [
+        "not-found",
+        "No portfolio snapshot received yet for paper",
+        "has not sent a portfolio snapshot for its current owner epoch",
+      ],
+      [
+        "capability-disabled",
+        "Portfolio reads turned off for paper",
+        "The portfolio read is turned off",
+      ],
+      [
+        "source-unavailable",
+        "Portfolio source not responding for paper",
+        "The portfolio source did not answer this read",
+      ],
+    ] as const;
+    const titles = new Set<string>();
+    for (const [reason, title, cause] of cases) {
       const html = markup(
         <PortfolioReadResult
           result={{ status: "unavailable", reason, executionAuthorized: false }}
           scope={scope}
         />
       );
-      expect(html).toContain("Portfolio unavailable");
-      expect(html).toContain(reason);
+      titles.add(title);
+      expect(html).toContain(title);
+      expect(html).toContain(cause);
+      expect(html).toContain("No portfolio balance is inferred");
+      expect(html).not.toContain(reason);
+      expect(html).not.toContain("Portfolio unavailable");
       expect(html).not.toContain("No positions supplied");
     }
+    expect(titles.size).toBe(cases.length);
+    // The healthy path: a fresh observation shows its values and no source notice.
     const html = markup(
       <PortfolioReadResult
         result={{
@@ -590,7 +615,9 @@ describe("portfolio source truthfulness", () => {
       />
     );
     expect(html).toContain("No positions supplied");
-    return expect(html).not.toContain("Portfolio unavailable");
+    expect(html).not.toContain("not responding");
+    expect(html).not.toContain("not configured");
+    return expect(html).not.toContain("received yet");
   });
 
   it("withholds a mismatched scope instead of displaying another account's observation", () => {

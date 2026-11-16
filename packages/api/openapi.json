@@ -242898,6 +242898,7 @@
                           "enum": [
                             "capability-disabled",
                             "source-unavailable",
+                            "not-configured",
                             "not-found"
                           ],
                           "type": "string"

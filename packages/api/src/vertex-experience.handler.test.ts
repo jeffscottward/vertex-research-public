@@ -109,9 +109,10 @@ const simulation = {
 // never a real DB/provider call. No service factory is replaced in this suite.
 const dependencies = () => {
   const store = {
-    getPortfolioSnapshot: vi.fn<VertexStore["getPortfolioSnapshot"]>(
-      async () => null
-    ),
+    getPortfolioRead: vi.fn<VertexStore["getPortfolioRead"]>(async () => ({
+      snapshot: null,
+      streamRegistered: true,
+    })),
     getContinuity: vi.fn<VertexStore["getContinuity"]>(async () => null),
     listArtifacts: vi.fn<VertexStore["listArtifacts"]>(async () => ({
       items: [],
@@ -389,6 +390,15 @@ describe("Vertex experience authenticated transport", () => {
       reason: "not-found",
       executionAuthorized: false,
     });
+    deps.store.getPortfolioRead.mockResolvedValueOnce({
+      snapshot: null,
+      streamRegistered: false,
+    });
+    await expect(client.vertex.experience.portfolio(scope)).resolves.toEqual({
+      status: "unavailable",
+      reason: "not-configured",
+      executionAuthorized: false,
+    });
     await expect(
       client.vertex.experience.continuity({ ...scope, streamId: "stream-1" })
     ).resolves.toEqual({
@@ -420,7 +430,7 @@ describe("Vertex experience authenticated transport", () => {
       action: "read",
       now: timestamp,
     });
-    expect(deps.store.getPortfolioSnapshot).toHaveBeenCalledWith(actor, scope);
+    expect(deps.store.getPortfolioRead).toHaveBeenCalledWith(actor, scope);
     expect(deps.store.getContinuity).toHaveBeenCalledWith(
       actor,
       scope,
@@ -457,7 +467,7 @@ describe("Vertex experience authenticated transport", () => {
 
   it("redacts unexpected artifact-storage and DB failure text from the wire", async () => {
     const deps = dependencies();
-    deps.store.getPortfolioSnapshot.mockRejectedValue(
+    deps.store.getPortfolioRead.mockRejectedValue(
       new Error("private storage text")
     );
     const responses: Response[] = [];
