@@ -2000,7 +2000,7 @@
           "toolCalls": []
         }
       ],
-      "grade": "wrong",
+      "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "Q20",
       "recordedAt": "2026-11-15T18:43:10.126Z",
@@ -2186,14 +2186,14 @@
         },
         {
           "content": "No, on the numbers in the live account feed the NVDA option premium is above 2% of NLV.\n\n- Net liquidation (term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 248,350.12 USD. 2% of that is about 4,967 USD.\n- NVDA option position (term position, vertex-portfolio feed, same time): 5 contracts of the NVDA 2026-12-18 200 call, average price 12.50, cost basis 6,250 USD, market value 6,760 USD.\n- Premium paid is 6,250 USD, about 2.52% of NLV, roughly 1,283 USD over the 2% level.\n- At current market value it is 6,760 USD, about 2.72% of NLV, roughly 1,793 USD over.\n\nThings I could not confirm:\n- I found no \"2% of NLV for short-dated options\" cap in the trader master rules. The closest match is rule C154 (cap total options exposure; knowledge bases ericnomics, inthemoneyadam, trading-fraternity), which uses much looser limits such as 10-20% of capital in options. So I treated the 2% cap as your own rule; the search does not say what counts as short-dated.\n- The call expires 2026-12-18, 43 days from today. Whether that counts as short-dated depends on your definition. If it does not, the cap does not apply to this position.\n- The open_risk term takes no symbol filter, so I did not get a certified per-symbol open risk figure. The percentages above are my own arithmetic from the certified position and NLV values.\n\nThe 150 NVDA shares (market value 29,400 USD) are stock and not included in the premium figure. This is a read-only check and changes no risk setting.",
-          "inputDigest": "2ab946158554aec8d16b0f039623b720b21a9c9fdd1d3d270e05ded474d586a5",
+          "inputDigest": "22b8338fa2de18f6e40f940c93516ed3e8ab004513c0511a199dcc3a828d9a83",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "H2",
-      "recordedAt": "2026-11-15T13:33:00.773Z",
+      "recordedAt": "2026-11-15T22:26:07.557Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})",
@@ -2246,14 +2246,14 @@
         },
         {
           "content": "No. If the Dec 18 call counts as short-dated, your NVDA option premium is over a 2% of NLV cap on both cost and current value.\n\n- Net liquidation (term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 248,350.12 USD, so 2% is about 4,967 USD.\n- NVDA option position (term position, vertex-portfolio feed, same time): 5 contracts of the NVDA 2026-12-18 200 call, cost basis 6,250 USD, market value 6,760 USD.\n- Premium paid is about 2.52% of NLV, roughly 1,283 USD over the cap.\n- Current market value is about 2.72% of NLV, roughly 1,793 USD over the cap.\n\nThe percentages are my arithmetic on the certified values.\n\nTwo things I could not confirm:\n- The 2% cap itself is not in the ledger. No certified term covers it, and a master_rules_search found no matching rule (the nearest, C154, is a general cap on options exposure with different thresholds). I took the 2% as your own rule.\n- Nothing in the ledger defines \"short-dated\". The call expires in 43 days; if your cap only applies to shorter expiries, it does not cover this position.\n\nThe open_risk term takes no symbol filter, so I used the position row's debit paid for NVDA rather than that term. The 150 NVDA shares are not counted.",
-          "inputDigest": "45ae5a298014fa3c6f85a0e03e288848f7fc7ed093069e79a22ac93920d8c211",
+          "inputDigest": "0e4b9aaab21b272b797402a3883e8653d4a8b1514eb94060d86b5b9f9fb35eff",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "H2",
-      "recordedAt": "2026-11-15T13:33:00.773Z",
+      "recordedAt": "2026-11-15T22:26:07.589Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})",
@@ -2311,14 +2311,14 @@
         },
         {
           "content": "No. If the NVDA calls count as short-dated, the premium is over a 2% of NLV cap.\n\nCertified values (vertex-portfolio feed, live IBKR account, as of 2026-11-05 15:30 UTC):\n- net_liquidation: 248,350.12 USD\n- position (NVDA, option row): 5 x NVDA 2026-12-18 200 C, cost basis 6,250 USD, market value 6,760 USD\n- open_risk: the same structure is a long option with a maximum loss of 6,250 USD (the debit paid)\n\nMy arithmetic from those values (the percentages are not certified):\n- 2% of NLV is about 4,967 USD\n- Debit paid of 6,250 USD is about 2.52% of NLV, roughly 1,283 USD over the cap\n- Current market value of 6,760 USD is about 2.72% of NLV, roughly 1,793 USD over the cap\n\nTwo caveats:\n- The 2% cap for short-dated options is not a certified term, and master_rules_search returned no rule with that number. I took the 2% from your question. The nearest rule is C154 (cap total options exposure; knowledge bases trading-fraternity, inthemoneyadam, ericnomics), which uses different thresholds, for example https://www.youtube.com/watch?v=YS7wDyTnteQ. It is advisory only.\n- The calls expire 2026-12-18, 43 days out. Whether that is short-dated depends on your definition; if your cutoff is shorter, such as 30 days, the cap would not apply to this position.\n\nThis is a read-only check and changes no position or risk setting.",
-          "inputDigest": "37af716aae17a045f5fc8e7f6790927154eccb80a4776355728d0cef897cfd59",
+          "inputDigest": "a674d14dc286f3d0b11d3eaf232ab0d93e94315b1cbfc59d3928f4081dfbc9f0",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-fable-5-2",
       "question": "H2",
-      "recordedAt": "2026-11-15T13:33:00.773Z",
+      "recordedAt": "2026-11-15T22:26:07.615Z",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"net_liquidation\"})",

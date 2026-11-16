@@ -1,12 +1,12 @@
 {
   "generatedFrom": "knowledge-bases/trading/_master-rules (clusters.json, conflicts.json, debates/, rules.jsonl, inventory.json)",
-  "clusters": 864,
+  "clusters": 889,
   "debates": 12,
   "counts": {
-    "C": 67,
-    "A": 109,
-    "D": 351,
-    "B": 349
+    "C": 76,
+    "A": 110,
+    "D": 355,
+    "B": 360
   },
   "method": "A = 3+ knowledge bases or a won debate, and fits our style. B = fits and needs no missing data. C = needs a missing feature or data feed. D = style conflict. Keyword and scope heuristics; research input only.",
   "kbTiers": {
@@ -355,7 +355,7 @@
       "title": "Enter on retest of broken level",
       "rule": "After a level or value edge breaks, enter on the pullback or retest of that level, with targets at the next level.",
       "kind": "entry",
-      "consensus": 10,
+      "consensus": 11,
       "kbs": [
         "andrea-cimitan",
         "bridgingcycles-instagram",
@@ -366,13 +366,19 @@
         "nicholas-crown",
         "patrick-nill",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ],
-      "methodologies": ["crypto", "discretionary-technical", "orderflow"],
+      "methodologies": [
+        "crypto",
+        "discretionary-technical",
+        "orderflow",
+        "options"
+      ],
       "timeframes": ["intraday", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 10 knowledge bases agree.",
+      "reason": "High conviction: 11 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -380,7 +386,7 @@
       "title": "Scale out at first target, protect runner",
       "rule": "Take partial profits (often ~50%) at the first target, move the stop on the remainder to breakeven, and let a runner work.",
       "kind": "exit",
-      "consensus": 10,
+      "consensus": 11,
       "kbs": [
         "andrea-cimitan",
         "dumbmoneyhunter",
@@ -391,7 +397,8 @@
         "nicholas-crown",
         "smbcapital",
         "trading-fraternity",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ],
       "methodologies": [
         "discretionary-technical",
@@ -404,7 +411,7 @@
       "timeframes": ["any", "intraday", "long-term", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 10 knowledge bases agree.",
+      "reason": "High conviction: 11 knowledge bases agree.",
       "target": "alert-stop-rules"
     },
     {
@@ -732,14 +739,15 @@
       "title": "Volatility-scaled stops and targets",
       "rule": "Size stop width, and targets, to current volatility (ATR multiples, IV, VIX) and regime rather than using fixed points.",
       "kind": "exit",
-      "consensus": 6,
+      "consensus": 7,
       "kbs": [
         "brandon-kioseff",
         "deltatrendtrading",
         "enrico-stucchi",
         "inthemoneyadam",
         "matteo-conti",
-        "skydweller"
+        "skydweller",
+        "trading-verrillo-aleks"
       ],
       "methodologies": [
         "discretionary-technical",
@@ -750,7 +758,7 @@
       "timeframes": ["any", "intraday", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 6 knowledge bases agree.",
+      "reason": "High conviction: 7 knowledge bases agree.",
       "target": "alert-stop-rules"
     },
     {
@@ -803,7 +811,7 @@
       "title": "Keep strategies and tools simple",
       "rule": "Prefer simple strategies and a few core tools, removing extra indicators and complexity as noise and fragility.",
       "kind": "wisdom",
-      "consensus": 7,
+      "consensus": 8,
       "kbs": [
         "dumbmoneyhunter",
         "ericnomics",
@@ -811,18 +819,20 @@
         "matteo-conti",
         "not-a-lil-fish",
         "patrick-nill",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ],
       "methodologies": [
         "discretionary-technical",
         "options",
         "systematic-automation",
-        "value-fundamental"
+        "value-fundamental",
+        "futures-intraday"
       ],
-      "timeframes": ["any", "long-term", "swing"],
+      "timeframes": ["any", "long-term", "swing", "intraday"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 7 knowledge bases agree.",
+      "reason": "High conviction: 8 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -1326,13 +1336,14 @@
       "title": "Target POC / value-area rotation",
       "rule": "In balance or value-area reversion trades, target the point of control or the opposite side of value.",
       "kind": "exit",
-      "consensus": 5,
+      "consensus": 6,
       "kbs": [
         "brandon-kioseff",
         "fabio-valentini",
         "serge-hoffmann",
         "tom-vorwald",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ],
       "methodologies": [
         "discretionary-technical",
@@ -1352,14 +1363,15 @@
       "title": "Trail stop as trade works",
       "rule": "Once the trade moves in your favor, trail the stop behind new levels or structure, and never widen it.",
       "kind": "exit",
-      "consensus": 6,
+      "consensus": 7,
       "kbs": [
         "dumbmoneyhunter",
         "fabio-valentini",
         "fredy-sarmiento",
         "inthemoneyadam",
         "smbcapital",
-        "tom-vorwald"
+        "tom-vorwald",
+        "trading-verrillo-aleks"
       ],
       "methodologies": [
         "discretionary-technical",
@@ -1390,7 +1402,8 @@
         "discretionary-technical",
         "futures-intraday",
         "macro",
-        "orderflow"
+        "orderflow",
+        "options"
       ],
       "timeframes": ["any", "intraday", "swing"],
       "debate": null,
@@ -1597,22 +1610,24 @@
       "title": "Stop hunting is a myth",
       "rule": "Ignore stop-hunting narratives in deep markets and focus on price, volume and hedging flows.",
       "kind": "wisdom",
-      "consensus": 4,
+      "consensus": 5,
       "kbs": [
         "matteo-conti",
         "patrick-nill",
         "serge-hoffmann",
-        "worldclassedge"
+        "worldclassedge",
+        "trading-verrillo-aleks"
       ],
       "methodologies": [
         "discretionary-technical",
         "orderflow",
-        "systematic-automation"
+        "systematic-automation",
+        "options"
       ],
       "timeframes": ["any", "intraday", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
+      "reason": "High conviction: 5 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -1641,7 +1656,7 @@
       "title": "Target next structural level",
       "rule": "Set profit targets at the next mapped structural level, such as daily highs/lows, value-area edges or liquidity.",
       "kind": "exit",
-      "consensus": 7,
+      "consensus": 8,
       "kbs": [
         "fabio-valentini",
         "fredy-sarmiento",
@@ -1649,17 +1664,19 @@
         "junnyyang",
         "not-a-lil-fish",
         "skydweller",
-        "tom-vorwald"
+        "tom-vorwald",
+        "trading-verrillo-aleks"
       ],
       "methodologies": [
         "discretionary-technical",
         "futures-intraday",
-        "orderflow"
+        "orderflow",
+        "options"
       ],
       "timeframes": ["intraday", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 7 knowledge bases agree.",
+      "reason": "High conviction: 8 knowledge bases agree.",
       "target": "alert-stop-rules"
     },
     {
@@ -1714,10 +1731,15 @@
       "title": "Backtest before trading live",
       "rule": "Never commit real money to a strategy that has not been backtested and simulated as a whole, then follow its rules without deviation.",
       "kind": "wisdom",
-      "consensus": 3,
-      "kbs": ["dumbmoneyhunter", "matteo-conti", "worldclassedge"],
-      "methodologies": ["mixed", "systematic-automation"],
-      "timeframes": ["any"],
+      "consensus": 4,
+      "kbs": [
+        "dumbmoneyhunter",
+        "matteo-conti",
+        "worldclassedge",
+        "trading-verrillo-aleks"
+      ],
+      "methodologies": ["mixed", "systematic-automation", "futures-intraday"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
@@ -1858,13 +1880,20 @@
       "title": "Bias, location, then trigger",
       "rule": "Structure every trade as directional bias, then location, then a trigger or confirmation such as absorption or initiative flow.",
       "kind": "wisdom",
-      "consensus": 3,
-      "kbs": ["andrea-cimitan", "fabio-valentini", "worldclassedge-creators"],
-      "methodologies": ["orderflow"],
+      "consensus": 4,
+      "kbs": [
+        "andrea-cimitan",
+        "fabio-valentini",
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
+      ],
+      "methodologies": ["orderflow", "options", "futures-intraday"],
       "timeframes": ["intraday"],
       "debate": null,
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "feature": "Order-flow / footprint feed",
+      "effort": "L",
       "target": null
     },
     {
@@ -1886,8 +1915,13 @@
       "title": "Confirm breakouts with aggressive order flow",
       "rule": "Take a breakout only when large or aggressive participants confirm it, and place the stop below that aggression.",
       "kind": "entry",
-      "consensus": 3,
-      "kbs": ["andrea-cimitan", "fabio-valentini", "worldclassedge-creators"],
+      "consensus": 4,
+      "kbs": [
+        "andrea-cimitan",
+        "fabio-valentini",
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
+      ],
       "methodologies": ["orderflow"],
       "timeframes": ["intraday"],
       "debate": null,
@@ -2066,20 +2100,21 @@
       "title": "Size inversely to volatility",
       "rule": "Trade smaller in more volatile assets or stressed regimes, using volatility targeting.",
       "kind": "sizing",
-      "consensus": 6,
+      "consensus": 7,
       "kbs": [
         "matteo-conti",
         "nicholas-crown",
         "not-a-lil-fish",
         "quantfinancetogo",
         "skydweller",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ],
       "methodologies": ["futures-intraday", "macro", "systematic-automation"],
       "timeframes": ["any", "intraday", "position", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 6 knowledge bases agree.",
+      "reason": "High conviction: 7 knowledge bases agree.",
       "target": "position-sizing"
     },
     {
@@ -2344,13 +2379,18 @@
       "title": "Match method to your personality",
       "rule": "Choose or adapt a trading style that fits your own character instead of copying someone else's.",
       "kind": "wisdom",
-      "consensus": 3,
-      "kbs": ["jan-smolen", "patrick-nill", "tom-vorwald"],
-      "methodologies": ["discretionary-technical", "macro"],
+      "consensus": 4,
+      "kbs": [
+        "jan-smolen",
+        "patrick-nill",
+        "tom-vorwald",
+        "trading-verrillo-aleks"
+      ],
+      "methodologies": ["discretionary-technical", "macro", "futures-intraday"],
       "timeframes": ["any", "intraday", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
+      "reason": "High conviction: 4 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -2372,13 +2412,18 @@
       "title": "Move stop to breakeven at trigger",
       "rule": "Move the stop to breakeven once a defined trigger is hit, such as open profit equal to initial risk or price reaching a key gamma/call-wall level.",
       "kind": "exit",
-      "consensus": 3,
-      "kbs": ["fabio-valentini", "fredy-sarmiento", "imre-gams"],
-      "methodologies": ["discretionary-technical", "orderflow"],
+      "consensus": 4,
+      "kbs": [
+        "fabio-valentini",
+        "fredy-sarmiento",
+        "imre-gams",
+        "trading-verrillo-aleks"
+      ],
+      "methodologies": ["discretionary-technical", "orderflow", "options"],
       "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
+      "reason": "High conviction: 4 knowledge bases agree.",
       "target": "alert-stop-rules"
     },
     {
@@ -2460,12 +2505,13 @@
       "title": "Prop evals: high win rate, ~1:1 R:R",
       "rule": "For prop-firm evaluations, use a low-variance geometry with a high win rate and roughly 1:1 reward:risk.",
       "kind": "sizing",
-      "consensus": 4,
+      "consensus": 5,
       "kbs": [
         "deltatrendtrading",
         "fabio-valentini",
         "not-a-lil-fish",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
       ],
       "methodologies": [
         "futures-intraday",
@@ -2700,8 +2746,14 @@
       "title": "Buy what others doubt at capitulation",
       "rule": "Buy high-conviction, fundamentally sound assets when negative sentiment or forced selling drives them to extreme lows.",
       "kind": "entry",
-      "consensus": 4,
-      "kbs": ["inthemoneyadam", "jan-smolen", "jaymo-callsbyjmo", "junnyyang"],
+      "consensus": 5,
+      "kbs": [
+        "inthemoneyadam",
+        "jan-smolen",
+        "jaymo-callsbyjmo",
+        "junnyyang",
+        "trading-verrillo-aleks"
+      ],
       "methodologies": ["macro", "value-fundamental"],
       "timeframes": ["long-term", "position"],
       "debate": "X10",
@@ -2729,16 +2781,14 @@
       "title": "Dealer hedging moves price",
       "rule": "Track options dealers' delta hedging in futures and avoid trading against those flows.",
       "kind": "wisdom",
-      "consensus": 2,
-      "kbs": ["enrico-stucchi", "fredy-sarmiento"],
-      "methodologies": ["orderflow"],
+      "consensus": 3,
+      "kbs": ["enrico-stucchi", "fredy-sarmiento", "trading-verrillo-aleks"],
+      "methodologies": ["orderflow", "options"],
       "timeframes": ["any", "intraday"],
       "debate": null,
-      "cls": "C",
-      "reason": "Needs: Order-flow / footprint feed.",
-      "feature": "Order-flow / footprint feed",
-      "effort": "L",
-      "target": null
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "target": "committee-checklist"
     },
     {
       "id": "C124",
@@ -2773,13 +2823,18 @@
       "title": "Expected move from IV/16",
       "rule": "Estimate the daily expected move as IV (or VIX) divided by 16, scaled by the square root of trading days.",
       "kind": "indicator",
-      "consensus": 3,
-      "kbs": ["define-your-risk-instagram", "skydweller", "jay-medrow"],
+      "consensus": 4,
+      "kbs": [
+        "define-your-risk-instagram",
+        "skydweller",
+        "jay-medrow",
+        "trading-verrillo-aleks"
+      ],
       "methodologies": ["futures-intraday", "options", "macro"],
       "timeframes": ["any", "intraday", "position", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
+      "reason": "High conviction: 4 knowledge bases agree.",
       "target": "research-report-technicals"
     },
     {
@@ -2866,8 +2921,13 @@
       "title": "Limit session time; stop after early trade",
       "rule": "Limit discretionary trading to a short early window and stop for the day after the first trade or profit, because decision quality declines.",
       "kind": "time_filter",
-      "consensus": 3,
-      "kbs": ["not-a-lil-fish", "worldclassedge", "worldclassedge-creators"],
+      "consensus": 4,
+      "kbs": [
+        "not-a-lil-fish",
+        "worldclassedge",
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
+      ],
       "methodologies": [
         "futures-intraday",
         "options",
@@ -2877,7 +2937,7 @@
       "timeframes": ["intraday"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
+      "reason": "High conviction: 4 knowledge bases agree.",
       "target": "committee-event-check"
     },
     {
@@ -2922,13 +2982,23 @@
       "title": "Pre-map zones and wait",
       "rule": "Mark zones in advance and trade only when price reaches a pre-mapped level.",
       "kind": "entry",
-      "consensus": 4,
-      "kbs": ["junnyyang", "patrick-nill", "skydweller", "jay-medrow"],
-      "methodologies": ["discretionary-technical", "futures-intraday"],
+      "consensus": 5,
+      "kbs": [
+        "junnyyang",
+        "patrick-nill",
+        "skydweller",
+        "jay-medrow",
+        "trading-verrillo-aleks"
+      ],
+      "methodologies": [
+        "discretionary-technical",
+        "futures-intraday",
+        "options"
+      ],
       "timeframes": ["intraday", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
+      "reason": "High conviction: 5 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -3032,15 +3102,16 @@
       "title": "Trends persist; don't fade early",
       "rule": "Assume trends continue until clearly invalidated and do not fade them prematurely.",
       "kind": "wisdom",
-      "consensus": 5,
+      "consensus": 6,
       "kbs": [
         "dumbmoneyhunter",
         "inthemoneyadam",
         "jan-smolen",
         "junnyyang",
-        "smbcapital"
+        "smbcapital",
+        "trading-verrillo-aleks"
       ],
-      "methodologies": ["discretionary-technical", "macro"],
+      "methodologies": ["discretionary-technical", "macro", "options"],
       "timeframes": ["any", "intraday", "long-term", "position"],
       "debate": "X11",
       "cls": "D",
@@ -3319,13 +3390,18 @@
       "title": "Divergence needs confirmation",
       "rule": "Use RSI or CVD divergence as an early warning only, never as a standalone trade.",
       "kind": "indicator",
-      "consensus": 3,
-      "kbs": ["imre-gams", "inthemoneyadam", "serge-hoffmann"],
+      "consensus": 4,
+      "kbs": [
+        "imre-gams",
+        "inthemoneyadam",
+        "serge-hoffmann",
+        "trading-verrillo-aleks"
+      ],
       "methodologies": ["discretionary-technical", "orderflow"],
       "timeframes": ["any", "intraday", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
+      "reason": "High conviction: 4 knowledge bases agree.",
       "target": "research-report-technicals"
     },
     {
@@ -3482,19 +3558,20 @@
       "title": "Focus on one concept",
       "rule": "Master one simple concept at a time instead of mixing many methods.",
       "kind": "wisdom",
-      "consensus": 5,
+      "consensus": 6,
       "kbs": [
         "dumbmoneyhunter",
         "junnyyang",
         "not-a-lil-fish",
         "patrick-nill",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ],
-      "methodologies": ["discretionary-technical", "mixed"],
-      "timeframes": ["any", "swing"],
+      "methodologies": ["discretionary-technical", "mixed", "futures-intraday"],
+      "timeframes": ["any", "swing", "intraday"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
+      "reason": "High conviction: 6 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -3544,8 +3621,12 @@
       "title": "Gamma must include 0DTE flow",
       "rule": "Compute gamma levels using flow data that includes 0DTE options rather than end-of-day open interest, which misses 0DTE volume.",
       "kind": "indicator",
-      "consensus": 2,
-      "kbs": ["andrea-cimitan", "worldclassedge-creators"],
+      "consensus": 3,
+      "kbs": [
+        "andrea-cimitan",
+        "worldclassedge-creators",
+        "trading-verrillo-aleks"
+      ],
       "methodologies": ["options"],
       "timeframes": ["intraday"],
       "debate": null,
@@ -3660,19 +3741,20 @@
       "title": "Journal and review regularly",
       "rule": "Keep a structured trading journal and review it regularly to improve.",
       "kind": "wisdom",
-      "consensus": 5,
+      "consensus": 6,
       "kbs": [
         "ericnomics",
         "fredy-sarmiento",
         "inthemoneyadam",
         "not-a-lil-fish",
-        "jay-medrow"
+        "jay-medrow",
+        "trading-verrillo-aleks"
       ],
-      "methodologies": ["crypto", "mixed", "orderflow"],
-      "timeframes": ["any"],
+      "methodologies": ["crypto", "mixed", "orderflow", "futures-intraday"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
+      "reason": "High conviction: 6 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -3805,13 +3887,15 @@
       "title": "Order flow is execution layer",
       "rule": "Use order flow for precise execution only after higher-level analysis sets the direction and context.",
       "kind": "wisdom",
-      "consensus": 2,
-      "kbs": ["enrico-stucchi", "worldclassedge"],
-      "methodologies": ["orderflow"],
+      "consensus": 3,
+      "kbs": ["enrico-stucchi", "worldclassedge", "trading-verrillo-aleks"],
+      "methodologies": ["orderflow", "options"],
       "timeframes": ["intraday"],
       "debate": null,
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "feature": "Order-flow / footprint feed",
+      "effort": "L",
       "target": null
     },
     {
@@ -4113,18 +4197,25 @@
       "title": "Think in probabilities, accept losses",
       "rule": "Trade probabilities and accept individual losses as the cost of a consistent statistical edge.",
       "kind": "wisdom",
-      "consensus": 4,
-      "kbs": ["imre-gams", "quantfinancetogo", "serge-hoffmann", "jay-medrow"],
+      "consensus": 5,
+      "kbs": [
+        "imre-gams",
+        "quantfinancetogo",
+        "serge-hoffmann",
+        "jay-medrow",
+        "trading-verrillo-aleks"
+      ],
       "methodologies": [
         "discretionary-technical",
         "orderflow",
         "systematic-automation",
-        "mixed"
+        "mixed",
+        "futures-intraday"
       ],
-      "timeframes": ["any"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
+      "reason": "High conviction: 5 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -4349,17 +4440,23 @@
       "title": "Only trade planned edge setups",
       "rule": "Take only planned trades where your edge is present and every checklist item is clear; skip impulse trades.",
       "kind": "entry",
-      "consensus": 3,
-      "kbs": ["imre-gams", "not-a-lil-fish", "smbcapital"],
+      "consensus": 4,
+      "kbs": [
+        "imre-gams",
+        "not-a-lil-fish",
+        "smbcapital",
+        "trading-verrillo-aleks"
+      ],
       "methodologies": [
         "discretionary-technical",
         "mixed",
-        "systematic-automation"
+        "systematic-automation",
+        "futures-intraday"
       ],
       "timeframes": ["any", "intraday", "swing"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
+      "reason": "High conviction: 4 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -4396,10 +4493,10 @@
       "title": "VIX backwardation signals stress",
       "rule": "Monitor the VIX futures term structure and treat backwardation as an early, immediate stress warning.",
       "kind": "indicator",
-      "consensus": 1,
-      "kbs": ["lars-schmeldtenkopf"],
-      "methodologies": ["macro"],
-      "timeframes": ["position", "swing"],
+      "consensus": 2,
+      "kbs": ["lars-schmeldtenkopf", "trading-verrillo-aleks"],
+      "methodologies": ["macro", "futures-intraday"],
+      "timeframes": ["position", "swing", "intraday"],
       "debate": null,
       "cls": "C",
       "reason": "Needs: IV term-structure / skew surface and IV-rank history.",
@@ -5226,13 +5323,19 @@
       "title": "Avoid strategy hopping",
       "rule": "Stick with a plan that has an edge through losing periods while using stops.",
       "kind": "wisdom",
-      "consensus": 4,
-      "kbs": ["imre-gams", "not-a-lil-fish", "smbcapital", "jay-medrow"],
-      "methodologies": ["discretionary-technical", "mixed"],
-      "timeframes": ["any"],
+      "consensus": 5,
+      "kbs": [
+        "imre-gams",
+        "not-a-lil-fish",
+        "smbcapital",
+        "jay-medrow",
+        "trading-verrillo-aleks"
+      ],
+      "methodologies": ["discretionary-technical", "mixed", "futures-intraday"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
+      "reason": "High conviction: 5 knowledge bases agree.",
       "target": "committee-checklist"
     },
     {
@@ -5623,7 +5726,7 @@
       "consensus": 1,
       "kbs": ["trading-verrillo-aleks"],
       "methodologies": ["futures-intraday"],
-      "timeframes": ["any"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "D",
       "reason": "Margin-financed equity positions do not fit the options-only book.",
@@ -5634,13 +5737,13 @@
       "title": "Check strategy validity first",
       "rule": "When results disappoint, examine the strategy's validity before blaming psychology.",
       "kind": "wisdom",
-      "consensus": 1,
-      "kbs": ["deltatrendtrading"],
-      "methodologies": ["systematic-automation"],
-      "timeframes": ["any"],
+      "consensus": 2,
+      "kbs": ["deltatrendtrading", "trading-verrillo-aleks"],
+      "methodologies": ["systematic-automation", "options"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
       "target": "committee-checklist"
     },
     {
@@ -6403,10 +6506,10 @@
       "title": "Evaluate full prop lifecycle economics",
       "rule": "Judge prop firms on full-lifecycle economics, including fees, failed attempts and payouts.",
       "kind": "risk",
-      "consensus": 2,
-      "kbs": ["deltatrendtrading", "not-a-lil-fish"],
+      "consensus": 3,
+      "kbs": ["deltatrendtrading", "not-a-lil-fish", "trading-verrillo-aleks"],
       "methodologies": ["futures-intraday", "systematic-automation"],
-      "timeframes": ["any"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "D",
       "reason": "Intraday scalping / prop-firm rules do not fit a swing and LEAPS options book.",
@@ -6501,8 +6604,8 @@
       "title": "FOMC day range then spike",
       "rule": "Expect FOMC days to range until the release, then spike.",
       "kind": "regime",
-      "consensus": 2,
-      "kbs": ["dumbmoneyhunter", "not-a-lil-fish"],
+      "consensus": 3,
+      "kbs": ["dumbmoneyhunter", "not-a-lil-fish", "trading-verrillo-aleks"],
       "methodologies": ["futures-intraday"],
       "timeframes": ["intraday"],
       "debate": null,
@@ -6729,13 +6832,13 @@
       "title": "Fixed routine and review hours",
       "rule": "Fix a routine with set market-review hours and consistent sleep to reduce decisions and support discipline.",
       "kind": "time_filter",
-      "consensus": 1,
-      "kbs": ["imre-gams"],
-      "methodologies": ["discretionary-technical"],
-      "timeframes": ["any"],
+      "consensus": 2,
+      "kbs": ["imre-gams", "trading-verrillo-aleks"],
+      "methodologies": ["discretionary-technical", "futures-intraday"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
       "target": "committee-event-check"
     },
     {
@@ -7415,13 +7518,13 @@
       "title": "Low VIX hurts systematic edges",
       "rule": "Expect systematic edges to suffer when VIX is compressed below ~15.",
       "kind": "regime",
-      "consensus": 1,
-      "kbs": ["enrico-stucchi"],
-      "methodologies": ["systematic-automation"],
-      "timeframes": ["any"],
+      "consensus": 2,
+      "kbs": ["enrico-stucchi", "trading-verrillo-aleks"],
+      "methodologies": ["systematic-automation", "futures-intraday"],
+      "timeframes": ["any", "intraday"],
       "debate": null,
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
       "target": "research-report-regime"
     },
     {
@@ -9857,9 +9960,9 @@
       "title": "Adapt the playbook to the VIX level",
       "rule": "Adjust your playbook to the VIX level and record VIX for every playbook trade.",
       "kind": "regime",
-      "consensus": 1,
-      "kbs": ["smbcapital"],
-      "methodologies": ["discretionary-technical"],
+      "consensus": 2,
+      "kbs": ["smbcapital", "trading-verrillo-aleks"],
+      "methodologies": ["discretionary-technical", "futures-intraday"],
       "timeframes": ["intraday"],
       "debate": null,
       "cls": "D",
@@ -9899,14 +10002,14 @@
       "title": "Grade trades C to A-plus and size by grade",
       "rule": "Grade each trade from C to A-plus and size up only on A and A-plus setups.",
       "kind": "sizing",
-      "consensus": 1,
-      "kbs": ["smbcapital"],
-      "methodologies": ["discretionary-technical"],
+      "consensus": 2,
+      "kbs": ["smbcapital", "trading-verrillo-aleks"],
+      "methodologies": ["discretionary-technical", "options"],
       "timeframes": ["intraday"],
       "debate": null,
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "target": null
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "target": "position-sizing"
     },
     {
       "id": "C619",
@@ -11301,13 +11404,13 @@
       "title": "Chart patterns lack proven predictive power",
       "rule": "Do not trade chart patterns on the belief that they predict; pattern rules have not survived honest tests for data snooping and costs.",
       "kind": "wisdom",
-      "consensus": 1,
-      "kbs": ["quantfinancetogo"],
-      "methodologies": ["systematic-automation"],
+      "consensus": 2,
+      "kbs": ["quantfinancetogo", "trading-verrillo-aleks"],
+      "methodologies": ["systematic-automation", "mixed"],
       "timeframes": ["any"],
       "debate": null,
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
       "target": "committee-checklist"
     },
     {
@@ -11909,14 +12012,14 @@
       "title": "Trade the New York session only",
       "rule": "Trade the New York session, mainly the morning, and skip Asia and London unless conditions fit the edge unusually well.",
       "kind": "time_filter",
-      "consensus": 1,
-      "kbs": ["not-a-lil-fish"],
-      "methodologies": ["futures-intraday", "systematic-automation"],
+      "consensus": 2,
+      "kbs": ["not-a-lil-fish", "trading-verrillo-aleks"],
+      "methodologies": ["futures-intraday", "systematic-automation", "options"],
       "timeframes": ["intraday"],
       "debate": null,
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "target": null
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "target": "committee-event-check"
     },
     {
       "id": "C761",
@@ -12035,13 +12138,13 @@
       "title": "Hide P&L while trading",
       "rule": "Hide the P&L display while trading if you catch yourself chasing dollars.",
       "kind": "wisdom",
-      "consensus": 1,
-      "kbs": ["not-a-lil-fish"],
-      "methodologies": ["mixed"],
+      "consensus": 2,
+      "kbs": ["not-a-lil-fish", "trading-verrillo-aleks"],
+      "methodologies": ["mixed", "futures-intraday"],
       "timeframes": ["intraday"],
       "debate": null,
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
       "target": "committee-checklist"
     },
     {
@@ -13406,6 +13509,378 @@
       "cls": "B",
       "reason": "Fits our style and existing data; 1 knowledge base.",
       "target": "committee-checklist"
+    },
+    {
+      "id": "C865",
+      "title": "Continuation only, with the side in control",
+      "rule": "Take continuation trades only, in the direction of the side in control in both futures order flow (deep trades) and options premium flow (net drift).",
+      "kind": "entry",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "feature": "Order-flow / footprint feed",
+      "effort": "L",
+      "target": null
+    },
+    {
+      "id": "C866",
+      "title": "Compounded QQQ/NDX gamma levels",
+      "rule": "Give top priority to zones where the QQQ and NDX gamma maps both show large exposure at the same time.",
+      "kind": "entry",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "committee-checklist"
+    },
+    {
+      "id": "C867",
+      "title": "Pre-FOMC premium build sets direction",
+      "rule": "On FOMC day, read a large one-sided net premium build during the pre-event consolidation as the likely direction of the break, then time entries with order flow at a gamma level.",
+      "kind": "entry",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "feature": "Order-flow / footprint feed",
+      "effort": "L",
+      "target": null
+    },
+    {
+      "id": "C868",
+      "title": "VIX bands for intraday conditions",
+      "rule": "Read VIX below about 15 as low-probability intraday conditions, about 15-25 as a normal healthy range, and above about 25-30 as fear that is usually short-lived.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["futures-intraday"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "target": null
+    },
+    {
+      "id": "C869",
+      "title": "Gamma nodes on VIX",
+      "rule": "Mark positive gamma nodes on VIX as support and resistance and read them inversely for SPX and NQ: VIX rejecting lower from a node supports higher indices.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "research-report-regime"
+    },
+    {
+      "id": "C870",
+      "title": "IV rank sets continuation vs base-hit day",
+      "rule": "Use IV rank to set the day style: high IV rank (with negative gamma) favors continuation trades; low IV rank favors small base hits without runners.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["futures-intraday"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "target": null
+    },
+    {
+      "id": "C871",
+      "title": "Steepening put skew signals fear",
+      "rule": "Treat downside puts getting more expensive relative to calls as fear building, even while price still looks fine.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["futures-intraday"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "target": null
+    },
+    {
+      "id": "C872",
+      "title": "Falling VIX favors longs (vanna)",
+      "rule": "Check VIX direction before trading index futures: falling VIX forces dealer buying, so lean long; rising VIX makes longs riskier.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "research-report-regime"
+    },
+    {
+      "id": "C873",
+      "title": "Charm as a slow directional wind",
+      "rule": "Use charm (delta decay) as a supportive or suppressive lean that grows into the afternoon and pulls price toward key gamma levels; it never triggers a trade by itself.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "research-report-regime"
+    },
+    {
+      "id": "C874",
+      "title": "SPX dealer data as context for NQ",
+      "rule": "Use SPX dealer gamma and SPX net premium flow as the higher-time-frame context for NQ, especially in the first minutes of the open, but do not execute on NQ from SPX data alone.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "C",
+      "reason": "Needs: signed options premium flow (Quant Data Net Drift).",
+      "feature": "Signed options premium flow (net call vs put premium)",
+      "effort": "M",
+      "override": true,
+      "target": null
+    },
+    {
+      "id": "C875",
+      "title": "No trade when premium flow is flat",
+      "rule": "When call and put premium flow lines are flat and tangled, there is no conviction; take no setups.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "C",
+      "reason": "Needs: signed options premium flow (Quant Data Net Drift).",
+      "feature": "Signed options premium flow (net call vs put premium)",
+      "effort": "M",
+      "override": true,
+      "target": null
+    },
+    {
+      "id": "C876",
+      "title": "Check regime before blaming yourself",
+      "rule": "When a working setup suddenly stops working, first check whether the volatility regime changed before blaming yourself or changing the strategy.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["futures-intraday"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "target": null
+    },
+    {
+      "id": "C877",
+      "title": "0DTE expiry gamma drives sharp moves",
+      "rule": "Expect sharp futures moves without news on 0DTE-heavy days, because gamma peaks at expiration and dealer delta snaps instead of drifting.",
+      "kind": "regime",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "D",
+      "reason": "0DTE / same-day options are outside our style (short-dated premium is capped at 2% NLV and we do not trade same-day).",
+      "target": null
+    },
+    {
+      "id": "C878",
+      "title": "Gamma is not a direction call",
+      "rule": "Read a gamma level as a place where price will react if it arrives, and gamma sign as pinning vs acceleration, never as a buy or sell signal or a price forecast.",
+      "kind": "indicator",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "research-report-technicals"
+    },
+    {
+      "id": "C879",
+      "title": "Choose GEX data source by product",
+      "rule": "Use exchange-tagged gamma data (real signs, SPX and VIX only) for SPX context and consolidated multi-exchange open-interest data (complete, assumed signs) for QQQ, NDX and stock levels.",
+      "kind": "indicator",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "research-report-technicals"
+    },
+    {
+      "id": "C880",
+      "title": "Net drift settings and asset order",
+      "rule": "Filter net drift to out-of-the-money premium, exclude complex, tied, floor and cancelled trades, and for NQ read QQQ first with NDX as confirmation.",
+      "kind": "indicator",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "C",
+      "reason": "Needs: signed options premium flow (Quant Data Net Drift).",
+      "feature": "Signed options premium flow (net call vs put premium)",
+      "effort": "M",
+      "override": true,
+      "target": null
+    },
+    {
+      "id": "C881",
+      "title": "Dealer delta exposure for daily bias",
+      "rule": "Set the daily bias from dealer net delta exposure (and its put/call ratio) before layering gamma regime, charm and gamma levels.",
+      "kind": "indicator",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "research-report-technicals"
+    },
+    {
+      "id": "C882",
+      "title": "Minimal order-flow toolkit",
+      "rule": "Keep order flow to a few tools (big or deep trades, footprint, speed of tape) and use it only as confirmation.",
+      "kind": "indicator",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["orderflow"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "target": null
+    },
+    {
+      "id": "C883",
+      "title": "Ranked gamma strikes as targets",
+      "rule": "Use the top-ranked gamma strikes (GEX 1-10) as targets and confirmation, and build the trade narrative from the main levels (call resistance, put support, HVL, gamma wall, 0DTE versions).",
+      "kind": "indicator",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "D",
+      "reason": "0DTE / same-day options are outside our style (short-dated premium is capped at 2% NLV and we do not trade same-day).",
+      "target": null
+    },
+    {
+      "id": "C884",
+      "title": "Treat gamma levels as zones",
+      "rule": "Treat a gamma exposure level as a zone, not an exact price.",
+      "kind": "indicator",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "research-report-technicals"
+    },
+    {
+      "id": "C885",
+      "title": "Use multi-exchange options data",
+      "rule": "Use options-flow data built from multiple exchanges; cheap, low-quality data misleads.",
+      "kind": "wisdom",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "C",
+      "reason": "Needs: multi-exchange (OPRA) options trade feed.",
+      "feature": "Multi-exchange (OPRA) options trade feed",
+      "effort": "M",
+      "override": true,
+      "target": null
+    },
+    {
+      "id": "C886",
+      "title": "Written pre-market plan with scenarios",
+      "rule": "Before every session, write a plan with macro context, options positioning, key levels and two or three scenarios, and later check whether it played out.",
+      "kind": "wisdom",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["futures-intraday", "options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "target": "committee-checklist"
+    },
+    {
+      "id": "C887",
+      "title": "Discretion backed by statistics",
+      "rule": "Combine discretionary order-flow reading with statistics and backtesting rather than relying on either alone.",
+      "kind": "wisdom",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["mixed"],
+      "timeframes": ["any"],
+      "debate": null,
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "feature": "Order-flow / footprint feed",
+      "effort": "L",
+      "target": null
+    },
+    {
+      "id": "C888",
+      "title": "Dealer data instead of ICT liquidity concepts",
+      "rule": "Use gamma levels and net premium flow as points of interest and bias instead of FVGs, order blocks and liquidity-magnet narratives.",
+      "kind": "wisdom",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "C",
+      "reason": "Needs: signed options premium flow (Quant Data Net Drift).",
+      "feature": "Signed options premium flow (net call vs put premium)",
+      "effort": "M",
+      "override": true,
+      "target": null
+    },
+    {
+      "id": "C889",
+      "title": "Aleks Rosme performance claims (unverified)",
+      "rule": "Record only, not a rule: Aleks Rosme states win rates, study hit rates and trade results that are unverified; do not use them as evidence of edge.",
+      "kind": "wisdom",
+      "consensus": 1,
+      "kbs": ["trading-verrillo-aleks"],
+      "methodologies": ["options"],
+      "timeframes": ["intraday"],
+      "debate": null,
+      "cls": "D",
+      "reason": "Unverified performance claims; not a rule.",
+      "override": true,
+      "target": null
     },
     {
       "id": "X01",

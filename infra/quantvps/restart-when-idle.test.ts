@@ -207,6 +207,8 @@ const run = (args: string[] = [], env: Record<string, string> = {}) => {
       FAKE_DIR: dir,
       PATH: `${join(dir, "bin")}:${process.env["PATH"] ?? "/usr/bin:/bin"}`,
       VERTEX_RESTART_ALERT: join(dir, "alert.sh"),
+      // CI runners have bash 5.2, which the bash version guard refuses; see "bash version guard".
+      VERTEX_RESTART_BASH_VERSION: "5.3",
       VERTEX_RESTART_GIVE_UP_AFTER: "20",
       VERTEX_RESTART_HEALTH_TIMEOUT: "0",
       VERTEX_RESTART_LOCK: join(dir, "lock"),
@@ -554,6 +556,7 @@ case "$1" in ": probe;"*) read -r _ pid <"$VERTEX_WORKER_PAUSE_FILE" && kill -TE
         env: {
           FAKE_DIR: dir,
           PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+          VERTEX_RESTART_BASH_VERSION: "5.3",
           VERTEX_RESTART_LOCK: join(dir, "lock"),
           VERTEX_WEB_SSH: join(dir, "fake.sh"),
         },
@@ -595,6 +598,114 @@ case "$1" in ": probe;"*) read -r _ pid <"$VERTEX_WORKER_PAUSE_FILE" && kill -TE
     setup({});
     expect(run(["--now"]).status).toBe(2);
     expect(run(["--backup", "latest"]).status).toBe(2);
+  });
+});
+
+// Bash before 5.3 can lose a trapped stop signal that arrives while it parses a $(...), and can
+// then leave the idle wait and restart (restart-when-idle.sh, "Bash version"). A real run refuses
+// such a bash before it takes the lock or calls QuantVPS. The test hook VERTEX_RESTART_BASH_VERSION
+// replaces the version that the script reads, so both answers are tested on every runner.
+describe("bash version guard", () => {
+  // The bash that run() starts: the same PATH as run().
+  const runnerBash = () => {
+    const [major = "", minor = "", full = ""] = spawnSync(
+      "bash",
+      ["-c", 'echo "${BASH_VERSINFO[0]} ${BASH_VERSINFO[1]} $BASH_VERSION"'],
+      {
+        encoding: "utf8",
+        env: {
+          PATH: `${join(dir, "bin")}:${process.env["PATH"] ?? "/usr/bin:/bin"}`,
+        },
+      }
+    )
+      .stdout.trim()
+      .split(" ");
+    return {
+      full,
+      old: Number(major) < 5 || (Number(major) === 5 && Number(minor) < 3),
+    };
+  };
+  const refusal = (shown: string) =>
+    `NOT RESTARTED: bash ${shown} is older than 5.3. Bash before 5.3 can lose a stop signal (INT, TERM, HUP) in the idle wait and then restart vertex-web anyway (bash bug, fixed in 5.3); run this script with bash 5.3 or newer`;
+  // Refused: only the expected lines, exit 2, and nothing done: no remote call, lock or pause file.
+  const refused = (
+    result: { pauseSeen: string[]; status: number | null; stdout: string },
+    lines: string[]
+  ) => {
+    expect({
+      calls: existsSync(join(dir, "calls")),
+      lock: existsSync(join(dir, "lock")),
+      pause: existsSync(join(dir, "state")),
+      pauseSeen: result.pauseSeen,
+      status: result.status,
+      stdout: result.stdout,
+    }).toEqual({
+      calls: false,
+      lock: false,
+      pause: false,
+      pauseSeen: [],
+      status: 2,
+      stdout: `${lines.join("\n")}\n`,
+    });
+  };
+
+  // 5.2, 5.02 (minor 02 reads as 2) and 4.4: too old. 5, .3, x.y, 5.3.1 and 1234.1: not
+  // <major>.<minor> with 1-3 digits each, so they count as too old (fail closed).
+  it.each(["5.2", "5.02", "4.4", "5", ".3", "x.y", "5.3.1", "1234.1"])(
+    "refuses a real run on bash %s: no lock, no pause file, no remote call",
+    (version) => {
+      setup({});
+      refused(run([], { VERTEX_RESTART_BASH_VERSION: version }), [
+        `bash version guard: test hook VERTEX_RESTART_BASH_VERSION=${version} replaces bash ${runnerBash().full}`,
+        refusal(version),
+      ]);
+    }
+  );
+
+  it.each(["5.3", "5.10", "6.0", "05.3"])(
+    "restarts as usual on bash %s",
+    (version) => {
+      setup({});
+      const result = run([], { VERTEX_RESTART_BASH_VERSION: version });
+      expect(result.status).toBe(0);
+      expect(result.commands).toEqual([
+        ": restart; systemctl restart vertex-web",
+      ]);
+      expect(result.stdout).toContain(
+        `bash version guard: test hook VERTEX_RESTART_BASH_VERSION=${version} replaces bash `
+      );
+    }
+  );
+
+  it("allows a dry run and --decide on bash 5.2: they set no trap", () => {
+    setup({});
+    const dry = run(["--dry-run"], { VERTEX_RESTART_BASH_VERSION: "5.2" });
+    expect(dry.status).toBe(0);
+    expect(dry.stdout).toContain("decision: idle");
+    expect(dry.stdout).toContain("dry run: no restart");
+    expect(dry.stdout).not.toContain("NOT RESTARTED");
+    const decided = spawnSync(
+      "bash",
+      [script, "--decide", fixture("idle-keepalive.txt"), "30"],
+      {
+        encoding: "utf8",
+        env: { ...process.env, VERTEX_RESTART_BASH_VERSION: "5.2" },
+      }
+    );
+    expect(decided.status).toBe(0);
+    expect(decided.stdout.split("\n")[0]).toBe("idle");
+  });
+
+  it("reads the version of the bash that runs it when the hook is empty", () => {
+    setup({});
+    // CI (bash 5.2) checks the refusal, the rig (bash 5.3) the restart.
+    const bash = runnerBash();
+    const result = run([], { VERTEX_RESTART_BASH_VERSION: "" });
+    if (bash.old) refused(result, [refusal(bash.full)]);
+    else {
+      expect(result.status).toBe(0);
+      expect(result.stdout).not.toContain("bash version guard:");
+    }
   });
 });
 

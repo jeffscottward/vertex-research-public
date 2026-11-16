@@ -177,10 +177,10 @@ export const IbkrRecoveryButton = ({
       )}
       {view.button === null ? null : (
         <Button
+          aria-controls="ibkr-recovery-confirm"
           aria-describedby={
             view.button.hint === null ? undefined : "ibkr-recovery-hint"
           }
-          aria-controls="ibkr-recovery-confirm"
           aria-expanded={model.confirming}
           data-ibkr-recovery-button="true"
           disabled={!view.button.enabled}

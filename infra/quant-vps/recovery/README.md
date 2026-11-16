@@ -53,7 +53,7 @@ the last `Login has completed` was 6,000 lines from the end (a `--tail 4000` rea
 
 - First read (new container id or new StartedAt): `--since <StartedAt>`, 20 s timeout, 64 MiB cap. If it is
   larger or slower, the read falls back to the last 48 h (`--since <now - 48 h>`, never before StartedAt);
-  without an IBC event in that window the state is `unknown` with reason `log-window`.
+  without an IBC event in that window the state is `no-login-evidence` with reason `log-window` and `since` = the window start.
 - Later reads: `--since <timestamp of the last line read>`, 10 s timeout. `--since` is inclusive, so lines at
   that timestamp that were already read are skipped.
 - Only the parsed IBC events stay in memory (last 500), not raw lines. Docker output goes to a temp file first.
@@ -85,7 +85,8 @@ IBC lines (`IBC: ...`) in time order; the last event wins.
 | `awaiting-2fa` | last event 2fa-started, < 240 s old | false |
 | `starting` | last event login-started < 300 s old, or container < 120 s old with no event | false |
 | `logged-out` | last event 2fa-timeout or session-ended; 2fa-started >= 240 s; login-started >= 300 s | true |
-| `unknown` | docker unreadable, more than one running gateway container, or running > 120 s with no event (reason `no-login-event`, or `log-window` after the 48 h fallback) | false |
+| `no-login-evidence` | running > 120 s with no event (reason `no-login-event`, or `log-window` after the 48 h fallback); `lastKnown` = the last `logged-in` state | false |
+| `gateway-unreadable` | docker unreadable (reason `docker-error`) or more than one running gateway container (reason `ambiguous-container`); `since` = first failed read; `lastKnown` = the last deciding state | false |
 
 The state is cached for 10 s. Each POST reads it fresh before it takes the request lock (the lock section never
 waits on docker); the monitor also reads it fresh once the script has ended.

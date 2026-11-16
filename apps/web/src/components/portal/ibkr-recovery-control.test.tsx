@@ -15,21 +15,20 @@ import {
   it,
   vi,
 } from "vitest";
-
+import { AccountGlance } from "./account-glance.tsx";
 import type { IbkrRecoveryGateway } from "./ibkr-recovery-client.ts";
 import {
-  createIbkrRecoveryGateway,
   createBrowserIbkrRecoveryGateway,
+  createIbkrRecoveryGateway,
 } from "./ibkr-recovery-client.ts";
 import {
   loginStateNotReadText,
-  RECENT_RESULT_MS,
   pollIntervalMs,
+  RECENT_RESULT_MS,
   recoveryView,
 } from "./ibkr-recovery-model.ts";
-import { AccountGlance } from "./account-glance.tsx";
 import { fixtureSnapshot } from "./portfolio-monitor-fixture.ts";
-import { sinceClock } from "./portfolio-monitor-model.ts";
+import { clock, sinceClock } from "./portfolio-monitor-model.ts";
 
 const testGlobal = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -91,45 +90,45 @@ const NOW = Date.parse("2026-10-28T15:00:00.000Z");
 const request = (
   overrides: Partial<IbkrRecoveryRequest> = {}
 ): IbkrRecoveryRequest => ({
-  requestId: "req-00000001",
-  requestedAt: "2026-10-28T14:58:00Z",
-  updatedAt: "2026-10-28T14:58:30Z",
-  finishedAt: null,
-  state: "waiting-for-approval",
   detail: "",
-  scriptRunning: true,
-  requestedByYou: true,
-  recheckAt: null,
+  finishedAt: null,
   recheck: null,
+  recheckAt: null,
+  requestedAt: "2026-10-28T14:58:00Z",
+  requestedByYou: true,
+  requestId: "req-00000001",
+  scriptRunning: true,
+  state: "waiting-for-approval",
+  updatedAt: "2026-10-28T14:58:30Z",
   ...overrides,
 });
 
 const status = (
   overrides: Partial<IbkrRecoveryStatusOutput> = {}
 ): IbkrRecoveryStatusOutput => ({
-  gateway: {
-    loginState: "logged-out",
-    needsLogin: true,
-    since: "2026-10-28T14:50:00Z",
-    reason: "2fa-timeout",
-    feedsMissing: false,
-  },
-  request: null,
-  cooldownUntil: null,
   canRequest: true,
   checkedAt: "2026-10-28T15:00:00.000Z",
+  cooldownUntil: null,
+  gateway: {
+    feedsMissing: false,
+    loginState: "logged-out",
+    needsLogin: true,
+    reason: "2fa-timeout",
+    since: "2026-10-28T14:50:00Z",
+  },
+  request: null,
   ...overrides,
 });
 
 const loggedIn = status({
+  canRequest: false,
   gateway: {
+    feedsMissing: false,
     loginState: "logged-in",
     needsLogin: false,
-    since: "2026-10-28T14:00:00Z",
     reason: "logged-in",
-    feedsMissing: false,
+    since: "2026-10-28T14:00:00Z",
   },
-  canRequest: false,
 });
 
 type Result =
@@ -149,8 +148,8 @@ const gatewayOf = (...results: Result[]) => {
     request: request({ state: "requested" }),
   }));
   return {
-    status: statusFn,
     request: requestFn,
+    status: statusFn,
   } satisfies IbkrRecoveryGateway;
 };
 
@@ -183,14 +182,14 @@ describe("recoveryView", () => {
     ] as const) {
       const view = recoveryView(
         status({
+          canRequest: false,
           gateway: {
+            feedsMissing: false,
             loginState,
             needsLogin: false,
-            since: null,
             reason: "x",
-            feedsMissing: false,
+            since: null,
           },
-          canRequest: false,
         }),
         NOW
       );
@@ -206,16 +205,92 @@ describe("recoveryView", () => {
       recoveryView(
         status({
           gateway: {
+            feedsMissing: false,
             loginState: "stopped",
             needsLogin: true,
-            since: null,
             reason: "container-not-running",
-            feedsMissing: false,
+            since: null,
           },
         }),
         NOW
       ).badge?.label
     ).toBe("IBKR login: gateway stopped");
+  });
+
+  it("names the two undecided login states with since, last known and the next step", () => {
+    const undecided = (gateway: Partial<IbkrRecoveryStatusOutput["gateway"]>) =>
+      recoveryView(
+        status({
+          canRequest: false,
+          gateway: {
+            feedsMissing: false,
+            loginState: "gateway-unreadable",
+            needsLogin: false,
+            reason: "docker-error",
+            since: "2026-10-28T14:45:00Z",
+            ...gateway,
+          },
+        }),
+        NOW
+      );
+    const unreadable = undecided({
+      lastKnown: {
+        at: "2026-10-28T14:40:00Z",
+        since: "2026-10-28T14:00:00Z",
+        state: "logged-in",
+      },
+    });
+    expect(unreadable.button).toBeNull();
+    expect(unreadable.badge).toEqual({
+      label: `IBKR login state not readable since ${clock("2026-10-28T14:45:00Z")} (docker error) · last known: logged in at ${clock("2026-10-28T14:40:00Z")} · checking again`,
+      tone: "warning",
+    });
+    expect(
+      undecided({ lastKnown: null, reason: "ambiguous-container" }).badge?.label
+    ).toBe(
+      `IBKR login state not readable since ${clock("2026-10-28T14:45:00Z")} (more than one gateway container) · no earlier state since the recovery service started · checking again`
+    );
+    const noEvidence = (
+      lastKnown: IbkrRecoveryStatusOutput["gateway"]["lastKnown"]
+    ) =>
+      undecided({
+        lastKnown,
+        loginState: "no-login-evidence",
+        reason: "no-login-event",
+        since: "2026-10-28T08:00:00Z",
+      }).badge?.label;
+    expect(noEvidence(undefined)).toBe(
+      `IBKR login: no login line in the gateway log (gateway running since ${clock("2026-10-28T08:00:00Z")}) · no login seen since the recovery service started · checking again`
+    );
+    expect(
+      noEvidence({
+        at: "2026-10-28T07:59:00Z",
+        since: "2026-10-28T07:30:00Z",
+        state: "logged-in",
+      })
+    ).toBe(
+      `IBKR login: no login line in the gateway log (gateway running since ${clock("2026-10-28T08:00:00Z")}) · last confirmed login ${clock("2026-10-28T07:30:00Z")} · checking again`
+    );
+    expect(
+      undecided({
+        lastKnown: null,
+        loginState: "no-login-evidence",
+        reason: "log-window",
+        since: "2026-10-26T15:00:00Z",
+      }).badge?.label
+    ).toBe(
+      `IBKR login: no login line in the gateway log read from ${clock("2026-10-26T15:00:00Z")} · no login seen since the recovery service started · checking again`
+    );
+    expect(undecided({ lastKnown: null, since: null }).badge?.label).toBe(
+      "IBKR login state not readable since a time not reported (docker error) · no earlier state since the recovery service started · checking again"
+    );
+    return expect(
+      noEvidence({
+        at: "2026-10-28T07:59:00Z",
+        since: null,
+        state: "logged-in",
+      })
+    ).toContain(`last confirmed login ${clock("2026-10-28T07:59:00Z")}`);
   });
 
   it("shows the button for a logged-in gateway with missing account feeds", () => {
@@ -304,7 +379,7 @@ describe("recoveryView", () => {
       ] as const
     ).map(([state, label]) => {
       const view = recoveryView(
-        status({ request: request({ state, detail: "detail text" }) }),
+        status({ request: request({ detail: "detail text", state }) }),
         NOW
       );
       expect(view.progress?.label).toBe(label);
@@ -319,11 +394,11 @@ describe("recoveryView", () => {
       "detail text",
     ]);
     const finished = request({
-      state: "failed",
       detail: " ",
-      scriptRunning: false,
       finishedAt: "2026-10-28T14:59:00Z",
       requestedByYou: false,
+      scriptRunning: false,
+      state: "failed",
     });
     const recent = recoveryView(status({ request: finished }), NOW).progress;
     expect(recent?.detail).toBeNull();
@@ -346,9 +421,9 @@ describe("recoveryView", () => {
       pollIntervalMs(
         status({
           request: request({
-            state: "logged-in",
-            scriptRunning: false,
             finishedAt: "2026-10-28T14:59:00Z",
+            scriptRunning: false,
+            state: "logged-in",
           }),
         })
       )
@@ -465,11 +540,11 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
   it("warns that a feeds-missing request restarts a logged-in gateway", async () => {
     const feeds = status({
       gateway: {
+        feedsMissing: true,
         loginState: "logged-in",
         needsLogin: false,
-        since: null,
         reason: "logged-in",
-        feedsMissing: true,
+        since: null,
       },
     });
     await mount(monitor(gatewayOf(feeds)));
@@ -482,7 +557,7 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
   it("asks for the recovery statement before it sends one request", async () => {
     const gateway = gatewayOf(
       status(),
-      status({ request: request({ state: "requested" }), canRequest: false })
+      status({ canRequest: false, request: request({ state: "requested" }) })
     );
     await mount(monitor(gateway));
     expect(text()).toContain("IBKR login: logged out");
@@ -520,13 +595,13 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
     const dialog = document.querySelector("[role=alertdialog]");
     await run(() =>
       dialog?.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+        new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })
       )
     );
     expect(document.querySelector("[role=alertdialog]")).not.toBeNull();
     await run(() =>
       dialog?.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })
       )
     );
     expect(document.querySelector("[role=alertdialog]")).toBeNull();
@@ -597,10 +672,10 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
     vi.setSystemTime(new Date("2026-10-28T15:00:35.000Z"));
     const gateway = gatewayOf(
       { code: "UNAVAILABLE", message: "IBKR recovery service unavailable" },
-      status({ request: request(), canRequest: false }),
+      status({ canRequest: false, request: request() }),
       status({
-        request: request({ detail: "IBC reported login", state: "verifying" }),
         canRequest: false,
+        request: request({ detail: "IBC reported login", state: "verifying" }),
       })
     );
     await mount(monitor(gateway));
@@ -634,7 +709,7 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
   it("keeps the first failure time and marks the old state as last known", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-28T15:00:35.000Z"));
-    const waiting = status({ request: request(), canRequest: false });
+    const waiting = status({ canRequest: false, request: request() });
     const gateway = gatewayOf(
       waiting,
       { code: "UNAVAILABLE", message: "no answer" },
@@ -739,6 +814,7 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
     let answer: ((value: IbkrRecoveryStatusOutput) => void) | undefined;
     let refuse: ((reason: unknown) => void) | undefined;
     const pending = {
+      request: vi.fn(),
       status: vi
         .fn<() => Promise<IbkrRecoveryStatusOutput>>()
         .mockImplementationOnce(
@@ -753,7 +829,6 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
               refuse = reject;
             })
         ),
-      request: vi.fn(),
     };
     await mount(monitor(pending));
     for (const root of roots.splice(0)) await act(async () => root.unmount());
@@ -772,10 +847,10 @@ describe("IbkrRecoveryControl in the Mission control account card", () => {
 
   it("shows nothing before the first status arrives", async () => {
     const gateway = {
+      request: vi.fn(),
       status: vi.fn(
         () => new Promise<IbkrRecoveryStatusOutput>(() => undefined)
       ),
-      request: vi.fn(),
     };
     await mount(monitor(gateway));
     expect(document.querySelector("[data-ibkr-recovery]")).toBeNull();
@@ -791,7 +866,7 @@ describe("ibkr recovery client", () => {
       request: request(),
     }));
     const gateway = createIbkrRecoveryGateway({
-      ibkrRecovery: { status: statusFn, request: requestFn },
+      ibkrRecovery: { request: requestFn, status: statusFn },
     } as unknown as Parameters<typeof createIbkrRecoveryGateway>[0]);
     await gateway.status();
     await gateway.request();

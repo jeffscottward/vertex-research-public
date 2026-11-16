@@ -188,7 +188,7 @@ describe("GitHub workflow invariants", () => {
   // Owner 2026-11-11 (card vertex-code-stewardship): the template init acceptance shard
   // is the longest job. It runs on the nightly run and when the changes job plans it
   // (scripts/ci/ci-changes.sh); the coverage lane then requires its report.
-  it("runs the acceptance shard nightly and only when the changes job plans it", () => {
+  it("runs the acceptance shard nightly and only when the changes job plans it", async () => {
     const ci = workflows.find(({ file }) => file === "ci.yml")!;
     const on = ci.workflow.on as Record<string, unknown>;
     expect(on["schedule"]).toEqual([{ cron: expect.any(String) }]);
@@ -208,6 +208,8 @@ describe("GitHub workflow invariants", () => {
     >;
     expect(ciJobs["changes"]!.outputs).toMatchObject({
       acceptance: "${{ steps.plan.outputs.acceptance }}",
+      debate: "${{ steps.plan.outputs.debate }}",
+      shard_reports: "${{ steps.plan.outputs.shard_reports }}",
       skip_shards: "${{ steps.plan.outputs.skip_shards }}",
     });
     const matrix = ciJobs["coverage-shards"]!.strategy?.matrix;
@@ -215,13 +217,21 @@ describe("GitHub workflow invariants", () => {
     expect(matrix?.["exclude"]).toBe(
       "${{ fromJSON(needs.changes.outputs.skip_shards) }}"
     );
-    // The merge counts the reports against the plan: 12 hashed shards plus the
-    // named shards, plus the acceptance shard when it is planned.
-    return expect(
+    expect(matrix?.["shard"]).toContain("debate-five-turn");
+    // The merge counts the reports against the plan. The changes job counts the
+    // planned shards: 12 hashed shards plus the named shards that always run,
+    // plus the acceptance and debate-five-turn shards when they are planned.
+    expect(
       ciJobs["verification-coverage"]!.steps?.map((step) => step.env)
     ).toContainEqual({
-      EXPECTED: `\${{ needs.changes.outputs.acceptance == 'true' && ${12 + NAMED_SHARDS.length} || ${11 + NAMED_SHARDS.length} }}`,
+      EXPECTED: "${{ needs.changes.outputs.shard_reports }}",
     });
+    const alwaysNamed = NAMED_SHARDS.filter(
+      (name) => name !== "acceptance" && name !== "debate-five-turn"
+    );
+    return expect(
+      await readFile(new URL("ci-changes.sh", import.meta.url), "utf8")
+    ).toContain(`BASE_SHARD_REPORTS=${12 + alwaysNamed.length}\n`);
   });
 
   // Card orochi-impl: every named coverage shard of scripts/lib/coverage-lane.ts

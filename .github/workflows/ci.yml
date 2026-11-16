@@ -59,7 +59,9 @@ jobs:
       draft: ${{ steps.plan.outputs.draft }}
       exclude: ${{ steps.plan.outputs.exclude }}
       acceptance: ${{ steps.plan.outputs.acceptance }}
+      debate: ${{ steps.plan.outputs.debate }}
       skip_shards: ${{ steps.plan.outputs.skip_shards }}
+      shard_reports: ${{ steps.plan.outputs.shard_reports }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -111,11 +113,13 @@ jobs:
       fail-fast: false
       matrix:
         shard:
-          ["1/12", "2/12", "3/12", "4/12", "5/12", "6/12", "7/12", "8/12", "9/12", "10/12", "11/12", "12/12", native-evidence-1, native-evidence-2, acceptance]
+          ["1/12", "2/12", "3/12", "4/12", "5/12", "6/12", "7/12", "8/12", "9/12", "10/12", "11/12", "12/12", native-evidence-1, native-evidence-2, debate-five-turn, acceptance]
         # The acceptance shard (template init test, the longest job) runs on the nightly
         # run, on a manual run and when the init command changed; the changes job excludes
         # it otherwise (owner 2026-11-11). When it is planned, the coverage lane below
         # requires its report, so it stays a required check for those pull requests.
+        # The debate-five-turn shard (one test of 10 to 15 minutes) follows the same rule
+        # with the debate paths of scripts/ci/ci-changes.sh (owner 2026-11-15).
         exclude: ${{ fromJSON(needs.changes.outputs.skip_shards) }}
     env:
       APP_ENV: test
@@ -426,11 +430,12 @@ jobs:
 
       # Every planned shard must be present: a partial merge could pass on partial data.
       # Twelve hashed Vitest shards and the two native-evidence shards, plus the acceptance
-      # shard when the changes job planned it.
+      # shard and the debate-five-turn shard when the changes job planned them. The changes
+      # job counts them (scripts/ci/ci-changes.sh).
       - name: Require every planned coverage shard report
         shell: bash
         env:
-          EXPECTED: ${{ needs.changes.outputs.acceptance == 'true' && 15 || 14 }}
+          EXPECTED: ${{ needs.changes.outputs.shard_reports }}
         run: |
           count=$(find .vitest-reports -maxdepth 1 -type f | wc -l)
           echo "Coverage shard reports: ${count} of ${EXPECTED}"

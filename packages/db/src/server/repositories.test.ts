@@ -1129,6 +1129,7 @@ describe("feature item mutation repository", () => {
       "goLiveDrafts",
       "leveragedEtfUniverse",
       "marketNotes",
+      "researchScreen",
     ]);
     return expect(repositories.generated).toEqual({});
   });

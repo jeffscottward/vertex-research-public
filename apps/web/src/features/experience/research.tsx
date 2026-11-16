@@ -125,6 +125,10 @@ export const ResearchWorkspace = ({
                 Research dossiers
               </a>
               {" · "}
+              <a className="vx-text-link" href="/research/screen">
+                Research screen
+              </a>
+              {" · "}
               <a className="vx-text-link" href="/knowledge">
                 Open the knowledge chat
               </a>
