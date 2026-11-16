@@ -302,6 +302,7 @@ export const ResearchReportTechnicalsOutputSchema = z.object({
     }),
     weinstein: z.object({
       flatBandPct: Price,
+      historyWeeks: z.number().int().positive(),
       minimumWeeks: z.number().int().positive(),
       slopeWeeks: z.number().int().positive(),
       smaWeeks: z.number().int().positive(),

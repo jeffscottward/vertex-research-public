@@ -170400,6 +170400,12 @@
                             "flatBandPct": {
                               "type": "number"
                             },
+                            "historyWeeks": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
                             "minimumWeeks": {
                               "exclusiveMinimum": 0,
                               "maximum": 9007199254740991,
@@ -170421,6 +170427,7 @@
                           },
                           "required": [
                             "flatBandPct",
+                            "historyWeeks",
                             "minimumWeeks",
                             "slopeWeeks",
                             "smaWeeks"
