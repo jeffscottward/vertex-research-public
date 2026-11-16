@@ -29,6 +29,7 @@ import {
   describeRun,
   equalWeights,
   equityPath,
+  nullMetricText,
   type PortfolioCombosGateway,
   PortfolioCombosWorkspace,
   parseComboRuns,
@@ -123,6 +124,10 @@ const comboOf = (overrides: Partial<BacktestCombo> = {}): BacktestCombo => ({
     [1, null],
     [null, 1],
   ],
+  correlationReasons: [
+    [null, "short-span"],
+    ["short-span", null],
+  ],
   deposit: 100_000,
   diversification: {
     combinedDrawdownPct: 0.04,
@@ -147,7 +152,13 @@ const comboOf = (overrides: Partial<BacktestCombo> = {}): BacktestCombo => ({
     full: stats,
     label: `slot ${runId}`,
     pnl: 5000,
-    recent: { ...stats, cagr: null, sharpe: null },
+    recent: {
+      ...stats,
+      cagr: null,
+      cagrReason: "short-span" as const,
+      sharpe: null,
+      sharpeReason: "flat" as const,
+    },
     runId,
     seriesSha256: "f".repeat(64),
     strategyRevision: runId === "a" ? "a".repeat(64) : null,
@@ -300,6 +311,18 @@ describe("helpers", () => {
     ).toBe("M0.0,10.0 L0.0,10.0");
   });
 
+  it("names the cause of every null metric", () => {
+    expect(nullMetricText("short-span")).toBe("Not computed: span too short");
+    expect(nullMetricText("flat")).toBe("Not defined: zero variance");
+    expect(nullMetricText("equity-at-zero")).toBe(
+      "Not defined: equity reached 0"
+    );
+    expect(nullMetricText("out-of-range")).toBe("Not defined: out of range");
+    expect(nullMetricText(undefined)).toBe(
+      "Not computed: server sent no reason"
+    );
+    return expect(nullMetricText("flat")).toBe("Not defined: zero variance");
+  });
   it("ranks Core 7 symbols and picks the default runs", () => {
     expect([symbolRank("ES=F"), symbolRank("SPY"), symbolRank("TEST")]).toEqual(
       [0, 1, 2]
@@ -416,7 +439,10 @@ describe("PortfolioCombosWorkspace", () => {
     expect(report()?.textContent).toContain(`Revision ${"a".repeat(12)}`);
     expect(report()?.textContent).toContain("none (no linked strategy)");
     expect(report()?.textContent).toContain("ok");
-    expect(report()?.textContent).toContain("n/a");
+    // Null metrics name their cause instead of a bare marker.
+    expect(report()?.textContent).toContain("Not defined: zero variance");
+    // The server says why each null correlation cell is null.
+    expect(report()?.textContent).toContain("Not computed: span too short");
     // The default view keeps a clean URL.
     expect(window.location.search).toBe("");
   });
@@ -547,20 +573,21 @@ describe("PortfolioCombosWorkspace", () => {
   });
 
   it("shows combine failures and a retry result", async () => {
+    // A server built before the reason fields: no correlationReasons, no cagrReason.
+    const { correlationReasons: _reasons, ...oldServer } = comboOf({
+      diversification: {
+        combinedDrawdownPct: 0.05,
+        diversified: false,
+        ratio: null,
+        ratioReason: "flat",
+        weightedSlotDrawdownPct: 0.05,
+      },
+      stats: { ...stats, cagr: null },
+    });
     const combine = vi
       .fn()
       .mockRejectedValueOnce({ code: "BAD_REQUEST", message: "pin mismatch" })
-      .mockResolvedValueOnce(
-        comboOf({
-          diversification: {
-            combinedDrawdownPct: 0.05,
-            diversified: false,
-            ratio: null,
-            weightedSlotDrawdownPct: 0.05,
-          },
-          stats: { ...stats, cagr: null },
-        })
-      )
+      .mockResolvedValueOnce(oldServer)
       .mockRejectedValueOnce({ code: "ERROR", message: "down" });
     await mount(<PortfolioCombosWorkspace gateway={gatewayOf({ combine })} />);
     await wait();
@@ -570,6 +597,14 @@ describe("PortfolioCombosWorkspace", () => {
     expect(report()).toBeNull();
     await click(button());
     expect(document.body.textContent).toContain("not diversified");
+    expect(document.body.textContent).toContain(
+      "volatility ratio Not defined: zero variance"
+    );
+    expect(document.body.textContent).toContain(
+      "Not computed: server sent no reason"
+    );
+    // Null correlation cells without a server reason say so, not a guessed cause.
+    expect(report()?.textContent).not.toContain("Not computed: span too short");
     expect(document.querySelector('[role="alert"]')).toBeNull();
     await click(button());
     expect(document.querySelector('[role="alert"]')?.textContent).toBe("down");

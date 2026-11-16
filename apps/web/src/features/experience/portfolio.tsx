@@ -31,7 +31,10 @@ import {
 
 const exact = (value: string | null): string =>
   value === null ? "Unknown — not supplied" : value;
-const continuityMessages: Record<ProjectionContinuity["state"], string> = {
+const continuityMessages: Record<
+  Exclude<ProjectionContinuity["state"], "unavailable">,
+  string
+> = {
   empty:
     "The source has reported no events. An empty stream does not confirm zero holdings or cash.",
   continuous:
@@ -41,9 +44,30 @@ const continuityMessages: Record<ProjectionContinuity["state"], string> = {
     "The source marked this projection stale. Values are historical observations. Current balances are unconfirmed.",
   "epoch-mismatch":
     "The projection owner epoch does not match. The native owner must reconcile it. This view cannot repair it.",
-  unavailable:
-    "Continuity is unavailable. Completeness and current balances are unknown.",
 };
+
+// The projection store sets "unavailable" only when the latest snapshot is a source-unavailable
+// report, so the page names that report; why the source was unavailable is not in the snapshot. The time and sequence are those of that last record.
+export const continuityStateLabel = (
+  state: ProjectionContinuity["state"]
+): string =>
+  state === "unavailable" ? "source sent no portfolio data" : state;
+
+export const continuityMessage = (continuity: ProjectionContinuity): string => {
+  if (continuity.state !== "unavailable")
+    return continuityMessages[continuity.state];
+  const reported =
+    continuity.lastOccurredAt === null
+      ? "The source sent no record time"
+      : `The source reported this at ${continuity.lastOccurredAt}`;
+  return `Portfolio source sent no portfolio data. ${reported} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`;
+};
+
+// "source-unavailable" is a protocol value; the page names the state instead.
+export const sourceKindLabel = (
+  kind: PortfolioSnapshot["sourceKind"]
+): string =>
+  kind === "source-unavailable" ? "source sent no portfolio data" : kind;
 
 export const PortfolioContinuity = ({
   continuity,
@@ -60,11 +84,11 @@ export const PortfolioContinuity = ({
       className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]"
       role="status"
     >
-      {continuity.state}
+      {continuityStateLabel(continuity.state)}
       {" · freshness: "}
       {continuity.freshness.status}
     </p>
-    <p>{continuityMessages[continuity.state]}</p>
+    <p>{continuityMessage(continuity)}</p>
     <dl className="my-4 grid text-sm leading-[1.75] [&>div]:grid @min-[42rem]:[&>div]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] @min-[42rem]:[&>div]:gap-6 [&>div]:gap-2 [&>div]:border-border [&>div]:border-b [&>div]:py-3 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-muted-foreground">
       <div>
         <dt>Stream</dt>
@@ -342,13 +366,19 @@ export const PortfolioObservation = ({
       <p className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]">
         {snapshot.environment}
         {" · "}
-        {snapshot.sourceKind}
+        {sourceKindLabel(snapshot.sourceKind)}
         {" · observation only"}
       </p>
       {snapshot.sourceKind === "source-unavailable" ? (
-        <ReadNotice title="Portfolio source unavailable">
+        <ReadNotice
+          title={`Portfolio source sent no portfolio data for ${snapshot.environment}`}
+        >
+          {`The source reported this at ${snapshot.asOfAt} (sequence ${snapshot.sequence}); this page received it at ${snapshot.receivedAt}. `}
           No balances or holdings have been supplied. Empty collections and
           unknown values are not zero.
+          {
+            " Refresh reads the source again; values appear when it sends an observation."
+          }
         </ReadNotice>
       ) : null}
       {snapshot.sourceKind === "paper-simulation" ? (
@@ -368,7 +398,7 @@ export const PortfolioObservation = ({
         </div>
         <div>
           <dt>Source</dt>
-          <dd>{snapshot.sourceKind}</dd>
+          <dd>{sourceKindLabel(snapshot.sourceKind)}</dd>
         </div>
         <div>
           <dt>Snapshot</dt>

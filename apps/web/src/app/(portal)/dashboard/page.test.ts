@@ -143,7 +143,10 @@ describe("dashboard summary loader", () => {
     );
     await vi.advanceTimersByTimeAsync(6);
 
-    await expect(result).resolves.toEqual({ type: "error" });
+    await expect(result).resolves.toMatchObject({
+      type: "error",
+      failure: { kind: "timeout", code: null, at: expect.any(String) },
+    });
     return expect(mocks.emit).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "dashboard.summary-failed",
@@ -168,7 +171,7 @@ describe("dashboard summary loader", () => {
 
     return await expect(
       loadDashboardSummaryState("better-auth.session_token=opaque", fetcher)
-    ).resolves.toEqual({ type: "error" });
+    ).resolves.toMatchObject({ type: "error" });
   });
 
   it("keeps request-local oRPC work inside its longer bounded deadline", async () => {
@@ -253,7 +256,7 @@ describe("dashboard summary loader", () => {
     await vi.advanceTimersByTimeAsync(999);
     expect(fetcher).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1);
-    await expect(result).resolves.toEqual({ type: "error" });
+    await expect(result).resolves.toMatchObject({ type: "error" });
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(mocks.emit).toHaveBeenCalledOnce();
     expect(mocks.emit).toHaveBeenCalledWith(
@@ -268,8 +271,12 @@ describe("dashboard summary loader", () => {
     vi.useFakeTimers();
     const fetcher = vi.fn(async () => dashboardResponse());
 
-    await expect(loadDashboardSummaryState(null, fetcher, 0)).resolves.toEqual({
+    await expect(
+      loadDashboardSummaryState(null, fetcher, 0)
+    ).resolves.toMatchObject({
       type: "error",
+      // Our own deadline ran out: a timeout, not a cancellation.
+      failure: { kind: "timeout", code: null },
     });
     expect(fetcher).not.toHaveBeenCalled();
     return expect(vi.getTimerCount()).toBe(0);
@@ -286,7 +293,7 @@ describe("dashboard summary loader", () => {
     await vi.advanceTimersByTimeAsync(2999);
     expect(fetcher).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(1);
-    await expect(result).resolves.toEqual({ type: "error" });
+    await expect(result).resolves.toMatchObject({ type: "error" });
     await vi.advanceTimersByTimeAsync(1000);
     expect(fetcher).toHaveBeenCalledOnce();
     return expect(vi.getTimerCount()).toBe(0);
@@ -312,7 +319,7 @@ describe("dashboard summary loader", () => {
     await vi.advanceTimersByTimeAsync(1499);
     expect(fetcher).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1);
-    await expect(result).resolves.toEqual({ type: "error" });
+    await expect(result).resolves.toMatchObject({ type: "error" });
     expect(fetcher).toHaveBeenCalledTimes(2);
     return expect(vi.getTimerCount()).toBe(0);
   });
@@ -331,7 +338,7 @@ describe("dashboard summary loader", () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(fetcher).toHaveBeenCalledOnce();
     controller.abort();
-    await expect(result).resolves.toEqual({ type: "error" });
+    await expect(result).resolves.toMatchObject({ type: "error" });
     await vi.advanceTimersByTimeAsync(3000);
     expect(fetcher).toHaveBeenCalledOnce();
     return expect(vi.getTimerCount()).toBe(0);
@@ -345,7 +352,10 @@ describe("dashboard summary loader", () => {
 
     await expect(
       loadDashboardSummaryState(null, fetcher, undefined, controller.signal)
-    ).resolves.toEqual({ type: "error" });
+    ).resolves.toMatchObject({
+      type: "error",
+      failure: { kind: "cancelled", code: null },
+    });
     expect(fetcher).not.toHaveBeenCalled();
     return expect(vi.getTimerCount()).toBe(0);
   });
@@ -412,7 +422,9 @@ describe("dashboard summary loader", () => {
     }
     for (const response of responses) {
       const fetcher = vi.fn(async () => response);
-      await expect(loadDashboardSummaryState(null, fetcher)).resolves.toEqual({
+      await expect(
+        loadDashboardSummaryState(null, fetcher)
+      ).resolves.toMatchObject({
         type: "error",
       });
       expect(fetcher).toHaveBeenCalledOnce();
@@ -457,7 +469,7 @@ describe("dashboard summary loader", () => {
     const result = loadDashboardSummaryState(null, fetcher);
 
     await vi.advanceTimersByTimeAsync(1000);
-    await expect(result).resolves.toEqual({ type: "error" });
+    await expect(result).resolves.toMatchObject({ type: "error" });
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(mocks.emit).toHaveBeenCalledOnce();
     expect(mocks.emit).toHaveBeenCalledWith(
@@ -495,7 +507,9 @@ describe("dashboard summary loader", () => {
         )
     );
 
-    await expect(loadDashboardSummaryState(null, fetcher)).resolves.toEqual({
+    await expect(
+      loadDashboardSummaryState(null, fetcher)
+    ).resolves.toMatchObject({
       type: "error",
     });
     expect(fetcher).toHaveBeenCalledOnce();
@@ -537,7 +551,7 @@ describe("dashboard summary loader", () => {
           "better-auth.session_token=opaque",
           async () => dashboardErrorResponse(failure, responseStatus)
         )
-      ).resolves.toEqual({ type: "error" });
+      ).resolves.toMatchObject({ type: "error" });
     }
     for (const failure of [null, "private transport failure"]) {
       await expect(
@@ -547,7 +561,7 @@ describe("dashboard summary loader", () => {
             throw failure;
           }
         )
-      ).resolves.toEqual({ type: "error" });
+      ).resolves.toMatchObject({ type: "error" });
     }
   });
 
@@ -631,7 +645,14 @@ describe("dashboard summary loader", () => {
           "better-auth.session_token=private-cookie",
           async () => response
         )
-      ).resolves.toEqual({ type: "error" });
+      ).resolves.toMatchObject({
+        type: "error",
+        // The member view names the failure class: the server's code and HTTP status.
+        failure: {
+          kind: "request-failed",
+          code: category.split(".").slice(-2).join(" "),
+        },
+      });
       expect(mocks.emit).toHaveBeenLastCalledWith(
         expect.objectContaining({
           errorCategory: category,
@@ -687,7 +708,7 @@ describe("dashboard summary loader", () => {
             throw failure;
           }
         )
-      ).resolves.toEqual({ type: "error" });
+      ).resolves.toMatchObject({ type: "error" });
 
       expect(mocks.emit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -775,7 +796,7 @@ describe("dashboard summary loader", () => {
       loadDashboardSummaryState(null, async () => {
         throw failure;
       })
-    ).resolves.toEqual({ type: "error" });
+    ).resolves.toMatchObject({ type: "error" });
     expect(getter).not.toHaveBeenCalled();
     expect(mocks.emit).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -838,7 +859,7 @@ describe("dashboard summary loader", () => {
       loadDashboardSummaryState(null, async () => {
         throw new Error("private-transport");
       })
-    ).resolves.toEqual({ type: "error" });
+    ).resolves.toMatchObject({ type: "error" });
     expect(mocks.emit).not.toHaveBeenCalled();
 
     mocks.emit.mockRejectedValueOnce(new Error("private-emission"));

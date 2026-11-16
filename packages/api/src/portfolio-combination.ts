@@ -4,6 +4,8 @@
 // slot's equity points; before its first point a slot is flat, after its last point it holds its
 // final value. Pure functions; research only, no order path.
 
+import type { ComboNullReason } from "./contracts/backtest-runs.ts";
+
 const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
 
 /** Share of the points, at the end of the period, that form the recent window. */
@@ -24,8 +26,12 @@ export type ComboSlotInput = Readonly<{
 
 export type ComboStats = Readonly<{
   cagr: number | null;
+  /** Set only when `cagr` is null. */
+  cagrReason?: ComboNullReason;
   maxDrawdownPct: number;
   sharpe: number | null;
+  /** Set only when `sharpe` is null. */
+  sharpeReason?: ComboNullReason;
   totalReturn: number;
 }>;
 
@@ -56,6 +62,8 @@ export type ComboResult = Readonly<{
   slots: readonly ComboSlotResult[];
   /** correlation[i][j]: Pearson correlation of per-point returns; null when a series is flat. */
   correlation: readonly (readonly (number | null)[])[];
+  /** correlationReasons[i][j]: why correlation[i][j] is null; null where it has a value. */
+  correlationReasons: readonly (readonly (ComboNullReason | null)[])[];
   /** overlap[i][j]: share of points where slots i and j are both below their running peak. */
   drawdownOverlap: readonly (readonly number[])[];
   /** Share of points where two or more slots are below their running peak at the same time. */
@@ -65,6 +73,8 @@ export type ComboResult = Readonly<{
     combinedDrawdownPct: number;
     /** Weighted average of slot volatilities divided by combined volatility; null when flat. */
     ratio: number | null;
+    /** Set only when `ratio` is null. */
+    ratioReason?: ComboNullReason;
     diversified: boolean;
   }>;
 }>;
@@ -140,16 +150,31 @@ export const seriesStats = (
     years > 0 && first > 0 && last > 0
       ? (last / first) ** (1 / years) - 1
       : null;
+  const cagr = growth !== null && Number.isFinite(growth) ? growth : null;
   const returns = returnsOf(values);
   const spread = deviation(returns);
   const sharpe =
     returns.length > 1 && spread > 0 && years > 0
       ? (mean(returns) / spread) * Math.sqrt(returns.length / years)
       : null;
+  const shortSpan = years <= 0;
+  const cagrReason: ComboNullReason = shortSpan
+    ? "short-span"
+    : first <= 0 || last <= 0
+      ? "equity-at-zero"
+      : "out-of-range";
+  const sharpeReason: ComboNullReason =
+    shortSpan || returns.length <= 1
+      ? "short-span"
+      : Number.isNaN(spread)
+        ? "out-of-range"
+        : "flat";
   return {
-    cagr: growth !== null && Number.isFinite(growth) ? growth : null,
+    cagr,
+    ...(cagr === null ? { cagrReason } : {}),
     maxDrawdownPct: Math.max(0, ...drawdownSeries(values)),
     sharpe,
+    ...(sharpe === null ? { sharpeReason } : {}),
     totalReturn,
   };
 };
@@ -311,6 +336,14 @@ export const combinePortfolio = (
       return pearson(left.slice(start, end), right.slice(start, end));
     })
   );
+  // Same pair span as above: fewer than two shared returns is too short, else a series is flat.
+  const correlationReasons = correlation.map((row, leftIndex) =>
+    row.map((value, rightIndex): ComboNullReason | null => {
+      if (value !== null) return null;
+      const { start, end } = pairSpan(leftIndex, rightIndex);
+      return end - start < 2 ? "short-span" : "flat";
+    })
+  );
   const stats = seriesStats(times, values);
   // The diversification check compares like with like: the invested part only (cash removed).
   const investedValues = values.map((value) => value - cash);
@@ -334,6 +367,7 @@ export const combinePortfolio = (
   return {
     cash,
     correlation,
+    correlationReasons,
     deposit,
     diversification: {
       combinedDrawdownPct: investedDrawdownPct,
@@ -343,6 +377,16 @@ export const combinePortfolio = (
         ratio > 1 + 1e-9 &&
         investedDrawdownPct <= weightedSlotDrawdownPct + 1e-12,
       ratio,
+      ...(ratio === null
+        ? {
+            ratioReason:
+              investedValues.length < 3
+                ? ("short-span" as const)
+                : Number.isNaN(combinedVolatility)
+                  ? ("out-of-range" as const)
+                  : ("flat" as const),
+          }
+        : {}),
       weightedSlotDrawdownPct,
     },
     drawdownOverlap: overlap,

@@ -42,6 +42,7 @@ import {
   modeConfirmedText,
   monitorHealth,
   normalizeInterval,
+  roundHandleFailureText,
   summaryStats,
   type Health,
   type MonitorSection,
@@ -228,7 +229,9 @@ const ROUND_HANDLE_INTERVAL_MS = 60_000;
 
 type RoundHandleFeed = Readonly<{
   flags: RoundHandleFlags | null;
-  failed: boolean;
+  // The last failed check and when it failed; null after a check succeeds.
+  failure: PortfolioMonitorFailure | null;
+  failedAt: number | null;
 }>;
 
 // Polls the round-number check once a minute while Orders & stops is open, when the source has it.
@@ -238,7 +241,8 @@ const useRoundHandles = (
 ): RoundHandleFeed => {
   const [feed, setFeed] = useState<RoundHandleFeed>({
     flags: null,
-    failed: false,
+    failure: null,
+    failedAt: null,
   });
   const read = gateway.roundHandles;
   useEffect(() => {
@@ -248,9 +252,18 @@ const useRoundHandles = (
       try {
         const check = await read();
         if (alive)
-          setFeed({ flags: roundHandleFlags(check.flags), failed: false });
-      } catch {
-        if (alive) setFeed({ flags: null, failed: true });
+          setFeed({
+            flags: roundHandleFlags(check.flags),
+            failure: null,
+            failedAt: null,
+          });
+      } catch (error) {
+        if (alive)
+          setFeed({
+            flags: null,
+            failure: describePortfolioMonitorFailure(error),
+            failedAt: Date.now(),
+          });
       }
     };
     void load();
@@ -282,14 +295,16 @@ const StatSub = ({ text }: { readonly text: string }) => (
 
 const SummaryGrid = ({
   snapshot,
+  nowMs,
 }: {
   readonly snapshot: PortfolioMonitorOutput;
+  readonly nowMs: number;
 }) => (
   <dl
     aria-label="Account summary"
     className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
   >
-    {summaryStats(snapshot).map((stat) => {
+    {summaryStats(snapshot, nowMs).map((stat) => {
       return (
         <div
           className="min-w-0 rounded-md border border-border bg-surface p-3"
@@ -464,14 +479,14 @@ const OrdersStopsSection = ({
   const handles = useRoundHandles(gateway, true);
   return (
     <div className="space-y-8">
-      {handles.failed ? (
+      {handles.failure === null ? null : (
         <p
           className="text-muted-foreground text-xs"
-          data-round-handle-state="unavailable"
+          data-round-handle-state="failed"
         >
-          Round-number check unavailable. Order prices are not flagged.
+          {roundHandleFailureText(handles.failure, handles.failedAt)}
         </p>
-      ) : null}
+      )}
       <OrdersTable
         empty="No open orders."
         handles={handles.flags ?? undefined}
@@ -650,7 +665,13 @@ export const PortfolioMonitor = ({
   });
   const age =
     snapshot === null ? null : ageSeconds(snapshot.status.dataAsOf, nowMs);
-  const freshness = `Data as of ${clock(snapshot?.status.dataAsOf)}${age === null ? "" : ` (${Math.round(age)} s ago)`} · fetched ${clock(fetchedAt)}`;
+  const dataClock = clock(snapshot?.status.dataAsOf, "");
+  const dataText =
+    dataClock === "" ? "IBKR sent no data time" : `Data as of ${dataClock}`;
+  const freshness =
+    snapshot === null || fetchedAt === null
+      ? "No snapshot received yet"
+      : `${dataText}${age === null ? "" : ` (${Math.round(age)} s ago)`} · fetched ${clock(fetchedAt)}`;
   const retry = () => setReloadKey((key) => key + 1);
 
   // Alerts stay outside the summary, so folding it never hides a problem.
@@ -763,7 +784,7 @@ export const PortfolioMonitor = ({
               </p>
             )
           ) : (
-            <SummaryGrid snapshot={snapshot} />
+            <SummaryGrid nowMs={nowMs} snapshot={snapshot} />
           )}
           <p className="text-muted-foreground text-xs" role="note">
             {orderActions === null ? READ_ONLY_NOTICE : ORDER_ACTIONS_NOTICE}
