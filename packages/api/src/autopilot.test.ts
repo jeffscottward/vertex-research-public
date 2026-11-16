@@ -1077,6 +1077,22 @@ describe("autopilot procedures", () => {
       "STORAGE_ERROR",
       "Deployment request storage is not configured on this server"
     );
+    // Each missing store is named on its own.
+    for (const [missing, store] of [
+      ["definitions", "Strategy definition"],
+      ["library", "Strategy library"],
+    ] as const)
+      await expectCode(
+        clientFor({
+          autopilot: memory.repository,
+          handoff: {
+            ...handoff,
+            [missing]: undefined,
+          } as unknown as ReturnType<typeof handoffRepositories>,
+        }).autopilot.candidates.sendToPaper({ id: verified.id, limits }),
+        "STORAGE_ERROR",
+        `${store} storage is not configured on this server`
+      );
 
     const sent = await client.autopilot.candidates.sendToPaper({
       id: verified.id,
