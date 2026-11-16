@@ -212,7 +212,8 @@ migration only inserts (`ON CONFLICT DO NOTHING`); a later result ships as a mig
 
 ### Run of 2026-11-16
 
-Commit `6157a8b5` (the freeze commit), spec SHA-256 `1b3f4610ab8bcac6`, data hash `27b180e3244259f5` (bars,
+Commit `6157a8b5` (the freeze commit; after the rebase onto the base branch it is `0fcfc0f3`, with the same study
+code, spec and shared modules), spec SHA-256 `1b3f4610ab8bcac6`, data hash `27b180e3244259f5` (bars,
 ex-dividend dates and option-model rows), NautilusTrader 1.227.0, 143 s on the rig. Research only; no trading
 authority.
 
