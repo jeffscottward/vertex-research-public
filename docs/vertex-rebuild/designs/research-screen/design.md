@@ -3,7 +3,7 @@
 - **Author:** Jeff Scott Ward (drafted by the job agent for card vertex-merge-p1-3-refresh-scheduler)
 - **Status:** Implemented (reviewed by 10 fresh reviewers on 2026-11-15; compared with the code on 2026-11-15, see "Implementation notes")
 - **Date:** 2026-11-15
-- **Base:** jeffscottward/vertex-research-public, branch `vertex/rebuild-darkfactory-20260921`, commit `bf961e3e`
+- **Base:** this repository, its default branch, commit `bf961e3e`
 
 The first two pictures show the change and the size of the port. The third shows one run.
 
@@ -36,7 +36,7 @@ The screen is research only. It is not a backtest and not a trading path: it sen
 
 ### Sources
 
-- Old workspace: the private repository jeffscottward/vertex-research, branch wip/vertex-research-local-20261016, commit 67e4268c. Files under apps/server/src: research-refresh.ts (194 lines), research-calendar.ts (196), research-screen.ts (197), research-lock.ts (57), swinglytics.ts (434); apps/web/src/lib/research-refresh.ts (63); scripts/collect-workspace-market.mjs (323). Total 1,464 lines. The implementer may read them; no data is copied.
+- Old workspace: the private research repository, branch wip/vertex-research-local-20261016, commit 67e4268c. Files under apps/server/src: research-refresh.ts (194 lines), research-calendar.ts (196), research-screen.ts (197), research-lock.ts (57), swinglytics.ts (434); apps/web/src/lib/research-refresh.ts (63); scripts/collect-workspace-market.mjs (323). Total 1,464 lines. The implementer may read them; no data is copied.
 - Migration requirement: `docs/vertex-rebuild/migration-matrix.json`, entry "Durable screening-worker semantics".
 - Owner decision of 2026-11-10 on price sources (card vertex-yahoo-terms-decision): merge, do not replace; the live paths read IBKR first and Yahoo for the gaps. Recorded in [data sources](../../../data-sources-and-platform-roles.md) and [the source review](../../data-sources/reel-de8mrtzrrpy.md).
 - Owner decisions of 2026-11-15 for this design are listed in "Decisions".
