@@ -25,6 +25,7 @@ import {
   type AssistantCompletionRequest,
   type AssistantModelClient,
   type AssistantTraceEntry,
+  AssistantTurnError,
   runAssistantTurn,
 } from "../../../packages/api/src/server/assistant-runtime.ts";
 import type { CallProcedure } from "../../../packages/api/src/server/mcp.ts";
@@ -41,6 +42,7 @@ import {
   readFrozenMasterRules,
 } from "./master-rules-freeze.ts";
 import type { EvalQuestion } from "./questions.ts";
+import { unknownTermAnswer } from "./tool-failures.ts";
 
 // Eval backend for the agent semantic layer: a real Postgres with every migration and the synthetic
 // fixture.sql, the real oRPC handler with an operator session, the synthetic live-account feed and paper
@@ -102,6 +104,23 @@ export const assertReaderRole = async (db: Database): Promise<void> => {
   }
 };
 
+/**
+ * Sets the live-account feed of the semantic layer: the synthetic live document, or a feed that answers
+ * 503. The setter replaces every setting, so the clock is set to EVAL_NOW again too.
+ */
+export const setLiveAccountFeed = (state: "live" | "down"): void => {
+  setSemanticTermsDependenciesForTesting({
+    feed: {
+      fetch: async () =>
+        state === "live"
+          ? jsonResponse(LIVE_PORTFOLIO_DOCUMENT)
+          : new Response("unavailable", { status: 503 }),
+      now: () => EVAL_NOW,
+    },
+    now: () => EVAL_NOW,
+  });
+};
+
 export type EvalBackend = Readonly<{
   callProcedure: CallProcedure;
   close: () => Promise<void>;
@@ -125,13 +144,7 @@ export const startEvalBackend = async (
   await resource.db.execute(
     "update strategies set created_at = '2026-10-01T00:00:00Z', updated_at = '2026-10-01T00:00:00Z'"
   );
-  setSemanticTermsDependenciesForTesting({
-    feed: {
-      fetch: async () => jsonResponse(LIVE_PORTFOLIO_DOCUMENT),
-      now: () => EVAL_NOW,
-    },
-    now: () => EVAL_NOW,
-  });
+  setLiveAccountFeed("live");
   setDeployStatusFetchOptionsForTesting({
     fetch: async () => jsonResponse(paperExecNodeDocument()),
     now: () => EVAL_NOW,
@@ -267,8 +280,14 @@ export const runTrial = async (
 export type TrialReplay = Readonly<{
   /** Null when the trial replays unchanged; else the first difference (the trial is stale). */
   stale: string | null;
-  /** The tool calls of the replayed turn; empty when the turn threw. */
+  /** The tool calls of the replayed turn; when the turn threw, the calls made before the throw. */
   trace: readonly AssistantTraceEntry[];
+  /**
+   * One line for each terms_query answer with status unknown (unknownTermAnswer in tool-failures.ts),
+   * also when the turn threw: a term that answers unknown since the recording makes the replay stale,
+   * and this line names the cause.
+   */
+  unknownTerms: readonly string[];
 }>;
 
 /**
@@ -285,6 +304,17 @@ export const replayTrial = async (
 ): Promise<TrialReplay> => {
   let call = 0;
   let reason: string | null = null;
+  // The trace marks a terms_query answer with status unknown as a call that worked; keep those answers.
+  const unknownTerms: string[] = [];
+  const watched: EvalBackend = {
+    ...backend,
+    callProcedure: async (procedure, input) => {
+      const answer = await backend.callProcedure(procedure, input);
+      const unknown = unknownTermAnswer(procedure, input, answer);
+      if (unknown !== null) unknownTerms.push(unknown);
+      return answer;
+    },
+  };
   const replay = async (
     request: AssistantCompletionRequest
   ): Promise<AssistantCompletion> => {
@@ -302,17 +332,22 @@ export const replayTrial = async (
   };
   let result: TrialResult;
   try {
-    result = await runTrial(backend, question, replay);
+    result = await runTrial(watched, question, replay);
   } catch (error) {
     if (reason === null) throw error;
-    return { stale: reason, trace: [] };
+    return {
+      stale: reason,
+      trace: error instanceof AssistantTurnError ? error.trace : [],
+      unknownTerms,
+    };
   }
   const { answer, trace } = result;
-  if (reason !== null) return { stale: reason, trace };
+  const tools = { trace, unknownTerms };
+  if (reason !== null) return { stale: reason, ...tools };
   if (call !== recorded.completions.length) {
     return {
       stale: `the turn made ${call} of the ${recorded.completions.length} recorded model calls`,
-      trace,
+      ...tools,
     };
   }
   return {
@@ -320,7 +355,7 @@ export const replayTrial = async (
       answer === recorded.answer
         ? null
         : "the final answer differs from the recorded answer",
-    trace,
+    ...tools,
   };
 };
 
