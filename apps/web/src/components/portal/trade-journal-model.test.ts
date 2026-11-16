@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   chronologicalFills,
   cumulativeRealized,
+  formatExecutionRealized,
   formatMoney,
   formatNumber,
   formatPercent,
@@ -13,6 +14,8 @@ import {
   journalTime,
   latestExecutions,
   lineGeometry,
+  NO_LOSING_TRADES,
+  NO_WINNING_TRADES,
   pnlTextClass,
   sideLabel,
 } from "./trade-journal-model.ts";
@@ -243,15 +246,32 @@ describe("lineGeometry", () => {
 describe("formatters", () => {
   it("formats money, signed money, percent and numbers with a dash for null", () => {
     expect(formatMoney(1234.5)).toBe("$1,234.50");
-    expect(formatMoney(null)).toBe("—");
+    expect(formatMoney(null)).toBe("Not reported by IBKR yet");
+    expect(formatMoney(null, "x")).toBe("x");
     expect(formatSignedMoney(12)).toBe("+$12.00");
     expect(formatSignedMoney(-3)).toBe("-$3.00");
     expect(formatSignedMoney(0)).toBe("$0.00");
-    expect(formatSignedMoney(null)).toBe("—");
+    expect(formatSignedMoney(null)).toBe("Not reported by IBKR yet");
+    expect(formatSignedMoney(null, NO_WINNING_TRADES)).toBe(
+      "No winning trades"
+    );
+    expect(formatSignedMoney(null, NO_LOSING_TRADES)).toBe("No losing trades");
     expect(formatPercent(2 / 3)).toBe("67%");
-    expect(formatPercent(null)).toBe("—");
+    expect(formatPercent(null)).toBe("No closed trades");
     expect(formatNumber(1500.123_45)).toBe("1,500.1235");
-    expect(formatNumber(null)).toBe("—");
+    expect(formatNumber(null)).toBe("Not reported by IBKR yet");
+  });
+
+  it("names why a fill has no realized P&L", () => {
+    expect(formatExecutionRealized({ commission: null, realized: null })).toBe(
+      "Not reported by IBKR yet"
+    );
+    expect(formatExecutionRealized({ commission: 1, realized: null })).toBe(
+      "No realized P&L (opening fill)"
+    );
+    expect(formatExecutionRealized({ commission: 1, realized: 4 })).toBe(
+      "+$4.00"
+    );
   });
 
   it("colours profit and loss only", () => {
