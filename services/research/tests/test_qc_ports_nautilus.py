@@ -438,7 +438,7 @@ def _no_portfolio(spec, rows):
 
 
 # One request per `raise InputError` statement of the options runner that a batch case can reach. Two statements
-# are left out: a batch case cannot reach them, as _run_args and _rows_view refuse such a request first
+# are left out: a batch case cannot reach them, as _run_args and _refuse_row_dates refuse such a request first
 # (ledger.run_ledger "capital must be above 0"; ledger.timeline "The run days must be all days or all bar times").
 # "The series rows must be an object" (_rows_view) is test_series_rows_that_are_not_an_object_are_an_input_error.
 _SUBNORMAL = 5e-324
@@ -576,6 +576,8 @@ MALFORMED_REQUESTS = [
     ("a row date that is not a calendar day", lambda s, r: r["VIX6M"]["dates"].__setitem__(-1, "2024-13-45"),
      "Series VIX6M has a date that is not YYYY-MM-DD: 2024-13-45"),
     ("a row date is a number", _day_of("VIX", lambda day: 5), "VIX: dates must be a list of texts"),
+    ("an ETF row date is a number", _day_of("SPY", lambda day: 5), "SPY: dates must be a list of texts"),
+    ("a row date is a list", _day_of("VIX", lambda day: [1]), "VIX: dates must be a list of texts"),
     ("SPY columns of 5e-324", _both(*(_column_of("SPY", key, _SUBNORMAL) for key in _ETF_KEYS)),
      "Market closes must be at least 0.01"),
     ("a VIX close of 5e-324 for every day", _column_of("VIX", "close", _SUBNORMAL), "Market IV index values must be at least 0.01"),
