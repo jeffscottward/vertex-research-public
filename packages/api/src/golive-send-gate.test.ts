@@ -98,6 +98,98 @@ describe("goLiveSendRefusals", () => {
     ]);
   });
 
+  it("names the badge, cause code and check time of an engine that is not armed", () => {
+    // NOW is 21:30 UTC; the status answer was checked at 21:29 UTC.
+    const checkedAt = "2026-11-13T21:29:10.000Z";
+    const refused = "send refused until the node reads running-armed";
+    const textOf = (node: GoLiveSendInputs["node"]) =>
+      goLiveSendRefusals(inputs({ node }))[0];
+    expect(textOf(null)).toBe(
+      `GO-LIVE ENGINE_DISARMED: approved, engine status call failed (checked 21:30 UTC); ${refused}`
+    );
+    expect(
+      textOf({
+        arm: null,
+        armError: "docker-error",
+        badge: "unknown",
+        checkedAt,
+        container: { health: null, state: "docker-unreadable" },
+      })
+    ).toBe(
+      `GO-LIVE ENGINE_DISARMED: approved, engine unknown (code docker-error; checked 21:29 UTC); ${refused}`
+    );
+    expect(
+      textOf({
+        arm: null,
+        armError: null,
+        badge: "unknown",
+        checkedAt,
+        container: { health: null, state: "running" },
+      })
+    ).toBe(
+      `GO-LIVE ENGINE_DISARMED: approved, engine unknown (container running, no arm error code; checked 21:29 UTC); ${refused}`
+    );
+    // A reading without the optional cause fields (an older caller); a check on an earlier day.
+    expect(
+      textOf({ arm: null, badge: "unknown", checkedAt: "2026-11-12T09:05:00Z" })
+    ).toBe(
+      `GO-LIVE ENGINE_DISARMED: approved, engine unknown (no cause code in the status answer; checked Nov 12 09:05 UTC); ${refused}`
+    );
+  });
+
+  it("keeps the engine allow/deny of every node reading (only running-armed sends)", () => {
+    const checkedAt = NOW.toISOString();
+    const refusedNodes: GoLiveSendInputs["node"][] = [
+      null,
+      { arm: null, badge: "unknown", checkedAt },
+      {
+        arm: null,
+        armError: "ambiguous-container",
+        badge: "unknown",
+        checkedAt,
+        container: { health: null, state: "docker-unreadable" },
+      },
+      {
+        arm: null,
+        armError: "cli-error",
+        badge: "unknown",
+        checkedAt,
+        container: { health: null, state: "running" },
+      },
+      { arm: null, badge: "running-disarmed", checkedAt },
+      { arm: null, badge: "down", checkedAt },
+    ];
+    for (const node of refusedNodes)
+      expect(codes(goLiveSendRefusals(inputs({ node })))).toEqual([
+        "GO-LIVE ENGINE_DISARMED",
+      ]);
+    expect(
+      goLiveSendRefusals(
+        inputs({
+          node: {
+            ...ARMED,
+            armError: null,
+            container: { health: "healthy", state: "running" },
+          },
+        })
+      )
+    ).toEqual([]);
+  });
+
+  it("refuses without a positive account value and names the account read time", () => {
+    for (const netLiquidation of [null, 0, -5]) {
+      const refusals = goLiveSendRefusals(
+        inputs({
+          account: { netLiquidation, openOrders: [], positions: [] },
+        })
+      );
+      expect(codes(refusals)).toEqual(["GO-LIVE NLV_UNAVAILABLE"]);
+      expect(refusals[0]).toBe(
+        "GO-LIVE NLV_UNAVAILABLE: account value not received from the IBKR account feed (checked 21:30 UTC): send cap not checked, send refused · retry after the feed recovers"
+      );
+    }
+  });
+
   it("refuses an order that differs from the approved one by one cent or one contract", () => {
     for (const order of [
       { ...ORDER, limitPrice: 1.26 },

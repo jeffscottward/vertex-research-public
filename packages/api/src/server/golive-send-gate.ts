@@ -17,6 +17,7 @@ import {
   type SendCapRefusal,
   type WorkingOrderRisk,
 } from "./golive-send-caps.ts";
+import { utcClock } from "./status-time.ts";
 import type { GatewayOpenOrder } from "./vertex-orders-rules.ts";
 
 // Go-live send gate (GO-LIVE 4 steps 2 and 3, owner 2026-11-12). An order sent for a go-live
@@ -45,7 +46,12 @@ export type GoLiveSendInputs = Readonly<{
   // every opening combo (account gates.orderPolicy; owner 2026-11-12, card vertex-golive-exec-intake);
   // false refuses every go-live send by name (V3_NOT_ON_LIVE_PATH): mock gateway, older bridge.
   sendEnabled: boolean;
-  node: Pick<NautilusArmStatusOutput, "arm" | "badge" | "checkedAt"> | null;
+  // The nautilusArm.status answer; null when that call failed. armError and container (optional, so
+  // a reading without them keeps working) name why a badge is "unknown".
+  node:
+    | (Pick<NautilusArmStatusOutput, "arm" | "badge" | "checkedAt"> &
+        Partial<Pick<NautilusArmStatusOutput, "armError" | "container">>)
+    | null;
   now: Date;
   order: VertexComboInput;
   plan: GoLivePlanRecord | null;
@@ -54,10 +60,11 @@ export type GoLiveSendInputs = Readonly<{
 const line = (code: string, text: string): string =>
   `${GOLIVE_SEND_REFUSAL_PREFIX} ${code}: ${text}`;
 
-const CAP_TEXT: Readonly<Record<SendCapRefusal, string>> = {
+const CAP_TEXT: Readonly<
+  Record<Exclude<SendCapRefusal, "NLV_UNAVAILABLE">, string>
+> = {
   NAME_CAP:
     "the name would hold more than the plan's name cap of the account value",
-  NLV_UNAVAILABLE: "the account value is not available",
   OPEN_RISK_CAP:
     "open positions + working orders + this order would exceed the plan's total risk cap",
   POSITION_CAP: "this order's max loss is above the plan's per-position cap",
@@ -65,6 +72,22 @@ const CAP_TEXT: Readonly<Record<SendCapRefusal, string>> = {
     "the account holds a short option that no long covers; nothing opens until it is closed",
   WORKING_ORDER_RISK_UNKNOWN:
     "a working order's max loss cannot be read; wait for it or cancel it first",
+};
+
+// The engine line of a refused send: badge, cause code and check time. The status call failed
+// (node null): its time is now. Badge "unknown": the code the status answer carries.
+const engineText = (node: GoLiveSendInputs["node"], now: Date): string => {
+  if (node === null)
+    return `approved, engine status call failed (checked ${utcClock(now, now)}); send refused until the node reads running-armed`;
+  if (node.badge !== "unknown")
+    return `approved, engine ${node.badge} (checked ${node.checkedAt}); the owner arms the node`;
+  const cause =
+    node.armError === null || node.armError === undefined
+      ? node.container === undefined
+        ? "no cause code in the status answer"
+        : `container ${node.container.state}, no arm error code`
+      : `code ${node.armError}`;
+  return `approved, engine unknown (${cause}; checked ${utcClock(node.checkedAt, now)}); send refused until the node reads running-armed`;
 };
 
 /**
@@ -156,12 +179,7 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
       )
     );
   if (input.node?.badge !== "running-armed")
-    refusals.push(
-      line(
-        "ENGINE_DISARMED",
-        `approved, engine ${input.node === null ? "status unknown" : input.node.badge} (checked ${input.node?.checkedAt ?? input.now.toISOString()}); the owner arms the node`
-      )
-    );
+    refusals.push(line("ENGINE_DISARMED", engineText(input.node, input.now)));
   const plan = input.plan;
   if (plan === null || plan.status !== "approved" || plan.id !== draft.planId)
     refusals.push(
@@ -196,7 +214,16 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
         input.goLiveRisk
       ),
     });
-    for (const code of caps.refusals) refusals.push(line(code, CAP_TEXT[code]));
+    // The account is read from the order gateway for this check, at `now`.
+    for (const code of caps.refusals)
+      refusals.push(
+        line(
+          code,
+          code === "NLV_UNAVAILABLE"
+            ? `account value not received from the IBKR account feed (checked ${utcClock(input.now, input.now)}): send cap not checked, send refused · retry after the feed recovers`
+            : CAP_TEXT[code]
+        )
+      );
   }
   return refusals;
 };

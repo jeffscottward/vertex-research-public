@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { AGENT_OPS_API_ERRORS } from "./agent-ops.ts";
 import { CalendarDateSchema } from "./calendar-date.ts";
+import { NautilusArmStatusOutputSchema } from "./nautilus-arm.ts";
 import {
   VertexComboInputSchema,
   VertexFinalGateSchema,
@@ -120,6 +121,13 @@ export const GOLIVE_NODE_BADGE_VALUES = [
   "running-armed",
   "down",
   "unknown",
+] as const;
+// Why the node status call failed (node field readFailure; the badge is then "unknown"):
+// nautilusArm.status refuses agent API keys (agent-key-refused), or the call threw (call-failed:
+// not configured, bridge error, bad answer).
+export const GOLIVE_NODE_READ_FAILURE_VALUES = [
+  "agent-key-refused",
+  "call-failed",
 ] as const;
 // The widest market of one leg that still gives a price: ask - bid at most this share of the mid.
 // A wider leg (0.01 bid, 5.00 asked) has a mid that nobody trades at, so it gives no limit.
@@ -453,6 +461,17 @@ export const GoLiveDraftSchema = z
     // not_sent and refused may be sent with "Send approved order"; the server decides again at
     // send. null for any other draft and for API keys.
     send: z.enum(GOLIVE_SEND_STATE_VALUES).nullable(),
+    // What a reader of send cannot derive (additive; the send values are unchanged): pending refines
+    // unknown (an intent row with no outcome yet; since = that row's time), no-store and read-failed
+    // refine unavailable (at = the time of the failed read). null otherwise. An older server omits it.
+    sendDetail: z
+      .discriminatedUnion("kind", [
+        z.object({ kind: z.literal("pending"), since: z.date() }).strict(),
+        z.object({ kind: z.literal("no-store") }).strict(),
+        z.object({ at: z.date(), kind: z.literal("read-failed") }).strict(),
+      ])
+      .nullable()
+      .optional(),
     shortStrike: z.number(),
     signalFacts: z.array(z.string()),
     // Computed at read time from the live account; never stored.
@@ -477,9 +496,14 @@ export const GoLiveAccountSchema = z
 
 export const GoLiveNodeSchema = z
   .object({
+    // Why a badge is "unknown" (additive; an older server omits them): armError and container as
+    // the nautilusArm.status answer has them, or readFailure when that call failed.
+    armError: NautilusArmStatusOutputSchema.shape.armError.optional(),
     armedAt: z.string().nullable(),
     badge: z.enum(GOLIVE_NODE_BADGE_VALUES),
     checkedAt: z.date(),
+    container: NautilusArmStatusOutputSchema.shape.container.optional(),
+    readFailure: z.enum(GOLIVE_NODE_READ_FAILURE_VALUES).optional(),
   })
   .strict();
 
