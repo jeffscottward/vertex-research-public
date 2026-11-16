@@ -124,7 +124,8 @@ export const buildOptionsAnalytics = async (
     termStructure: term,
   };
 
-  const exposureData = exposure(oiRows, chain.rows, spot, today);
+  const estimate = exposure(oiRows, chain.rows, spot, today);
+  const exposureData = estimate.section;
   const exposureSection: OptionsAnalyticsOutput["exposure"] = {
     ...exposureData,
     message: oiResult.ok
@@ -143,10 +144,11 @@ export const buildOptionsAnalytics = async (
 
   const events = flowResult.ok ? parseFlow(flowResult.data, symbol) : [];
   const flowSummary = summarizeFlow(events);
-  const morePages =
-    flowResult.ok && Array.isArray(flowResult.body["nextSearchAfter"])
-      ? ` First provider page only (${events.length} trades).`
-      : "";
+  const flowPartial =
+    flowResult.ok && Array.isArray(flowResult.body["nextSearchAfter"]);
+  const morePages = flowPartial
+    ? ` First provider page only (${events.length} trades).`
+    : "";
   const flow: OptionsAnalyticsOutput["flow"] = {
     ...flowSummary,
     hours: flowHours,
@@ -175,15 +177,27 @@ export const buildOptionsAnalytics = async (
       result.ok ? 0 : (result.retryAfterSeconds ?? 0)
     )
   );
+  // The oldest fetch behind the GEX numbers (chain and OI); null when either is missing.
+  const fetchTimes = [chainResult, oiResult].map((result) =>
+    result.ok ? result.fetchedAt : undefined
+  );
+  const fetchedAt = fetchTimes.every(
+    (time): time is number => time !== undefined
+  )
+    ? Math.min(...fetchTimes)
+    : null;
   const context = buildGexContext({
     chain: chain.rows,
     events,
-    exposure: exposureSection,
+    fetchedAt,
     flowHours,
     flowOk: flowResult.ok,
+    flowPartial,
     now,
     spot,
+    strikes: estimate.strikes,
     term,
+    totalGex: exposureSection.totalGex,
   });
   const notes: string[] = [...OPTIONS_ANALYTICS_NOTES];
   if (chain.expired > 0)
