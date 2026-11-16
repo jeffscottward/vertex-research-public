@@ -260,6 +260,17 @@ describe("AccountGlance", () => {
     );
   });
 
+  it("says IBKR sent no data time when the snapshot has none", async () => {
+    await mount(
+      <AccountGlance
+        gateway={gatewayOf(fixtureSnapshot({ status: { dataAsOf: null } }))}
+      />
+    );
+    return expect(find("[data-freshness]").textContent).toBe(
+      "IBKR sent no data time"
+    );
+  });
+
   it("shows operator access required for a 403", async () => {
     await mount(
       <AccountGlance

@@ -1331,9 +1331,13 @@ describe("DashboardViews", () => {
     expect(
       find("[data-summary-failure]").getAttribute("data-summary-failure")
     ).toBe("timeout");
+    // Reload is a plain link back to this page; it is not one of the destinations.
+    expect(find("[data-summary-reload]").getAttribute("href")).toBe(
+      "/dashboard"
+    );
     const hrefs = [
       ...document.querySelectorAll<HTMLAnchorElement>(
-        "[data-dashboard-view=member] a"
+        "[data-dashboard-view=member] section a"
       ),
     ].map((link) => link.getAttribute("href"));
     expect(hrefs).toEqual(memberDestinations().map((item) => item.href));
@@ -1341,6 +1345,20 @@ describe("DashboardViews", () => {
     expect(hrefs).not.toContain("/dashboard");
     expect(renderToString(<DashboardViews />)).not.toContain(
       "Workspace session summary not loaded"
+    );
+    // A state built before `failure` existed still names a failed request.
+    const legacy = renderToString(
+      <DashboardViews summaryState={{ type: "error" }} />
+    );
+    expect(legacy).toContain('data-summary-failure="request-failed"');
+    expect(legacy).toContain(
+      "Workspace session summary not loaded: the request failed. The pages below still open."
+    );
+    // An unreadable failure time is left out rather than shown as a bad date.
+    expect(
+      summaryFailureText({ kind: "timeout", code: null, at: "not a time" })
+    ).toBe(
+      "Workspace session summary not loaded: the request timed out. The pages below still open."
     );
     expect(summaryFailureText(undefined)).toBe(
       "Workspace session summary not loaded: the request failed. The pages below still open."
