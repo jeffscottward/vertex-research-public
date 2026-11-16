@@ -369,22 +369,24 @@ Net drift (migration 0077), in this order:
    `packages/db/rollback/0077_flow_net_drift.down.sql` is not the rollback path: before it runs, a
    person must delete the QQQ, NQ and `net_drift` rows, and it drops the stored net drift series.
 
-Deep trades (migration 0078; 0076 is already applied on the base):
+Deep trades and catalog terms (migrations 0078 and 0081; 0076 is already applied on the base):
 
-1. Apply `packages/db/migrations/0078_flow_large_trades.sql` alone with
+1. Apply `packages/db/migrations/0078_flow_large_trades.sql` alone, then
+   `packages/db/migrations/0081_semantic_terms_flow_control.sql` alone, each with
    `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container.
-2. Check that `flow_large_trades` exists and that `vertex_research` has SELECT, INSERT, UPDATE and
-   DELETE on it.
+2. Check that `flow_large_trades` exists, that `vertex_research` has SELECT, INSERT, UPDATE and
+   DELETE on it, and that the three term rows `options_net_drift`, `futures_deep_trades` and
+   `flow_control_state` exist.
 3. Check the calendar: `select count(*) from openbb_event_calendar where kind = 'fomc_meeting' and
    date >= current_date` (0 means no FOMC mark until the job `fed-events` runs).
 4. Deploy the app; `vertex-history` does not change.
-5. Rollback: deploy the previous app. `packages/db/rollback/0078_flow_large_trades.down.sql` is not
-   the rollback path.
+5. Rollback: deploy the previous app. `packages/db/rollback/0078_flow_large_trades.down.sql` and
+   `packages/db/rollback/0081_semantic_terms_flow_control.down.sql` are not the rollback path.
 
 ## Agent semantic layer
 
-Until the certified term catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) is built, agents
-read these features through the read-only MCP tool `flow_snapshot`, which returns the same
-`flow-snapshot.v1` document as the page. When the catalog lands, flow terms map to `flow.snapshot`.
-The tool input stays pinned to SPY and ES (the recorded semantic-layer eval); pull request 2 widens
-it to four symbols and records the eval again.
+Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;
+the same `flow-snapshot.v1` document as the page) and `flow_control` (`flow-control.v1` of one
+group). The catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms
+with source `none` (migration 0081): `options_net_drift`, `futures_deep_trades` and
+`flow_control_state`. Each points to the tool `flow_control`.

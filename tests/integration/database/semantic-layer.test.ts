@@ -104,9 +104,9 @@ describe("semantic layer (Postgres)", () => {
       await dropPostgresTestDatabase(testDatabase);
   });
 
-  it("seeds ten certified terms and the five uncertified trend indicator terms, one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
+  it("seeds ten certified terms, the five uncertified trend indicator terms and the three uncertified flow control terms, one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
     const catalog = await repository.catalog();
-    // Migration 0056 seeds ten certified terms; migration 0074 adds five uncertified ones with source none.
+    // Migration 0056 seeds ten certified terms; migrations 0074 and 0079 add five and three uncertified ones with source none.
     expect(
       catalog.terms.map((term) => [term.id, term.source, term.certified])
     ).toEqual([
@@ -117,8 +117,11 @@ describe("semantic layer (Postgres)", () => {
       ["crown_copy_leg", "none", true],
       ["deployment_request", "postgres", true],
       ["drift_level", "postgres", true],
+      ["flow_control_state", "none", false],
+      ["futures_deep_trades", "none", false],
       ["net_liquidation", "feed", true],
       ["open_risk", "feed", true],
+      ["options_net_drift", "none", false],
       ["pnl", "feed", true],
       ["position", "feed", true],
       ["slingshot", "none", false],
@@ -245,9 +248,9 @@ describe("semantic layer (Postgres)", () => {
       cost_bps: 1,
       date_from: "2021-01-01",
       date_to: "2026-09-30",
-      take_profit_pct: 0,
       engine_version: "vx-engine-1.5",
       strategy_on_run: null,
+      take_profit_pct: 0,
     });
     expect(
       (await okRows("backtest_sharpe", ["iwm"], "run_spec")).map(
@@ -497,8 +500,8 @@ describe("semantic layer (Postgres)", () => {
       })
     ).toBe("certified");
     expect((await repository.term("crown_copy_leg"))?.term).toMatchObject({
-      certified: false,
       certificationNote: "Checked: still no data source.",
+      certified: false,
     });
   });
 

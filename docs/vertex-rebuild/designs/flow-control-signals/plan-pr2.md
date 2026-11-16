@@ -56,7 +56,7 @@ Decisions used below (from the design and pull request 1):
 #### 4. `packages/db/migrations/meta/_journal.json` (Modify)
 
 - **Type / Scope**: Generated artifact.
-- **Proposed Changes**: Two new entries written by drizzle-kit: `0078_flow_large_trades` (command of file 2) and `0079_semantic_terms_flow_control` (command of file 32). Each `when` is newer than the one before (`packages/db/src/server/migration-journal.test.ts:87`). Never edited by hand (`CONVENTIONS.md:86`).
+- **Proposed Changes**: Two new entries written by drizzle-kit: `0078_flow_large_trades` (command of file 2) and `0081_semantic_terms_flow_control` (command of file 32). Each `when` is newer than the one before (`packages/db/src/server/migration-journal.test.ts:87`). Never edited by hand (`CONVENTIONS.md:86`).
 
 #### 5. packages/db/rollback/0078_flow_large_trades.down.sql (Create)
 
@@ -263,7 +263,7 @@ Decisions used below (from the design and pull request 1):
 - **Type / Scope**: The OpenBB feed doc.
 - **Proposed Changes**: One sentence after the job table (line 89 is the `fed-events` row): `flow.control` reads the `openbb_event_calendar` rows of kind `fomc_meeting` and source `federal_reserve` for the session date to set `session.event`; when the job has not run there is no FOMC mark, and the document says "not read" only when the read itself failed.
 
-#### 32. packages/db/migrations/0079_semantic_terms_flow_control.sql (Create)
+#### 32. packages/db/migrations/0081_semantic_terms_flow_control.sql (Create)
 
 - **Type / Scope**: Data migration; same statement form, column list and order as `packages/db/migrations/0074_semantic_terms_trend_indicators.sql`. Its number is the next free one after file 2.
 - **How it gets its journal entry and snapshot**: there is no schema change, so `pnpm db:generate` writes nothing. Inside `packages/db`, with `DATABASE_URL` set (`packages/db/drizzle.config.ts:4-7` throws without it; any value works, the command does not connect), run the command of `packages/db/package.json:62` with two more flags, the same form that the plan of pull request 3 records for its data migration: `bunx --bun --no-install drizzle-kit generate --config drizzle.config.ts --custom --name semantic_terms_flow_control`. Checked on 2026-11-15: `drizzle-kit generate --help` lists `--custom` ("Prepare empty migration file for custom SQL") and `--name`; the 0074 snapshot differs from the 0073 snapshot only in `id` and `prevId`, and its `prevId` is the 0073 `id`. The command writes an empty SQL file, the journal entry and file 33; then the SQL is written by hand. `pnpm db:generate` afterwards must print "No schema changes".
@@ -277,7 +277,7 @@ Decisions used below (from the design and pull request 1):
 - **Type / Scope**: Generated artifact.
 - **Proposed Changes**: Written by the command of file 32; equal to the 0078 snapshot except `id` and `prevId`. Never edited by hand.
 
-#### 34. packages/db/rollback/0079_semantic_terms_flow_control.down.sql (Create)
+#### 34. packages/db/rollback/0081_semantic_terms_flow_control.down.sql (Create)
 
 - **Type / Scope**: Guarded reversal, copied from `packages/db/rollback/0074_semantic_terms_trend_indicators.down.sql` with the three ids.
 - **Proposed Changes**: Same header (deletes the three rows only while none was edited, certified, given a certification decision or note, or a SQL attribute; ledger not reconciled; run without `--single-transaction`), same `BEGIN`, `SET LOCAL`, `LOCK TABLE "public"."semantic_terms"`, the `DO $$` guard with `RAISE EXCEPTION 'flow control terms have operator edits or linked rows; refusing rollback'`, then `DELETE FROM "public"."semantic_terms" WHERE "id" IN ('options_net_drift', 'futures_deep_trades', 'flow_control_state'); COMMIT;`.
