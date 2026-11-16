@@ -132,6 +132,9 @@ export const GOLIVE_NODE_READ_FAILURE_VALUES = [
 // The widest market of one leg that still gives a price: ask - bid at most this share of the mid.
 // A wider leg (0.01 bid, 5.00 asked) has a mid that nobody trades at, so it gives no limit.
 export const GOLIVE_QUOTE_MAX_SPREAD_SHARE = 0.5;
+// The order preview reconciles order intents this old at most (vertex-orders.ts); a go-live send
+// pending longer is no longer checked there.
+export const ORDER_INTENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 // In dollars. A leg is never called wide for ask - bid at or below this: it is one tick of an
 // option priced under 3 dollars, so 0.05 bid, 0.10 asked is the tightest market such a leg has.
 export const GOLIVE_QUOTE_SPREAD_FLOOR = 0.05;

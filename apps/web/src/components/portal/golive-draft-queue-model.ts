@@ -17,6 +17,7 @@ import {
   type GoLiveQueueOutput,
   type GoLiveQuote,
   type GoLiveSizing,
+  ORDER_INTENT_LOOKBACK_MS,
   type VertexOrderResult,
 } from "@darkfactory/api";
 
@@ -1468,9 +1469,6 @@ export const sendStateText = (send: GoLiveSendStateValue): string =>
 const NO_ORDER_STORE_TEXT =
   "Order record store not configured on this deployment · this page offers no send";
 
-// The order preview reconciles intents of this age at most (INTENT_LOOKBACK_MS, vertex-orders.ts).
-const PREVIEW_LOOKBACK_MS = 7 * 24 * 60 * 60_000;
-
 export const sendDetailText = (
   detail: GoLiveDraftOutput["sendDetail"],
   readAt: Date
@@ -1479,8 +1477,8 @@ export const sendDetailText = (
   switch (detail.kind) {
     case "pending":
       return `Sending: no reply from the order bridge since ${etDayClock(detail.since)} · it may still reach IBKR · ${
-        readAt.getTime() - detail.since.getTime() > PREVIEW_LOOKBACK_MS
-          ? "older than 7 days: the order preview no longer checks it · check IBKR order history"
+        readAt.getTime() - detail.since.getTime() > ORDER_INTENT_LOOKBACK_MS
+          ? `older than ${ORDER_INTENT_LOOKBACK_MS / 86_400_000} days: the order preview no longer checks it · check IBKR order history`
           : "the next order preview checks open orders and positions first"
       }`;
     case "no-store":
