@@ -22,6 +22,7 @@ export const QUANTDATA_ENDPOINTS = {
   termStructure: "/v1/options/tool/term-structure",
   openInterest: "/v1/options/tool/open-interest-by-strike",
   orderFlow: "/v1/options/tool/order-flow/consolidated",
+  netDrift: "/v1/options/tool/net-drift",
 } as const;
 export type QuantDataEndpoint = keyof typeof QUANTDATA_ENDPOINTS;
 

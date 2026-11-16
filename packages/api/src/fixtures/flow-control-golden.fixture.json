@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "flow-control-golden.v1",
+  "studyRulesItem": "Rules version",
+  "filterProfile": "otm-clean.v1",
+  "netDriftRequests": {
+    "total": {
+      "sessionDate": "YYYY-MM-DD",
+      "aggregationPeriod": "1m",
+      "filter": {
+        "tickers": ["T"],
+        "moneyTypes": ["OTM"]
+      },
+      "filterExpression": {
+        "conjunction": "AND",
+        "filters": [
+          {
+            "field": "isComplex",
+            "operation": "=",
+            "value": false
+          },
+          {
+            "field": "isFloor",
+            "operation": "=",
+            "value": false
+          },
+          {
+            "field": "isTied",
+            "operation": "=",
+            "value": false
+          },
+          {
+            "field": "isCancelled",
+            "operation": "=",
+            "value": false
+          }
+        ]
+      }
+    },
+    "zero_dte": {
+      "sessionDate": "YYYY-MM-DD",
+      "aggregationPeriod": "1m",
+      "filter": {
+        "tickers": ["T"],
+        "moneyTypes": ["OTM"]
+      },
+      "filterExpression": {
+        "conjunction": "AND",
+        "filters": [
+          {
+            "field": "isComplex",
+            "operation": "=",
+            "value": false
+          },
+          {
+            "field": "isFloor",
+            "operation": "=",
+            "value": false
+          },
+          {
+            "field": "isTied",
+            "operation": "=",
+            "value": false
+          },
+          {
+            "field": "isCancelled",
+            "operation": "=",
+            "value": false
+          },
+          {
+            "field": "dte",
+            "operation": "<",
+            "value": 1
+          }
+        ]
+      }
+    }
+  },
+  "rules": {},
+  "optionsCases": [],
+  "groupCases": []
+}

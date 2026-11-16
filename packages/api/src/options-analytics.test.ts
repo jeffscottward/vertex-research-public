@@ -40,6 +40,7 @@ import {
   resolveQuantDataConfig,
   type QuantDataClient,
   type QuantDataConfig,
+  type QuantDataEndpoint,
   type QuantDataFetch,
   type QuantDataResult,
 } from "./server/quantdata-client.ts";
@@ -786,9 +787,7 @@ describe("options analytics engine", () => {
 });
 
 const fakeClient = (
-  responses: Partial<
-    Record<"termStructure" | "openInterest" | "orderFlow", QuantDataResult>
-  >,
+  responses: Partial<Record<QuantDataEndpoint, QuantDataResult>>,
   cooldown = 0
 ): QuantDataClient & { calls: unknown[] } => {
   const calls: unknown[] = [];

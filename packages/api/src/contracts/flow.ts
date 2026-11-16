@@ -14,6 +14,10 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 export const FLOW_SYMBOLS = ["SPY", "ES"] as const;
 export const FLOW_OPTION_TICKERS = ["SPY", "SPX"] as const;
 export const FLOW_SOURCES = ["ticks", "depth", "options", "gex"] as const;
+/** Net drift parts: all expiries and same-day (0DTE) expiries; longer = total − zero_dte on read. */
+export const FLOW_EXPIRY_PARTS = ["total", "zero_dte"] as const;
+/** Id of the net drift request filter (out of the money, no complex, floor, tied or cancelled trades). */
+export const FLOW_FILTER_PROFILE = "otm-clean.v1";
 export const FLOW_SAMPLE_STATUSES = [
   "ok",
   "empty",
@@ -81,6 +85,7 @@ export const FLOW_SNAPSHOT_MAX_PRINTS = 25;
 export type FlowSymbol = (typeof FLOW_SYMBOLS)[number];
 export type FlowOptionTicker = (typeof FLOW_OPTION_TICKERS)[number];
 export type FlowSource = (typeof FLOW_SOURCES)[number];
+export type FlowExpiryPart = (typeof FLOW_EXPIRY_PARTS)[number];
 export type FlowSampleStatus = (typeof FLOW_SAMPLE_STATUSES)[number];
 export type FlowEventKind = (typeof FLOW_EVENT_KINDS)[number];
 export type FlowDirection = (typeof FLOW_DIRECTIONS)[number];
