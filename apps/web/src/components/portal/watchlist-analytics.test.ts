@@ -4,6 +4,7 @@ import {
   annularSectorPath,
   buildSunburst,
   capSymbols,
+  closesNeededText,
   correlationFill,
   correlationMatrix,
   dailyCloses,
@@ -13,6 +14,8 @@ import {
   linearScale,
   MIN_CORRELATION_OVERLAP,
   maxDrawdown,
+  missingSymbolLabel,
+  toExposurePosition,
   normalizeSymbol,
   pearson,
   runWithConcurrency,
@@ -118,11 +121,18 @@ describe("return and drawdown", () => {
   });
 
   it("formats percentages with a sign", () => {
-    expect(formatPercent(null)).toBe("—");
+    expect(formatPercent(null)).toBe("needs 2+ daily closes");
     expect(formatPercent(0.1234)).toBe("+12.3%");
     expect(formatPercent(0.000_01)).toBe("0.0%");
     expect(formatPercent(0)).toBe("0.0%");
     expect(formatPercent(-0.25, 0)).toBe("-25%");
+  });
+
+  it("names why a percentage is missing", () => {
+    expect(formatPercent(null, 1, closesNeededText(1))).toBe(
+      "needs 2+ daily closes (have 1)"
+    );
+    expect(closesNeededText(null)).toBe("bars not loaded");
   });
 });
 
@@ -162,10 +172,28 @@ describe("sunburst", () => {
       // Equal gross values sort by name.
       ["symbol", "FUT/ZZZ", 200, true, false],
       ["secType", "FUT", 200, true, false],
-      ["symbol", "OTHER/—", 200, false, false],
+      ["symbol", "OTHER/No symbol from IBKR", 200, false, false],
       ["secType", "OTHER", 200, false, false],
     ]);
     const last = sunburst.arcs.at(-1);
+    expect(missingSymbolLabel(" 265598 ")).toBe(
+      "No symbol from IBKR (conId 265598)"
+    );
+    expect(missingSymbolLabel("")).toBe("No symbol from IBKR");
+    expect(
+      toExposurePosition({
+        id: "4242",
+        marketValue: 50,
+        secType: "STK",
+        symbol: "",
+      })
+    ).toEqual({ conId: "4242", marketValue: 50, secType: "STK", symbol: "" });
+    expect(
+      buildSunburst(
+        [{ conId: "4242", marketValue: 50, secType: "STK", symbol: "" }],
+        new Set()
+      ).arcs[0]?.label
+    ).toBe("No symbol from IBKR (conId 4242)");
     expect(last?.end).toBeCloseTo(Math.PI * 2);
     expect(sunburst.arcs[2]?.share).toBeCloseTo(800 / 1700);
     expect(sunburst.arcs[2]?.start).toBe(0);

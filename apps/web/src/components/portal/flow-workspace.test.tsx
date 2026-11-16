@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
-import type { ApiClient, FlowSnapshot } from "@darkfactory/api";
+import type {
+  ApiClient,
+  FlowControl,
+  FlowControlInput,
+  FlowSnapshot,
+} from "@darkfactory/api";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -18,7 +23,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 }));
 
 import type { FlowRequest } from "../../features/flow/view-model.ts";
-import { labFlowSnapshot } from "../../lab/fixtures/flow.ts";
+import { labFlowControl, labFlowSnapshot } from "../../lab/fixtures/flow.ts";
 import {
   createBrowserFlowGateway,
   type FlowGateway,
@@ -51,16 +56,24 @@ const render = async (element: ReactElement) => {
 const flush = () => act(async () => await Promise.resolve());
 
 const fixed = (
-  snapshot: (request: FlowRequest) => FlowSnapshot | Promise<FlowSnapshot>
+  snapshot: (request: FlowRequest) => FlowSnapshot | Promise<FlowSnapshot>,
+  control: (input: FlowControlInput) => FlowControl | Promise<FlowControl> = ({
+    group,
+  }) => labFlowControl(group)
 ) => {
   const calls: FlowRequest[] = [];
+  const controlCalls: FlowControlInput[] = [];
   const gateway: FlowGateway = {
+    control: async (input) => {
+      controlCalls.push(input);
+      return await control(input);
+    },
     snapshot: async (request) => {
       calls.push(request);
       return await snapshot(request);
     },
   };
-  return { calls, gateway };
+  return { calls, controlCalls, gateway };
 };
 
 const button = (container: HTMLElement, name: string) => {
@@ -101,9 +114,10 @@ const empty: FlowSnapshot = {
 };
 
 describe("createBrowserFlowGateway", () => {
-  it("creates one client on first use and calls flow.snapshot", async () => {
+  it("creates one client on first use and calls flow.snapshot and flow.control", async () => {
     const snapshot = vi.fn(async () => labFlowSnapshot("SPY", 60));
-    runtime.client = { flow: { snapshot } } as unknown as ApiClient;
+    const control = vi.fn(async () => labFlowControl("sp500"));
+    runtime.client = { flow: { control, snapshot } } as unknown as ApiClient;
     const gateway = createBrowserFlowGateway();
     expect(runtime.origins).toEqual([]);
     await gateway.snapshot({ minutes: 60, symbol: "SPY" });
@@ -111,11 +125,15 @@ describe("createBrowserFlowGateway", () => {
     expect(runtime.origins).toEqual([window.location.origin]);
     expect(snapshot).toHaveBeenCalledWith({ minutes: 60, symbol: "SPY" });
     expect(snapshot).toHaveBeenCalledWith({ minutes: 120, symbol: "ES" });
+    await gateway.control({ group: "nasdaq100" });
+    expect(control).toHaveBeenCalledWith({ group: "nasdaq100" });
+    expect(runtime.origins).toHaveLength(1);
   });
 
   it("is the default gateway of the workspace", async () => {
     const snapshot = vi.fn(async () => labFlowSnapshot("SPY", 120));
-    runtime.client = { flow: { snapshot } } as unknown as ApiClient;
+    const control = vi.fn(async () => labFlowControl("sp500"));
+    runtime.client = { flow: { control, snapshot } } as unknown as ApiClient;
     const container = await render(<FlowWorkspace />);
     await vi.waitFor(() =>
       expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull()
@@ -154,7 +172,7 @@ describe("FlowWorkspace", () => {
     expect(
       container.querySelector('[data-flow-confluence="agree_bullish"]')
         ?.textContent
-    ).toContain("Agree: bullish");
+    ).toContain("2 of 3 short-term factors bullish");
     expect(text).toContain("not a trade signal");
     expect(container.querySelectorAll("[data-flow-factor]")).toHaveLength(4);
     expect(
@@ -418,5 +436,181 @@ describe("FlowWorkspace", () => {
       "SPY",
       "ES",
     ]);
+  });
+});
+
+describe("FlowWorkspace control panel", () => {
+  const idle = (container: HTMLElement) =>
+    vi.waitFor(() =>
+      expect(
+        container
+          .querySelector("[data-flow-state]")
+          ?.getAttribute("data-flow-state")
+      ).toBe("idle")
+    );
+
+  it("shows the control panel first and loads the group of the selected symbol", async () => {
+    const { controlCalls, gateway } = fixed(({ minutes, symbol }) =>
+      labFlowSnapshot(symbol, minutes)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await idle(container);
+    expect(controlCalls).toEqual([{ group: "sp500" }]);
+    const panel = container.querySelector("[data-flow-control]");
+    const snapshot = container.querySelector("[data-flow-snapshot]");
+    expect(panel?.textContent).toContain("Who is in control: S&P 500");
+    const blocks = [
+      ...container.querySelectorAll(
+        "[data-flow-control], [data-flow-snapshot]"
+      ),
+    ];
+    expect(blocks).toEqual([panel, snapshot]);
+    expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
+    const titles = [...container.querySelectorAll("h2")].map(
+      (heading) => heading.textContent
+    );
+    expect(
+      titles.indexOf("Short-term factors (last 15 to 30 min)")
+    ).toBeLessThan(titles.indexOf("Data freshness"));
+  });
+
+  it("loads nasdaq100 for QQQ and NQ and names what is not collected", async () => {
+    const { controlCalls, gateway } = fixed(({ minutes, symbol }) =>
+      labFlowSnapshot(symbol, minutes)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await idle(container);
+    await click(button(container, "QQQ"));
+    await idle(container);
+    expect(
+      container.querySelector("[data-flow-control]")?.textContent
+    ).toContain("Who is in control: Nasdaq 100");
+    expect(
+      container.querySelector("[data-flow-not-collected]")?.textContent
+    ).toBe(
+      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+    );
+    await click(button(container, "NQ"));
+    await idle(container);
+    await click(button(container, "ES"));
+    await idle(container);
+    expect(controlCalls.map((call) => call.group)).toEqual([
+      "sp500",
+      "nasdaq100",
+      "nasdaq100",
+      "sp500",
+    ]);
+  });
+
+  it("keeps the snapshot when the control read fails and shows the failure in the panel", async () => {
+    let fail = true;
+    const { gateway } = fixed(
+      ({ minutes, symbol }) => labFlowSnapshot(symbol, minutes),
+      ({ group }) => {
+        if (fail) throw { code: "STORAGE_ERROR", message: "down", status: 500 };
+        return labFlowControl(group);
+      }
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await idle(container);
+    expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();
+    expect(
+      container.querySelector("[data-flow-control-empty]")?.textContent
+    ).toMatch(/^Control document failed to load \(/u);
+    fail = false;
+    await click(button(container, "Refresh"));
+    await idle(container);
+    expect(container.querySelector("[data-flow-control-side]")).not.toBeNull();
+    fail = true;
+    await click(button(container, "Refresh"));
+    await idle(container);
+    expect(
+      container.querySelector("[data-flow-control-error]")?.textContent
+    ).toContain("Showing the document of");
+  });
+
+  it("shows operator access required when the control read is forbidden", async () => {
+    const { gateway } = fixed(
+      ({ minutes, symbol }) => labFlowSnapshot(symbol, minutes),
+      () => {
+        throw { code: "FORBIDDEN", message: "Forbidden", status: 403 };
+      }
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() =>
+      expect(container.querySelector("[data-flow-controls]")).toBeNull()
+    );
+  });
+
+  it("refreshes the control document on the timer", async () => {
+    vi.useFakeTimers();
+    const { controlCalls, gateway } = fixed(({ minutes, symbol }) =>
+      labFlowSnapshot(symbol, minutes)
+    );
+    await render(<FlowWorkspace gateway={gateway} refreshMs={5000} />);
+    await flush();
+    expect(controlCalls).toHaveLength(1);
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(controlCalls).toHaveLength(2);
+  });
+
+  it("ignores a control answer that a newer request replaced", async () => {
+    const pending: ((value: ReturnType<typeof labFlowControl>) => void)[] = [];
+    const { gateway } = fixed(
+      ({ minutes, symbol }) => labFlowSnapshot(symbol, minutes),
+      ({ group }) =>
+        group === "sp500"
+          ? new Promise((resolve) => {
+              pending.push(resolve);
+            })
+          : labFlowControl(group)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await click(button(container, "QQQ"));
+    await idle(container);
+    await act(async () => pending[0]?.(labFlowControl("sp500")));
+    await flush();
+    expect(
+      container.querySelector("[data-flow-control]")?.textContent
+    ).toContain("Nasdaq 100");
+  });
+
+  it("opens the freshness list when a source is stale and on request", async () => {
+    const lab = labFlowSnapshot("SPY", 60);
+    const fresh = {
+      ...lab,
+      freshness: lab.freshness.map((row) => ({
+        ...row,
+        state: "fresh" as const,
+      })),
+    };
+    const { gateway } = fixed(() => fresh);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await idle(container);
+    expect(container.querySelector("[data-flow-all-fresh]")).not.toBeNull();
+    expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(0);
+    const toggle = button(container, "Show sources");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await click(toggle);
+    expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(4);
+    await click(button(container, "Hide sources"));
+    expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(0);
+  });
+
+  it("uses the word agree only in the control panel", async () => {
+    const { gateway } = fixed(({ minutes, symbol }) =>
+      labFlowSnapshot(symbol, minutes)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await idle(container);
+    const confluence = container
+      .querySelector("[data-flow-confluence]")
+      ?.closest("section, div");
+    expect(confluence?.textContent?.toLowerCase()).not.toContain("agree");
+    expect(
+      container.querySelector("[data-flow-control]")?.textContent
+    ).toContain("agreement");
   });
 });

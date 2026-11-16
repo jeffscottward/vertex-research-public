@@ -49,7 +49,7 @@ Note status:
 - The table stores `active` or `retired` only.
 - `expired` is derived: the review date is before today (UTC). No job has to change a column.
 - An expired note shows as stale on `/markets` and is left out of agent context. `renew` sets a new review date, and the note is active again.
-- `add` accepts a review date in the past (a backfill of an old note). The note is then stored as expired, and the intake prints a notice.
+- `add` accepts a review date in the past (a backfill of an old note). The row is stored as `active`. The API reports the note as `expired` from the first read, and the intake prints a notice.
 - `retired` is final. There is no delete: retire a note that is wrong or no longer useful.
 
 One source gives one note. The unique key is the source URL with the scheme read as https, a lower-case host without a leading `www.`, no fragment, no tracking parameters (`utm_*` and `fbclid` on every host, `igsh` and `igshid` on Instagram, `si` on YouTube) and the other query parameters in sorted order. Plain owner text uses a hash of the text. Two link forms of one item on different hosts or paths (for example `youtu.be/<id>` and `youtube.com/watch?v=<id>`) count as two sources.

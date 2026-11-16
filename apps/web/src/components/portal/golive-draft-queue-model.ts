@@ -17,9 +17,11 @@ import {
   type GoLiveQueueOutput,
   type GoLiveQuote,
   type GoLiveSizing,
+  ORDER_INTENT_LOOKBACK_MS,
   type VertexOrderResult,
 } from "@darkfactory/api";
 
+import { unknownView } from "./nautilus-arm-model.ts";
 import { pct, price, usd } from "./portfolio-monitor-model.ts";
 
 // Pure wording and derivation for the go-live order draft queue (/drafts). No React, no I/O.
@@ -193,7 +195,8 @@ export const SIZING_REASON_WORDS: Readonly<Record<GoLiveSizingReason, string>> =
       "the risk budget for one position is below the max loss of one spread",
     max_positions_reached: "the plan's maximum number of positions is reached",
     name_cap_reached: "the per-name risk cap is reached",
-    nlv_unavailable: "the account value is not available",
+    // sizingReasonText adds the cause and data time of the queue's account reading.
+    nlv_unavailable: "no account value from the portfolio monitor",
     // Every cause the server sizes as no_quote, not only a missing quote.
     no_quote: `there is no usable quote: none was recorded, a leg has no bid or no ask, a leg is crossed (bid above ask), a leg has a bid-ask spread ${MAX_SPREAD_WORDS}, or the net price is not between 0 and the strike width`,
     open_risk_cap_reached: "the open risk cap is reached",
@@ -209,7 +212,8 @@ export const NOT_APPROVABLE_WORDS: Readonly<
   DRAFT_EXPIRED: "The draft has expired",
   DRAFT_NOT_PROPOSED: "The draft is no longer proposed",
   LATE_ENTRY_NOT_TESTED: "Late entry is not in the backtest",
-  NLV_UNAVAILABLE: "The account value is not available",
+  // The cause and data time of the queue's account reading: notApprovableText adds them.
+  NLV_UNAVAILABLE: "No account value from the portfolio monitor",
   // The cause depends on the quote: notApprovableText gives it.
   NO_LIVE_IBKR_QUOTE: "No live IBKR quote",
   // The cause depends on the plan in force: notApprovableText gives it.
@@ -223,8 +227,10 @@ export const NODE_BADGE_WORDS: Readonly<Record<GoLiveNodeBadge, string>> =
     down: "Node down: its container is stopped or missing",
     "running-armed": "Node running, armed",
     "running-disarmed": "Node running, disarmed",
+    // Without a cause from the server (a stored approval badge, an older server): the three causes
+    // the server reads as "unknown". nodeText names the one of a live reading.
     unknown:
-      "Node state unknown: the node status could not be read or was incomplete",
+      "Node state not read: the status call failed, Docker could not read the node container, or the arm CLI gave no arm state",
   });
 
 export const DRAFT_STATE_WORDS: Readonly<
@@ -288,8 +294,27 @@ export const exitReasonText = (value: GoLiveExitReason): string =>
   wordsOf(EXIT_REASON_WORDS, value);
 export const exitRuleText = (value: GoLiveExitRule): string =>
   wordsOf(EXIT_RULE_WORDS, value);
-const sizingReasonText = (value: GoLiveSizingReason): string =>
-  wordsOf(SIZING_REASON_WORDS, value, "sizing reason ");
+/** The account reading of the queue read, for the missing-value texts. */
+type GoLiveAccountContext = Readonly<{
+  account: Pick<GoLiveQueueOutput["account"], "asOf" | "unavailableReason">;
+}>;
+
+/**
+ * Why the account value is missing, as the server read it, with the data time and the next step:
+ * "(Portfolio monitor is not connected to IBKR, data as of 2026-11-11 10:12 ET) · reload ...".
+ */
+export const noAccountValueTail = ({ account }: GoLiveAccountContext): string =>
+  `(${account.unavailableReason ?? "the server named no cause"}${
+    account.asOf === null ? "" : `, data as of ${etDayClock(account.asOf)}`
+  }) · reload the queue when the portfolio monitor reports a fresh account value`;
+
+const sizingReasonText = (
+  value: GoLiveSizingReason,
+  context: GoLiveAccountContext
+): string =>
+  value === "nlv_unavailable"
+    ? `${SIZING_REASON_WORDS.nlv_unavailable} ${noAccountValueTail(context)}`
+    : wordsOf(SIZING_REASON_WORDS, value, "sizing reason ");
 const nodeBadgeText = (value: GoLiveNodeBadge): string =>
   wordsOf(NODE_BADGE_WORDS, value, "Node state ");
 
@@ -420,7 +445,43 @@ export const accountText = (account: GoLiveQueueOutput["account"]): string => {
     : `Account value: ${value} as of ${etDayClock(account.asOf)}`;
 };
 
+const NODE_NOT_READ_NEXT =
+  "go-live sends stay refused until the node reads running, armed; reload the queue to check again";
+
+// unknownView's clock on this page: New York time with the date; a missing or bad time is named.
+const etClockText = (value: string | null | undefined): string => {
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? etDayClock(new Date(ms)) : "time not recorded";
+};
+
+/**
+ * Why a node badge is "unknown", from the cause the server passed on (readFailure, or armError and
+ * the container read), or null when it passed none (an older server).
+ */
+const nodeNotReadText = (node: GoLiveQueueOutput["node"]): string | null => {
+  const checked = etDayClock(node.checkedAt);
+  if (node.readFailure === "agent-key-refused")
+    return `Node state not read · the node status is not shown to agent API keys (checked ${checked})`;
+  if (node.readFailure === "call-failed")
+    return `Node state not read · the status call to the node bridge failed at ${checked} · ${NODE_NOT_READ_NEXT}`;
+  const container = node.container;
+  if (container === undefined) return null;
+  // The cause in the words of the arm switch; no badge was confirmed on this page.
+  const unknown = unknownView(
+    {
+      armError: node.armError ?? null,
+      checkedAt: node.checkedAt.toISOString(),
+      container,
+    },
+    null,
+    etClockText
+  );
+  return `${unknown.label} · ${unknown.detail} · ${NODE_NOT_READ_NEXT}`;
+};
+
+/** The node badge with the time of the check; an "unknown" badge names its cause. */
 export const nodeText = (node: GoLiveQueueOutput["node"]): string =>
+  (node.badge === "unknown" ? nodeNotReadText(node) : null) ??
   `${nodeBadgeText(node.badge)} (checked ${etDayClock(node.checkedAt)})`;
 
 /**
@@ -438,14 +499,18 @@ export const generatorText = (
 
 // ---------- drafts ----------
 
-/** The plan in force and the server's clock at the queue read (node.checkedAt). */
-export type GoLiveDraftContext = Readonly<{
-  plan: Pick<
-    GoLivePlanOutput,
-    "approvalBasis" | "id" | "status" | "version"
-  > | null;
-  readAt: Date;
-}>;
+/**
+ * The plan in force, the account reading and the server's clock at the queue read
+ * (node.checkedAt).
+ */
+export type GoLiveDraftContext = GoLiveAccountContext &
+  Readonly<{
+    plan: Pick<
+      GoLivePlanOutput,
+      "approvalBasis" | "id" | "status" | "version"
+    > | null;
+    readAt: Date;
+  }>;
 
 export type GoLiveDraftGroupKey =
   | "entrySignal"
@@ -643,6 +708,8 @@ const notApprovableText = (
     return noLiveQuoteReason(draft.quote, context.readAt);
   if (value === "PLAN_NOT_APPROVED")
     return planProblem(draft, context.plan) ?? NOT_APPROVABLE_WORDS[value];
+  if (value === "NLV_UNAVAILABLE")
+    return `${NOT_APPROVABLE_WORDS[value]} ${noAccountValueTail(context)}`;
   return wordsOf(NOT_APPROVABLE_WORDS, value, "Blocker ");
 };
 
@@ -660,7 +727,8 @@ const netPriceText = (limitPrice: number): string =>
  * the quote is called unusable only when the reason is no_quote.
  */
 export const limitText = (
-  sizing: Pick<GoLiveSizing, "limitPrice" | "reason">
+  sizing: Pick<GoLiveSizing, "limitPrice" | "reason">,
+  context: GoLiveAccountContext
 ): string => {
   if (sizing.limitPrice !== null) return netPriceText(sizing.limitPrice);
   switch (sizing.reason) {
@@ -669,34 +737,40 @@ export const limitText = (
     case "sized":
       return "no limit: no limit was computed";
     default:
-      return `no limit: ${sizingReasonText(sizing.reason)}`;
+      return `no limit: ${sizingReasonText(sizing.reason, context)}`;
   }
 };
 
 /** The quantity in spreads with its sizing reason. 0 always shows why. */
 export const quantityText = (
-  sizing: Pick<GoLiveSizing, "quantity" | "reason">
+  sizing: Pick<GoLiveSizing, "quantity" | "reason">,
+  context: GoLiveAccountContext
 ): string =>
-  `${spreadsText(sizing.quantity)} (${sizingReasonText(sizing.reason)})`;
+  `${spreadsText(sizing.quantity)} (${sizingReasonText(sizing.reason, context)})`;
 
 export const maxLossText = (
-  sizing: Pick<GoLiveSizing, "maxLoss" | "maxLossPctNlv" | "reason">
+  sizing: Pick<GoLiveSizing, "maxLoss" | "maxLossPctNlv" | "reason">,
+  context: GoLiveAccountContext
 ): string => {
   if (sizing.maxLoss === null)
     return `not available: ${
       sizing.reason === "sized"
         ? "no max loss was computed"
-        : sizingReasonText(sizing.reason)
+        : sizingReasonText(sizing.reason, context)
     }`;
   const amount = usd(sizing.maxLoss, 2);
+  // The server leaves the share null only without an account value.
   return sizing.maxLossPctNlv === null
-    ? `${amount} (% of account not available: the account value is not available)`
+    ? `${amount} (% of account not computed: no account value from the portfolio monitor ${noAccountValueTail(context)})`
     : `${amount} (${pct(sizing.maxLossPctNlv)} of account)`;
 };
 
 /** The live numbers of a draft in one line, for a row whose approved order is shown separately. */
-export const currentSizingText = (sizing: GoLiveSizing): string =>
-  `limit ${limitText(sizing)}; quantity ${quantityText(sizing)}; max loss ${maxLossText(sizing)}`;
+export const currentSizingText = (
+  sizing: GoLiveSizing,
+  context: GoLiveAccountContext
+): string =>
+  `limit ${limitText(sizing, context)}; quantity ${quantityText(sizing, context)}; max loss ${maxLossText(sizing, context)}`;
 
 export type GoLivePreCheckView = Readonly<{
   decision: string;
@@ -845,18 +919,26 @@ const orderRows = (order: GoLiveOrder): readonly GoLiveLabelValue[] => [
 /** The rows of the confirm dialog: the exact order and its max loss. */
 export const orderSummaryRows = (
   order: GoLiveOrder,
-  sizing: Pick<GoLiveSizing, "maxLoss" | "maxLossPctNlv" | "reason">
+  sizing: Pick<GoLiveSizing, "maxLoss" | "maxLossPctNlv" | "reason">,
+  context: GoLiveAccountContext
 ): readonly GoLiveLabelValue[] => [
   ...orderRows(order),
-  { label: "Max loss", value: maxLossText(sizing) },
+  { label: "Max loss", value: maxLossText(sizing, context) },
 ];
 
-/** The stored room of an approval. The page computes nothing here: it shows what the server holds. */
-const approvedRoomText = (room: GoLiveDraftOutput["approvedRoom"]): string => {
+/**
+ * The stored room of an approval. The page computes nothing here: it shows what the server holds.
+ * The server computes the share from the account value of this read (not of the approval), so a
+ * missing share has the cause of the queue's account reading.
+ */
+const approvedRoomText = (
+  room: GoLiveDraftOutput["approvedRoom"],
+  context: GoLiveAccountContext
+): string => {
   if (room === null) return "the server did not send it";
   return `${usd(room.maxLoss, 2)} max loss (${
     room.maxLossPctNlv === null
-      ? "% of account value not available: the account value is not available"
+      ? `% of the account value now not computed: no account value from the portfolio monitor ${noAccountValueTail(context)}`
       : `${pct(room.maxLossPctNlv)} of account value`
   })`;
 };
@@ -885,7 +967,8 @@ export const approvedOrderView = (
     | "decidedAt"
     | "nodeBadgeAtDecision"
     | "state"
-  >
+  >,
+  context: GoLiveAccountContext
 ): GoLiveApprovedOrderView | null => {
   if (draft.state !== "approved") return null;
   const recorded =
@@ -899,7 +982,7 @@ export const approvedOrderView = (
         ? "not recorded"
         : nodeBadgeText(draft.nodeBadgeAtDecision)
     }`,
-    room: `Risk room held by this approval: ${approvedRoomText(draft.approvedRoom)}`,
+    room: `Risk room held by this approval: ${approvedRoomText(draft.approvedRoom, context)}`,
   };
   const order = draft.approvedOrder;
   return order === null
@@ -1386,6 +1469,55 @@ export const SEND_STATE_WORDS: Readonly<Record<GoLiveSendStateValue, string>> =
 export const sendStateText = (send: GoLiveSendStateValue): string =>
   wordsOf(SEND_STATE_WORDS, send, "Send state ");
 
+/**
+ * What sendDetail adds to the send state: since when a send is pending, why the store gave no
+ * answer. null when the server sent none. It only explains: the send button follows `send` alone.
+ */
+const NO_ORDER_STORE_TEXT =
+  "Order record store not configured on this deployment · this page offers no send";
+
+export const sendDetailText = (
+  detail: GoLiveDraftOutput["sendDetail"],
+  readAt: Date
+): string | null => {
+  if (detail === null || detail === undefined) return null;
+  switch (detail.kind) {
+    case "pending":
+      return `Sending: no reply from the order bridge since ${etDayClock(detail.since)} · it may still reach IBKR · ${
+        readAt.getTime() - detail.since.getTime() > ORDER_INTENT_LOOKBACK_MS
+          ? `older than ${ORDER_INTENT_LOOKBACK_MS / 86_400_000} days: the order preview no longer checks it · check IBKR order history`
+          : "the next order preview checks open orders and positions first"
+      }`;
+    case "no-store":
+      return NO_ORDER_STORE_TEXT;
+    case "read-failed":
+      return `Order record store read failed at ${etDayClock(detail.at)} · reload the queue; the send button needs a recorded send state`;
+    default: {
+      // A kind of a newer server: named with its raw value.
+      const raw: Readonly<{ kind?: unknown }> = detail;
+      return unhandled(detail, `Send detail ${notKnownText(raw.kind)}`);
+    }
+  }
+};
+
+/**
+ * The send line and its detail line. With no order record store, the detail is the whole state:
+ * the generic "reload the queue" of unavailable cannot help there.
+ */
+export const sendLines = (
+  draft: Pick<GoLiveDraftOutput, "sendDetail"> & {
+    send: GoLiveSendStateValue;
+  },
+  readAt: Date
+): Readonly<{ detail: string | null; state: string }> => {
+  if (draft.send === "unavailable" && draft.sendDetail?.kind === "no-store")
+    return { detail: null, state: NO_ORDER_STORE_TEXT };
+  return {
+    detail: sendDetailText(draft.sendDetail, readAt),
+    state: sendStateText(draft.send),
+  };
+};
+
 export const SEND_APPROVED_LABEL = "Send approved order";
 export const SEND_APPROVED_SENTENCE =
   "This sends the order you approved, exactly as stored, to IBKR as one combo limit order, only if the execution node is armed, engine policy v3 accepts it and the plan caps allow it. It records no new decision.";
@@ -1406,10 +1538,11 @@ export const canSendApproved = (
 /** The rows of the send dialog: the stored order and the room its approval holds. */
 export const sendSummaryRows = (
   draft: Pick<GoLiveDraftOutput, "approvedRoom">,
-  order: GoLiveOrder
+  order: GoLiveOrder,
+  context: GoLiveAccountContext
 ): readonly GoLiveLabelValue[] => [
   ...orderRows(order),
-  { label: "Max loss", value: approvedRoomText(draft.approvedRoom) },
+  { label: "Max loss", value: approvedRoomText(draft.approvedRoom, context) },
 ];
 
 export const OUTSIDE_TESTED_RULE_LABEL =

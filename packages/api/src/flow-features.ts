@@ -5,39 +5,156 @@
 import type {
   FlowDirection,
   FlowEventKind,
+  FlowGroupId,
+  FlowOptionTicker,
+  FlowSource,
   FlowSymbol,
 } from "./contracts/flow.ts";
 import { findExhaustion } from "./flow-exhaustion.ts";
 import type { SignedTrade } from "./flow-trade-signing.ts";
 
+export type { FlowGroupId } from "./contracts/flow.ts";
+
 export type FlowInstrument = Readonly<{
   symbol: FlowSymbol;
   secType: "STK" | "CONTFUT";
   exchange?: "CME";
-  optionsTicker: "SPY" | "SPX";
+  kind: "future" | "etf";
+  /** Index group of the instrument (FLOW_GROUPS). */
+  group: FlowGroupId;
+  /** "stock": 09:30 to 16:00 New York; "globex": the futures week. */
+  session: "stock" | "globex";
+  minTick: number;
+  /** The sources the collector reads for this symbol. */
+  sources: readonly FlowSource[];
+  ticks: "trades_and_quotes" | "none";
+  /** True when off-exchange prints are part of the tape (stocks and ETFs). */
+  offExchange: boolean;
+  /** One sentence for the snapshot notes. */
+  note: string;
+  optionsTicker: FlowOptionTicker;
   /** Prints at or above this size are large prints (shares for SPY, contracts for ES). */
   largePrint: number;
   /** Options prints at or above this premium become events. */
   optionEventPremium: number;
+  /**
+   * Deep trades: single prints at or above this size (contracts), the size that about the largest
+   * 0.1% of prints reach (14 samples of 1000 prints per market, 2026-11-13). Separate from
+   * largePrint, which keeps its value and its meaning. Null: no deep trades for this instrument.
+   */
+  deepTradeLimit: number | null;
+  /** ISO date of the deep-trade limit measurement, or null without a limit. */
+  deepTradeLimitMeasuredOn: string | null;
 }>;
 
 export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
   ES: {
+    deepTradeLimit: 40,
+    deepTradeLimitMeasuredOn: "2026-11-13",
     exchange: "CME",
+    group: "sp500",
+    kind: "future",
     largePrint: 50,
+    minTick: 0.25,
+    note: "ES options context uses SPX options; SPX levels are shifted by the ES − SPX basis.",
+    offExchange: false,
     optionEventPremium: 1_000_000,
     optionsTicker: "SPX",
     secType: "CONTFUT",
+    session: "globex",
+    sources: ["ticks", "depth", "options", "gex", "net_drift"],
     symbol: "ES",
+    ticks: "trades_and_quotes",
+  },
+  NQ: {
+    deepTradeLimit: 10,
+    deepTradeLimitMeasuredOn: "2026-11-13",
+    exchange: "CME",
+    group: "nasdaq100",
+    kind: "future",
+    largePrint: 10,
+    minTick: 0.25,
+    note: "NQ options context uses NDX options; NDX levels are shifted by the NQ − NDX basis.",
+    offExchange: false,
+    optionEventPremium: 1_000_000,
+    optionsTicker: "NDX",
+    secType: "CONTFUT",
+    session: "globex",
+    sources: ["ticks", "depth", "gex", "net_drift"],
+    symbol: "NQ",
+    ticks: "trades_and_quotes",
+  },
+  QQQ: {
+    deepTradeLimit: null,
+    deepTradeLimitMeasuredOn: null,
+    group: "nasdaq100",
+    kind: "etf",
+    largePrint: 10_000,
+    minTick: 0.01,
+    note: "QQQ book is IEX depth plus top of book from other venues (no paid venue books).",
+    offExchange: true,
+    optionEventPremium: 500_000,
+    optionsTicker: "QQQ",
+    secType: "STK",
+    session: "stock",
+    sources: ["depth", "gex", "net_drift"],
+    symbol: "QQQ",
+    ticks: "none",
   },
   SPY: {
+    deepTradeLimit: null,
+    deepTradeLimitMeasuredOn: null,
+    group: "sp500",
+    kind: "etf",
     largePrint: 10_000,
+    minTick: 0.01,
+    note: "SPY book is IEX depth plus top of book from other venues (no paid venue books).",
+    offExchange: true,
     optionEventPremium: 500_000,
     optionsTicker: "SPY",
     secType: "STK",
+    session: "stock",
+    sources: ["ticks", "depth", "options", "gex", "net_drift"],
     symbol: "SPY",
+    ticks: "trades_and_quotes",
   },
 };
+
+/** One index group: its future, the options ticker that decides the options side, and its check ticker. */
+export type FlowGroup = Readonly<{
+  id: FlowGroupId;
+  label: string;
+  future: FlowSymbol;
+  primaryTicker: FlowOptionTicker;
+  checkTicker: FlowOptionTicker;
+}>;
+
+export const FLOW_GROUPS: Readonly<Record<FlowGroupId, FlowGroup>> = {
+  nasdaq100: {
+    checkTicker: "NDX",
+    future: "NQ",
+    id: "nasdaq100",
+    label: "Nasdaq 100",
+    primaryTicker: "QQQ",
+  },
+  sp500: {
+    checkTicker: "SPY",
+    future: "ES",
+    id: "sp500",
+    label: "S&P 500",
+    primaryTicker: "SPX",
+  },
+};
+
+/** The one flow symbol whose options ticker is the ticker (SPX: ES, NDX: NQ). */
+const SYMBOL_OF_TICKER: Readonly<Record<FlowOptionTicker, FlowSymbol>> = {
+  NDX: "NQ",
+  QQQ: "QQQ",
+  SPX: "ES",
+  SPY: "SPY",
+};
+export const flowSymbolForTicker = (ticker: FlowOptionTicker): FlowSymbol =>
+  SYMBOL_OF_TICKER[ticker];
 
 export type FlowMinuteRow = Readonly<{
   symbol: FlowSymbol;
@@ -153,16 +270,18 @@ const printEvent = (symbol: FlowSymbol, trade: SignedTrade): FlowEventRow => ({
 
 interface MinuteTotals {
   buy: number;
-  sell: number;
-  volume: number;
-  notional: number;
+  /** Prints at or above the deep-trade limit, in time order (empty without a limit). */
+  deep: SignedTrade[];
+  high: number;
   large: number;
   largeVolume: number;
-  offExchange: number;
-  high: number;
-  low: number;
   levels: Map<number, LevelCell>;
+  low: number;
+  notional: number;
+  offExchange: number;
   prints: FlowEventRow[];
+  sell: number;
+  volume: number;
 }
 
 const totalMinute = (
@@ -172,6 +291,7 @@ const totalMinute = (
 ): MinuteTotals => {
   const totals: MinuteTotals = {
     buy: 0,
+    deep: [],
     high: Number.NEGATIVE_INFINITY,
     large: 0,
     largeVolume: 0,
@@ -201,6 +321,11 @@ const totalMinute = (
       totals.largeVolume += trade.size;
       totals.prints.push(printEvent(instrument.symbol, trade));
     }
+    if (
+      instrument.deepTradeLimit !== null &&
+      trade.size >= instrument.deepTradeLimit
+    )
+      totals.deep.push(trade);
   }
   return totals;
 };
@@ -249,6 +374,8 @@ const minuteEvents = (
 export type MinuteFeatures = Readonly<{
   minutes: FlowMinuteRow[];
   events: FlowEventRow[];
+  /** Prints of the sample at or above the deep-trade limit, in time order; empty without a limit. */
+  deepPrints: readonly SignedTrade[];
 }>;
 
 const groupByMinute = (
@@ -279,9 +406,11 @@ export const buildMinuteFeatures = (
   const last = ordered.at(-1)?.t ?? 0;
   const minutes: FlowMinuteRow[] = [];
   const events: FlowEventRow[] = [];
+  const deepPrints: SignedTrade[] = [];
   const { symbol } = instrument;
   for (const [minute, group] of groupByMinute(ordered)) {
     const totals = totalMinute(instrument, group, minTick);
+    deepPrints.push(...totals.deep);
     const open = (group[0] as SignedTrade).price;
     const close = (group.at(-1) as SignedTrade).price;
     const delta = totals.buy - totals.sell;
@@ -303,8 +432,8 @@ export const buildMinuteFeatures = (
       coveredSeconds: Math.min(minute + 60, last + 1) - Math.max(minute, first),
       delta,
       high: totals.high,
-      largePrintVolume: totals.largeVolume,
       largePrints: totals.large,
+      largePrintVolume: totals.largeVolume,
       low: totals.low,
       minute: new Date(minute * 1000),
       offExchangeVolume: totals.offExchange,
@@ -342,7 +471,7 @@ export const buildMinuteFeatures = (
         source: "ibkr",
         symbol,
       });
-  return { events, minutes };
+  return { deepPrints, events, minutes };
 };
 
 export type FlowBookRow = Readonly<{

@@ -7,6 +7,7 @@ interpolated by hand in total variance.
 import dataclasses
 import math
 import random
+from fractions import Fraction
 
 import pytest
 
@@ -87,6 +88,19 @@ def test_term_atm_iv_is_linear_in_total_variance_and_flat_outside_the_tenors():
     assert om.term_atm_iv(three, 120) == pytest.approx(math.sqrt((0.22 ** 2 * 93 + (0.25 ** 2 * 182 - 0.22 ** 2 * 93)
                                                                  * 27 / 89) / 120), rel=1e-15)
     assert om.term_atm_iv([(30, 0.3)], 400) == 0.3
+
+
+def test_term_atm_iv_returns_the_tenor_iv_at_a_tenor_far_below_the_near_iv():
+    # 0.18 at 30 days, 1e-10 at 93 days: the linear form cancels the total variance to 0 at day 93.
+    points = [(30, 0.18), (93, 1e-10), (182, 0.2)]
+    assert om.term_atm_iv(points, 93) == 1e-10
+    assert om.term_atm_iv(points, 182) == 0.2
+    for days in (92, 92.999, 93.001, 94):
+        assert om.term_atm_iv(points, days) > 0
+    # One minute before the node: the weighted sum keeps the exact total variance (the cancelling form is 2e-12 off).
+    days = 93 - 1 / 1440
+    exact = (Fraction(0.18) ** 2 * 30 * (93 - Fraction(days)) + Fraction(1e-10) ** 2 * 93 * (Fraction(days) - 30)) / 63
+    assert om.term_atm_iv(points, days) == pytest.approx(math.sqrt(float(exact / Fraction(days))), rel=1e-15)
 
 
 @pytest.mark.parametrize(("points", "days", "message"), [
@@ -395,3 +409,19 @@ def test_ledger_records_name_the_far_expiry_of_a_calendar_only():
                                                   "widthSigma": 0.5, "maxLossPct": 2},
                              {"SPY": vertical_market([100.0] * COUNT)}).trades
     assert "farExpiry" not in run_ledger(vertical, 100_000.0).trades[0]
+
+
+def test_a_long_calendar_with_the_iv_term_at_the_floor_between_its_legs_runs():
+    """The worker path refuses a calendar block now (signals._check_options_block); the book path
+    (forms_other, research/backtests/options-forms/run.py) still runs one. A VIX3M at the market floor
+    (0.01, portfolio.MARKET_LEVEL_MIN) between a near leg of 95-100 days and a far leg of 300-400 days
+    gives a total variance that falls between the tenors: the book prices it without a crash."""
+    size = 200
+    dates = trading_days("2024-01-02", size)
+    market = Market("SPY", dates, (100.0,) * size, (VIX_FOR_20,) * size, (0.0,) * size,
+                    (("VIX3M", (0.01,) * size), ("VIX6M", (VIX3M_FOR_22,) * size)))
+    block = {**CALENDAR, "dte": {"target": 100, "min": 95}, "farDte": {"target": 400, "min": 300}}
+    book = bk.build_book((("SPY", 0, None),), block, {"SPY": market})
+    assert len(book.trades) == 1
+    for trade in book.trades:
+        assert all(math.isfinite(value) for value in (trade.entry_price, trade.max_loss, trade.exit_price))

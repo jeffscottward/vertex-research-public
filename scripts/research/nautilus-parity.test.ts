@@ -18,6 +18,7 @@ import {
   compareCase,
   explain,
   libraryDefinitions,
+  NAUTILUS_CRASH_STATUS,
   PERIODS,
   type ParityIo,
   type PyResult,
@@ -381,6 +382,34 @@ describe("compareCase", () => {
     expect(result.pass).toBe(true);
     expect(result.comparison?.pass).toBe(true);
   });
+
+  it("fails a case that crashed in Nautilus, also next to a result or a TS input error", () => {
+    const bars = parseBarsCsv(syntheticCsv(0));
+    const ts = runTs(bars, smaCross.spec);
+    const crash = "KeyError: 'spec'";
+    expect(
+      compareCase(bars, smaCross, {
+        crash,
+        id: smaCross.id,
+        result: pyOf(ts),
+      })
+    ).toEqual({
+      comparison: null,
+      errors: { nautilus: null, nautilusCrash: crash, ts: null },
+      pass: false,
+    });
+    expect(compareCase(flatBars, smaCross, { crash, id: smaCross.id })).toEqual(
+      {
+        comparison: null,
+        errors: {
+          nautilus: null,
+          nautilusCrash: crash,
+          ts: "fast must be an integer from 1 to 5",
+        },
+        pass: false,
+      }
+    );
+  });
 });
 
 describe("summary and report", () => {
@@ -577,6 +606,45 @@ describe("runNautilusParity", () => {
     expect(out.at(-1)).toBe(
       `parity: ${report.passed}/${report.total} cases pass; report /out/report.json\n`
     );
+  });
+
+  it("compares the other cases of a batch with a crashed case (exit 4)", () => {
+    const answer = (
+      bars: BarColumns,
+      entry: Case
+    ): Batch["results"][number] => {
+      if (entry.id === "template-smaCross")
+        return { crash: "ZeroDivisionError: division by zero", id: entry.id };
+      try {
+        return { id: entry.id, result: pyOf(runTs(bars, entry.spec)) };
+      } catch (error) {
+        return { error: (error as Error).message, id: entry.id };
+      }
+    };
+    const { files, io } = fakeIo(({ bars, cases }) => ({
+      engine: "nautilus-trader-test",
+      results: cases.map((entry) => answer(bars, entry)),
+    }));
+    const crashed: ParityIo = {
+      ...io,
+      spawn: (python, args, cwd) => ({
+        ...io.spawn(python, args, cwd),
+        status: NAUTILUS_CRASH_STATUS,
+      }),
+    };
+    expect(runNautilusParity(args, crashed)).toBe(0);
+    const report = JSON.parse(files.get("/out/report.json") as string);
+    expect(report.passed).toBe(report.total - members.length * PERIODS.length);
+    const crashRows = (report.rows as Row[]).filter(
+      (row) => row.caseId === "template-smaCross"
+    );
+    expect(crashRows).toHaveLength(members.length * PERIODS.length);
+    for (const row of crashRows) {
+      expect(row.pass).toBe(false);
+      expect(row.errors?.nautilusCrash).toBe(
+        "ZeroDivisionError: division by zero"
+      );
+    }
   });
 
   it("stops when the Python batch fails", () => {

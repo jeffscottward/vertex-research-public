@@ -22,8 +22,10 @@ import {
 } from "./contracts/nautilus-arm.ts";
 import { createApiContext } from "./server/context.ts";
 import type { DeployStatusConfig } from "./server/deploy-status.ts";
-import { AGENT_API_KEY_PROCEDURE_ROOTS } from "./server/handler.ts";
-import { handleApiRequest } from "./server/handler.ts";
+import {
+  AGENT_API_KEY_PROCEDURE_ROOTS,
+  handleApiRequest,
+} from "./server/handler.ts";
 import { MCP_TOOLS } from "./server/mcp.ts";
 import {
   nautilusArmRouter,
@@ -340,9 +342,9 @@ describe("nautilusArm access", () => {
     expect(nodeBadge(running, null)).toBe("unknown");
     expect(nodeBadge({ health: null, state: "exited" }, null)).toBe("down");
     expect(nodeBadge({ health: null, state: "missing" }, null)).toBe("down");
-    return expect(nodeBadge({ health: null, state: "unknown" }, null)).toBe(
-      "unknown"
-    );
+    return expect(
+      nodeBadge({ health: null, state: "docker-unreadable" }, null)
+    ).toBe("unknown");
   });
 });
 
@@ -374,6 +376,39 @@ describe("nautilusArm.status", () => {
       );
     const down = await clientFor().nautilusArm.status({});
     return expect(down.badge).toBe("down");
+  });
+
+  it("passes a docker-unreadable node with since and lastKnown through", async () => {
+    const container = {
+      health: null,
+      lastKnown: {
+        at: "2026-10-28T14:40:00Z",
+        since: "2026-10-28T09:00:00Z",
+        state: "running",
+      },
+      since: "2026-10-28T14:45:00Z",
+      state: "docker-unreadable",
+    };
+    routes.status = () =>
+      json(upstreamStatus({ arm: null, armError: "docker-error", container }));
+    const status = await clientFor().nautilusArm.status({});
+    expect(status.container).toEqual(container);
+    expect(status.armError).toBe("docker-error");
+    expect(status.badge).toBe("unknown");
+    // Only a VPS service before 1.2.0 sent the container state "unknown".
+    routes.status = () =>
+      json(
+        upstreamStatus({
+          arm: null,
+          armError: "docker-error",
+          container: { health: null, state: "unknown" },
+        })
+      );
+    return expectCode(
+      clientFor().nautilusArm.status({}),
+      "UPSTREAM_ERROR",
+      502
+    );
   });
 
   it("reports configuration, transport and schema failures", async () => {
@@ -438,6 +473,7 @@ describe("nautilusArm.status", () => {
             reject(new DOMException("aborted", "AbortError"))
           );
         }),
+      now: () => at,
       timeoutMs: 5,
     });
     const error = await expectCode(
@@ -446,7 +482,60 @@ describe("nautilusArm.status", () => {
       503
     );
     return expect(error).toMatchObject({
-      message: "Nautilus arm request timed out",
+      message: "Nautilus bridge did not answer within 0.005 s (15:00 UTC)",
+    });
+  });
+
+  it("names the cause and time of status transport failures", async () => {
+    const cases: [Route, string][] = [
+      [
+        () => {
+          throw new Error("refused");
+        },
+        "Nautilus bridge connection failed (15:00 UTC): network error",
+      ],
+      [
+        () => json({ error: "down" }, 503),
+        "Nautilus bridge answered HTTP 503 at 15:00 UTC",
+      ],
+      [
+        () =>
+          new Response("x", {
+            headers: { "content-type": "text/html" },
+            status: 502,
+          }),
+        "Nautilus bridge answered HTTP 502 at 15:00 UTC with an unexpected content type",
+      ],
+    ];
+    for (const [route, message] of cases) {
+      routes.status = route;
+      const error = await expectCode(
+        clientFor().nautilusArm.status({}),
+        "UNAVAILABLE",
+        503
+      );
+      expect(error).toMatchObject({ message });
+    }
+  });
+
+  it("says an arm or disarm outcome is not confirmed when the request may have reached the node", async () => {
+    const suffix =
+      " · arm outcome not confirmed, the request may have reached the node · the status check shows the node's real state";
+    routes.arm = () => json({ error: "cli_timeout" }, 504);
+    const timeout = await expectCode(arm(), "UNAVAILABLE", 503);
+    expect(timeout).toMatchObject({
+      message: `Nautilus bridge answered HTTP 504 at 15:00 UTC${suffix}`,
+    });
+    routes.arm = () => json({ schema: "wrong" });
+    const bad = await expectCode(arm(), "UPSTREAM_ERROR", 502);
+    expect(bad).toMatchObject({
+      message: `Nautilus arm response does not match the expected schema${suffix}`,
+    });
+    // A 409 refusal: the node changed nothing, so no uncertainty is added.
+    routes.arm = () => json({ error: "busy" }, 409);
+    const busy = await expectCode(arm(), "CONFLICT", 409);
+    return expect(busy).toMatchObject({
+      message: "Another arm or disarm is running; try again in a few seconds",
     });
   });
 
@@ -559,6 +648,8 @@ describe("nautilusArm.arm", () => {
       invalid_actor: "The node refused the operator id",
       invalid_reason: "The node refused the reason",
       kill_switch_active: "The kill switch is active; the node cannot be armed",
+      node_unreadable:
+        "The node container is not readable (docker error or more than one node container); nothing was changed",
       not_running: "The Nautilus node is not running",
       version_mismatch:
         "The running image version changed; reload the status and try again",
@@ -631,6 +722,30 @@ describe("nautilusArm.arm", () => {
     });
     await expectCode(arm(), "UPSTREAM_ERROR", 502);
     return expect(posts()).toHaveLength(0);
+  });
+
+  it("maps a non-arm error thrown during the bridge call to an upstream error with an unconfirmed outcome", async () => {
+    let fetched = false;
+    let broken = false;
+    setNautilusArmDependenciesForTesting({
+      fetch: async () => {
+        fetched = true;
+        throw new Error("refused");
+      },
+      now: () => {
+        // The clock fails once, while the transport error text is built; later reads work.
+        if (fetched && !broken) {
+          broken = true;
+          throw new Error("clock broke");
+        }
+        return new Date(nowMs);
+      },
+    });
+    const error = await expectCode(arm(), "UPSTREAM_ERROR", 502);
+    return expect(error).toMatchObject({
+      message:
+        "Nautilus arm request failed · arm outcome not confirmed, the request may have reached the node · the status check shows the node's real state",
+    });
   });
 
   it("uses a random request id by default", async () => {

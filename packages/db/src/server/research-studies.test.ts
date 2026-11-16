@@ -29,6 +29,11 @@ const createDouble = (outcome: Outcome) => {
       calls["onConflict"] = config;
       return chain;
     },
+    // Awaiting the chain itself (a select that ends at where) settles the outcome.
+    then: (
+      onFulfilled: (value: unknown) => unknown,
+      onRejected: (reason: unknown) => unknown
+    ) => settle().then(onFulfilled, onRejected),
     returning: (columns: unknown) => {
       calls["returning"] = columns;
       return settle();
@@ -47,7 +52,10 @@ const createDouble = (outcome: Outcome) => {
       calls["insert"] = table;
       return chain;
     },
-    select: () => chain,
+    select: (columns?: unknown) => {
+      calls["select"] = columns;
+      return chain;
+    },
   } as unknown as DatabaseExecutor;
   return { calls, database };
 };
@@ -87,6 +95,41 @@ describe("research study repository", () => {
     expect(double.calls["where"]).toBeDefined();
   });
 
+  it("reads only the id, kind and verdict keys of the requested studies", async () => {
+    const rows = [
+      { id: "triple-rsi", kind: "strategy-backtest", verdict: "no-edge" },
+      { id: "adx-rvol-filters", kind: null, verdict: null },
+    ];
+    const double = createDouble(rows);
+    const repository = createResearchStudyRepository(double.database);
+    await expect(
+      repository.verdicts(["triple-rsi", "adx-rvol-filters"])
+    ).resolves.toEqual(rows);
+    expect(Object.keys(double.calls["select"] as object).sort()).toEqual([
+      "id",
+      "kind",
+      "verdict",
+    ]);
+    expect(double.calls["from"]).toBe(researchStudies);
+    expect(double.calls["where"]).toBeDefined();
+  });
+
+  it("makes no query for an empty verdict lookup", async () => {
+    const double = createDouble(new Error("must not run"));
+    const repository = createResearchStudyRepository(double.database);
+    await expect(repository.verdicts([])).resolves.toEqual([]);
+    expect(double.calls["from"]).toBeUndefined();
+  });
+
+  it("maps a database error in the verdict lookup", async () => {
+    const repository = createResearchStudyRepository(
+      createDouble(postgresError("57P01")).database
+    );
+    await expect(repository.verdicts(["triple-rsi"])).rejects.toBeInstanceOf(
+      DatabasePersistenceError
+    );
+  });
+
   it("returns null for an unknown id", async () => {
     const repository = createResearchStudyRepository(createDouble([]).database);
     await expect(repository.get("missing")).resolves.toBeNull();
@@ -106,7 +149,7 @@ describe("research study repository", () => {
 
   it("inserts a new study and reports it as created", async () => {
     const double = createDouble([
-      { createdAt: AT, id: RECORD.id, updatedAt: AT },
+      { id: RECORD.id, inserted: true, updatedAt: AT },
     ]);
     const repository = createResearchStudyRepository(double.database);
     await expect(repository.upsert(INPUT)).resolves.toEqual({
@@ -128,7 +171,7 @@ describe("research study repository", () => {
 
   it("reports a replaced study as not created", async () => {
     const double = createDouble([
-      { createdAt: AT, id: RECORD.id, updatedAt: LATER },
+      { id: RECORD.id, inserted: false, updatedAt: LATER },
     ]);
     await expect(
       createResearchStudyRepository(double.database).upsert(INPUT)
@@ -209,8 +252,8 @@ describe("research study repository upsertMany", () => {
 
   it("writes every study in one transaction and returns results in input order", async () => {
     const double = transactional([
-      [{ createdAt: AT, id: INPUT.id, updatedAt: LATER }],
-      [{ createdAt: AT, id: SECOND.id, updatedAt: AT }],
+      [{ id: INPUT.id, inserted: false, updatedAt: LATER }],
+      [{ id: SECOND.id, inserted: true, updatedAt: AT }],
     ]);
     await expect(
       createResearchStudyRepository(double.database).upsertMany([INPUT, SECOND])
@@ -251,7 +294,7 @@ describe("research study repository upsertMany", () => {
     await expect(
       createResearchStudyRepository(
         transactional([
-          [{ createdAt: AT, id: INPUT.id, updatedAt: AT }],
+          [{ id: INPUT.id, inserted: true, updatedAt: AT }],
           postgresError("23514", "research_studies_summary_check"),
         ]).database
       ).upsertMany([INPUT, SECOND])

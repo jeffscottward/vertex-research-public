@@ -87,6 +87,9 @@ services:
       READ_ONLY_API: "no"
       TWOFA_TIMEOUT_ACTION: restart
       AUTO_RESTART_TIME: ${AUTO_RESTART_TIME:-}
+      # IBC weekly cold restart (full login + 2FA push) on Sundays at this container-local (UTC) time.
+      # Owner 2026-11-16, card ibkr-weekly-cold-restart: 23:00 (18:00 ET winter, 19:00 ET summer).
+      TWS_COLD_RESTART: ${TWS_COLD_RESTART:-}
       VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-}
       TWS_SETTINGS_PATH: /home/ibgateway/Jts
     expose:

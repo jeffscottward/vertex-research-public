@@ -1,3 +1,8 @@
+import {
+  alphaTrend,
+  chandelierExit,
+  supertrend,
+} from "@darkfactory/shared/indicators";
 import { canonicalJson } from "./canonical-json.ts";
 import {
   type BarColumns,
@@ -13,11 +18,14 @@ import {
   type CalendarWindowFilter,
   type IvRankFilter,
   isSessionIndicator,
+  isTrendIndicator,
   resolveStrategySeries,
   type SectorQuadrantFilter,
   type SeriesFilter,
   STRATEGY_CALENDAR_INTRADAY_REFUSAL,
   STRATEGY_INTRADAY_DAILY_REFUSAL,
+  STRATEGY_INTRADAY_INDICATOR_MINUTES,
+  STRATEGY_INTRADAY_TIMEFRAME_MESSAGE,
   STRATEGY_IV_INDEX,
   type StrategyCondition,
   type StrategyDefinition,
@@ -32,6 +40,7 @@ import {
   type StrategySeriesRef,
   type StrategyServerSupport,
   type StrategySessionIndicatorExpr,
+  type StrategyTrendIndicatorExpr,
   serverStrategyRefusal,
   strategyIntradayGridRefusal,
   type VolRegimeFilter,
@@ -522,7 +531,7 @@ const sessionDays = new WeakMap<SeriesCache, SessionDays>();
  */
 const dailyIndicator = (
   bars: BarColumns,
-  expr: StrategyIndicatorExpr,
+  expr: StrategyIndicatorExpr | StrategyTrendIndicatorExpr,
   cache: SeriesCache
 ): Float64Array => {
   let days = sessionDays.get(cache);
@@ -536,16 +545,18 @@ const dailyIndicator = (
       `${expr.name} length ${expr.length} is longer than the ${count} daily bars`
     );
   }
-  const daily = evaluateCurrent(
-    days.bars,
-    {
-      length: expr.length,
-      name: expr.name,
-      source: expr.source,
-      type: "indicator",
-    },
-    new Map()
-  );
+  const daily = isTrendIndicator(expr)
+    ? trendSeries(days.bars, expr)
+    : evaluateCurrent(
+        days.bars,
+        {
+          length: expr.length,
+          name: expr.name,
+          source: expr.source,
+          type: "indicator",
+        },
+        new Map()
+      );
   const lag = expr.name === "highest" || expr.name === "lowest" ? 0 : 1;
   const out = new Float64Array(bars.c.length);
   for (let index = 0; index < out.length; index += 1) {
@@ -833,6 +844,200 @@ const attachSessions = (
   return sessions;
 };
 
+// Indicator timeframes "5m" and "15m" (strategy-dsl.ts STRATEGY_INDICATOR_TIMEFRAMES).
+
+/** Bucket bars and, for every signal bar, the index of the bucket it reads (-1: none yet). */
+type IndicatorBuckets = Readonly<{ bars: BarColumns; read: Int32Array }>;
+
+/**
+ * Buckets of `minutes` over the regular-session bars of `sessions`, the completed-bar rule of
+ * services/research/strategies/trend_trio/rules.py `buckets`: consecutive regular bars with the
+ * same key floor(t / period) (t = bar open in UTC ms, period = minutes in ms) form one bucket bar
+ * (first open, highest high, lowest low, last close, summed volume; time of its first bar) that
+ * ends at (key + 1) × period. Every signal bar (regular or not) opens at t, closes at t + the bar
+ * duration and reads the newest bucket whose end is at or before that close.
+ */
+const indicatorBuckets = (
+  sessions: IntradaySessions,
+  minutes: number
+): IndicatorBuckets => {
+  const { bars, duration, session } = sessions;
+  const period = minutes * MINUTE_MS;
+  const t: number[] = [];
+  const o: number[] = [];
+  const h: number[] = [];
+  const l: number[] = [];
+  const c: number[] = [];
+  const v: number[] = [];
+  const end: number[] = [];
+  let key = Number.NaN;
+  for (let index = 0; index < bars.t.length; index += 1) {
+    if ((session[index] as number) < 0) continue;
+    const start = bars.t[index] as number;
+    const next = Math.floor(start / period);
+    const high = bars.h[index] as number;
+    const low = bars.l[index] as number;
+    const volume = bars.v === undefined ? 0 : (bars.v[index] as number);
+    if (next === key) {
+      const last = c.length - 1;
+      if (high > (h[last] as number)) h[last] = high;
+      if (low < (l[last] as number)) l[last] = low;
+      v[last] = (v[last] as number) + volume;
+    } else {
+      key = next;
+      t.push(start);
+      o.push(bars.o[index] as number);
+      h.push(high);
+      l.push(low);
+      v.push(volume);
+      c.push(0);
+      end.push((next + 1) * period);
+    }
+    c[c.length - 1] = bars.c[index] as number;
+  }
+  const read = new Int32Array(bars.t.length);
+  let newest = -1;
+  for (let index = 0; index < read.length; index += 1) {
+    const close = (bars.t[index] as number) + duration;
+    while (newest + 1 < end.length && (end[newest + 1] as number) <= close)
+      newest += 1;
+    read[index] = newest;
+  }
+  return {
+    bars: {
+      c: Float64Array.from(c),
+      h: Float64Array.from(h),
+      l: Float64Array.from(l),
+      o: Float64Array.from(o),
+      t: Float64Array.from(t),
+      ...(bars.v === undefined ? {} : { v: Float64Array.from(v) }),
+    },
+    read,
+  };
+};
+
+/** supertrend, alphaTrend or chandelierExit on `bars` (kernels of @darkfactory/shared/indicators). */
+const trendSeries = (
+  bars: BarColumns,
+  expr: StrategyTrendIndicatorExpr
+): Float64Array => {
+  if (expr.name === "supertrend")
+    return supertrend(bars.h, bars.l, bars.c, expr.length, expr.multiple)[
+      expr.output
+    ];
+  if (expr.name === "chandelierExit")
+    return chandelierExit(bars.h, bars.l, bars.c, expr.length, expr.multiple)[
+      expr.output
+    ];
+  if (expr.momentum === "mfi" && bars.v === undefined)
+    throw new InstantBacktestInputError(
+      "alphaTrend momentum mfi needs bar volume; use momentum rsi"
+    );
+  return alphaTrend(
+    bars.h,
+    bars.l,
+    bars.c,
+    bars.v ?? null,
+    expr.length,
+    expr.multiple,
+    expr.momentum
+  )[expr.output];
+};
+
+/**
+ * Indicator on 5m or 15m buckets (indicatorBuckets) of the intraday block's regular bars, `offset`
+ * buckets ago, mapped to the signal bars by the completed-bar rule (NaN while no bucket is
+ * readable). highest and lowest include the bucket read (their window is the `length` buckets
+ * ending at it), as a 1d highest includes the last completed day. A bucket length that is not a
+ * whole multiple of the bar duration is refused (STRATEGY_INTRADAY_GRID_MISALIGNED).
+ */
+const intradayIndicator = (
+  expr: StrategyIndicatorExpr | StrategyTrendIndicatorExpr,
+  cache: SeriesCache,
+  offset: number
+): Float64Array => {
+  const sessions = sessionLayouts.get(cache);
+  if (sessions === undefined)
+    throw new InstantBacktestInputError(STRATEGY_INTRADAY_TIMEFRAME_MESSAGE);
+  const timeframe = String(expr.timeframe);
+  const minutes = STRATEGY_INTRADAY_INDICATOR_MINUTES[timeframe] as number;
+  alignToGrid("timeframe", timeframe, minutes, sessions);
+  const buckets = indicatorBuckets(sessions, minutes);
+  const count = buckets.bars.c.length;
+  if (expr.length > count)
+    throw new InstantBacktestInputError(
+      `${expr.name} length ${expr.length} is longer than the ${count} ${timeframe} bars`
+    );
+  let values: Float64Array;
+  if (isTrendIndicator(expr)) values = trendSeries(buckets.bars, expr);
+  else if (expr.name === "highest" || expr.name === "lowest") {
+    const source = buckets.bars[FIELD_KEY[expr.source]];
+    const padded = new Float64Array(count + 1).fill(Number.NaN);
+    padded.set(source);
+    values = priorExtreme(
+      padded,
+      expr.length,
+      expr.name === "highest" ? 1 : -1
+    ).subarray(1);
+  } else
+    values = evaluateCurrent(
+      buckets.bars,
+      {
+        length: expr.length,
+        name: expr.name,
+        source: expr.source,
+        type: "indicator",
+      },
+      new Map()
+    );
+  const shifted = shift(values, offset);
+  return Float64Array.from(buckets.read, (at) =>
+    at < 0 ? Number.NaN : (shifted[at] as number)
+  );
+};
+
+/**
+ * A trend indicator, offset applied: on the signal bars without a timeframe and on 1d (offset in
+ * signal bars after the mapping, as for every 1d indicator), on buckets for 5m and 15m (offset in
+ * buckets before the mapping).
+ */
+const trendIndicator = (
+  bars: BarColumns,
+  expr: StrategyTrendIndicatorExpr,
+  cache: SeriesCache
+): Float64Array => {
+  const offset = expr.offset ?? 0;
+  const key = `${expr.name}:${expr.length}:${expr.multiple}:${expr.output}${"momentum" in expr ? `:${expr.momentum}` : ""}:${offset}${expr.timeframe === undefined ? "" : `:${expr.timeframe}`}`;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+  let series: Float64Array;
+  if (expr.timeframe === "1d")
+    series = shift(dailyIndicator(bars, expr, cache), offset);
+  else if (expr.timeframe === undefined) {
+    if (expr.length > bars.c.length)
+      throw new InstantBacktestInputError(
+        `${expr.name} length ${expr.length} is longer than the ${bars.c.length} bars`
+      );
+    series = shift(trendSeries(bars, expr), offset);
+  } else series = intradayIndicator(expr, cache, offset);
+  cache.set(key, series);
+  return series;
+};
+
+/**
+ * One classic or trend indicator of the bars under an intraday block, offset applied (the golden
+ * fixture reads it).
+ */
+export const intradayIndicatorSeries = (
+  bars: BarColumns,
+  intraday: StrategyIntraday,
+  expr: StrategyIndicatorExpr | StrategyTrendIndicatorExpr
+): Float64Array => {
+  const cache: SeriesCache = new Map();
+  attachSessions(bars, intraday, cache);
+  return evaluateLeaf(bars, expr, cache).slice();
+};
+
 /** One session indicator of the bars under an intraday block (the golden fixture reads it). */
 export const sessionIndicatorSeries = (
   bars: BarColumns,
@@ -924,6 +1129,7 @@ const evaluateLeaf = (
   expr: LeafExpr,
   cache: SeriesCache
 ): Float64Array => {
+  if (isTrendIndicator(expr)) return trendIndicator(bars, expr, cache);
   const current = evaluateCurrent(bars, expr, cache);
   if (expr.type === "const" || isSessionIndicator(expr)) return current;
   const offset = expr.offset ?? 0;
@@ -934,7 +1140,13 @@ const evaluateLeaf = (
       : `${indicatorKey(expr)}@${offset}`;
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
-  const series = shift(current, offset);
+  // 5m and 15m count the offset in buckets, before the mapping.
+  const series =
+    expr.type === "indicator" &&
+    expr.timeframe !== undefined &&
+    expr.timeframe !== "1d"
+      ? intradayIndicator(expr, cache, offset)
+      : shift(current, offset);
   cache.set(key, series);
   return series;
 };
@@ -944,7 +1156,7 @@ const indicatorKey = (expr: StrategyIndicatorExpr): string =>
 
 const evaluateCurrent = (
   bars: BarColumns,
-  expr: LeafExpr,
+  expr: Exclude<LeafExpr, StrategyTrendIndicatorExpr>,
   cache: SeriesCache
 ): Float64Array => {
   const size = bars.c.length;
@@ -953,7 +1165,11 @@ const evaluateCurrent = (
   if (isSessionIndicator(expr)) return sessionIndicator(expr, cache);
   if (expr.timeframe !== undefined) {
     const key = indicatorKey(expr);
-    const series = cache.get(key) ?? dailyIndicator(bars, expr, cache);
+    const series =
+      cache.get(key) ??
+      (expr.timeframe === "1d"
+        ? dailyIndicator(bars, expr, cache)
+        : intradayIndicator(expr, cache, 0));
     cache.set(key, series);
     return series;
   }
@@ -1645,6 +1861,70 @@ export const isNyseTradingDay = (day: number): boolean => {
   );
 };
 
+const NEW_YORK_PARTS = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  hour: "numeric",
+  hourCycle: "h23",
+  minute: "numeric",
+  month: "numeric",
+  second: "numeric",
+  timeZone: "America/New_York",
+  year: "numeric",
+});
+
+/** New York wall clock minus UTC, in milliseconds, at a whole-second instant. */
+const newYorkOffsetMs = (instant: number): number => {
+  const parts = new Map<string, number>(
+    NEW_YORK_PARTS.formatToParts(instant).map((part) => [
+      part.type,
+      Number(part.value),
+    ])
+  );
+  return (
+    Date.UTC(
+      parts.get("year") as number,
+      (parts.get("month") as number) - 1,
+      parts.get("day") as number,
+      parts.get("hour") as number,
+      parts.get("minute") as number,
+      parts.get("second") as number
+    ) - instant
+  );
+};
+
+/**
+ * Instant of a New York wall-clock time (minutes after midnight, in market hours) on the New York
+ * calendar date `day`. The offset is read five hours later on the UTC clock, which is the same
+ * New York day after the 02:00 clock change, so it holds in summer and winter time.
+ */
+const newYorkInstant = (day: number, minutes: number): Date => {
+  const wall = day * DAY_MS + minutes * 60_000;
+  return new Date(wall - newYorkOffsetMs(wall + 5 * 3_600_000));
+};
+
+/**
+ * Regular NYSE session of the New York calendar date `day` (UTC day number), null when the day is
+ * not a trading day. Open 09:30 New York time; close 16:00, or 13:00 on an early close: 3 July,
+ * the day after Thanksgiving and 24 December.
+ */
+export const nyseSession = (
+  day: number
+): { open: Date; close: Date; earlyClose: boolean } | null => {
+  if (!isNyseTradingDay(day)) return null;
+  const date = new Date(day * DAY_MS);
+  const month = date.getUTCMonth();
+  const dayOfMonth = date.getUTCDate();
+  const earlyClose =
+    (month === 6 && dayOfMonth === 3) ||
+    (month === 11 && dayOfMonth === 24) ||
+    day === nthWeekday(date.getUTCFullYear(), 10, 4, 4) + 1;
+  return {
+    close: newYorkInstant(day, earlyClose ? 13 * 60 : 16 * 60),
+    earlyClose,
+    open: newYorkInstant(day, 9 * 60 + 30),
+  };
+};
+
 /** First and last UTC day number of the month holding `day`, and its month (1 to 12). */
 const monthOf = (
   day: number
@@ -2031,8 +2311,10 @@ export const compileStrategy = (
 
 /**
  * Compiles and runs a validated definition on the equity engine of the server paths. Starting
- * equity is 1. Refuses (StrategyUnsupportedError) an options block always, and filters and
- * expressions that read series unless `support.series` (then `seriesInput` is their input).
+ * equity is 1. Refuses (StrategyUnsupportedError) an options block always, filters and
+ * expressions that read series unless `support.series` (then `seriesInput` is their input), and
+ * 5m/15m indicator timeframes and the trend indicators unless `support.intradayIndicators` (as
+ * Python plan_run).
  */
 export const runStrategyDefinition = (
   bars: BarColumns,
@@ -2050,7 +2332,11 @@ export const runStrategyDefinition = (
   // call compileStrategy). With a known timeframe it also refuses calendar filters on intraday
   // timeframes; compile still checks the bar spacing when the timeframe is not given.
   const series = support?.series === true;
-  assertServerRunnable(definition, timeframe, series ? { series } : {});
+  const intradayIndicators = support?.intradayIndicators === true;
+  assertServerRunnable(definition, timeframe, {
+    ...(series ? { series } : {}),
+    ...(intradayIndicators ? { intradayIndicators } : {}),
+  });
   const compiled = compileStrategy(
     bars,
     definition,

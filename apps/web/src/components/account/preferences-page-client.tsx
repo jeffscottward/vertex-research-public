@@ -29,6 +29,32 @@ type PreferencesState =
       version: number;
     }>;
 
+const PREFERENCES_FAILED = {
+  title: "Preferences failed to load",
+  description:
+    "The preferences request failed. Existing settings remain unchanged. Select Try again.",
+} as const;
+
+const PREFERENCES_LOAD_FAILURE: Readonly<
+  Record<AccountFailureKind, Readonly<{ title: string; description: string }>>
+> = {
+  unauthorized: {
+    title: "Session expired",
+    description: "Your session ended. Sign in again to load your preferences.",
+  },
+  forbidden: {
+    title: "No access to these preferences",
+    description: "This account cannot open these preferences.",
+  },
+  "not-found": {
+    title: "No saved preferences",
+    description:
+      "No saved preferences were found for this account. Go back to account to set them up.",
+  },
+  conflict: PREFERENCES_FAILED,
+  retryable: PREFERENCES_FAILED,
+};
+
 /** `gateway` replaces the browser API client (UI lab, tests); omitted in the portal. */
 export const PreferencesPageClient = ({
   gateway: injected,
@@ -95,13 +121,9 @@ export const PreferencesPageClient = ({
       <div aria-live="assertive" role="alert">
         <EmptyState
           action={action}
-          description={
-            state.kind === "not-found"
-              ? "No saved preferences were found for this account."
-              : "Your preferences could not be loaded. Existing settings remain unchanged."
-          }
+          description={PREFERENCES_LOAD_FAILURE[state.kind].description}
           icon={<RotateCcw />}
-          title="Preferences unavailable"
+          title={PREFERENCES_LOAD_FAILURE[state.kind].title}
         />
       </div>
     );

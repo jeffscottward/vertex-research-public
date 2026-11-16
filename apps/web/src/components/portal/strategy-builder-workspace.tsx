@@ -3,7 +3,6 @@
 import {
   type BacktestRun,
   type InstantBacktestSeries,
-  isSessionIndicator,
   parseStrategyDefinitionText,
   STRATEGY_INDICATORS,
   STRATEGY_OPERATORS,
@@ -52,6 +51,7 @@ import {
   type EditableExpr,
   INDICATOR_LABELS,
   isEditableExpr,
+  isJsonOnlyIndicator,
   jsonOnlyFields,
   lengthUnit,
   numberOf,
@@ -257,12 +257,12 @@ const ExprEditor = ({
         value={expr.value}
       />
     ) : null}
-    {isSessionIndicator(expr) ? (
+    {isJsonOnlyIndicator(expr) ? (
       <p className="text-muted-foreground text-sm">
         {`${label}: ${expr.name}. Edit it in the JSON text.`}
       </p>
     ) : null}
-    {expr.type === "indicator" && !isSessionIndicator(expr) ? (
+    {expr.type === "indicator" && !isJsonOnlyIndicator(expr) ? (
       <>
         <Labeled label={`${label} indicator`}>
           {(id) => (

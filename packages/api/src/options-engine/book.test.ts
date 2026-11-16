@@ -181,6 +181,25 @@ describe("sizing, expiry, strikes and values", () => {
     ).toBeNull();
   });
 
+  it("refuses a strike search far above real data (more than 25000 grid strikes)", () => {
+    const spec = parseOptions(DEBIT);
+    const t = 44 / 365;
+    // The ATM IV at which the search range around spot 100 is 25000 grid steps of 1 (4 sigmas each side).
+    const edge = 25_000 / (2 * 4 * Math.sqrt(t) * 100);
+    expect(
+      chooseStrikes("call", "debit", 100, t, 0, 0, edge * 0.999, 0, spec)
+    ).not.toBeNull();
+    for (const [spot, atm] of [
+      [100, edge * 1.001],
+      [1e9, 0.2],
+      [100, 9000],
+      [1e308, 9000],
+    ] as const)
+      expect(() =>
+        chooseStrikes("call", "debit", spot, t, 0, 0, atm, 0, spec)
+      ).toThrow("more than 25000 grid strikes");
+  });
+
   it("values the spread and its worst exit in cents", () => {
     expect([
       instrumentValue("credit", 1.2, 2.5, 5),

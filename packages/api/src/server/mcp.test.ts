@@ -157,6 +157,18 @@ describe("callMcpTool", () => {
     return expect(result["structuredContent"]).toEqual(value);
   });
 
+  it("keeps the recorded definition of flow_snapshot", () => {
+    const tool = listMcpTools().find(
+      (entry) => entry["name"] === "flow_snapshot"
+    );
+    const schema = tool?.["inputSchema"] as {
+      properties: Record<string, { enum?: string[] }>;
+    };
+    expect(schema.properties["symbol"]?.enum).toEqual(["SPY", "ES"]);
+    expect(Object.keys(schema.properties)).toEqual(["symbol", "minutes"]);
+    expect(String(tool?.["description"])).toContain("for SPY or ES");
+  });
+
   it("forwards flow_snapshot to flow/snapshot", async () => {
     const call = okCall({ schemaVersion: "flow-snapshot.v1", symbol: "ES" });
     const result = await callMcpTool("flow_snapshot", { symbol: "ES" }, call);
@@ -377,7 +389,7 @@ describe("callMcpTool", () => {
         maxPain: 100,
         message: null,
         status: "ok",
-        strikeCount: 2,
+        displayedStrikeCount: 2,
         totalGex: 1_000_000,
       },
       flowStatus: "empty",

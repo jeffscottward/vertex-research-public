@@ -90,14 +90,61 @@ const SESSION_STATE_TONE: Readonly<Record<DeploySessionState, Tone>> = {
   stopping: "info",
   stopped: "neutral",
   error: "danger",
-  unknown: "neutral",
+  missing: "danger",
+  unreadable: "warning",
+  unrecognised: "warning",
 };
 
-const KILL_SWITCH_TONE: Readonly<Record<DeployKillSwitchState, Tone>> = {
+// "not-read": the web shows it when the risk block is missing or not available; the collector never
+// sends it. It is never shown as clear.
+type KillSwitchView = DeployKillSwitchState | "not-read";
+
+const KILL_SWITCH_TONE: Readonly<Record<KillSwitchView, Tone>> = {
   engaged: "danger",
   clear: "success",
-  unknown: "warning",
+  unverified: "warning",
+  "not-read": "warning",
 };
+
+// "14:02 UTC" for a since-time, or null when the collector did not send a time.
+const utcClock = (value: string | null | undefined): string | null => {
+  if (value === null || value === undefined) return null;
+  const time = Date.parse(value);
+  return Number.isFinite(time)
+    ? `${new Date(time).toISOString().slice(11, 16)} UTC`
+    : null;
+};
+
+const sinceText = (value: string | null | undefined): string => {
+  const at = utcClock(value);
+  return at === null ? "" : ` since ${at}`;
+};
+
+// The session states without a usable container record, by name (card vertex-status-b1-quantvps).
+// The collector reads Docker again on each 30 s run.
+const sessionStateText = (
+  session: Extract<DeploySessionBlock, { available: true }>
+): string => {
+  const since = sinceText(session.state_since);
+  if (session.state === "missing")
+    return `No nautilus-trader container on QuantVPS${since}`;
+  if (session.state === "unreadable")
+    return `Docker not readable${since} · read again every 30 s`;
+  if (session.state === "unrecognised") {
+    const raw = session.raw_state.container_status;
+    return raw === null || raw.trim() === ""
+      ? `Docker gave no container status${since}`
+      : `Container status '${raw}' not recognised${since}`;
+  }
+  return session.state;
+};
+
+const NO_CONTAINER_TEXT: Readonly<Partial<Record<DeploySessionState, string>>> =
+  {
+    missing: "no container",
+    unreadable: "Docker not readable",
+    unrecognised: "container status not recognised",
+  };
 
 const Chip = ({
   tone,
@@ -132,8 +179,14 @@ const StaleChip = () => {
   );
 };
 
-const formatUtc = (value: string | null | undefined): string => {
-  if (value === null || value === undefined) return "—";
+// A missing value names why it is missing; a dash would read as zero or "nothing to show".
+const NOT_REPORTED = "not reported";
+
+const formatUtc = (
+  value: string | null | undefined,
+  missing = NOT_REPORTED
+): string => {
+  if (value === null || value === undefined) return missing;
   const time = Date.parse(value);
   if (!Number.isFinite(time)) return value;
   return `${new Date(time).toISOString().slice(0, 19).replace("T", " ")} UTC`;
@@ -147,15 +200,21 @@ const formatAge = (seconds: number): string => {
   return `${Math.floor(seconds / 86_400)}d ${Math.floor((seconds % 86_400) / 3600)}h`;
 };
 
-const formatNumber = (value: number | null | undefined, digits = 2): string => {
-  if (value === null || value === undefined) return "—";
+const formatNumber = (
+  value: number | null | undefined,
+  digits = 2,
+  missing = NOT_REPORTED
+): string => {
+  if (value === null || value === undefined) return missing;
   return value.toLocaleString("en-US", { maximumFractionDigits: digits });
 };
 
-const formatValue = (value: unknown): string => {
-  if (value === null || value === undefined) return "—";
+const formatValue = (value: unknown, missing = NOT_REPORTED): string => {
+  if (value === null || value === undefined) return missing;
   if (Array.isArray(value))
-    return value.length === 0 ? "none" : value.map(formatValue).join(", ");
+    return value.length === 0
+      ? "none"
+      : value.map((item) => formatValue(item)).join(", ");
   if (typeof value === "boolean") return value ? "yes" : "no";
   if (typeof value === "number") return formatNumber(value, 6);
   return String(value);
@@ -176,18 +235,21 @@ const rawStateTitle = (
 };
 
 const SessionStateChip = ({
+  data,
   session,
 }: {
+  readonly data: DeploymentStatusOutput;
   readonly session: DeploySessionBlock | undefined;
 }) => {
   if (session === undefined || !session.available) {
+    const reason = session?.reason ?? notConfiguredReason(data);
     return (
       <Chip
-        data={{ "data-session-state": "unknown" }}
-        title={session?.reason}
-        tone="neutral"
+        data={{ "data-session-state": "not-read" }}
+        title={reason}
+        tone="warning"
       >
-        unknown
+        {`Session state not read: ${reason}`}
       </Chip>
     );
   }
@@ -197,7 +259,7 @@ const SessionStateChip = ({
       title={rawStateTitle(session)}
       tone={SESSION_STATE_TONE[session.state]}
     >
-      {session.state}
+      {sessionStateText(session)}
     </Chip>
   );
 };
@@ -249,6 +311,76 @@ const notConfiguredReason = (data: DeploymentStatusOutput): string => {
     data.snapshotError ??
     "tailnet snapshot not configured (VERTEX_DEPLOY_STATUS_V2_URL)"
   );
+};
+
+// A field of a block that was not read names the block's reason, so it never reads as empty.
+const notRead = (
+  block: Readonly<{ available: boolean; reason?: string }> | undefined,
+  data: DeploymentStatusOutput
+): string => {
+  const reason =
+    block === undefined || block.reason === undefined
+      ? notConfiguredReason(data)
+      : block.reason;
+  return `not read: ${reason}`;
+};
+
+// A missing side on an order or fill is a data fault, so it is flagged, not dashed.
+const MissingSide = () => {
+  return (
+    <span className="text-destructive" data-missing-side="">
+      side not reported
+    </span>
+  );
+};
+
+// A missing price applies only when the order type uses it; otherwise the type has none.
+const missingPrice = (
+  type: string | null | undefined,
+  uses: (type: string) => boolean,
+  none: string
+): string => {
+  if (type === null || type === undefined) return NOT_REPORTED;
+  return uses(type.toUpperCase()) ? NOT_REPORTED : none;
+};
+
+const usesLimitPrice = (type: string): boolean => {
+  return (
+    type.includes("LMT") ||
+    type.includes("LIMIT") ||
+    type === "LOC" ||
+    type === "LIT"
+  );
+};
+
+const usesStopPrice = (type: string): boolean => STOP_TYPES.has(type);
+
+const STOPPED_STATES: ReadonlySet<DeploySessionState> = new Set([
+  "stopping",
+  "stopped",
+  "error",
+]);
+
+// Order types whose stop column carries a price (collect.py moves aux into stop for trails).
+const STOP_TYPES: ReadonlySet<string> = new Set([
+  "STP",
+  "STP LMT",
+  "STP PRT",
+  "TRAIL",
+  "TRAIL LIMIT",
+]);
+
+const startedMissing = (state: DeploySessionState): string => {
+  const noContainer = NO_CONTAINER_TEXT[state];
+  if (noContainer !== undefined) return noContainer;
+  return state === "starting" ? "not started" : "start time not reported";
+};
+
+const stoppedMissing = (state: DeploySessionState): string => {
+  const noContainer = NO_CONTAINER_TEXT[state];
+  if (noContainer !== undefined) return noContainer;
+  if (state === "halted") return "not stopped (kill switch engaged)";
+  return STOPPED_STATES.has(state) ? "stop time not reported" : "not stopped";
 };
 
 type Block =
@@ -410,7 +542,7 @@ export const PositionsPanel = ({
                           : ""}
                       </TableCell>
                       <TableCell className={td}>
-                        {item.sec_type ?? "—"}
+                        {item.sec_type ?? "type not reported"}
                       </TableCell>
                       <TableCell className={tdNum}>
                         {formatNumber(item.qty, 4)}
@@ -431,7 +563,7 @@ export const PositionsPanel = ({
                         {formatNumber(item.realized_pnl)}
                       </TableCell>
                       <TableCell className={td}>
-                        {item.currency ?? "—"}
+                        {item.currency ?? "currency not reported"}
                       </TableCell>
                     </TableRow>
                   );
@@ -495,11 +627,15 @@ export const OrdersPanel = ({
                       key={`${item.order_id_masked ?? "order"}-${index}`}
                     >
                       <TableCell className={td}>
-                        {item.order_id_masked ?? "—"}
+                        {item.order_id_masked ?? "order id not reported"}
                       </TableCell>
                       <TableCell className={td}>{item.symbol}</TableCell>
-                      <TableCell className={td}>{item.side ?? "—"}</TableCell>
-                      <TableCell className={td}>{item.type ?? "—"}</TableCell>
+                      <TableCell className={td}>
+                        {item.side ?? <MissingSide />}
+                      </TableCell>
+                      <TableCell className={td}>
+                        {item.type ?? "type not reported"}
+                      </TableCell>
                       <TableCell className={tdNum}>
                         {formatNumber(item.qty, 4)}
                       </TableCell>
@@ -510,16 +646,37 @@ export const OrdersPanel = ({
                         {formatNumber(item.remaining, 4)}
                       </TableCell>
                       <TableCell className={tdNum}>
-                        {formatNumber(item.price, 4)}
+                        {formatNumber(
+                          item.price,
+                          4,
+                          missingPrice(
+                            item.type,
+                            usesLimitPrice,
+                            "no limit price"
+                          )
+                        )}
                       </TableCell>
                       <TableCell className={tdNum}>
-                        {formatNumber(item.stop, 4)}
+                        {formatNumber(
+                          item.stop,
+                          4,
+                          missingPrice(
+                            item.type,
+                            usesStopPrice,
+                            "no stop price"
+                          )
+                        )}
                       </TableCell>
                       <TableCell className={tdNum}>
-                        {formatNumber(item.aux_price, 4)}
+                        {formatNumber(item.aux_price, 4, "no aux price")}
                       </TableCell>
-                      <TableCell className={td}>{item.tif ?? "—"}</TableCell>
-                      <TableCell className={td}>{item.status ?? "—"}</TableCell>
+                      <TableCell className={td}>
+                        {item.tif ?? "TIF not reported"}
+                      </TableCell>
+                      <TableCell className={td}>
+                        {item.status ??
+                          `status not reported as of ${formatUtc(block.as_of, "last read")}`}
+                      </TableCell>
                       <TableCell className={`${td} text-warning-foreground`}>
                         {item.warning ?? ""}
                       </TableCell>
@@ -582,7 +739,9 @@ export const FillsPanel = ({
                         {formatUtc(item.time)}
                       </TableCell>
                       <TableCell className={td}>{item.symbol}</TableCell>
-                      <TableCell className={td}>{item.side ?? "—"}</TableCell>
+                      <TableCell className={td}>
+                        {item.side ?? <MissingSide />}
+                      </TableCell>
                       <TableCell className={tdNum}>
                         {formatNumber(item.qty, 4)}
                       </TableCell>
@@ -590,10 +749,10 @@ export const FillsPanel = ({
                         {formatNumber(item.price, 4)}
                       </TableCell>
                       <TableCell className={td}>
-                        {item.order_id_masked ?? "—"}
+                        {item.order_id_masked ?? "order id not reported"}
                       </TableCell>
                       <TableCell className={td}>
-                        {item.exec_id_masked ?? "—"}
+                        {item.exec_id_masked ?? "exec id not reported"}
                       </TableCell>
                     </TableRow>
                   );
@@ -754,33 +913,44 @@ export const StatusStrip = ({
     >
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         <Field label="Session" name="state">
-          <SessionStateChip session={session} />
+          <SessionStateChip data={data} session={session} />
         </Field>
         <Field label="Strategies" name="strategies">
           {live === null
-            ? "—"
+            ? notRead(session, data)
             : live.strategies.length === 0
               ? "none"
               : live.strategies.map((strategy) => strategy.name).join(", ")}
         </Field>
         <Field label="Symbols" name="symbols">
           {live === null
-            ? "—"
+            ? notRead(session, data)
             : live.symbols.length === 0
               ? "none"
               : live.symbols.join(", ")}
         </Field>
         <Field label="Account" name="account">
-          {live?.account_masked ?? "—"}
+          {live === null
+            ? notRead(session, data)
+            : (live.account_masked ?? "account not reported")}
         </Field>
         <Field label="Started" name="started">
-          {formatUtc(live?.started_at)}
+          {formatUtc(
+            live?.started_at,
+            live === null ? notRead(session, data) : startedMissing(live.state)
+          )}
         </Field>
         <Field label="Stopped" name="stopped">
-          {formatUtc(live?.stopped_at)}
+          {formatUtc(
+            live?.stopped_at,
+            live === null ? notRead(session, data) : stoppedMissing(live.state)
+          )}
         </Field>
         <Field label="Last heartbeat" name="heartbeat">
-          {formatUtc(live?.last_heartbeat_at)}
+          {formatUtc(
+            live?.last_heartbeat_at,
+            live === null ? notRead(session, data) : "no heartbeat yet"
+          )}
         </Field>
         <Field label="Data age" name="age">
           <span className="inline-flex flex-wrap items-center gap-1">
@@ -800,10 +970,42 @@ export const StatusStrip = ({
   );
 };
 
-const killSwitchOf = (
-  risk: DeployRiskBlock | undefined
-): DeployKillSwitchState => {
-  return risk?.available ? risk.kill_switch : "unknown";
+// unverified: no file engaged, but a kill-switch file check gave no answer. Name the files that
+// gave none (the state is decided from the file checks; the other indicators only add "engaged").
+const killSwitchText = (
+  kill: KillSwitchView,
+  risk: DeployRiskBlock | undefined,
+  data: DeploymentStatusOutput
+): string => {
+  if (risk === undefined || !risk.available) {
+    const reason = risk?.reason ?? notConfiguredReason(data);
+    return `Kill switch state not read: ${reason} · not treated as clear`;
+  }
+  if (kill !== "unverified") return `Kill switch ${kill}`;
+  const silent = risk.kill_switch_indicators.filter(
+    (indicator) =>
+      indicator.engaged === null && indicator.source.startsWith("file ")
+  );
+  const names = silent.map((indicator) => indicator.source.slice(5));
+  const at = utcClock(silent[0]?.as_of ?? risk.as_of);
+  return `Kill switch not verified: ${names.length === 0 ? "a kill-switch file" : names.join(", ")} not readable${at === null ? "" : ` at ${at}`} · not treated as clear`;
+};
+
+// An indicator with no answer. Only the kill-switch files decide the state, so only an unread file
+// keeps the state from reading as clear. A watchdog or health flag counts only when it is engaged:
+// null there means the file has no flag, and as_of is when that file was written.
+const unreadIndicatorText = (indicator: {
+  readonly source: string;
+  readonly as_of: string | null;
+}): string => {
+  const at = utcClock(indicator.as_of);
+  if (indicator.source.startsWith("file "))
+    return `not readable${at === null ? "" : ` at ${at}`} · not treated as clear`;
+  return `flag not reported${at === null ? "" : ` (last written ${at})`}`;
+};
+
+const killSwitchOf = (risk: DeployRiskBlock | undefined): KillSwitchView => {
+  return risk?.available ? risk.kill_switch : "not-read";
 };
 
 export const RiskPanel = ({
@@ -839,7 +1041,7 @@ export const RiskPanel = ({
           data-kill-switch={kill}
           role="status"
         >
-          Kill switch {kill}
+          {killSwitchText(kill, risk, data)}
         </span>
       </div>
       {risk === undefined ? (
@@ -856,7 +1058,7 @@ export const RiskPanel = ({
                 >
                   {indicator.source}:{" "}
                   {indicator.engaged === null
-                    ? "unknown"
+                    ? unreadIndicatorText(indicator)
                     : indicator.engaged
                       ? "engaged"
                       : "clear"}
@@ -887,7 +1089,7 @@ export const RiskPanel = ({
                             {key}
                           </TableCell>
                           <TableCell className={`${td} text-xs`}>
-                            {formatValue(value)}
+                            {formatValue(value, "set but not readable")}
                           </TableCell>
                         </TableRow>
                       );
@@ -946,17 +1148,15 @@ export const RiskPanel = ({
                   <p className="flex flex-wrap items-center gap-2">
                     <Chip
                       data={{
-                        "data-watchdog-status": watchdog.status ?? "unknown",
+                        "data-watchdog-status":
+                          watchdog.status ?? "not-reported",
                       }}
-                      tone={
-                        watchdog.status === "ok"
-                          ? "success"
-                          : watchdog.status === null
-                            ? "neutral"
-                            : "warning"
-                      }
+                      tone={watchdog.status === "ok" ? "success" : "warning"}
                     >
-                      {watchdog.status ?? "unknown"}
+                      {watchdog.status ??
+                        (watchdog.as_of === null
+                          ? "status and time not reported"
+                          : `status not reported as of ${formatUtc(watchdog.as_of)}`)}
                     </Chip>
                     <span className="font-mono">
                       safe mode {formatValue(watchdog.safe_mode)} · orders{" "}

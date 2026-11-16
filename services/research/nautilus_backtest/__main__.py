@@ -19,9 +19,30 @@ spec "initialCapital" as the capital and returns it in the same result shape (ac
 "iv" holds one implied volatility (or null) per bar of the case. The `academy` command takes
 {"bars": {"t": [...], "c": [...], "iv": [...]?}, "structure": ..., "rules": {...}, "capital": n}
 and prints the full Academy result (the TypeScript `BacktestResult` fields; equity as one number
-per bar from "firstIndex"). A batch writes {"engine": ..., "results": [{"id": ..., "wallMs": ...,
-"result": {...}} | {"id": ..., "wallMs": ..., "error": "..."}], "usage": {"cpuMs": ..., "wallMs":
-...}}: the engine time of each case and the CPU time (user + system) and wall time of this process.
+per bar from "firstIndex"). A batch writes {"engine": ..., "results": [entry, ...], "usage": {"cpuMs":
+..., "wallMs": ...}}: the engine time of each case and the CPU time (user + system) and wall time of
+this process. Each entry is {"id": ..., "wallMs": ...} with exactly one of:
+
+  "result": {...}   the case ran
+  "error": "..."    an input error (InputError): the request is at fault
+  "crash": "..."    a case crash: any other Exception of the case, also a result that JSON cannot
+                    hold; the text is "<class name>: <message>" on one line, at most 300 characters
+
+Exit status of `batch`:
+
+  0   the document is complete; no case crashed
+  4   the document is complete; at least one entry is a crash (on stderr: the traceback of the first
+      3 crashes and one line `case <id as JSON> crashed: <crash text>` per crash, for diagnosis
+      only). The status is returned after the document was written.
+  3   nautilus-trader is missing; no document
+  1   any other fault ends the batch without a document: the bars or the case list cannot be read
+      (`cases` must be a list of objects with a string id), ImportError, MemoryError, a Rust panic
+      of the engine (not an Exception), a case that calls exit()
+  a signal, or none: the process was killed or interrupted (KeyboardInterrupt), aborted natively
+      or timed out; no document
+
+A reader takes status 0 or 4 as a complete document and decides each case by its key (`crash` before
+`result`); every other status is a process failure.
 """
 from __future__ import annotations
 
@@ -29,6 +50,8 @@ import json
 import resource
 import sys
 import time
+import traceback
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -53,16 +76,15 @@ def _run_case(bars: Bars, spec: dict, rows: dict | None) -> dict:
     rule = spec.get("rule") or {}
     if rule.get("kind") == "academy":
         return _run_academy_case(bars, spec, rule)
-    if rule.get("kind") == "dsl" and rule.get("definition", {}).get("options") is not None:
+    definition = rule.get("definition")
+    # A definition that is not an object goes on to normalize_definition, which refuses it.
+    if rule.get("kind") == "dsl" and isinstance(definition, Mapping) and definition.get("options") is not None:
         from strategies.qc_ports.portfolio import run_spec_json
 
         if not rows:
             raise InputError("An options definition needs the daily series rows")
-        try:
-            return run_spec_json(spec, rows)
-        except (ValueError, RuntimeError) as error:
-            raise InputError(str(error)) from error
-    if rule.get("kind") == "dsl" and rows and strategy_series_refs(normalize_definition(rule["definition"])):
+        return run_spec_json(spec, rows)
+    if rule.get("kind") == "dsl" and rows and strategy_series_refs(normalize_definition(definition)):
         from strategies.qc_ports.portfolio import context_from_rows
 
         last = spec.get("to") or _bar_date(bars.t[-1])
@@ -101,8 +123,34 @@ def _rows_until(rows: dict, last: str) -> dict:
     return cut
 
 
-def _batch_case(bars: Bars, case: dict, rows: dict | None = None) -> dict:
-    """One batch case with its engine wall time; an input error is the case's result."""
+CRASH_STATUS = 4
+CRASH_TEXT_MAX = 300
+FULL_TRACEBACKS = 3
+# Faults of the process, not of one case: they end the batch (NautilusUnavailable is a RuntimeError).
+_BATCH_FAULTS = (NautilusUnavailable, ImportError, MemoryError)
+
+
+def _crash_text(error: BaseException) -> str:
+    """`<type>: <message>` on one line, at most CRASH_TEXT_MAX characters; the type alone without a message."""
+    try:
+        message = " ".join(str(error).split())
+    except Exception:  # noqa: BLE001 - an unreadable message is left out
+        message = ""
+    name = type(error).__name__
+    return (f"{name}: {message}" if message else name)[:CRASH_TEXT_MAX]
+
+
+def _report_crash(case_id: str, text: str, crashes: int) -> None:
+    """Stderr for one crashed case: the traceback of the exception being handled (first FULL_TRACEBACKS
+    crashes of the process only), then one `case <id> crashed: <text>` line."""
+    if crashes < FULL_TRACEBACKS:
+        traceback.print_exc(file=sys.stderr)
+    print(f"case {json.dumps(case_id)} crashed: {text}", file=sys.stderr)
+
+
+def _batch_case(bars: Bars, case: dict, rows: dict | None = None, crashes: int = 0) -> dict:
+    """One batch case with its engine wall time. An input error is the case's `error`; any other
+    exception of the case is its `crash` (`crashes` = crashes of the process so far, for stderr)."""
     started = time.perf_counter()
     try:
         window = case.get("slice")
@@ -110,7 +158,49 @@ def _batch_case(bars: Bars, case: dict, rows: dict | None = None) -> dict:
         outcome = {"result": _run_case(own, case["spec"], rows)}
     except InputError as error:
         outcome = {"error": str(error)}
+    except _BATCH_FAULTS:
+        raise
+    except Exception as error:  # noqa: BLE001 - the case guard records every Exception
+        outcome = {"crash": _crash_text(error)}
+        _report_crash(case["id"], outcome["crash"], crashes)
     return {"id": case["id"], "wallMs": (time.perf_counter() - started) * 1000, **outcome}
+
+
+def _entry_text(entry: dict, crashes: int) -> tuple[str, bool]:
+    """The JSON text of one entry and whether it is a crash. A result that JSON cannot hold (NaN,
+    an unknown type) is a crash too."""
+    try:
+        return _dump(entry), "crash" in entry
+    except MemoryError:
+        raise
+    except Exception as error:  # noqa: BLE001 - the case guard records every Exception
+        text = _crash_text(error)
+        _report_crash(entry["id"], text, crashes)
+        return _dump({"id": entry["id"], "wallMs": entry["wallMs"], "crash": text}), True
+
+
+def _cases(request: dict) -> list:
+    """The case list, checked before the first case runs: a list of objects with a string id."""
+    cases = request["cases"]
+    if not isinstance(cases, list) or not all(
+            isinstance(case, Mapping) and isinstance(case.get("id"), str) for case in cases):
+        raise ValueError("cases must be a list of objects with a string id")
+    return cases
+
+
+def _run_batch(request: dict, started: float) -> tuple[str, int]:
+    """The batch document and its exit status. The document is joined from the entry texts: the same
+    bytes as one _dump of the whole document, and no result is serialized twice."""
+    bars = Bars.from_columns(request["bars"])
+    entries = []
+    crashes = 0
+    for case in _cases(request):
+        entry = _batch_case(bars, case, request.get("series"), crashes)
+        text, crashed = _entry_text(entry, crashes)
+        entries.append(text)
+        crashes += crashed
+    document = f'{{"engine":{_dump(ENGINE_ID)},"results":[{",".join(entries)}],"usage":{_dump(_usage(started))}}}'
+    return document, CRASH_STATUS if crashes else 0
 
 
 def _usage(started: float) -> dict:
@@ -149,22 +239,22 @@ def main(argv: list[str]) -> int:
     if len(argv) == 3 and argv[0] == "batch":
         started = time.perf_counter()
         request = _load(argv[1])
-        bars = Bars.from_columns(request["bars"])
-        results = []
         try:
-            for case in request["cases"]:
-                results.append(_batch_case(bars, case, request.get("series")))
+            text, status = _run_batch(request, started)
         except NautilusUnavailable as error:
             print(str(error), file=sys.stderr)
             return 3
-        text = _dump({"engine": ENGINE_ID, "results": results, "usage": _usage(started)})
+        except SystemExit as error:
+            # A case that calls exit() must not end with a batch status (0 or 4) but no document.
+            print(f"a case called exit({error.code!r}); no document", file=sys.stderr)
+            return 1
         if argv[2] == "-":
             print(text)
-            return 0
+            return status
         tmp = Path(argv[2] + ".tmp")
         tmp.write_text(text)
         tmp.replace(argv[2])
-        return 0
+        return status
     print(__doc__, file=sys.stderr)
     return 64
 

@@ -235,19 +235,49 @@ const MONEY = new Intl.NumberFormat("en-US", {
   style: "currency",
 });
 
-export const formatMoney = (value: Num): string =>
-  value === null ? "—" : MONEY.format(value);
+/** Shown for a fill field IBKR has not filled in (realized and commission arrive with its commission report). */
+const NOT_REPORTED = "Not reported by IBKR yet";
+/** Shown for a ratio or average when no fill in the window closed a trade. */
+const NO_CLOSED_TRADES = "No closed trades";
+export const NO_WINNING_TRADES = "No winning trades";
+export const NO_LOSING_TRADES = "No losing trades";
 
-export const formatSignedMoney = (value: Num): string =>
-  value === null ? "—" : `${value > 0 ? "+" : ""}${MONEY.format(value)}`;
+export const formatMoney = (
+  value: Num,
+  missing: string = NOT_REPORTED
+): string => (value === null ? missing : MONEY.format(value));
 
-export const formatPercent = (ratio: Num): string =>
-  ratio === null ? "—" : `${Math.round(ratio * 100)}%`;
+export const formatSignedMoney = (
+  value: Num,
+  missing: string = NOT_REPORTED
+): string =>
+  value === null ? missing : `${value > 0 ? "+" : ""}${MONEY.format(value)}`;
 
-export const formatNumber = (value: Num): string =>
+export const formatPercent = (
+  ratio: Num,
+  missing: string = NO_CLOSED_TRADES
+): string => (ratio === null ? missing : `${Math.round(ratio * 100)}%`);
+
+export const formatNumber = (
+  value: Num,
+  missing: string = NOT_REPORTED
+): string =>
   value === null
-    ? "—"
+    ? missing
     : value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+
+/**
+ * Realized P&L of one fill. IBKR sends realized with the commission report; once that report is
+ * in, a missing realized value is IBKR's unset marker for an opening fill.
+ */
+export const formatExecutionRealized = (
+  execution: Pick<PortfolioMonitorExecution, "commission" | "realized">
+): string => {
+  if (execution.realized !== null) return formatSignedMoney(execution.realized);
+  return execution.commission === null
+    ? NOT_REPORTED
+    : "No realized P&L (opening fill)";
+};
 
 export const pnlTextClass = (value: Num): string => {
   if (value === null || value === 0) return "";

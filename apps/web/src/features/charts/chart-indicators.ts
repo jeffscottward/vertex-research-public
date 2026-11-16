@@ -31,6 +31,11 @@ export const OVERLAY_OPTIONS: readonly ChartIndicatorOption[] = Object.freeze([
   vertexOption("sar"),
   vertexOption("smma"),
   vertexOption("lwma"),
+  vertexOption("supertrend"),
+  vertexOption("ultma"),
+  vertexOption("alphatrend"),
+  vertexOption("chandelier"),
+  vertexOption("slingshot"),
 ]);
 
 export const STUDY_OPTIONS: readonly ChartIndicatorOption[] = Object.freeze([

@@ -26,6 +26,7 @@ from adapters.configuration import load_configuration
 from adapters.tests.test_chat_consumer import AuthorityDouble, ControlDouble, HttpDouble
 from adapters.tests.test_chat_output import dispatch
 from agents.types import Evidence
+from vertex_control.client import parse_json
 
 
 MAX_BRIDGE_BYTES = 8_388_608
@@ -145,7 +146,6 @@ def main():
             raise ValueError("bridge-input-invalid")
         # The outer envelope has only small JSON integers. Lossless Evidence
         # integer nanoseconds remain inside exact approved Base64 input buffers.
-        from vertex_control.client import parse_json
         result = consume_fixture(parse_json(raw))
         encoded = json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
         if len(encoded) > MAX_BRIDGE_BYTES:

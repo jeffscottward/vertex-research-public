@@ -1,13 +1,30 @@
-import { and, asc, desc, eq, gte, lt, lte, max, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  lt,
+  lte,
+  max,
+  sql,
+} from "drizzle-orm";
 
 import {
+  FLOW_SOURCE_VALUES,
+  type FlowNetDriftTickerValue,
+  type FlowOptionTickerValue,
   type FlowSampleStatusValue,
   type FlowSourceValue,
   type FlowSymbolValue,
   flowBook,
   flowEvents,
   flowGex,
+  flowLargeTrades,
   flowMinutes,
+  flowNetDrift,
   flowOptionGaps,
   flowOptionPrints,
   flowSamples,
@@ -16,7 +33,7 @@ import type { DatabaseExecutor } from "./client.ts";
 
 // Flow pipeline storage (flow.*, docs/vertex-rebuild/flow-pipeline.md). flow.collect records one
 // sample row per source attempt and upserts the derived rows; flow.snapshot reads one symbol's
-// window. Rows are derived and regenerable; prune() removes rows older than the retention cutoff.
+// window. Rows are derived and regenerable; prune() removes rows older than each table's retention cutoff.
 // Research only: no order path.
 
 export type {
@@ -32,6 +49,30 @@ export type FlowOptionPrintRecord = typeof flowOptionPrints.$inferSelect;
 export type FlowOptionGapRecord = typeof flowOptionGaps.$inferSelect;
 export type FlowEventRecord = typeof flowEvents.$inferSelect;
 export type FlowGexRecord = typeof flowGex.$inferSelect;
+export type FlowNetDriftRecord = typeof flowNetDrift.$inferSelect;
+export type FlowLargeTradeRecord = typeof flowLargeTrades.$inferSelect;
+export type FlowLargeTradeQuery = Readonly<{
+  symbol: "ES" | "NQ";
+  from: Date;
+  to: Date;
+}>;
+export type FlowPruneTable =
+  | "flow_samples"
+  | "flow_minutes"
+  | "flow_book"
+  | "flow_option_prints"
+  | "flow_events"
+  | "flow_gex"
+  | "flow_option_gaps"
+  | "flow_net_drift"
+  | "flow_large_trades";
+export type FlowNetDriftQuery = Readonly<{
+  tickers: readonly FlowNetDriftTickerValue[];
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+}>;
 
 /** Rows one insert statement may hold (keeps each statement well under the parameter limit). */
 export const FLOW_UPSERT_BATCH = 250;
@@ -70,8 +111,35 @@ export type FlowRepository = Readonly<{
   ) => Promise<number>;
   insertEvents: (rows: readonly FlowEventRecord[]) => Promise<number>;
   insertGex: (rows: readonly FlowGexRecord[]) => Promise<number>;
-  /** Deletes rows older than the cutoff from every flow table; returns the rows removed. */
-  prune: (before: Date) => Promise<number>;
+  /**
+   * Stores the events and the deep trades of one futures tick sample in one transaction
+   * (both or none); insert-once, so a stored key is never rewritten. Returns the new rows.
+   */
+  insertTickSample: (
+    input: Readonly<{
+      events: readonly FlowEventRecord[];
+      trades: readonly FlowLargeTradeRecord[];
+    }>
+  ) => Promise<Readonly<{ events: number; trades: number }>>;
+  /** Deep trades of a symbol with from <= second < to (end-exclusive), by second, then seq. */
+  readLargeTrades: (
+    query: FlowLargeTradeQuery
+  ) => Promise<FlowLargeTradeRecord[]>;
+  /** Newest priced total net drift row of a ticker with minute <= at, or null. */
+  netDriftPriceAtOrBefore: (
+    ticker: FlowOptionTickerValue,
+    at: Date
+  ) => Promise<Readonly<{ minute: Date; price: number }> | null>;
+  /** Deletes rows older than each table's cutoff; returns the rows removed. */
+  prune: (cutoffs: Readonly<Record<FlowPruneTable, Date>>) => Promise<number>;
+  /** Upserts by (ticker, part, minute); a row is rewritten only when a value or the filter profile changed. */
+  upsertNetDrift: (rows: readonly FlowNetDriftRecord[]) => Promise<number>;
+  /** Net drift rows of the tickers with from <= minute < to, ascending by minute. */
+  readNetDrift: (query: FlowNetDriftQuery) => Promise<FlowNetDriftRecord[]>;
+  /** Newest stored minute of the total part of a ticker. */
+  newestNetDriftMinute: (
+    ticker: FlowNetDriftTickerValue
+  ) => Promise<Date | null>;
   /** Newest stored option print time for a symbol (paging stops there). */
   newestOptionPrintAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
   /** Unfetched option-print ranges of a symbol, newest end first. */
@@ -116,13 +184,6 @@ const toDate = (value: Date | string | null | undefined): Date | null => {
   if (value === null || value === undefined) return null;
   return value instanceof Date ? value : new Date(value);
 };
-
-const SOURCES: readonly FlowSourceValue[] = [
-  "ticks",
-  "depth",
-  "options",
-  "gex",
-];
 
 export const createFlowRepository = (
   database: DatabaseExecutor
@@ -210,10 +271,35 @@ export const createFlowRepository = (
           .onConflictDoNothing()
           .returning({ id: flowOptionPrints.id })
       ),
+    insertTickSample: async ({ events, trades }) => {
+      if (events.length === 0 && trades.length === 0)
+        return { events: 0, trades: 0 };
+      return await database.transaction(async (tx) => {
+        let newTrades = 0;
+        for (const batch of batches(trades))
+          newTrades += (
+            await tx
+              .insert(flowLargeTrades)
+              .values(batch)
+              .onConflictDoNothing()
+              .returning({ seq: flowLargeTrades.seq })
+          ).length;
+        let newEvents = 0;
+        for (const batch of batches(events))
+          newEvents += (
+            await tx
+              .insert(flowEvents)
+              .values(batch)
+              .onConflictDoNothing()
+              .returning({ key: flowEvents.key })
+          ).length;
+        return { events: newEvents, trades: newTrades };
+      });
+    },
     latestSamples: async (symbol) => {
       const latest: FlowSampleRecord[] = [];
       const latestOk: FlowSampleRecord[] = [];
-      for (const source of SOURCES) {
+      for (const source of FLOW_SOURCE_VALUES) {
         const last = await newestSample(symbol, source, null);
         const ok = await newestSample(symbol, source, "ok");
         if (last) latest.push(last);
@@ -231,6 +317,26 @@ export const createFlowRepository = (
             eq(flowOptionGaps.startTime, startTime)
           )
         );
+    },
+    netDriftPriceAtOrBefore: async (ticker, at) => {
+      const [row] = await database
+        .select({
+          minute: flowNetDrift.minute,
+          price: flowNetDrift.underlyingPrice,
+        })
+        .from(flowNetDrift)
+        .where(
+          and(
+            eq(flowNetDrift.ticker, ticker),
+            eq(flowNetDrift.part, "total"),
+            lte(flowNetDrift.minute, at),
+            isNotNull(flowNetDrift.underlyingPrice)
+          )
+        )
+        .orderBy(desc(flowNetDrift.minute))
+        .limit(1);
+      if (row === undefined || row.price === null) return null;
+      return { minute: row.minute, price: row.price };
     },
     newestDataAt: async (symbol) => {
       const [minute] = await database
@@ -251,6 +357,15 @@ export const createFlowRepository = (
         toDate(print?.at),
       ]);
     },
+    newestNetDriftMinute: async (ticker) => {
+      const [row] = await database
+        .select({ minute: max(flowNetDrift.minute) })
+        .from(flowNetDrift)
+        .where(
+          and(eq(flowNetDrift.ticker, ticker), eq(flowNetDrift.part, "total"))
+        );
+      return toDate(row?.minute);
+    },
     newestOptionPrintAt: async (symbol) => {
       const [row] = await database
         .select({ at: max(flowOptionPrints.tradedAt) })
@@ -264,40 +379,72 @@ export const createFlowRepository = (
         .from(flowOptionGaps)
         .where(eq(flowOptionGaps.symbol, symbol))
         .orderBy(desc(flowOptionGaps.endTime), desc(flowOptionGaps.startTime)),
-    prune: async (before) => {
+    prune: async (cutoffs) => {
       const removed = [
         await database
           .delete(flowSamples)
-          .where(lt(flowSamples.at, before))
+          .where(lt(flowSamples.at, cutoffs.flow_samples))
           .returning({ at: flowSamples.at }),
         await database
           .delete(flowMinutes)
-          .where(lt(flowMinutes.minute, before))
+          .where(lt(flowMinutes.minute, cutoffs.flow_minutes))
           .returning({ at: flowMinutes.minute }),
         await database
           .delete(flowBook)
-          .where(lt(flowBook.at, before))
+          .where(lt(flowBook.at, cutoffs.flow_book))
           .returning({ at: flowBook.at }),
         await database
           .delete(flowOptionPrints)
-          .where(lt(flowOptionPrints.tradedAt, before))
+          .where(lt(flowOptionPrints.tradedAt, cutoffs.flow_option_prints))
           .returning({ at: flowOptionPrints.tradedAt }),
         await database
           .delete(flowEvents)
-          .where(lt(flowEvents.at, before))
+          .where(lt(flowEvents.at, cutoffs.flow_events))
           .returning({ at: flowEvents.at }),
         await database
           .delete(flowGex)
-          .where(lt(flowGex.at, before))
+          .where(lt(flowGex.at, cutoffs.flow_gex))
           .returning({ at: flowGex.at }),
         // A gap whose newest part is older than the cutoff would only fetch rows prune removes.
         await database
           .delete(flowOptionGaps)
-          .where(lt(flowOptionGaps.endTime, before))
+          .where(lt(flowOptionGaps.endTime, cutoffs.flow_option_gaps))
           .returning({ at: flowOptionGaps.endTime }),
+        await database
+          .delete(flowNetDrift)
+          .where(lt(flowNetDrift.minute, cutoffs.flow_net_drift))
+          .returning({ at: flowNetDrift.minute }),
+        await database
+          .delete(flowLargeTrades)
+          .where(lt(flowLargeTrades.second, cutoffs.flow_large_trades))
+          .returning({ at: flowLargeTrades.second }),
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
+    readLargeTrades: ({ symbol, from, to }) =>
+      database
+        .select()
+        .from(flowLargeTrades)
+        .where(
+          and(
+            eq(flowLargeTrades.symbol, symbol),
+            gte(flowLargeTrades.second, from),
+            lt(flowLargeTrades.second, to)
+          )
+        )
+        .orderBy(asc(flowLargeTrades.second), asc(flowLargeTrades.seq)),
+    readNetDrift: ({ tickers, from, to }) =>
+      database
+        .select()
+        .from(flowNetDrift)
+        .where(
+          and(
+            inArray(flowNetDrift.ticker, [...tickers]),
+            gte(flowNetDrift.minute, from),
+            lt(flowNetDrift.minute, to)
+          )
+        )
+        .orderBy(asc(flowNetDrift.minute)),
     readWindow: async ({ symbol, from, to, gexAt }) => {
       const minutes = await database
         .select()
@@ -378,8 +525,8 @@ export const createFlowRepository = (
               coveredSeconds: sql`excluded.covered_seconds`,
               delta: sql`excluded.delta`,
               high: sql`excluded.high`,
-              largePrintVolume: sql`excluded.large_print_volume`,
               largePrints: sql`excluded.large_prints`,
+              largePrintVolume: sql`excluded.large_print_volume`,
               low: sql`excluded.low`,
               offExchangeVolume: sql`excluded.off_exchange_volume`,
               open: sql`excluded.open`,
@@ -394,6 +541,33 @@ export const createFlowRepository = (
             target: [flowMinutes.symbol, flowMinutes.minute],
           })
           .returning({ minute: flowMinutes.minute });
+        written += stored.length;
+      }
+      return written;
+    },
+    upsertNetDrift: async (rows) => {
+      let written = 0;
+      for (const batch of batches(rows)) {
+        const stored = await database
+          .insert(flowNetDrift)
+          .values(batch)
+          .onConflictDoUpdate({
+            set: {
+              filterProfile: sql`excluded.filter_profile`,
+              netCallPremium: sql`excluded.net_call_premium`,
+              netCallVolume: sql`excluded.net_call_volume`,
+              netPutPremium: sql`excluded.net_put_premium`,
+              netPutVolume: sql`excluded.net_put_volume`,
+              underlyingPrice: sql`excluded.underlying_price`,
+            },
+            setWhere: sql`${flowNetDrift.netCallPremium} is distinct from excluded.net_call_premium or ${flowNetDrift.netPutPremium} is distinct from excluded.net_put_premium or ${flowNetDrift.netCallVolume} is distinct from excluded.net_call_volume or ${flowNetDrift.netPutVolume} is distinct from excluded.net_put_volume or ${flowNetDrift.underlyingPrice} is distinct from excluded.underlying_price or ${flowNetDrift.filterProfile} is distinct from excluded.filter_profile`,
+            target: [
+              flowNetDrift.ticker,
+              flowNetDrift.part,
+              flowNetDrift.minute,
+            ],
+          })
+          .returning({ minute: flowNetDrift.minute });
         written += stored.length;
       }
       return written;

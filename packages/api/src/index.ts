@@ -123,6 +123,14 @@ export * from "./contracts/research-lenses.ts";
 export * from "./contracts/openbb.ts";
 export * from "./contracts/sector-rotation.ts";
 export * from "./flow-exhaustion.ts";
+export {
+  FLOW_GROUPS,
+  FLOW_INSTRUMENTS,
+  type FlowGroup,
+  type FlowInstrument,
+  flowSymbolForTicker,
+} from "./flow-features.ts";
+export * from "./flow-control-rules.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./contracts/breadth-90.ts";
 export * from "./contracts/golive-drafts.ts";
@@ -140,10 +148,12 @@ export {
 export * from "./contracts/optimizations.ts";
 export * from "./contracts/quant-lab.ts";
 export * from "./contracts/research-reports.ts";
+export * from "./contracts/research-screen.ts";
 export * from "./contracts/research-studies.ts";
 export * from "./contracts/click-log.ts";
 export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
 export * from "./contracts/strategy-library.ts";
+export * from "./strategy-study-tags.ts";
 export * from "./contracts/vertex-chart-read.ts";
 export * from "./contracts/vertex-experience.ts";
 export * from "./contracts/vertex-notification-read.ts";

@@ -39,6 +39,7 @@ import {
   type PricedTrade,
   parseOptions,
   type SignalEvent,
+  IV_LEVEL_MAX,
   validateMarket,
 } from "./book.ts";
 import { parseDay } from "./calendar.ts";
@@ -280,6 +281,9 @@ export const marketOf = (data: OptionsDataset, symbol: string): Market => {
     ),
   };
   validateMarket(market);
+  // portfolio._refuse_market_values: an IV level above IV_LEVEL_MAX refuses the request before any bar is priced.
+  if (market.ivIndex.some((value) => value !== null && value > IV_LEVEL_MAX))
+    throw new Error(`Market IV index values must be at most ${IV_LEVEL_MAX}`);
   return market;
 };
 

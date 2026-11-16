@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TREND_STUDY_IDS } from "./trend-studies.ts";
 import {
   indicatorTemplate,
   isVertexStudyId,
@@ -22,10 +23,10 @@ const bars = Array.from({ length: 40 }, (_, index) => {
 });
 
 describe("Vertex chart studies", () => {
-  it("lists nine studies with unique names and valid ids", () => {
-    expect(VERTEX_STUDY_IDS).toHaveLength(9);
+  it("lists fourteen studies with unique names and valid ids", () => {
+    expect(VERTEX_STUDY_IDS).toHaveLength(14);
     const names = VERTEX_STUDY_IDS.map((id) => VERTEX_STUDIES[id].name);
-    expect(new Set(names).size).toBe(9);
+    expect(new Set(names).size).toBe(14);
     for (const id of VERTEX_STUDY_IDS) {
       expect(VERTEX_STUDIES[id].id).toBe(id);
       expect(isVertexStudyId(id)).toBe(true);
@@ -37,24 +38,26 @@ describe("Vertex chart studies", () => {
     expect(paneStudyCount([])).toBe(0);
   });
 
-  it.each(VERTEX_STUDY_IDS)(
-    "%s returns one row per bar with values only for its figures",
-    (id) => {
-      const study = VERTEX_STUDIES[id];
-      const rows = study.calc(bars, study.calcParams);
-      expect(rows).toHaveLength(bars.length);
-      const keys = new Set(study.figures.map((figure) => figure.key));
-      const last = rows.at(-1) ?? {};
-      expect(Object.keys(last).sort()).toEqual([...keys].sort());
-      for (const row of rows)
-        for (const [key, value] of Object.entries(row)) {
-          expect(keys.has(key)).toBe(true);
-          expect(Number.isFinite(value)).toBe(true);
-        }
-      // Bar 0 is warmup for every study.
-      expect(rows[0]).toEqual({});
-    }
-  );
+  // The trend studies split one line by direction; trend-studies.test.ts covers them.
+  it.each(
+    VERTEX_STUDY_IDS.filter(
+      (id) => !(TREND_STUDY_IDS as readonly string[]).includes(id)
+    )
+  )("%s returns one row per bar with values only for its figures", (id) => {
+    const study = VERTEX_STUDIES[id];
+    const rows = study.calc(bars, study.calcParams);
+    expect(rows).toHaveLength(bars.length);
+    const keys = new Set(study.figures.map((figure) => figure.key));
+    const last = rows.at(-1) ?? {};
+    expect(Object.keys(last).sort()).toEqual([...keys].sort());
+    for (const row of rows)
+      for (const [key, value] of Object.entries(row)) {
+        expect(keys.has(key)).toBe(true);
+        expect(Number.isFinite(value)).toBe(true);
+      }
+    // Bar 0 is warmup for every study.
+    expect(rows[0]).toEqual({});
+  });
 
   it("bounds oscillators to 0..100 and keeps SAR off the bar", () => {
     expect(VERTEX_STUDIES.stoch.minValue).toBe(0);

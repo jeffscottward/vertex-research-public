@@ -286,20 +286,29 @@ export const maxPain = (rows: readonly OpenInterestRow[]): number | null => {
   return best?.strike ?? null;
 };
 
+// Strikes within 50-150 % of spot (all strikes when none is in range or spot is unknown):
+// the strike set for GEX, the levels and the other dealer Greeks.
+export const inRangeStrikes = <Row extends OpenInterestRow>(
+  rows: readonly Row[],
+  spot: number | null
+): readonly Row[] => {
+  if (spot === null || spot <= 0) return rows;
+  const inRange = rows.filter(
+    (row) => row.strike >= spot * 0.5 && row.strike <= spot * 1.5
+  );
+  return inRange.length > 0 ? inRange : rows;
+};
+
 // Display set: up to 55 strikes nearest spot (within 50-150 % of spot) plus the
 // 25 largest OI strikes, sorted, at most 80.
-export const displayStrikes = (
-  rows: readonly OpenInterestRow[],
+export const displayStrikes = <Row extends OpenInterestRow>(
+  rows: readonly Row[],
   spot: number | null
-): OpenInterestRow[] => {
+): Row[] => {
   if (rows.length === 0) return [];
-  let pool: readonly OpenInterestRow[] = rows;
-  let near: OpenInterestRow[];
+  const pool = inRangeStrikes(rows, spot);
+  let near: Row[];
   if (spot !== null && spot > 0) {
-    const inRange = rows.filter(
-      (row) => row.strike >= spot * 0.5 && row.strike <= spot * 1.5
-    );
-    pool = inRange.length > 0 ? inRange : rows;
     near = [...pool]
       .sort((a, b) => Math.abs(a.strike - spot) - Math.abs(b.strike - spot))
       .slice(0, 55);
@@ -314,7 +323,7 @@ export const displayStrikes = (
         (a.callOpenInterest + a.putOpenInterest)
     )
     .slice(0, 25);
-  const selected = new Map<number, OpenInterestRow>();
+  const selected = new Map<number, Row>();
   for (const row of [...near, ...top]) selected.set(row.strike, row);
   return [...selected.values()]
     .sort((a, b) => a.strike - b.strike)
@@ -359,43 +368,63 @@ export const gammaModel = (
   if (expiry === undefined) return null;
   const front = chain.filter((row) => row.expiry === expiry && row.iv !== null);
   const atmIv = termStructure(front, spot, today)[0]?.atmIv ?? null;
+  // One lookup per strike and side: the flip search asks for every strike 121 times, and a
+  // linear scan over a large index chain (SPX) cost hundreds of ms per request. Built in
+  // reverse so the first row of a duplicate strike wins, like a linear find.
+  const ivs = new Map(
+    [...front]
+      .reverse()
+      .map((row) => [`${row.right} ${row.strike}`, row.iv] as const)
+  );
   return {
     atmIv,
     expiry,
-    ivAt: (strike, right) =>
-      front.find((row) => row.strike === strike && row.right === right)?.iv ??
-      atmIv,
+    ivAt: (strike, right) => ivs.get(`${right} ${strike}`) ?? atmIv,
     years: Math.max(daysUntil(expiry, today), 0.5) / 365,
   };
 };
 
+type StrikeGex = ExposureSection["strikes"][number];
+
+export type ExposureEstimate = Readonly<{
+  // The section the page shows: at most 80 display strikes, totals over `strikes`.
+  section: Omit<ExposureSection, "status" | "message">;
+  // Every strike within 50-150 % of spot with its estimated GEX (inRangeStrikes).
+  strikes: readonly StrikeGex[];
+}>;
+
 // Estimated GEX per strike, dollars per 1 % move: (callOI*gamma - putOI*gamma) * 100 * S^2 * 0.01.
 // Assumes dealers are long calls and short puts; aggregate OI spans all expiries.
+// The total covers every in-range strike; the display list is a subset of them.
 export const exposure = (
   oiRows: readonly OpenInterestRow[],
   chain: readonly ChainRow[],
   spot: number | null,
   today: string
-): Omit<ExposureSection, "status" | "message"> => {
-  const strikes = displayStrikes(oiRows, spot);
+): ExposureEstimate => {
   const pain = maxPain(oiRows);
+  const rows = inRangeStrikes(oiRows, spot);
   const model =
     spot === null || spot <= 0 ? null : gammaModel(chain, spot, today);
   if (spot === null || model === null) {
+    const strikes = rows.map((row): StrikeGex => ({ ...row, gex: null }));
     return {
-      gexExpiry: null,
-      maxPain: pain,
-      strikes: strikes.map((row) => ({ ...row, gex: null })),
-      totalGex: null,
+      section: {
+        gexExpiry: null,
+        maxPain: pain,
+        strikes: displayStrikes(strikes, spot),
+        totalGex: null,
+      },
+      strikes,
     };
   }
+  const scale = 100 * spot * spot * 0.01;
   let total = 0;
   let any = false;
-  const rows = strikes.map((row) => {
+  const strikes = rows.map((row): StrikeGex => {
     const callIv = model.ivAt(row.strike, "call");
     const putIv = model.ivAt(row.strike, "put");
     if (callIv === null || putIv === null) return { ...row, gex: null };
-    const scale = 100 * spot * spot * 0.01;
     const gex =
       (row.callOpenInterest *
         blackScholesGamma(spot, row.strike, callIv, model.years) -
@@ -407,10 +436,14 @@ export const exposure = (
     return { ...row, gex };
   });
   return {
-    gexExpiry: model.expiry,
-    maxPain: pain,
-    strikes: rows,
-    totalGex: any ? total : null,
+    section: {
+      gexExpiry: model.expiry,
+      maxPain: pain,
+      // The in-range set is its own in-range pool, so this is the usual display set.
+      strikes: displayStrikes(strikes, spot),
+      totalGex: any ? total : null,
+    },
+    strikes,
   };
 };
 

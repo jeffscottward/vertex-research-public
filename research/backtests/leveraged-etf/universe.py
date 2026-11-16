@@ -122,10 +122,11 @@ class Pace:
         return False
 
 
-def http_get(url: str, pace: Pace) -> bytes:
+def http_get(url: str, pace: Pace, user_agent: str = USER_AGENT) -> bytes:
     """Body of a GET, up to ATTEMPTS tries. NoFile for the 403 AccessDenied reply of the Cboe file store.
-    After an HTTP 429 every worker of `pace` waits. Stopped when the run was stopped between two tries."""
-    request = Request(url, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"})
+    After an HTTP 429 every worker of `pace` waits. Stopped when the run was stopped between two tries.
+    `user_agent` is for another collector that says its own number of runs to the source."""
+    request = Request(url, headers={"User-Agent": user_agent, "Accept-Encoding": "gzip"})
     for attempt in range(ATTEMPTS):
         wait = 2 * (attempt + 1)
         try:

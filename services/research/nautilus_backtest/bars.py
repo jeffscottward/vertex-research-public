@@ -13,7 +13,11 @@ from typing import Any
 
 
 class InputError(ValueError):
-    """Bad backtest input. Same messages as the TypeScript InstantBacktestInputError."""
+    """Bad backtest input: the request is at fault. Same messages as the TypeScript InstantBacktestInputError.
+
+    The options runner (strategies/qc_ports) raises it for a request that it refuses (the options block,
+    the spec or the rows), with the message of the TypeScript options runner where that runner has the
+    same check. A caller of those modules that has no request can treat it as a ValueError."""
 
 
 class SectorQuadrantDataError(InputError):
@@ -38,6 +42,7 @@ STRATEGY_SERIES_FILTERS_UNSUPPORTED = "STRATEGY_SERIES_FILTERS_UNSUPPORTED"
 STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED = "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
 STRATEGY_INTRADAY_DAILY_UNSUPPORTED = "STRATEGY_INTRADAY_DAILY_UNSUPPORTED"
 STRATEGY_INTRADAY_GRID_MISALIGNED = "STRATEGY_INTRADAY_GRID_MISALIGNED"
+STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED = "STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED"
 
 
 class StrategyUnsupportedError(InputError):
@@ -92,6 +97,16 @@ def intraday_daily_unsupported() -> StrategyUnsupportedError:
         STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
         f"{STRATEGY_INTRADAY_DAILY_UNSUPPORTED}: the intraday block needs intraday bars (two or more bars"
         " on one New York date); a daily or weekly run refuses it.",
+    )
+
+
+def intraday_indicators_unsupported() -> StrategyUnsupportedError:
+    """TS STRATEGY_INTRADAY_INDICATORS_REFUSAL: 5m/15m indicator timeframes and the trend indicators run in
+    research runs only."""
+    return StrategyUnsupportedError(
+        STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED,
+        f"{STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED}: intraday indicator timeframes (5m, 15m) and the"
+        " supertrend, alphaTrend and chandelierExit indicators run only in research runs on the rig for now.",
     )
 
 
@@ -159,11 +174,13 @@ class Bars:
 
 def is_finite_number(value: Any) -> bool:
     """JS Number.isFinite: a real number that is not NaN or infinite (bool is not a number)."""
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        # An int above the float range: JSON.parse reads such a literal as Infinity.
+        return False
 
 
 def is_integer(value: Any) -> bool:

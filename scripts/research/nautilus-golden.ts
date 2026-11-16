@@ -3,6 +3,8 @@
 // buildGolden to services/research/tests/fixtures/nautilus_backtest/golden.json. The TypeScript
 // code is the reference; the Python tests (test_nautilus_backtest_signals.py) compare against that
 // file, and nautilus-golden.test.ts checks that the committed file still matches this code.
+// The `definitionRefusals` section holds definitions that the schema refuses, each with the message
+// that the Python normalize_definition must raise (test_definition_refusal_matches_typescript).
 // Output is deterministic: no clock, no random source (a fixed LCG makes the synthetic bars).
 // NaN values are written as null.
 
@@ -33,9 +35,12 @@ import {
   StrategyDefinitionSchema,
   type StrategyExprInput,
   StrategyExprSchema,
+  type StrategyIndicatorExpr,
+  StrategyOptionsSchema,
   type StrategyIntraday,
   type StrategyServerSupport,
   type StrategySessionIndicatorExpr,
+  type StrategyTrendIndicatorExpr,
   serverStrategyRefusal,
 } from "../../packages/api/src/strategy-dsl.ts";
 import {
@@ -45,6 +50,7 @@ import {
   evaluateStrategyExpression,
   exponentialMean,
   type IntradaySessions,
+  intradayIndicatorSeries,
   intradaySessions,
   nyseHolidays,
   realizedVolatility,
@@ -409,6 +415,55 @@ const sessionBars = (): BarColumns => {
       columns.h.push(high);
       columns.l.push(low);
       columns.c.push(close);
+      columns.v.push(volume);
+    }
+  }
+  return toBars(columns);
+};
+
+/** Sessions of TREND_MINUTE_DAYS: [New York date, regular close minute after midnight, missing bar minutes]. */
+const TREND_MINUTE_DAYS: readonly (readonly [
+  string,
+  number,
+  readonly number[],
+])[] = [
+  ["2023-03-09", 16 * 60, [10 * 60 + 1]],
+  ["2023-03-10", 16 * 60, []],
+  ["2023-03-13", 16 * 60, []],
+  ["2023-07-03", 13 * 60, []],
+  ["2023-07-05", 16 * 60, []],
+];
+
+/**
+ * 1-minute bars for the trend indicator and timeline cases: five sessions with five pre-market bars
+ * from 09:25 and, on full days, five after-hours bars to 16:05; 2023-03-09 lacks its 10:01 bar,
+ * 2023-03-13 is the first session after the March DST change and 2023-07-03 closes at 13:00 (no
+ * after-hours bars). Prices have 2 decimals.
+ */
+const trendMinuteBars = (): BarColumns => {
+  const random = randomFrom(2311);
+  const round = (value: number) => Math.round(value * 100) / 100;
+  const columns: Columns = { c: [], h: [], l: [], o: [], t: [], v: [] };
+  let price = 12_000;
+  for (const [iso, close, missing] of TREND_MINUTE_DAYS) {
+    const day = Date.parse(`${iso}T00:00:00Z`);
+    const behindUtc = day >= EDT_FROM && day < EDT_TO ? 4 : 5;
+    const end = close === 16 * 60 ? close + 5 : close;
+    const drift = (random() - 0.5) * 0.0002;
+    for (let minute = 9 * 60 + 25; minute < end; minute += 1) {
+      const open = price;
+      const next = round(open * (1 + drift + (random() - 0.5) * 0.002));
+      const high = round(Math.max(open, next) * (1 + random() * 0.0005));
+      const low = round(Math.min(open, next) * (1 - random() * 0.0005));
+      const regular = minute >= 9 * 60 + 30 && minute < close;
+      const volume = Math.floor((regular ? 2000 : 200) * (1 + random()));
+      price = next;
+      if (missing.includes(minute)) continue;
+      columns.t.push(day + (minute + behindUtc * 60) * MINUTE_MS);
+      columns.o.push(open);
+      columns.h.push(high);
+      columns.l.push(low);
+      columns.c.push(next);
       columns.v.push(volume);
     }
   }
@@ -1895,6 +1950,930 @@ const refusalCases: readonly RefusalCase[] = [
   },
 ];
 
+// 2d. Definition refusals.
+/**
+ * Definitions that StrategyDefinitionSchema refuses, for the Python normalize_definition. `python` is
+ * the message Python raises when zod wrote the first TypeScript issue (a field error; see
+ * definitionRefusalJson).
+ */
+type DefinitionRefusalCase = Readonly<{
+  definition: Json;
+  id: string;
+  python?: string;
+}>;
+
+const plainDefinition = {
+  entry: { all: [always] },
+  name: "Refusal",
+  version: 1,
+};
+const optionsDefinition = { ...plainDefinition, options: OPTIONS_BLOCK };
+const conditionWithout = (key: "left" | "op" | "right") =>
+  Object.fromEntries(Object.entries(always).filter(([name]) => name !== key));
+const riskPctSizing = { mode: "riskPct", riskPct: 1 };
+const volTargetSizing = {
+  length: 20,
+  maxLeverage: 2,
+  mode: "volTarget",
+  targetPct: 10,
+};
+const pctStop = { kind: "pct", pct: 5 };
+const management = { breakevenR: 1 };
+const rollPortfolio = { policy: "roll", symbols: ["SPY"] };
+const monthlyPortfolio = { ...rollPortfolio, frame: "monthly" };
+const shiftedPortfolio = { policy: "window", shift: 2, symbols: ["SPY"] };
+const alwaysExit = { any: [always] };
+const atrEntry = { all: [{ ...always, left: indicator("atr", 5) }] };
+const nySession = {
+  ...NEW_YORK_SESSION,
+  entryFrom: "09:45",
+  entryTo: "12:00",
+};
+
+/**
+ * One field error each (card vertex-dsl-python-validator-field-guards): a value of the wrong type, a
+ * value outside its range, an unknown key or a list that is not a list. The third item is the Python
+ * message when zod writes the first TypeScript issue; without it, strategy-dsl.ts writes the message.
+ */
+const opexWeek = { type: "calendarWindow", window: "opexWeek" };
+const leftOf = (left: Json) => ({ entry: { all: [{ ...always, left }] } });
+const sectorFilter = (edit: Record<string, Json>) => ({
+  filters: [
+    {
+      quadrants: ["leading"],
+      sector: "XLK",
+      type: "sectorQuadrant",
+      ...edit,
+    },
+  ],
+});
+const legOf = (leg: Json) => ({
+  options: OPTIONS_BLOCK,
+  portfolio: { ...rollPortfolio, legs: [leg] },
+});
+const fieldRefusals: readonly (readonly [
+  id: string,
+  edit: Record<string, Json>,
+  python?: string,
+])[] = [
+  ["version", { version: 2 }, "Unknown definition version: 2"],
+  ["versionType", { version: true }, "Unknown definition version: True"],
+  ["name", { name: " " }, "name must be a text of 1 to 120 characters"],
+  ["nameType", { name: 5 }, "name must be a text of 1 to 120 characters"],
+  [
+    "nameLength",
+    { name: "n".repeat(121) },
+    "name must be a text of 1 to 120 characters",
+  ],
+  // JavaScript trim removes U+FEFF; zod counts the characters of a text as code points.
+  [
+    "nameTrim",
+    { name: "\ufeff" },
+    "name must be a text of 1 to 120 characters",
+  ],
+  [
+    "nameCodePoints",
+    { name: "😀".repeat(121) },
+    "name must be a text of 1 to 120 characters",
+  ],
+  [
+    "descriptionLength",
+    { description: "d".repeat(2001) },
+    "description must be a text of at most 2000 characters",
+  ],
+  [
+    "description",
+    { description: 5 },
+    "description must be a text of at most 2000 characters",
+  ],
+  ["entryAll", { entry: { all: 5 } }, "entry.all must be a list"],
+  [
+    "entryAny",
+    { entry: { all: [always], any: 5 } },
+    "entry.any must be a list",
+  ],
+  ["exitAny", { exit: { any: true } }, "exit.any must be a list"],
+  [
+    "entryAllCount",
+    { entry: { all: new Array(9).fill(always) } },
+    "entry.all needs 0 to 8 conditions",
+  ],
+  ["filtersType", { filters: 5 }, "filters must be a list"],
+  [
+    "filtersCount",
+    { filters: new Array(5).fill(opexWeek) },
+    "A definition needs 0 to 4 filters",
+  ],
+  ["filterType", { filters: [5] }, "filter must be an object"],
+  ["sizingMode", { sizing: {} }, "sizing needs mode"],
+  [
+    "riskPctType",
+    { sizing: { mode: "riskPct", riskPct: "x" }, stopLoss: pctStop },
+    "riskPct must be above 0 and at most 100",
+  ],
+  [
+    "riskPctAbsent",
+    { sizing: { mode: "riskPct" }, stopLoss: pctStop },
+    "riskPct must be above 0 and at most 100",
+  ],
+  [
+    "sessionKey",
+    { session: { endUtc: "16:00", startUtc: "09:30", x: 1 } },
+    "Unknown key in session: x",
+  ],
+  [
+    "sessionTime",
+    { session: { endUtc: "16:00", startUtc: "a" } },
+    "session startUtc: Expected HH:MM (UTC)",
+  ],
+  ["sessionEqual", { session: { endUtc: "09:30", startUtc: "09:30" } }],
+  [
+    "stopLossKind",
+    { stopLoss: { kind: "trail" } },
+    "Unknown exit level kind: trail",
+  ],
+  [
+    "stopLossKey",
+    { stopLoss: { kind: "pct", pct: 5, x: 1 } },
+    "Unknown key in stopLoss: x",
+  ],
+  [
+    "stopLossNoneKey",
+    { stopLoss: { kind: "none", pct: 5 } },
+    "Unknown key in stopLoss: pct",
+  ],
+  [
+    "stopLossPctAbsent",
+    { stopLoss: { kind: "pct" } },
+    "stopLoss pct must be above 0 and at most 99",
+  ],
+  [
+    "stopLossPct",
+    { stopLoss: { kind: "pct", pct: 100 } },
+    "stopLoss pct must be above 0 and at most 99",
+  ],
+  [
+    "stopLossLength",
+    { stopLoss: { kind: "atr", length: 0, multiple: 2 } },
+    "stopLoss length must be a whole number from 1 to 1000",
+  ],
+  [
+    "stopLossMultiple",
+    { stopLoss: { kind: "atr", length: 14, multiple: "x" } },
+    "stopLoss multiple must be above 0 and at most 100",
+  ],
+  [
+    "takeProfitPct",
+    { takeProfit: { kind: "pct", pct: 0 } },
+    "takeProfit pct must be above 0 and at most 99",
+  ],
+  ["expressionType", leftOf(5), "expression must be an object"],
+  [
+    "expressionChild",
+    leftOf({ left: closePrice, op: "add", type: "math" }),
+    "expression must be an object",
+  ],
+  ["expressionKind", leftOf({ type: [] }), "Unknown expression type: []"],
+  [
+    "constRange",
+    leftOf({ type: "const", value: 1e13 }),
+    "Constant value must be from -1e+12 to 1e+12",
+  ],
+  [
+    "indicatorLength",
+    leftOf({ length: 1001, name: "sma", type: "indicator" }),
+    "sma length must be at most 1000",
+  ],
+  ["rvolLength", leftOf({ length: 101, name: "rvol", type: "indicator" })],
+  ["zscoreLength", leftOf({ length: 1, name: "zscore", type: "indicator" })],
+  [
+    "filterKey",
+    { filters: [{ min: 10, type: "ivRank", x: 1 }] },
+    "Unknown key in ivRank filter: x",
+  ],
+  ["sector", sectorFilter({ sector: "XLZ" })],
+  [
+    "sectorType",
+    sectorFilter({ sector: 5 }),
+    "Unknown sector. Use a Select Sector SPDR symbol, for example XLK",
+  ],
+  [
+    "quadrantsType",
+    sectorFilter({ quadrants: "leading" }),
+    "sectorQuadrant quadrants must be a list",
+  ],
+  [
+    "quadrantsEmpty",
+    sectorFilter({ quadrants: [] }),
+    "sectorQuadrant needs at least one quadrant",
+  ],
+  ["quadrant", sectorFilter({ quadrants: ["up"] }), "Unknown quadrant: up"],
+  ["quadrantsRepeat", sectorFilter({ quadrants: ["leading", "leading"] })],
+  [
+    "filterTimeframe",
+    sectorFilter({ timeframe: "monthly" }),
+    "Unknown filter timeframe: monthly",
+  ],
+  [
+    "ivRankLength",
+    { filters: [{ length: 19, min: 10, type: "ivRank" }] },
+    "ivRank length must be a whole number from 20 to 1000",
+  ],
+  [
+    "ivRankMin",
+    { filters: [{ min: 101, type: "ivRank" }] },
+    "ivRank min must be from 0 to 100",
+  ],
+  ["ivRankOrder", { filters: [{ max: 10, min: 90, type: "ivRank" }] }],
+  [
+    "vixRatio",
+    { filters: [{ maxRatio: 11, type: "vixTermStructure" }] },
+    "vixTermStructure maxRatio must be above 0 and at most 10",
+  ],
+  [
+    "vixOrder",
+    { filters: [{ maxRatio: 1, minRatio: 2, type: "vixTermStructure" }] },
+  ],
+  [
+    "volRegimeVix",
+    { filters: [{ maxTermRatio: 1, maxVix: 201, type: "volRegime" }] },
+    "volRegime maxVix must be above 0 and at most 200",
+  ],
+  [
+    "volRegimeRatioAbsent",
+    { filters: [{ maxVix: 30, type: "volRegime" }] },
+    "volRegime maxTermRatio must be above 0 and at most 10",
+  ],
+  [
+    "volRegimeTrend",
+    {
+      filters: [
+        { maxTermRatio: 1, maxVix: 30, trendLength: 0, type: "volRegime" },
+      ],
+    },
+    "volRegime trendLength must be a whole number from 1 to 1000",
+  ],
+  [
+    "turnOfMonthFromDay",
+    { filters: [{ ...opexWeek, fromDay: 0, toDay: 3, window: "turnOfMonth" }] },
+    "turnOfMonth fromDay must be a whole number from -10 to -1",
+  ],
+  [
+    "turnOfMonthToDay",
+    {
+      filters: [{ ...opexWeek, fromDay: -1, toDay: 11, window: "turnOfMonth" }],
+    },
+    "turnOfMonth toDay must be a whole number from 1 to 10",
+  ],
+  [
+    "calendarKey",
+    { filters: [{ ...opexWeek, months: [1] }] },
+    "Unknown key in opexWeek filter: months",
+  ],
+  [
+    "monthsType",
+    { filters: [{ ...opexWeek, months: 5, window: "months" }] },
+    "calendarWindow months must be a list",
+  ],
+  [
+    "monthsEmpty",
+    { filters: [{ ...opexWeek, months: [], window: "months" }] },
+    "calendarWindow months needs 1 to 12 months",
+  ],
+  [
+    "month",
+    { filters: [{ ...opexWeek, months: [13], window: "months" }] },
+    "A calendarWindow month must be a whole number from 1 to 12",
+  ],
+  [
+    "monthsRepeat",
+    { filters: [{ ...opexWeek, months: [1, 1], window: "months" }] },
+  ],
+  [
+    "seriesKey",
+    { filters: [{ condition: always, series: "VIX", type: "series", x: 1 }] },
+    "Unknown key in series filter: x",
+  ],
+  [
+    "symbolsType",
+    { options: OPTIONS_BLOCK, portfolio: { policy: "roll", symbols: "SPY" } },
+    "portfolio symbols must be a list",
+  ],
+  [
+    "legsType",
+    { options: OPTIONS_BLOCK, portfolio: { ...rollPortfolio, legs: 5 } },
+    "portfolio legs must be a list",
+  ],
+  ["legType", legOf(5), "portfolio leg must be an object"],
+  [
+    "legEntryType",
+    legOf({ entry: 0, options: OPTIONS_BLOCK }),
+    "portfolio leg entry must be an object",
+  ],
+  [
+    "legEntryAll",
+    legOf({ entry: { all: 5 }, options: OPTIONS_BLOCK }),
+    "portfolio leg entry.all must be a list",
+  ],
+  [
+    "legExitAny",
+    legOf({
+      entry: { all: [always] },
+      exit: { any: 5 },
+      options: OPTIONS_BLOCK,
+    }),
+    "portfolio leg exit.any must be a list",
+  ],
+  [
+    "legFilters",
+    legOf({ entry: { all: [always] }, filters: 5, options: OPTIONS_BLOCK }),
+    "portfolio leg filters must be a list",
+  ],
+  [
+    "selectScore",
+    {
+      options: OPTIONS_BLOCK,
+      portfolio: { ...rollPortfolio, select: { top: 1 } },
+    },
+    "expression must be an object",
+  ],
+];
+const nullFieldRefusals: typeof fieldRefusals = [
+  [
+    "ivRankLengthNull",
+    { filters: [{ length: null, min: 10, type: "ivRank" }] },
+    "ivRank length must be a whole number from 20 to 1000",
+  ],
+  [
+    "volRegimeTrendNull",
+    {
+      filters: [
+        { maxTermRatio: 1, maxVix: 30, trendLength: null, type: "volRegime" },
+      ],
+    },
+    "volRegime trendLength must be a whole number from 1 to 1000",
+  ],
+  [
+    "filterTimeframeNull",
+    sectorFilter({ timeframe: null }),
+    "Unknown filter timeframe: None",
+  ],
+  [
+    "legExitAnyAbsent",
+    legOf({ entry: { all: [always] }, exit: {}, options: OPTIONS_BLOCK }),
+    "portfolio leg exit.any must be a list",
+  ],
+];
+const DEBIT_OPTIONS_BLOCK = {
+  dte: { min: 21, target: 45 },
+  longDelta: 0.5,
+  maxLossPct: 2,
+  structure: "callDebitVertical",
+  widthSigma: 0.5,
+};
+const optionsOf = (
+  edit: Record<string, Json>,
+  block: Json = OPTIONS_BLOCK
+) => ({
+  options: { ...(block as Record<string, Json>), ...edit },
+});
+const optionsWithout = (key: string) => ({
+  options: Object.fromEntries(
+    Object.entries(OPTIONS_BLOCK).filter(([name]) => name !== key)
+  ),
+});
+const legOptions = (edit: Record<string, Json>) =>
+  legOf({ entry: { all: [always] }, options: { ...OPTIONS_BLOCK, ...edit } });
+/** The options block: StrategyOptionsSchema / _check_options_block (no text: the schema text). */
+const optionsFieldRefusals: typeof fieldRefusals = [
+  ["optionsDteType", optionsOf({ dte: 5 }), "options.dte must be an object"],
+  ["optionsDteNull", optionsOf({ dte: null }), "options.dte must be an object"],
+  ["optionsDteAbsent", optionsWithout("dte"), "options.dte must be an object"],
+  [
+    "optionsDteMinLow",
+    optionsOf({ dte: { min: 0, target: 45 } }),
+    "dte.min must be a whole number from 1 to 400",
+  ],
+  [
+    "optionsDteMinFraction",
+    optionsOf({ dte: { min: 21.5, target: 45 } }),
+    "dte.min must be a whole number from 1 to 400",
+  ],
+  [
+    "optionsDteMinType",
+    optionsOf({ dte: { min: "21", target: 45 } }),
+    "dte.min must be a whole number from 1 to 400",
+  ],
+  [
+    "optionsDteMinHigh",
+    optionsOf({ dte: { min: 401, target: 400 } }),
+    "dte.min must be a whole number from 1 to 400",
+  ],
+  [
+    "optionsDteTargetLow",
+    optionsOf({ dte: { min: 1, target: 6 } }),
+    "dte.target must be a whole number from 7 to 400",
+  ],
+  [
+    "optionsDteTargetHigh",
+    optionsOf({ dte: { min: 21, target: 401 } }),
+    "dte.target must be a whole number from 7 to 400",
+  ],
+  [
+    "optionsDteTargetAbsent",
+    optionsOf({ dte: { min: 21 } }),
+    "dte.target must be a whole number from 7 to 400",
+  ],
+  [
+    "optionsDteKey",
+    optionsOf({ dte: { min: 21, target: 45, x: 1 } }),
+    "Unknown key in options.dte: x",
+  ],
+  ["optionsDteOrder", optionsOf({ dte: { min: 46, target: 45 } })],
+  [
+    "optionsExitDteLow",
+    optionsOf({ exitDte: -1 }),
+    "exitDte must be a whole number from 0 to 400",
+  ],
+  [
+    "optionsExitDteHigh",
+    optionsOf({ exitDte: 401 }),
+    "exitDte must be a whole number from 0 to 400",
+  ],
+  [
+    "optionsExitDteFraction",
+    optionsOf({ exitDte: 7.5 }),
+    "exitDte must be a whole number from 0 to 400",
+  ],
+  [
+    "optionsExitDteNull",
+    optionsOf({ exitDte: null }),
+    "exitDte must be a whole number from 0 to 400",
+  ],
+  [
+    "optionsLongDeltaLow",
+    optionsOf({ longDelta: 0.04 }, DEBIT_OPTIONS_BLOCK),
+    "longDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsLongDeltaHigh",
+    optionsOf({ longDelta: 0.96 }, DEBIT_OPTIONS_BLOCK),
+    "longDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsMaxLossZero",
+    optionsOf({ maxLossPct: 0 }),
+    "maxLossPct must be above 0 and at most 2",
+  ],
+  [
+    "optionsMaxLossType",
+    optionsOf({ maxLossPct: "2" }),
+    "maxLossPct must be above 0 and at most 2",
+  ],
+  [
+    "optionsMaxLossAbsent",
+    optionsWithout("maxLossPct"),
+    "maxLossPct must be above 0 and at most 2",
+  ],
+  [
+    "optionsMaxLossCap",
+    optionsOf({ maxLossPct: 2.01 }),
+    "maxLossPct must be at most 2 (percent of equity per trade)",
+  ],
+  [
+    "optionsProfitTakeLow",
+    optionsOf({ profitTakePct: 0.99 }),
+    "profitTakePct must be from 1 to 100",
+  ],
+  [
+    "optionsProfitTakeHigh",
+    optionsOf({ profitTakePct: 100.01 }),
+    "profitTakePct must be from 1 to 100",
+  ],
+  [
+    "optionsProfitTakeNull",
+    optionsOf({ profitTakePct: null }),
+    "profitTakePct must be from 1 to 100",
+  ],
+  [
+    "optionsShortDeltaLow",
+    optionsOf({ shortDelta: 0.04 }),
+    "shortDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsShortDeltaHigh",
+    optionsOf({ shortDelta: 0.96 }),
+    "shortDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsShortDeltaType",
+    optionsOf({ shortDelta: "0.2" }),
+    "shortDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsStructure",
+    optionsOf({ structure: "ironCondor" }),
+    "Unknown options structure: ironCondor",
+  ],
+  [
+    "optionsStructureCalendar",
+    optionsOf({ structure: "callCalendar" }),
+    "Unknown options structure: callCalendar",
+  ],
+  [
+    "optionsStructureType",
+    optionsOf({ structure: ["putCreditVertical"] }),
+    "Unknown options structure: ['putCreditVertical']",
+  ],
+  [
+    "optionsStructureAbsent",
+    optionsWithout("structure"),
+    "Unknown options structure: None",
+  ],
+  [
+    "optionsWidthSigmaLow",
+    optionsOf({ widthSigma: 0.09 }),
+    "widthSigma must be from 0.1 to 3",
+  ],
+  [
+    "optionsWidthSigmaHigh",
+    optionsOf({ widthSigma: 3.01 }),
+    "widthSigma must be from 0.1 to 3",
+  ],
+  [
+    "optionsWidthSigmaAbsent",
+    optionsWithout("widthSigma"),
+    "widthSigma must be from 0.1 to 3",
+  ],
+  ["optionsKey", optionsOf({ x: 1 }), "Unknown key in options: x"],
+  ["optionsDebitShortDelta", optionsOf({ structure: "putDebitVertical" })],
+  ["optionsCreditLongDelta", optionsOf({ longDelta: 0.5 })],
+  ["optionsExitDteAtMin", optionsOf({ exitDte: 21 })],
+  [
+    "legOptionsKey",
+    legOptions({ x: 1 }),
+    "Unknown key in portfolio leg options: x",
+  ],
+  [
+    "legOptionsDte",
+    legOptions({ dte: 5 }),
+    "portfolio leg options.dte must be an object",
+  ],
+];
+const fieldRefusalCases: readonly DefinitionRefusalCase[] = [
+  ...fieldRefusals,
+  ...nullFieldRefusals,
+  ...optionsFieldRefusals,
+].map(([id, edit, python]) => ({
+  definition: { ...plainDefinition, ...edit },
+  id: `field:${id}`,
+  ...(python === undefined ? {} : { python }),
+}));
+
+const definitionRefusalCases: readonly DefinitionRefusalCase[] = [
+  // One cross-field check alone, in schema order.
+  {
+    definition: { ...plainDefinition, sizing: riskPctSizing },
+    id: "riskPct:noStop",
+  },
+  {
+    definition: { ...optionsDefinition, sizing: riskPctSizing },
+    id: "options:riskPct",
+  },
+  {
+    definition: { ...optionsDefinition, stopLoss: pctStop },
+    id: "options:stopLoss",
+  },
+  { definition: { ...plainDefinition, management }, id: "management:noStop" },
+  {
+    definition: { ...optionsDefinition, management },
+    id: "options:management",
+  },
+  {
+    definition: { ...optionsDefinition, sizing: volTargetSizing },
+    id: "options:volTarget",
+  },
+  {
+    definition: { ...plainDefinition, portfolio: rollPortfolio },
+    id: "portfolio:noOptions",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      management,
+      side: "short",
+      stopLoss: pctStop,
+    },
+    id: "short:management",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      exit: alwaysExit,
+      portfolio: shiftedPortfolio,
+    },
+    id: "shift:exit",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: atrEntry,
+      portfolio: monthlyPortfolio,
+    },
+    id: "monthly:atr",
+  },
+  { definition: { ...optionsDefinition, side: "short" }, id: "short:options" },
+  {
+    definition: { ...optionsDefinition, intraday: nySession },
+    id: "intraday:options",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      filters: [{ type: "calendarWindow", window: "opexWeek" }],
+      intraday: nySession,
+    },
+    id: "intraday:calendarWindow",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: { all: [{ ...always, left: vwap }] },
+    },
+    id: "session:noIntraday",
+  },
+  // Several cross-field checks: the first one in schema order.
+  {
+    definition: { ...plainDefinition, management, sizing: riskPctSizing },
+    id: "riskPct:noStop+management:noStop",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      sizing: riskPctSizing,
+      stopLoss: pctStop,
+    },
+    id: "options:riskPct+options:stopLoss",
+  },
+  {
+    definition: { ...optionsDefinition, management, stopLoss: pctStop },
+    id: "options:stopLoss+options:management",
+  },
+  {
+    definition: { ...plainDefinition, management, portfolio: rollPortfolio },
+    id: "management:noStop+portfolio:noOptions",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      exit: alwaysExit,
+      management,
+      portfolio: shiftedPortfolio,
+    },
+    id: "options:management+shift:exit",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      exit: alwaysExit,
+      portfolio: shiftedPortfolio,
+      sizing: volTargetSizing,
+    },
+    id: "options:volTarget+shift:exit",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: atrEntry,
+      portfolio: monthlyPortfolio,
+      sizing: volTargetSizing,
+    },
+    id: "options:volTarget+monthly:atr",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      management,
+      portfolio: rollPortfolio,
+      side: "short",
+      stopLoss: pctStop,
+    },
+    id: "portfolio:noOptions+short:management",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      exit: alwaysExit,
+      portfolio: shiftedPortfolio,
+      side: "short",
+    },
+    id: "shift:exit+short:options",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: atrEntry,
+      portfolio: monthlyPortfolio,
+      side: "short",
+    },
+    id: "monthly:atr+short:options",
+  },
+  // A field error with a failed cross-field check: the field error.
+  {
+    definition: {
+      ...plainDefinition,
+      entry: { all: [] },
+      sizing: riskPctSizing,
+    },
+    id: "field:entry+riskPct:noStop",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      intraday: { ...nySession, open: "17:00" },
+      stopLoss: pctStop,
+    },
+    id: "field:intraday+options:stopLoss",
+  },
+  {
+    definition: { ...plainDefinition, management: {} },
+    id: "field:management+management:noStop",
+  },
+  {
+    definition: { ...plainDefinition, options: 5, stopLoss: pctStop },
+    id: "field:options+options:stopLoss",
+    python: "options must be an object",
+  },
+  {
+    definition: { ...plainDefinition, side: "sideways", sizing: riskPctSizing },
+    id: "field:side+riskPct:noStop",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      side: "sideways",
+      sizing: riskPctSizing,
+    },
+    id: "field:side+options:riskPct",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      portfolio: { ...rollPortfolio, bogus: 1 },
+      stopLoss: pctStop,
+    },
+    id: "field:portfolioKey+options:stopLoss",
+    python: "Unknown portfolio key: bogus",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      management: { trail: { activateR: 1, length: 0, multiple: 2 } },
+      sizing: riskPctSizing,
+    },
+    id: "field:trailLength+options:riskPct",
+    python: "management trail length must be a whole number from 1 to 1000",
+  },
+  {
+    definition: { ...plainDefinition, management: { bogus: 1, breakevenR: 1 } },
+    id: "field:managementKey+management:noStop",
+    python: "Unknown key in management: bogus",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      exit: { any: [{ ...always, op: "equals" }] },
+      management,
+    },
+    id: "field:operator+management:noStop",
+    python: "Unknown operator: equals",
+  },
+  {
+    definition: { ...optionsDefinition, management, side: "sideways" },
+    id: "field:side+options:management",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      portfolio: rollPortfolio,
+      side: "sideways",
+    },
+    id: "field:side+portfolio:noOptions",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: atrEntry,
+      portfolio: monthlyPortfolio,
+      side: "sideways",
+    },
+    id: "field:side+monthly:atr",
+    python: "Unknown side: sideways",
+  },
+  {
+    definition: {
+      ...optionsDefinition,
+      entry: {
+        all: [
+          {
+            ...always,
+            left: {
+              length: 10,
+              multiple: 3,
+              name: "supertrend",
+              output: "direction",
+              type: "indicator",
+            },
+          },
+        ],
+      },
+      portfolio: monthlyPortfolio,
+    },
+    id: "monthly:supertrend",
+  },
+  // A block or a condition that is not an object, a session without its times and a condition
+  // without a side or an operator. Each definition also has the error of the cross-field check
+  // that its id names after "+"; Python must raise the field error, because it runs the field
+  // checks first.
+  {
+    definition: { ...plainDefinition, entry: 5, sizing: riskPctSizing },
+    id: "field:entryType+riskPct:noStop",
+    python: "entry must be an object",
+  },
+  {
+    definition: { ...plainDefinition, exit: 5, management },
+    id: "field:exitType+management:noStop",
+    python: "exit must be an object",
+  },
+  {
+    definition: { ...plainDefinition, management: 5, sizing: riskPctSizing },
+    id: "field:managementType+riskPct:noStop",
+    python: "management must be an object",
+  },
+  {
+    definition: { ...plainDefinition, session: 5, sizing: riskPctSizing },
+    id: "field:sessionType+riskPct:noStop",
+    python: "session must be an object",
+  },
+  {
+    definition: { ...plainDefinition, session: {}, sizing: riskPctSizing },
+    id: "field:sessionKeys+riskPct:noStop",
+    python: "session needs startUtc and endUtc",
+  },
+  {
+    definition: { ...plainDefinition, management, sizing: 5 },
+    id: "field:sizingType+management:noStop",
+    python: "sizing must be an object",
+  },
+  {
+    definition: { ...optionsDefinition, sizing: riskPctSizing, stopLoss: 5 },
+    id: "field:stopLossType+options:riskPct",
+    python: "stopLoss must be an object",
+  },
+  {
+    definition: { ...plainDefinition, management, takeProfit: 5 },
+    id: "field:takeProfitType+management:noStop",
+    python: "takeProfit must be an object",
+  },
+  {
+    definition: { ...plainDefinition, exit: { any: [5] }, management },
+    id: "field:conditionType+management:noStop",
+    python: "condition must be an object",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: { all: [conditionWithout("left")] },
+      management,
+    },
+    id: "field:conditionLeft+management:noStop",
+    python: "condition needs left, op and right",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: { all: [always], any: [conditionWithout("op")] },
+      management,
+    },
+    id: "field:conditionOp+management:noStop",
+    python: "condition needs left, op and right",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      exit: { any: [conditionWithout("right")] },
+      management,
+    },
+    id: "field:conditionRight+management:noStop",
+    python: "condition needs left, op and right",
+  },
+  ...fieldRefusalCases,
+];
+
 // 3. Fixed rules.
 const RULES: { id: string; rule: InstantRule }[] = [
   { id: "smaCross-10-30", rule: SMA_CROSS },
@@ -2283,6 +3262,273 @@ const buildServerRefusals = (): Json[] =>
       ...(timeframe === undefined ? {} : { timeframe }),
     };
   });
+
+/**
+ * Number of top-level refinements of StrategyDefinitionSchema. Each one has a case in
+ * definitionRefusalCases; buildDefinitionRefusals compares the count only.
+ */
+const DEFINITION_REFINEMENT_COUNT = 15;
+
+/**
+ * Number of refinements of StrategyOptionsSchema, then of its dte object. Each one has a
+ * field:options* case; buildDefinitionRefusals compares the counts only.
+ */
+const OPTIONS_REFINEMENT_COUNTS = "2+1";
+const optionsRefinementCounts = () =>
+  `${StrategyOptionsSchema._zod.def.checks?.length}+${StrategyOptionsSchema.shape.dte._zod.def.checks?.length}`;
+
+/**
+ * One definitionRefusals entry: the definition and the message that normalize_definition raises.
+ * Without `python` that is the message of the first TypeScript issue, which must be one written
+ * in strategy-dsl.ts (zod code "custom"). With `python`: zod wrote the first issue (a field
+ * error); Python has its own text for it.
+ */
+export const definitionRefusalJson = ({
+  definition,
+  id,
+  python,
+}: DefinitionRefusalCase): Json => {
+  const parsed = StrategyDefinitionSchema.safeParse(definition);
+  if (parsed.success)
+    throw new Error(`${id}: the schema accepts the definition`);
+  const [first] = parsed.error.issues;
+  const written = first?.code === "custom";
+  if (python === undefined) {
+    if (!written)
+      throw new Error(
+        `${id}: zod wrote the first issue; give the Python message`
+      );
+    return { definition, id, message: first.message };
+  }
+  if (written)
+    throw new Error(
+      `${id}: strategy-dsl.ts wrote the first issue; remove the Python message`
+    );
+  return { definition, id, message: python };
+};
+
+/**
+ * Definitions with a value on each inclusive bound of a range (card
+ * vertex-dsl-python-validator-field-guards). The schema must accept each one, and so must the Python
+ * normalize_definition (test_a_value_on_the_bound_of_its_range_is_accepted). With the `field:*`
+ * refusal cases just outside the bounds, a changed bound of the schema stops the generator.
+ */
+const filtersOf = (...filters: Json[]) => ({ ...plainDefinition, filters });
+const OPTIONS_BOUND_HIGH = {
+  ...OPTIONS_BLOCK,
+  maxLossPct: 2,
+  profitTakePct: 100,
+  shortDelta: 0.95,
+  structure: "callCreditVertical",
+  widthSigma: 3,
+};
+const definitionAcceptanceCases: readonly Readonly<{
+  definition: Json;
+  id: string;
+}>[] = [
+  {
+    definition: { ...plainDefinition, stopLoss: { kind: "pct", pct: 99 } },
+    id: "bound:stopLossPct",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      stopLoss: { kind: "atr", length: 1000, multiple: 100 },
+    },
+    id: "bound:stopLossAtr",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      sizing: { maxLeverage: 50, mode: "riskPct", riskPct: 100 },
+      stopLoss: pctStop,
+    },
+    id: "bound:riskPct",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: {
+        all: [
+          { ...always, right: { type: "const", value: 1e12 } },
+          { ...always, right: { type: "const", value: -1e12 } },
+          { ...always, left: { length: 1000, name: "sma", type: "indicator" } },
+          { ...always, left: { length: 100, name: "rvol", type: "indicator" } },
+          { ...always, left: { length: 2, name: "zscore", type: "indicator" } },
+        ],
+      },
+    },
+    id: "bound:expressions",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      entry: {
+        all: new Array(8).fill(always),
+        any: new Array(8).fill(always),
+      },
+      exit: { any: new Array(8).fill(always) },
+    },
+    id: "bound:conditionCounts",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      session: { endUtc: "23:59", startUtc: "00:00" },
+    },
+    id: "bound:session",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      description: "d".repeat(2000),
+      name: "n".repeat(120),
+    },
+    id: "bound:textLengths",
+  },
+  // zod counts the characters of a text as code points, and JavaScript trim keeps U+001F.
+  {
+    definition: {
+      ...plainDefinition,
+      description: "😀".repeat(2000),
+      name: "😀".repeat(120),
+    },
+    id: "bound:textCodePoints",
+  },
+  { definition: { ...plainDefinition, name: "\u001f" }, id: "bound:nameTrim" },
+  {
+    definition: filtersOf(
+      { length: 20, max: 0, min: 0, type: "ivRank" },
+      { length: 1000, max: 100, min: 100, type: "ivRank" },
+      { maxRatio: 10, minRatio: 10, type: "vixTermStructure" },
+      { maxTermRatio: 10, maxVix: 200, trendLength: 1000, type: "volRegime" }
+    ),
+    id: "bound:seriesFilters",
+  },
+  {
+    definition: {
+      ...filtersOf({
+        maxTermRatio: 1,
+        maxVix: 30,
+        trendLength: 1,
+        type: "volRegime",
+      }),
+      stopLoss: { kind: "atr", length: 1, multiple: 2 },
+    },
+    id: "bound:lowerLengths",
+  },
+  {
+    definition: filtersOf(
+      { ...opexWeek, fromDay: -10, toDay: 10, window: "turnOfMonth" },
+      { ...opexWeek, fromDay: -1, toDay: 1, window: "turnOfMonth" },
+      {
+        ...opexWeek,
+        months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        window: "months",
+      },
+      {
+        quadrants: ["leading", "weakening", "lagging", "improving"],
+        sector: "XLRE",
+        timeframe: "daily",
+        type: "sectorQuadrant",
+      }
+    ),
+    id: "bound:calendarAndSectorFilters",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: { ...OPTIONS_BLOCK, dte: { min: 1, target: 7 } },
+    },
+    id: "bound:optionsDteLow",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: {
+        ...OPTIONS_BLOCK,
+        dte: { min: 400, target: 400 },
+        exitDte: 399,
+      },
+    },
+    id: "bound:optionsDteHigh",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: { ...OPTIONS_BLOCK, exitDte: 0 },
+    },
+    id: "bound:optionsExitDteZero",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: {
+        ...OPTIONS_BLOCK,
+        maxLossPct: 0.01,
+        profitTakePct: 1,
+        shortDelta: 0.05,
+        widthSigma: 0.1,
+      },
+    },
+    id: "bound:optionsCreditLow",
+  },
+  {
+    definition: { ...plainDefinition, options: OPTIONS_BOUND_HIGH },
+    id: "bound:optionsCreditHigh",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: { ...DEBIT_OPTIONS_BLOCK, longDelta: 0.05 },
+    },
+    id: "bound:optionsDebitLow",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: {
+        ...DEBIT_OPTIONS_BLOCK,
+        longDelta: 0.95,
+        structure: "putDebitVertical",
+      },
+    },
+    id: "bound:optionsDebitHigh",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      ...legOf({ entry: { all: [always] }, options: OPTIONS_BOUND_HIGH }),
+    },
+    id: "bound:optionsLeg",
+  },
+];
+
+/** One definitionAcceptances entry; throws when the schema refuses the definition. */
+export const definitionAcceptanceJson = ({
+  definition,
+  id,
+}: Readonly<{ definition: Json; id: string }>): Json => {
+  if (!StrategyDefinitionSchema.safeParse(definition).success)
+    throw new Error(`${id}: the schema refuses the definition`);
+  return { definition, id };
+};
+
+/** 2d. Definition refusals (StrategyDefinitionSchema / normalize_definition). */
+export const buildDefinitionRefusals = (
+  refinements = StrategyDefinitionSchema._zod.def.checks?.length,
+  optionsRefinements = optionsRefinementCounts()
+): Json[] => {
+  if (refinements !== DEFINITION_REFINEMENT_COUNT)
+    throw new Error(
+      `StrategyDefinitionSchema has ${refinements} refinements, not ${DEFINITION_REFINEMENT_COUNT}: add a definitionRefusalCases entry for each new one, port it to normalize_definition, then update DEFINITION_REFINEMENT_COUNT`
+    );
+  if (optionsRefinements !== OPTIONS_REFINEMENT_COUNTS)
+    throw new Error(
+      `StrategyOptionsSchema has ${optionsRefinements} refinements (block+dte), not ${OPTIONS_REFINEMENT_COUNTS}: add a field:options* case for each new one, port it to _check_options_block in services/research/nautilus_backtest/signals.py, then update OPTIONS_REFINEMENT_COUNTS`
+    );
+  return definitionRefusalCases.map(definitionRefusalJson);
+};
 
 /** 3. Fixed-rule signals. */
 const buildFixedRules = (datasets: Record<string, BarColumns>): Json[] => {
@@ -2697,6 +3943,172 @@ const buildSessionIndicators = (
   ];
 };
 
+type TrendExpr = StrategyIndicatorExpr | StrategyTrendIndicatorExpr;
+const supertrendExpr = (
+  multiple: number,
+  output: "line" | "direction",
+  extra: Partial<StrategyTrendIndicatorExpr> = {}
+): TrendExpr =>
+  ({
+    length: 10,
+    multiple,
+    name: "supertrend",
+    output,
+    type: "indicator",
+    ...extra,
+  }) as TrendExpr;
+const alphaTrendExpr = (
+  momentum: "mfi" | "rsi",
+  output: "line" | "direction",
+  extra: Partial<StrategyTrendIndicatorExpr> = {}
+): TrendExpr =>
+  ({
+    length: 14,
+    momentum,
+    multiple: 1,
+    name: "alphaTrend",
+    output,
+    type: "indicator",
+    ...extra,
+  }) as TrendExpr;
+const chandelierExpr = (
+  output: "longStop" | "shortStop" | "direction",
+  extra: Partial<StrategyTrendIndicatorExpr> = {}
+): TrendExpr =>
+  ({
+    length: 22,
+    multiple: 3,
+    name: "chandelierExit",
+    output,
+    type: "indicator",
+    ...extra,
+  }) as TrendExpr;
+const classicExpr = (
+  name: StrategyIndicatorExpr["name"],
+  length: number,
+  source: StrategyIndicatorExpr["source"],
+  timeframe: StrategyIndicatorExpr["timeframe"],
+  offset = 0
+): TrendExpr => ({
+  length,
+  name,
+  offset,
+  source,
+  timeframe,
+  type: "indicator",
+});
+
+/**
+ * 8. Trend indicators (supertrend, alphaTrend, chandelierExit) and the 5m / 15m indicator
+ * timeframes under an intraday block (intradayIndicatorSeries; offsets applied).
+ * timeline-boundaries reads the bucket closes, highs and lows of the completed-bar timeline table
+ * (docs/specs/strategies/trend-trio-design.md).
+ */
+const buildTrendIndicators = (datasets: Record<string, BarColumns>): Json[] => {
+  const intraday: StrategyIntraday = {
+    ...NEW_YORK_SESSION,
+    entryFrom: "09:35",
+    entryTo: "15:50",
+    timezone: "America/New_York",
+  };
+  const minutes = datasets["trendMinutes"] as BarColumns;
+  const cases: [string, string, TrendExpr[]][] = [
+    [
+      "supertrend-direction-5m",
+      "trendMinutes",
+      [supertrendExpr(3, "direction", { timeframe: "5m" })],
+    ],
+    [
+      "supertrend-line-1m",
+      "trendMinutes",
+      [supertrendExpr(3, "line"), supertrendExpr(3, "line", { offset: 3 })],
+    ],
+    [
+      "supertrend-two-multiples",
+      "session",
+      [
+        supertrendExpr(1.5, "direction", { timeframe: "15m" }),
+        supertrendExpr(3, "direction", { timeframe: "15m" }),
+        supertrendExpr(3, "line", { offset: 1, timeframe: "15m" }),
+        supertrendExpr(2, "direction", {
+          length: 5,
+          offset: 1,
+          timeframe: "1d",
+        }),
+      ],
+    ],
+    [
+      "alphatrend-mfi-15m",
+      "trendMinutes",
+      [
+        alphaTrendExpr("mfi", "line", { timeframe: "15m" }),
+        alphaTrendExpr("mfi", "direction", { timeframe: "15m" }),
+      ],
+    ],
+    [
+      "alphatrend-rsi-5m",
+      "trendMinutes",
+      [
+        alphaTrendExpr("rsi", "line", { timeframe: "5m" }),
+        alphaTrendExpr("rsi", "direction", { offset: 1, timeframe: "5m" }),
+        alphaTrendExpr("rsi", "direction"),
+      ],
+    ],
+    [
+      "chandelier-direction-1m",
+      "trendMinutes",
+      [chandelierExpr("direction"), chandelierExpr("direction", { offset: 2 })],
+    ],
+    [
+      "chandelier-stops-5m",
+      "trendMinutes",
+      [
+        chandelierExpr("longStop", { timeframe: "5m" }),
+        chandelierExpr("shortStop", { timeframe: "5m" }),
+        chandelierExpr("direction", { timeframe: "5m" }),
+      ],
+    ],
+    [
+      "uma-offset-buckets-5m",
+      "trendMinutes",
+      [
+        classicExpr("sma", 20, "close", "5m"),
+        classicExpr("sma", 20, "close", "5m", 2),
+        classicExpr("ema", 38, "close", "5m"),
+        classicExpr("highest", 3, "high", "5m"),
+        classicExpr("lowest", 3, "low", "15m", 1),
+        classicExpr("atr", 5, "close", "15m"),
+      ],
+    ],
+    [
+      "timeline-boundaries",
+      "trendMinutes",
+      [
+        classicExpr("sma", 1, "close", "5m"),
+        classicExpr("sma", 1, "close", "15m"),
+        classicExpr("highest", 1, "high", "5m"),
+        classicExpr("lowest", 1, "low", "5m"),
+      ],
+    ],
+  ];
+  return cases.map(([id, symbol, exprs]) => {
+    const bars =
+      symbol === "session"
+        ? head(datasets["session"] as BarColumns, SESSION_INDICATOR_BARS)
+        : minutes;
+    return {
+      bars: bars.c.length,
+      exprs,
+      id,
+      intraday,
+      symbol,
+      values: exprs.map((expr) =>
+        list(intradayIndicatorSeries(bars, intraday, expr))
+      ),
+    };
+  });
+};
+
 /** 6. Server engine refusals: runStrategyDefinition (TS) and plan_run (Python) refuse alike. */
 const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
   [
@@ -2752,6 +4164,7 @@ const buildGolden = (io: GoldenIo): string => {
     QQQ: readCsv(csv("QQQ-1d.csv"), BAR_COUNT),
     SPY: readCsv(csv("SPY-1d.csv"), BAR_COUNT),
     session: sessionBars(),
+    trendMinutes: trendMinuteBars(),
   };
 
   // 2. Compiled DSL definitions.
@@ -2785,6 +4198,10 @@ const buildGolden = (io: GoldenIo): string => {
     calendars: calendars(),
     compiled,
     costs,
+    definitionAcceptances: definitionAcceptanceCases.map(
+      definitionAcceptanceJson
+    ),
+    definitionRefusals: buildDefinitionRefusals(),
     engine,
     engineRefusals,
     expressions,
@@ -2795,6 +4212,7 @@ const buildGolden = (io: GoldenIo): string => {
     series,
     serverRefusals,
     sessionIndicators: buildSessionIndicators(datasets),
+    trendIndicators: buildTrendIndicators(datasets),
   };
 
   return `${JSON.stringify(golden)}\n`;

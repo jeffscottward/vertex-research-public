@@ -4,13 +4,15 @@
 import {
   FLOW_SNAPSHOT_MAX_EVENTS,
   FLOW_SNAPSHOT_MAX_PRINTS,
+  FLOW_SNAPSHOT_SOURCES,
   FLOW_SNAPSHOT_VERSION,
-  FLOW_SOURCES,
   type FlowConfluence,
   type FlowFactor,
   type FlowFreshness,
+  type FlowOptionTicker,
   type FlowSampleStatus,
   type FlowSnapshot,
+  type FlowSnapshotSource,
   type FlowSource,
   type FlowSymbol,
   type FlowVote,
@@ -23,6 +25,7 @@ import {
   type FlowMinuteRow,
 } from "../flow-features.ts";
 import type { FlowOptionPrintRow } from "../flow-options.ts";
+import { newYorkClock } from "../signal-alerts.ts";
 import { marketSession, newYorkParts } from "./gex-context.ts";
 
 /** Is this source's market open now (New York wall time; holidays are not modelled)? */
@@ -34,6 +37,13 @@ export const flowSessionOpen = (
   const parts = newYorkParts(now);
   const day = parts["weekday"];
   const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
+  if (source === "net_drift")
+    return (
+      day !== "Sat" &&
+      day !== "Sun" &&
+      minutes >= 9 * 60 + 30 &&
+      minutes < 16 * 60 + 20
+    );
   if (source === "options" || source === "gex")
     return (
       day !== "Sat" &&
@@ -41,7 +51,8 @@ export const flowSessionOpen = (
       minutes >= 9 * 60 + 30 &&
       minutes < 16 * 60 + 15
     );
-  if (symbol === "SPY") return marketSession(now) !== "closed";
+  if (FLOW_INSTRUMENTS[symbol].session === "stock")
+    return marketSession(now) !== "closed";
   // CME Globex equity futures: Sunday 18:00 to Friday 17:00, daily break 17:00-18:00.
   if (day === "Sat") return false;
   if (day === "Sun") return minutes >= 18 * 60;
@@ -53,8 +64,42 @@ export const flowSessionOpen = (
 export const FLOW_STALE_SECONDS: Readonly<Record<FlowSource, number>> = {
   depth: 180,
   gex: 1800,
+  net_drift: 300,
   options: 300,
   ticks: 600,
+};
+
+/** New York wall time of a date as HH:MM. */
+export const flowClockText = (date: Date): string => {
+  const { minute } = newYorkClock(date);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`;
+};
+
+/**
+ * The New York date of the newest session at or before now (YYYY-MM-DD): Friday on Saturday and
+ * Sunday, and the previous weekday before 09:30 on a weekday.
+ */
+export const flowSessionDate = (now: Date): string => {
+  const parts = newYorkParts(now);
+  const weekday = parts["weekday"];
+  const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
+  // Before 09:30 on a weekday today's session has not started: use the previous weekday.
+  const beforeOpen = minutes < 9 * 60 + 30;
+  const back = ((): number => {
+    if (weekday === "Sat") return 1;
+    if (weekday === "Sun") return 2;
+    if (!beforeOpen) return 0;
+    return weekday === "Mon" ? 3 : 1;
+  })();
+  const day = new Date(
+    Date.UTC(
+      Number(parts["year"]),
+      Number(parts["month"]) - 1,
+      Number(parts["day"]) - back
+    )
+  );
+  return day.toISOString().slice(0, 10);
 };
 
 export type FlowSampleRow = Readonly<{
@@ -69,7 +114,7 @@ export type FlowSampleRow = Readonly<{
 export type FlowGexRow = Readonly<{
   symbol: FlowSymbol;
   at: Date;
-  ticker: "SPY" | "SPX";
+  ticker: FlowOptionTicker;
   spot: number | null;
   basis: number | null;
   regime: GexContext["regime"];
@@ -116,7 +161,9 @@ const freshnessState = (
 };
 
 export const buildFreshness = (rows: FlowSnapshotRows): FlowFreshness[] =>
-  FLOW_SOURCES.map((source) => {
+  FLOW_SNAPSHOT_SOURCES.filter((source) =>
+    FLOW_INSTRUMENTS[rows.symbol].sources.includes(source)
+  ).map((source) => {
     const ok = rows.latestOk.find((sample) => sample.source === source);
     const last = rows.latest.find((sample) => sample.source === source);
     const sessionOpen = flowSessionOpen(source, rows.symbol, rows.now);
@@ -185,7 +232,7 @@ export type ConfluenceInput = Readonly<{
   premiumBias: number | null;
   gex: FlowGexRow | null;
   lastPrice: number | null;
-  usable: Readonly<Record<FlowSource, boolean>>;
+  usable: Readonly<Record<FlowSnapshotSource, boolean>>;
 }>;
 
 export const buildConfluence = (input: ConfluenceInput): FlowConfluence => {
@@ -250,11 +297,11 @@ const byTime =
     pick(a).getTime() - pick(b).getTime();
 
 interface OptionMinute {
-  trades: number;
+  bearishPremium: number;
+  bullishPremium: number;
   callPremium: number;
   putPremium: number;
-  bullishPremium: number;
-  bearishPremium: number;
+  trades: number;
 }
 
 const optionMinutes = (
@@ -461,7 +508,9 @@ const buildOrderFlow = (
     deltaRatio: ratio(delta, volume),
     largePrints: sumOf(minutes, (row) => row.largePrints),
     lastPrice: minutes.at(-1)?.close ?? null,
-    offExchangeShare: rows.symbol === "SPY" ? ratio(offExchange, volume) : null,
+    offExchangeShare: FLOW_INSTRUMENTS[rows.symbol].offExchange
+      ? ratio(offExchange, volume)
+      : null,
     volume,
     vwap: ratio(
       sumOf(minutes, (row) => row.vwap * row.volume),
@@ -505,14 +554,25 @@ const recentInputs = (
   };
 };
 
-const flowNotes = (symbol: FlowSymbol): string[] => [
-  "Ticks are sampled (up to 1000 prints per symbol about every 4 minutes); coveredSeconds says how much of each minute was seen.",
-  "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData.",
-  symbol === "ES"
-    ? "ES options context uses SPX options; SPX levels are shifted by the ES − SPX basis."
-    : "SPY book is IEX depth plus top of book from other venues (no paid venue books).",
-  "GEX is an estimate (dealers assumed long calls, short puts). Research only; not a trade signal.",
-];
+const flowNotes = (symbol: FlowSymbol): string[] => {
+  const instrument = FLOW_INSTRUMENTS[symbol];
+  const tape =
+    instrument.ticks === "none"
+      ? [
+          `Trades and option prints are not collected for ${symbol}; this view shows depth and GEX only.`,
+        ]
+      : [
+          "Ticks are sampled (up to 1000 prints per symbol about every 6 minutes: three tick turns, SPY, ES, NQ); coveredSeconds says how much of each minute was seen.",
+          instrument.sources.includes("options")
+            ? "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData."
+            : `Trade side: quote rule, then tick rule. Option prints are not collected for ${symbol}.`,
+        ];
+  return [
+    ...tape,
+    instrument.note,
+    "GEX is an estimate (dealers assumed long calls, short puts). Research only; not a trade signal.",
+  ];
+};
 
 export const buildFlowSnapshot = (rows: FlowSnapshotRows): FlowSnapshot => {
   const freshness = buildFreshness(rows);
@@ -520,12 +580,19 @@ export const buildFlowSnapshot = (rows: FlowSnapshotRows): FlowSnapshot => {
   const books = [...rows.books].sort(byTime((row) => row.at));
   const book = books.at(-1) ?? null;
   const orderFlow = buildOrderFlow(rows, minutes, book);
-  const usable = Object.fromEntries(
-    freshness.map((entry) => [
-      entry.source,
-      entry.state === "fresh" || entry.state === "closed",
-    ])
-  ) as Record<FlowSource, boolean>;
+  // A source without a freshness row (not collected for this symbol) has no usable data.
+  const usableOf = (source: FlowSnapshotSource): boolean =>
+    freshness.some(
+      (entry) =>
+        entry.source === source &&
+        (entry.state === "fresh" || entry.state === "closed")
+    );
+  const usable: Readonly<Record<FlowSnapshotSource, boolean>> = {
+    depth: usableOf("depth"),
+    gex: usableOf("gex"),
+    options: usableOf("options"),
+    ticks: usableOf("ticks"),
+  };
   return {
     confluence: buildConfluence({
       ...recentInputs(rows, minutes),

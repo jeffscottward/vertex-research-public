@@ -262,8 +262,8 @@ def _add(args: argparse.Namespace, environ: Mapping[str, str], deps: Deps, out: 
     if review_by < as_of:
         raise UsageError(f"--review-by {review_by} is before the as-of date {as_of}")
     if review_by < today:
-        out.note(f"review date {review_by} is before today: the note is stored as expired "
-                 "(renew it with the renew command)")
+        out.note(f"review date {review_by} is before today: the note will read as expired and stay out of "
+                 "agent context until you renew it with the renew command")
 
     if manual is not None:
         found = manual

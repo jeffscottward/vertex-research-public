@@ -172,6 +172,7 @@ const summary = (
   id: "s-hmm",
   kind: "python",
   latestBacktest: null,
+  vertexStudy: null,
   name: "HMM forward filter",
   params: [lookback, side],
   presetCount: 1,
@@ -599,6 +600,17 @@ describe("DeploymentRequestsWorkspace", () => {
       container.querySelector('[data-request-detail] [role="alert"]')
         ?.textContent
     ).toBe("Cannot submit a request that is requested");
+    // A storage error shows the cause the server names, not a fixed migration hint.
+    const notConfigured =
+      "Deployment request storage is not configured on this server; nothing was saved. Set the database connection, then retry.";
+    gateway.submit.mockRejectedValueOnce(
+      Object.assign(new Error(notConfigured), { code: "STORAGE_ERROR" })
+    );
+    await click(button("Submit"));
+    expect(
+      container.querySelector('[data-request-detail] [role="alert"]')
+        ?.textContent
+    ).toBe(notConfigured);
     await click(button("Edit"));
     expect(field<HTMLSelectElement>("#request-strategy").disabled).toBe(true);
     expect(field<HTMLInputElement>("#request-limit-dailyLossLimit").value).toBe(

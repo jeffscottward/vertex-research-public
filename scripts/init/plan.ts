@@ -390,6 +390,17 @@ const PLACEHOLDER_LINE = new RegExp(
   "mu"
 );
 
+/**
+ * An origin on the reserved `.invalid` top-level domain (RFC 2606) is a
+ * placeholder for "no approved origin". scripts/deployment/destination.ts and
+ * its tests pin the same placeholder, also in an initialized project, so init
+ * keeps it. This rule is enough only while those files pin a placeholder: a
+ * test in plan.test.ts fails when init changes an origin of the committed
+ * wrangler.jsonc (docs/vertex-deployment-safety.md).
+ */
+const isReservedOrigin = (value: string): boolean =>
+  URL.canParse(value) && new URL(value).hostname.endsWith(".invalid");
+
 const rewriteWrangler: Structured = (source, { identity }) => {
   let text = source;
   let count = 0;
@@ -414,7 +425,11 @@ const rewriteWrangler: Structured = (source, { identity }) => {
   };
   for (const [key, value] of Object.entries(wanted)) {
     const current = config.vars?.[key];
-    if (typeof current === "string" && current !== value) {
+    if (
+      typeof current === "string" &&
+      current !== value &&
+      !isReservedOrigin(current)
+    ) {
       set(["vars", key], value);
     }
   }

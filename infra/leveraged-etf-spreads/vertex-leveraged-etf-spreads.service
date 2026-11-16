@@ -1,0 +1,27 @@
+# Vertex leveraged ETF spread reads (research only: public Cboe and Yahoo option quotes of the leveraged
+# ETF universe into local files per docs/specs/research/leveraged-etf-option-gate-v2.md; no orders, no
+# account, no secret).
+# Install, after the merge: make the detached worktree of the merged commit (default
+# ~/Github/trading/vertex-research-public-spreads-runner); copy the universe file to
+# ~/.local/share/vertex/leveraged-etf-spreads-universe.json; copy this file and the .timer to
+# ~/.config/systemd/user/, copy vertex-leveraged-etf-spreads-run to ~/.local/bin/ (mode 0755) and run
+# systemctl --user daemon-reload && systemctl --user enable --now vertex-leveraged-etf-spreads.timer
+# Rollback: run
+# systemctl --user disable --now vertex-leveraged-etf-spreads.timer
+# then remove the three installed files and the worktree. The store can stay or be deleted. Nothing
+# else depends on it.
+# Environment file (optional, nonsecret values only): LEVERAGED_ETF_SPREADS_RUNNER_DIR (the worktree
+# that has research/backtests/leveraged-etf/spread_reads.py), LEVERAGED_ETF_SPREADS_STORE (default
+# ~/.local/share/vertex/leveraged-etf-spreads), LEVERAGED_ETF_SPREADS_UNIVERSE (default
+# ~/.local/share/vertex/leveraged-etf-spreads-universe.json), LEVERAGED_ETF_SPREADS_UV.
+# The wrapper changes to the runner worktree, so the unit sets no WorkingDirectory.
+[Unit]
+Description=Vertex leveraged ETF spread reads (research only)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/vertex/leveraged-etf-spreads.env
+ExecStart=%h/.local/bin/vertex-leveraged-etf-spreads-run
+TimeoutStartSec=3000
+NoNewPrivileges=yes

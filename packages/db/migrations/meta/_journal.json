@@ -512,6 +512,62 @@
       "when": 1794593572441,
       "tag": "0072_market_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794707975811,
+      "tag": "0073_strategy_catalog_trend_trio",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794721926873,
+      "tag": "0074_semantic_terms_trend_indicators",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1794749412523,
+      "tag": "0075_semantic_terms_trend_dsl_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1794772543713,
+      "tag": "0076_research_screen",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1794801197223,
+      "tag": "0077_flow_net_drift",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1794804228051,
+      "tag": "0078_flow_large_trades",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1794824452507,
+      "tag": "0079_strategy_catalog_flow_control_continuation",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1794832142868,
+      "tag": "0080_strategy_catalog_order_flow_amt_auction",
+      "breakpoints": true
     }
   ]
 }

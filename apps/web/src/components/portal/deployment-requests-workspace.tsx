@@ -90,6 +90,8 @@ const describeRequestFailure = (error: unknown): string => {
     if (code === "CONFLICT" && typeof message === "string" && message !== "")
       return message;
     if (code === "STORAGE_ERROR") {
+      // The server names the cause (not configured, or a failed database call); the fixed text is a fallback.
+      if (typeof message === "string" && message !== "") return message;
       return "Deployment request storage unavailable (503). Apply migration 0021 if the table is missing.";
     }
   }
@@ -573,7 +575,7 @@ const RequestDetail = ({
         </DetailRow>
         <DetailRow label="Decided by">{request.decidedBy ?? "—"}</DetailRow>
         <DetailRow label="Decided (UTC)">
-          {formatTimestamp(request.decidedAt)}
+          {formatTimestamp(request.decidedAt, "not decided")}
         </DetailRow>
         {request.decisionNote === null ? null : (
           <div className="min-w-0 sm:col-span-2 lg:col-span-4">

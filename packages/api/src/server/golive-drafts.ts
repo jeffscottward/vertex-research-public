@@ -3,6 +3,7 @@ import type {
   GoLiveDraftsRepository,
   GoLivePlanRecord,
   OrderSendState,
+  OrderSendStateAt,
 } from "@darkfactory/db/server";
 import { call, implement } from "@orpc/server";
 
@@ -36,6 +37,7 @@ import { goLiveOrderRef } from "./golive-order-ref.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 import {
   type FetchPortfolioMonitorOptions,
   fetchPortfolioMonitor,
@@ -71,10 +73,13 @@ export type GoLiveDraftsRepositoryPort = Pick<
 >;
 
 export type GoLiveAccountReading = GoLiveQueueOutput["account"];
-type GoLiveNodeReading = Readonly<{
-  armedAt: string | null;
-  badge: NodeBadge;
-}>;
+// The badge, and for "unknown" why (the optional cause fields of the queue's node).
+type GoLiveNodeReading = Readonly<
+  { armedAt: string | null; badge: NodeBadge } & Omit<
+    GoLiveQueueOutput["node"],
+    "armedAt" | "badge" | "checkedAt"
+  >
+>;
 /** Market notes by symbol. No reader exists on this branch, so the default is "not deployed". */
 type GoLiveMarketNotesPort = (
   symbols: readonly string[]
@@ -158,14 +163,28 @@ const readAccount = async (
 
 /**
  * The node badge through the read-only nautilusArm.status procedure, with its own access rules:
- * it refuses agent API keys, so a key caller gets "unknown". Any failure is "unknown".
+ * it refuses agent API keys, so a key caller gets "unknown" (readFailure agent-key-refused). Any
+ * failure is "unknown" (call-failed). An "unknown" answer keeps its cause: armError and container.
  */
 const readNode = async (context: ApiContext): Promise<GoLiveNodeReading> => {
   try {
     const status = await call(nautilusArmRouter.status, {}, { context });
-    return { armedAt: status.arm?.armedAt ?? null, badge: status.badge };
+    const reading = {
+      armedAt: status.arm?.armedAt ?? null,
+      badge: status.badge,
+    };
+    return status.badge === "unknown"
+      ? { ...reading, armError: status.armError, container: status.container }
+      : reading;
   } catch {
-    return { armedAt: null, badge: "unknown" };
+    return {
+      armedAt: null,
+      badge: "unknown",
+      readFailure:
+        context.agentApiKeyPresented === true
+          ? "agent-key-refused"
+          : "call-failed",
+    };
   }
 };
 
@@ -185,7 +204,10 @@ const repositoryFor = (
 ): GoLiveDraftsRepositoryPort => {
   const repository: GoLiveDraftsRepositoryPort | undefined =
     context.repositories.goLiveDrafts;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Go-live draft"),
+    });
   return repository;
 };
 
@@ -309,20 +331,37 @@ const SEND_STATE_OF: Readonly<Record<OrderSendState, GoLiveSendState>> = {
   refused: "refused",
   unknown: "unknown",
 };
-// Where a draft's send stands, by draft id. No answer from the store (no store, a failed read, or no
-// state for the draft's ref) is "unavailable".
-type SendOf = (draftId: string) => GoLiveSendState;
+// Where a draft's send stands, by draft id, with what a reader cannot derive (sendDetail): since
+// when a send is pending, and why the store gave no answer (no store, a failed read). A store
+// answer without the draft's ref is "unavailable" with no detail.
+type SendDetail = NonNullable<GoLiveDraftOutput["sendDetail"]>;
+type SendReading = Readonly<{
+  detail: SendDetail | null;
+  state: GoLiveSendState;
+}>;
+type SendOf = (draftId: string) => SendReading;
 const sendLookup =
-  (states: ReadonlyMap<string, OrderSendState | undefined>): SendOf =>
+  (
+    states: ReadonlyMap<string, OrderSendStateAt | undefined>,
+    missing: SendDetail | null
+  ): SendOf =>
   (draftId) => {
-    const state = states.get(draftId);
-    return state === undefined ? "unavailable" : SEND_STATE_OF[state];
+    const found = states.get(draftId);
+    if (found === undefined) return { detail: missing, state: "unavailable" };
+    return {
+      detail:
+        found.state === "pending" && found.createdAt !== null
+          ? { kind: "pending", since: found.createdAt }
+          : null,
+      state: SEND_STATE_OF[found.state],
+    };
   };
-// An agent API key reads no send.
-const NO_SENDS = sendLookup(new Map());
+// No order record store; also an agent API key, which reads no send (its drafts carry send null).
+const NO_SENDS = sendLookup(new Map(), { kind: "no-store" });
 const readSends = async (
   context: ApiContext,
-  records: readonly GoLiveDraftRecord[]
+  records: readonly GoLiveDraftRecord[],
+  now: Date
 ): Promise<SendOf> => {
   const refs = await Promise.all(
     records
@@ -332,11 +371,13 @@ const readSends = async (
       )
   );
   const store = context.repositories.orderIntents;
-  const states =
-    store === undefined
-      ? null
-      : await store.sendStates(refs.map(([, ref]) => ref)).catch(() => null);
-  return sendLookup(new Map(refs.map(([id, ref]) => [id, states?.get(ref)])));
+  if (store === undefined) return NO_SENDS;
+  const states = await store
+    .sendStates(refs.map(([, ref]) => ref))
+    .catch(() => null);
+  return states === null
+    ? sendLookup(new Map(), { at: now, kind: "read-failed" })
+    : sendLookup(new Map(refs.map(([id, ref]) => [id, states.get(ref)])), null);
 };
 
 const load = async (
@@ -352,7 +393,7 @@ const load = async (
     repository.planInForce(),
     listed,
     listed.then((rows) => (forKey ? rows : withLiveQuotes(context, rows))),
-    listed.then((rows) => (forKey ? NO_SENDS : readSends(context, rows))),
+    listed.then((rows) => (forKey ? NO_SENDS : readSends(context, rows, now))),
     repository.lastRun(tradingDay),
     forKey ? KEY_ACCOUNT : (dependencies.account ?? readAccount)(context, now),
     (dependencies.node ?? readNode)(context),
@@ -525,13 +566,21 @@ const viewsOf = (
           gate === null ? null : { ...gate, reasons: [...gate.reasons] },
       },
       // Only an approved entry has a send; read before the decision for a draft just approved.
-      send:
-        draft.state === "approved" && draft.kind === "entry" && !loaded.forKey
-          ? loaded.sends(draft.id)
-          : null,
+      ...sendOf(draft, loaded),
       sizing,
     };
   });
+};
+
+// Only an approved entry has a send (and its detail); never for an API key.
+const sendOf = (
+  draft: Pick<GoLiveDraftRecord, "id" | "kind" | "state">,
+  loaded: Loaded
+): Pick<GoLiveDraftOutput, "send" | "sendDetail"> => {
+  if (draft.state !== "approved" || draft.kind !== "entry" || loaded.forKey)
+    return { send: null, sendDetail: null };
+  const reading = loaded.sends(draft.id);
+  return { send: reading.state, sendDetail: reading.detail };
 };
 
 // The decided record goes in first, so its view comes out first.

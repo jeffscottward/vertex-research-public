@@ -259,7 +259,7 @@ export const describeAgentApiKeyFailure = (error: unknown): string => {
       return "Rejected: name must be 1-64 characters.";
     }
     case "UNAVAILABLE": {
-      return "Agent API keys unavailable (503).";
+      return "Agent API key service did not respond (503). No key was changed. Retry.";
     }
     default: {
       return "Request failed. Apply migration 0016 if the apikey table is missing, then retry.";
@@ -434,7 +434,8 @@ export const describeAgentOpsFailure = (error: unknown): string => {
       return `Upstream source failed (502): ${errorField(error, "message") ?? "no detail"}`;
     }
     case "STORAGE_ERROR": {
-      return "Agent operations storage unavailable (503). Apply migrations 0015 and 0017 if the tables are missing.";
+      // The server names the cause: not configured on this server, or the database did not answer.
+      return `Storage error (503): ${errorField(error, "message") ?? "the server gave no cause; nothing was saved. Retry, then check the database connection and apply migrations 0015 and 0017 if the tables are missing."}`;
     }
     default: {
       return "Request failed. Retry.";
@@ -469,9 +470,12 @@ export const labelFor = (
   return labels[value] ?? value.replaceAll("_", " ");
 };
 
-export const formatTimestamp = (value: Date | null): string => {
+export const formatTimestamp = (
+  value: Date | null,
+  missing = "not recorded"
+): string => {
   return value === null
-    ? "—"
+    ? missing
     : value.toISOString().slice(0, 16).replace("T", " ");
 };
 
@@ -479,7 +483,7 @@ export const formatDuration = (
   task: Pick<AgentTaskOutput, "startedAt" | "finishedAt">,
   now = new Date()
 ): string => {
-  if (task.startedAt === null) return "—";
+  if (task.startedAt === null) return "not started";
   const end = task.finishedAt ?? now;
   const seconds = Math.max(
     0,
@@ -495,7 +499,7 @@ export const formatMetrics = (
   limit = 4
 ): string => {
   const entries = Object.entries(metrics);
-  if (entries.length === 0) return "—";
+  if (entries.length === 0) return "no metrics reported";
   const shown = entries
     .slice(0, limit)
     .map(([key, value]) => `${key}=${value}`);

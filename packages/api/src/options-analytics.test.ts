@@ -19,6 +19,8 @@ import {
   daysUntil,
   displayStrikes,
   exposure,
+  gammaModel,
+  inRangeStrikes,
   ivDecimal,
   ivSurface,
   maxPain,
@@ -40,8 +42,10 @@ import {
   resolveQuantDataConfig,
   type QuantDataClient,
   type QuantDataConfig,
+  type QuantDataEndpoint,
   type QuantDataFetch,
   type QuantDataResult,
+  withCallerReserve,
 } from "./server/quantdata-client.ts";
 
 const KEY = "qd-test-key-0123456789";
@@ -171,7 +175,7 @@ describe("quantdata client", () => {
       sleep,
     });
     const first = await client.request("termStructure", { a: 1 }, 5000);
-    expect(first).toMatchObject({ data: { ok: 1 }, ok: true });
+    expect(first).toMatchObject({ data: { ok: 1 }, fetchedAt: 1000, ok: true });
     const [url, init] = doFetch.mock.calls[0] ?? [];
     expect(url).toBe(
       "https://quantdata.domain.test/v1/options/tool/term-structure"
@@ -186,6 +190,11 @@ describe("quantdata client", () => {
     expect(doFetch).toHaveBeenCalledTimes(1);
     await client.request("openInterest", { a: 1 }, 5000);
     expect(sleep).toHaveBeenCalledWith(1000);
+    // A cache hit keeps the time QuantData answered, not the time of the hit.
+    expect(clock).toBe(2000);
+    expect(await client.request("termStructure", { a: 1 }, 5000)).toMatchObject(
+      { fetchedAt: 1000, ok: true }
+    );
     clock += 10_000;
     await client.request("termStructure", { a: 1 }, 5000);
     expect(doFetch).toHaveBeenCalledTimes(3);
@@ -251,6 +260,151 @@ describe("quantdata client", () => {
       ok: true,
     });
     return expect(doFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps free the starts that the caller reserve asks for and answers reserved", async () => {
+    let clock = 0;
+    const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 1 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    for (let index = 0; index < 24; index += 1) {
+      clock = index * 100;
+      expect(
+        await client.request("orderFlow", { index }, 1, undefined, 6)
+      ).toMatchObject({ ok: true });
+    }
+    clock = 3000;
+    expect(
+      await client.request("netDrift", { index: 24 }, 1, undefined, 6)
+    ).toEqual({
+      message:
+        "QuantData netDrift: 6 request starts per minute are kept free for other callers.",
+      ok: false,
+      reason: "reserved",
+      retryAfterSeconds: 57,
+    });
+    expect(await client.request("orderFlow", { index: 24 }, 1)).toMatchObject({
+      ok: true,
+    });
+    expect(doFetch).toHaveBeenCalledTimes(25);
+    return expect(client.freeStarts()).toBe(5);
+  });
+
+  it("answers rate_limited, not reserved, when the window is full", async () => {
+    let clock = 0;
+    const client = createQuantDataClient(config, {
+      fetch: async () => json({ data: 1 }),
+      maxRequestsPerMinute: 2,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    await client.request("orderFlow", { n: 1 }, 1);
+    await client.request("orderFlow", { n: 2 }, 1);
+    clock = 1000;
+    return expect(
+      await client.request("orderFlow", { n: 3 }, 1, undefined, 1)
+    ).toMatchObject({ ok: false, reason: "rate_limited" });
+  });
+
+  it("serves a cached body to a reserving caller without a start", async () => {
+    const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 7 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      maxRequestsPerMinute: 2,
+      minIntervalMs: 0,
+      now: () => 0,
+    });
+    await client.request("orderFlow", { n: 1 }, 60_000);
+    expect(
+      await client.request("orderFlow", { n: 1 }, 60_000, undefined, 1)
+    ).toMatchObject({ data: 7, ok: true });
+    return expect(doFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts free starts over the sliding 60 s", async () => {
+    let clock = 0;
+    const client = createQuantDataClient(config, {
+      fetch: async () => json({ data: 1 }),
+      maxRequestsPerMinute: 5,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    expect(client.freeStarts()).toBe(5);
+    await client.request("orderFlow", { n: 1 }, 1);
+    clock = 30_000;
+    await client.request("orderFlow", { n: 2 }, 1);
+    expect(client.freeStarts()).toBe(3);
+    clock = 60_000;
+    expect(client.freeStarts()).toBe(4);
+    clock = 90_000;
+    return expect(client.freeStarts()).toBe(5);
+  });
+
+  it("withCallerReserve forwards the reserve, shares the window and lowers freeStarts by the reserve", async () => {
+    let clock = 0;
+    const shared = createQuantDataClient(config, {
+      fetch: async () => json({ data: 1 }),
+      maxRequestsPerMinute: 4,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    const view = withCallerReserve(shared, 2);
+    expect(view.freeStarts()).toBe(2);
+    expect(view.cooldownSeconds()).toBe(0);
+    await view.request("netDrift", { n: 1 }, 1);
+    clock = 1;
+    await shared.request("orderFlow", { n: 2 }, 1);
+    expect(shared.freeStarts()).toBe(2);
+    expect(view.freeStarts()).toBe(0);
+    clock = 2;
+    expect(await view.request("netDrift", { n: 3 }, 1)).toMatchObject({
+      reason: "reserved",
+    });
+    clock = 3;
+    expect(await shared.request("orderFlow", { n: 4 }, 1)).toMatchObject({
+      ok: true,
+    });
+    expect(view.freeStarts()).toBe(0);
+    const spy = vi.fn<QuantDataClient["request"]>(async () => ({
+      body: {},
+      data: null,
+      ok: true,
+    }));
+    await withCallerReserve(
+      { cooldownSeconds: () => 0, freeStarts: () => 30, request: spy },
+      6
+    ).request("netDrift", { n: 5 }, 30_000, "key");
+    return expect(spy).toHaveBeenCalledWith(
+      "netDrift",
+      { n: 5 },
+      30_000,
+      "key",
+      6
+    );
+  });
+
+  it("holds keepFree to 0 and the window minus 1", async () => {
+    let clock = 0;
+    const client = createQuantDataClient(config, {
+      fetch: async () => json({ data: 1 }),
+      maxRequestsPerMinute: 2,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    expect(
+      await client.request("orderFlow", { n: 1 }, 1, undefined, 99)
+    ).toMatchObject({ ok: true });
+    clock = 1;
+    expect(
+      await client.request("orderFlow", { n: 2 }, 1, undefined, 99)
+    ).toMatchObject({ reason: "reserved" });
+    expect(
+      await client.request("orderFlow", { n: 3 }, 1, undefined, -5)
+    ).toMatchObject({ ok: true });
+    return expect(client.freeStarts()).toBe(0);
   });
 
   it("waits while the shared provider quota is below its reserve", async () => {
@@ -705,21 +859,21 @@ describe("options analytics engine", () => {
   it("estimates GEX from front-expiry IV with an ATM fallback", () => {
     expect(blackScholesGamma(100, 100, 0.2, 1)).toBeCloseTo(0.0198, 3);
     const oi = parseOpenInterest(oiData);
-    const result = exposure(oi, chain.rows, 100, TODAY);
+    const result = exposure(oi, chain.rows, 100, TODAY).section;
     expect(result.gexExpiry).toBe("2026-10-23");
     expect(result.maxPain).toBe(100);
     expect(result.strikes).toHaveLength(3);
     expect(result.strikes.every((row) => row.gex !== null)).toBe(true);
     expect(result.totalGex).not.toBeNull();
     expect(exposure(oi, chain.rows, null, TODAY)).toMatchObject({
-      gexExpiry: null,
-      totalGex: null,
+      section: { gexExpiry: null, totalGex: null },
+      strikes: oi.map((row) => ({ ...row, gex: null })),
     });
-    expect(exposure(oi, [], 100, TODAY).strikes[0]?.gex).toBeNull();
+    expect(exposure(oi, [], 100, TODAY).section.strikes[0]?.gex).toBeNull();
     const sameDay: ChainRow[] = [
       { delta: 0.5, expiry: TODAY, iv: 0.2, right: "call", strike: 100 },
     ];
-    expect(exposure(oi, sameDay, 100, TODAY).gexExpiry).toBe(TODAY);
+    expect(exposure(oi, sameDay, 100, TODAY).section.gexExpiry).toBe(TODAY);
     const noIv: ChainRow[] = [
       {
         delta: 0.5,
@@ -729,9 +883,57 @@ describe("options analytics engine", () => {
         strike: 100,
       },
     ];
-    return expect(exposure(oi, noIv, 100, TODAY)).toMatchObject({
+    return expect(exposure(oi, noIv, 100, TODAY).section).toMatchObject({
       totalGex: null,
     });
+  });
+
+  it("totals GEX over every strike within 50-150% of spot, not only the ones shown", () => {
+    // 200 strikes 1..200 around spot 100: 101 are in range, 78 are displayed (55 nearest
+    // plus the 25 largest OI, two of them in both sets).
+    const wide = Array.from({ length: 200 }, (_, index) => ({
+      callOpenInterest: 1000 + index,
+      putOpenInterest: 900,
+      strike: index + 1,
+    }));
+    const front: ChainRow[] = wide.flatMap(({ strike }) => [
+      { delta: 0.5, expiry: "2027-10-22", iv: 0.4, right: "call", strike },
+      { delta: -0.5, expiry: "2027-10-22", iv: 0.45, right: "put", strike },
+    ]);
+    const { section, strikes } = exposure(wide, front, 100, TODAY);
+    expect(strikes).toHaveLength(101);
+    expect(strikes[0]?.strike).toBe(50);
+    expect(section.strikes).toHaveLength(78);
+    const sum = (rows: readonly { gex: number | null }[]): number =>
+      rows.reduce((total, row) => total + (row.gex ?? 0), 0);
+    expect(section.totalGex).toBeCloseTo(sum(strikes), 6);
+    expect(Math.abs(sum(strikes) - sum(section.strikes))).toBeGreaterThan(0);
+    // Displayed rows keep the GEX of the same strike in the full set.
+    const byStrike = new Map(strikes.map((row) => [row.strike, row.gex]));
+    expect(
+      section.strikes.every((row) => byStrike.get(row.strike) === row.gex)
+    ).toBe(true);
+    // No strike in range: every strike counts.
+    return expect(inRangeStrikes(wide, 1000)).toHaveLength(200);
+  });
+
+  it("reads the first front-expiry IV of a duplicated strike, like a linear find", () => {
+    const front: ChainRow[] = [
+      { delta: 0.5, expiry: "2026-10-23", iv: 0.3, right: "call", strike: 100 },
+      { delta: 0.5, expiry: "2026-10-23", iv: 0.9, right: "call", strike: 100 },
+      {
+        delta: -0.5,
+        expiry: "2026-10-23",
+        iv: 0.35,
+        right: "put",
+        strike: 100,
+      },
+    ];
+    const model = gammaModel(front, 100, TODAY);
+    expect(model?.ivAt(100, "call")).toBe(0.3);
+    expect(model?.ivAt(100, "put")).toBe(0.35);
+    // A strike without its own IV falls back to the front ATM IV.
+    return expect(model?.ivAt(105, "call")).toBe(model?.atmIv);
   });
 
   it("parses and summarizes option flow", () => {
@@ -786,15 +988,14 @@ describe("options analytics engine", () => {
 });
 
 const fakeClient = (
-  responses: Partial<
-    Record<"termStructure" | "openInterest" | "orderFlow", QuantDataResult>
-  >,
+  responses: Partial<Record<QuantDataEndpoint, QuantDataResult>>,
   cooldown = 0
 ): QuantDataClient & { calls: unknown[] } => {
   const calls: unknown[] = [];
   return {
     calls,
     cooldownSeconds: () => cooldown,
+    freeStarts: () => 30,
     request: async (endpoint, payload, _ttlMs, cacheKey) => {
       calls.push(
         cacheKey === undefined
@@ -858,6 +1059,15 @@ describe("buildOptionsAnalytics", () => {
       session: "morning",
     });
     expect(output.context.factors).toHaveLength(11);
+    // The paged flow response marks the flow chip; a fake client gives no fetch times.
+    const contextFactor = (key: string) =>
+      output.context.factors.find((item) => item.key === key);
+    expect(contextFactor("flow")?.value).toContain(
+      "· first page only, 3 trades"
+    );
+    expect(contextFactor("freshness")?.detail).toContain(
+      "Chain and OI are cached up to 5 min."
+    );
     expect(client.calls[2]).toEqual([
       "orderFlow",
       {
@@ -1048,6 +1258,10 @@ describe("optionsAnalytics.snapshot procedure", () => {
     const output = await api.optionsAnalytics.snapshot({ symbol: "SPY" });
     expect(output.volatility.status).toBe("ok");
     expect(output.flow.hours).toBe(24);
+    // The real client stamps each answer, so the context states the fetch age.
+    expect(
+      output.context.factors.find((item) => item.key === "freshness")?.detail
+    ).toContain("Chain and OI fetched 0 min ago");
     expect(JSON.stringify(output)).not.toContain(KEY);
     await api.optionsAnalytics.snapshot({ symbol: "SPY" });
     expect(doFetch).toHaveBeenCalledTimes(3);

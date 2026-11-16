@@ -4,9 +4,12 @@ Synthetic SPY market without skew or dividends, ATM IV 0.2 and r = 0, so every
 expected price is plain Black-Scholes with the stated strikes and days.
 """
 import math
+import re
+from pathlib import Path
 
 import pytest
 
+from nautilus_backtest.bars import InputError
 from strategies.qc_ports import book as bk
 from strategies.qc_ports import options as om
 from tests.qc_ports_synthetic import flat_model, market, trading_days
@@ -122,6 +125,24 @@ def test_choose_strikes_by_hand():
     wide = bk.parse_options({**PUT_CREDIT, "widthSigma": 3, "shortDelta": 0.05})
     assert bk.choose_strikes("put", "credit", 1.0, 1.0, 0, 0, 0.8, 0, wide) is None
     assert bk.choose_strikes("call", "debit", 100, 0, 0, 0, 0.2, 0, spec) is None
+
+
+def test_choose_strikes_refuses_a_strike_search_far_above_real_data():
+    spec = bk.parse_options(DEBIT)
+    t = 44 / 365
+    # The ATM IV at which the search range around spot 100 is STRIKE_SEARCH_MAX_STEPS grid steps of 1.
+    edge = bk.STRIKE_SEARCH_MAX_STEPS / (2 * bk.STRIKE_SEARCH_SIGMAS * math.sqrt(t) * 100)
+    assert bk.choose_strikes("call", "debit", 100, t, 0, 0, edge * 0.999, 0, spec) is not None
+    for spot, atm in ((100, edge * 1.001), (1e9, 0.2), (100, 9000.0), (1e308, 9000.0)):
+        with pytest.raises(InputError, match="more than 25000 grid strikes"):
+            bk.choose_strikes("call", "debit", spot, t, 0, 0, atm, 0, spec)
+
+
+def test_the_typescript_engine_has_the_same_market_limits():
+    source = (Path(__file__).resolve().parents[3] / "packages/api/src/options-engine/book.ts").read_text()
+    for name in ("STRIKE_SEARCH_SIGMAS", "STRIKE_SEARCH_MIN_STEPS", "STRIKE_SEARCH_MAX_STEPS", "IV_LEVEL_MAX"):
+        (value,) = re.findall(rf"^(?:export )?const {name} = ([\d_.]+);$", source, re.MULTILINE)
+        assert float(value.replace("_", "")) == getattr(bk, name), name
 
 
 def test_instrument_values_debit_and_credit():

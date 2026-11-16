@@ -70,6 +70,7 @@ import {
   NODE_BADGE_WORDS,
   NODE_DISARMED_NOTE,
   NOT_APPROVABLE_WORDS,
+  noAccountValueTail,
   nodeText,
   noLiveQuoteReason,
   noOrdersNotice,
@@ -97,6 +98,8 @@ import {
   SIZING_REASON_WORDS,
   STRUCTURE_WORDS,
   safeHttpsUrl,
+  sendDetailText,
+  sendLines,
   sendOutcomeText,
   sendStateText,
   sendSummaryRows,
@@ -225,8 +228,20 @@ const plan = (overrides: Partial<GoLivePlanOutput> = {}): GoLivePlanOutput => ({
   ...overrides,
 });
 
-// The plan in force and the server's clock at the queue read (node.checkedAt).
-const CONTEXT: GoLiveDraftContext = { plan: plan(), readAt: AT };
+// The account reading of a queue read without an account value (the server's cause and data time).
+const NO_ACCOUNT: GoLiveDraftContext["account"] = {
+  asOf: new Date("2026-11-11T15:12:00.000Z"),
+  unavailableReason: "Portfolio monitor is not connected to IBKR",
+};
+// The cause, data time and next step the page shows for NO_ACCOUNT (15:12 UTC is 10:12 ET).
+const NO_ACCOUNT_TAIL =
+  "(Portfolio monitor is not connected to IBKR, data as of 2026-11-11 10:12 ET) · reload the queue when the portfolio monitor reports a fresh account value";
+// The plan in force, the account reading and the server's clock at the queue read (node.checkedAt).
+const CONTEXT: GoLiveDraftContext = {
+  account: NO_ACCOUNT,
+  plan: plan(),
+  readAt: AT,
+};
 const blockers = (
   entry: GoLiveDraftOutput,
   context: GoLiveDraftContext = CONTEXT
@@ -303,7 +318,7 @@ describe("wording maps", () => {
       "running-armed": "Node running, armed",
       "running-disarmed": "Node running, disarmed",
       unknown:
-        "Node state unknown: the node status could not be read or was incomplete",
+        "Node state not read: the status call failed, Docker could not read the node container, or the arm CLI gave no arm state",
     });
     expect(NODE_DISARMED_NOTE).toBe(
       "A disarmed node does not stop an order placed on the Portfolio order screen; only the kill switch does."
@@ -643,6 +658,91 @@ describe("status row", () => {
     );
   });
 
+  it("names why the account value is missing, with its data time and the next step", () => {
+    expect(noAccountValueTail({ account: NO_ACCOUNT })).toBe(NO_ACCOUNT_TAIL);
+    expect(
+      noAccountValueTail({ account: { asOf: null, unavailableReason: null } })
+    ).toBe(
+      "(the server named no cause) · reload the queue when the portfolio monitor reports a fresh account value"
+    );
+  });
+
+  it("names why the node state was not read, with the times of the status answer", () => {
+    const next =
+      "go-live sends stay refused until the node reads running, armed; reload the queue to check again";
+    const unknown = { armedAt: null, badge: "unknown", checkedAt: AT } as const;
+    // An older server sends no cause: the three causes it may be.
+    expect(nodeText(unknown)).toBe(
+      "Node state not read: the status call failed, Docker could not read the node container, or the arm CLI gave no arm state (checked 2026-11-11 10:30 ET)"
+    );
+    expect(nodeText({ ...unknown, readFailure: "call-failed" })).toBe(
+      `Node state not read · the status call to the node bridge failed at 2026-11-11 10:30 ET · ${next}`
+    );
+    expect(nodeText({ ...unknown, readFailure: "agent-key-refused" })).toBe(
+      "Node state not read · the node status is not shown to agent API keys (checked 2026-11-11 10:30 ET)"
+    );
+    const running = (armError: string | null) =>
+      nodeText({
+        ...unknown,
+        armError,
+        container: { health: "healthy", state: "running" },
+      });
+    expect(running("cli-timeout")).toBe(
+      `Running · arm state not read · The arm command in the node did not answer (timeout) at 2026-11-11 10:30 ET · ${next}`
+    );
+    expect(running("cli-crash")).toBe(
+      `Running · arm state not read · The arm command in the node failed (code cli-crash) at 2026-11-11 10:30 ET · ${next}`
+    );
+    // A code that names an Object property is a code, not a cause.
+    expect(running("constructor")).toBe(
+      `Running · arm state not read · The arm command in the node failed (code constructor) at 2026-11-11 10:30 ET · ${next}`
+    );
+    expect(running(null)).toBe(
+      `Running · arm state not read · The arm command in the node sent no arm state and no error code at 2026-11-11 10:30 ET · ${next}`
+    );
+    expect(
+      nodeText({
+        ...unknown,
+        armError: "docker-error",
+        container: {
+          health: null,
+          lastKnown: {
+            at: "2026-11-11T15:20:00Z",
+            since: "2026-11-11T14:00:00Z",
+            state: "running",
+          },
+          since: "2026-11-11T15:25:00Z",
+          state: "docker-unreadable",
+        },
+      })
+    ).toBe(
+      `Node state not read · Docker did not answer since 2026-11-11 10:25 ET (docker error) · last read: running at 2026-11-11 10:20 ET · ${next}`
+    );
+    expect(
+      nodeText({
+        ...unknown,
+        armError: "ambiguous-container",
+        container: { health: null, state: "docker-unreadable" },
+      })
+    ).toBe(
+      `Node state not read · More than one node container matches · start time not recorded (checked 2026-11-11 10:30 ET) · no container read recorded since the VPS service started · ${next}`
+    );
+    expect(
+      nodeText({
+        ...unknown,
+        armError: null,
+        container: {
+          health: null,
+          lastKnown: { at: "not a time", since: null, state: "exited" },
+          since: null,
+          state: "docker-unreadable",
+        },
+      })
+    ).toBe(
+      `Node state not read · Docker could not be read · start time not recorded (checked 2026-11-11 10:30 ET) (code not sent) · last read: exited at time not recorded · ${next}`
+    );
+  });
+
   it("says what the generator count counts, with the date of the run", () => {
     const queue: Pick<
       GoLiveQueueOutput,
@@ -925,21 +1025,21 @@ describe("drafts", () => {
   });
 
   it("writes the limit in dollars per spread as a debit or a credit", () => {
-    expect(limitText({ limitPrice: 2.35, reason: "sized" })).toBe(
+    expect(limitText({ limitPrice: 2.35, reason: "sized" }, CONTEXT)).toBe(
       "$2.35 debit per spread"
     );
-    expect(limitText({ limitPrice: -1.1, reason: "sized" })).toBe(
+    expect(limitText({ limitPrice: -1.1, reason: "sized" }, CONTEXT)).toBe(
       "$1.10 credit per spread"
     );
   });
 
   it("names the cause of a missing limit from the sizing reason, and blames the quote only for no_quote", () => {
     const none = (reason: GoLiveDraftOutput["sizing"]["reason"]): string =>
-      limitText({ limitPrice: null, reason });
+      limitText({ limitPrice: null, reason }, CONTEXT);
     expect(none("no_quote")).toBe("no limit: no usable quote");
     // The server sends no limit when the account value is missing, also beside a good quote.
     expect(none("nlv_unavailable")).toBe(
-      "no limit: the account value is not available"
+      `no limit: no account value from the portfolio monitor ${NO_ACCOUNT_TAIL}`
     );
     for (const reason of GOLIVE_SIZING_REASON_VALUES) {
       const text = none(reason);
@@ -958,41 +1058,57 @@ describe("drafts", () => {
   it.each(GOLIVE_SIZING_REASON_VALUES)(
     "shows quantity 0 with the reason %s",
     (reason) =>
-      expect(quantityText({ quantity: 0, reason })).toBe(
-        `0 spreads (${SIZING_REASON_WORDS[reason]})`
+      expect(quantityText({ quantity: 0, reason }, CONTEXT)).toBe(
+        reason === "nlv_unavailable"
+          ? `0 spreads (${SIZING_REASON_WORDS[reason]} ${NO_ACCOUNT_TAIL})`
+          : `0 spreads (${SIZING_REASON_WORDS[reason]})`
       )
   );
 
   it("names the cause when the budget buys more spreads than one order may hold", () =>
     expect(
-      quantityText({ quantity: 0, reason: "quantity_above_order_limit" })
+      quantityText(
+        { quantity: 0, reason: "quantity_above_order_limit" },
+        CONTEXT
+      )
     ).toBe(
       "0 spreads (the budget buys more spreads than one order may hold, and the draft is not reduced)"
     ));
 
   it("shows a sized quantity in spreads with its reason", () => {
-    expect(quantityText({ quantity: 2, reason: "sized" })).toBe(
+    expect(quantityText({ quantity: 2, reason: "sized" }, CONTEXT)).toBe(
       "2 spreads (sized from the plan's risk per position)"
     );
-    expect(quantityText({ quantity: 1, reason: "sized" })).toBe(
+    expect(quantityText({ quantity: 1, reason: "sized" }, CONTEXT)).toBe(
       "1 spread (sized from the plan's risk per position)"
     );
-    expect(quantityText({ quantity: 2, reason: future("new_cap") })).toBe(
+    expect(
+      quantityText({ quantity: 2, reason: future("new_cap") }, CONTEXT)
+    ).toBe(
       "2 spreads (sizing reason not known to this page version (new_cap))"
     );
   });
 
   it("writes max loss in dollars and percent of the account, or why it is missing", () => {
     expect(
-      maxLossText({ maxLoss: 470, maxLossPctNlv: 0.47, reason: "sized" })
+      maxLossText(
+        { maxLoss: 470, maxLossPctNlv: 0.47, reason: "sized" },
+        CONTEXT
+      )
     ).toBe("$470.00 (0.47% of account)");
     expect(
-      maxLossText({ maxLoss: 470, maxLossPctNlv: null, reason: "sized" })
+      maxLossText(
+        { maxLoss: 470, maxLossPctNlv: null, reason: "sized" },
+        CONTEXT
+      )
     ).toBe(
-      "$470.00 (% of account not available: the account value is not available)"
+      `$470.00 (% of account not computed: no account value from the portfolio monitor ${NO_ACCOUNT_TAIL})`
     );
     expect(
-      maxLossText({ maxLoss: null, maxLossPctNlv: null, reason: "no_quote" })
+      maxLossText(
+        { maxLoss: null, maxLossPctNlv: null, reason: "no_quote" },
+        CONTEXT
+      )
     ).toBe(`not available: ${SIZING_REASON_WORDS.no_quote}`);
     // no_quote covers more than a missing quote: every cause the server has is named.
     expect(SIZING_REASON_WORDS.no_quote).toBe(
@@ -1009,7 +1125,10 @@ describe("drafts", () => {
       "wider than 25% of its mid and wider than $0.10"
     );
     expect(
-      maxLossText({ maxLoss: null, maxLossPctNlv: null, reason: "sized" })
+      maxLossText(
+        { maxLoss: null, maxLossPctNlv: null, reason: "sized" },
+        CONTEXT
+      )
     ).toBe("not available: no max loss was computed");
   });
 
@@ -1109,27 +1228,35 @@ describe("drafts", () => {
       GOLIVE_NOT_APPROVABLE_VALUES.map((value) =>
         value === "NO_LIVE_IBKR_QUOTE"
           ? "No live IBKR quote: no quote was recorded for this draft"
-          : NOT_APPROVABLE_WORDS[value]
+          : value === "NLV_UNAVAILABLE"
+            ? `${NOT_APPROVABLE_WORDS[value]} ${NO_ACCOUNT_TAIL}`
+            : NOT_APPROVABLE_WORDS[value]
       )
     );
   });
 
   it("does not offer Approve unless the plan in force is approved and is the draft's plan", () => {
     // The server lists no blocker in each case: the page gates on the plan itself.
-    expect(blockers(draft(), { plan: null, readAt: AT })).toEqual([
-      "The plan is not approved: there is no plan record",
-    ]);
+    expect(
+      blockers(draft(), { account: NO_ACCOUNT, plan: null, readAt: AT })
+    ).toEqual(["The plan is not approved: there is no plan record"]);
     expect(
       blockers(draft(), {
+        account: NO_ACCOUNT,
         plan: plan({ approvalBasis: null, status: "proposed" }),
         readAt: AT,
       })
     ).toEqual(["The plan is not approved: it is proposed"]);
     expect(
-      blockers(draft(), { plan: plan({ status: "retired" }), readAt: AT })
+      blockers(draft(), {
+        account: NO_ACCOUNT,
+        plan: plan({ status: "retired" }),
+        readAt: AT,
+      })
     ).toEqual(["The plan is not approved: it is retired"]);
     expect(
       blockers(draft(), {
+        account: NO_ACCOUNT,
         plan: plan({ status: future("paused") }),
         readAt: AT,
       })
@@ -1137,13 +1264,18 @@ describe("drafts", () => {
       "The plan is not approved: its status is not known to this page version (paused)",
     ]);
     expect(
-      blockers(draft({ planVersion: 2 }), { plan: plan(), readAt: AT })
+      blockers(draft({ planVersion: 2 }), {
+        account: NO_ACCOUNT,
+        plan: plan(),
+        readAt: AT,
+      })
     ).toEqual([
       "The plan is not approved for this draft: it was drafted for plan plan-1 version 2, and the plan in force is plan-1 version 3",
     ]);
     // Marked approved on a basis this page version does not know: not offered either.
     expect(
       blockers(draft(), {
+        account: NO_ACCOUNT,
         plan: plan({ approvalBasis: future("committee") }),
         readAt: AT,
       })
@@ -1152,11 +1284,16 @@ describe("drafts", () => {
     ]);
     for (const approvalBasis of ["owner_decision", "owner_delegation"] as const)
       expect(
-        blockers(draft(), { plan: plan({ approvalBasis }), readAt: AT })
+        blockers(draft(), {
+          account: NO_ACCOUNT,
+          plan: plan({ approvalBasis }),
+          readAt: AT,
+        })
       ).toEqual([]);
     // The server's own blocker gets the same cause and is not listed twice.
     expect(
       blockers(draft({ notApprovable: ["PLAN_NOT_APPROVED"] }), {
+        account: NO_ACCOUNT,
         plan: plan({ approvalBasis: null, status: "proposed" }),
         readAt: AT,
       })
@@ -1197,9 +1334,9 @@ describe("drafts", () => {
   });
 
   it("shows the stored approved order apart from the current sizing", () => {
-    expect(approvedOrderView(draft())).toBeNull();
+    expect(approvedOrderView(draft(), CONTEXT)).toBeNull();
     expect(
-      approvedOrderView(draft({ decidedAt: AT, state: "rejected" }))
+      approvedOrderView(draft({ decidedAt: AT, state: "rejected" }), CONTEXT)
     ).toBeNull();
     expect(
       approvedOrderView(
@@ -1208,7 +1345,8 @@ describe("drafts", () => {
           decidedAt: AT,
           nodeBadgeAtDecision: "running-disarmed",
           state: "approved",
-        })
+        }),
+        CONTEXT
       )
     ).toEqual({
       label: "Approved order (recorded 2026-11-11 10:30 ET)",
@@ -1222,7 +1360,7 @@ describe("drafts", () => {
       ],
     });
     expect(
-      approvedOrderView(draft({ decidedAt: null, state: "approved" }))
+      approvedOrderView(draft({ decidedAt: null, state: "approved" }), CONTEXT)
     ).toEqual({
       label: "Approved order (recorded time not recorded)",
       legs: [],
@@ -1245,7 +1383,7 @@ describe("drafts", () => {
     expect(CURRENT_PRECHECK_LABEL).toBe(
       "Pre-check (current value, not the value at approval)"
     );
-    expect(currentSizingText(draft().sizing)).toBe(
+    expect(currentSizingText(draft().sizing, CONTEXT)).toBe(
       "limit $2.35 debit per spread; quantity 2 spreads (sized from the plan's risk per position); max loss $470.00 (0.47% of account)"
     );
   });
@@ -1272,27 +1410,32 @@ describe("drafts", () => {
           approvedRoom,
           decidedAt: AT,
           state: "approved",
-        })
+        }),
+        CONTEXT
       )?.room;
     expect(approved({ maxLoss: 882, maxLossPctNlv: 8.82 })).toBe(
       "Risk room held by this approval: $882.00 max loss (8.82% of account value)"
     );
     expect(approved({ maxLoss: 882, maxLossPctNlv: null })).toBe(
-      "Risk room held by this approval: $882.00 max loss (% of account value not available: the account value is not available)"
+      `Risk room held by this approval: $882.00 max loss (% of the account value now not computed: no account value from the portfolio monitor ${NO_ACCOUNT_TAIL})`
     );
     expect(approved(null)).toBe(
       "Risk room held by this approval: the server did not send it"
     );
     // A draft that is not approved holds no room and shows none.
     expect(
-      approvedOrderView(draft({ approvedRoom: null, state: "proposed" }))
+      approvedOrderView(
+        draft({ approvedRoom: null, state: "proposed" }),
+        CONTEXT
+      )
     ).toBeNull();
     expect(
       approvedOrderView(
         draft({
           approvedRoom: { maxLoss: 882, maxLossPctNlv: 8.82 },
           state: "rejected",
-        })
+        }),
+        CONTEXT
       )
     ).toBeNull();
   });
@@ -1310,13 +1453,13 @@ describe("drafts", () => {
       "BUY 1 SPY 2026-12-18 $450.00 call",
       "SELL 1 SPY 2026-12-18 $455.50 put",
     ]);
-    expect(orderSummaryRows(ORDER, draft().sizing)).toEqual([
+    expect(orderSummaryRows(ORDER, draft().sizing, CONTEXT)).toEqual([
       { label: "Quantity", value: "2 spreads" },
       { label: "Limit", value: "$2.35 debit per spread" },
       { label: "Max loss", value: "$470.00 (0.47% of account)" },
     ]);
     expect(
-      orderSummaryRows({ ...ORDER, quantity: 1 }, draft().sizing)[0]
+      orderSummaryRows({ ...ORDER, quantity: 1 }, draft().sizing, CONTEXT)[0]
     ).toEqual({ label: "Quantity", value: "1 spread" });
   });
 });
@@ -1330,12 +1473,15 @@ describe("values a newer server could answer", () => {
       exitReasonText(future("stop_loss")),
       exitRuleText(future("owner_standing_rule_v2")),
       nodeText({ armedAt: null, badge: future("paused"), checkedAt: AT }),
-      quantityText({ quantity: 2, reason: future("new_cap") }),
-      maxLossText({
-        maxLoss: null,
-        maxLossPctNlv: null,
-        reason: future("new_cap"),
-      }),
+      quantityText({ quantity: 2, reason: future("new_cap") }, CONTEXT),
+      maxLossText(
+        {
+          maxLoss: null,
+          maxLossPctNlv: null,
+          reason: future("new_cap"),
+        },
+        CONTEXT
+      ),
       quoteText(
         { notApprovable: [], quote: { ...QUOTE, source: future("broker_x") } },
         AT
@@ -1777,6 +1923,7 @@ describe("staleDialogReason", () => {
     expect(staleDialogReason(reject, blocked, CONTEXT)).toBeNull();
     expect(
       staleDialogReason(approve, draft(), {
+        account: NO_ACCOUNT,
         plan: plan({ approvalBasis: null, status: "proposed" }),
         readAt: AT,
       })
@@ -1883,10 +2030,10 @@ describe("send of an approved entry", () => {
         "Not found at IBKR: the outcome was unknown and a later check did not find the order. Not sent again here; check the IBKR order history.",
       not_sent:
         "Not sent: no send of this order reached the order bridge (a send the checks here refused records nothing).",
-      refused:
-        "Not sent: the order bridge refused the last send before IBKR. It can be sent again.",
       not_taken:
         "Not placed: the order bridge answered that the last send was not taken (for example aborted). Not sent again here, since it may still be at IBKR under this ref; check open orders at IBKR.",
+      refused:
+        "Not sent: the order bridge refused the last send before IBKR. It can be sent again.",
       sent: "Sent to IBKR: IBKR took the last send (submitted, or found there later).",
       unavailable:
         "Not known: the order records could not be read. Reload the queue; the send button needs a known state.",
@@ -1920,11 +2067,110 @@ describe("send of an approved entry", () => {
     ).toBe(false);
   });
 
+  it("keeps the send offer of every send state whatever sendDetail says", () => {
+    const details: GoLiveDraftOutput["sendDetail"][] = [
+      undefined,
+      null,
+      { kind: "pending", since: AT },
+      { kind: "no-store" },
+      { at: AT, kind: "read-failed" },
+    ];
+    for (const sendDetail of details) {
+      const approved = draft({
+        approvedOrder: ORDER,
+        sendDetail,
+        state: "approved",
+      });
+      for (const send of ["not_sent", "refused"] as const)
+        expect(canSendApproved({ ...approved, send })).toBe(true);
+      for (const send of [
+        "sent",
+        "not_taken",
+        "unknown",
+        "not_found",
+        "unavailable",
+        null,
+      ] as const)
+        expect(canSendApproved({ ...approved, send })).toBe(false);
+    }
+  });
+
+  it("shows no store as the whole send state, without the reload line of unavailable", () => {
+    expect(
+      sendLines({ send: "unavailable", sendDetail: { kind: "no-store" } }, AT)
+    ).toEqual({
+      detail: null,
+      state:
+        "Order record store not configured on this deployment · this page offers no send",
+    });
+    expect(
+      sendLines(
+        {
+          send: "unavailable",
+          sendDetail: { at: AT, kind: "read-failed" },
+        },
+        AT
+      )
+    ).toEqual({
+      detail:
+        "Order record store read failed at 2026-11-11 10:30 ET · reload the queue; the send button needs a recorded send state",
+      state: sendStateText("unavailable"),
+    });
+    expect(sendLines({ send: "sent", sendDetail: undefined }, AT)).toEqual({
+      detail: null,
+      state: sendStateText("sent"),
+    });
+  });
+
+  it("names since when a send is pending and why the order records gave no answer", () => {
+    expect(sendDetailText(undefined, AT)).toBeNull();
+    expect(sendDetailText(null, AT)).toBeNull();
+    expect(sendDetailText({ kind: "pending", since: AT }, AT)).toBe(
+      "Sending: no reply from the order bridge since 2026-11-11 10:30 ET · it may still reach IBKR · the next order preview checks open orders and positions first"
+    );
+    // Exactly 7 days old: the preview still reads it; older: it does not.
+    const DAY_MS = 24 * 60 * 60_000;
+    expect(
+      sendDetailText(
+        { kind: "pending", since: new Date(AT.getTime() - 7 * DAY_MS) },
+        AT
+      )
+    ).toBe(
+      "Sending: no reply from the order bridge since 2026-11-04 10:30 ET · it may still reach IBKR · the next order preview checks open orders and positions first"
+    );
+    expect(
+      sendDetailText(
+        {
+          kind: "pending",
+          since: new Date(AT.getTime() - 7 * DAY_MS - 60_000),
+        },
+        AT
+      )
+    ).toBe(
+      "Sending: no reply from the order bridge since 2026-11-04 10:29 ET · it may still reach IBKR · older than 7 days: the order preview no longer checks it · check IBKR order history"
+    );
+    expect(sendDetailText({ kind: "no-store" }, AT)).toBe(
+      "Order record store not configured on this deployment · this page offers no send"
+    );
+    expect(sendDetailText({ at: AT, kind: "read-failed" }, AT)).toBe(
+      "Order record store read failed at 2026-11-11 10:30 ET · reload the queue; the send button needs a recorded send state"
+    );
+    expect(
+      sendDetailText(
+        {
+          kind: "queued",
+        } as unknown as GoLiveDraftOutput["sendDetail"],
+        AT
+      )
+    ).toBe("Send detail not known to this page version (queued)");
+  });
+
   it("repeats the stored order and the room its approval holds in the send dialog", () => {
     expect(
       sendSummaryRows(
         { approvedRoom: { maxLoss: 1250, maxLossPctNlv: 1.25 } },
-        ORDER
+        ORDER,
+        CONTEXT
       ).map((row) => row.label)
     ).toEqual(["Quantity", "Limit", "Max loss"]);
   });

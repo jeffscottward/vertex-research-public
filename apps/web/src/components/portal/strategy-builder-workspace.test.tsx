@@ -362,7 +362,16 @@ describe("strategy builder model", () => {
       lengthUnit("adx"),
       lengthUnit("adx", "1d"),
       lengthUnit("rvol", "1d"),
-    ]).toEqual(["sessions", "bars", "days", "sessions"]);
+      lengthUnit("sma", "5m"),
+      lengthUnit("adx", "15m"),
+    ]).toEqual([
+      "sessions",
+      "bars",
+      "days",
+      "sessions",
+      "5m buckets",
+      "15m buckets",
+    ]);
     const price = { field: "close", type: "price" } as const;
     expect(withOffset(price, "5")).toEqual({ ...price, offset: 5 });
     expect(withOffset({ ...price, offset: 5 }, "0")).toEqual(price);
@@ -1194,6 +1203,65 @@ describe("strategy builder model: read-only expressions", () => {
     expect(isEditableExpr({ series: "VIX", type: "series" })).toBe(false);
   });
 
+  it("describes the trend indicators and keeps them JSON-only", () => {
+    expect(INDICATOR_LABELS.supertrend).toBe("SuperTrend");
+    expect(INDICATOR_LABELS.alphaTrend).toBe("AlphaTrend");
+    expect(INDICATOR_LABELS.chandelierExit).toBe("Chandelier Exit");
+    expect(
+      describeExpr({
+        length: 10,
+        multiple: 3,
+        name: "supertrend",
+        output: "direction",
+        timeframe: "5m",
+        type: "indicator",
+      })
+    ).toBe("SuperTrend 10 x 3 direction (5m)");
+    expect(
+      describeExpr({
+        length: 14,
+        momentum: "rsi",
+        multiple: 1,
+        name: "alphaTrend",
+        offset: 2,
+        output: "line",
+        type: "indicator",
+      })
+    ).toBe("AlphaTrend 14 x 1 rsi line[2]");
+    expect(
+      describeExpr({
+        length: 22,
+        multiple: 3,
+        name: "chandelierExit",
+        output: "longStop",
+        timeframe: "15m",
+        type: "indicator",
+      })
+    ).toBe("Chandelier Exit 22 x 3 longStop (15m)");
+    // On a 5m/15m timeframe the offset counts buckets, not signal bars.
+    expect(
+      describeExpr({
+        length: 10,
+        multiple: 3,
+        name: "supertrend",
+        offset: 1,
+        output: "direction",
+        timeframe: "15m",
+        type: "indicator",
+      })
+    ).toBe("SuperTrend 10 x 3 direction[1 15m buckets ago] (15m)");
+    expect(
+      describeExpr({
+        length: 20,
+        name: "sma",
+        offset: 2,
+        source: "close",
+        timeframe: "5m",
+        type: "indicator",
+      })
+    ).toBe("sma(close, 20)[2 5m buckets ago]");
+  });
+
   it("describes every expression type compactly", () => {
     const close = { field: "close", type: "price" } as const;
     const vix = { series: "VIX", type: "series" } as const;
@@ -1480,6 +1548,45 @@ describe("StrategyBuilderWorkspace: newer definitions", () => {
     );
     expect(document.body.textContent).toContain(
       "Volatility target (edit in the JSON text)"
+    );
+  });
+
+  it("shows the trend indicators as JSON-only expressions", async () => {
+    await mount(<StrategyBuilderWorkspace gateway={gatewayOf()} />);
+    const trio = {
+      entry: {
+        all: [
+          {
+            left: {
+              length: 10,
+              multiple: 3,
+              name: "supertrend",
+              output: "direction",
+              timeframe: "5m",
+              type: "indicator",
+            },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      intraday: {
+        close: "16:00",
+        entryFrom: "09:35",
+        entryTo: "15:55",
+        open: "09:30",
+        timezone: "America/New_York",
+      },
+      name: "Trend trio 5m",
+      version: 1,
+    };
+    await setNative(field("Definition text"), JSON.stringify(trio));
+    expect(document.body.textContent).toContain("The definition is valid.");
+    expect(document.body.textContent).toContain(
+      "supertrend. Edit it in the JSON text."
+    );
+    expect(document.body.textContent).toContain(
+      "This definition also uses timeframe, intraday, trend indicators."
     );
   });
 });

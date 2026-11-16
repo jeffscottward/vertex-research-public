@@ -209,7 +209,19 @@ describe("assistant tools", () => {
       expect(tool.function.parameters["type"]).toBe("object");
       expect(tool.function.description.length).toBeGreaterThan(10);
       expect(tool.function.description).not.toMatch(/write key/i);
+      // The QuantData budget note is for external MCP clients only.
+      expect(tool.function.description).not.toContain("Budget:");
     }
+    const gexListed = listed.get("options_gex_context")?.["description"];
+    expect(gexListed).toContain(
+      "Budget: shares one 30 requests/min QuantData budget"
+    );
+    expect(
+      tools.find((tool) => tool.function.name === "options_gex_context")
+        ?.function.description
+    ).toMatch(
+      /dealers long calls, short puts\. Research only; not a trade signal\.$/u
+    );
     const readNames = MCP_TOOLS.filter(
       (tool) =>
         tool.readOnly && !ASSISTANT_DEFERRED_TOOL_PATTERN.test(tool.name)
@@ -2001,7 +2013,7 @@ describe("assistant confirm card procedures", () => {
     );
     expect(memory.actions).toHaveLength(1);
     expect(memory.actions[0]?.messageId).toBe(memory.messages.at(-1)?.id);
-    await expectCode(
+    const unwired = await expectCode(
       clientFor({
         actions: null,
         repository: memory.repository,
@@ -2011,6 +2023,9 @@ describe("assistant confirm card procedures", () => {
       }),
       "STORAGE_ERROR",
       503
+    );
+    expect(unwired.message).toBe(
+      "Assistant action storage is not configured on this server; nothing was saved. Set the database connection, then retry."
     );
     return expectCode(
       clientFor({

@@ -838,6 +838,7 @@ const combine = api.backtestRuns.combine
       return {
         ...result,
         correlation: result.correlation.map((row) => [...row]),
+        correlationReasons: result.correlationReasons.map((row) => [...row]),
         drawdownOverlap: result.drawdownOverlap.map((row) => [...row]),
         points: [...result.points],
         slots: result.slots.map((slot, index) => {

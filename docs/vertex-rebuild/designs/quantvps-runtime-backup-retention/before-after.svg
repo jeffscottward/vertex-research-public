@@ -1,0 +1,236 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="960"
+  height="420"
+  viewBox="0 0 960 420"
+  font-family="Public Sans, sans-serif"
+>
+  <title>
+    Before and after: 7 runtime backups on QuantVPS become the newest 2; about
+    1.07 GiB is freed
+  </title>
+  <rect width="960" height="420" fill="#0f1115" />
+  <text
+    x="40"
+    y="44"
+    fill="#e8e6e1"
+    font-size="22"
+    font-family="Manrope, sans-serif"
+    font-weight="700"
+  >
+    QuantVPS runtime backups (.runtime-bak-*)
+  </text>
+  <text x="40" y="70" fill="#9aa0a6" font-size="14">
+    Bar height = data a backup does not share with the live tree or a newer
+    backup (MiB, measured 2026-11-16)
+  </text>
+  <text x="40" y="104" fill="#e8e6e1" font-size="17" font-weight="700">
+    Before: 7 backups, no rule
+  </text>
+  <rect x="48" y="142" width="24" height="150" fill="#c0504d" opacity="0.55" />
+  <text x="60" y="136" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    859
+  </text>
+  <path d="M40 306 h14 l5 -6 h21 v34 h-40 z" fill="#c0504d" opacity="0.95" />
+  <text x="60" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-15
+  </text>
+  <text x="60" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    17:23
+  </text>
+  <rect x="106" y="282" width="24" height="10" fill="#c0504d" opacity="0.55" />
+  <text x="118" y="276" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    55
+  </text>
+  <path d="M98 306 h14 l5 -6 h21 v34 h-40 z" fill="#c0504d" opacity="0.95" />
+  <text x="118" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-15
+  </text>
+  <text x="118" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    21:29
+  </text>
+  <rect x="164" y="282" width="24" height="10" fill="#c0504d" opacity="0.55" />
+  <text x="176" y="276" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    56
+  </text>
+  <path d="M156 306 h14 l5 -6 h21 v34 h-40 z" fill="#c0504d" opacity="0.95" />
+  <text x="176" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="176" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    00:30
+  </text>
+  <rect x="222" y="283" width="24" height="9" fill="#c0504d" opacity="0.55" />
+  <text x="234" y="277" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    54
+  </text>
+  <path d="M214 306 h14 l5 -6 h21 v34 h-40 z" fill="#c0504d" opacity="0.95" />
+  <text x="234" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="234" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    00:57
+  </text>
+  <rect x="280" y="280" width="24" height="12" fill="#c0504d" opacity="0.55" />
+  <text x="292" y="274" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    67
+  </text>
+  <path d="M272 306 h14 l5 -6 h21 v34 h-40 z" fill="#c0504d" opacity="0.95" />
+  <text x="292" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="292" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    09:25
+  </text>
+  <rect x="338" y="283" width="24" height="9" fill="#d4a64a" opacity="0.55" />
+  <text x="350" y="277" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    54
+  </text>
+  <path d="M330 306 h14 l5 -6 h21 v34 h-40 z" fill="#d4a64a" opacity="0.95" />
+  <text x="350" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="350" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11:05
+  </text>
+  <rect x="396" y="187" width="24" height="105" fill="#d4a64a" opacity="0.55" />
+  <text x="408" y="181" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    604
+  </text>
+  <path d="M388 306 h14 l5 -6 h21 v34 h-40 z" fill="#d4a64a" opacity="0.95" />
+  <text x="408" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="408" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11:42
+  </text>
+  <path d="M462 240 h52" stroke="#d4a64a" stroke-width="4" />
+  <path d="M514 230 l16 10 -16 10 z" fill="#d4a64a" />
+  <text x="496" y="222" fill="#e8e6e1" font-size="13" text-anchor="middle">
+    --apply ×5
+  </text>
+  <text x="550" y="104" fill="#e8e6e1" font-size="17" font-weight="700">
+    After: newest 2 kept (rule A)
+  </text>
+  <rect
+    x="550"
+    y="300"
+    width="40"
+    height="40"
+    fill="none"
+    stroke="#3a3f47"
+    stroke-dasharray="4 3"
+  />
+  <text x="570" y="326" fill="#5f6670" font-size="18" text-anchor="middle">
+    ✕
+  </text>
+  <text x="570" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-15
+  </text>
+  <text x="570" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    17:23
+  </text>
+  <rect
+    x="608"
+    y="300"
+    width="40"
+    height="40"
+    fill="none"
+    stroke="#3a3f47"
+    stroke-dasharray="4 3"
+  />
+  <text x="628" y="326" fill="#5f6670" font-size="18" text-anchor="middle">
+    ✕
+  </text>
+  <text x="628" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-15
+  </text>
+  <text x="628" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    21:29
+  </text>
+  <rect
+    x="666"
+    y="300"
+    width="40"
+    height="40"
+    fill="none"
+    stroke="#3a3f47"
+    stroke-dasharray="4 3"
+  />
+  <text x="686" y="326" fill="#5f6670" font-size="18" text-anchor="middle">
+    ✕
+  </text>
+  <text x="686" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="686" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    00:30
+  </text>
+  <rect
+    x="724"
+    y="300"
+    width="40"
+    height="40"
+    fill="none"
+    stroke="#3a3f47"
+    stroke-dasharray="4 3"
+  />
+  <text x="744" y="326" fill="#5f6670" font-size="18" text-anchor="middle">
+    ✕
+  </text>
+  <text x="744" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="744" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    00:57
+  </text>
+  <rect
+    x="782"
+    y="300"
+    width="40"
+    height="40"
+    fill="none"
+    stroke="#3a3f47"
+    stroke-dasharray="4 3"
+  />
+  <text x="802" y="326" fill="#5f6670" font-size="18" text-anchor="middle">
+    ✕
+  </text>
+  <text x="802" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="802" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    09:25
+  </text>
+  <rect x="848" y="283" width="24" height="9" fill="#d4a64a" opacity="0.55" />
+  <text x="860" y="277" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    54
+  </text>
+  <path d="M840 306 h14 l5 -6 h21 v34 h-40 z" fill="#d4a64a" opacity="0.95" />
+  <text x="860" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="860" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11:05
+  </text>
+  <rect x="906" y="187" width="24" height="105" fill="#d4a64a" opacity="0.55" />
+  <text x="918" y="181" fill="#cfd3d8" font-size="12" text-anchor="middle">
+    604
+  </text>
+  <path d="M898 306 h14 l5 -6 h21 v34 h-40 z" fill="#d4a64a" opacity="0.95" />
+  <text x="918" y="358" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11-16
+  </text>
+  <text x="918" y="371" fill="#9aa0a6" font-size="10" text-anchor="middle">
+    11:42
+  </text>
+  <rect x="40" y="380" width="14" height="14" fill="#c0504d" />
+  <text x="60" y="392" fill="#cfd3d8" font-size="13">
+    deleted (5, about 1.07 GiB freed; includes the 10-21 packages with
+    seroval@1.5.6)
+  </text>
+  <rect x="640" y="380" width="14" height="14" fill="#d4a64a" />
+  <text x="660" y="392" fill="#cfd3d8" font-size="13">
+    kept (rollback source)
+  </text>
+</svg>

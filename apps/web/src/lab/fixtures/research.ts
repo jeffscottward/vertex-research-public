@@ -19,6 +19,8 @@ import type {
   ResearchReportDatasetOutput,
   ResearchReportSummary,
   ResearchReportsListOutput,
+  ResearchScreenRow,
+  ResearchScreenStatusOutput,
   WatchlistItemOutput,
 } from "@darkfactory/api";
 import type {
@@ -723,4 +725,142 @@ export const LAB_PICK_LIST_PROPOSAL: PickListProposalOutput = {
     targetDte: 120,
   },
   totalMaxLossPct: 0,
+};
+
+// ---------------------------------------------------------------------------
+// Research screen (/research/screen)
+
+const screenRow = (
+  symbol: string,
+  action: ResearchScreenRow["action"],
+  price: number
+): ResearchScreenRow => ({
+  action,
+  barsSource: "ibkr",
+  blockingWarnings: [],
+  buyZone: { high: roundTo(price * 1.01, 2), low: roundTo(price * 0.98, 2) },
+  changePercent: 0.42,
+  collection: "fresh",
+  errorCode: null,
+  errorMessage: null,
+  historyAt: at(1440),
+  lastAttemptAt: at(25),
+  lastAttemptRunId: "demo-screen-run",
+  lastGoodAt: at(25),
+  lastGoodRunId: "demo-screen-run",
+  momentumPercent: 3.1,
+  price,
+  providerSymbol: `${symbol}.DEMO`,
+  quoteAgeMs: 1_500_000,
+  quoteAt: at(25),
+  quoteSource: "yahoo",
+  reasons: ["Demo reason: price is near the fictional buy zone"],
+  reportId: symbol,
+  rewardRisk: 2.1,
+  score: 68,
+  stop: roundTo(price * 0.95, 2),
+  storedAction: action,
+  storedScore: 68,
+  support: roundTo(price * 0.97, 2),
+  symbol,
+  target: roundTo(price * 1.1, 2),
+  warnings: [],
+});
+
+export const LAB_RESEARCH_SCREEN: ResearchScreenStatusOutput = {
+  activeRun: null,
+  evaluatedAt: at(0),
+  lastRun: {
+    barsFromIbkr: 2,
+    barsFromYahoo: 0,
+    claimedAt: at(30),
+    deadlineAt: at(5),
+    failed: 1,
+    finishedAt: at(24),
+    id: "demo-screen-run",
+    message: null,
+    notReached: 0,
+    slotAt: at(30),
+    slotLabels: ["demo slot"],
+    status: "partial",
+    succeeded: 2,
+    total: 3,
+  },
+  limitations: ["Demo data: every value on this page is fictional."],
+  missedSlots: [],
+  nextSlots: Array.from({ length: 12 }, (_, index) => ({
+    at: at(-30 * (index + 1)),
+    labels: index === 0 ? ["demo slot"] : [],
+  })),
+  rows: [
+    screenRow("SPY", "watch", 500),
+    { ...screenRow("QQQ", "review-entry", 420), storedAction: "wait" },
+    {
+      ...screenRow("NVDA", "unavailable", 120),
+      collection: "failed",
+      errorCode: "provider-timeout",
+      errorMessage: "Demo provider did not answer",
+      lastGoodAt: at(55),
+      lastGoodRunId: "demo-screen-run-earlier",
+      score: 0,
+      storedAction: "review-entry",
+    },
+  ],
+  scheduler: {
+    lastTickAt: at(1),
+    lastTickDecision: "not-due",
+    state: "ok",
+  },
+  swinglytics: {
+    generatedAt: at(40),
+    lastAttemptAt: at(35),
+    lastAttemptStatus: "ok",
+    lastError: null,
+    retrievedAt: at(35),
+    snapshot: {
+      breadth: {
+        above20DayPercent: 61,
+        above50DayPercent: 54,
+        above200DayPercent: 48,
+        regime: "Demo healthy",
+        score: 63,
+      },
+      regime: {
+        label: "Demo uptrend",
+        riskLevel: "Demo low",
+        trendStrength: "Demo strong",
+      },
+      scanner: { bearish: 14, bullish: 38, total: 480, withSetups: 52 },
+      setups: [
+        {
+          direction: "bullish",
+          name: "Demo GPU maker",
+          pattern: "Demo flag",
+          sector: "Demo technology",
+          ticker: "NVDA",
+        },
+        {
+          direction: "bearish",
+          name: null,
+          pattern: null,
+          sector: null,
+          ticker: "GLD",
+        },
+      ],
+      themes: [
+        { bias: "bullish", changePercent: 1.4, name: "Demo chips" },
+        { bias: null, changePercent: null, name: "Demo banks" },
+      ],
+      vix: {
+        level: 15.2,
+        percentile1Year: 22,
+        regime: "Demo calm",
+        trend: "Demo falling",
+      },
+    },
+    stale: false,
+    // The fixed text of the status (SWINGLYTICS_WARNING in packages/api).
+    warning:
+      "Third-party context only. Swinglytics is not Vertex research, not a market measurement of the platform, not an input of the screen and not an order signal.",
+  },
 };

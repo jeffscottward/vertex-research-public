@@ -1171,6 +1171,33 @@ describe("root layout request composition", () => {
     return expect(layoutMocks.loadApiThemePreference).toHaveBeenCalledTimes(2);
   });
 
+  it("passes the nonce of the request CSP to the document script tag", async () => {
+    vi.stubEnv("APP_URL", "https://darkfactory.example");
+    const nonce = "AAAAAAAAAAAAAAAAAAAAAA==";
+    layoutMocks.headers.mockResolvedValueOnce(
+      new Headers({
+        "content-security-policy": `frame-ancestors 'none'; script-src 'self' 'nonce-${nonce}'`,
+      })
+    );
+
+    const withNonce = await RootLayout({ children: "page" });
+
+    expect(withNonce.props.scriptNonce).toBe(nonce);
+    expect(markup(createElement(RootDocument, withNonce.props))).toContain(
+      `<script nonce="${nonce}" src="${THEME_BOOTSTRAP_PATH}">`
+    );
+
+    // A request without a script-src nonce renders the script tag without the attribute.
+    layoutMocks.headers.mockResolvedValueOnce(
+      new Headers({ "content-security-policy": "frame-ancestors 'none'" })
+    );
+    const withoutNonce = await RootLayout({ children: "page" });
+    expect(withoutNonce.props.scriptNonce).toBeUndefined();
+    return expect(
+      markup(createElement(RootDocument, withoutNonce.props))
+    ).not.toContain("nonce=");
+  });
+
   return it("uses the canonical origin for blank configuration and rejects HTTP", async () => {
     vi.stubEnv("APP_URL", "   ");
     const canonical = await RootLayout({ children: "canonical" });

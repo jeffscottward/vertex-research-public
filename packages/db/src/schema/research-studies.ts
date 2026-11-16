@@ -2,8 +2,9 @@
 // per study: the whole study document in `summary` (jsonb), with its spec reference and run date
 // copied out for listing; the checks keep the copies equal to the document.
 // The size cap (320 KiB of jsonb text) leaves headroom over the CLI's 256 KiB compact-JSON cap,
-// because jsonb text adds a space after every ',' and ':'. The API and the import CLI validate `summary` with FilterStudySchema
-// (packages/api/src/contracts/research-studies.ts) on write and on read.
+// because jsonb text adds a space after every ',' and ':'. The API and the import CLI validate `summary` with
+// ResearchStudyDocumentSchema (packages/api/src/contracts/research-studies.ts) on write and on read; the
+// strategy library list reads only its `kind` and `verdict` keys.
 // Research only: nothing here places, changes or cancels an order.
 // Used by: packages/db/src/server/research-studies.ts. See: docs/vertex-rebuild/research-studies.md.
 import { sql } from "drizzle-orm";

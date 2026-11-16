@@ -423,6 +423,40 @@ const OVERRIDES = {
     feature: "BLS jobs-report series via FRED",
     effort: "S",
   },
+  // Hand review 2026-11-15 (Aleks Rosme refresh, knowledge-bases master rules 5e180caf).
+  // Performance claims are recorded as claims, never as rules.
+  C889: { cls: "D", reason: "Unverified performance claims; not a rule." },
+  // Net Drift is Quant Data's signed options premium flow; we have no such feed.
+  C875: {
+    cls: "C",
+    reason: "Needs: signed options premium flow (Quant Data Net Drift).",
+    feature: "Signed options premium flow (net call vs put premium)",
+    effort: "M",
+  },
+  C880: {
+    cls: "C",
+    reason: "Needs: signed options premium flow (Quant Data Net Drift).",
+    feature: "Signed options premium flow (net call vs put premium)",
+    effort: "M",
+  },
+  C885: {
+    cls: "C",
+    reason: "Needs: multi-exchange (OPRA) options trade feed.",
+    feature: "Multi-exchange (OPRA) options trade feed",
+    effort: "M",
+  },
+  C874: {
+    cls: "C",
+    reason: "Needs: signed options premium flow (Quant Data Net Drift).",
+    feature: "Signed options premium flow (net call vs put premium)",
+    effort: "M",
+  },
+  C888: {
+    cls: "C",
+    reason: "Needs: signed options premium flow (Quant Data Net Drift).",
+    feature: "Signed options premium flow (net call vs put premium)",
+    effort: "M",
+  },
 };
 
 export function classifyCluster(c, debated = new Map()) {

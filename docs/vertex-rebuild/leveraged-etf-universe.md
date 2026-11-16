@@ -133,9 +133,12 @@ that run; none of them is fixed yet.
   TSLL and NVDL the second source also showed a half spread above the 4% limit (4.7% to 6.6%). Their options are cheap:
   a quote that is 0.05 USD wide is 5% of a 0.50 USD option.
 
-How to read the table until a second gate version exists: the reasons `no-listed-options` and
-`open-interest-below-minimum` are solid. A `fail` whose only reason is `spread-above-maximum` says that one early read
-was above the limit; it does not say that the fund has no option market.
+Gate version 2 measures the spread again: the expiry that the study trades, three runs per session from two sources, a
+label only from 2 sessions. Its stage 1 writes a result file outside this table
+([leveraged-etf-option-gate-v2.md](../specs/research/leveraged-etf-option-gate-v2.md)). The table keeps its version 1
+labels until stage 2. Until then: the reasons `no-listed-options` and `open-interest-below-minimum` are solid. A
+`fail` whose only reason is `spread-above-maximum` says that one early read was above the limit; it does not say that
+the fund has no option market.
 
 ## Universe document
 

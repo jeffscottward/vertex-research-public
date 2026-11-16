@@ -1,7 +1,7 @@
 // Starter indicator library. Every template is ordinary Vertex script source written for this
 // subset (not copied from TradingView); tests compile and run each one on fixture bars.
 
-import type { ScriptTemplate } from "./index.ts";
+import type { ScriptTemplate } from "./types.ts";
 
 const lines = (...rows: string[]): string => `${rows.join("\n")}\n`;
 
@@ -230,7 +230,155 @@ export const SCRIPT_TEMPLATES: readonly ScriptTemplate[] = [
       'plotshape(dir == 1 and dir[1] == -1, "Flip up", location=location.belowbar, text="Up", color=color.green)',
       'plotshape(dir == -1 and dir[1] == 1, "Flip down", location=location.abovebar, text="Down", color=color.red)'
     ),
-    title: "ATR Trailing Stop (Supertrend-like)",
+    title: "ATR Trailing Stop",
+  },
+  {
+    category: "trend",
+    description:
+      "TradingView's SuperTrend: an ATR band below price in an up trend and above it in a down trend.",
+    id: "supertrend",
+    source: lines(
+      "//@version=5",
+      'indicator("SuperTrend", shorttitle="ST", overlay=true)',
+      'factor = input.float(3.0, "Factor", minval=0.01)',
+      'atrPeriod = input.int(10, "ATR length", minval=1)',
+      "// Pine's sign: direction is -1 in an up trend and +1 in a down trend.",
+      "[st, dir] = ta.supertrend(factor, atrPeriod)",
+      'plot(dir < 0 ? st : na, "Up", color=color.green, linewidth=2)',
+      'plot(dir > 0 ? st : na, "Down", color=color.red, linewidth=2)'
+    ),
+    title: "SuperTrend",
+  },
+  {
+    category: "trend",
+    description:
+      "ChrisMoody's Ultimate MA: one of eight moving averages, green while it is at or above its value a few bars ago.",
+    id: "ultimate-ma",
+    source: lines(
+      "//@version=5",
+      'indicator("Ultimate MA", shorttitle="UMA", overlay=true)',
+      'maType = input.int(1, "Type 1-8: SMA EMA WMA Hull VWMA RMA TEMA T3", minval=1, maxval=8)',
+      'len = input.int(20, "Length", minval=1)',
+      'smooth = input.int(2, "Direction lookback", minval=1)',
+      't3Factor = input.float(0.7, "T3 factor", minval=0.01)',
+      "// Tilson's generalized DEMA; T3 applies it three times.",
+      "gd(src) =>",
+      "    e = ta.ema(src, len)",
+      "    e * (1 + t3Factor) - ta.ema(e, len) * t3Factor",
+      "e1 = ta.ema(close, len)",
+      "e2 = ta.ema(e1, len)",
+      "e3 = ta.ema(e2, len)",
+      "hull = ta.wma(2 * ta.wma(close, math.max(math.floor(len / 2), 1)) - ta.wma(close, len), math.max(math.round(math.sqrt(len)), 1))",
+      "t3 = gd(gd(gd(close)))",
+      "uma = maType == 1 ? ta.sma(close, len) : maType == 2 ? e1 : maType == 3 ? ta.wma(close, len) : maType == 4 ? hull : maType == 5 ? ta.vwma(close, len) : maType == 6 ? ta.rma(close, len) : maType == 7 ? 3 * (e1 - e2) + e3 : t3",
+      "rising = uma >= uma[smooth]",
+      'plot(uma, "Ultimate MA", color=rising ? color.lime : color.red, linewidth=2)'
+    ),
+    title: "Ultimate MA (8 types)",
+  },
+  {
+    category: "trend",
+    description:
+      "Kivanc Ozbilgic's AlphaTrend: an ATR-style trail that follows MFI (or RSI) momentum; it crossing its value 2 bars ago marks a turn.",
+    id: "alphatrend",
+    source: lines(
+      "//@version=5",
+      'indicator("AlphaTrend", shorttitle="AT", overlay=true)',
+      'coeff = input.float(1.0, "Multiplier", minval=0.01)',
+      'atLen = input.int(14, "Length", minval=1)',
+      'useMfi = input.bool(true, "Use MFI (off: RSI, for data without volume)")',
+      "band = ta.sma(ta.tr, atLen)",
+      "upT = low - band * coeff",
+      "downT = high + band * coeff",
+      "momentum = useMfi ? ta.mfi(hlc3, atLen) : ta.rsi(close, atLen)",
+      "alpha = 0.0",
+      "alpha := momentum >= 50 ? (upT < nz(alpha[1]) ? nz(alpha[1]) : upT) : (downT > nz(alpha[1]) ? nz(alpha[1]) : downT)",
+      'plot(alpha, "AlphaTrend", color=color.blue, linewidth=2)',
+      'plot(alpha[2], "AlphaTrend[2]", color=color.red)'
+    ),
+    title: "AlphaTrend",
+  },
+  {
+    category: "trend",
+    description:
+      "Chuck LeBeau's Chandelier Exit: ATR stops hung from the highest high and the lowest low; the shown stop flips when price closes through it.",
+    id: "chandelier-exit",
+    source: lines(
+      "//@version=5",
+      'indicator("Chandelier Exit", shorttitle="CE", overlay=true)',
+      'ceLen = input.int(22, "ATR length", minval=1)',
+      'ceMult = input.float(3.0, "ATR multiplier", minval=0.01)',
+      "ceBand = ceMult * ta.atr(ceLen)",
+      "longStop = ta.highest(high, ceLen) - ceBand",
+      "longPrev = nz(longStop[1], longStop)",
+      "longStop := close[1] > longPrev ? math.max(longStop, longPrev) : longStop",
+      "shortStop = ta.lowest(low, ceLen) + ceBand",
+      "shortPrev = nz(shortStop[1], shortStop)",
+      "shortStop := close[1] < shortPrev ? math.min(shortStop, shortPrev) : shortStop",
+      "var int ceDir = 1",
+      "ceDir := close > shortPrev ? 1 : close < longPrev ? -1 : ceDir",
+      'plot(ceDir == 1 ? longStop : na, "Long stop", color=color.green, linewidth=2)',
+      'plot(ceDir == -1 ? shortStop : na, "Short stop", color=color.red, linewidth=2)'
+    ),
+    title: "Chandelier Exit",
+  },
+  {
+    category: "trend",
+    description: "ChrisMoody's Sling Shot trend filter: EMA 38 against EMA 62.",
+    id: "slingshot",
+    source: lines(
+      "//@version=5",
+      'indicator("Slingshot", shorttitle="Sling", overlay=true)',
+      'fastLen = input.int(38, "Fast EMA", minval=1)',
+      'slowLen = input.int(62, "Slow EMA", minval=1)',
+      'plot(ta.ema(close, fastLen), "EMA 38", color=color.lime)',
+      'plot(ta.ema(close, slowLen), "EMA 62", color=color.red)'
+    ),
+    title: "Slingshot (EMA 38/62)",
+  },
+  {
+    category: "trend",
+    description:
+      "Marks bars where SuperTrend, Ultimate MA (SMA 20) and AlphaTrend agree, the Slingshot filter allows and the Chandelier Exit points the same way, on the chart's own timeframe. No orders, no alerts.",
+    id: "trend-trio",
+    source: lines(
+      "//@version=5",
+      'indicator("Trend Trio", shorttitle="Trio", overlay=true)',
+      "[st, stDir] = ta.supertrend(3.0, 10)",
+      "uma = ta.sma(close, 20)",
+      "umaDir = na(uma) or na(uma[2]) ? na : uma >= uma[2] ? 1 : -1",
+      "coeff = 1.0",
+      "atLen = 14",
+      "useMfi = true",
+      "band = ta.sma(ta.tr, atLen)",
+      "upT = low - band * coeff",
+      "downT = high + band * coeff",
+      "momentum = useMfi ? ta.mfi(hlc3, atLen) : ta.rsi(close, atLen)",
+      "alpha = 0.0",
+      "alpha := momentum >= 50 ? (upT < nz(alpha[1]) ? nz(alpha[1]) : upT) : (downT > nz(alpha[1]) ? nz(alpha[1]) : downT)",
+      "atDir = na(alpha) or na(alpha[1]) or na(alpha[2]) or na(alpha[3]) ? na : alpha > alpha[2] ? 1 : alpha < alpha[2] ? -1 : alpha[1] > alpha[3] ? 1 : -1",
+      "fast = ta.ema(close, 38)",
+      "slow = ta.ema(close, 62)",
+      "slingDir = na(fast) or na(slow) ? na : fast > slow ? 1 : fast < slow ? -1 : 0",
+      "ceLen = 22",
+      "ceMult = 3.0",
+      "ceBand = ceMult * ta.atr(ceLen)",
+      "longStop = ta.highest(high, ceLen) - ceBand",
+      "longPrev = nz(longStop[1], longStop)",
+      "longStop := close[1] > longPrev ? math.max(longStop, longPrev) : longStop",
+      "shortStop = ta.lowest(low, ceLen) + ceBand",
+      "shortPrev = nz(shortStop[1], shortStop)",
+      "shortStop := close[1] < shortPrev ? math.min(shortStop, shortPrev) : shortStop",
+      "var int ceDir = 1",
+      "ceDir := close > shortPrev ? 1 : close < longPrev ? -1 : ceDir",
+      "ceSide = na(longStop) ? na : ceDir",
+      "// ta.supertrend keeps Pine's sign (-1 up).",
+      "longAlign = stDir == -1 and umaDir == 1 and atDir == 1 and slingDir == 1 and ceSide == 1",
+      "shortAlign = stDir == 1 and umaDir == -1 and atDir == -1 and slingDir == -1 and ceSide == -1",
+      'plotshape(longAlign, "Long alignment", location=location.belowbar, text="L", color=color.green)',
+      'plotshape(shortAlign, "Short alignment", location=location.abovebar, text="S", color=color.red)'
+    ),
+    title: "Trend Trio alignment",
   },
   {
     category: "trend",

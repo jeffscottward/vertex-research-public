@@ -5,6 +5,10 @@ import coverageBaseline from "./scripts/ci/coverage-baseline.json" with {
   type: "json",
 };
 import {
+  FILE_SHARDS,
+  NATIVE_EVIDENCE_SHARDS,
+} from "./scripts/lib/coverage-shards.ts";
+import {
   resolveTimeoutScale,
   TIMEOUT_SCALE_ENV,
 } from "./scripts/lib/test-timeout-scale.ts";
@@ -53,6 +57,20 @@ export const coverageThresholds = {
 // vitest-cache-copy-race, 2026-11-08). A cache per working directory gives
 // each turbo task its own.
 const fsModuleCachePath = join(process.cwd(), "node_modules", ".vitest-cache");
+
+// The files of the named shards as absolute paths. Vitest resolves a relative
+// include or exclude entry against the directory it starts in. The
+// packages/api test:unit script starts it in packages/api, where a path
+// relative to the repository root matches no file. With absolute paths the
+// shard projects match these files from every start directory, so a start in
+// another package must select its projects.
+const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
+// tinyglobby makes an absolute pattern relative to its escaped start
+// directory. The prefix needs the same escaping to match, so this is the
+// POSIX escapePath of tinyglobby 0.2.17 (POSIX paths only). escapeGlob also
+// escapes + @ , ! and the patterns then fail in such a path.
+const shardFile = (file: string): string =>
+  join(repositoryRoot, file).replace(/[\\()[\]{}*?|]|^!|[!+@](?=\()/gu, "\\$&");
 
 export default defineConfig({
   // Verification never reads local dotenv files; tests receive explicit env only.
@@ -117,9 +135,28 @@ export default defineConfig({
             "**/scripts/**",
             // Git-ignored local evidence keeps preimage copies of test files.
             "private/**",
+            // Named coverage shards (scripts/lib/coverage-shards.ts) run these.
+            ...Object.values(FILE_SHARDS).flat().map(shardFile),
           ],
         },
       },
+      ...Object.entries(FILE_SHARDS).map(([name, include]) => ({
+        extends: true,
+        test: {
+          name,
+          include: include.map(shardFile),
+          // The JavaScript main thread of the worker limits the
+          // native-evidence tests. Vitest runs the groups one after the other,
+          // so these files never run at the same time as the projects of a
+          // lower group (every other project). With more than one worker they
+          // start when those projects have ended. The five-turn debate file
+          // stays in the group of the unit project, where it ran before it had
+          // its own project.
+          sequence: {
+            groupOrder: Object.hasOwn(NATIVE_EVIDENCE_SHARDS, name) ? 1 : 0,
+          },
+        },
+      })),
       {
         extends: true,
         test: {

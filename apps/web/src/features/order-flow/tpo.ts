@@ -218,7 +218,9 @@ export const buildTpoProfile = (
   ) as number;
   // One step for every session so their profiles compare row for row.
   const priceStep =
-    options.priceStep !== undefined && options.priceStep > 0
+    options.priceStep !== undefined &&
+    Number.isFinite(options.priceStep) &&
+    options.priceStep > 0
       ? options.priceStep
       : Math.max(
           ...[...groups.values()].map((group) =>

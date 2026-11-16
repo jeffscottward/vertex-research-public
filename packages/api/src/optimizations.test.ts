@@ -384,6 +384,7 @@ type Harness = Readonly<{
   requestSession?: SafeAuthSession | null;
   apiKeyAccess?: "read" | "write";
   optimizationRuns?: OptimizationRunsRepository;
+  withoutAgentOps?: boolean;
 }>;
 
 const clientFor = (options: Harness = {}) => {
@@ -396,7 +397,7 @@ const clientFor = (options: Harness = {}) => {
     featureItems: {} as Repositories["featureItems"],
     adminUsers: {} as Repositories["adminUsers"],
     dashboard: {} as Repositories["dashboard"],
-    agentOps: agentOps(),
+    ...(options.withoutAgentOps === true ? {} : { agentOps: agentOps() }),
     ...(options.optimizationRuns === undefined
       ? {}
       : { optimizationRuns: options.optimizationRuns }),
@@ -548,9 +549,21 @@ describe("agentOps.optimizations procedures", () => {
     return await expectCode(
       clientFor({}).agentOps.optimizations.list({}),
       "STORAGE_ERROR",
-      503
+      503,
+      "Optimization run storage is not configured on this server; nothing was saved. Set the database connection, then retry."
     );
   });
+
+  it("names agent operations storage when only the task store is not wired", async () =>
+    await expectCode(
+      clientFor({
+        optimizationRuns: memoryRuns(["task-1"]),
+        withoutAgentOps: true,
+      }).agentOps.optimizations.list({}),
+      "STORAGE_ERROR",
+      503,
+      "Agent operations storage is not configured on this server; nothing was saved. Set the database connection, then retry."
+    ));
 
   it("lets a read key list and get but refuses record; a write key may record", async () => {
     const runs = memoryRuns(["task-1"]);

@@ -10,6 +10,7 @@ import {
   ResearchPaperSchema,
   ResearchReportDatasetOutputSchema,
   ResearchReportsListOutputSchema,
+  ResearchScreenStatusOutputSchema,
   WatchlistItemSchema,
 } from "@darkfactory/api";
 import {
@@ -31,6 +32,7 @@ import {
   LAB_PRICE_ALERTS,
   LAB_RESEARCH_REPORTS,
   LAB_RESEARCH_ROSTER,
+  LAB_RESEARCH_SCREEN,
   LAB_RESEARCH_THREAD_ID,
   LAB_RESEARCH_THREAD_PAGE,
   LAB_WATCHLIST,
@@ -68,6 +70,7 @@ describe("research lab fixtures", () => {
         labResearchTranscript(LAB_RESEARCH_THREAD_ID)
       );
       ResearchReportsListOutputSchema.parse(LAB_RESEARCH_REPORTS);
+      ResearchScreenStatusOutputSchema.parse(LAB_RESEARCH_SCREEN);
       ResearchReportDatasetOutputSchema.parse(
         labResearchDataset("NVDA", "news")
       );
@@ -110,6 +113,17 @@ describe("research lab entries", () => {
     await vi.waitFor(() =>
       expect(host.textContent).toContain("Demo GPU maker dossier")
     );
+  });
+
+  it("shows the fake research screen", async () => {
+    const host = await render("research-screen");
+    expect(host.querySelector("h1")?.textContent).toBe("Research screen");
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain("No current data")
+    );
+    expect(
+      host.querySelector('[data-slot="page-status"]')?.textContent
+    ).toContain("Scheduler running");
   });
 
   it("opens the dossier from ?id= and defaults to SPY", async () => {
@@ -237,6 +251,11 @@ describe("research lab entries", () => {
       )
     );
     expect(host.querySelectorAll("[data-flow-source]")).toHaveLength(4);
+    expect(host.querySelectorAll("[data-flow-control-side]")).toHaveLength(2);
+    expect(host.querySelectorAll("[data-flow-deep-trades]")).toHaveLength(1);
+    expect(host.querySelector('[data-flow-deep-trades="ES"]')).not.toBeNull();
+    expect(host.querySelectorAll("[data-flow-deep-trade]")).toHaveLength(14);
+    expect(host.querySelectorAll("[data-flow-absorption]")).toHaveLength(2);
     expect(host.querySelector("[data-flow-chart]")).not.toBeNull();
     expect(host.textContent).toContain("Fictional lab data");
   });

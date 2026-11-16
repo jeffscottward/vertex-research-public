@@ -1,20 +1,27 @@
 // What: one flow.collect run. For each symbol and source that is due, sample IBKR ticks and depth
 // (through vertex-history) and QuantData options flow and GEX, derive per-minute features and
 // events, and store them. Sampled ingest inside the IBKR historical budget (6 requests per 120 s,
-// shared with /charts): one tick fetch (two historical requests) per symbol about every 4 minutes,
-// staggered so the two symbols never fetch in the same ~2 minutes, and only while at most 2 of the
+// shared with /charts): one tick fetch (two historical requests) per symbol about every 6 minutes
+// (three tick turns: SPY, ES, NQ), staggered so two symbols never fetch in the same ~2 minutes, and
+// only while at most 2 of the
 // 6 slots are in use, so /charts keeps at least 2 free. Depth uses its own subscription pacer.
 // Research only: nothing here places, changes or cancels orders. Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowOptionGapRecord,
+  FlowPruneTable,
   FlowRepository,
   FlowSampleRecord,
 } from "@darkfactory/db/server";
 
 import {
+  FLOW_EXPIRY_PARTS,
+  FLOW_FILTER_PROFILE,
+  FLOW_STORAGE_FAILURE_PREFIX,
   FLOW_SYMBOLS,
   type FlowCollectOutput,
   type FlowCollectParsedInput,
+  type FlowExpiryPart,
+  type FlowGroupId,
   type FlowOptionTicker,
   type FlowSampleStatus,
   type FlowSource,
@@ -25,33 +32,52 @@ import type {
   MarketTicksOutput,
 } from "../contracts/market-data.ts";
 import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
+import { deepTradesOf } from "../flow-deep-trades.ts";
 import {
   buildBook,
   buildMinuteFeatures,
   FLOW_INSTRUMENTS,
   type FlowEventRow,
+  type FlowGroup,
   type FlowInstrument,
 } from "../flow-features.ts";
+import {
+  type FlowNetDriftBucket,
+  type FlowNetDriftRow,
+  netDriftRequest,
+  newestBucketAt,
+  parseNetDrift,
+} from "../flow-net-drift.ts";
 import {
   type FlowOptionPrintRow,
   oldestRowTime,
   optionEvents,
   parseOptionPrints,
 } from "../flow-options.ts";
-import { signTrades } from "../flow-trade-signing.ts";
-import { flowSessionOpen } from "./flow-snapshot.ts";
+import { type SignedTrade, signTrades } from "../flow-trade-signing.ts";
+import {
+  flowClockText,
+  flowSessionDate,
+  flowSessionOpen,
+} from "./flow-snapshot.ts";
 import type { MarketHistoryPacing } from "./market-data.ts";
-import type { QuantDataClient } from "./quantdata-client.ts";
+import type { QuantDataClient, QuantDataResult } from "./quantdata-client.ts";
 
 /** A source is due again this many seconds after its last attempt (any status). */
 export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
   depth: 50,
   gex: 840,
+  /** Due on every run; netDriftTurn alone sets the cadence, each group on alternate minutes. */
+  net_drift: 0,
   options: 110,
-  ticks: 230,
+  /**
+   * Three tick turns (SPY, ES, NQ) take about 360 s with the 60 s timer; 350 s keeps a symbol from
+   * taking a second turn before the other two had theirs, and stays below the starved limit (410 s).
+   */
+  ticks: 350,
 };
 /** No tick fetch (any symbol) within this many seconds of another one. */
-const FLOW_TICKS_STAGGER_SECONDS = 110;
+export const FLOW_TICKS_STAGGER_SECONDS = 110;
 /**
  * Fetch ticks only while the IBKR 120 s window holds at most this many requests (of 6). A starved
  * symbol (FLOW_TICKS_STARVED_SECONDS) has a higher limit.
@@ -61,11 +87,13 @@ const FLOW_IBKR_MAX_RECENT = 2;
  * A symbol whose newest tick attempt (ok, empty or unavailable) is older than this is starved and
  * stops yielding to /charts: it fetches as soon as the window has room for its two requests. Without
  * this limit a steady client (a bar backfill at 3 to 4 requests per 120 s) kept every tick sample
- * out for hours. 350 s is the sixth 60 s timer run after the attempt, so both staggered symbols get
- * a sample before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s). A failed starved fetch
- * is an attempt too: the symbol then yields again for 350 s and does not retry every minute.
+ * out for hours. The 60 s timer starts a turn about every 120 s; three turns (360 s) fit below
+ * 410 s, so a symbol is starved only when its normal turn was missed, and it still gets a sample
+ * before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s). The turn guard test of
+ * flow-collect.test.ts (turns × 120 s ≤ 410 s) fails when a fourth turn is added. A failed starved
+ * fetch is an attempt too: the symbol then yields again for 410 s and does not retry every minute.
  */
-export const FLOW_TICKS_STARVED_SECONDS = 350;
+export const FLOW_TICKS_STARVED_SECONDS = 410;
 /** The vertex-history limit (6 per 120 s) minus the two requests of one tick fetch. */
 const FLOW_IBKR_MAX_RECENT_STARVED = 4;
 export const FLOW_TICKS_COUNT = 1000;
@@ -80,14 +108,38 @@ export const FLOW_OPTION_PAGES_MAX = 6;
 export const FLOW_OPTION_RUN_PAGES_MAX = 8;
 export const FLOW_OPTION_LOOKBACK_MS = 15 * 60_000;
 export const FLOW_SEED_OPTION_LOOKBACK_MS = 72 * 3_600_000;
-export const FLOW_RETENTION_DAYS = 14;
+/** Retention per table; flow_minutes stays at 14 days, so a rollback deletes no row (design section 3). */
+export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
+  flow_book: 14,
+  flow_events: 14,
+  flow_gex: 14,
+  flow_large_trades: 730,
+  flow_minutes: 14,
+  flow_net_drift: 730,
+  flow_option_gaps: 14,
+  flow_option_prints: 14,
+  flow_samples: 14,
+};
+/**
+ * Collector calls leave 6 of the shared client's 30 starts per 60 s free, so two /charts option reads
+ * of 3 requests each always fit; the client holds the window (withCallerReserve).
+ */
+export const FLOW_QUANTDATA_CALLER_RESERVE = 6;
+/** One GEX estimate sends three QuantData requests; one estimate runs per run. */
+const FLOW_GEX_REQUESTS_PER_RUN = 3;
+/** One net drift read per symbol sends two requests: total and zero_dte. */
+const FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL = 2;
+/** QuantData worst case of one source for one symbol; a source with less free starts is skipped. */
+const FLOW_QUANTDATA_SOURCE_MAX: Readonly<Partial<Record<FlowSource, number>>> =
+  {
+    gex: FLOW_GEX_REQUESTS_PER_RUN,
+    net_drift: FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL,
+    options: FLOW_OPTION_RUN_PAGES_MAX,
+  };
+/** The IBKR history window of vertex-history: 6 requests per 120 s. */
+export const FLOW_IBKR_LIMIT = 6;
 /** The caller prunes at most once per this interval (deps.pruneDue). */
 export const FLOW_PRUNE_INTERVAL_MS = 3_600_000;
-
-const DEFAULT_MIN_TICK: Readonly<Record<FlowSymbol, number>> = {
-  ES: 0.25,
-  SPY: 0.01,
-};
 
 export type FlowCollectDeps = Readonly<{
   now: Date;
@@ -101,6 +153,8 @@ export type FlowCollectDeps = Readonly<{
   analytics:
     | ((ticker: FlowOptionTicker) => Promise<OptionsAnalyticsOutput>)
     | null;
+  /** Milliseconds since the run started (the budget line). */
+  elapsedMs: () => number;
 }>;
 
 type Run = FlowCollectOutput["runs"][number];
@@ -117,13 +171,15 @@ type Attempt = Readonly<{
 interface RunState {
   readonly deps: FlowCollectDeps;
   readonly dryRun: boolean;
-  /** Operator backfill: no session or due checks, longer options look-back. */
-  readonly seed: boolean;
+  /** true once one symbol ran its GEX estimate in this run. */
+  gexDone: boolean;
   /** Newest attempt per symbol and source (stored samples). */
   readonly last: Map<string, Date>;
   pacing: MarketHistoryPacing | null | undefined;
   /** Symbol price from this run's depth or ticks (for the ES − SPX basis). */
   readonly prices: Map<FlowSymbol, number>;
+  /** Operator backfill: no session or due checks, longer options look-back. */
+  readonly seed: boolean;
 }
 
 const sampleKey = (symbol: FlowSymbol, source: FlowSource) =>
@@ -158,6 +214,17 @@ const store = async <T>(
   rows: readonly T[],
   write: (rows: readonly T[]) => Promise<number>
 ): Promise<number> => (state.dryRun ? rows.length : await write(rows));
+
+/**
+ * Tick turns: one turn per symbol that fetches trades and quotes (two IBKR requests each), in
+ * FLOW_SYMBOLS order. The stagger lets one turn go per FLOW_TICKS_STAGGER_SECONDS.
+ */
+export const flowTickTurns = (
+  instruments: Readonly<Record<FlowSymbol, FlowInstrument>>
+): readonly (readonly FlowSymbol[])[] =>
+  FLOW_SYMBOLS.filter(
+    (symbol) => instruments[symbol].ticks === "trades_and_quotes"
+  ).map((symbol) => [symbol]);
 
 const storeEvents = (state: RunState, events: readonly FlowEventRow[]) =>
   store(state, events, (rows) => state.deps.repository.insertEvents(rows));
@@ -228,15 +295,35 @@ const collectTicks = async (
       status: "unavailable",
     };
   const signed = signTrades(output.trades, output.quotes);
-  const minTick = output.minTick ?? DEFAULT_MIN_TICK[instrument.symbol];
+  const minTick = output.minTick ?? instrument.minTick;
   const features = buildMinuteFeatures(instrument, signed, minTick);
   const last = features.minutes.at(-1);
   if (last) state.prices.set(instrument.symbol, last.close);
   const items = await store(state, features.minutes, (rows) =>
     state.deps.repository.upsertMinutes(rows)
   );
-  const events = await storeEvents(state, features.events);
   const first = signed[0];
+  let events: number;
+  let deepNote = "";
+  if (instrument.kind === "future") {
+    const deep =
+      first === undefined
+        ? { invalid: 0, rows: [], unsigned: 0 }
+        : deepTradesOf(
+            instrument,
+            features.deepPrints,
+            { first: first.t, last: (signed.at(-1) as SignedTrade).t },
+            state.deps.now
+          );
+    const stored = state.dryRun
+      ? { events: features.events.length, trades: deep.rows.length }
+      : await state.deps.repository.insertTickSample({
+          events: features.events,
+          trades: deep.rows,
+        });
+    events = stored.events;
+    deepNote = `; ${deep.rows.length} deep trades, ${stored.trades} new, ${deep.unsigned} deep prints without a side, ${deep.invalid} with an invalid price`;
+  } else events = await storeEvents(state, features.events);
   const span =
     first === undefined
       ? "no prints"
@@ -244,7 +331,7 @@ const collectTicks = async (
   return {
     events,
     items,
-    message: `${span}${output.cache.hit ? " (cache)" : ""}`,
+    message: `${span}${deepNote}${output.cache.hit ? " (cache)" : ""}`,
     record: true,
     status: signed.length > 0 ? "ok" : "empty",
   };
@@ -674,10 +761,11 @@ const collectOptions = async (
     stored = await repository.optionGaps(instrument.symbol);
     if (open) newest = await repository.newestOptionPrintAt(instrument.symbol);
   } catch (error) {
-    // Closed: nothing to collect without the gap list, so report it without a sample.
+    // Closed: nothing to collect without the gap list, so report it without a sample. Every
+    // repository rejection arrives as a FlowStorageError (storageTagged).
     if (!open)
       return notDue(
-        `market closed; gaps unavailable: ${(error instanceof Error ? error.message : "lookup failed").slice(0, 80)}`
+        `market closed; gaps unavailable: ${(error as FlowStorageError).message.slice(0, 80)}`
       );
     return failed(error);
   }
@@ -710,7 +798,7 @@ const gexBasis = (
   instrument: FlowInstrument,
   spot: number | null
 ) => {
-  if (instrument.symbol === "SPY") return 0;
+  if (instrument.kind === "etf") return 0;
   const price = state.prices.get(instrument.symbol);
   return price === undefined || spot === null ? null : price - spot;
 };
@@ -768,8 +856,156 @@ const collectGex = async (
   };
 };
 
-// Depth before GEX, so the ES − SPX basis can use this run's book.
+/** sp500 symbols read net drift on even minutes of the run time, nasdaq100 symbols on odd minutes. */
+export const netDriftTurn = (group: FlowGroupId, now: Date): boolean =>
+  Math.floor(now.getTime() / 60_000) % 2 === (group === "sp500" ? 0 : 1);
+
+/** A net drift bucket is ok while its newest bucket started at most this long before now. */
+const NET_DRIFT_OK_SECONDS = 300;
+
+type NetDriftPart =
+  | Readonly<{ ok: true; buckets: readonly FlowNetDriftBucket[] }>
+  | Readonly<{ ok: false; reserved: boolean; text: string }>;
+
+const netDriftPart = async (
+  state: RunState,
+  client: QuantDataClient,
+  ticker: FlowOptionTicker,
+  part: FlowExpiryPart,
+  sessionDate: string
+): Promise<NetDriftPart> => {
+  const result: QuantDataResult = await client.request(
+    "netDrift",
+    netDriftRequest(sessionDate, ticker, part),
+    30_000
+  );
+  if (!result.ok) {
+    const until = new Date(
+      state.deps.now.getTime() +
+        (result.retryAfterSeconds ?? client.cooldownSeconds()) * 1000
+    );
+    return {
+      ok: false,
+      reserved: result.reason === "reserved",
+      text:
+        result.reason === "rate_limited"
+          ? `rate limited until ${flowClockText(until)} ET`
+          : result.message,
+    };
+  }
+  const parsed = parseNetDrift(result.data);
+  return parsed.ok
+    ? parsed
+    : { ok: false, reserved: false, text: parsed.message };
+};
+
+const storeNetDrift = (
+  state: RunState,
+  ticker: FlowOptionTicker,
+  part: FlowExpiryPart,
+  buckets: readonly FlowNetDriftBucket[]
+): Promise<number> =>
+  store(
+    state,
+    buckets.map(
+      (bucket): FlowNetDriftRow => ({
+        ...bucket,
+        filterProfile: FLOW_FILTER_PROFILE,
+        part,
+        ticker,
+      })
+    ),
+    (rows) => state.deps.repository.upsertNetDrift(rows)
+  );
+
+const collectNetDrift = async (
+  state: RunState,
+  instrument: FlowInstrument
+): Promise<Attempt> => {
+  const { group } = instrument;
+  if (!(state.seed || netDriftTurn(group, state.deps.now)))
+    return notDue(
+      `staggered: ${group} net drift runs on ${group === "sp500" ? "even" : "odd"} minutes`
+    );
+  const client = state.deps.quantData;
+  if (client === null) return notDue("QuantData not configured");
+  const ticker = instrument.optionsTicker;
+  const sessionDate = flowSessionDate(state.deps.now);
+  const [totalPart, zeroPart] = FLOW_EXPIRY_PARTS;
+  const total = await netDriftPart(
+    state,
+    client,
+    ticker,
+    totalPart,
+    sessionDate
+  );
+  if (!total.ok && total.reserved)
+    return notDue("budget: QuantData starts kept free for other callers");
+  if (!total.ok)
+    return {
+      events: 0,
+      items: 0,
+      message: total.text.slice(0, 300),
+      record: true,
+      status: "unavailable",
+    };
+  const zero = await netDriftPart(state, client, ticker, zeroPart, sessionDate);
+  const items =
+    (await storeNetDrift(state, ticker, totalPart, total.buckets)) +
+    (zero.ok ? await storeNetDrift(state, ticker, zeroPart, zero.buckets) : 0);
+  const zeroCount = zero.ok ? zero.buckets.length : 0;
+  const newest = newestBucketAt(total.buckets);
+  const head = `${ticker} total ${total.buckets.length} buckets, zero_dte ${zeroCount}`;
+  const tail = zero.ok ? "" : `; zero_dte failed (${zero.text})`;
+  if (newest === null)
+    return {
+      events: 0,
+      items,
+      message: `${head}, 2 requests${tail}`.slice(0, 300),
+      record: true,
+      status: "empty",
+    };
+  const fresh = secondsSince(state, newest) <= NET_DRIFT_OK_SECONDS;
+  return {
+    events: 0,
+    items,
+    message:
+      `${head}, newest ${flowClockText(newest)} NY, 2 requests${tail}`.slice(
+        0,
+        300
+      ),
+    record: true,
+    status: fresh ? "ok" : "empty",
+  };
+};
+
+/** QuantData worst case of one run: the larger net drift group, every options symbol, one GEX estimate. */
+export const flowQuantDataRunWorstCase = (
+  instruments: Readonly<Record<FlowSymbol, FlowInstrument>>,
+  groups: Readonly<Record<FlowGroupId, FlowGroup>>
+): number => {
+  const list = Object.values(instruments);
+  const netDriftPerGroup = Object.keys(groups).map(
+    (group) =>
+      list.filter(
+        (instrument) =>
+          instrument.group === group && instrument.sources.includes("net_drift")
+      ).length
+  );
+  const optionSymbols = list.filter((instrument) =>
+    instrument.sources.includes("options")
+  ).length;
+  return (
+    Math.max(0, ...netDriftPerGroup) * FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL +
+    optionSymbols * FLOW_OPTION_RUN_PAGES_MAX +
+    FLOW_GEX_REQUESTS_PER_RUN
+  );
+};
+
+// Net drift first (its cadence is per minute); depth before GEX, so the ES − SPX basis can use this
+// run's book.
 const SOURCE_ORDER: readonly FlowSource[] = [
+  "net_drift",
   "depth",
   "ticks",
   "options",
@@ -784,8 +1020,23 @@ const COLLECTORS: Readonly<
 > = {
   depth: collectDepth,
   gex: collectGex,
+  net_drift: collectNetDrift,
   options: (state, instrument) => collectOptions(state, instrument, true),
   ticks: collectTicks,
+};
+
+/** Why a source must wait for this run (GEX stagger, QuantData starts), or null. */
+const runGate = (state: RunState, source: FlowSource): Attempt | null => {
+  if (source === "gex" && state.gexDone)
+    return notDue("staggered: GEX ran for another symbol in this run");
+  const needed = FLOW_QUANTDATA_SOURCE_MAX[source];
+  const client = state.deps.quantData;
+  if (needed === undefined || client === null) return null;
+  const free = client.freeStarts();
+  if (free >= needed) return null;
+  return notDue(
+    `budget: ${free} QuantData starts free beyond the reserve of ${FLOW_QUANTDATA_CALLER_RESERVE}, ${needed} needed`
+  );
 };
 
 const attempt = async (
@@ -793,17 +1044,22 @@ const attempt = async (
   instrument: FlowInstrument,
   source: FlowSource
 ): Promise<Attempt> => {
-  if (state.seed) return await COLLECTORS[source](state, instrument);
-  const open = flowSessionOpen(source, instrument.symbol, state.deps.now);
-  // Options keep reading their unfetched gaps after the close; without gaps collectOptions answers
-  // "market closed" before any QuantData request.
-  if (!open && source !== "options") return notDue("market closed");
-  const age = secondsSince(
-    state,
-    state.last.get(sampleKey(instrument.symbol, source))
-  );
-  if (age < FLOW_DUE_SECONDS[source])
-    return notDue(`not due (last attempt ${Math.round(age)} s ago)`);
+  const open =
+    state.seed || flowSessionOpen(source, instrument.symbol, state.deps.now);
+  if (!state.seed) {
+    // Options keep reading their unfetched gaps after the close; without gaps collectOptions answers
+    // "market closed" before any QuantData request.
+    if (!open && source !== "options") return notDue("market closed");
+    const age = secondsSince(
+      state,
+      state.last.get(sampleKey(instrument.symbol, source))
+    );
+    if (age < FLOW_DUE_SECONDS[source])
+      return notDue(`not due (last attempt ${Math.round(age)} s ago)`);
+  }
+  const held = runGate(state, source);
+  if (held !== null) return held;
+  if (source === "gex") state.gexDone = true;
   return open
     ? await COLLECTORS[source](state, instrument)
     : await collectOptions(state, instrument, false);
@@ -837,15 +1093,83 @@ const recordSample = async (
     status: result.status,
     symbol,
   };
-  await state.deps.repository.recordSample(sample);
+  try {
+    await state.deps.repository.recordSample(sample);
+  } catch {
+    // The run entry still reports the attempt; the next run retries the source.
+  }
+};
+
+/** A repository call that throws; the run names a storage failure only for these. */
+class FlowStorageError extends Error {
+  readonly causeName: string;
+
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : "lookup failed", { cause });
+    this.name = "FlowStorageError";
+    this.causeName = cause instanceof Error ? cause.name : typeof cause;
+  }
+}
+
+type RepositoryMethod = (...args: unknown[]) => Promise<unknown>;
+
+/** Every repository method (all of them return promises) rethrows its error as a FlowStorageError. */
+const storageTagged = (repository: FlowRepository): FlowRepository =>
+  Object.fromEntries(
+    Object.entries(repository).map(([name, method]) => [
+      name,
+      async (...args: unknown[]): Promise<unknown> => {
+        try {
+          return await Reflect.apply(
+            method as RepositoryMethod,
+            repository,
+            args
+          );
+        } catch (error) {
+          throw new FlowStorageError(error);
+        }
+      },
+    ])
+  ) as FlowRepository;
+
+/** An error of one source becomes its sample; the run goes on with the next source. */
+const isolated = async (
+  state: RunState,
+  instrument: FlowInstrument,
+  source: FlowSource
+): Promise<Attempt> => {
+  try {
+    return await attempt(state, instrument, source);
+  } catch (error) {
+    return {
+      events: 0,
+      items: 0,
+      message:
+        error instanceof FlowStorageError
+          ? `${FLOW_STORAGE_FAILURE_PREFIX} (${error.causeName})`
+          : `collector failed (${error instanceof Error ? error.name : typeof error})`,
+      record: true,
+      status: "unavailable",
+    };
+  }
 };
 
 const pruneIfDue = async (state: RunState): Promise<number> => {
   const { now, repository } = state.deps;
   if (state.dryRun || !state.deps.pruneDue) return 0;
-  return await repository.prune(
-    new Date(now.getTime() - FLOW_RETENTION_DAYS * 86_400_000)
-  );
+  const cutoff = (table: FlowPruneTable): Date =>
+    new Date(now.getTime() - FLOW_RETENTION_DAYS[table] * 86_400_000);
+  return await repository.prune({
+    flow_book: cutoff("flow_book"),
+    flow_events: cutoff("flow_events"),
+    flow_gex: cutoff("flow_gex"),
+    flow_large_trades: cutoff("flow_large_trades"),
+    flow_minutes: cutoff("flow_minutes"),
+    flow_net_drift: cutoff("flow_net_drift"),
+    flow_option_gaps: cutoff("flow_option_gaps"),
+    flow_option_prints: cutoff("flow_option_prints"),
+    flow_samples: cutoff("flow_samples"),
+  });
 };
 
 export const runFlowCollect = async (
@@ -854,8 +1178,9 @@ export const runFlowCollect = async (
 ): Promise<FlowCollectOutput> => {
   const symbols = input.symbols ?? [...FLOW_SYMBOLS];
   const state: RunState = {
-    deps,
+    deps: { ...deps, repository: storageTagged(deps.repository) },
     dryRun: input.dryRun,
+    gexDone: false,
     last: await lastAttempts(deps.repository, FLOW_SYMBOLS),
     pacing: undefined,
     prices: new Map(),
@@ -864,7 +1189,8 @@ export const runFlowCollect = async (
   const runs: Run[] = [];
   for (const source of SOURCE_ORDER)
     for (const symbol of symbols) {
-      const result = await attempt(state, FLOW_INSTRUMENTS[symbol], source);
+      if (!FLOW_INSTRUMENTS[symbol].sources.includes(source)) continue;
+      const result = await isolated(state, FLOW_INSTRUMENTS[symbol], source);
       await recordSample(state, symbol, source, result);
       runs.push({
         events: result.events,
@@ -875,11 +1201,19 @@ export const runFlowCollect = async (
         symbol,
       });
     }
+  const pruned = await pruneIfDue(state);
   return {
     at: deps.now.toISOString(),
+    budget: {
+      ibkrLimit: FLOW_IBKR_LIMIT,
+      ibkrRecent: state.pacing?.recentRequests ?? null,
+      quantDataFree: deps.quantData?.freeStarts() ?? null,
+      quantDataReserve: FLOW_QUANTDATA_CALLER_RESERVE,
+      runSeconds: Math.round(deps.elapsedMs() / 1000),
+    },
     busy: false,
     dryRun: input.dryRun,
-    pruned: await pruneIfDue(state),
+    pruned,
     runs,
   };
 };

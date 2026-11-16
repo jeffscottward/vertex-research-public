@@ -127,21 +127,56 @@ describe("portfolio combination", () => {
     const result = combinePortfolio(100, [slot("a", 0, [1, 1, 1])]);
     expect(result.correlation[0]?.[0]).toBeNull();
     expect(result.diversification.ratio).toBeNull();
+    expect(result.diversification.ratioReason).toBe("flat");
     expect(result.stats.sharpe).toBeNull();
+    expect(result.stats.sharpeReason).toBe("flat");
     expect(result.slots[0]?.verdict).toBe("insufficient");
     expect(pearson([1], [1])).toBeNull();
+  });
+
+  it("names why a null Sharpe or volatility ratio is null", () => {
+    // A step from 1e-300 to 1e300 overflows the return: the spread is not a number.
+    expect(
+      seriesStats([0, DAY, 2 * DAY], [1e-300, 1e300, 1e300])
+    ).toMatchObject({ sharpe: null, sharpeReason: "out-of-range" });
+    const overflow = combinePortfolio(1000, [
+      slot("a", 1, [1e-300, 1e300, 1e300]),
+    ]);
+    expect(overflow.diversification).toMatchObject({
+      ratio: null,
+      ratioReason: "out-of-range",
+    });
+    // Two points give one return: too short for a volatility.
+    const short = combinePortfolio(1000, [slot("a", 1, [1, 1.1])]);
+    expect(short.diversification).toMatchObject({
+      ratio: null,
+      ratioReason: "short-span",
+    });
+    // A defined ratio carries no reason.
+    const moving = combinePortfolio(1000, [slot("a", 1, [1, 1.1, 1, 1.2])]);
+    expect(moving.diversification.ratio).not.toBeNull();
+    return expect(moving.diversification).not.toHaveProperty("ratioReason");
   });
 
   it("series stats cover single points and non-positive values", () => {
     expect(seriesStats([0], [1])).toEqual({
       cagr: null,
+      cagrReason: "short-span",
       maxDrawdownPct: 0,
       sharpe: null,
+      sharpeReason: "short-span",
       totalReturn: 0,
     });
     expect(seriesStats([0, DAY], [0, 1]).totalReturn).toBe(0);
     expect(seriesStats([0, 365.25 * DAY], [1, 2]).cagr).toBeCloseTo(1, 12);
     expect(seriesStats([0, DAY], [1, 0]).cagr).toBeNull();
+    expect(seriesStats([0, DAY], [1, 0]).cagrReason).toBe("equity-at-zero");
+    // A defined metric carries no reason field.
+    expect(seriesStats([0, 365.25 * DAY], [1, 2])).not.toHaveProperty(
+      "cagrReason"
+    );
+    // Growth too large for a number: CAGR is out of range.
+    expect(seriesStats([0, 1], [1, 1e300]).cagrReason).toBe("out-of-range");
     expect(seriesStats([0, DAY, 2 * DAY], [0, 0, 1]).maxDrawdownPct).toBe(0);
   });
 
@@ -236,5 +271,17 @@ describe("portfolio combination", () => {
     ]);
     expect(apart.correlation[0]?.[1]).toBeNull();
     expect(apart.drawdownOverlap[0]?.[1]).toBe(0);
+    // The reason follows the pair's shared span, not the length of the combined axis.
+    expect(apart.points.length).toBeGreaterThan(3);
+    expect(apart.correlationReasons[0]?.[1]).toBe("short-span");
+    // Run a alone has one return of its own: too short even against itself.
+    expect(apart.correlationReasons[0]?.[0]).toBe("short-span");
+    expect(late.correlationReasons[0]?.[1]).toBeNull();
+    const flat = combinePortfolio(1000, [
+      slot("a", 0.5, a),
+      slot("b", 0.5, [1, 1, 1, 1, 1, 1]),
+    ]);
+    expect(flat.correlation[0]?.[1]).toBeNull();
+    expect(flat.correlationReasons[0]?.[1]).toBe("flat");
   });
 });

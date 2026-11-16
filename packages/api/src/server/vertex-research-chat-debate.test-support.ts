@@ -38,6 +38,10 @@ import { VertexResearchChatAppendResponseOutputSchema } from "../contracts/verte
 import { WorkerReadArtifactOutputSchema } from "../contracts/vertex-worker.ts";
 import { AcceptedReviewSchema } from "../contracts/vertex-control.ts";
 import { researchParityPython } from "./research-python.test-support.ts";
+import {
+  DEBATE_BRIDGE_PYTHON_PATH,
+  DEBATE_BRIDGE_SCRIPT,
+} from "./vertex-research-chat-debate-bridge.test-support.ts";
 import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Source acceptance only: one serial SQL-memory DB and real R2 copy adapter.
@@ -52,12 +56,21 @@ type DiagnosticStage =
   | "fence"
   | "readRun";
 export const createDebateDiagnostic = () => {
+  // The budget stops a runaway diagnostic run. The five-turn acceptance run
+  // makes a little over 3M SQL attempts with the linear predecessor walk;
+  // VERTEX_CHAT_DEBATE_DIAGNOSTIC_SQL_BUDGET overrides the default.
   const enabled = process.env["VERTEX_CHAT_DEBATE_DIAGNOSTICS"] === "1",
     started = performance.now(),
-    maximumSqlAttempts = 50_000;
+    budgetSetting = process.env["VERTEX_CHAT_DEBATE_DIAGNOSTIC_SQL_BUDGET"],
+    maximumSqlAttempts =
+      budgetSetting === undefined ? 8_000_000 : Number(budgetSetting);
+  if (!(Number.isSafeInteger(maximumSqlAttempts) && maximumSqlAttempts > 0))
+    throw new Error(
+      "VERTEX_CHAT_DEBATE_DIAGNOSTIC_SQL_BUDGET must be a positive integer"
+    );
   const stop = Object.assign(
     new Error(
-      "Diagnostic stop: 50000 SQL-attempt budget exhausted; not an acceptance result"
+      `Diagnostic stop: ${maximumSqlAttempts} SQL-attempt budget exhausted; not an acceptance result`
     ),
     { name: "DebateDiagnosticBudgetExceeded" }
   );
@@ -636,31 +649,20 @@ export const nativeOutput = async (f: ConversationFixture) => {
     acceptedReview: review,
     nowNs: timestampToEpochNanoseconds(f.state.at).toString(),
   };
-  const output = execFileSync(
-    python,
-    [resolve(research, "adapters/tests/chat_debate_bridge.py")],
-    {
-      cwd: research,
-      env: {
-        ...process.env,
-        PYTHONDONTWRITEBYTECODE: "1",
-        PYTHONPATH: [
-          research,
-          ...[
-            "market-data",
-            "control-client",
-            "host",
-            "gateway",
-            "execution",
-          ].map((name) => resolve(root, "services", name)),
-        ].join(":"),
-      },
-      input: JSON.stringify(body),
-      encoding: "utf8",
-      timeout: 30_000,
-      maxBuffer: 8 * 1024 * 1024,
-    }
-  );
+  const output = execFileSync(python, [resolve(root, DEBATE_BRIDGE_SCRIPT)], {
+    cwd: research,
+    env: {
+      ...process.env,
+      PYTHONDONTWRITEBYTECODE: "1",
+      PYTHONPATH: DEBATE_BRIDGE_PYTHON_PATH.map((path) =>
+        resolve(root, path)
+      ).join(":"),
+    },
+    input: JSON.stringify(body),
+    encoding: "utf8",
+    timeout: 30_000,
+    maxBuffer: 8 * 1024 * 1024,
+  });
   const result = JSON.parse(output);
   expect(result.outcome).toMatchObject({
     status: "completed",

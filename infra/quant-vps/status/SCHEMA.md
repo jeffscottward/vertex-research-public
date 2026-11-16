@@ -55,7 +55,8 @@ Blocks sourced from report files also carry `age_seconds` (int) and `stale` (boo
 
 | Field | Notes |
 | --- | --- |
-| `state` | `starting \| running \| paused \| degraded \| halted \| stopping \| stopped \| error \| unknown` |
+| `state` | `starting \| running \| paused \| degraded \| halted \| stopping \| stopped \| error \| missing \| unreadable \| unrecognised`. Readers reject the old `unknown` state that collectors before 2.2.0 sent (card vertex-status-remove-unknown-enums). |
+| `state_since` | ISO Z. When `state` began: copied from the previous snapshot while the state is the same, else the time of this run (also the first run after a deploy). |
 | `raw_state` | `{container_status, container_health, container_exit_code, health_file_status, last_runner_event, last_runner_event_at, heartbeat_age_seconds}` |
 | `trading_mode`, `safe_mode` | from `data/nautilus/health.json` (last written by the runner) |
 | `strategies[]` | `{id, name, started_at, symbols[], observation_only, trading_mode}`: latest `strategy_started` per strategy since the runner start (Postgres `strategy_events`; falls back to the runner log) |
@@ -68,7 +69,8 @@ State mapping (nautilus-trader container plus runner signals):
 
 | Container | Condition | `state` |
 | --- | --- | --- |
-| missing | | `unknown` |
+| missing (Docker answers "No such object" or "No such container") | | `missing` |
+| not readable (the `docker inspect` command fails in another way, times out, or prints no JSON) | | `unreadable` |
 | running | kill switch engaged | `halted` |
 | running | container health `starting` | `starting` |
 | running | last runner event `runner_stopping`/`runner_stopped` | `stopping` |
@@ -80,6 +82,7 @@ State mapping (nautilus-trader container plus runner signals):
 | dead, or OOM-killed | | `error` |
 | exited | exit code ≠ 0 | `error` |
 | exited (code 0) or created | | `stopped` |
+| any other Docker status (shown in `raw_state.container_status`) | | `unrecognised` |
 
 ### `positions`
 
@@ -101,7 +104,7 @@ Last 50, newest first: `{time, symbol, side (buy|sell), qty, price, order_id_mas
 
 | Field | Notes |
 | --- | --- |
-| `kill_switch` | `engaged` if any kill-switch file exists or watchdog `live_flags.kill_switch_active` is true. `clear` if every file is confirmed absent. `unknown` otherwise. |
+| `kill_switch` | `engaged` if any kill-switch file exists or watchdog `live_flags.kill_switch_active` is true. `clear` if every file is confirmed absent. `unverified` otherwise: no indicator is engaged, but at least one file check gave no answer (`engaged: null` in `kill_switch_indicators`); it is never shown as clear. The source of a file indicator is `file <path>` (path below the exec-node root); the web names unread files by this format. |
 | `kill_switch_indicators[]` | `{source, engaged (bool\|null), as_of}`: files `data/KILL_SWITCH` and `portfolio-ui/data/KILL_SWITCH` (stat only), the watchdog flag, and the health.json flag. |
 | `limits` | block: allow-listed nautilus-trader env as lower-case keys, typed. Examples: `nautilus_risk_max_order_quantity`, `nautilus_risk_max_position_notional_usd`, `nautilus_risk_max_daily_loss_usd`, `nautilus_risk_allowed_instruments[]`, `risk_denied_instruments[]`, `nautilus_risk_orders_enabled`, `nautilus_risk_dry_run`, `trading_mode`, `enable_live_trading`, `synthetic_*`. |
 | `last_risk_check` | most recent Postgres `risk_events` row: `{time, event, allowed, dry_run, reason, strategy, requested_symbol, max_*}` or `null`. |

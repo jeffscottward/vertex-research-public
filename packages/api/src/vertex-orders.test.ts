@@ -242,10 +242,13 @@ const intentStore = () => {
       new Map(
         refs.map((ref) => [
           ref,
-          (outcomes.get(ref) ??
-            (intents.some((i) => i.orderRef === ref)
-              ? "pending"
-              : "none")) as OrderSendState,
+          {
+            createdAt: null,
+            state: (outcomes.get(ref) ??
+              (intents.some((i) => i.orderRef === ref)
+                ? "pending"
+                : "none")) as OrderSendState,
+          },
         ])
       ),
     unresolved: async () =>
@@ -752,8 +755,31 @@ describe("vertexOrders procedures", () => {
       goLiveDrafts,
       intents: { ...store, hasIntent: () => Promise.reject(new Error("x")) },
     });
-    expect((await preview(unsure)).review.reasons).toContain(
-      "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+    const unsureReview = (await preview(unsure)).review;
+    expect(unsureReview.accepted).toBe(false);
+    expect(unsureReview.reasons).toContainEqual(
+      expect.stringMatching(
+        /^GO-LIVE DRAFT_ALREADY_SENT: order intent store read failed at 15:00 UTC, so draft order vertex-gl[0-9a-f]+ counts as sent · nothing is sent · retry the preview$/u
+      )
+    );
+    // The store says sent: still refused, with the check time.
+    const sentReview = (
+      await preview(
+        clientFor({
+          goLiveDrafts,
+          intents: {
+            ...store,
+            hasIntent: async () => true,
+            refused: async () => false,
+          },
+        })
+      )
+    ).review;
+    expect(sentReview.accepted).toBe(false);
+    expect(sentReview.reasons).toContainEqual(
+      expect.stringMatching(
+        /^GO-LIVE DRAFT_ALREADY_SENT: draft order vertex-gl[0-9a-f]+ already sent \(the order intent store has its send, checked 15:00 UTC\) · never sent twice · check open orders and positions$/u
+      )
     );
 
     // The audit sink is down at submit: nothing is sent and the reservation is freed.
@@ -1029,7 +1055,11 @@ describe("vertexOrders procedures", () => {
     // is refused by name and nothing reaches the gateway; the in-process mark is freed again.
     const ref = await goLiveOrderRef("d-1");
     claimedElsewhere.add(ref);
-    await expectCode(send(), "ORDER_REJECTED", 422);
+    await expect(send()).rejects.toMatchObject({
+      code: "ORDER_REJECTED",
+      message: `GO-LIVE DRAFT_ALREADY_SENT: draft order ${ref} was already sent, or another send of it holds its claim (claim refused at 15:00 UTC) · nothing was sent now · never sent twice · check open orders and positions`,
+      status: 422,
+    });
     expect(placeCombo).not.toHaveBeenCalled();
     expect(rows).toEqual([]);
     claimedElsewhere.delete(ref);
@@ -1044,7 +1074,7 @@ describe("vertexOrders procedures", () => {
     );
     // Second send of the same draft: refused at preview, nothing reaches the gateway again.
     expect(await send()).toContain(
-      "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+      `GO-LIVE DRAFT_ALREADY_SENT: a send of draft order ${ref} started on this server at 15:00 UTC · never sent twice · check open orders and positions`
     );
     expect(placeCombo).toHaveBeenCalledTimes(1);
   });
@@ -1141,7 +1171,7 @@ describe("vertexOrders procedures", () => {
     // The same draft again: the bridge sent nothing, so the draft is not "already sent".
     expect(await send()).toMatchObject({ permId: 79, state: "submitted" });
     expect(await send()).toContain(
-      "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+      `GO-LIVE DRAFT_ALREADY_SENT: a send of draft order ${await goLiveOrderRef("d-1")} started on this server at 15:00 UTC · never sent twice · check open orders and positions`
     );
     expect(placeCombo).toHaveBeenCalledTimes(2);
   });
@@ -1207,27 +1237,29 @@ describe("vertexOrders procedures", () => {
         }),
       };
       let badge: "running-armed" | "running-disarmed" = "running-disarmed";
-      setVertexOrdersDependenciesForTesting({
-        goLiveNode: async () => ({ arm: null, badge, checkedAt: "T" }),
-        mock: {
-          ...mock,
-          account: async () => {
-            const account = await mock.account();
-            // A bridge that runs engine policy v3 + ARM on openings (market-watch-bot vertexbridge).
-            return {
-              ...account,
-              gates: {
-                ...account.gates,
-                orderPolicy: "options_only_defined_risk_v3",
-              },
-              openOrders: [],
-              positions: [],
-            };
+      const configure = () =>
+        setVertexOrdersDependenciesForTesting({
+          goLiveNode: async () => ({ arm: null, badge, checkedAt: "T" }),
+          mock: {
+            ...mock,
+            account: async () => {
+              const account = await mock.account();
+              // A bridge that runs engine policy v3 + ARM on openings (market-watch-bot vertexbridge).
+              return {
+                ...account,
+                gates: {
+                  ...account.gates,
+                  orderPolicy: "options_only_defined_risk_v3",
+                },
+                openOrders: [],
+                positions: [],
+              };
+            },
+            placeCombo,
           },
-          placeCombo,
-        },
-        now: () => clock,
-      });
+          now: () => clock,
+        });
+      configure();
       const { store, rows } = intentStore();
       const client = clientFor({ goLiveDrafts, intents: store });
       const send = async () => {
@@ -1247,8 +1279,15 @@ describe("vertexOrders procedures", () => {
       expect(await send()).toMatchObject({ permId: null, state });
       expect(rows.at(-1)).toBe(`vertex.order.result ${outcome}`);
       // Not placed is no proof that nothing reached IBKR: the draft stays sent.
+      const ref = await goLiveOrderRef("d-1");
       expect(await send()).toContain(
-        "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions"
+        `GO-LIVE DRAFT_ALREADY_SENT: a send of draft order ${ref} started on this server at 15:00 UTC · never sent twice · check open orders and positions`
+      );
+      // A restarted server (empty process memory) reads the intent store: still refused, and the
+      // text names the store as the source and the check time.
+      configure();
+      expect(await send()).toContain(
+        `GO-LIVE DRAFT_ALREADY_SENT: draft order ${ref} already sent (the order intent store has its send, checked 15:00 UTC) · never sent twice · check open orders and positions`
       );
       expect(placeCombo).toHaveBeenCalledTimes(1);
     }
@@ -1399,7 +1438,13 @@ describe("vertexOrders procedures", () => {
     // Gateway failure: outcome unknown, typed error.
     placeCombo = () =>
       Promise.reject(new OrderGatewayError("UPSTREAM_ERROR", "down"));
-    await expectCode(send(combo({ limitPrice: -3.3 })), "UPSTREAM_ERROR", 502);
+    await expect(send(combo({ limitPrice: -3.3 }))).rejects.toMatchObject({
+      code: "UPSTREAM_ERROR",
+      message: expect.stringMatching(
+        /^Order vertex-[0-9a-f]+ sent 15:10 UTC, outcome not confirmed by IBKR \(down\) · it may still reach IBKR · the next preview checks open orders and positions first$/u
+      ),
+      status: 502,
+    });
     expect(rows.at(-1)).toBe("vertex.order.result unknown");
     clock = new Date(at.getTime() + 20 * 60_000);
     placeCombo = () => Promise.reject(new Error("bug"));
@@ -1522,6 +1567,15 @@ describe("vertexOrders procedures", () => {
           : { message: "pending", permId: null, state: "unconfirmed" }
       )
     );
+    // Live with no intent store wired: refused as before, and named as a deployment state.
+    await expect(
+      clientFor({ config: on }).vertexOrders.preview(order({ quantity: 1 }))
+    ).rejects.toMatchObject({
+      code: "AUDIT_UNAVAILABLE",
+      message:
+        "Order intent store is not configured on this deployment: live orders are blocked, nothing was sent · wire the order intent store (database) for this deployment",
+      status: 503,
+    });
     const { store, rows } = intentStore();
     const client = clientFor({ config: on, intents: store });
     const preview = await client.vertexOrders.preview(order({ quantity: 1 }));
@@ -1821,7 +1875,9 @@ describe("vertexOrders procedures", () => {
     setVertexOrdersDependenciesForTesting({ mock: late, now });
     const error = await submit().catch((caught: unknown) => caught);
     expect(error).toMatchObject({ code: "UPSTREAM_ERROR", status: 502 });
-    expect((error as Error).message).toMatch(/^Outcome unknown/u);
+    expect((error as Error).message).toMatch(
+      /^Order vertex-[0-9a-f]+ sent 15:00 UTC, outcome not confirmed by IBKR \(Order bridge did not answer\) · it may still reach IBKR · the next preview checks open orders and positions first$/u
+    );
     expect(rows.at(-1)).toBe("vertex.order.result unknown");
     // The order shows in open orders: reconciled, and the next preview is accepted.
     const next = await client.vertexOrders.preview(order({ strike: 120 }));
@@ -1835,7 +1891,9 @@ describe("vertexOrders procedures", () => {
     const blocked = await client.vertexOrders.preview(order({ strike: 130 }));
     expect(blocked.review.accepted).toBe(false);
     expect(blocked.confirmToken).toBeNull();
-    expect(blocked.review.reasons.at(-1)).toMatch(/unknown outcome/u);
+    expect(blocked.review.reasons.at(-1)).toMatch(
+      /^Earlier order vertex-[0-9a-f]+ \(.+\) sent 15:00 UTC, outcome not confirmed by IBKR · it may still reach IBKR · no new order until it shows in open orders, or until positions decide it at 15:10 UTC · retry the preview then$/u
+    );
     clock = new Date(at.getTime() + 10 * 60_000);
     const settled = await client.vertexOrders.preview(order({ strike: 130 }));
     expect(settled.review.accepted).toBe(true);
@@ -1927,21 +1985,26 @@ describe("vertexOrders procedures", () => {
       },
     });
     const preview = await client.vertexOrders.preview(order());
-    await expectCode(
+    await expect(
       client.vertexOrders.submit({
         confirm: true,
         confirmToken: preview.confirmToken ?? "",
         order: order(),
-      }),
-      "AUDIT_UNAVAILABLE",
-      503
-    );
+      })
+    ).rejects.toMatchObject({
+      code: "AUDIT_UNAVAILABLE",
+      message:
+        "Order intent could not be recorded at 15:00 UTC (store write failed): nothing was sent · retry",
+      status: 503,
+    });
     expect(place).not.toHaveBeenCalled();
     const unreadable = await clientFor({
       intents: { ...store, unresolved: () => Promise.reject(new Error("x")) },
     }).vertexOrders.preview(order());
-    expect(unreadable.review.reasons.at(-1)).toMatch(
-      /intent store unavailable/u
+    expect(unreadable.review.accepted).toBe(false);
+    expect(unreadable.confirmToken).toBeNull();
+    expect(unreadable.review.reasons.at(-1)).toBe(
+      "Order intent store read failed at 15:00 UTC: earlier orders cannot be checked, so no new order · retry the preview"
     );
     intents.push({
       contract: "OTHER",
@@ -1960,8 +2023,71 @@ describe("vertexOrders procedures", () => {
       },
     }).vertexOrders.preview(order());
     expect(stuck.review.accepted).toBe(false);
-    return expect(stuck.review.reasons.at(-1)).toMatch(/leaps-vertex-y/u);
+    return expect(stuck.review.reasons.at(-1)).toBe(
+      "Earlier order leaps-vertex-y (OTHER) checked at 15:00 UTC: not found at IBKR (not in open orders, position unchanged), but that result could not be recorded (store write failed) · no new order · retry the preview"
+    );
   });
+
+  it.each([
+    ["open", "in IBKR open orders"],
+    ["position-changed", "its position changed (filled)"],
+    ["not-found", "not found at IBKR (not in open orders, position unchanged)"],
+  ] as const)(
+    "a reconcile result %s that cannot be recorded refuses the preview and names what was found",
+    async (found, words) => {
+      const base = await mock.account();
+      const [held] = base.positions;
+      setVertexOrdersDependenciesForTesting({
+        mock: {
+          ...mock,
+          account: async () => ({
+            ...base,
+            openOrders: base.openOrders.map((o, i) =>
+              i === 0 && found === "open" ? { ...o, orderRef: "vertex-r" } : o
+            ),
+          }),
+        },
+        now: () => at,
+      });
+      const { store, intents } = intentStore();
+      // position-changed: the held contract, held 0 before; otherwise a contract never held.
+      intents.push(
+        found === "position-changed"
+          ? {
+              contract: "HELD",
+              createdAt: new Date(at.getTime() - 60 * 60_000),
+              expiry: held?.expiry ?? "",
+              heldBefore: 0,
+              orderRef: "vertex-r",
+              right: held?.right ?? "",
+              strike: held?.strike ?? 0,
+              symbol: held?.symbol ?? "",
+            }
+          : {
+              contract: "HELD",
+              createdAt: new Date(at.getTime() - 60 * 60_000),
+              expiry: "20280121",
+              heldBefore: 0,
+              orderRef: "vertex-r",
+              right: "C",
+              strike: 5,
+              symbol: "OTHER",
+            }
+      );
+      const review = (
+        await clientFor({
+          intents: {
+            ...store,
+            recordOutcome: () => Promise.reject(new Error("db down")),
+          },
+        }).vertexOrders.preview(order())
+      ).review;
+      expect(review.accepted).toBe(false);
+      expect(review.reasons).toContain(
+        `Earlier order vertex-r (HELD) checked at 15:00 UTC: ${words}, but that result could not be recorded (store write failed) · no new order · retry the preview`
+      );
+    }
+  );
 
   it("audits a cancel for an order that is gone", async () => {
     const events: SemanticEvent[] = [];

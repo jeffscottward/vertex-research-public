@@ -2,37 +2,28 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { AssistantCompletionRequest } from "../../../packages/api/src/server/assistant-runtime.ts";
+import { type EvalBackend, replayTrial, startEvalBackend } from "./harness.ts";
+import { EVAL_QUESTIONS, gradeAnswer } from "./questions.ts";
 import {
-  type EvalBackend,
-  type RecordedCompletion,
-  runTrial,
-  startEvalBackend,
-  inputDigest,
-  toCompletion,
-} from "./harness.ts";
-import { EVAL_QUESTIONS, type Grade, gradeAnswer } from "./questions.ts";
+  RECORDING_SCHEMA_VERSION,
+  type RecordedTrial,
+  trialKey,
+} from "./recording.ts";
+import { unexpectedToolFailures } from "./tool-failures.ts";
 
 // Replays the recorded semantic-layer eval (record.ts) against the built layer:
 // the real Plan-mode assistant turn, the real oRPC handler, Postgres with the synthetic fixture and the
 // synthetic feeds. Each recorded model reply is returned in order; the semantic-layer tool results the
 // model sees must equal the recorded ones (else the recording is stale: re-record). Every final answer is
-// graded with the fixed rubric in questions.ts.
+// graded with the fixed rubric in questions.ts. A tool call that fails in a replayed trial fails the
+// test unless tool-failures.ts lists it as an expected input rejection (a server error never is). A
+// terms_query answer with status unknown also fails the test; no list allows it (tool-failures.ts).
 // Acceptance (docs/vertex-rebuild/agent-semantic-layer.md): main set >= 58/60 correct, 0 wrong account
 // answers; engine runs with no strategy (U1-U5) >= 13/15 correct and none wrong.
 
-type RecordedTrial = Readonly<{
-  question: string;
-  trial: number;
-  answer: string;
-  grade: Grade;
-  // Independent Claude grader verdict against the reference (recorded with the trial, audited by hand).
-  audit: Grade;
-  completions: readonly RecordedCompletion[];
-}>;
-
 type RecordingHeader = Readonly<{
   audit: Readonly<{ grader: string; instructions: string; gradedAt: string }>;
+  schemaVersion: number;
 }>;
 
 const recording = JSON.parse(
@@ -60,6 +51,18 @@ describe("semantic layer eval replay", () => {
     expect(Number.isNaN(Date.parse(recording.audit.gradedAt))).toBe(false);
   });
 
+  it("stores the model and the date on every trial, not in the header", () => {
+    expect(recording.schemaVersion).toBe(RECORDING_SCHEMA_VERSION);
+    expect(recording).not.toHaveProperty("model");
+    expect(recording).not.toHaveProperty("recordedAt");
+    for (const trial of recording.trials) {
+      expect(trial.model, trialKey(trial)).toMatch(/\S/);
+      expect(Number.isNaN(Date.parse(trial.recordedAt)), trialKey(trial)).toBe(
+        false
+      );
+    }
+  });
+
   it("covers every question three times", () => {
     for (const question of EVAL_QUESTIONS) {
       expect(
@@ -69,32 +72,23 @@ describe("semantic layer eval replay", () => {
     }
   });
 
-  it.each(
-    recording.trials.map(
-      (trial) => [`${trial.question}.${trial.trial}`, trial] as const
-    )
-  )(
+  it.each(recording.trials.map((trial) => [trialKey(trial), trial] as const))(
     "%s replays against the built layer",
     async (_name, recorded) => {
       const question = byId.get(recorded.question);
       if (question === undefined)
         throw new Error(`unknown question ${recorded.question}`);
-      let call = 0;
-      const replay = async (request: AssistantCompletionRequest) => {
-        const next = recorded.completions[call];
-        if (next === undefined)
-          throw new Error("the turn asked for more model calls than recorded");
-        expect(
-          inputDigest(request),
-          `terms results before model call ${call}`
-        ).toBe(next.inputDigest);
-        call += 1;
-        return toCompletion(next);
-      };
-      const result = await runTrial(backend, question, replay);
-      expect(call).toBe(recorded.completions.length);
-      expect(result.answer).toBe(recorded.answer);
-      const grade = gradeAnswer(question, result.answer);
+      const replayed = await replayTrial(backend, question, recorded);
+      // stale null: every model call saw the recorded input and the final answer is the recorded one.
+      // A grade counts only when the tools worked: a failed call must be a listed input rejection, and
+      // no terms_query answer may have status unknown (the call worked but gave no value). One assertion
+      // shows all three, so a stale trial also shows a term that answers unknown since the recording.
+      expect({
+        failedCalls: unexpectedToolFailures(recorded.question, replayed.trace),
+        stale: replayed.stale,
+        unknownTerms: replayed.unknownTerms,
+      }).toEqual({ failedCalls: [], stale: null, unknownTerms: [] });
+      const grade = gradeAnswer(question, recorded.answer);
       expect(grade).toBe(recorded.grade);
       expect(["correct", "wrong", "declined"]).toContain(recorded.audit);
     },

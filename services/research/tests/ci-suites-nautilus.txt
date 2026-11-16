@@ -4,6 +4,7 @@
 tests/test_quantlab_nautilus.py
 tests/test_nautilus_backtest_academy.py
 tests/test_nautilus_backtest_engine.py
+tests/test_nautilus_backtest_batch_crash.py
 tests/test_qc_ports_nautilus.py
 tests/test_triple_rsi_nautilus.py
 # pandas reference suites: pandas comes from the same lock. The base run skips them.
@@ -13,3 +14,6 @@ tests/test_imom_study.py
 tests/test_volspike_study.py
 tests/test_leveraged_etf_study_forms.py
 tests/test_leveraged_etf_study_run.py
+tests/test_trend_trio_nautilus.py
+tests/test_flow_control_nautilus.py
+tests/test_order_flow_amt_nautilus.py

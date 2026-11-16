@@ -4,23 +4,74 @@ import type {
   IbkrRecoveryStatusOutput,
 } from "@darkfactory/api";
 
-import { clock, type HealthTone } from "./portfolio-monitor-model.ts";
+import {
+  clock,
+  type HealthTone,
+  sinceClock,
+} from "./portfolio-monitor-model.ts";
 
 // View model for the "Send IBKR 2FA request" control (Mission control account card).
 // The button appears when the VPS reports a logged-out or stopped gateway (needsLogin), or a
 // logged-in gateway whose account feeds are missing (feedsMissing).
-// "starting", "awaiting-2fa", "unknown" and reader errors never show it.
+// "starting", "awaiting-2fa", "no-login-evidence", "gateway-unreadable" and reader errors
+// never show it.
 
 // A finished request stays visible for this long so the operator can read the result.
 export const RECENT_RESULT_MS = 30 * 60 * 1000;
 
 const LOGIN_LABEL: Readonly<Record<IbkrRecoveryLoginState, string | null>> = {
   "awaiting-2fa": "IBKR login: waiting for 2FA approval",
+  "gateway-unreadable": null,
   "logged-in": null,
   "logged-out": "IBKR login: logged out",
+  // Built by undecidedLabel from since and lastKnown.
+  "no-login-evidence": null,
   starting: null,
   stopped: "IBKR login: gateway stopped",
-  unknown: null,
+};
+
+const LOGIN_NAME: Readonly<Record<IbkrRecoveryLoginState, string>> = {
+  "awaiting-2fa": "waiting for 2FA approval",
+  "gateway-unreadable": "gateway not readable",
+  "logged-in": "logged in",
+  "logged-out": "logged out",
+  "no-login-evidence": "no login line in the log",
+  starting: "gateway starting",
+  stopped: "gateway stopped",
+};
+
+// The two states in which the VPS cannot decide the login (card vertex-status-b1-quantvps). The VPS
+// reads the gateway again on each poll; neither state offers the 2FA request (needsLogin is false).
+const undecidedLabel = (
+  gateway: IbkrRecoveryStatusOutput["gateway"]
+): string | null => {
+  const last = gateway.lastKnown ?? null;
+  const since =
+    gateway.since === null ? "a time not reported" : clock(gateway.since);
+  if (gateway.loginState === "no-login-evidence") {
+    const login =
+      last === null
+        ? "no login seen since the recovery service started"
+        : `last confirmed login ${clock(last.since ?? last.at)}`;
+    // log-window: the gateway log was too large, so only a recent window was read (since = its start).
+    const read =
+      gateway.reason === "log-window"
+        ? `no login line in the gateway log read from ${since}`
+        : `no login line in the gateway log (gateway running since ${since})`;
+    return `IBKR login: ${read} · ${login} · checking again`;
+  }
+  if (gateway.loginState === "gateway-unreadable") {
+    const cause =
+      gateway.reason === "ambiguous-container"
+        ? "more than one gateway container"
+        : "docker error";
+    const known =
+      last === null
+        ? "no earlier state since the recovery service started"
+        : `last known: ${LOGIN_NAME[last.state]} at ${clock(last.at)}`;
+    return `IBKR login state not readable since ${since} (${cause}) · ${known} · checking again`;
+  }
+  return null;
 };
 
 const PROGRESS: Readonly<
@@ -88,6 +139,9 @@ const buttonHint = (status: IbkrRecoveryStatusOutput): string | null => {
   return null;
 };
 
+const loggedInWithoutFeeds = (status: IbkrRecoveryStatusOutput): boolean =>
+  status.gateway.loginState === "logged-in" && status.gateway.feedsMissing;
+
 export const recoveryView = (
   status: IbkrRecoveryStatusOutput,
   nowMs: number
@@ -95,7 +149,8 @@ export const recoveryView = (
   const label =
     status.gateway.loginState === "logged-in" && status.gateway.feedsMissing
       ? FEEDS_MISSING_LABEL
-      : LOGIN_LABEL[status.gateway.loginState];
+      : (undecidedLabel(status.gateway) ??
+        LOGIN_LABEL[status.gateway.loginState]);
   const request = status.request;
   const finishedMs =
     request?.finishedAt === null || request?.finishedAt === undefined
@@ -144,3 +199,31 @@ export const recoveryView = (
 export const pollIntervalMs = (
   status: IbkrRecoveryStatusOutput | null
 ): number => (status !== null && isActive(status) ? 3000 : 15_000);
+
+/**
+ * The line for a failed login-state poll: since when, the cause, the last known state with the
+ * time the server checked it, and the next try. `sinceMs` is the browser-clock time of the first
+ * failed poll of the current run. After a failed poll the control always waits pollIntervalMs(null).
+ */
+export const loginStateNotReadText = ({
+  failure,
+  status,
+  nowMs,
+}: Readonly<{
+  failure: Readonly<{ code: string; message: string; sinceMs: number }>;
+  status: IbkrRecoveryStatusOutput | null;
+  nowMs: number;
+}>): string => {
+  const lead = `IBKR login state not read since ${sinceClock(failure.sinceMs, nowMs)} (${failure.code}: ${failure.message})`;
+  const next = `retrying every ${pollIntervalMs(null) / 1000} s`;
+  if (status === null) return `${lead} · no login state read yet · ${next}`;
+  const name = loggedInWithoutFeeds(status)
+    ? "logged in, account feeds missing"
+    : LOGIN_NAME[status.gateway.loginState];
+  const checked = sinceClock(status.checkedAt, nowMs);
+  const known =
+    checked === null
+      ? `last known: ${name}`
+      : `last known: ${name}, checked ${checked}`;
+  return `${lead} · ${known} · ${next}`;
+};

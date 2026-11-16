@@ -270,7 +270,7 @@ describe("typed account gateway", () => {
     ["UNAUTHORIZED", "session ended"],
     ["FORBIDDEN", "permission"],
     ["VALIDATION_ERROR", "highlighted fields"],
-    ["STORAGE_ERROR", "temporarily unavailable"],
+    ["STORAGE_ERROR", "Account storage error (503). Reload to check"],
   ])("maps %s to safe feedback", (code, expected) =>
     expect(safeAccountFeedback({ code })).toContain(expected)
   );
@@ -310,7 +310,7 @@ describe("typed account gateway", () => {
       "highlighted fields"
     );
     expect(safeAccountFeedback({ data: { code: "NOT_FOUND" } })).toContain(
-      "no longer available"
+      "was not found. Reload"
     );
     expect(safeAccountFeedback({ code: "CONFLICT" })).toContain(
       "changed elsewhere"

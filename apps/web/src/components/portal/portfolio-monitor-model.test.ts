@@ -8,7 +8,12 @@ import {
 } from "./portfolio-monitor-fixture.ts";
 import {
   CASH_SLICE,
-  DASH,
+  missingValue,
+  NO_ORDER_STATUS,
+  NO_TIME,
+  NO_TYPE,
+  NOT_SENT,
+  roundHandleFailureText,
   DEFAULT_COLUMN_CONFIG,
   DEFAULT_REFRESH_INTERVAL,
   DEFAULT_SORT,
@@ -68,23 +73,25 @@ describe("portfolio monitor number formatting", () => {
   it("formats money, prices, quantities and percents", () => {
     expect(usd(1234.5)).toBe("$1,235");
     expect(usd(1234.5, 2)).toBe("$1,234.50");
-    expect(usd(null)).toBe(DASH);
-    expect(usd(Number.NaN)).toBe(DASH);
+    // A value IBKR left empty is named, not shown as a bare dash.
+    expect(usd(null)).toBe("not sent by IBKR");
+    expect(usd(null, 0, "withheld")).toBe("withheld");
+    expect(usd(Number.NaN)).toBe(NOT_SENT);
     expect(price(123.456)).toBe("123.46");
     expect(price(1.234_56)).toBe("1.2346");
-    expect(price(undefined)).toBe(DASH);
+    expect(price(undefined)).toBe(NOT_SENT);
     expect(qty(1500.123_456)).toBe("1,500.1235");
-    expect(qty(null)).toBe(DASH);
+    expect(qty(null)).toBe(NOT_SENT);
     expect(pct(12.345)).toBe("12.35%");
     expect(pct(12.345, 1)).toBe("12.3%");
-    return expect(pct(null)).toBe(DASH);
+    return expect(pct(null)).toBe(NOT_SENT);
   });
 
   return it("signs P&L and picks a tone", () => {
     expect(signed(250)).toBe("+$250");
     expect(signed(-250)).toBe("-$250");
     expect(signed(0)).toBe("$0");
-    expect(signed(null)).toBe(DASH);
+    expect(signed(null)).toBe(NOT_SENT);
     expect(pnlTone(1)).toBe("positive");
     expect(pnlTone(-1)).toBe("negative");
     expect(pnlTone(0)).toBe("flat");
@@ -100,8 +107,9 @@ describe("portfolio monitor time helpers", () => {
   it("formats clock times and ages", () => {
     expect(clock("2026-10-09T15:00:00.000Z")).toMatch(/^\d{2}:\d{2}:\d{2}$/u);
     expect(clock(NOW)).toMatch(/^\d{2}:\d{2}:\d{2}$/u);
-    expect(clock(null)).toBe(DASH);
-    expect(clock("not a time")).toBe(DASH);
+    expect(clock(null)).toBe(NO_TIME);
+    expect(clock("not a time")).toBe("no time sent by IBKR");
+    expect(clock(null, "")).toBe("");
     expect(ageSeconds("2026-10-09T14:59:50.000Z", NOW)).toBe(10);
     expect(ageSeconds("2026-10-09T15:00:10.000Z", NOW)).toBe(0);
     return expect(ageSeconds(null, NOW)).toBeNull();
@@ -198,7 +206,13 @@ describe("portfolio monitor health rule", () => {
   });
 
   it("says since when the gateway is not live", () => {
-    const since = new Date(NOW - 47 * 60_000).toISOString();
+    // 47 minutes back, but never before local midnight: NOW is midnight in UTC+9 zones, and the
+    // time-only form needs the same local day in every zone.
+    const dayStart = new Date(NOW);
+    dayStart.setHours(0, 0, 0, 0);
+    const since = new Date(
+      Math.max(dayStart.getTime(), NOW - 47 * 60_000)
+    ).toISOString();
     const at = sinceClock(since, NOW);
     expect(at).toMatch(/^\d\d:\d\d \S+$/);
     expect(
@@ -231,13 +245,13 @@ describe("portfolio monitor health rule", () => {
     ) => ({ ...fixtureSnapshot({}, NOW).account, ...over });
     expect(accountBadge(account({ mode: "live" }))).toEqual({
       key: "live",
-      label: "Live account · read-only",
+      label: "Live account",
       tone: "info",
       next: null,
     });
     expect(accountBadge(account({ mode: "paper" }))).toEqual({
       key: "paper",
-      label: "Paper account · read-only",
+      label: "Paper account",
       tone: "neutral",
       next: null,
     });
@@ -250,7 +264,11 @@ describe("portfolio monitor health rule", () => {
           modeConfirmedAt: null,
         })
       ).label
-    ).toBe("Live account · read-only");
+    ).toBe("Live account");
+    // The badge names the account mode only. The page can hold order and arm controls, and
+    // the IBKR gateway API is not read-only, so the badge must not claim "read-only".
+    for (const mode of ["live", "paper"] as const)
+      expect(accountBadge(account({ mode })).label).not.toMatch(/read-only/i);
     const errors = (
       [
         ["mismatch", "Account mode mismatch · data withheld"],
@@ -473,10 +491,74 @@ describe("portfolio monitor summary", () => {
       },
       NOW
     );
-    const stats = summaryStats(snapshot);
+    const stats = summaryStats(snapshot, NOW);
     expect(stats.every((stat) => stat.sub === null)).toBe(true);
-    expect(stats[0]?.value).toBe(DASH);
+    expect(stats[0]?.value).toBe(NOT_SENT);
+    expect(stats[1]?.value).toBe(NOT_SENT);
     return expect(stats[1]?.tone).toBe("none");
+  });
+
+  it("names withheld summary values by cause and start, not as a value IBKR left out", () => {
+    const since = "2026-10-09T14:30:00.000Z";
+    const nulls = {
+      pnl: { daily: null, unrealized: null, realized: null },
+    };
+    const down = fixtureSnapshot(
+      { ...nulls, status: { connected: false, since } },
+      NOW
+    );
+    // Same helper as the code: in UTC+9 the start is on the previous local day and carries a date.
+    const sinceText = `since ${sinceClock(since, NOW) ?? ""}`;
+    expect(missingValue(down, NOW)).toBe(
+      `withheld: gateway not live ${sinceText}`
+    );
+    expect(summaryStats(down, NOW)[1]?.value).toBe(
+      `withheld: gateway not live ${sinceText}`
+    );
+    expect(
+      missingValue(
+        fixtureSnapshot({ status: { gateway: "starting", since } }, NOW),
+        NOW
+      )
+    ).toBe(`not received: gateway connecting ${sinceText}`);
+    expect(
+      missingValue(
+        fixtureSnapshot({ status: { connected: false, since: null } }, NOW),
+        NOW
+      )
+    ).toBe("withheld: gateway not live");
+    expect(
+      missingValue(
+        fixtureSnapshot(
+          {
+            account: {
+              mode: null,
+              modeSource: null,
+              modeConfirmedAt: null,
+              modeError: "mismatch",
+              count: 0,
+            },
+          },
+          NOW
+        ),
+        NOW
+      )
+    ).toBe("withheld: account mode mismatch");
+    return expect(missingValue(fixtureSnapshot({}, NOW), NOW)).toBe(NOT_SENT);
+  });
+
+  it("says when and why the round-number check failed and when it runs again", () => {
+    const at = Date.parse("2026-10-09T14:59:00.000Z");
+    expect(
+      roundHandleFailureText({ code: "UNAVAILABLE", message: "timed out" }, at)
+    ).toBe(
+      `Round-number check failed at ${clock(at)} (UNAVAILABLE: timed out). Order prices are not flagged. Next check in 1 minute.`
+    );
+    return expect(
+      roundHandleFailureText({ code: "ERROR", message: "Request failed" }, null)
+    ).toBe(
+      "Round-number check failed (ERROR: Request failed). Order prices are not flagged. Next check in 1 minute."
+    );
   });
 
   return it("computes daily P&L against the start-of-day NLV", () => {
@@ -519,7 +601,7 @@ describe("portfolio monitor holding type", () => {
       holdingLabel(fixturePosition({ description: "ESZ6", secType: "FUT" }))
     ).toBe("Contract");
     expect(holdingLabel(fixturePosition({ secType: "CASH" }))).toBe("CASH");
-    return expect(holdingLabel(fixturePosition({ secType: "" }))).toBe("—");
+    return expect(holdingLabel(fixturePosition({ secType: "" }))).toBe(NO_TYPE);
   });
 });
 
@@ -640,7 +722,8 @@ describe("portfolio monitor orders", () => {
     expect(orderStatusLabel("PreSubmitted")).toBe("Held at IBKR");
     expect(orderStatusLabel("Submitted")).toBe("At exchange");
     expect(orderStatusLabel("Filled")).toBe("Filled");
-    expect(orderStatusLabel("")).toBe(DASH);
+    expect(orderStatusLabel("")).toBe(NO_ORDER_STATUS);
+    expect(NO_ORDER_STATUS).toBe("No status from IBKR");
     expect(orderStatusTitle("PreSubmitted")).toMatch(/held on IBKR servers/u);
     expect(orderStatusTitle("Submitted")).toMatch(/resting at the exchange/u);
     expect(orderStatusTitle("Filled")).toBeUndefined();
@@ -928,6 +1011,10 @@ describe("isOptionPosition", () => {
           symbol: "X",
         })
       )
-    ).toEqual({ label: "Flat —", text: "—", tone: "flat" });
+    ).toEqual({
+      label: "Flat type not sent by IBKR",
+      text: "No type",
+      tone: "flat",
+    });
   });
 });

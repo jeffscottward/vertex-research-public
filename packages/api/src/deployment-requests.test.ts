@@ -269,10 +269,14 @@ const writeKeys = () => {
 const contextFor = (
   request: Request,
   deploymentRequests: DeploymentRequestsRepository | undefined,
-  requestSession: SafeAuthSession | null
+  requestSession: SafeAuthSession | null,
+  withoutLibrary = false
 ) => {
+  const repositories = repositoriesFor(deploymentRequests);
+  const { strategyLibrary: _library, ...withoutLibraryRepositories } =
+    repositories;
   return createApiContext(request, {
-    repositories: repositoriesFor(deploymentRequests),
+    repositories: withoutLibrary ? withoutLibraryRepositories : repositories,
     requestId: "request-1",
     capabilities: {
       ai: false,
@@ -297,6 +301,7 @@ const clientFor = (
     requestSession?: SafeAuthSession | null;
     apiKey?: boolean;
     repository?: DeploymentRequestsRepository;
+    withoutLibrary?: boolean;
   }> = {}
 ) => {
   return createApiClient({
@@ -310,7 +315,8 @@ const clientFor = (
           options.repository,
           options.requestSession === undefined
             ? session()
-            : options.requestSession
+            : options.requestSession,
+          options.withoutLibrary === true
         )
       );
     },
@@ -567,7 +573,24 @@ describe("deploymentRequests lifecycle", () => {
     await expectCode(
       clientFor().deploymentRequests.list({}),
       "STORAGE_ERROR",
-      503
+      503,
+      "Deployment request storage is not configured on this server; nothing was saved. Set the database connection, then retry."
+    ));
+
+  it("refuses a new request when the strategy library is not wired", async () =>
+    await expectCode(
+      clientFor({
+        repository: memoryRequests(),
+        withoutLibrary: true,
+      }).deploymentRequests.create({
+        strategyId: "s-hmm",
+        symbol: "nq",
+        timeframe: "5m",
+        limits,
+      }),
+      "STORAGE_ERROR",
+      503,
+      "Strategy library storage is not configured on this server; the request was not saved. Set the database connection, then retry."
     ));
 });
 

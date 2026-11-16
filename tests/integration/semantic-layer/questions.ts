@@ -3,6 +3,8 @@
 // fixtures.ts). Grades:
 // - correct: every `required` pattern matches and no `forbidden` pattern matches;
 // - wrong: a `forbidden` pattern matches (a value from the wrong source or a wrong value);
+//   the `forbidden` patterns run on the answer without its `allowed` text (exact text that states the
+//   reference and that a `forbidden` pattern would match);
 // - declined: anything else (no wrong value, but the required value is missing).
 // Paper exec-node values (deployment_status) are forbidden in every answer: an account answer must come
 // from the live account, and quoting the paper value next to it invites the error this layer prevents.
@@ -18,6 +20,8 @@ export type EvalQuestion = Readonly<{
   reference: string;
   required: readonly RegExp[];
   forbidden: readonly RegExp[];
+  /** Exact text (global, multiline patterns) that is removed before the `forbidden` check. */
+  allowed?: readonly RegExp[];
 }>;
 
 export type Grade = "correct" | "wrong" | "declined";
@@ -31,6 +35,16 @@ const PAPER = [
 ];
 const NOT_AVAILABLE =
   /not available|isn't available|unavailable|no data|doesn't have|does not have|no (certified )?(term|source)|none of the certified terms|can(no|')t (see|tell|answer|give)/i;
+
+// Q20: the tail ", not alert" or " (not alert)" directly after the exact clause "Sector momentum paper
+// forward [is] at warn". The clause starts its line or follows a space or a tab. The tail ends its line or
+// stands before a space, a tab or one of . , ; : and the line holds no other "alert" (any letter case, also
+// inside a word such as "alerts").
+const NO_ALERT = String.raw`(?:(?![Aa][Ll][Ee][Rr][Tt])[^\n\r\u2028\u2029])*`;
+const Q20_WARN_NOT_ALERT = new RegExp(
+  String.raw`(?<=^(?:${NO_ALERT}[ \t])?Sector momentum paper forward (?:is )?at warn)(?:, not alert| \(not alert\))(?=$|[ \t.,;:]${NO_ALERT}$)`,
+  "gm"
+);
 
 export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
   {
@@ -214,6 +228,10 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     set: "main",
   },
   {
+    // The tail ", not alert" or " (not alert)" after the exact clause states the reference, although the
+    // forbidden pattern matches it. It is removed before the forbidden check under the rules of
+    // Q20_WARN_NOT_ALERT. Everything else stays under the check.
+    allowed: [Q20_WARN_NOT_ALERT],
     forbidden: [...PAPER, /sector momentum[^.]*\balert\b/i],
     id: "Q20",
     kind: "research",
@@ -339,7 +357,11 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
 ];
 
 export const gradeAnswer = (question: EvalQuestion, answer: string): Grade => {
-  if (question.forbidden.some((pattern) => pattern.test(answer)))
+  const checked = (question.allowed ?? []).reduce(
+    (text, pattern) => text.replace(pattern, ""),
+    answer
+  );
+  if (question.forbidden.some((pattern) => pattern.test(checked)))
     return "wrong";
   if (question.required.every((pattern) => pattern.test(answer)))
     return "correct";

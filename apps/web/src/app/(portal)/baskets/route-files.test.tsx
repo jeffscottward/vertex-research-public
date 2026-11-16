@@ -7,6 +7,11 @@ import BasketsError from "./error.tsx";
 import BasketsLoading from "./loading.tsx";
 import BasketsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/baskets-workspace.tsx", () => ({
   BasketsWorkspace: ({ initialBasket }: { initialBasket: string | null }) => (
     <div data-basket={initialBasket ?? "none"} data-workspace="baskets" />
@@ -65,6 +70,6 @@ describe("baskets route files", () => {
     const container = await render(<BasketsError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Baskets unavailable");
+    expect(container.textContent).toContain("Baskets failed to render at");
   });
 });

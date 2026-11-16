@@ -30,7 +30,7 @@ import {
   OptimizationListInputSchema,
   OptimizationRecordInputSchema,
 } from "../contracts/optimizations.ts";
-import { FlowSnapshotInputSchema } from "../contracts/flow.ts";
+import { FlowSnapshotToolInputSchema } from "../contracts/flow.ts";
 import {
   OpenbbCotInputSchema,
   OpenbbEventsInputSchema,
@@ -206,9 +206,10 @@ const OptionsGexContextToolInputSchema = z
   })
   .strict();
 
-// The IV surface, skew, per-strike rows (strikeCount says how many) and flow events are dropped; the GEX headline, its
-// context (levels, dealer Greeks, flow bias, freshness, expiry, IV regime, session, events,
-// caveat factors) and the data notes stay.
+// The IV surface, skew, per-strike rows (displayedStrikeCount says how many are shown; the
+// totals cover every strike within 50-150% of spot) and flow events are dropped; the GEX
+// headline, its context (levels, dealer Greeks, flow bias, freshness, expiry, IV regime,
+// session, events, caveat factors) and the data notes stay.
 export const presentGexContext = (value: unknown): unknown => {
   if (typeof value !== "object" || value === null) return value;
   const output = value as OptionsAnalyticsOutput;
@@ -222,11 +223,11 @@ export const presentGexContext = (value: unknown): unknown => {
   return {
     context: output.context,
     exposure: {
+      displayedStrikeCount: output.exposure.strikes.length,
       gexExpiry: output.exposure.gexExpiry,
       maxPain: output.exposure.maxPain,
       message: output.exposure.message,
       status: output.exposure.status,
-      strikeCount: output.exposure.strikes.length,
       totalGex: output.exposure.totalGex,
     },
     flowStatus: output.flow.status,
@@ -485,7 +486,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "options_gex_context",
     title: "Options GEX context",
     description:
-      "Read-only estimated GEX for one US stock symbol (QuantData) and the context to read before trusting it: regime, gamma flip and call/put walls with distance in one-day implied moves, open-interest delta (DEX, holders' side), estimated dealer vanna and charm, flow bias (bullish vs bearish premium), OI freshness (previous session), expiry mix, IV term regime, New York session, next monthly OpEx and plain-text caveat factors. GEX, level, vanna and charm signs assume dealers long calls, short puts. Research only; not a trade signal.",
+      "Read-only estimated GEX for one US stock symbol (QuantData) and the context to read before trusting it: regime, gamma flip and call/put walls with distance in one-day implied moves, open-interest delta (DEX, holders' side), estimated dealer vanna and charm, flow bias (bullish vs bearish premium), OI freshness (previous session), expiry mix, IV term regime, New York session, next monthly OpEx and plain-text caveat factors. GEX, level, vanna and charm signs assume dealers long calls, short puts. Budget: shares one 30 requests/min QuantData budget per server with the options page, the option chain and the flow collector; an uncached symbol costs 3 requests (chain and OI cached 5 min, flow 1 min), so at most about 10 new symbols per minute, as few as 2 while the collector runs. Research only; not a trade signal.",
     procedure: "optionsAnalytics/snapshot",
     input: OptionsGexContextToolInputSchema,
     readOnly: true,
@@ -524,7 +525,10 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     description:
       "Read-only flow pipeline view for SPY or ES (minutes 15-390, default 120): per-minute sampled order flow (delta, CVD, VWAP, covered seconds), book pressure, QuantData options flow (call/put, bullish/bearish, ask/bid-side, sweep/block, OTM, 0DTE, opening, vol > OI premium and the largest prints), the newest GEX snapshot (ES uses SPX levels shifted by the ES - SPX basis), derived events (large and off-exchange prints, absorption, stacked imbalances, option sweeps/blocks), a confluence reading (agree/disagree) and per-source freshness. Ticks are sampled, not streamed. Research only; not a trade signal.",
     procedure: "flow/snapshot",
-    input: FlowSnapshotInputSchema,
+    // Pinned to the recorded semantic-layer eval (SPY and ES). Pull request 2 restores
+    // FlowSnapshotInputSchema, updates the description to four symbols, adds flow_control and
+    // records the eval again once.
+    input: FlowSnapshotToolInputSchema,
     readOnly: true,
   },
   {

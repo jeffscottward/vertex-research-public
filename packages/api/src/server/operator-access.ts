@@ -35,6 +35,9 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "agentOps.optimizations.get",
   "agentOps.deployment.status",
   "papers.list",
+  // list and get include each strategy's Vertex study kind and verdict (vertexStudy), so read keys
+  // see verdicts while the study documents stay behind researchStudies.get (owner decision
+  // 2026-11-13, private tracker card vertex-library-list-vertex-verdict).
   "strategyLibrary.list",
   "strategyLibrary.get",
   "marketData.bars",
@@ -71,6 +74,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "pickLists.proposal",
   "pickLists.screen",
   "flow.snapshot",
+  "flow.control",
   "openbb.status",
   "openbb.volContext",
   "openbb.cot",

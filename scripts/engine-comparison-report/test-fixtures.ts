@@ -36,7 +36,7 @@ export const comparisonRow = (
   engineRun: {
     cpuMs: 2900,
     gpu: "not used (Nautilus engine is CPU-only)",
-    host: "omarchy-rig",
+    host: "dev-rig",
     processCases: 1,
     processes: 1,
     processWallMs: 1600,
@@ -61,7 +61,7 @@ export const nautilusRun = (
   engineRun: {
     cpuMs: 14_153,
     gpu: "not used (Nautilus engine is CPU-only)",
-    host: "omarchy-rig",
+    host: "dev-rig",
     processCases: 1,
     processes: 1,
     processWallMs: 13_300,

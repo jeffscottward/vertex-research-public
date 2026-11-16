@@ -739,6 +739,8 @@ export const RATING_EVALUATION_STRATEGY_KEYS = [
 ] as const;
 export const RATING_EVALUATION_UNAVAILABLE_REASONS = [
   "no_bars",
+  // This server has no market bar repository wired, so it never looked for bars.
+  "not_configured",
   "bad_bars",
   "outside_history",
   "too_few_decisions",
@@ -994,12 +996,18 @@ export const DEPLOY_SESSION_STATES = [
   "stopping",
   "stopped",
   "error",
-  "unknown",
+  // No nautilus-trader container: Docker answered that none exists.
+  "missing",
+  // No container record because the docker inspect command failed.
+  "unreadable",
+  // Docker reported a container status the collector does not map (raw_state.container_status).
+  "unrecognised",
 ] as const;
 export const DEPLOY_KILL_SWITCH_STATES = [
   "engaged",
   "clear",
-  "unknown",
+  // No indicator is engaged, but a kill-switch file check gave no answer: never shown as clear.
+  "unverified",
 ] as const;
 const shortText = z.string().max(256);
 const longText = z.string().max(2000);
@@ -1052,6 +1060,8 @@ export const DeploySessionStrategySchema = z
 export const DeploySessionBlockSchema = block({
   ...availableBase,
   state: z.enum(DEPLOY_SESSION_STATES),
+  // When the state began (carried from the previous collector run); absent from older collectors.
+  state_since: nullableTime.optional(),
   raw_state: z
     .object({
       container_status: shortText.nullable(),
@@ -1298,7 +1308,8 @@ export const AGENT_OPS_API_ERRORS = {
   VALIDATION_ERROR: { status: 422, message: "Record validation failed" },
   STORAGE_ERROR: {
     status: 503,
-    message: "Agent operations storage unavailable",
+    message:
+      "Agent operations storage could not be used: it is not configured on this server, or the database call failed. Nothing was saved. Retry; if it repeats, check the database connection and migrations.",
   },
   UPSTREAM_ERROR: { status: 502, message: "Upstream metadata source failed" },
   NOT_CONFIGURED: {
