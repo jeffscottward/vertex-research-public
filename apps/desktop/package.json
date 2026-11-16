@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "electron": "45.2.3",
+    "electron": "45.3.2",
     "esbuild": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
