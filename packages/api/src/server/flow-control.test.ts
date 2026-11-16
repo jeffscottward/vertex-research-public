@@ -340,6 +340,13 @@ describe("buildFlowControl", () => {
     expect(early30s.options.detail).toBe(
       "5 of 10 minutes needed since 09:30 ET"
     );
+    const lateBuckets = buildFlowControl(
+      rowsOf({ netDrift: run("SPX", 0, 8, 1000, 0), now: at(11) })
+    );
+    expect(lateBuckets.options).toMatchObject({
+      detail: "9 of 10 minutes needed since 09:30 ET",
+      noDataReason: "session_start",
+    });
     const storage = buildFlowControl(
       rowsOf({
         samples: {

@@ -37,7 +37,11 @@ const LEGEND: readonly Readonly<{
 }>[] = [
   { dash: undefined, label: "Call", stroke: "var(--color-success)" },
   { dash: "6 3", label: "Put", stroke: "var(--color-destructive)" },
-  { dash: "2 2", label: "Call minus put", stroke: "currentColor" },
+  {
+    dash: "2 2",
+    label: "Call minus put",
+    stroke: "var(--color-foreground)",
+  },
 ];
 
 const NetDriftBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
@@ -150,7 +154,7 @@ const NetDriftBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
           data-flow-net-drift-line="difference"
           fill="none"
           points={chart.difference}
-          stroke="currentColor"
+          stroke="var(--color-foreground)"
           strokeDasharray="2 2"
         />
       </svg>
@@ -164,7 +168,6 @@ const NetDriftBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
               <line
                 stroke={entry.stroke}
                 strokeDasharray={entry.dash}
-                strokeWidth={2}
                 x1={0}
                 x2={24}
                 y1={4}

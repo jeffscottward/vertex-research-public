@@ -42,13 +42,13 @@ import {
 import { FLOW_GROUPS, flowSymbolForTicker } from "../flow-features.ts";
 import type { FlowNetDriftRow } from "../flow-net-drift.ts";
 import type { FlowOptionPrintRow } from "../flow-options.ts";
-import { newYorkTime } from "./merged-bars.ts";
 import {
   FLOW_STALE_SECONDS,
   type FlowSampleRow,
   flowClockText,
   flowSessionOpen,
 } from "./flow-snapshot.ts";
+import { newYorkTime } from "./merged-bars.ts";
 
 const MINUTE_MS = 60_000;
 /** A zero_dte part whose newest bucket is this far behind the newest total bucket is partial. */
@@ -220,9 +220,14 @@ const buildOptionsSide = (
       checkInstrument: group.checkTicker,
       closeState: primary.closeState,
       instrument: group.primaryTicker,
-      minutesSinceOpen: Math.max(
-        0,
-        Math.floor((rows.now.getTime() - from.getTime()) / MINUTE_MS)
+      // Clock minutes since 09:30, capped below minBuckets: buckets settle late, so the
+      // session_start text must never read "10 of 10" while the reason still applies.
+      minutesSinceOpen: Math.min(
+        FLOW_CONTROL_RULES.minBuckets - 1,
+        Math.max(
+          0,
+          Math.floor((rows.now.getTime() - from.getTime()) / MINUTE_MS)
+        )
       ),
       newestBucketEt:
         primary.newestTotal === null ? null : etClock(primary.newestTotal),
@@ -266,8 +271,8 @@ const buildOptionsSide = (
 
 interface Sums {
   call: number;
-  put: number;
   callVolume: number;
+  put: number;
   putVolume: number;
 }
 
