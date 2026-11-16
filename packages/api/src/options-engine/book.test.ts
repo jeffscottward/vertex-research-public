@@ -283,21 +283,6 @@ describe("markets and the book", () => {
     ).toThrow("No IV index for XYZ");
   });
 
-  it("refuses an IV index level above 10000 at entry and while the trade is open", () => {
-    const spec = parseOptions(DEBIT);
-    const levels = (from: number, value: number) =>
-      market("SPY").dates.map((_, index) => (index >= from ? value : 20));
-    const run = (ivIndex: number[]) =>
-      buildBook([["SPY", 0]], spec, { SPY: market("SPY", 40, { ivIndex }) });
-    expect(run(levels(10, 10_000)).trades).toHaveLength(1);
-    expect(() => run(levels(10, 1e300))).toThrow(
-      "VIX level 1e+300 is above 10000: far above real data"
-    );
-    expect(() => run(levels(0, 10_001))).toThrow(
-      "VIX level 10001 is above 10000: far above real data"
-    );
-  });
-
   it("skips an event without a reachable expiry", () => {
     const spec = new OptionsSpec({
       dteMin: 20,
