@@ -434,7 +434,8 @@ export const describeAgentOpsFailure = (error: unknown): string => {
       return `Upstream source failed (502): ${errorField(error, "message") ?? "no detail"}`;
     }
     case "STORAGE_ERROR": {
-      return "Agent operations storage unavailable (503). Apply migrations 0015 and 0017 if the tables are missing.";
+      // The server names the cause: not configured on this server, or the database did not answer.
+      return `Storage error (503): ${errorField(error, "message") ?? "the server gave no cause; nothing was saved. Retry, then check the database connection and apply migrations 0015 and 0017 if the tables are missing."}`;
     }
     default: {
       return "Request failed. Retry.";

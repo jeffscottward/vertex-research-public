@@ -106,6 +106,15 @@ export const clock = (
   });
 };
 
+// Browser-local hour and minute with the zone name ("01:13 EST").
+export const localClock = (at: Date): string =>
+  at.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+
 // Start of a state ("since 01:13 EST"): browser-local hour and minute with the zone name, and the
 // date when it is not today. Null when the time is absent.
 export const sinceClock = (
@@ -115,12 +124,7 @@ export const sinceClock = (
   const ms = parseTime(value);
   if (ms === null) return null;
   const at = new Date(ms);
-  const time = at.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  const time = localClock(at);
   if (localDayKey(at) === localDayKey(new Date(nowMs))) return time;
   const day = at.toLocaleDateString("en-US", {
     day: "numeric",
@@ -274,20 +278,22 @@ export type AccountBadge = Readonly<{
 
 // The account mode is a configured fact: the badge is always Live or Paper, also while the gateway
 // is down (the health badge shows the connection). The other three are named errors.
+// The badge names the mode only. It claims nothing about what the page can do: the Portfolio page
+// has order buttons and the IBKR gateway API is not read-only, so the badge must not say "read-only".
 export const accountBadge = (
   account: PortfolioMonitorOutput["account"]
 ): AccountBadge => {
   if (account.mode === "live")
     return {
       key: "live",
-      label: "Live account · read-only",
+      label: "Live account",
       tone: "info",
       next: null,
     };
   if (account.mode === "paper")
     return {
       key: "paper",
-      label: "Paper account · read-only",
+      label: "Paper account",
       tone: "neutral",
       next: null,
     };

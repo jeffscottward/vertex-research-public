@@ -95,7 +95,6 @@ const UpstreamRequestSchema = z
 const UNDECIDED_LOGIN_STATES: ReadonlySet<string> = new Set([
   "no-login-evidence",
   "gateway-unreadable",
-  "unknown",
 ]);
 
 const UpstreamStatusSchema = z

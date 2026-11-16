@@ -7,6 +7,7 @@ import {
   flowEvents,
   flowGex,
   flowMinutes,
+  flowNetDrift,
   flowOptionGaps,
   flowOptionPrints,
   flowSamples,
@@ -19,6 +20,7 @@ import {
   type FlowEventRecord,
   type FlowGexRecord,
   type FlowMinuteRecord,
+  type FlowNetDriftRecord,
   type FlowOptionPrintRecord,
   type FlowSampleRecord,
 } from "./flow.ts";
@@ -31,10 +33,10 @@ interface Operation {
   columns?: unknown;
   conflict?: "nothing" | Record<string, unknown>;
   kind: "select" | "insert" | "delete" | "update";
-  set?: unknown;
   limit?: number;
   orderBy?: unknown[];
   returning?: unknown;
+  set?: unknown;
   table?: unknown;
   values?: unknown;
   where?: SQL;
@@ -71,12 +73,12 @@ const createDouble = (
         operation.orderBy = order;
         return chain;
       },
-      set: (values: unknown) => {
-        operation.set = values;
-        return chain;
-      },
       returning: (columns: unknown) => {
         operation.returning = columns;
+        return chain;
+      },
+      set: (values: unknown) => {
+        operation.set = values;
         return chain;
       },
       then: (resolve: (rows: unknown) => unknown) => {
@@ -247,7 +249,7 @@ describe("createFlowRepository.recordSample", () => {
 });
 
 describe("createFlowRepository.prune", () => {
-  it("deletes from every flow table before the cutoff and sums removed rows", async () => {
+  it("deletes from each flow table before its own cutoff and sums removed rows", async () => {
     const double = createDouble([
       [{}],
       [],
@@ -256,11 +258,23 @@ describe("createFlowRepository.prune", () => {
       [],
       [{}, {}, {}],
       [{}],
+      [{}, {}],
     ]);
     const repository = createFlowRepository(double.database);
-    await expect(repository.prune(FROM)).resolves.toBe(8);
+    const at = (day: number) => new Date(Date.UTC(2026, 0, day));
+    const cutoffs = {
+      flow_book: at(3),
+      flow_events: at(5),
+      flow_gex: at(6),
+      flow_minutes: at(2),
+      flow_net_drift: at(8),
+      flow_option_gaps: at(7),
+      flow_option_prints: at(4),
+      flow_samples: at(1),
+    };
+    await expect(repository.prune(cutoffs)).resolves.toBe(10);
     expect(double.operations.map((operation) => operation.kind)).toEqual(
-      new Array(7).fill("delete")
+      new Array(8).fill("delete")
     );
     expect(double.operations.map((operation) => operation.table)).toEqual([
       flowSamples,
@@ -270,13 +284,135 @@ describe("createFlowRepository.prune", () => {
       flowEvents,
       flowGex,
       flowOptionGaps,
+      flowNetDrift,
     ]);
     expect(whereOf(double.operations[6]).sql).toContain('"end_time" < $1');
-    for (const operation of double.operations) {
+    expect(whereOf(double.operations[7]).sql).toContain('"minute" < $1');
+    double.operations.forEach((operation, index) => {
       const where = whereOf(operation);
       expect(where.sql).toContain(" < $1");
-      expect(where.params).toEqual([FROM.toISOString()]);
-    }
+      expect(where.params).toEqual([at(index + 1).toISOString()]);
+    });
+  });
+});
+
+describe("createFlowRepository net drift", () => {
+  it("queries the newest sample of the net_drift source", async () => {
+    const netDrift = { source: "net_drift", status: "ok" };
+    const double = createDouble([
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [netDrift],
+      [netDrift],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.latestSamples("QQQ")).resolves.toEqual({
+      latest: [netDrift],
+      latestOk: [netDrift],
+    });
+    expect(whereOf(double.operations[8]).params).toEqual(["QQQ", "net_drift"]);
+  });
+
+  const bucket = (minute: number): FlowNetDriftRecord => ({
+    filterProfile: "otm-clean.v1",
+    minute: new Date(FROM.getTime() + minute * 60_000),
+    netCallPremium: 1000,
+    netCallVolume: 10,
+    netPutPremium: -500,
+    netPutVolume: -5,
+    part: "total",
+    ticker: "SPX",
+    underlyingPrice: null,
+  });
+
+  it("upserts net drift by ticker, part and minute and rewrites a row only when a value or the filter profile changed", async () => {
+    const input = rows<FlowNetDriftRecord>(FLOW_UPSERT_BATCH + 1, bucket);
+    const double = createDouble([echo, []]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.upsertNetDrift(input)).resolves.toBe(
+      FLOW_UPSERT_BATCH
+    );
+    expect(double.operations).toHaveLength(2);
+    const [first] = double.operations;
+    expect(first?.table).toBe(flowNetDrift);
+    const conflict = first?.conflict as Record<string, unknown>;
+    expect(conflict["target"]).toEqual([
+      flowNetDrift.ticker,
+      flowNetDrift.part,
+      flowNetDrift.minute,
+    ]);
+    expect(
+      Object.fromEntries(
+        Object.entries(conflict["set"] as Record<string, SQL>).map(
+          ([key, value]) => [key, dialect.sqlToQuery(value).sql]
+        )
+      )
+    ).toEqual({
+      filterProfile: "excluded.filter_profile",
+      netCallPremium: "excluded.net_call_premium",
+      netCallVolume: "excluded.net_call_volume",
+      netPutPremium: "excluded.net_put_premium",
+      netPutVolume: "excluded.net_put_volume",
+      underlyingPrice: "excluded.underlying_price",
+    });
+    const setWhere = dialect.sqlToQuery(conflict["setWhere"] as SQL).sql;
+    for (const column of [
+      "net_call_premium",
+      "net_put_premium",
+      "net_call_volume",
+      "net_put_volume",
+      "underlying_price",
+      "filter_profile",
+    ])
+      expect(setWhere).toContain(
+        `"flow_net_drift"."${column}" is distinct from excluded.${column}`
+      );
+  });
+
+  it("returns zero net drift rows for no input", async () => {
+    const double = createDouble([]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.upsertNetDrift([])).resolves.toBe(0);
+    expect(double.operations).toHaveLength(0);
+  });
+
+  it("reads net drift for the tickers and the time range in minute order", async () => {
+    const double = createDouble([[bucket(0)]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readNetDrift({ from: FROM, tickers: ["SPX", "SPY"], to: TO })
+    ).resolves.toEqual([bucket(0)]);
+    const [operation] = double.operations;
+    expect(operation?.table).toBe(flowNetDrift);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPX", "SPY", FROM.toISOString(), TO.toISOString()],
+      sql: '("flow_net_drift"."ticker" in ($1, $2) and "flow_net_drift"."minute" >= $3 and "flow_net_drift"."minute" < $4)',
+    });
+    expect(dialect.sqlToQuery(operation?.orderBy?.[0] as SQL).sql).toBe(
+      '"flow_net_drift"."minute" asc'
+    );
+  });
+
+  it("returns the newest total net drift minute, or null for an empty table or a missing driver row", async () => {
+    const double = createDouble([
+      [{ minute: TO.toISOString() }],
+      [{ minute: null }],
+      [],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.newestNetDriftMinute("QQQ")).resolves.toEqual(TO);
+    await expect(repository.newestNetDriftMinute("QQQ")).resolves.toBeNull();
+    await expect(repository.newestNetDriftMinute("QQQ")).resolves.toBeNull();
+    expect(whereOf(double.operations[0])).toMatchObject({
+      params: ["QQQ", "total"],
+      sql: '("flow_net_drift"."ticker" = $1 and "flow_net_drift"."part" = $2)',
+    });
   });
 });
 
@@ -424,13 +560,15 @@ describe("createFlowRepository.latestSamples", () => {
       [],
       [gexLast],
       [],
+      [],
+      [],
     ]);
     const repository = createFlowRepository(double.database);
     await expect(repository.latestSamples("SPY")).resolves.toEqual({
       latest: [tickLast, gexLast],
       latestOk: [tickOk],
     });
-    expect(double.operations).toHaveLength(8);
+    expect(double.operations).toHaveLength(10);
     const params = double.operations.map(
       (operation) => whereOf(operation).params
     );
@@ -443,6 +581,8 @@ describe("createFlowRepository.latestSamples", () => {
       ["SPY", "options", "ok"],
       ["SPY", "gex"],
       ["SPY", "gex", "ok"],
+      ["SPY", "net_drift"],
+      ["SPY", "net_drift", "ok"],
     ]);
     for (const operation of double.operations) {
       expect(operation.table).toBe(flowSamples);

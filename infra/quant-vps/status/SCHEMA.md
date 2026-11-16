@@ -55,7 +55,7 @@ Blocks sourced from report files also carry `age_seconds` (int) and `stale` (boo
 
 | Field | Notes |
 | --- | --- |
-| `state` | `starting \| running \| paused \| degraded \| halted \| stopping \| stopped \| error \| missing \| unreadable \| unrecognised`. Readers still accept `unknown` from a collector before card vertex-status-b1-quantvps. |
+| `state` | `starting \| running \| paused \| degraded \| halted \| stopping \| stopped \| error \| missing \| unreadable \| unrecognised`. Readers reject the old `unknown` state that collectors before 2.2.0 sent (card vertex-status-remove-unknown-enums). |
 | `state_since` | ISO Z. When `state` began: copied from the previous snapshot while the state is the same, else the time of this run (also the first run after a deploy). |
 | `raw_state` | `{container_status, container_health, container_exit_code, health_file_status, last_runner_event, last_runner_event_at, heartbeat_age_seconds}` |
 | `trading_mode`, `safe_mode` | from `data/nautilus/health.json` (last written by the runner) |

@@ -167,8 +167,8 @@ describe("PortfolioMonitor", () => {
     await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
     expect(gateway.snapshot).toHaveBeenCalledTimes(1);
     expect(health()).toContain("Live");
-    expect(find("[data-account-mode]").textContent).toContain(
-      "Paper account · read-only"
+    expect(find("[data-account-mode]").textContent).toBe(
+      "Status:Paper account"
     );
     expect(find("[data-freshness]").textContent).toMatch(
       /^Data as of \d{2}:\d{2}:\d{2} \(\d+ s ago\) · fetched \d{2}:\d{2}:\d{2}$/u
@@ -281,8 +281,8 @@ describe("PortfolioMonitor", () => {
         defaultTab="positions"
       />
     );
-    expect(find("[data-account-mode=live]").textContent).toContain(
-      "Live account · read-only"
+    expect(find("[data-account-mode=live]").textContent).toBe(
+      "Status:Live account"
     );
     return expect(document.querySelector("[data-api-messages]")).toBeNull();
   });
@@ -746,7 +746,7 @@ describe("PortfolioMonitor", () => {
     );
     // The account mode is a configured fact: it stays on the badge during the disconnect.
     expect(find("[data-account-mode=paper]").textContent).toBe(
-      "Status:Paper account · read-only"
+      "Status:Paper account"
     );
     expect(find("[data-unknown]").textContent).toContain("Positions unknown");
     expect(text()).not.toContain("No open positions");
@@ -787,7 +787,7 @@ describe("PortfolioMonitor", () => {
     );
     expect(health()).toBe("Status:Gateway connecting · retrying");
     expect(find("[data-account-mode=live]").textContent).toBe(
-      "Status:Live account · read-only"
+      "Status:Live account"
     );
     return expect(find("[data-banner=starting]").textContent).toBe(
       "Gateway connecting · retrying. Live account from the gateway configuration; no session has confirmed it yet. Values may be out of date."
@@ -817,7 +817,7 @@ describe("PortfolioMonitor", () => {
       /^Status:Gateway disconnected since (\w{3} \d{1,2} )?\d\d:\d\d \S+ · retrying$/
     );
     expect(find("[data-account-mode=live]").textContent).toBe(
-      "Status:Live account · read-only"
+      "Status:Live account"
     );
     expect(text()).not.toMatch(/account mode unknown/i);
     return expect(find("[data-banner=disconnected]").textContent).toContain(

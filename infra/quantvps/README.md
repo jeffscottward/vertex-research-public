@@ -9,6 +9,7 @@ This folder runs the production build of the web app on QuantVPS:
 - `tailscaled-preserve-runtime-dir.conf`: the tailscaled drop-in that keeps `/run/tailscale` across tailscaled restarts.
 - `restart-when-idle.sh`: **the only restart route for `vertex-web`**. Do not run `systemctl restart vertex-web` directly.
 - `stage-runtime.sh`: copies the runtime tree of a build commit (tracked files and `node_modules`) next to the live one on QuantVPS. The restart script moves it into place (see "Runtime tree").
+- `prune-web-backups.sh`: keeps the newest 10 web build backup pairs in `apps/web` on QuantVPS and deletes older ones (see "Backup retention").
 
 ## Restart route
 
@@ -29,7 +30,7 @@ Steps:
 4. If the health check fails, move the failed build to `dist.failed-<now>` and `.wrangler.failed-<now>`, copy the newest backup pair (or `--backup <TS>`) into place, restart and check health again. The script deletes nothing. Send one notice to #omp-alerts (exit 5 when the rollback is healthy, exit 6 when it is not).
 5. If the waiter has not seen two idle polls in a row 60 min (wall clock, `VERTEX_RESTART_GIVE_UP_AFTER` in seconds) after the first busy poll, give up with one notice to #omp-alerts (exit 4). There is no forced restart.
 
-Only one waiter runs at a time (`flock` on `${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock`, the same path for every caller). A second waiter does nothing and exits with code 8. Only a held lock gives exit 8. When the lock file cannot be opened (for example a full disk, no permission, or a directory at that path) or `flock` fails in another way, the script prints `NOT RESTARTED: cannot open lock file <path>: <reason>` (or `cannot lock <path> (flock exit <n>)`), does nothing and exits with code 11. Treat exit 11 as a failed run: fix the cause, then run the script again.
+Only one waiter runs at a time (`flock` on `${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock`, the same path for every caller). A second waiter does nothing and exits with code 8. Only a held lock gives exit 8. Exit 8 can also mean that `prune-web-backups.sh` holds the lock for its rename call; run the restart again. When the lock file cannot be opened (for example a full disk, no permission, or a directory at that path) or `flock` fails in another way, the script prints `NOT RESTARTED: cannot open lock file <path>: <reason>` (or `cannot lock <path> (flock exit <n>)`), does nothing and exits with code 11. Treat exit 11 as a failed run: fix the cause, then run the script again.
 
 The container start-time baseline is taken after the idle wait, right before the restart, because the wait can cross the scheduled 03:00 UTC exec-node container restarts. Only containers in the baseline are compared. A changed start time, or a baseline container that is missing after the restart, sends one notice to #omp-alerts (exit 7). One-off `compose run` containers (`*-run-<hex>`) may vanish, and new containers are ignored. A failed start-time check after the restart also exits 7, without a notice.
 
@@ -60,6 +61,7 @@ Nautilus backtests never run on QuantVPS (owner decision 2026-11-05): `vertex-we
 5. Run `infra/quantvps/restart-when-idle.sh` from an up-to-date rig checkout (`git fetch` first). Its rollback source is the backup from step 2. It swaps the staged runtime tree in with the restart. Exit 12 means that step 4 is missing for this build.
 6. Run `infra/quantvps/recreate-tailnet-proxies.sh --caddyfile-only` from the same checkout. It installs the committed `Caddyfile` with a reload and no proxy outage, and when the installed proxy file already equals the committed one it changes nothing and only repeats the reload (see "Change the installed Caddyfile"). The web deploy itself does not copy the proxy file.
 7. After the restart, check one page response through the proxy: `content-security-policy` must contain `script-src 'self' 'nonce-`.
+8. When the restart of step 5 ended with exit code 0 and step 7 passed, run `infra/quantvps/prune-web-backups.sh --apply` from the same checkout (see "Backup retention"). The prune never fails the deploy. Report its exit code and last line with the deploy. On exit code 8 do not wait; the next deploy prunes.
 
 Host values (2026-11-05, public repository): the committed tree names no real host. The real values are server-side config on QuantVPS and never committed: `run-preview.mjs` takes the tailnet origin from `APP_URL` in `private/basic-app-named/.prod.vars`, and the research fetch User-Agent takes its contact from `VERTEX_RESEARCH_CONTACT_EMAIL`. The proxy and install scripts read `/etc/vertex/hosts.env` (see "Host config"). Copy by hand only `apps/web/dist/` and `.wrangler/deploy/config.json`. Do not copy the committed unit over the installed one (`/etc/systemd/system/vertex-web.service`; the copy in the checkout is not the installed file), and install the committed Caddyfile only with `recreate-tailnet-proxies.sh` (step 6). The runner `run-preview.mjs` is part of the runtime tree since 2026-11-15: `stage-runtime.sh` brings the committed runner with every build, so a server-side edit of it does not survive the next deploy.
 
@@ -103,6 +105,37 @@ Swap back (`.runtime-failed-<now>/` is unfinished): finish it. For each unit in 
 Then `touch .runtime-failed-<now>/COMPLETE`.
 
 After either repair, `cat RUNTIME_SHA` in the checkout must show the previous commit. Run `infra/quantvps/restart-when-idle.sh --dry-run` and check the `runtime:` lines. The build output is a separate matter: when `dist` in `apps/web` holds a newer build than the runtime tree, the next run swaps the stage in again (swap in) or needs the build backup restored (swap back; see deploy step 2).
+
+## Backup retention
+
+Every deploy adds one backup pair in `apps/web` on QuantVPS: `dist.bak-<TS>` with `.wrangler.bak-<TS>` (about 120 MB, deploy step 2). `prune-web-backups.sh` keeps the newest 10 complete pairs and deletes older ones, at most 3 pairs per run (owner decision 2026-11-15, rule A). Design: `docs/vertex-rebuild/designs/quantvps-web-backup-retention/design.md`.
+
+```sh
+infra/quantvps/prune-web-backups.sh           # preview: keep/delete lines and a summary; changes nothing
+infra/quantvps/prune-web-backups.sh --apply   # rename and delete up to 3 pairs of the plan
+```
+
+How a pair is deleted: under the restart lock (one remote call, no wait) the script renames both folders to `dist.prune-<TS>` and `.wrangler.prune-<TS>`. Then it releases the lock and deletes the renamed folders, oldest first. The restart script selects its rollback source with the glob `dist.bak-<TS>`, so a renamed folder is never a rollback source, and `restart-when-idle.sh --backup <TS>` never reaches a renamed pair. Pairs over the keep count stay reachable until a run renames them. A run that stops is finished by a later `--apply` run: renamed folders count toward the limit of 3 and are deleted first.
+
+Never touched: names with characters other than `A-Z a-z 0-9 . _ -`, half pairs (except the second half of an interrupted rename, which is finished and deleted), symlinks or files in place of a folder, names of another form, and the `dist.failed-*`, `.wrangler.failed-*`, `dist.undeployed-*` and `.wrangler.undeployed-*` folders. The plan output lists or counts them as skip and "not managed" lines.
+
+Exit codes and their effect:
+
+- 0: preview printed, or the run did its work. The last line says when more pairs remain.
+- 2: usage error. 3: a precondition failed (no SSH answer, folder not found, no live build, incomplete listing, plan check failed, a kept pair is missing). Nothing changed.
+- 8: the restart lock is held by a restart, a stage or another prune. Nothing changed. In a deploy, do not wait: the next deploy prunes. In the catch-up loop, follow its stop rules.
+- 11: the lock file could not be opened or `flock` failed. Nothing changed.
+- 13: partial or unknown: the rename, the delete or the check after it did not complete. Run `--apply` again. After a failed rename step the delete step still runs for renamed pairs.
+
+Log: a run that reaches the rename step appends to `${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-prune.log` on QuantVPS (best effort). Read it with `ssh quantvps 'tail -n 30 "${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-prune.log"'`. Line formats:
+
+```text
+<UTC time> delete <TS> <sha|none>                 a pair that this run renamed
+<UTC time> finish <TS> none                       the second half of an interrupted rename
+<UTC time> run renamed=<n> keep=<KEEP> rc=<0|1>   once per run that reached the rename step
+```
+
+Escalation: when the prune ends with exit code 3, 11 or 13 in two deploys in a row, or its summary shows more than 10 pairs over the keep count, the agent that runs the deploy opens or updates a card and says so in its deploy report. Then a person or an agent runs the catch-up loop: the design's "First deletion" steps 3 to 5 (before state, a keep-list check before each `--apply` run, the stop rules for exit 8, 13, 2, 3 and 11), inside the time window and with the deploy claim `deploy:quantvps-web` of steps 1 and 2. The loop ends when the summary line holds `over_after=0 leftover_folders=0`.
 
 ## Change the installed Caddyfile
 

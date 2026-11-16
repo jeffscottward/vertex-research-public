@@ -391,7 +391,7 @@ def test_trades_share_an_instrument_only_when_one_ends_before_the_next_starts():
 _BARS = {"t": [0.0, 86_400_000.0], "o": [1.0, 1.0], "h": [1.0, 1.0], "l": [1.0, 1.0], "c": [1.0, 1.0]}
 _CALENDAR = {"structure": "callCalendar", "dte": {"target": 30, "min": 21}, "farDte": {"target": 60, "min": 45},
              "maxLossPct": 2}
-_CAP_TEXT = "maxLossPct 50 refused: the cap is 2% of equity per trade"
+_CAP_TEXT = "maxLossPct must be at most 2 (percent of equity per trade)"
 
 
 def _route_rows():
@@ -414,10 +414,8 @@ def _trade(symbol):
     return change
 
 
-def _calendar(**fields):
-    def change(spec, rows):
-        spec["rule"]["definition"]["options"] = {**_CALENDAR, **fields}
-    return change
+def _calendar(spec, rows):
+    spec["rule"]["definition"]["options"] = dict(_CALENDAR)
 
 
 def _both(*changes):
@@ -437,10 +435,14 @@ def _no_portfolio(spec, rows):
     del spec["rule"]["definition"]["portfolio"]
 
 
-# One request per `raise InputError` statement of the options runner that a batch case can reach. Two statements
-# are left out: a batch case cannot reach them, as _run_args and _refuse_row_dates refuse such a request first
-# (ledger.run_ledger "capital must be above 0"; ledger.timeline "The run days must be all days or all bar times").
-# "The series rows must be an object" (_rows_view) is test_series_rows_that_are_not_an_object_are_an_input_error.
+# One request per `raise InputError` statement of the options runner that a batch case can reach, and two for a
+# fault of the options block. Two statements are left out: a batch case cannot reach them, as _run_args and
+# _refuse_row_dates refuse such a request first (ledger.run_ledger "capital must be above 0"; ledger.timeline "The
+# run days must be all days or all bar times"). "The series rows must be an object" (_rows_view) is
+# test_series_rows_that_are_not_an_object_are_an_input_error. The validator (signals._check_options_block) refuses
+# a fault of the options block before the runner reads it, so a batch case reaches one check of book.parse_options
+# only (book._int_in, for a float with no fraction). The cap text is that of the validator, and the validator
+# refuses a two-expiry structure. The book keeps its checks for a caller that gives it a block directly.
 _SUBNORMAL = 5e-324
 REQUEST_FAULTS = [
     ("portfolio._rows_view row", lambda s, r: r.__setitem__("VIX", [1]), "VIX: the row must be an object"),
@@ -460,19 +462,10 @@ REQUEST_FAULTS = [
     ("portfolio._run_args capital", lambda s, r: s.__setitem__("initialCapital", -5),
      "initialCapital must be from 1 to 1000000000"),
     ("portfolio._portfolio", _no_portfolio, "A definition without a portfolio block needs the run symbol"),
-    ("book._int_in", lambda s, r: _options(s).__setitem__("dte", {"target": 60.5, "min": 45}),
+    ("book._int_in", lambda s, r: _options(s).__setitem__("dte", {"target": 60.0, "min": 45}),
      "target must be an integer in 7..400"),
-    ("book._num_in type", lambda s, r: _options(s).__setitem__("widthSigma", "wide"), "widthSigma must be a number"),
-    ("book._num_in range", lambda s, r: _options(s).__setitem__("longDelta", 5), "longDelta must be in [0.05, 0.95]"),
-    ("book.parse_options field", lambda s, r: _options(s).__setitem__("extra", 1), "Unknown options field: extra"),
-    ("book.parse_options structure", lambda s, r: _options(s).__setitem__("structure", "straddle"),
-     "structure must be one of callDebitVertical, putDebitVertical, putCreditVertical, callCreditVertical"),
-    ("book.parse_options dte", lambda s, r: _options(s).__setitem__("dte", 30), "dte must be {target, min}"),
-    ("book.parse_options cap", lambda s, r: _options(s).__setitem__("maxLossPct", 50), _CAP_TEXT),
-    ("book._dte", _calendar(farDte=90), "farDte must be {target, min}"),
-    ("book.parse_calendar field", _calendar(extra=1), "Unknown calendar field: extra"),
-    ("book.parse_calendar cap", _calendar(maxLossPct=50), _CAP_TEXT),
-    ("book.parse_calendar far", _calendar(farDte={"target": 30, "min": 21}), "farDte.target must be above dte.target"),
+    ("signals._check_options_block cap", lambda s, r: _options(s).__setitem__("maxLossPct", 50), _CAP_TEXT),
+    ("signals._check_options_block calendar", _calendar, "Unknown options structure: callCalendar"),
     ("portfolio._refuse_market_values iv index", lambda s, r: r["VIX"]["close"].__setitem__(20, 0),
      "Market IV index values must be None or finite and above 0"),
     ("portfolio._refuse_market_values rate", lambda s, r: r["IRX"]["close"].__setitem__(20, -1.0),
@@ -481,6 +474,8 @@ REQUEST_FAULTS = [
      "Market IV term VIX3M values must be None or finite and above 0"),
     ("portfolio._refuse_market_values floor", lambda s, r: r["VIX"]["close"].__setitem__(20, 0.005),
      "Market IV index values must be at least 0.01"),
+    ("portfolio._refuse_market_values ceiling", lambda s, r: r["VIX3M"]["close"].__setitem__(20, 10_001),
+     "Market IV term VIX3M values must be at most 10000"),
     ("ledger.timeline marks", _both(_trade("QQQ"), _drop_spy_day), "Mark dates outside the run dates: 2024-02-29"),
     ("metrics.summarize", lambda s, r: s.__setitem__("from", r["SPY"]["dates"][-1]), "Need at least two run days"),
     ("nautilus_runner.run_nautilus", lambda s, r: s.__setitem__("from", "2030-01-01"), "Nothing to run: no dates"),
@@ -581,15 +576,15 @@ MALFORMED_REQUESTS = [
     ("SPY columns of 5e-324", _both(*(_column_of("SPY", key, _SUBNORMAL) for key in _ETF_KEYS)),
      "Market closes must be at least 0.01"),
     ("a VIX close of 5e-324 for every day", _column_of("VIX", "close", _SUBNORMAL), "Market IV index values must be at least 0.01"),
-    ("an IV term close of 5e-324 with a calendar block", _both(_calendar(), _column_of("VIX3M", "close", _SUBNORMAL)),
+    # The validator refuses a calendar block (signals._check_options_block), so these use the vertical block:
+    # the runner checks the IV term rows of every options case.
+    ("an IV term close of 5e-324", _column_of("VIX3M", "close", _SUBNORMAL),
      "Market IV term VIX3M values must be at least 0.01"),
-    ("IV levels of 1e-200 with a calendar block",
-     _both(_calendar(), *(_column_of(series_id, "close", 1e-200) for series_id in ("VIX", "VIX3M", "VIX6M"))),
+    ("IV levels of 1e-200", _both(*(_column_of(series_id, "close", 1e-200) for series_id in ("VIX", "VIX3M", "VIX6M"))),
      "Market IV index values must be at least 0.01"),
-    ("an IV term level of 1e-50 between the legs of a long calendar",
-     _both(_calendar(dte={"target": 100, "min": 95}, farDte={"target": 400, "min": 300}),
-           _column_of("VIX3M", "close", 1e-50)),
-     "Market IV term VIX3M values must be at least 0.01"),
+    ("an IV term level of 1e-50", _column_of("VIX3M", "close", 1e-50), "Market IV term VIX3M values must be at least 0.01"),
+    ("portfolio._refuse_market_values ceiling", lambda s, r: r["VIX3M"]["close"].__setitem__(20, 10_001),
+     "Market IV term VIX3M values must be at most 10000"),
 ]
 
 
@@ -624,10 +619,8 @@ def test_a_definition_without_a_name_runs_as_with_its_name():
 @needs_nautilus
 @pytest.mark.parametrize("change", [
     pytest.param(_column_of("VIX", "close", 0.01), id="VIX at the floor"),
-    pytest.param(_both(_calendar(), *(_column_of(series_id, "close", 0.01) for series_id in ("VIX", "VIX3M", "VIX6M"))),
-                 id="IV levels at the floor with a calendar block"),
-    pytest.param(_both(_calendar(dte={"target": 100, "min": 95}, farDte={"target": 400, "min": 300}),
-                       _column_of("VIX3M", "close", 0.01)), id="IV term at the floor between the legs of a long calendar"),
+    pytest.param(_both(*(_column_of(series_id, "close", 0.01) for series_id in ("VIX", "VIX3M", "VIX6M"))),
+                 id="IV levels at the floor"),
     pytest.param(_both(*(_column_of("SPY", key, 0.01) for key in _ETF_KEYS)), id="SPY at the floor"),
     pytest.param(_column_of("IRX", "close", _SUBNORMAL), id="IRX of 5e-324 (a rate of 0 is valid)"),
     pytest.param(lambda s, r: r["SPY"]["open"].append(1.0), id="an ETF column longer than dates"),
@@ -697,12 +690,12 @@ def test_a_rows_fault_of_an_equity_case_that_reads_series_is_its_input_error():
 # engine stays ValueError or RuntimeError, so that its fault is a case crash. data.py has none on
 # purpose: scripts/market-series/parity.py loads it from its file, without the nautilus_backtest package.
 INPUT_ERROR_RAISES = {
-    "book.py": {"_anchor_strike": 1, "_atm_iv": 1, "_dte": 1, "_int_in": 1, "_num_in": 2, "parse_calendar": 3,
+    "book.py": {"_anchor_strike": 1, "_dte": 1, "_int_in": 1, "_num_in": 2, "parse_calendar": 3,
                 "parse_options": 4},
     "ledger.py": {"run_ledger": 1, "timeline": 2},
     "metrics.py": {"summarize": 1},
     "nautilus_runner.py": {"run_nautilus": 1},
-    "portfolio.py": {"_bars_of": 1, "_portfolio": 1, "_refuse_market_values": 4, "_refuse_row_dates": 1, "_rows_view": 7,
+    "portfolio.py": {"_bars_of": 1, "_portfolio": 1, "_refuse_market_values": 5, "_refuse_row_dates": 1, "_rows_view": 7,
                      "_run_args": 3, "_series_of": 1, "dataset_from_rows": 1},
 }
 

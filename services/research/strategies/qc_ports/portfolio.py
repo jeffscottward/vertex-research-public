@@ -34,7 +34,7 @@ from nautilus_backtest import signals as sig
 from nautilus_backtest.bars import Bars as DslBars
 from nautilus_backtest.bars import InputError, is_finite_number
 
-from .book import PricedTrade, SignalEvent, build_book
+from .book import IV_LEVEL_MAX, PricedTrade, SignalEvent, build_book
 from .data import (
     ETF_SYMBOLS,
     IV_INDEX,
@@ -210,7 +210,8 @@ def _slice(data: Dataset, end: str | None) -> Dataset:
 def _refuse_market_values(close: Sequence[float], iv: Sequence[float | None], rate: Sequence[float | None],
                           term: Sequence[tuple[str, Sequence[float | None]]]) -> None:
     """Refuses the row values that data.Market refuses (same order, same messages) as the request's fault. Then
-    refuses a close or an IV level below MARKET_LEVEL_MIN, which data.Market takes.
+    refuses a close or an IV level below MARKET_LEVEL_MIN and an IV level above book.IV_LEVEL_MAX, which data.Market
+    takes: the whole request is refused before any bar is priced.
     data.py stays free of this import: scripts/market-series/parity.py loads it from its file."""
     def wrong(values: Sequence[float | None], zero: bool) -> bool:
         return any(value is not None and not (math.isfinite(value) and (value >= 0 if zero else value > 0))
@@ -227,6 +228,9 @@ def _refuse_market_values(close: Sequence[float], iv: Sequence[float | None], ra
                          *((f"IV term {term_id} values", levels) for term_id, levels in term)):
         if any(value is not None and value < MARKET_LEVEL_MIN for value in values):
             raise InputError(f"Market {name} must be at least {MARKET_LEVEL_MIN}")
+    for name, values in (("IV index values", iv), *((f"IV term {term_id} values", levels) for term_id, levels in term)):
+        if any(value is not None and value > IV_LEVEL_MAX for value in values):
+            raise InputError(f"Market {name} must be at most {IV_LEVEL_MAX}")
 
 
 def _bars_of(data: Dataset, symbol: str) -> Bars:

@@ -282,16 +282,20 @@ describe("mission control", () => {
     );
   });
 
-  return it("reports storage failures with a retry", async () => {
+  return it("reports storage failures with the cause the server names", async () => {
+    const notConfigured =
+      "Agent operations storage is not configured on this server; nothing was saved. Set the database connection, then retry.";
     const gateway = agentGateway([], {
       summary: vi.fn(async () => {
-        throw Object.assign(new Error("x"), { code: "STORAGE_ERROR" });
+        throw Object.assign(new Error(notConfigured), {
+          code: "STORAGE_ERROR",
+        });
       }),
     });
     const container = await mount(<MissionControl gateway={gateway} />);
     return expect(
       container.querySelector('[role="alert"]')?.textContent
-    ).toContain("Apply migrations 0015 and 0017 if the tables are missing.");
+    ).toContain(`Storage error (503): ${notConfigured}`);
   });
 });
 

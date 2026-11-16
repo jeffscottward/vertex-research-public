@@ -93,14 +93,17 @@ const SESSION_STATE_TONE: Readonly<Record<DeploySessionState, Tone>> = {
   missing: "danger",
   unreadable: "warning",
   unrecognised: "warning",
-  unknown: "neutral",
 };
 
-const KILL_SWITCH_TONE: Readonly<Record<DeployKillSwitchState, Tone>> = {
+// "not-read": the web shows it when the risk block is missing or not available; the collector never
+// sends it. It is never shown as clear.
+type KillSwitchView = DeployKillSwitchState | "not-read";
+
+const KILL_SWITCH_TONE: Readonly<Record<KillSwitchView, Tone>> = {
   engaged: "danger",
   clear: "success",
   unverified: "warning",
-  unknown: "warning",
+  "not-read": "warning",
 };
 
 // "14:02 UTC" for a since-time, or null when the collector did not send a time.
@@ -232,18 +235,21 @@ const rawStateTitle = (
 };
 
 const SessionStateChip = ({
+  data,
   session,
 }: {
+  readonly data: DeploymentStatusOutput;
   readonly session: DeploySessionBlock | undefined;
 }) => {
   if (session === undefined || !session.available) {
+    const reason = session?.reason ?? notConfiguredReason(data);
     return (
       <Chip
-        data={{ "data-session-state": "unknown" }}
-        title={session?.reason}
-        tone="neutral"
+        data={{ "data-session-state": "not-read" }}
+        title={reason}
+        tone="warning"
       >
-        unknown
+        {`Session state not read: ${reason}`}
       </Chip>
     );
   }
@@ -373,7 +379,6 @@ const startedMissing = (state: DeploySessionState): string => {
 const stoppedMissing = (state: DeploySessionState): string => {
   const noContainer = NO_CONTAINER_TEXT[state];
   if (noContainer !== undefined) return noContainer;
-  if (state === "unknown") return "container not inspected";
   if (state === "halted") return "not stopped (kill switch engaged)";
   return STOPPED_STATES.has(state) ? "stop time not reported" : "not stopped";
 };
@@ -908,7 +913,7 @@ export const StatusStrip = ({
     >
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         <Field label="Session" name="state">
-          <SessionStateChip session={session} />
+          <SessionStateChip data={data} session={session} />
         </Field>
         <Field label="Strategies" name="strategies">
           {live === null
@@ -968,11 +973,15 @@ export const StatusStrip = ({
 // unverified: no file engaged, but a kill-switch file check gave no answer. Name the files that
 // gave none (the state is decided from the file checks; the other indicators only add "engaged").
 const killSwitchText = (
-  kill: DeployKillSwitchState,
-  risk: DeployRiskBlock | undefined
+  kill: KillSwitchView,
+  risk: DeployRiskBlock | undefined,
+  data: DeploymentStatusOutput
 ): string => {
-  if (kill !== "unverified" || risk === undefined || !risk.available)
-    return `Kill switch ${kill}`;
+  if (risk === undefined || !risk.available) {
+    const reason = risk?.reason ?? notConfiguredReason(data);
+    return `Kill switch state not read: ${reason} · not treated as clear`;
+  }
+  if (kill !== "unverified") return `Kill switch ${kill}`;
   const silent = risk.kill_switch_indicators.filter(
     (indicator) =>
       indicator.engaged === null && indicator.source.startsWith("file ")
@@ -982,10 +991,21 @@ const killSwitchText = (
   return `Kill switch not verified: ${names.length === 0 ? "a kill-switch file" : names.join(", ")} not readable${at === null ? "" : ` at ${at}`} · not treated as clear`;
 };
 
-const killSwitchOf = (
-  risk: DeployRiskBlock | undefined
-): DeployKillSwitchState => {
-  return risk?.available ? risk.kill_switch : "unknown";
+// An indicator with no answer. Only the kill-switch files decide the state, so only an unread file
+// keeps the state from reading as clear. A watchdog or health flag counts only when it is engaged:
+// null there means the file has no flag, and as_of is when that file was written.
+const unreadIndicatorText = (indicator: {
+  readonly source: string;
+  readonly as_of: string | null;
+}): string => {
+  const at = utcClock(indicator.as_of);
+  if (indicator.source.startsWith("file "))
+    return `not readable${at === null ? "" : ` at ${at}`} · not treated as clear`;
+  return `flag not reported${at === null ? "" : ` (last written ${at})`}`;
+};
+
+const killSwitchOf = (risk: DeployRiskBlock | undefined): KillSwitchView => {
+  return risk?.available ? risk.kill_switch : "not-read";
 };
 
 export const RiskPanel = ({
@@ -1021,7 +1041,7 @@ export const RiskPanel = ({
           data-kill-switch={kill}
           role="status"
         >
-          {killSwitchText(kill, risk)}
+          {killSwitchText(kill, risk, data)}
         </span>
       </div>
       {risk === undefined ? (
@@ -1038,7 +1058,7 @@ export const RiskPanel = ({
                 >
                   {indicator.source}:{" "}
                   {indicator.engaged === null
-                    ? "unknown"
+                    ? unreadIndicatorText(indicator)
                     : indicator.engaged
                       ? "engaged"
                       : "clear"}

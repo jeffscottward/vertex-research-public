@@ -106,8 +106,7 @@ export const WATCHLIST_API_ERRORS = {
   },
   STORAGE_ERROR: {
     status: 503,
-    message:
-      "Watchlist storage request failed. Reload to check whether the change was saved.",
+    message: "Watchlist storage request failed. Reload and try again.",
   },
 } as const;
 
