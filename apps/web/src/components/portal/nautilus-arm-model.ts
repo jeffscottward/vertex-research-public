@@ -5,7 +5,7 @@ import {
   type NautilusNodeBadge,
 } from "@darkfactory/api";
 
-import type { HealthTone } from "./portfolio-monitor-model.ts";
+import { type HealthTone, sinceClock } from "./portfolio-monitor-model.ts";
 
 // View model for the Nautilus node badge and the Arm / Disarm buttons (Mission control, operator view).
 // Owner decision 2026-10-30: the node runs 24/7 and is disarmed by default.
@@ -18,7 +18,68 @@ const BADGE: Readonly<
   down: { label: "Down", tone: "destructive" },
   "running-armed": { label: "Running · Armed", tone: "warning" },
   "running-disarmed": { label: "Running · Disarmed", tone: "success" },
-  unknown: { label: "Unknown", tone: "neutral" },
+  // Replaced by a definite label from armError and the container state (unknownView).
+  unknown: { label: "Node state not read", tone: "neutral" },
+};
+
+// The last badge other than "unknown" this page saw, with the status check time.
+export type NautilusConfirmed = Readonly<{
+  badge: Exclude<NautilusNodeBadge, "unknown">;
+  checkedAt: string;
+}>;
+
+const CLI_CAUSE: Readonly<Record<string, string>> = {
+  "cli-bad-output": "answered in a form the VPS service could not read",
+  "cli-error": "failed (error)",
+  "cli-timeout": "did not answer (timeout)",
+};
+
+const clock = (value: string | null | undefined, nowMs: number): string =>
+  sinceClock(value, nowMs) ?? "time not recorded";
+
+// Badge "unknown" (wire value): the arm CLI did not answer while the container runs, or Docker was not
+// readable. Arm stays hidden and Disarm available, as before.
+const unknownView = (
+  status: NautilusArmStatusOutput,
+  confirmed: NautilusConfirmed | null
+): Readonly<{ label: string; detail: string }> => {
+  const nowMs = Date.parse(status.checkedAt);
+  const checked = clock(status.checkedAt, nowMs);
+  const code = status.armError;
+  const parts: string[] = [];
+  let label: string;
+  if (status.container.state === "running") {
+    label = "Running · arm state not read";
+    const cause =
+      code === null
+        ? "sent no arm state and no error code"
+        : (CLI_CAUSE[code] ?? `failed (code ${code})`);
+    parts.push(`The arm command in the node ${cause} at ${checked}`);
+  } else {
+    label = "Node state not read";
+    const since = clock(status.container.since ?? status.checkedAt, nowMs);
+    parts.push(
+      code === "ambiguous-container"
+        ? `More than one node container matches since ${since}`
+        : code === "docker-error"
+          ? `Docker did not answer since ${since} (docker error)`
+          : `Docker could not be read since ${since} (code ${code ?? "not sent"})`
+    );
+    const last = status.container.lastKnown;
+    parts.push(
+      last === null || last === undefined
+        ? "no container read recorded since the VPS service started"
+        : `last read: ${last.state} at ${clock(last.at, nowMs)}`
+    );
+  }
+  if (confirmed !== null)
+    parts.push(
+      `last confirmed on this page: ${BADGE[confirmed.badge].label} at ${clock(confirmed.checkedAt, nowMs)}`
+    );
+  parts.push(
+    `Arm hidden, Disarm available · next check in ${NAUTILUS_POLL_MS / 1000} s`
+  );
+  return { detail: parts.join(" · "), label };
 };
 
 // Shown when the status call itself fails (bridge or server unreachable).
@@ -46,17 +107,27 @@ export type NautilusArmView = Readonly<{
 }>;
 
 export const nautilusArmView = (
-  status: NautilusArmStatusOutput
+  status: NautilusArmStatusOutput,
+  confirmed: NautilusConfirmed | null = null
 ): NautilusArmView => {
   const badge = { key: status.badge, ...BADGE[status.badge] };
+  if (status.badge === "unknown") {
+    const unknown = unknownView(status, confirmed);
+    return {
+      arm: null,
+      badge: { ...badge, label: unknown.label },
+      detail: unknown.detail,
+      disarm: true,
+    };
+  }
   const arm = status.arm;
-  if (arm === null || status.badge === "down" || status.badge === "unknown")
+  if (arm === null || status.badge === "down")
     return { arm: null, badge, detail: null, disarm: true };
   if (arm.armed)
     return {
       arm: null,
       badge,
-      detail: `Armed by ${arm.armedBy ?? "unknown"} at ${arm.armedAt ?? "unknown time"}${arm.reason === null ? "" : `: ${arm.reason}`}`,
+      detail: `Armed by ${arm.armedBy ?? "arming user not recorded by the node"} at ${arm.armedAt ?? "arm time not recorded by the node"}${arm.reason === null ? "" : `: ${arm.reason}`}`,
       disarm: true,
     };
   const hint = DETAIL_HINT[arm.detail] ?? null;

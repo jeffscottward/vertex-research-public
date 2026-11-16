@@ -16,15 +16,19 @@ import {
   it,
   vi,
 } from "vitest";
-
+import { AccountGlance } from "./account-glance.tsx";
 import {
   createBrowserNautilusArmGateway,
   createNautilusArmGateway,
   type NautilusArmGateway,
 } from "./nautilus-arm-client.ts";
-import { AccountGlance } from "./account-glance.tsx";
+import {
+  type NautilusArmModel,
+  NautilusArmPanel,
+} from "./nautilus-arm-control.tsx";
 import { nautilusArmView, reasonProblem } from "./nautilus-arm-model.ts";
 import { fixtureSnapshot } from "./portfolio-monitor-fixture.ts";
+import { sinceClock } from "./portfolio-monitor-model.ts";
 
 const testGlobal = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -200,7 +204,7 @@ describe("nautilusArmView", () => {
     expect(nautilusArmView(downStatus).badge.label).toBe("Down");
     return expect(
       nautilusArmView(status({ arm: null, badge: "unknown" })).badge.label
-    ).toBe("Unknown");
+    ).toBe("Running · arm state not read");
   });
 
   it("offers Arm only while disarmed and Disarm unless confirmed disarmed", () => {
@@ -220,7 +224,9 @@ describe("nautilusArmView", () => {
           badge: "running-armed",
         })
       ).detail
-    ).toBe("Armed by unknown at unknown time");
+    ).toBe(
+      "Armed by arming user not recorded by the node at arm time not recorded by the node"
+    );
     // Unknown or down state: Disarm stays reachable (state-machine audit 2026-11-03).
     expect(nautilusArmView(downStatus)).toMatchObject({
       arm: null,
@@ -247,6 +253,70 @@ describe("nautilusArmView", () => {
         status({ arm: armState({ detail: "image_version_changed" }) })
       ).arm?.hint
     ).toContain("another image version");
+  });
+
+  it("names the exact state behind the unknown badge and keeps Arm hidden, Disarm shown", () => {
+    const nowMs = Date.parse("2026-10-30T15:00:00.000Z");
+    const at = (value: string) => sinceClock(value, nowMs);
+    const tail = "Arm hidden, Disarm available · next check in 15 s";
+    const cli = (armError: string | null) =>
+      nautilusArmView(status({ arm: null, armError, badge: "unknown" }));
+    expect(cli("cli-timeout")).toMatchObject({
+      arm: null,
+      badge: { label: "Running · arm state not read", tone: "neutral" },
+      detail: `The arm command in the node did not answer (timeout) at ${at("2026-10-30T15:00:00.000Z")} · ${tail}`,
+      disarm: true,
+    });
+    expect(cli("cli-error").detail).toContain("failed (error)");
+    expect(cli("cli-bad-output").detail).toContain(
+      "answered in a form the VPS service could not read"
+    );
+    expect(cli("cli-new-code").detail).toContain("failed (code cli-new-code)");
+    expect(cli(null).detail).toContain("sent no arm state and no error code");
+    const docker = (
+      armError: string | null,
+      container: NautilusArmStatusOutput["container"]
+    ) =>
+      nautilusArmView(
+        status({ arm: null, armError, badge: "unknown", container }),
+        { badge: "running-disarmed", checkedAt: "2026-10-30T14:55:00.000Z" }
+      );
+    const unreadable = {
+      health: null,
+      lastKnown: {
+        at: "2026-10-30T14:57:00.000Z",
+        since: "2026-10-30T10:00:00.000Z",
+        state: "running" as const,
+      },
+      since: "2026-10-30T14:58:00.000Z",
+      state: "docker-unreadable" as const,
+    };
+    expect(docker("docker-error", unreadable)).toMatchObject({
+      arm: null,
+      badge: { label: "Node state not read" },
+      detail: `Docker did not answer since ${at("2026-10-30T14:58:00.000Z")} (docker error) · last read: running at ${at("2026-10-30T14:57:00.000Z")} · last confirmed on this page: Running · Disarmed at ${at("2026-10-30T14:55:00.000Z")} · ${tail}`,
+      disarm: true,
+    });
+    expect(
+      docker("ambiguous-container", {
+        ...unreadable,
+        lastKnown: null,
+        since: null,
+      }).detail
+    ).toBe(
+      `More than one node container matches since ${at("2026-10-30T15:00:00.000Z")} · no container read recorded since the VPS service started · last confirmed on this page: Running · Disarmed at ${at("2026-10-30T14:55:00.000Z")} · ${tail}`
+    );
+    expect(
+      docker("docker-new", { health: null, state: "docker-unreadable" }).detail
+    ).toContain("Docker could not be read since");
+    expect(
+      docker(null, { health: null, state: "docker-unreadable" }).detail
+    ).toContain("(code not sent)");
+    return expect(
+      nautilusArmView(
+        status({ arm: null, badge: "unknown", checkedAt: "not a time" })
+      ).detail
+    ).toContain("at time not recorded");
   });
 
   it("checks the reason like the server", () => {
@@ -432,6 +502,65 @@ describe("Nautilus arm switch in the Monitor", () => {
     return expect(
       document.querySelector("#nautilus-arm-hint")?.textContent
     ).toBe("The kill switch is active; the node cannot be armed.");
+  });
+
+  it("remembers the last confirmed badge on this page while the state is not read", async () => {
+    vi.useFakeTimers();
+    const gateway = gatewayOf(
+      status(),
+      status({ arm: null, armError: "cli-timeout", badge: "unknown" })
+    );
+    await mount(monitor(gateway));
+    expect(document.querySelector("[data-nautilus-detail]")).toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+      await flush();
+    });
+    expect(badgeText()).toBe("Running · arm state not read");
+    expect(armButton()).toBeNull();
+    expect(disarmButton()).not.toBeNull();
+    return expect(
+      document.querySelector("[data-nautilus-detail]")?.textContent
+    ).toContain("last confirmed on this page: Running · Disarmed at");
+  });
+
+  it("says nothing about a last confirmed state when the page saw none", async () => {
+    await mount(
+      monitor(
+        gatewayOf(
+          status({ arm: null, armError: "cli-timeout", badge: "unknown" })
+        )
+      )
+    );
+    expect(armButton()).toBeNull();
+    expect(disarmButton()).not.toBeNull();
+    return expect(
+      document.querySelector("[data-nautilus-detail]")?.textContent
+    ).not.toContain("last confirmed");
+  });
+
+  it("never opens the arm dialog or sends without an image version from the node", async () => {
+    const arm = vi.fn(async () => undefined);
+    const model: NautilusArmModel = {
+      arm,
+      cancel: () => undefined,
+      dialogOpen: true,
+      disarm: async () => undefined,
+      error: null,
+      failure: null,
+      hidden: false,
+      lastConfirmed: null,
+      open: () => undefined,
+      password: PASSWORD,
+      reason: REASON,
+      sending: null,
+      setPassword: () => undefined,
+      setReason: () => undefined,
+      status: status({ arm: null, badge: "unknown" }),
+    };
+    await mount(<NautilusArmPanel model={model} />);
+    expect(dialog()).toBeNull();
+    return expect(arm).not.toHaveBeenCalled();
   });
 
   it("shows Unreachable when the status call fails and polls again", async () => {

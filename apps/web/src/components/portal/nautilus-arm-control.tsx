@@ -15,6 +15,7 @@ import {
 } from "./nautilus-arm-client.ts";
 import {
   NAUTILUS_POLL_MS,
+  type NautilusConfirmed,
   nautilusArmView,
   reasonProblem,
   UNREACHABLE_BADGE,
@@ -43,6 +44,8 @@ const SILENT_FAILURES: Readonly<Partial<Record<string, true>>> = {
 
 export type NautilusArmModel = Readonly<{
   status: NautilusArmStatusOutput | null;
+  // The last badge other than "unknown" this page saw; null when none yet.
+  lastConfirmed: NautilusConfirmed | null;
   failure: PortfolioMonitorFailure | null;
   hidden: boolean;
   dialogOpen: boolean;
@@ -77,6 +80,9 @@ export const useNautilusArm = ({
     () => suppliedGateway ?? createBrowserNautilusArmGateway()
   );
   const [status, setStatus] = useState<NautilusArmStatusOutput | null>(null);
+  const [lastConfirmed, setLastConfirmed] = useState<NautilusConfirmed | null>(
+    null
+  );
   const [failure, setFailure] = useState<PortfolioMonitorFailure | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -96,6 +102,8 @@ export const useNautilusArm = ({
         const next = await gateway.status();
         if (!alive) return;
         setStatus(next);
+        if (next.badge !== "unknown")
+          setLastConfirmed({ badge: next.badge, checkedAt: next.checkedAt });
         setFailure(null);
       } catch (caught) {
         if (!alive) return;
@@ -154,6 +162,7 @@ export const useNautilusArm = ({
     hidden:
       !configured ||
       (failure !== null && SILENT_FAILURES[failure.kind] === true),
+    lastConfirmed,
     open: (opener) => {
       origin.current = opener;
       setError(null);
@@ -206,7 +215,7 @@ export const NautilusArmControls = ({
       </>
     );
   }
-  const view = nautilusArmView(model.status);
+  const view = nautilusArmView(model.status, model.lastConfirmed);
   return (
     <>
       <span className="text-muted-foreground text-xs">Nautilus</span>
@@ -258,11 +267,15 @@ export const NautilusArmPanel = ({
         </p>
       </div>
     );
-  const view = nautilusArmView(model.status);
+  const view = nautilusArmView(model.status, model.lastConfirmed);
   const problem = reasonProblem(model.reason);
-  const imageVersion = model.status.arm?.imageVersion ?? "unknown";
+  // Never send a placeholder: without a version reported by the node the send button stays disabled.
+  const imageVersion = model.status.arm?.imageVersion ?? null;
   const canSend =
-    problem === null && model.password !== "" && model.sending === null;
+    imageVersion !== null &&
+    problem === null &&
+    model.password !== "" &&
+    model.sending === null;
   return (
     <div className="space-y-2" data-nautilus-arm="true">
       {view.arm?.hint === null || view.arm === null ? null : (
@@ -314,7 +327,8 @@ export const NautilusArmPanel = ({
             <p>
               When armed, the node may submit live orders to IBKR. It stays
               armed until you disarm it, the kill switch is set, or the image
-              version changes. Image version: {imageVersion}.
+              version changes. Image version:{" "}
+              {imageVersion ?? "not reported by the node"}.
             </p>
             <blockquote
               className="border-warning-border border-l-4 pl-3 font-medium"
