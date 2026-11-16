@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import type {
-  ExposureSection,
   FlowEvent,
   GexContextFactor,
 } from "./contracts/options-analytics.ts";
@@ -24,6 +23,7 @@ import {
   blackScholesGamma,
   type ChainRow,
   exposure,
+  gammaModel,
   type GammaModel,
   type OpenInterestRow,
   termStructure,
@@ -78,11 +78,10 @@ const section = (
   oi: readonly OpenInterestRow[],
   chain: readonly ChainRow[],
   spot: number | null
-): ExposureSection => ({
-  ...exposure(oi, chain, spot, TODAY),
-  message: null,
-  status: "ok",
-});
+): Pick<GexContextInput, "strikes" | "totalGex"> => {
+  const estimate = exposure(oi, chain, spot, TODAY);
+  return { strikes: estimate.strikes, totalGex: estimate.section.totalGex };
+};
 
 const event = (overrides: Partial<FlowEvent>): FlowEvent => ({
   contract: "DUMMY 2026-11-06 105C",
@@ -110,9 +109,11 @@ const input = (overrides: Partial<GexContextInput> = {}): GexContextInput => ({
       time: "2026-11-06T19:00:00.000Z",
     }),
   ],
-  exposure: section(OI, CHAIN, 101),
+  ...section(OI, CHAIN, 101),
+  fetchedAt: null,
   flowHours: 24,
   flowOk: true,
+  flowPartial: false,
   now: PM,
   spot: 101,
   term: termStructure(CHAIN, 101, TODAY),
@@ -388,7 +389,9 @@ describe("buildGexContext", () => {
       tone: "caution",
     });
     expect(factor(factors, "vanna")).toMatchObject({ tone: "caution" });
-    expect(factor(factors, "vanna").value).toContain("hedge selling");
+    expect(factor(factors, "vanna").value).toBe(
+      "+$394K per IV pt · IV up: dealers sell, IV down: dealers buy"
+    );
     expect(factor(factors, "ivRegime")).toMatchObject({
       tone: "caution",
       value: "Inverted 28% vs 24%",
@@ -404,7 +407,7 @@ describe("buildGexContext", () => {
       input({
         chain: [],
         events: [],
-        exposure: section([], [], null),
+        ...section([], [], null),
         flowOk: false,
         spot: null,
         term: [],
@@ -438,7 +441,7 @@ describe("buildGexContext", () => {
     // A chain without IV: OI shown, but no dealer numbers.
     const noIv = CHAIN.map((row) => ({ ...row, iv: null }));
     const blind = buildGexContext(
-      input({ chain: noIv, exposure: section(OI, noIv, 101) })
+      input({ chain: noIv, ...section(OI, noIv, 101) })
     );
     expect(blind.greeks.netDex).toBeNull();
     return expect(
@@ -454,7 +457,7 @@ describe("buildGexContext", () => {
     const negative = buildGexContext(
       input({
         events: [event({ premium: 400 })],
-        exposure: section(putHeavy, CHAIN, 101),
+        ...section(putHeavy, CHAIN, 101),
       })
     );
     expect(negative.regime).toBe("negative");
@@ -503,7 +506,7 @@ describe("buildGexContext", () => {
       input({
         chain: flatChain,
         events: [],
-        exposure: section(flatOi, flatChain, 100),
+        ...section(flatOi, flatChain, 100),
         now: new Date("2026-11-20T15:00:00.000Z"),
         spot: 100,
         term: termStructure(flatChain, 100, "2026-11-20"),
@@ -536,7 +539,7 @@ describe("buildGexContext", () => {
     const large = buildGexContext(
       input({
         chain: contango,
-        exposure: section(big, contango, 101),
+        ...section(big, contango, 101),
         term: termStructure(contango, 101, TODAY),
       })
     );
@@ -551,7 +554,7 @@ describe("buildGexContext", () => {
   });
 
   it("reads the next expiry and newest trade from unsorted input on the New York day", () => {
-    // 21:00 New York on 2026-11-06 (02:00 UTC on 2026-11-07): today's expiry is still 0DTE.
+    // 21:00 New York on 2026-11-06 (02:00 UTC on 2026-11-07): today's expiry closed at 16:00.
     const evening = new Date("2026-11-07T02:00:00.000Z");
     const unsorted = [
       ...chainFor([["2026-11-20", 0.25]]),
@@ -570,11 +573,227 @@ describe("buildGexContext", () => {
       })
     );
     expect(context.expiry).toMatchObject({
-      nextExpiry: "2026-11-06",
-      nextExpiryDte: 0,
+      nextExpiry: "2026-11-20",
+      nextExpiryDte: 14,
+    });
+    // Prior-session OI still holds today's expired contracts until the overnight update.
+    expect(factor(context.factors, "expiryMix")).toMatchObject({
+      tone: "caution",
+      value: "Today's expiry closed; OI still counts it · next in 14d",
     });
     expect(context.flow.newestTradeAt).toBe("2026-11-06T20:59:00.000Z");
     expect(context.flow.zeroDteShare).toBe(1);
     return expect(context.session).toBe("closed");
+  });
+
+  it("still counts today's expiry as 0DTE before its close", () => {
+    // 15:59 New York on expiry day 2026-11-06 (EST): the close is 16:00.
+    const context = buildGexContext(
+      input({ now: new Date("2026-11-06T20:59:00.000Z") })
+    );
+    expect(context.expiry).toMatchObject({
+      nextExpiry: "2026-11-06",
+      nextExpiryDte: 0,
+    });
+    return expect(factor(context.factors, "expiryMix").value).toBe(
+      "0DTE today: levels roll off at close"
+    );
+  });
+
+  it("uses the 13:00 early close and 16:00 for a date without a session", () => {
+    // 14:00 New York on Friday 2026-11-27, the day after Thanksgiving (13:00 close).
+    // 2026-11-28 is a Saturday: no NYSE session, so its close falls back to 16:00.
+    const context = buildGexContext(
+      input({
+        chain: chainFor([
+          ["2026-11-27", 0.3],
+          ["2026-11-28", 0.3],
+          ["2026-12-04", 0.28],
+        ]),
+        now: new Date("2026-11-27T19:00:00.000Z"),
+      })
+    );
+    expect(context.expiry).toMatchObject({
+      nextExpiry: "2026-11-28",
+      nextExpiryDte: 1,
+    });
+    expect(factor(context.factors, "expiryMix")).toMatchObject({
+      tone: "caution",
+      value: "Today's expiry closed; OI still counts it · next in 1d",
+    });
+    // The Saturday expiry closes at the 16:00 fallback: at 15:59 it is next, at 16:01 not.
+    const saturday = (now: string) =>
+      buildGexContext(
+        input({
+          chain: chainFor([
+            ["2026-11-28", 0.3],
+            ["2026-12-04", 0.28],
+          ]),
+          now: new Date(now),
+        })
+      ).expiry.nextExpiry;
+    expect(saturday("2026-11-28T20:59:00.000Z")).toBe("2026-11-28");
+    return expect(saturday("2026-11-28T21:01:00.000Z")).toBe("2026-12-04");
+  });
+
+  it("keeps the closed-today warning when no later expiry is listed", () => {
+    // 21:00 New York on 2026-11-06; the chain lists only today's expiry.
+    const context = buildGexContext(
+      input({
+        chain: chainFor([["2026-11-06", 0.3]]),
+        now: new Date("2026-11-07T02:00:00.000Z"),
+      })
+    );
+    expect(context.expiry.nextExpiry).toBeNull();
+    return expect(factor(context.factors, "expiryMix")).toMatchObject({
+      tone: "caution",
+      value: "Today's expiry closed; OI still counts it",
+    });
+  });
+
+  it("moves monthly OpEx to the next month once the OpEx close has passed", () => {
+    // 2026-11-20 is the third Friday. 15:00 New York: OpEx today; 16:30: next is 12-18.
+    const before = buildGexContext(
+      input({ now: new Date("2026-11-20T20:00:00.000Z") })
+    );
+    expect(factor(before.factors, "events").value).toBe("Monthly OpEx today");
+    const after = buildGexContext(
+      input({ now: new Date("2026-11-20T21:30:00.000Z") })
+    );
+    expect(after.expiry).toMatchObject({
+      monthlyOpexDays: 28,
+      nextMonthlyOpex: "2026-12-18",
+    });
+    return expect(factor(after.factors, "events")).toMatchObject({
+      tone: "neutral",
+      value: "Monthly OpEx in 28d (12-18)",
+    });
+  });
+
+  it("flags flow totals that cover only the first provider page", () => {
+    const partial = buildGexContext(input({ flowPartial: true }));
+    const flow = factor(partial.factors, "flow");
+    expect(flow).toMatchObject({
+      tone: "caution",
+      value: "Bulls +$300K net · first page only, 2 trades",
+    });
+    expect(flow.detail).toContain("totals cover its first page only");
+    expect(factor(partial.factors, "expiryMix").detail).toContain(
+      "window (first flow page only)"
+    );
+    const full = buildGexContext(input());
+    expect(factor(full.factors, "flow")).toMatchObject({
+      tone: "neutral",
+      value: "Bulls +$300K net",
+    });
+    return expect(factor(full.factors, "flow").detail).not.toContain(
+      "first page"
+    );
+  });
+
+  it("names both IV directions for vanna and the time direction for charm", () => {
+    const calls = buildGexContext(input());
+    const putHeavy = OI.map((row) => ({
+      ...row,
+      putOpenInterest: row.putOpenInterest * 20,
+    }));
+    // Calls below spot (in the money) turn dealer vanna negative.
+    const itmCalls = STRIKES.map((strike) => ({
+      callOpenInterest: strike < 100 ? 50_000 : 100,
+      putOpenInterest: 100,
+      strike,
+    }));
+    const books = [
+      calls,
+      buildGexContext(input(section(putHeavy, CHAIN, 101))),
+      buildGexContext(input(section(itmCalls, CHAIN, 101))),
+    ];
+    const vanna = books.map((context) => ({
+      sign: Math.sign(context.greeks.netVanna ?? 0),
+      value: factor(context.factors, "vanna").value,
+    }));
+    const charm = books.map((context) => ({
+      sign: Math.sign(context.greeks.netCharm ?? 0),
+      value: factor(context.factors, "charm").value,
+    }));
+    // The books give both signs of each Greek.
+    expect(new Set(vanna.map((item) => item.sign))).toEqual(new Set([-1, 1]));
+    expect(new Set(charm.map((item) => item.sign))).toEqual(new Set([-1, 1]));
+    for (const { sign, value } of vanna)
+      expect(value).toMatch(
+        sign > 0
+          ? /^\+\$\S+ per IV pt · IV up: dealers sell, IV down: dealers buy$/u
+          : /^-\$\S+ per IV pt · IV up: dealers buy, IV down: dealers sell$/u
+      );
+    for (const { sign, value } of charm)
+      expect(value).toMatch(
+        sign > 0
+          ? /^\+\$\S+\/day as time passes: dealers sell$/u
+          : /^-\$\S+\/day as time passes: dealers buy$/u
+      );
+    return expect(factor(calls.factors, "vanna").detail).toContain(
+      "an IV drop reverses the hedge"
+    );
+  });
+
+  it("states the chain and OI fetch age and keeps every text inside the schema", () => {
+    const context = buildGexContext(
+      input({
+        events: [event({ premium: -1_234_500_000_000, sentiment: "bearish" })],
+        fetchedAt: PM.getTime() - 3 * 60_000,
+        flowHours: 168,
+        flowPartial: true,
+      })
+    );
+    expect(factor(context.factors, "freshness").detail).toContain(
+      "Chain and OI fetched 3 min ago (cached up to 5 min)."
+    );
+    expect(factor(context.factors, "levels").detail).toContain(
+      "every strike within 50-150% of spot"
+    );
+    expect(factor(context.factors, "dex").detail).toContain(
+      "strikes within 50-150% of spot"
+    );
+    // The longest values end whole (buildFactors would cut them silently at 80).
+    expect(factor(context.factors, "flow").value).toBe(
+      "Bears -$1234.5B net · first page only, 1 trades"
+    );
+    expect(factor(context.factors, "vanna").value).toMatch(
+      /IV up: dealers (buy|sell), IV down: dealers (buy|sell)$/u
+    );
+    return expect(GexContextSchema.parse(context)).toEqual(context);
+  });
+
+  it("computes DEX, vanna and charm over every in-range strike, not the 80 shown", () => {
+    // 200 strikes 1..200 around spot 101: 101 are in range, fewer than 80 are displayed.
+    const wide = Array.from({ length: 200 }, (_, index) => ({
+      callOpenInterest: 1000 + index * 10,
+      putOpenInterest: 900,
+      strike: index + 1,
+    }));
+    const chain: ChainRow[] = wide.flatMap(({ strike }) => [
+      { delta: 0.5, expiry: "2026-11-20", iv: 0.4, right: "call", strike },
+      { delta: -0.5, expiry: "2026-11-20", iv: 0.45, right: "put", strike },
+    ]);
+    const estimate = exposure(wide, chain, 101, TODAY);
+    const model = gammaModel(chain, 101, TODAY);
+    const all =
+      model === null ? null : dealerTotals(estimate.strikes, model, 101);
+    const shown =
+      model === null
+        ? null
+        : dealerTotals(estimate.section.strikes, model, 101);
+    const context = buildGexContext(
+      input({ chain, spot: 101, ...section(wide, chain, 101) })
+    );
+    expect(estimate.section.strikes.length).toBeLessThan(
+      estimate.strikes.length
+    );
+    expect(context.greeks).toEqual({
+      netCharm: all?.charm,
+      netDex: all?.dex,
+      netVanna: all?.vanna,
+    });
+    return expect(context.greeks.netDex).not.toBe(shown?.dex);
   });
 });

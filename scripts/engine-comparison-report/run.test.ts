@@ -91,7 +91,7 @@ const fakeIo = (overrides: Partial<ReportIo> = {}) => {
                   engineRun: {
                     cpuMs: 1,
                     gpu: "not used",
-                    host: "omarchy-rig",
+                    host: "dev-rig",
                     processCases: 1,
                     processes: 1,
                     processWallMs: 2,

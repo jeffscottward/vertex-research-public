@@ -349,7 +349,7 @@ describe("summarizeFeature", () => {
         { count: 1, error: "failed without an error text" },
       ],
       matched: 2,
-      nautilusHosts: ["omarchy-rig", "rig-2"],
+      nautilusHosts: ["dev-rig", "rig-2"],
       requests: 2,
       runs: 7,
       span: {

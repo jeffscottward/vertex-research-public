@@ -244,6 +244,7 @@ This repository follows the Claude Code team's review practice ([How the Claude 
   - Money movement.
   - Security and access changes.
 - An agent review never authorizes an item in the owner-decision list. A PR that changes one of them, or changes what one of them allows, does not merge before the owner decides. Link the owner's decision (message or issue, with its date) in the PR body. A reviewer treats a missing link as an open finding.
+- CI checks the PR-body evidence (card vertex-agent-review-enforcement): the `Merge conditions` job of `ci.yml` fails a ready PR without the line `Agent review: <40-character head SHA>`, and a PR that changes an owner-decision path without `Owner decision: <Discord message or GitHub issue/PR link>` or `Owner decision: not needed (<reason of 20+ characters>)`. Up to 20 clean merges of the base on top of the reviewed SHA keep the review valid; a push or a conflict-resolved merge needs a new review. Order: push, review the full diff at the head, add the lines, mark the PR ready (or, after a body edit, rerun the failed jobs). The rules and the owner-decision path map live in `scripts/ci/merge-conditions.ts`. The job checks that the lines exist; the merge review still checks that they are true.
 - Approvals that branch protection or rulesets require still apply ("Lifecycle gates").
 - Keep changes small, and state in the PR how to test and how to revert them.
 
