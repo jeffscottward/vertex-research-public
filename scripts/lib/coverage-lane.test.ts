@@ -278,7 +278,7 @@ describe("runCoverageLane", () => {
     const { code, error, spawn } = await run({ COVERAGE_SHARD: "9/8" });
     expect(code).toBe(2);
     expect(error).toHaveBeenCalledWith(
-      "COVERAGE_SHARD must be k/n (1 <= k <= n < 100) or one of: acceptance, native-evidence-1, native-evidence-2."
+      "COVERAGE_SHARD must be k/n (1 <= k <= n < 100) or one of: acceptance, native-evidence-1, native-evidence-2, debate-five-turn."
     );
     return expect(spawn).not.toHaveBeenCalled();
   });

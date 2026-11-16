@@ -49,6 +49,7 @@ A row is a file that names a Yahoo endpoint host or imports a Yahoo client packa
 | `packages/api/src/server/options-chain-yahoo.ts` | `/stock/<SYMBOL>` options chain (cookie + crumb, then the options endpoint) |
 | `packages/api/src/server/pick-lists.ts` | Pick-list screen: daily bars per member |
 | `packages/api/src/server/research-lenses.ts` | Research lenses: 1-year daily bars |
+| `packages/api/src/research-screen-quote.ts` | Research screen: quote, identity fields and daily bars per catalog report (chart URL; the read is in `packages/api/src/server/research-screen-evidence.ts`) |
 | `packages/api/src/server/sector-rotation.ts` | Sector rotation: daily bars for sector ETFs |
 | `services/research/quantlab/data.py` | Quant Lab: frozen daily-bar snapshots, pinned by SHA-256 under the git-ignored `private/` tree |
 | `scripts/sector-rotation-backtest/freeze.ts` | Sector-rotation backtest: frozen input bars |

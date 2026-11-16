@@ -9,7 +9,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import vitestConfig, { coverageThresholds } from "../../vitest.config.ts";
 import coverageBaseline from "./coverage-baseline.json" with { type: "json" };
-import { NATIVE_EVIDENCE_SHARDS } from "../lib/coverage-shards.ts";
+import { FILE_SHARDS, NATIVE_EVIDENCE_SHARDS } from "../lib/coverage-shards.ts";
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 
 type Manifest = Readonly<{ scripts?: Readonly<Record<string, string>> }>;
@@ -100,15 +100,16 @@ const isThinEntry = (source: string): boolean => {
 const SOURCE_ROOT = /^(?:apps\/[^/]+\/src\/|packages\/[^/]+\/src\/|scripts\/)/u;
 const SOURCE_EXTENSION = /\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/u;
 const TEST_FILE = /\.(?:test|spec)\.[^./]+$/u;
-// The native-evidence files run in named CI coverage shards; pre-push runs the
-// same shard projects through the packages/api test:unit script, never at the
-// same time as the unit project.
+// The native-evidence and five-turn debate files run in named CI coverage shards;
+// pre-push runs the same shard projects through the packages/api test:unit
+// script. The native-evidence projects never run at the same time as the unit
+// project.
 const LOCAL_PROJECTS: readonly string[] = [
   "unit",
   "contract",
   "operations",
   "e2e-helpers",
-  ...Object.keys(NATIVE_EVIDENCE_SHARDS),
+  ...Object.keys(FILE_SHARDS),
 ];
 
 const git = async (...arguments_: string[]): Promise<string[]> => {
@@ -484,11 +485,9 @@ describe("every Vitest test file runs in the gates", {
     );
   });
 
-  it("runs the native-evidence shard files in their own projects from packages/api", async () => {
+  it("runs the named shard files in their own projects from packages/api", async () => {
     const api = join(root, "packages/api");
-    const shardFiles: readonly string[] = Object.values(
-      NATIVE_EVIDENCE_SHARDS
-    ).flat();
+    const shardFiles: readonly string[] = Object.values(FILE_SHARDS).flat();
     const inShards = (listed: readonly ListedFile[]): ListedFile[] => {
       return listed
         .filter(({ file }) => shardFiles.includes(file))
@@ -510,9 +509,7 @@ describe("every Vitest test file runs in the gates", {
     expect(inShards(unit)).toEqual([]);
     const runs = await expandVitestRuns("test:unit", api);
     expect(runs).toHaveLength(1);
-    const shards: [string, readonly string[]][] = Object.entries(
-      NATIVE_EVIDENCE_SHARDS
-    );
+    const shards: [string, readonly string[]][] = Object.entries(FILE_SHARDS);
     return expect(inShards(await listProjectFiles(runs[0]!))).toEqual(
       shards
         .flatMap(([projectName, files]) =>
@@ -540,9 +537,17 @@ describe("every Vitest test file runs in the gates", {
     for (const shard of shards) {
       expect(orders.get(shard), shard).toBeGreaterThan(last);
     }
+    // The other named shards stay in the group of the unit project, where
+    // their files ran before they had their own projects.
+    expect(orders.has("unit")).toBe(true);
+    for (const shard of Object.keys(FILE_SHARDS)) {
+      if (!shards.includes(shard)) {
+        expect(orders.get(shard), shard).toBe(orders.get("unit"));
+      }
+    }
   });
 
-  return it("runs every unit, contract, operations, e2e-helpers and native-evidence file in verify:prepush", async () => {
+  return it("runs every unit, contract, operations, e2e-helpers and named-shard file in verify:prepush", async () => {
     // One after the other: a failing list then leaves nothing running.
     const files = await allTestFiles();
     const counts = await executionCounts("verify:prepush");

@@ -43,6 +43,7 @@ import {
   ivRankSeries,
   NYSE_SPECIAL_CLOSURES,
   nyseHolidays,
+  nyseSession,
   REALIZED_VOL_PERIODS_PER_YEAR,
   realizedVolatility,
   relativeStrength,
@@ -3840,6 +3841,131 @@ describe("intraday indicator timeframes and trend indicators (PR 2)", () => {
       new InstantBacktestInputError(
         "alphaTrend momentum mfi needs bar volume; use momentum rsi"
       )
+    );
+  });
+});
+
+describe("nyseSession", () => {
+  const session = (date: string) => nyseSession(Date.parse(date) / DAY_MS);
+
+  it("gives null on every NYSE holiday of 2026, 2027 and 2028", () => {
+    const holidays = [
+      "2026-01-01",
+      "2026-01-19",
+      "2026-02-16",
+      "2026-04-03",
+      "2026-05-25",
+      "2026-06-19",
+      "2026-07-03",
+      "2026-09-07",
+      "2026-11-26",
+      "2026-12-25",
+      "2027-01-01",
+      "2027-01-18",
+      "2027-02-15",
+      "2027-03-26",
+      "2027-05-31",
+      "2027-06-18",
+      "2027-07-05",
+      "2027-09-06",
+      "2027-11-25",
+      "2027-12-24",
+      "2028-01-17",
+      "2028-02-21",
+      "2028-04-14",
+      "2028-05-29",
+      "2028-06-19",
+      "2028-07-04",
+      "2028-09-04",
+      "2028-11-23",
+      "2028-12-25",
+    ];
+    for (const date of holidays) expect(session(date)).toBeNull();
+    const closedWeekdays: string[] = [];
+    const first = Date.parse("2026-01-01") / DAY_MS;
+    const last = Date.parse("2028-12-31") / DAY_MS;
+    for (let day = first; day <= last; day += 1) {
+      const date = new Date(day * DAY_MS);
+      const of = date.getUTCDay();
+      if (of >= 1 && of <= 5 && nyseSession(day) === null)
+        closedWeekdays.push(date.toISOString().slice(0, 10));
+    }
+    expect(closedWeekdays).toEqual(holidays);
+  });
+
+  it("gives null on a weekend, also on the unobserved Saturday New Year", () => {
+    expect(session("2026-07-04")).toBeNull();
+    expect(session("2026-07-05")).toBeNull();
+    expect(session("2028-01-01")).toBeNull();
+    expect(session("2027-12-31")?.earlyClose).toBe(false);
+  });
+
+  it("closes at 13:00 New York time on the early closes and on no other day", () => {
+    const early: string[] = [];
+    const first = Date.parse("2026-01-01") / DAY_MS;
+    const last = Date.parse("2028-12-31") / DAY_MS;
+    for (let day = first; day <= last; day += 1)
+      if (nyseSession(day)?.earlyClose === true)
+        early.push(new Date(day * DAY_MS).toISOString().slice(0, 10));
+    expect(early).toEqual([
+      "2026-11-27",
+      "2026-12-24",
+      "2027-11-26",
+      "2028-07-03",
+      "2028-11-24",
+    ]);
+    expect(session("2026-11-27")).toEqual({
+      close: new Date("2026-11-27T18:00:00Z"),
+      earlyClose: true,
+      open: new Date("2026-11-27T14:30:00Z"),
+    });
+    expect(session("2026-12-24")?.close).toEqual(
+      new Date("2026-12-24T18:00:00Z")
+    );
+    expect(session("2027-11-26")?.close).toEqual(
+      new Date("2027-11-26T18:00:00Z")
+    );
+    expect(session("2028-07-03")).toEqual({
+      close: new Date("2028-07-03T17:00:00Z"),
+      earlyClose: true,
+      open: new Date("2028-07-03T13:30:00Z"),
+    });
+    expect(session("2028-11-24")?.close).toEqual(
+      new Date("2028-11-24T18:00:00Z")
+    );
+    expect(session("2026-07-02")?.close).toEqual(
+      new Date("2026-07-02T20:00:00Z")
+    );
+    expect(session("2027-07-02")?.close).toEqual(
+      new Date("2027-07-02T20:00:00Z")
+    );
+    expect(session("2027-12-23")?.close).toEqual(
+      new Date("2027-12-23T21:00:00Z")
+    );
+  });
+
+  it("gives the UTC instants in summer and winter time and across the clock changes", () => {
+    expect(session("2026-07-01")).toEqual({
+      close: new Date("2026-07-01T20:00:00Z"),
+      earlyClose: false,
+      open: new Date("2026-07-01T13:30:00Z"),
+    });
+    expect(session("2026-12-01")).toEqual({
+      close: new Date("2026-12-01T21:00:00Z"),
+      earlyClose: false,
+      open: new Date("2026-12-01T14:30:00Z"),
+    });
+    expect(session("2026-03-06")?.open).toEqual(
+      new Date("2026-03-06T14:30:00Z")
+    );
+    expect(session("2026-03-09")?.open).toEqual(
+      new Date("2026-03-09T13:30:00Z")
+    );
+    expect(session("2026-10-30")?.close).toEqual(
+      new Date("2026-10-30T20:00:00Z")
+    );
+    expect(session("2026-11-02")?.close).toEqual(
+      new Date("2026-11-02T21:00:00Z")
     );
   });
 });
