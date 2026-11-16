@@ -700,6 +700,21 @@ _LEVEL_KEYS = {
 _LEG_KEYS = frozenset({"entry", "exit", "filters", "options"})
 
 
+# TS STRATEGY_OPTION_IS_DEBIT: structure -> True for a debit vertical (longDelta), False for a credit one.
+_OPTION_IS_DEBIT = {
+    "callDebitVertical": True,
+    "putDebitVertical": True,
+    "putCreditVertical": False,
+    "callCreditVertical": False,
+}
+# TS STRATEGY_OPTIONS_MAX_LOSS_PCT: most equity at risk per trade, in percent.
+OPTIONS_MAX_LOSS_PCT = 2
+_OPTIONS_KEYS = frozenset({"dte", "exitDte", "longDelta", "maxLossPct", "profitTakePct", "shortDelta", "structure",
+                           "widthSigma"})
+_DTE_KEYS = frozenset({"min", "target"})
+_MAX_DTE = 400
+
+
 def _object(value: Any, where: str) -> Mapping[str, Any]:
     """TS z.object(): rejects a value that is not an object."""
     if not isinstance(value, Mapping):
@@ -1215,6 +1230,38 @@ def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any
     return normalized
 
 
+def _check_options_block(options: Mapping[str, Any], where: str) -> None:
+    """TS StrategyOptionsSchema: each field, then the keys, then the rules between fields, in the order
+    of the TypeScript issues. `where` names the block in the messages about the block itself. The block
+    stays as written (the schema has no default); qc_ports/book.py parse_options reads it for a run."""
+    dte = _object(options.get("dte"), f"{where}.dte")
+    dte_min = _whole(dte.get("min"), "dte.min", 1, _MAX_DTE)
+    dte_target = _whole(dte.get("target"), "dte.target", 7, _MAX_DTE)
+    _strict(dte, _DTE_KEYS, f"{where}.dte")
+    if dte_min > dte_target:
+        raise InputError("dte.min must not be above dte.target")
+    exit_dte = _whole(options["exitDte"], "exitDte", 0, _MAX_DTE) if "exitDte" in options else None
+    if "longDelta" in options:
+        _between(options["longDelta"], "longDelta", 0.05, 0.95)
+    max_loss = options.get("maxLossPct")
+    if is_finite_number(max_loss) and max_loss > OPTIONS_MAX_LOSS_PCT:
+        raise InputError(f"maxLossPct must be at most {OPTIONS_MAX_LOSS_PCT} (percent of equity per trade)")
+    _positive(max_loss, "maxLossPct", OPTIONS_MAX_LOSS_PCT)
+    if "profitTakePct" in options:
+        _between(options["profitTakePct"], "profitTakePct", 1, 100)
+    if "shortDelta" in options:
+        _between(options["shortDelta"], "shortDelta", 0.05, 0.95)
+    structure = options.get("structure")
+    if not (isinstance(structure, str) and structure in _OPTION_IS_DEBIT):
+        raise InputError(f"Unknown options structure: {structure}")
+    _between(options.get("widthSigma"), "widthSigma", 0.1, 3)
+    _strict(options, _OPTIONS_KEYS, where)
+    if ("shortDelta" if _OPTION_IS_DEBIT[structure] else "longDelta") in options:
+        raise InputError("Debit verticals take longDelta and credit verticals take shortDelta")
+    if exit_dte is not None and exit_dte >= dte_min:
+        raise InputError("exitDte must be below dte.min, or a new spread closes at once")
+
+
 def _condition_items(items: Any, where: str, name: str, minimum: int) -> list[Any]:
     """The raw conditions of the list `where`: minimum to MAX_CONDITIONS items. An absent or null
     list is the empty list."""
@@ -1235,6 +1282,7 @@ def _normalize_leg(leg: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(options, Mapping):
         raise InputError("A portfolio leg needs an options block")
     _strict(leg, _LEG_KEYS, "portfolio leg")
+    _check_options_block(options, "portfolio leg options")
     leg_entry = {} if leg.get("entry") is None else leg["entry"]
     _strict(leg_entry, frozenset({"all"}), "portfolio leg entry")
     normalized: dict[str, Any] = {
@@ -1611,7 +1659,7 @@ def _check_session(session: Mapping[str, Any]) -> None:
 
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     """Applies the StrategyDefinitionSchema defaults and rejects unknown names, operators and keys
-    (the TS schema objects are strict; filter and options blocks keep their own checks)."""
+    (the TS schema objects are strict; filter and options blocks have their own check functions)."""
     _strict(definition, _DEFINITION_KEYS, "definition")
     _check_labels(definition)
     entry = _block(definition, "entry") or {}
@@ -1651,6 +1699,8 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     stop_loss = _normalize_level(_block(definition, "stopLoss"), "stopLoss")
     take_profit = _normalize_level(_block(definition, "takeProfit"), "takeProfit")
     options = _block(definition, "options")
+    if options is not None:
+        _check_options_block(options, "options")
     portfolio = definition.get("portfolio")
     normalized_portfolio = None if portfolio is None else _normalize_portfolio(portfolio)
     session = _block(definition, "session")
