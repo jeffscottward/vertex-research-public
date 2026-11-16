@@ -73,12 +73,19 @@ const factories = (errors: unknown): AgentOpsErrorFactories => {
   return errors as AgentOpsErrorFactories;
 };
 
+// No repository is wired on this server: no database was asked, so the cause is configuration.
+export const STORAGE_NOT_CONFIGURED_MESSAGE =
+  "Agent operations storage is not configured on this server; nothing was saved. Set the database connection, then retry.";
+
+const storageNotConfigured = (errors: unknown): Error =>
+  factories(errors).STORAGE_ERROR({ message: STORAGE_NOT_CONFIGURED_MESSAGE });
+
 const agentOpsFor = (
   context: ApiContext,
   errors: unknown
 ): AgentOpsRepository => {
   const repository = context.repositories.agentOps;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined) throw storageNotConfigured(errors);
   return repository;
 };
 
@@ -87,7 +94,7 @@ const papersFor = (
   errors: unknown
 ): ResearchPapersRepository => {
   const repository = context.repositories.researchPapers;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined) throw storageNotConfigured(errors);
   return repository;
 };
 
@@ -96,7 +103,7 @@ const backtestsFor = (
   errors: unknown
 ): BacktestResultsRepository => {
   const repository = context.repositories.backtestResults;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined) throw storageNotConfigured(errors);
   return repository;
 };
 

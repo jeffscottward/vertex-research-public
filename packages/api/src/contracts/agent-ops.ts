@@ -1309,7 +1309,7 @@ export const AGENT_OPS_API_ERRORS = {
   STORAGE_ERROR: {
     status: 503,
     message:
-      "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
+      "Agent operations storage did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
   },
   UPSTREAM_ERROR: { status: 502, message: "Upstream metadata source failed" },
   NOT_CONFIGURED: {
