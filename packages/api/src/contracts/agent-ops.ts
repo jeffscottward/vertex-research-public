@@ -994,11 +994,22 @@ export const DEPLOY_SESSION_STATES = [
   "stopping",
   "stopped",
   "error",
+  // No nautilus-trader container: Docker answered that none exists.
+  "missing",
+  // No container record because the docker inspect command failed.
+  "unreadable",
+  // Docker reported a container status the collector does not map (raw_state.container_status).
+  "unrecognised",
+  // Written only by a collector older than card vertex-status-b1-quantvps; kept so it parses.
   "unknown",
 ] as const;
 export const DEPLOY_KILL_SWITCH_STATES = [
   "engaged",
   "clear",
+  // No indicator is engaged, but a kill-switch file check gave no answer: never shown as clear.
+  "unverified",
+  // Written only by a collector older than card vertex-status-b1-quantvps; the web also uses it when
+  // the risk block is not available.
   "unknown",
 ] as const;
 const shortText = z.string().max(256);
@@ -1052,6 +1063,8 @@ export const DeploySessionStrategySchema = z
 export const DeploySessionBlockSchema = block({
   ...availableBase,
   state: z.enum(DEPLOY_SESSION_STATES),
+  // When the state began (carried from the previous collector run); absent from older collectors.
+  state_since: nullableTime.optional(),
   raw_state: z
     .object({
       container_status: shortText.nullable(),

@@ -21,6 +21,9 @@ const SUITES: ReadonlyArray<{ name: string; args: readonly string[] }> = [
   { args: [], name: "test_order_policy_v3.py" },
   { args: [], name: "test_no_signal_intake.py" },
   { args: [], name: "test_transmit_disabled.py" },
+  // Not a broker-safety suite: the health alert names each state it cannot decide
+  // (card vertex-status-b1-quantvps). Runs here because it shares this runner.
+  { args: [], name: "test_nautilus_health_alert.py" },
   {
     args: ["OwnedRuntimeTests", "ManifestTests", "HostConfigTests"],
     name: "test_exec_node.py",

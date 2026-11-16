@@ -31617,6 +31617,7 @@
                               "enum": [
                                 "engaged",
                                 "clear",
+                                "unverified",
                                 "unknown"
                               ],
                               "type": "string"
@@ -32470,9 +32471,23 @@
                                 "stopping",
                                 "stopped",
                                 "error",
+                                "missing",
+                                "unreadable",
+                                "unrecognised",
                                 "unknown"
                               ],
                               "type": "string"
+                            },
+                            "state_since": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 64,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "stopped_at": {
                               "anyOf": [
@@ -121297,6 +121312,52 @@
                         "feedsMissing": {
                           "type": "boolean"
                         },
+                        "lastKnown": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "at": {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                "since": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 40,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "state": {
+                                  "enum": [
+                                    "logged-in",
+                                    "awaiting-2fa",
+                                    "starting",
+                                    "logged-out",
+                                    "stopped",
+                                    "no-login-evidence",
+                                    "gateway-unreadable",
+                                    "unknown"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "at",
+                                "since",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "loginState": {
                           "enum": [
                             "logged-in",
@@ -121304,6 +121365,8 @@
                             "starting",
                             "logged-out",
                             "stopped",
+                            "no-login-evidence",
+                            "gateway-unreadable",
                             "unknown"
                           ],
                           "type": "string"
@@ -134066,11 +134129,66 @@
                             }
                           ]
                         },
+                        "lastKnown": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "at": {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                "since": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 40,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "state": {
+                                  "enum": [
+                                    "running",
+                                    "exited",
+                                    "missing",
+                                    "docker-unreadable",
+                                    "unknown"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "at",
+                                "since",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "since": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "state": {
                           "enum": [
                             "running",
                             "exited",
                             "missing",
+                            "docker-unreadable",
                             "unknown"
                           ],
                           "type": "string"
@@ -167946,6 +168064,1687 @@
         "summary": "Read one dataset of a research report (current revision by default; portfolio is never served)",
         "tags": [
           "Research reports"
+        ]
+      }
+    },
+    "/research-screen/status": {
+      "get": {
+        "operationId": "researchScreen.status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "activeRun": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "barsFromIbkr": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "barsFromYahoo": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "claimedAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "deadlineAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "failed": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "finishedAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 300,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "notReached": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "slotAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "slotLabels": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "maxItems": 5,
+                              "type": "array"
+                            },
+                            "status": {
+                              "enum": [
+                                "running",
+                                "completed",
+                                "partial",
+                                "failed",
+                                "interrupted"
+                              ],
+                              "type": "string"
+                            },
+                            "succeeded": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "total": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "barsFromIbkr",
+                            "barsFromYahoo",
+                            "claimedAt",
+                            "deadlineAt",
+                            "failed",
+                            "finishedAt",
+                            "id",
+                            "message",
+                            "notReached",
+                            "slotAt",
+                            "slotLabels",
+                            "status",
+                            "succeeded",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "evaluatedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    },
+                    "lastRun": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "barsFromIbkr": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "barsFromYahoo": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "claimedAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "deadlineAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "failed": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "finishedAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 300,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "notReached": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "slotAt": {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            "slotLabels": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "maxItems": 5,
+                              "type": "array"
+                            },
+                            "status": {
+                              "enum": [
+                                "running",
+                                "completed",
+                                "partial",
+                                "failed",
+                                "interrupted"
+                              ],
+                              "type": "string"
+                            },
+                            "succeeded": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "total": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "barsFromIbkr",
+                            "barsFromYahoo",
+                            "claimedAt",
+                            "deadlineAt",
+                            "failed",
+                            "finishedAt",
+                            "id",
+                            "message",
+                            "notReached",
+                            "slotAt",
+                            "slotLabels",
+                            "status",
+                            "succeeded",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "limitations": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "missedSlots": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "at": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          },
+                          "labels": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "labels"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 24,
+                      "type": "array"
+                    },
+                    "nextSlots": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "at": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          },
+                          "labels": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "labels"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 12,
+                      "minItems": 12,
+                      "type": "array"
+                    },
+                    "rows": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action": {
+                            "enum": [
+                              "review-entry",
+                              "watch",
+                              "wait",
+                              "unavailable"
+                            ],
+                            "type": "string"
+                          },
+                          "barsSource": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "ibkr",
+                                  "yahoo"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "blockingWarnings": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "text": {
+                                  "maxLength": 400,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "code",
+                                "text"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 24,
+                            "type": "array"
+                          },
+                          "buyZone": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "high": {
+                                    "type": "number"
+                                  },
+                                  "low": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "high",
+                                  "low"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "changePercent": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "collection": {
+                            "enum": [
+                              "fresh",
+                              "failed",
+                              "never"
+                            ],
+                            "type": "string"
+                          },
+                          "errorCode": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "identity-unverified",
+                                  "metadata-invalid",
+                                  "provider-http",
+                                  "provider-timeout",
+                                  "rate-limited",
+                                  "identity-mismatch",
+                                  "quote-missing",
+                                  "too-few-bars",
+                                  "invalid-ohlc"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorMessage": {
+                            "anyOf": [
+                              {
+                                "maxLength": 300,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "historyAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastAttemptAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastAttemptRunId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastGoodAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastGoodRunId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "momentumPercent": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "price": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "providerSymbol": {
+                            "type": "string"
+                          },
+                          "quoteAgeMs": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "quoteAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "quoteSource": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "yahoo"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reasons": {
+                            "items": {
+                              "maxLength": 400,
+                              "type": "string"
+                            },
+                            "maxItems": 24,
+                            "type": "array"
+                          },
+                          "reportId": {
+                            "type": "string"
+                          },
+                          "rewardRisk": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "score": {
+                            "type": "number"
+                          },
+                          "stop": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "storedAction": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "review-entry",
+                                  "watch",
+                                  "wait",
+                                  "unavailable"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "storedScore": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "support": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "symbol": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "warnings": {
+                            "items": {
+                              "maxLength": 400,
+                              "type": "string"
+                            },
+                            "maxItems": 24,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "action",
+                          "barsSource",
+                          "blockingWarnings",
+                          "buyZone",
+                          "changePercent",
+                          "collection",
+                          "errorCode",
+                          "errorMessage",
+                          "historyAt",
+                          "lastAttemptAt",
+                          "lastAttemptRunId",
+                          "lastGoodAt",
+                          "lastGoodRunId",
+                          "momentumPercent",
+                          "price",
+                          "providerSymbol",
+                          "quoteAgeMs",
+                          "quoteAt",
+                          "quoteSource",
+                          "reasons",
+                          "reportId",
+                          "rewardRisk",
+                          "score",
+                          "stop",
+                          "storedAction",
+                          "storedScore",
+                          "support",
+                          "symbol",
+                          "target",
+                          "warnings"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 1000,
+                      "type": "array"
+                    },
+                    "scheduler": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "lastTickAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastTickDecision": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "not-due",
+                                "claimed",
+                                "resumed",
+                                "busy"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "state": {
+                          "enum": [
+                            "ok",
+                            "late",
+                            "silent",
+                            "never"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "lastTickAt",
+                        "lastTickDecision",
+                        "state"
+                      ],
+                      "type": "object"
+                    },
+                    "swinglytics": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "generatedAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lastAttemptAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lastAttemptStatus": {
+                              "anyOf": [
+                                {
+                                  "enum": [
+                                    "ok",
+                                    "error"
+                                  ],
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lastError": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 240,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "retrievedAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "snapshot": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "breadth": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "above200DayPercent": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 100,
+                                              "minimum": -100,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "above20DayPercent": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 100,
+                                              "minimum": -100,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "above50DayPercent": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 100,
+                                              "minimum": -100,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "regime": {
+                                          "anyOf": [
+                                            {
+                                              "maxLength": 60,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "score": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 100,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "above20DayPercent",
+                                        "above50DayPercent",
+                                        "above200DayPercent",
+                                        "regime",
+                                        "score"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "regime": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "label": {
+                                          "maxLength": 60,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "riskLevel": {
+                                          "anyOf": [
+                                            {
+                                              "maxLength": 60,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "trendStrength": {
+                                          "anyOf": [
+                                            {
+                                              "maxLength": 60,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "label",
+                                        "riskLevel",
+                                        "trendStrength"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "scanner": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "bearish": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "integer"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "bullish": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "integer"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "total": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "integer"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "withSetups": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "integer"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "bearish",
+                                        "bullish",
+                                        "total",
+                                        "withSetups"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "setups": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "direction": {
+                                            "enum": [
+                                              "bullish",
+                                              "bearish"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "name": {
+                                            "anyOf": [
+                                              {
+                                                "maxLength": 60,
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "pattern": {
+                                            "anyOf": [
+                                              {
+                                                "maxLength": 80,
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "sector": {
+                                            "anyOf": [
+                                              {
+                                                "maxLength": 60,
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "ticker": {
+                                            "pattern": "^[A-Z0-9.-]{1,12}$",
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "direction",
+                                          "name",
+                                          "pattern",
+                                          "sector",
+                                          "ticker"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "maxItems": 10,
+                                      "type": "array"
+                                    },
+                                    "themes": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "bias": {
+                                            "anyOf": [
+                                              {
+                                                "maxLength": 40,
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "changePercent": {
+                                            "anyOf": [
+                                              {
+                                                "maximum": 100,
+                                                "minimum": -100,
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "name": {
+                                            "maxLength": 60,
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "bias",
+                                          "changePercent",
+                                          "name"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "maxItems": 10,
+                                      "type": "array"
+                                    },
+                                    "vix": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "level": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 1000,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "percentile1Year": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 100,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "regime": {
+                                          "anyOf": [
+                                            {
+                                              "maxLength": 60,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "trend": {
+                                          "anyOf": [
+                                            {
+                                              "maxLength": 60,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "level",
+                                        "percentile1Year",
+                                        "regime",
+                                        "trend"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "breadth",
+                                    "regime",
+                                    "scanner",
+                                    "setups",
+                                    "themes",
+                                    "vix"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "stale": {
+                              "type": "boolean"
+                            },
+                            "warning": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "generatedAt",
+                            "lastAttemptAt",
+                            "lastAttemptStatus",
+                            "lastError",
+                            "retrievedAt",
+                            "snapshot",
+                            "stale",
+                            "warning"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "activeRun",
+                    "evaluatedAt",
+                    "lastRun",
+                    "limitations",
+                    "missedSlots",
+                    "nextSlots",
+                    "rows",
+                    "scheduler",
+                    "swinglytics"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Research screen storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler state, runs, slots, stored rows and third-party context",
+        "tags": [
+          "Research screen"
+        ]
+      }
+    },
+    "/research-screen/tick": {
+      "post": {
+        "operationId": "researchScreen.tick",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "decision": {
+                      "enum": [
+                        "not-due",
+                        "claimed",
+                        "resumed",
+                        "busy"
+                      ],
+                      "type": "string"
+                    },
+                    "done": {
+                      "type": "boolean"
+                    },
+                    "processed": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "remaining": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "runId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "runStatus": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "running",
+                            "completed",
+                            "partial",
+                            "failed",
+                            "interrupted"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "slotAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string",
+                          "x-native-type": "date"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "slotLabels": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 5,
+                      "type": "array"
+                    },
+                    "total": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "decision",
+                    "done",
+                    "processed",
+                    "remaining",
+                    "requestId",
+                    "runId",
+                    "runStatus",
+                    "slotAt",
+                    "slotLabels",
+                    "total"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Research screen storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler tick: claim or resume the run of the due slot",
+        "tags": [
+          "Research screen"
         ]
       }
     },

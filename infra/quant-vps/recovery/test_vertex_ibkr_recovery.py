@@ -390,7 +390,7 @@ class SafetyScanTest(unittest.TestCase):
             self.assertTrue(scan(SOURCE + probe), probe)
 
     def test_fixed_identity(self):
-        self.assertEqual((vr.LISTEN_HOST, vr.LISTEN_PORT, vr.VERSION), ("127.0.0.1", 8793, "1.1.0"))
+        self.assertEqual((vr.LISTEN_HOST, vr.LISTEN_PORT, vr.VERSION), ("127.0.0.1", 8793, "1.2.0"))
         self.assertEqual(vr.SCRIPT_ARGV, ("/opt/vertex-exec-node/scripts/request-ibkr-2fa-until-ready.sh",))
         self.assertEqual(vr.SCRIPT_CWD, "/opt/vertex-exec-node")
         self.assertEqual(vr.COOLDOWN_SECONDS, 900)
@@ -533,9 +533,12 @@ class ClassifyTest(unittest.TestCase):
         d.fail = fail
         return vr.GatewayReader(d, clock).read(), d
 
-    def check(self, view, state, needs, reason, since):
-        self.assertEqual(view.public(), {"loginState": state, "needsLogin": needs, "reason": reason,
-                                         "since": vr.iso(since) if since is not None else None})
+    def check(self, view, state, needs, reason, since, **extra):
+        expected = {"loginState": state, "needsLogin": needs, "reason": reason,
+                    "since": vr.iso(since) if since is not None else None}
+        if state in vr.UNDECIDED_LOGIN:
+            expected["lastKnown"] = extra.get("last_known")  # a fresh reader has none
+        self.assertEqual(view.public(), expected)
 
     def test_table(self):
         n = T0
@@ -548,13 +551,63 @@ class ClassifyTest(unittest.TestCase):
         self.check(self.view([ibc(n - 3000, MSG["2fa-timeout"])])[0], "logged-out", True, "2fa-timeout", n - 3000)
         self.check(self.view([ibc(n - 5, MSG["session-ended"])])[0], "logged-out", True, "session-ended", n - 5)
         self.check(self.view([], started=n - 60)[0], "starting", False, "no-login-event", n - 60)
-        self.check(self.view([], started=n - 121)[0], "unknown", False, "no-login-event", None)
+        self.check(self.view([], started=n - 121)[0], "no-login-evidence", False, "no-login-event", n - 121)
         self.check(self.view(running=False, started=n - 500)[0], "stopped", True, "container-not-running", n - 500)
         self.check(self.view(rows=[])[0], "stopped", True, "container-not-running", None)
-        self.check(self.view(fail=True)[0], "unknown", False, "docker-error", None)
+        self.check(self.view(fail=True)[0], "gateway-unreadable", False, "docker-error", n)
         self.check(self.view(rows=["%s running" % CID, "%s running" % CID.replace("0", "1")])[0],
-                   "unknown", False, "docker-error", None)
-        self.check(self.view(rows=["not-an-id running"])[0], "unknown", False, "docker-error", None)
+                   "gateway-unreadable", False, "ambiguous-container", n)
+        self.check(self.view(rows=["not-an-id running"])[0], "gateway-unreadable", False, "docker-error", n)
+
+    def test_no_state_is_unknown(self):
+        self.assertNotIn("unknown", vr.LOGIN_STATES)
+        self.assertEqual(set(vr.NEEDS_LOGIN), set(vr.LOGIN_STATES))
+        self.assertFalse(vr.NEEDS_LOGIN["no-login-evidence"] or vr.NEEDS_LOGIN["gateway-unreadable"])
+
+    def test_unreadable_since_and_last_known(self):
+        clock = FakeClock(T0)
+        d = FakeDocker(clock, running=True, started=T0 - 3600, lines=[ibc(T0 - 50, MSG["logged-in"])])
+        reader = vr.GatewayReader(d, clock)
+        good = reader.read()
+        self.assertEqual((good.login_state, "lastKnown" in good.public()), ("logged-in", False))
+        last = {"state": "logged-in", "since": vr.iso(T0 - 50), "at": vr.iso(T0)}
+        d.fail = True
+        clock.t += 30
+        first = reader.read().public()
+        self.assertEqual((first["loginState"], first["since"], first["lastKnown"]),
+                         ("gateway-unreadable", vr.iso(T0 + 30), last))
+        clock.t += 30
+        second = reader.read().public()
+        self.assertEqual((second["since"], second["lastKnown"]), (vr.iso(T0 + 30), last))  # since of the run
+        d.fail = False
+        clock.t += 30
+        self.assertEqual(reader.read().login_state, "logged-in")
+        d.fail = True
+        clock.t += 30
+        again = reader.read().public()
+        self.assertEqual(again["since"], vr.iso(T0 + 120))  # a new failure run starts a new since
+        self.assertEqual(again["lastKnown"]["at"], vr.iso(T0 + 90))
+
+    def test_no_login_evidence_carries_last_known(self):
+        clock = FakeClock(T0)
+        d = FakeDocker(clock, running=True, started=T0 - 3600, lines=[ibc(T0 - 50, MSG["logged-in"])])
+        reader = vr.GatewayReader(d, clock)
+        reader.read()
+        d.started = T0 + 10  # new container start: new cursor, no IBC line yet
+        d.lines = []
+        clock.t = T0 + 10 + vr.STARTUP_GRACE + 1
+        view = reader.read().public()
+        self.assertEqual((view["loginState"], view["since"]), ("no-login-evidence", vr.iso(T0 + 10)))
+        self.assertEqual(view["lastKnown"]["state"], "logged-in")
+
+    def test_no_login_evidence_without_an_earlier_login(self):
+        clock = FakeClock(T0)
+        d = FakeDocker(clock, running=True, started=T0 - 30, lines=[])
+        reader = vr.GatewayReader(d, clock)
+        self.assertEqual(reader.read().login_state, "starting")  # inside the startup grace: no login seen
+        clock.t = T0 - 30 + vr.STARTUP_GRACE + 1
+        view = reader.read().public()
+        self.assertEqual((view["loginState"], view["lastKnown"]), ("no-login-evidence", None))
 
     def test_last_event_wins(self):
         n = T0
@@ -682,12 +735,13 @@ class LogCursorTest(unittest.TestCase):
         view = self.reader.read()
         self.assertEqual([c[4] for c in self.logs_calls()], [rfc(T0 - 72 * 3600), vr.iso(T0 - 48 * 3600)])
         self.assertEqual((view.login_state, [e[1] for e in self.reader._events]), ("logged-in", ["logged-in"]))
-        # Window without any IBC event: unknown, reason log-window.
+        # Window without any IBC event: no-login-evidence, reason log-window.
         reader = vr.GatewayReader(d, self.clock)
         d.lines = []
         d.noise(T0 - 3600, 3)
         view = reader.read()
-        self.assertEqual((view.login_state, view.reason), ("unknown", "log-window"))
+        self.assertEqual((view.login_state, view.reason), ("no-login-evidence", "log-window"))
+        self.assertEqual(view.since, T0 - 48 * 3600)  # since the window start, not the container start
         reader.read()  # then incremental from the cursor, no new full read
         self.assertEqual(self.logs_calls()[-1][4], d.lines[-1].split(" ", 1)[0])
 
@@ -781,7 +835,7 @@ class GateTest(unittest.TestCase):
             "logged-in": dict(lines=[ibc(n - 50, MSG["logged-in"])]),
             "awaiting-2fa": dict(lines=[ibc(n - 50, MSG["2fa-started"])]),
             "starting": dict(lines=[ibc(n - 50, MSG["login-started"])]),
-            "unknown": dict(lines=[]),
+            "no-login-evidence": dict(lines=[]),
         }
         for state, kw in cases.items():
             rig = self.rig(**kw)
@@ -792,7 +846,7 @@ class GateTest(unittest.TestCase):
             self.assertFalse(os.path.exists(rig.svc.state_path))
         rig = self.rig(lines=[])
         rig.docker.fail = True
-        self.assertEqual(rig.post()[:2], (409, {"error": "not_needed", "loginState": "unknown"}))
+        self.assertEqual(rig.post()[:2], (409, {"error": "not_needed", "loginState": "gateway-unreadable"}))
 
     def test_stopped_and_logged_out_allow(self):
         for kw in (dict(running=False), dict(), dict(lines=[ibc(T0 - 301, MSG["login-started"])])):
@@ -1370,7 +1424,7 @@ class HttpTest(unittest.TestCase):
 
     def test_routes_and_headers(self):
         status, body, headers = self.req("/status")
-        self.assertEqual((status, body["schema"], body["version"]), (200, "vertex-ibkr-recovery-status-v1", "1.1.0"))
+        self.assertEqual((status, body["schema"], body["version"]), (200, "vertex-ibkr-recovery-status-v1", "1.2.0"))
         self.assertEqual(body["gateway"], {"loginState": "logged-out", "needsLogin": True,
                                            "since": vr.iso(T0 - 600), "reason": "2fa-timeout", "feedsMissing": False})
         self.assertEqual((body["request"], body["history"]), (None, []))
@@ -1379,7 +1433,7 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["Content-Type"], "application/json")
         status, body, _ = self.req("/health")
-        self.assertEqual((status, body), (200, {"schema": "vertex-ibkr-recovery-health-v1", "version": "1.1.0",
+        self.assertEqual((status, body), (200, {"schema": "vertex-ibkr-recovery-health-v1", "version": "1.2.0",
                                                 "loginState": "logged-out"}))
         self.assertEqual(self.req("/other")[0], 404)
         self.assertEqual(self.req("/status", method="POST", body=self.body())[0], 405)
@@ -1620,11 +1674,16 @@ class NodeArmTest(unittest.TestCase):
                          ({"state": "exited", "health": None}, None, "not-running"))
         self.assertEqual(self.cli.calls, [])
         self.assertEqual(self.make(docker=FakeNodeDocker(rows="")).status()["container"]["state"], "missing")
-        self.assertEqual(self.make(docker=FakeNodeDocker(fail=True)).status()["container"]["state"], "unknown")
-        for rows in ("not-an-id running\n", "%s running\n%s running\n" % (NODE_CID, CID),
-                     "%s running\n%s exited\n" % (NODE_CID, CID)):
-            self.assertEqual(self.make(docker=FakeNodeDocker(rows=rows)).status()["container"]["state"], "unknown")
-        self.assertEqual(self.make(docker=FakeNodeDocker(state=[])).status()["container"]["state"], "unknown")
+        st = self.make(docker=FakeNodeDocker(fail=True)).status()
+        self.assertEqual(st["container"], {"state": "docker-unreadable", "health": None, "since": vr.iso(T0),
+                                           "lastKnown": None})
+        self.assertEqual(st["armError"], "docker-error")
+        st = self.make(docker=FakeNodeDocker(rows="not-an-id running\n")).status()
+        self.assertEqual((st["container"]["state"], st["armError"]), ("docker-unreadable", "docker-error"))
+        for rows in ("%s running\n%s running\n" % (NODE_CID, CID), "%s running\n%s exited\n" % (NODE_CID, CID)):
+            st = self.make(docker=FakeNodeDocker(rows=rows)).status()
+            self.assertEqual((st["container"]["state"], st["armError"]), ("docker-unreadable", "ambiguous-container"))
+        self.assertEqual(self.make(docker=FakeNodeDocker(state=[])).status()["container"]["state"], "docker-unreadable")
         self.assertEqual(self.cli.calls, [])  # ambiguous or unreadable: no exec
         st = self.make(docker=FakeNodeDocker(state={"Running": True, "Health": {"Status": "odd"}})).status()
         self.assertEqual(st["container"]["health"], None)
@@ -1664,7 +1723,33 @@ class NodeArmTest(unittest.TestCase):
         node = self.make(docker=FakeNodeDocker(rows=""))
         self.assertEqual(node.change(self.payload(), True), (409, {"error": "not_running",
                                                                    "detail": "the node container state is missing"}))
+        for docker, cause in ((FakeNodeDocker(fail=True), "docker error"),
+                              (FakeNodeDocker(rows="%s running\n%s running\n" % (NODE_CID, CID)),
+                               "more than one node container")):
+            for arm in (True, False):
+                self.assertEqual(self.make(docker=docker).change(self.payload(arm), arm),
+                                 (409, {"error": "node_unreadable",
+                                        "detail": "the node container is not readable (%s)" % cause}))
         self.assertEqual(self.cli.calls, [])
+
+    def test_unreadable_since_and_last_known_survive_reads(self):
+        clock = [T0]
+        docker = FakeNodeDocker()
+        node = vr.NautilusArm(docker=docker, cli=FakeCli([(0, cli_status())] * 3), clock=lambda: clock[0])
+        node.status()
+        clock[0] = T0 + 60
+        node.status()  # same state: since stays at the first read
+        docker.fail = True
+        clock[0] = T0 + 120
+        first = node.status()["container"]
+        clock[0] = T0 + 180
+        second = node.status()["container"]
+        last = {"state": "running", "since": vr.iso(T0), "at": vr.iso(T0 + 60)}
+        self.assertEqual((first["since"], first["lastKnown"]), (vr.iso(T0 + 120), last))
+        self.assertEqual((second["since"], second["lastKnown"]), (vr.iso(T0 + 120), last))
+        docker.fail = False
+        clock[0] = T0 + 240
+        self.assertNotIn("since", node.status()["container"])  # a good read ends the failure run
 
     def test_one_change_at_a_time(self):
         node = self.make()

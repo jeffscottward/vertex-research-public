@@ -16,8 +16,8 @@
 // Freshness: the service answers from its cache (up to 300 s for intraday bars, 3600 s for daily
 // bars) without marking it stale; `fromIbkr` receives the answer so a site can judge bars by
 // `fetchedAt` (historyFetchedAt), and `maxAgeMs` turns an older copy into a Yahoo read.
-// Used by: pick-lists.ts, research-lenses.ts, sector-rotation.ts, price-alerts.ts, signal-alerts.ts
-// and scripts/sector-rotation-backtest/freeze.ts.
+// Used by: pick-lists.ts, research-lenses.ts, sector-rotation.ts, price-alerts.ts, signal-alerts.ts,
+// research-screen-evidence.ts and scripts/sector-rotation-backtest/freeze.ts.
 
 import type { MarketBar } from "../contracts/market-data.ts";
 import { newYorkClock } from "../signal-alerts.ts";

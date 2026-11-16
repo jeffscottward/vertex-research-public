@@ -35,6 +35,11 @@ import {
   LIVE_PORTFOLIO_DOCUMENT,
   paperExecNodeDocument,
 } from "./fixtures.ts";
+import {
+  type FrozenMasterRules,
+  freezeMasterRules,
+  readFrozenMasterRules,
+} from "./master-rules-freeze.ts";
 import type { EvalQuestion } from "./questions.ts";
 
 // Eval backend for the agent semantic layer: a real Postgres with every migration and the synthetic
@@ -92,7 +97,7 @@ export const assertReaderRole = async (db: Database): Promise<void> => {
   );
   if (roles.rows.length === 0) {
     throw new Error(
-      "The test Postgres has no vertex_semantic_reader login: recreate it with scripts/ci/rig-postgres.sh up (bun run db:test:up)."
+      "The test Postgres has no vertex_semantic_reader login: it was created before the role existed. Recreate it with bun run db:test:down, then bun run db:test:up (CI: scripts/ci/rig-postgres.sh up)."
     );
   }
 };
@@ -100,9 +105,13 @@ export const assertReaderRole = async (db: Database): Promise<void> => {
 export type EvalBackend = Readonly<{
   callProcedure: CallProcedure;
   close: () => Promise<void>;
+  /** The frozen master_rules_search results; record mode adds the searches it froze. */
+  masterRules: FrozenMasterRules;
 }>;
 
-export const startEvalBackend = async (): Promise<EvalBackend> => {
+export const startEvalBackend = async (
+  options: Readonly<{ masterRules?: "record" | "replay" }> = {}
+): Promise<EvalBackend> => {
   const testDatabase: PostgresTestDatabase = await createPostgresTestDatabase();
   const resource: { db: Database; close: () => Promise<void> } =
     createNodeDatabase({
@@ -147,18 +156,24 @@ export const startEvalBackend = async (): Promise<EvalBackend> => {
     });
     return await handleApiRequest(request, context);
   };
+  const masterRules = readFrozenMasterRules();
   return {
-    callProcedure: createSessionProcedureCaller({
-      appOrigin: ORIGIN,
-      cookie: null,
-      dispatch,
-    }),
+    callProcedure: freezeMasterRules(
+      createSessionProcedureCaller({
+        appOrigin: ORIGIN,
+        cookie: null,
+        dispatch,
+      }),
+      masterRules,
+      options.masterRules ?? "replay"
+    ),
     close: async () => {
       setSemanticTermsDependenciesForTesting({});
       setDeployStatusFetchOptionsForTesting({});
       await resource.close();
       await dropPostgresTestDatabase(testDatabase);
     },
+    masterRules,
   };
 };
 

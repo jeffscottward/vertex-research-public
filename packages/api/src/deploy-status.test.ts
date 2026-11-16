@@ -482,6 +482,37 @@ describe("deploy status v2 schema", () => {
     return expect(output.snapshotError).toBeUndefined();
   });
 
+  it("accepts the definite session and kill-switch states and state_since", () => {
+    // The fixture is a collector before card vertex-status-b1-quantvps: no state_since.
+    expect(v2Document().session).not.toHaveProperty("state_since");
+    const withSession = (patch: Record<string, unknown>) =>
+      v2Document({ session: { ...v2Document().session, ...patch } });
+    for (const state of ["missing", "unreadable", "unrecognised", "unknown"]) {
+      const doc = withSession({ state, state_since: "2026-10-03T11:00:00Z" });
+      expect(DeployUpstreamStatusV2Schema.safeParse(doc).success, state).toBe(
+        true
+      );
+      expect(toDeploymentStatusV2(doc, v2At).session).toMatchObject({
+        state,
+        state_since: "2026-10-03T11:00:00Z",
+      });
+    }
+    expect(
+      DeployUpstreamStatusV2Schema.safeParse(withSession({ state_since: null }))
+        .success
+    ).toBe(true);
+    const unverified = v2Document({
+      risk: { ...v2Document().risk, kill_switch: "unverified" },
+    });
+    expect(toDeploymentStatusV2(unverified, v2At).risk).toMatchObject({
+      kill_switch: "unverified",
+    });
+    return expect(
+      DeployUpstreamStatusV2Schema.safeParse(withSession({ state_since: 5 }))
+        .success
+    ).toBe(false);
+  });
+
   it("accepts unavailable blocks with a reason and rejects drift", () => {
     const withheld = {
       available: false,

@@ -44,7 +44,13 @@ HEARTBEAT_MAX_AGE_SECONDS = 180
 class Check:
     ok: bool
     detail: str
+    # The arm text for the messages: the node's arm state, or why it is not known.
     arm: str
+    # The arm state when the node reported one; None when ``arm`` names a cause instead.
+    arm_state: str | None = None
+    # "down", or "cannot-verify" when the check cannot decide (Docker not readable, more than one
+    # container, or no Docker health status).
+    kind: str = "down"
 
 
 def _parse_time(value: Any) -> datetime | None:
@@ -57,43 +63,57 @@ def _parse_time(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def docker_state(run: Callable[..., Any] = subprocess.run) -> dict[str, Any] | None:
-    listed = run(
-        [
-            DOCKER,
-            "ps",
-            "-a",
-            "-q",
-            "--filter",
-            f"label=com.docker.compose.project={COMPOSE_PROJECT}",
-            "--filter",
-            f"label=com.docker.compose.service={SERVICE}",
-            # Skip one-off `compose run` containers (the 2FA readiness snapshot).
-            "--filter",
-            "label=com.docker.compose.oneoff=False",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=20,
-        check=False,
-    )
-    ids = [line for line in (listed.stdout or "").split() if line]
-    if listed.returncode != 0 or len(ids) != 1:
-        return None
-    inspected = run(
-        [DOCKER, "inspect", "--format", "{{json .State}}", ids[0]],
-        capture_output=True,
-        text=True,
-        timeout=20,
-        check=False,
-    )
+# docker_state() answers these strings when it has no container state to give.
+DOCKER_UNREADABLE = "unreadable"  # a docker command failed, timed out or printed no JSON object
+DOCKER_AMBIGUOUS = "ambiguous"  # more than one nautilus-trader container matches
+
+
+def docker_state(run: Callable[..., Any] = subprocess.run) -> dict[str, Any] | str | None:
+    """-> the container State object, None when Docker lists no container, or DOCKER_UNREADABLE /
+    DOCKER_AMBIGUOUS."""
+    try:
+        listed = run(
+            [
+                DOCKER,
+                "ps",
+                "-a",
+                "-q",
+                "--filter",
+                f"label=com.docker.compose.project={COMPOSE_PROJECT}",
+                "--filter",
+                f"label=com.docker.compose.service={SERVICE}",
+                # Skip one-off `compose run` containers (the 2FA readiness snapshot).
+                "--filter",
+                "label=com.docker.compose.oneoff=False",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+        if listed.returncode != 0:
+            return DOCKER_UNREADABLE
+        ids = [line for line in (listed.stdout or "").split() if line]
+        if not ids:
+            return None
+        if len(ids) != 1:
+            return DOCKER_AMBIGUOUS
+        inspected = run(
+            [DOCKER, "inspect", "--format", "{{json .State}}", ids[0]],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return DOCKER_UNREADABLE
     if inspected.returncode != 0:
-        return None
+        return DOCKER_UNREADABLE
     try:
         state = json.loads(inspected.stdout)
     except ValueError:
-        return None
-    return state if isinstance(state, dict) else None
+        return DOCKER_UNREADABLE
+    return state if isinstance(state, dict) else DOCKER_UNREADABLE
 
 
 def read_health(path: Path) -> dict[str, Any] | None:
@@ -105,29 +125,67 @@ def read_health(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def arm_of(health: dict[str, Any] | None) -> tuple[str, str | None]:
+    """-> (arm text, definite arm state or None). Names the cause when the state is missing."""
+    if health is None:
+        return "not readable (health file unreadable)", None
+    arm = health.get("arm")
+    if not isinstance(arm, dict):
+        return "not reported by the node (no arm block in the health file)", None
+    state = arm.get("state")
+    if not isinstance(state, str) or not state:
+        return "missing in the health file (arm block has no state)", None
+    return state, state
+
+
 def evaluate(
-    state: dict[str, Any] | None,
+    state: dict[str, Any] | str | None,
     health: dict[str, Any] | None,
     now: datetime,
 ) -> Check:
-    arm = "unknown"
-    if isinstance(health, dict) and isinstance(health.get("arm"), dict):
-        arm = str(health["arm"].get("state") or "unknown")
+    arm, arm_state = arm_of(health)
+
+    def fail(detail: str, kind: str = "down") -> Check:
+        return Check(False, detail, arm, arm_state, kind)
+
     if state is None:
-        return Check(False, "container missing", arm)
+        return fail("container missing (docker lists no nautilus-trader container)")
+    if state == DOCKER_UNREADABLE:
+        return fail("docker not readable (docker ps or inspect failed)", "cannot-verify")
+    if state == DOCKER_AMBIGUOUS:
+        return fail("more than one nautilus-trader container", "cannot-verify")
+    if not isinstance(state, dict):
+        return fail("docker not readable (docker ps or inspect failed)", "cannot-verify")
     if not state.get("Running"):
-        return Check(False, f"container {state.get('Status') or 'not running'}", arm)
+        return fail(f"container {state.get('Status') or 'not running'}")
     docker_health = (state.get("Health") or {}).get("Status")
+    if not docker_health:
+        return fail("docker reports no health status for the container", "cannot-verify")
     if docker_health != "healthy":
-        return Check(False, f"docker health {docker_health or 'unknown'}", arm)
+        return fail(f"docker health {docker_health}")
     if health is None:
-        return Check(False, "health file unreadable", arm)
+        return fail("health file unreadable")
     beat = _parse_time(health.get("last_heartbeat_at"))
     if beat is None or (now - beat).total_seconds() > HEARTBEAT_MAX_AGE_SECONDS:
-        return Check(False, "heartbeat stale", arm)
+        return fail("heartbeat stale")
     if health.get("status") != "ok":
-        return Check(False, f"health {health.get('status')}", arm)
-    return Check(True, "healthy", arm)
+        return fail(f"health {health.get('status')}")
+    return Check(True, "healthy", arm, arm_state)
+
+
+def arm_line(check: Check, state: dict[str, Any]) -> str:
+    """Arm text for a message. A missing arm state names its cause, the last known state and the
+    last healthy check from the alert state file."""
+    if check.arm_state is not None:
+        return check.arm
+    known = state.get("last_known_arm")
+    if known:
+        last = f"last known: {known} at {state.get('last_known_arm_at')}"
+    else:
+        last = "no earlier arm state recorded"
+    ok_at = state.get("last_ok_at")
+    healthy = f"last healthy check: {ok_at}" if ok_at else "no healthy check recorded"
+    return f"{check.arm}; {last}; {healthy}"
 
 
 def post_message(url: str, channel: str, text: str) -> bool:
@@ -172,16 +230,21 @@ def step(
 
     state = dict(previous)
     stamp = now.isoformat().replace("+00:00", "Z")
+    # Built from the previous state, so "last known" and "last healthy check" are earlier values.
+    arm = arm_line(check, previous)
     state["last_checked_at"] = stamp
     state["last_detail"] = check.detail
     state["arm"] = check.arm
+    if check.arm_state is not None:
+        state["last_known_arm"] = check.arm_state
+        state["last_known_arm_at"] = stamp
     if check.ok:
         state["consecutive_failures"] = 0
         state["last_ok_at"] = stamp
         if state.get("alert_open"):
             text = (
                 "✅ Nautilus node (QuantVPS) recovered: healthy, "
-                f"arm state {check.arm}. Incident started {state.get('incident_started_at')}."
+                f"arm state {arm}. Incident started {state.get('incident_started_at')}."
             )
             if post(text):
                 state["alert_open"] = False
@@ -192,9 +255,10 @@ def step(
     if failures == 1:
         state["incident_started_at"] = stamp
     if failures >= threshold and not state.get("alert_open"):
+        headline = "cannot be verified" if check.kind == "cannot-verify" else "is down"
         text = (
-            f"⚠️ Nautilus node (QuantVPS) is down: {check.detail}; "
-            f"{failures} failed checks in a row. Arm state: {check.arm}. "
+            f"⚠️ Nautilus node (QuantVPS) {headline}: {check.detail}; "
+            f"{failures} failed checks in a row. Arm state: {arm}. "
             "Check: ssh quantvps docker ps -a --filter "
             "label=com.docker.compose.service=nautilus-trader"
         )

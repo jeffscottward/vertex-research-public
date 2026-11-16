@@ -28,6 +28,7 @@ import {
 } from "./ibkr-recovery-model.ts";
 import { AccountGlance } from "./account-glance.tsx";
 import { fixtureSnapshot } from "./portfolio-monitor-fixture.ts";
+import { clock } from "./portfolio-monitor-model.ts";
 
 const testGlobal = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -214,6 +215,82 @@ describe("recoveryView", () => {
         NOW
       ).badge?.label
     ).toBe("IBKR login: gateway stopped");
+  });
+
+  it("names the two undecided login states with since, last known and the next step", () => {
+    const undecided = (gateway: Partial<IbkrRecoveryStatusOutput["gateway"]>) =>
+      recoveryView(
+        status({
+          canRequest: false,
+          gateway: {
+            feedsMissing: false,
+            loginState: "gateway-unreadable",
+            needsLogin: false,
+            reason: "docker-error",
+            since: "2026-10-28T14:45:00Z",
+            ...gateway,
+          },
+        }),
+        NOW
+      );
+    const unreadable = undecided({
+      lastKnown: {
+        at: "2026-10-28T14:40:00Z",
+        since: "2026-10-28T14:00:00Z",
+        state: "logged-in",
+      },
+    });
+    expect(unreadable.button).toBeNull();
+    expect(unreadable.badge).toEqual({
+      label: `IBKR login state not readable since ${clock("2026-10-28T14:45:00Z")} (docker error) · last known: logged in at ${clock("2026-10-28T14:40:00Z")} · checking again`,
+      tone: "warning",
+    });
+    expect(
+      undecided({ lastKnown: null, reason: "ambiguous-container" }).badge?.label
+    ).toBe(
+      `IBKR login state not readable since ${clock("2026-10-28T14:45:00Z")} (more than one gateway container) · no earlier state since the recovery service started · checking again`
+    );
+    const noEvidence = (
+      lastKnown: IbkrRecoveryStatusOutput["gateway"]["lastKnown"]
+    ) =>
+      undecided({
+        lastKnown,
+        loginState: "no-login-evidence",
+        reason: "no-login-event",
+        since: "2026-10-28T08:00:00Z",
+      }).badge?.label;
+    expect(noEvidence(undefined)).toBe(
+      `IBKR login: no login line in the gateway log (gateway running since ${clock("2026-10-28T08:00:00Z")}) · no login seen since the recovery service started · checking again`
+    );
+    expect(
+      noEvidence({
+        at: "2026-10-28T07:59:00Z",
+        since: "2026-10-28T07:30:00Z",
+        state: "logged-in",
+      })
+    ).toBe(
+      `IBKR login: no login line in the gateway log (gateway running since ${clock("2026-10-28T08:00:00Z")}) · last confirmed login ${clock("2026-10-28T07:30:00Z")} · checking again`
+    );
+    expect(
+      undecided({
+        lastKnown: null,
+        loginState: "no-login-evidence",
+        reason: "log-window",
+        since: "2026-10-26T15:00:00Z",
+      }).badge?.label
+    ).toBe(
+      `IBKR login: no login line in the gateway log read from ${clock("2026-10-26T15:00:00Z")} · no login seen since the recovery service started · checking again`
+    );
+    expect(undecided({ lastKnown: null, since: null }).badge?.label).toBe(
+      "IBKR login state not readable since a time not reported (docker error) · no earlier state since the recovery service started · checking again"
+    );
+    return expect(
+      noEvidence({
+        at: "2026-10-28T07:59:00Z",
+        since: null,
+        state: "logged-in",
+      })
+    ).toContain(`last confirmed login ${clock("2026-10-28T07:59:00Z")}`);
   });
 
   it("shows the button for a logged-in gateway with missing account feeds", () => {
