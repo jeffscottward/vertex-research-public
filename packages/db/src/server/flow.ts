@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm";
 
 import {
+  FLOW_SOURCE_VALUES,
   type FlowNetDriftTickerValue,
   type FlowSampleStatusValue,
   type FlowSourceValue,
@@ -155,13 +156,6 @@ const toDate = (value: Date | string | null | undefined): Date | null => {
   return value instanceof Date ? value : new Date(value);
 };
 
-const SOURCES: readonly FlowSourceValue[] = [
-  "ticks",
-  "depth",
-  "options",
-  "gex",
-];
-
 export const createFlowRepository = (
   database: DatabaseExecutor
 ): FlowRepository => {
@@ -251,7 +245,7 @@ export const createFlowRepository = (
     latestSamples: async (symbol) => {
       const latest: FlowSampleRecord[] = [];
       const latestOk: FlowSampleRecord[] = [];
-      for (const source of SOURCES) {
+      for (const source of FLOW_SOURCE_VALUES) {
         const last = await newestSample(symbol, source, null);
         const ok = await newestSample(symbol, source, "ok");
         if (last) latest.push(last);

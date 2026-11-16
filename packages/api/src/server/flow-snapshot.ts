@@ -5,13 +5,14 @@ import {
   FLOW_SNAPSHOT_MAX_EVENTS,
   FLOW_SNAPSHOT_MAX_PRINTS,
   FLOW_SNAPSHOT_VERSION,
-  FLOW_SOURCES,
+  FLOW_SNAPSHOT_SOURCES,
   type FlowConfluence,
   type FlowFactor,
   type FlowFreshness,
   type FlowOptionTicker,
   type FlowSampleStatus,
   type FlowSnapshot,
+  type FlowSnapshotSource,
   type FlowSource,
   type FlowSymbol,
   type FlowVote,
@@ -24,6 +25,7 @@ import {
   type FlowMinuteRow,
 } from "../flow-features.ts";
 import type { FlowOptionPrintRow } from "../flow-options.ts";
+import { newYorkClock } from "../signal-alerts.ts";
 import { marketSession, newYorkParts } from "./gex-context.ts";
 
 /** Is this source's market open now (New York wall time; holidays are not modelled)? */
@@ -35,6 +37,13 @@ export const flowSessionOpen = (
   const parts = newYorkParts(now);
   const day = parts["weekday"];
   const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
+  if (source === "net_drift")
+    return (
+      day !== "Sat" &&
+      day !== "Sun" &&
+      minutes >= 9 * 60 + 30 &&
+      minutes < 16 * 60 + 20
+    );
   if (source === "options" || source === "gex")
     return (
       day !== "Sat" &&
@@ -55,8 +64,31 @@ export const flowSessionOpen = (
 export const FLOW_STALE_SECONDS: Readonly<Record<FlowSource, number>> = {
   depth: 180,
   gex: 1800,
+  net_drift: 300,
   options: 300,
   ticks: 600,
+};
+
+/** New York wall time of a date as HH:MM. */
+export const flowClockText = (date: Date): string => {
+  const { minute } = newYorkClock(date);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`;
+};
+
+/** The New York date of now, moved back to Friday on Saturday and Sunday (YYYY-MM-DD). */
+export const flowSessionDate = (now: Date): string => {
+  const parts = newYorkParts(now);
+  const back =
+    parts["weekday"] === "Sat" ? 1 : parts["weekday"] === "Sun" ? 2 : 0;
+  const day = new Date(
+    Date.UTC(
+      Number(parts["year"]),
+      Number(parts["month"]) - 1,
+      Number(parts["day"]) - back
+    )
+  );
+  return day.toISOString().slice(0, 10);
 };
 
 export type FlowSampleRow = Readonly<{
@@ -118,7 +150,9 @@ const freshnessState = (
 };
 
 export const buildFreshness = (rows: FlowSnapshotRows): FlowFreshness[] =>
-  FLOW_SOURCES.map((source) => {
+  FLOW_SNAPSHOT_SOURCES.filter((source) =>
+    FLOW_INSTRUMENTS[rows.symbol].sources.includes(source)
+  ).map((source) => {
     const ok = rows.latestOk.find((sample) => sample.source === source);
     const last = rows.latest.find((sample) => sample.source === source);
     const sessionOpen = flowSessionOpen(source, rows.symbol, rows.now);
@@ -187,7 +221,7 @@ export type ConfluenceInput = Readonly<{
   premiumBias: number | null;
   gex: FlowGexRow | null;
   lastPrice: number | null;
-  usable: Readonly<Record<FlowSource, boolean>>;
+  usable: Readonly<Record<FlowSnapshotSource, boolean>>;
 }>;
 
 export const buildConfluence = (input: ConfluenceInput): FlowConfluence => {
@@ -522,12 +556,19 @@ export const buildFlowSnapshot = (rows: FlowSnapshotRows): FlowSnapshot => {
   const books = [...rows.books].sort(byTime((row) => row.at));
   const book = books.at(-1) ?? null;
   const orderFlow = buildOrderFlow(rows, minutes, book);
-  const usable = Object.fromEntries(
-    freshness.map((entry) => [
-      entry.source,
-      entry.state === "fresh" || entry.state === "closed",
-    ])
-  ) as Record<FlowSource, boolean>;
+  // A source without a freshness row (not collected for this symbol) has no usable data.
+  const usableOf = (source: FlowSnapshotSource): boolean =>
+    freshness.some(
+      (entry) =>
+        entry.source === source &&
+        (entry.state === "fresh" || entry.state === "closed")
+    );
+  const usable: Readonly<Record<FlowSnapshotSource, boolean>> = {
+    depth: usableOf("depth"),
+    gex: usableOf("gex"),
+    options: usableOf("options"),
+    ticks: usableOf("ticks"),
+  };
   return {
     confluence: buildConfluence({
       ...recentInputs(rows, minutes),

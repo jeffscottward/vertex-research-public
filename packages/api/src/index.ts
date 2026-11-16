@@ -128,6 +128,7 @@ export {
   FLOW_INSTRUMENTS,
   type FlowGroup,
   type FlowInstrument,
+  flowSymbolForTicker,
 } from "./flow-features.ts";
 export * from "./flow-control-rules.ts";
 export * from "./flow-trade-signing.ts";

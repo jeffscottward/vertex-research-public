@@ -3,6 +3,9 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import {
+  FLOW_OPTION_TICKER_VALUES,
+  FLOW_SOURCE_VALUES,
+  FLOW_SYMBOL_VALUES,
   flowBook,
   flowEvents,
   flowGex,
@@ -197,6 +200,17 @@ describe("0077_flow_net_drift migration", () => {
     expect(journal.entries.map((entry) => entry.tag)).toContain(
       "0077_flow_net_drift"
     );
+  });
+
+  it("every schema symbol, ticker and source value is in the check text of the migration", () => {
+    for (const symbol of FLOW_SYMBOL_VALUES)
+      expect(addText("flow_samples_check")).toContain(`'${symbol}'`);
+    for (const ticker of FLOW_OPTION_TICKER_VALUES) {
+      expect(addText("flow_gex_check")).toContain(`'${ticker}'`);
+      expect(addText("flow_option_prints_check")).toContain(`'${ticker}'`);
+    }
+    for (const source of FLOW_SOURCE_VALUES)
+      expect(addText("flow_samples_check")).toContain(`'${source}'`);
   });
 
   it("the rollback restores the old checks, drops only flow_net_drift and deletes no row", () => {

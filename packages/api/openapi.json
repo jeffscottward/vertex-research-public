@@ -106131,11 +106131,13 @@
                     "items": {
                       "enum": [
                         "SPY",
-                        "ES"
+                        "ES",
+                        "QQQ",
+                        "NQ"
                       ],
                       "type": "string"
                     },
-                    "maxItems": 2,
+                    "maxItems": 4,
                     "minItems": 1,
                     "type": "array"
                   }
@@ -106250,7 +106252,8 @@
                               "ticks",
                               "depth",
                               "options",
-                              "gex"
+                              "gex",
+                              "net_drift"
                             ],
                             "type": "string"
                           },
@@ -106266,7 +106269,9 @@
                           "symbol": {
                             "enum": [
                               "SPY",
-                              "ES"
+                              "ES",
+                              "QQQ",
+                              "NQ"
                             ],
                             "type": "string"
                           }
@@ -106539,7 +106544,7 @@
             "description": "503"
           }
         },
-        "summary": "Scheduler: sample ticks, depth, options flow and GEX for SPY and ES, store features and events",
+        "summary": "Scheduler: sample ticks, depth, options flow, GEX and net drift for SPY, ES, QQQ and NQ, store features and events",
         "tags": [
           "Flow"
         ]
@@ -106558,7 +106563,9 @@
             "schema": {
               "enum": [
                 "SPY",
-                "ES"
+                "ES",
+                "QQQ",
+                "NQ"
               ],
               "type": "string"
             }
@@ -107017,7 +107024,9 @@
                             "ticker": {
                               "enum": [
                                 "SPY",
-                                "SPX"
+                                "SPX",
+                                "QQQ",
+                                "NDX"
                               ],
                               "type": "string"
                             },
@@ -107257,7 +107266,9 @@
                         "ticker": {
                           "enum": [
                             "SPY",
-                            "SPX"
+                            "SPX",
+                            "QQQ",
+                            "NDX"
                           ],
                           "type": "string"
                         },
@@ -107583,7 +107594,9 @@
                     "symbol": {
                       "enum": [
                         "SPY",
-                        "ES"
+                        "ES",
+                        "QQQ",
+                        "NQ"
                       ],
                       "type": "string"
                     },

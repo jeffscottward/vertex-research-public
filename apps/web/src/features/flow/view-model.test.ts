@@ -314,3 +314,17 @@ describe("flow minute chart", () => {
     expect(chart.cvdZeroY).toBeLessThan(CHART_HEIGHT);
   });
 });
+
+describe("lab fixture for QQQ and NQ", () => {
+  it("has no minutes, no prints and depth and GEX freshness only", () => {
+    for (const symbol of ["QQQ", "NQ"] as const) {
+      const snapshot = labFlowSnapshot(symbol, 60);
+      expect(snapshot.minutes).toEqual([]);
+      expect(snapshot.optionsFlow.topPrints).toEqual([]);
+      expect(snapshot.freshness.map((row) => row.source)).toEqual([
+        "depth",
+        "gex",
+      ]);
+    }
+  });
+});

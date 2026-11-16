@@ -1,4 +1,4 @@
-// What: UI lab fixture for the /flow page: a deterministic flow.snapshot for SPY or ES with
+// What: UI lab fixture for the /flow page: a deterministic flow.snapshot for SPY, QQQ, ES or NQ with
 // sampled minutes (and unsampled gaps), a book, options flow, GEX levels, events and confluence.
 // Every value is fictional.
 // Used by: apps/web/src/lab/entries/research.tsx.
@@ -32,6 +32,22 @@ const LAB_FLOW_INSTRUMENTS: Readonly<
     strike: 6850,
     tick: 0.25,
     ticker: "SPX",
+  },
+  NQ: {
+    basis: 42.5,
+    offExchangeShare: null,
+    price: 25_480.25,
+    strike: 25_450,
+    tick: 0.25,
+    ticker: "NDX",
+  },
+  QQQ: {
+    basis: 0,
+    offExchangeShare: 0.38,
+    price: 612.4,
+    strike: 612,
+    tick: 0.01,
+    ticker: "QQQ",
   },
   SPY: {
     basis: 0,
@@ -93,7 +109,7 @@ export const labFlowSnapshot = (
     putWall: instrument.strike - 40,
   };
   const shift = (value: number): number => value + instrument.basis;
-  return {
+  const snapshot: FlowSnapshot = {
     confluence: {
       bearish: 0,
       bullish: 2,
@@ -294,5 +310,15 @@ export const labFlowSnapshot = (
     symbol,
     windowEnd: LAB_NOW_ISO,
     windowStart: new Date(start).toISOString(),
+  };
+  if (symbol === "SPY" || symbol === "ES") return snapshot;
+  // QQQ and NQ collect depth and GEX only: no sampled minutes, no option prints.
+  return {
+    ...snapshot,
+    freshness: snapshot.freshness.filter(
+      (row) => row.source === "depth" || row.source === "gex"
+    ),
+    minutes: [],
+    optionsFlow: { ...snapshot.optionsFlow, topPrints: [] },
   };
 };

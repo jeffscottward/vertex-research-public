@@ -52,9 +52,40 @@ export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
     optionsTicker: "SPX",
     secType: "CONTFUT",
     session: "globex",
-    sources: ["ticks", "depth", "options", "gex"],
+    sources: ["ticks", "depth", "options", "gex", "net_drift"],
     symbol: "ES",
     ticks: "trades_and_quotes",
+  },
+  NQ: {
+    exchange: "CME",
+    group: "nasdaq100",
+    kind: "future",
+    largePrint: 10,
+    minTick: 0.25,
+    note: "NQ options context uses NDX options; NDX levels are shifted by the NQ − NDX basis.",
+    offExchange: false,
+    optionEventPremium: 1_000_000,
+    optionsTicker: "NDX",
+    secType: "CONTFUT",
+    session: "globex",
+    sources: ["depth", "gex", "net_drift"],
+    symbol: "NQ",
+    ticks: "none",
+  },
+  QQQ: {
+    group: "nasdaq100",
+    kind: "etf",
+    largePrint: 10_000,
+    minTick: 0.01,
+    note: "QQQ book is IEX depth plus top of book from other venues (no paid venue books).",
+    offExchange: true,
+    optionEventPremium: 500_000,
+    optionsTicker: "QQQ",
+    secType: "STK",
+    session: "stock",
+    sources: ["depth", "gex", "net_drift"],
+    symbol: "QQQ",
+    ticks: "none",
   },
   SPY: {
     group: "sp500",
@@ -67,7 +98,7 @@ export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
     optionsTicker: "SPY",
     secType: "STK",
     session: "stock",
-    sources: ["ticks", "depth", "options", "gex"],
+    sources: ["ticks", "depth", "options", "gex", "net_drift"],
     symbol: "SPY",
     ticks: "trades_and_quotes",
   },
@@ -82,7 +113,14 @@ export type FlowGroup = Readonly<{
   checkTicker: FlowOptionTicker;
 }>;
 
-export const FLOW_GROUPS: Readonly<Record<"sp500", FlowGroup>> = {
+export const FLOW_GROUPS: Readonly<Record<FlowGroupId, FlowGroup>> = {
+  nasdaq100: {
+    checkTicker: "NDX",
+    future: "NQ",
+    id: "nasdaq100",
+    label: "Nasdaq 100",
+    primaryTicker: "QQQ",
+  },
   sp500: {
     checkTicker: "SPY",
     future: "ES",
@@ -91,6 +129,16 @@ export const FLOW_GROUPS: Readonly<Record<"sp500", FlowGroup>> = {
     primaryTicker: "SPX",
   },
 };
+
+/** The one flow symbol whose options ticker is the ticker (SPX: ES, NDX: NQ). */
+const SYMBOL_OF_TICKER: Readonly<Record<FlowOptionTicker, FlowSymbol>> = {
+  NDX: "NQ",
+  QQQ: "QQQ",
+  SPX: "ES",
+  SPY: "SPY",
+};
+export const flowSymbolForTicker = (ticker: FlowOptionTicker): FlowSymbol =>
+  SYMBOL_OF_TICKER[ticker];
 
 export type FlowMinuteRow = Readonly<{
   symbol: FlowSymbol;

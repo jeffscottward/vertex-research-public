@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { FlowCollectOutputSchema } from "./contracts/flow.ts";
+import {
+  FlowCollectInputSchema,
+  FlowCollectOutputSchema,
+  FlowFreshnessSchema,
+  FlowSnapshotToolInputSchema,
+} from "./contracts/flow.ts";
 
 const collectOutput = {
   at: "2026-11-13T15:00:00.000Z",
@@ -39,6 +44,46 @@ describe("flow.collect output", () => {
         ...collectOutput,
         budget: { ...collectOutput.budget, extra: 1 },
       }).success
+    ).toBe(false);
+  });
+});
+
+describe("four symbols", () => {
+  it("accepts four symbols in flow.collect and rejects five", () => {
+    expect(
+      FlowCollectInputSchema.safeParse({ symbols: ["SPY", "ES", "QQQ", "NQ"] })
+        .success
+    ).toBe(true);
+    expect(
+      FlowCollectInputSchema.safeParse({
+        symbols: ["SPY", "ES", "QQQ", "NQ", "SPY"],
+      }).success
+    ).toBe(false);
+  });
+
+  it("keeps flow-snapshot.v1 freshness to the four snapshot sources", () => {
+    const row = {
+      ageSeconds: null,
+      lastOkAt: null,
+      lastStatus: null,
+      message: null,
+      sessionOpen: true,
+      source: "gex",
+      state: "never",
+    };
+    expect(FlowFreshnessSchema.safeParse(row).success).toBe(true);
+    expect(
+      FlowFreshnessSchema.safeParse({ ...row, source: "net_drift" }).success
+    ).toBe(false);
+  });
+
+  it("the tool input of flow_snapshot accepts SPY and ES and rejects QQQ", () => {
+    for (const symbol of ["SPY", "ES"])
+      expect(FlowSnapshotToolInputSchema.safeParse({ symbol }).success).toBe(
+        true
+      );
+    expect(
+      FlowSnapshotToolInputSchema.safeParse({ symbol: "QQQ" }).success
     ).toBe(false);
   });
 });

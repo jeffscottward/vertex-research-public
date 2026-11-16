@@ -16,10 +16,19 @@ import {
 // The collector prunes each table with its own retention (FLOW_RETENTION_DAYS in
 // packages/api/src/server/flow-collect.ts): 730 days for flow_net_drift, 14 days for the others.
 
-export type FlowSymbolValue = "SPY" | "ES";
-export type FlowSourceValue = "ticks" | "depth" | "options" | "gex";
+export const FLOW_SYMBOL_VALUES = ["SPY", "ES", "QQQ", "NQ"] as const;
+export const FLOW_OPTION_TICKER_VALUES = ["SPY", "SPX", "QQQ", "NDX"] as const;
+export const FLOW_SOURCE_VALUES = [
+  "ticks",
+  "depth",
+  "options",
+  "gex",
+  "net_drift",
+] as const;
+export type FlowSymbolValue = (typeof FLOW_SYMBOL_VALUES)[number];
+export type FlowSourceValue = (typeof FLOW_SOURCE_VALUES)[number];
 export type FlowSampleStatusValue = "ok" | "empty" | "unavailable" | "skipped";
-export type FlowOptionTickerValue = "SPY" | "SPX";
+export type FlowOptionTickerValue = (typeof FLOW_OPTION_TICKER_VALUES)[number];
 export type FlowDirectionValue = "bullish" | "bearish" | "neutral";
 export type FlowEventKindValue =
   | "large_print"

@@ -11,9 +11,24 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 // and a confluence reading is a description of recent flow, never an instruction to trade.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 
-export const FLOW_SYMBOLS = ["SPY", "ES"] as const;
-export const FLOW_OPTION_TICKERS = ["SPY", "SPX"] as const;
-export const FLOW_SOURCES = ["ticks", "depth", "options", "gex"] as const;
+export const FLOW_SYMBOLS = ["SPY", "ES", "QQQ", "NQ"] as const;
+export const FLOW_OPTION_TICKERS = ["SPY", "SPX", "QQQ", "NDX"] as const;
+export const FLOW_SOURCES = [
+  "ticks",
+  "depth",
+  "options",
+  "gex",
+  "net_drift",
+] as const;
+/** The sources of flow-snapshot.v1 freshness; net_drift freshness is in flow.control only. */
+export const FLOW_SNAPSHOT_SOURCES = [
+  "ticks",
+  "depth",
+  "options",
+  "gex",
+] as const;
+/** The symbols of the MCP tool flow_snapshot, pinned to the recorded semantic-layer eval. */
+export const FLOW_SNAPSHOT_TOOL_SYMBOLS = ["SPY", "ES"] as const;
 /** Net drift parts: all expiries and same-day (0DTE) expiries; longer = total − zero_dte on read. */
 export const FLOW_EXPIRY_PARTS = ["total", "zero_dte"] as const;
 /** Id of the net drift request filter (out of the money, no complex, floor, tied or cancelled trades). */
@@ -85,6 +100,7 @@ export const FLOW_SNAPSHOT_MAX_PRINTS = 25;
 export type FlowSymbol = (typeof FLOW_SYMBOLS)[number];
 export type FlowOptionTicker = (typeof FLOW_OPTION_TICKERS)[number];
 export type FlowSource = (typeof FLOW_SOURCES)[number];
+export type FlowSnapshotSource = (typeof FLOW_SNAPSHOT_SOURCES)[number];
 export type FlowExpiryPart = (typeof FLOW_EXPIRY_PARTS)[number];
 export type FlowSampleStatus = (typeof FLOW_SAMPLE_STATUSES)[number];
 export type FlowEventKind = (typeof FLOW_EVENT_KINDS)[number];
@@ -170,7 +186,7 @@ export const FlowCollectInputSchema = z
      */
     seed: z.boolean().default(false),
     /** Limit the run to these symbols (default: all). */
-    symbols: z.array(z.enum(FLOW_SYMBOLS)).min(1).max(2).optional(),
+    symbols: z.array(z.enum(FLOW_SYMBOLS)).min(1).max(4).optional(),
   })
   .strict();
 
@@ -213,21 +229,31 @@ export const FlowCollectOutputSchema = z
   })
   .strict();
 
+const snapshotMinutes = z.coerce
+  .number()
+  .int()
+  .min(15)
+  .max(FLOW_SNAPSHOT_MINUTES_MAX)
+  .default(FLOW_SNAPSHOT_MINUTES_DEFAULT);
+
 export const FlowSnapshotInputSchema = z
   .object({
     symbol: z.enum(FLOW_SYMBOLS),
-    minutes: z.coerce
-      .number()
-      .int()
-      .min(15)
-      .max(FLOW_SNAPSHOT_MINUTES_MAX)
-      .default(FLOW_SNAPSHOT_MINUTES_DEFAULT),
+    minutes: snapshotMinutes,
+  })
+  .strict();
+
+/** The input of the MCP tool flow_snapshot (the same keys in the same order, SPY and ES only). */
+export const FlowSnapshotToolInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_SNAPSHOT_TOOL_SYMBOLS),
+    minutes: snapshotMinutes,
   })
   .strict();
 
 export const FlowFreshnessSchema = z
   .object({
-    source: z.enum(FLOW_SOURCES),
+    source: z.enum(FLOW_SNAPSHOT_SOURCES),
     state: z.enum(FLOW_FRESHNESS_STATES),
     /** Last sample that stored data (status ok). */
     lastOkAt: timestamp.nullable(),
@@ -436,7 +462,7 @@ const collect = flow
     operationId: "flow.collect",
     path: "/flow/collect",
     summary:
-      "Scheduler: sample ticks, depth, options flow and GEX for SPY and ES, store features and events",
+      "Scheduler: sample ticks, depth, options flow, GEX and net drift for SPY, ES, QQQ and NQ, store features and events",
     tags,
   })
   .input(FlowCollectInputSchema)

@@ -297,6 +297,28 @@ describe("createFlowRepository.prune", () => {
 });
 
 describe("createFlowRepository net drift", () => {
+  it("queries the newest sample of the net_drift source", async () => {
+    const netDrift = { source: "net_drift", status: "ok" };
+    const double = createDouble([
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [netDrift],
+      [netDrift],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.latestSamples("QQQ")).resolves.toEqual({
+      latest: [netDrift],
+      latestOk: [netDrift],
+    });
+    expect(whereOf(double.operations[8]).params).toEqual(["QQQ", "net_drift"]);
+  });
+
   const bucket = (minute: number): FlowNetDriftRecord => ({
     filterProfile: "otm-clean.v1",
     minute: new Date(FROM.getTime() + minute * 60_000),
@@ -538,13 +560,15 @@ describe("createFlowRepository.latestSamples", () => {
       [],
       [gexLast],
       [],
+      [],
+      [],
     ]);
     const repository = createFlowRepository(double.database);
     await expect(repository.latestSamples("SPY")).resolves.toEqual({
       latest: [tickLast, gexLast],
       latestOk: [tickOk],
     });
-    expect(double.operations).toHaveLength(8);
+    expect(double.operations).toHaveLength(10);
     const params = double.operations.map(
       (operation) => whereOf(operation).params
     );
@@ -557,6 +581,8 @@ describe("createFlowRepository.latestSamples", () => {
       ["SPY", "options", "ok"],
       ["SPY", "gex"],
       ["SPY", "gex", "ok"],
+      ["SPY", "net_drift"],
+      ["SPY", "net_drift", "ok"],
     ]);
     for (const operation of double.operations) {
       expect(operation.table).toBe(flowSamples);

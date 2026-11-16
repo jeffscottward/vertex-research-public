@@ -35,7 +35,7 @@ const MAX_COOLDOWN_S = 3600;
 const MAX_CACHE_ENTRIES = 200;
 const WINDOW_S = 60;
 const WINDOW_MS = WINDOW_S * 1000;
-const DEFAULT_MAX_PER_MINUTE = 30;
+export const DEFAULT_MAX_PER_MINUTE = 30;
 const DEFAULT_QUOTA_RESERVE = 120;
 const WHOLE_NUMBER = /^\d+$/u;
 

@@ -13,8 +13,12 @@ import type {
 } from "@darkfactory/db/server";
 
 import {
+  FLOW_EXPIRY_PARTS,
+  FLOW_FILTER_PROFILE,
   FLOW_SYMBOLS,
   type FlowCollectOutput,
+  type FlowExpiryPart,
+  type FlowGroupId,
   type FlowCollectParsedInput,
   type FlowOptionTicker,
   type FlowSampleStatus,
@@ -31,8 +35,16 @@ import {
   buildMinuteFeatures,
   FLOW_INSTRUMENTS,
   type FlowEventRow,
+  type FlowGroup,
   type FlowInstrument,
 } from "../flow-features.ts";
+import {
+  type FlowNetDriftBucket,
+  type FlowNetDriftRow,
+  netDriftRequest,
+  newestBucketAt,
+  parseNetDrift,
+} from "../flow-net-drift.ts";
 import {
   type FlowOptionPrintRow,
   oldestRowTime,
@@ -40,14 +52,20 @@ import {
   parseOptionPrints,
 } from "../flow-options.ts";
 import { signTrades } from "../flow-trade-signing.ts";
-import { flowSessionOpen } from "./flow-snapshot.ts";
+import {
+  flowClockText,
+  flowSessionDate,
+  flowSessionOpen,
+} from "./flow-snapshot.ts";
 import type { MarketHistoryPacing } from "./market-data.ts";
-import type { QuantDataClient } from "./quantdata-client.ts";
+import type { QuantDataClient, QuantDataResult } from "./quantdata-client.ts";
 
 /** A source is due again this many seconds after its last attempt (any status). */
 export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
   depth: 50,
   gex: 840,
+  /** Due on every run; netDriftTurn alone sets the cadence, each group on alternate minutes. */
+  net_drift: 0,
   options: 110,
   ticks: 230,
 };
@@ -99,10 +117,13 @@ export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
 export const FLOW_QUANTDATA_CALLER_RESERVE = 6;
 /** One GEX estimate sends three QuantData requests; one estimate runs per run. */
 const FLOW_GEX_REQUESTS_PER_RUN = 3;
+/** One net drift read per symbol sends two requests: total and zero_dte. */
+const FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL = 2;
 /** QuantData worst case of one source for one symbol; a source with less free starts is skipped. */
 const FLOW_QUANTDATA_SOURCE_MAX: Readonly<Partial<Record<FlowSource, number>>> =
   {
     gex: FLOW_GEX_REQUESTS_PER_RUN,
+    net_drift: FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL,
     options: FLOW_OPTION_RUN_PAGES_MAX,
   };
 /** The IBKR history window of vertex-history: 6 requests per 120 s. */
@@ -793,8 +814,156 @@ const collectGex = async (
   };
 };
 
-// Depth before GEX, so the ES − SPX basis can use this run's book.
+/** sp500 symbols read net drift on even minutes of the run time, nasdaq100 symbols on odd minutes. */
+export const netDriftTurn = (group: FlowGroupId, now: Date): boolean =>
+  Math.floor(now.getTime() / 60_000) % 2 === (group === "sp500" ? 0 : 1);
+
+/** A net drift bucket is ok while its newest bucket started at most this long before now. */
+const NET_DRIFT_OK_SECONDS = 300;
+
+type NetDriftPart =
+  | Readonly<{ ok: true; buckets: readonly FlowNetDriftBucket[] }>
+  | Readonly<{ ok: false; reserved: boolean; text: string }>;
+
+const netDriftPart = async (
+  state: RunState,
+  client: QuantDataClient,
+  ticker: FlowOptionTicker,
+  part: FlowExpiryPart,
+  sessionDate: string
+): Promise<NetDriftPart> => {
+  const result: QuantDataResult = await client.request(
+    "netDrift",
+    netDriftRequest(sessionDate, ticker, part),
+    30_000
+  );
+  if (!result.ok) {
+    const until = new Date(
+      state.deps.now.getTime() +
+        (result.retryAfterSeconds ?? client.cooldownSeconds()) * 1000
+    );
+    return {
+      ok: false,
+      reserved: result.reason === "reserved",
+      text:
+        result.reason === "rate_limited"
+          ? `rate limited by the vendor until ${flowClockText(until)} ET`
+          : result.message,
+    };
+  }
+  const parsed = parseNetDrift(result.data);
+  return parsed.ok
+    ? parsed
+    : { ok: false, reserved: false, text: parsed.message };
+};
+
+const storeNetDrift = (
+  state: RunState,
+  ticker: FlowOptionTicker,
+  part: FlowExpiryPart,
+  buckets: readonly FlowNetDriftBucket[]
+): Promise<number> =>
+  store(
+    state,
+    buckets.map(
+      (bucket): FlowNetDriftRow => ({
+        ...bucket,
+        filterProfile: FLOW_FILTER_PROFILE,
+        part,
+        ticker,
+      })
+    ),
+    (rows) => state.deps.repository.upsertNetDrift(rows)
+  );
+
+const collectNetDrift = async (
+  state: RunState,
+  instrument: FlowInstrument
+): Promise<Attempt> => {
+  const { group } = instrument;
+  if (!(state.seed || netDriftTurn(group, state.deps.now)))
+    return notDue(
+      `staggered: ${group} net drift runs on ${group === "sp500" ? "even" : "odd"} minutes`
+    );
+  const client = state.deps.quantData;
+  if (client === null) return notDue("QuantData not configured");
+  const ticker = instrument.optionsTicker;
+  const sessionDate = flowSessionDate(state.deps.now);
+  const [totalPart, zeroPart] = FLOW_EXPIRY_PARTS;
+  const total = await netDriftPart(
+    state,
+    client,
+    ticker,
+    totalPart,
+    sessionDate
+  );
+  if (!total.ok && total.reserved)
+    return notDue("budget: QuantData starts kept free for other callers");
+  if (!total.ok)
+    return {
+      events: 0,
+      items: 0,
+      message: total.text.slice(0, 300),
+      record: true,
+      status: "unavailable",
+    };
+  const zero = await netDriftPart(state, client, ticker, zeroPart, sessionDate);
+  const items =
+    (await storeNetDrift(state, ticker, totalPart, total.buckets)) +
+    (zero.ok ? await storeNetDrift(state, ticker, zeroPart, zero.buckets) : 0);
+  const zeroCount = zero.ok ? zero.buckets.length : 0;
+  const newest = newestBucketAt(total.buckets);
+  const head = `${ticker} total ${total.buckets.length} buckets, zero_dte ${zeroCount}`;
+  const tail = zero.ok ? "" : `; zero_dte failed (${zero.text})`;
+  if (newest === null)
+    return {
+      events: 0,
+      items,
+      message: `${head}, 2 requests${tail}`.slice(0, 300),
+      record: true,
+      status: "empty",
+    };
+  const fresh = secondsSince(state, newest) <= NET_DRIFT_OK_SECONDS;
+  return {
+    events: 0,
+    items,
+    message:
+      `${head}, newest ${flowClockText(newest)} NY, 2 requests${tail}`.slice(
+        0,
+        300
+      ),
+    record: true,
+    status: fresh ? "ok" : "empty",
+  };
+};
+
+/** QuantData worst case of one run: the larger net drift group, every options symbol, one GEX estimate. */
+export const flowQuantDataRunWorstCase = (
+  instruments: Readonly<Record<FlowSymbol, FlowInstrument>>,
+  groups: Readonly<Record<FlowGroupId, FlowGroup>>
+): number => {
+  const list = Object.values(instruments);
+  const netDriftPerGroup = Object.keys(groups).map(
+    (group) =>
+      list.filter(
+        (instrument) =>
+          instrument.group === group && instrument.sources.includes("net_drift")
+      ).length
+  );
+  const optionSymbols = list.filter((instrument) =>
+    instrument.sources.includes("options")
+  ).length;
+  return (
+    Math.max(0, ...netDriftPerGroup) * FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL +
+    optionSymbols * FLOW_OPTION_RUN_PAGES_MAX +
+    FLOW_GEX_REQUESTS_PER_RUN
+  );
+};
+
+// Net drift first (its cadence is per minute); depth before GEX, so the ES − SPX basis can use this
+// run's book.
 const SOURCE_ORDER: readonly FlowSource[] = [
+  "net_drift",
   "depth",
   "ticks",
   "options",
@@ -809,6 +978,7 @@ const COLLECTORS: Readonly<
 > = {
   depth: collectDepth,
   gex: collectGex,
+  net_drift: collectNetDrift,
   options: (state, instrument) => collectOptions(state, instrument, true),
   ticks: collectTicks,
 };
@@ -941,6 +1111,7 @@ export const runFlowCollect = async (
   const runs: Run[] = [];
   for (const source of SOURCE_ORDER)
     for (const symbol of symbols) {
+      if (!FLOW_INSTRUMENTS[symbol].sources.includes(source)) continue;
       const result = await isolated(state, FLOW_INSTRUMENTS[symbol], source);
       await recordSample(state, symbol, source, result);
       runs.push({
