@@ -406,7 +406,7 @@ const isHistoryBar = (bar: unknown): bar is HistoryBar => {
 };
 
 /** Bars a run stored today for this request; null when there is no usable file. */
-export const readCachedBars = async (
+const readCachedBars = async (
   fs: LensIo["fs"],
   file: string
 ): Promise<HistoryBar[] | null> => {
