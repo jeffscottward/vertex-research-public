@@ -19,8 +19,6 @@ export const IBKR_RECOVERY_LOGIN_STATES = [
   "no-login-evidence",
   // docker ps, inspect or logs failed, or more than one gateway container runs (reason says which).
   "gateway-unreadable",
-  // Written only by a recovery service older than card vertex-status-b1-quantvps; kept so it parses.
-  "unknown",
 ] as const;
 export const IBKR_RECOVERY_REQUEST_STATES = [
   "requested",
@@ -137,7 +135,11 @@ export const IBKR_RECOVERY_ERRORS = {
     status: 429,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
-  UNAVAILABLE: { message: "IBKR recovery service unavailable", status: 503 },
+  UNAVAILABLE: {
+    message:
+      "IBKR recovery service did not answer; the request may not have been processed. Check the status before you retry.",
+    status: 503,
+  },
   UPSTREAM_ERROR: { message: "IBKR recovery request failed", status: 502 },
 } as const;
 

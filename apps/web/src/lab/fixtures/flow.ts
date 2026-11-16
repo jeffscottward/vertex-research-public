@@ -1,8 +1,8 @@
-// What: UI lab fixture for the /flow page: a deterministic flow.snapshot for SPY or ES with
+// What: UI lab fixture for the /flow page: a deterministic flow.snapshot for SPY, QQQ, ES or NQ with
 // sampled minutes (and unsampled gaps), a book, options flow, GEX levels, events and confluence.
 // Every value is fictional.
 // Used by: apps/web/src/lab/entries/research.tsx.
-import type { FlowSnapshot } from "@darkfactory/api";
+import type { FlowControl, FlowGroupId, FlowSnapshot } from "@darkfactory/api";
 
 import { formatSigned } from "../../features/flow/format.ts";
 import {
@@ -32,6 +32,22 @@ const LAB_FLOW_INSTRUMENTS: Readonly<
     strike: 6850,
     tick: 0.25,
     ticker: "SPX",
+  },
+  NQ: {
+    basis: 42.5,
+    offExchangeShare: null,
+    price: 25_480.25,
+    strike: 25_450,
+    tick: 0.25,
+    ticker: "NDX",
+  },
+  QQQ: {
+    basis: 0,
+    offExchangeShare: 0.38,
+    price: 612.4,
+    strike: 612,
+    tick: 0.01,
+    ticker: "QQQ",
   },
   SPY: {
     basis: 0,
@@ -93,7 +109,7 @@ export const labFlowSnapshot = (
     putWall: instrument.strike - 40,
   };
   const shift = (value: number): number => value + instrument.basis;
-  return {
+  const snapshot: FlowSnapshot = {
     confluence: {
       bearish: 0,
       bullish: 2,
@@ -294,5 +310,276 @@ export const labFlowSnapshot = (
     symbol,
     windowEnd: LAB_NOW_ISO,
     windowStart: new Date(start).toISOString(),
+  };
+  if (symbol === "SPY" || symbol === "ES") return snapshot;
+  // NQ samples ticks but has no option prints.
+  if (symbol === "NQ")
+    return {
+      ...snapshot,
+      freshness: snapshot.freshness.filter((row) => row.source !== "options"),
+      optionsFlow: { ...snapshot.optionsFlow, topPrints: [] },
+    };
+  // QQQ collects depth and GEX only: no sampled minutes, no option prints.
+  return {
+    ...snapshot,
+    freshness: snapshot.freshness.filter(
+      (row) => row.source === "depth" || row.source === "gex"
+    ),
+    minutes: [],
+    optionsFlow: { ...snapshot.optionsFlow, topPrints: [] },
+  };
+};
+
+const LAB_SESSION_OPEN = Date.parse("2026-10-30T13:30:00.000Z"); // 09:30 New York
+
+const labSeries = (
+  ticker: FlowControl["netDrift"][number]["ticker"],
+  role: "primary" | "check",
+  drift: number
+): FlowControl["netDrift"][number] => {
+  const points = Array.from({ length: 120 }, (_, index) => {
+    const call = roundTo((index + 1) * 40_000 * drift, 0);
+    const put = roundTo((index + 1) * 25_000, 0);
+    return {
+      longer: { netCallPremiumUsd: call * 0.6, netPutPremiumUsd: put * 0.7 },
+      minute: new Date(LAB_SESSION_OPEN + index * 60_000).toISOString(),
+      total: { netCallPremiumUsd: call, netPutPremiumUsd: put },
+      underlyingPrice: null,
+      zeroDte: { netCallPremiumUsd: call * 0.4, netPutPremiumUsd: put * 0.3 },
+    };
+  });
+  const call = roundTo(points.length * 40_000 * drift, 0);
+  const put = points.length * 25_000;
+  const totals = (share: number, putShare: number) => ({
+    callMinusPutUsd: call * share - put * putShare,
+    netCallPremiumUsd: call * share,
+    netCallVolume: 12_000 * share,
+    netPutPremiumUsd: put * putShare,
+    netPutVolume: 9000 * putShare,
+  });
+  return {
+    asOf: labMinutesAgo(1),
+    filterProfile: "otm-clean.v1",
+    partsDetail: null,
+    partsStatus: "complete",
+    points,
+    role,
+    slopeUsdPerMinute: roundTo(40_000 * drift - 25_000, 0),
+    slopeWindowMinutes: 15,
+    ticker,
+    totals: {
+      cumulativeFrom: new Date(LAB_SESSION_OPEN).toISOString(),
+      longer: totals(0.6, 0.7),
+      total: totals(1, 1),
+      zeroDte: totals(0.4, 0.3),
+    },
+  };
+};
+
+/**
+ * Fictional deep trades: ES has 14 trades (9 by the quote rule), 90 sampled minutes with two gaps
+ * and 2 absorption marks; NQ has 3 trades by the tick rule.
+ */
+const labDeepTrades = (sp500: boolean): FlowControl["deepTrades"] => {
+  const at = (minute: number, second = 0) =>
+    new Date(LAB_SESSION_OPEN + minute * 60_000 + second * 1000).toISOString();
+  const count = sp500 ? 14 : 3;
+  const trades = Array.from({ length: count }, (_, index) => {
+    const minute = 100 - index * 6;
+    return {
+      at: at(minute, 7 + index),
+      price: sp500 ? 6870.5 - index * 0.25 : 21_450.25 + index,
+      side: index % 3 === 1 ? ("sell" as const) : ("buy" as const),
+      signing: !sp500 || index >= 9 ? ("tick" as const) : ("quote" as const),
+      size: (sp500 ? 40 : 10) + (index % 4) * 3,
+    };
+  });
+  // Sampled minutes 0..99 without two gaps (minutes 20-24 and 60-64): 90 minutes.
+  const sampledMinutes = Array.from(
+    { length: 100 },
+    (_, index) => index
+  ).filter(
+    (index) => !((index >= 20 && index < 25) || (index >= 60 && index < 65))
+  );
+  const minutes = sampledMinutes.map((minute) => {
+    const inMinute = trades.filter(
+      (trade) => trade.at.slice(0, 16) === at(minute).slice(0, 16)
+    );
+    const volume = (side: "buy" | "sell") =>
+      inMinute
+        .filter((trade) => trade.side === side)
+        .reduce((sum, trade) => sum + trade.size, 0);
+    return {
+      buyVolume: volume("buy"),
+      coveredSeconds: minute % 7 === 0 ? 20 : 30,
+      minute: at(minute),
+      sellVolume: volume("sell"),
+    };
+  });
+  const buyVolume = trades
+    .filter((trade) => trade.side === "buy")
+    .reduce((sum, trade) => sum + trade.size, 0);
+  const sellVolume = trades
+    .filter((trade) => trade.side === "sell")
+    .reduce((sum, trade) => sum + trade.size, 0);
+  return {
+    absorptions: sp500
+      ? [
+          {
+            at: at(98),
+            detail: "Buy absorption: heavy buying, price held",
+            direction: "bearish",
+            price: 6871.25,
+          },
+          {
+            at: at(71),
+            detail: "Sell absorption: heavy selling, price held",
+            direction: "bullish",
+            price: null,
+          },
+        ]
+      : [],
+    capture: "sampled",
+    coverage: sp500
+      ? { seenSeconds: 558, share: 0.31, windowSeconds: 1800 }
+      : { seenSeconds: 108, share: 0.06, windowSeconds: 1800 },
+    limitSize: sp500 ? 40 : 10,
+    minutes: sp500 ? minutes : minutes.slice(-6),
+    signing: sp500 ? null : "tick",
+    sums: {
+      buyVolume,
+      cumulativeFrom: new Date(LAB_SESSION_OPEN).toISOString(),
+      netVolume: buyVolume - sellVolume,
+      sellVolume,
+    },
+    symbol: sp500 ? "ES" : "NQ",
+    totalTrades: count,
+    trades,
+  };
+};
+
+/** A fictional flow-control.v1 document: sp500 buyers since 10:31, nasdaq100 mixed. */
+export const labFlowControl = (group: FlowGroupId): FlowControl => {
+  const sp500 = group === "sp500";
+  const primary = sp500 ? "SPX" : "QQQ";
+  const check = sp500 ? "SPY" : "NDX";
+  const future = sp500 ? "ES" : "NQ";
+  return {
+    agreement: {
+      detail: `Futures: deep trades only (sampled tape, no state): ${future} deep trades are listed below; a futures state needs the full tape`,
+      direction: "neutral",
+      label: "Cannot compare",
+      since: null,
+      state: "not_comparable",
+    },
+    crossCheck: sp500
+      ? {
+          detail:
+            "Stored SPX option prints point the same way as the vendor net drift (48 prints, 0 unread time ranges)",
+          oldestUnreadAt: null,
+          result: "same_direction",
+          storedPrints: 48,
+          ticker: "SPX",
+          unreadRanges: 0,
+        }
+      : {
+          detail: "Option prints are not collected for QQQ",
+          oldestUnreadAt: null,
+          result: "not_collected",
+          storedPrints: 0,
+          ticker: "QQQ",
+          unreadRanges: 0,
+        },
+    deepTrades: labDeepTrades(sp500),
+    freshness: [primary, check].map((instrument) => ({
+      ageSeconds: 60,
+      instrument,
+      lastOkAt: labMinutesAgo(1),
+      message: null,
+      source: "net_drift" as const,
+      state: "fresh" as const,
+    })),
+    futures: {
+      asOf: labMinutesAgo(2),
+      detail: `${future} deep trades are listed below; a futures state needs the full tape`,
+      direction: "neutral",
+      enterRatio: 0.3,
+      inputs: { denominator: null, numerator: null, rows: sp500 ? 14 : 3 },
+      instrument: future,
+      label: "Futures: deep trades only (sampled tape, no state)",
+      noDataReason: "sampled_tape",
+      ratio: null,
+      since: null,
+      state: "no_data",
+      windowEnd: null,
+      windowStart: null,
+    },
+    generatedAt: LAB_NOW_ISO,
+    group,
+    levels: sp500
+      ? {
+          previousClose: 6848.3,
+          sessionHigh: 6880.4,
+          sessionLow: 6841,
+          sessionOpen: 6852.1,
+          source: "one_minute_closes",
+          ticker: "SPX",
+        }
+      : null,
+    netDrift: [
+      labSeries(primary, "primary", sp500 ? 1.4 : 1.2),
+      labSeries(check, "check", sp500 ? 1.1 : 0.4),
+    ],
+    notes: [
+      "Fictional lab data.",
+      "Research only; a state describes recent flow and is not a trade signal.",
+    ],
+    options: {
+      asOf: labMinutesAgo(1),
+      checkState: sp500 ? "buyers" : "sellers",
+      checkTicker: check,
+      detail: sp500
+        ? "Ratio 0.42 over the last 30 min; enter ratio 0.30"
+        : "QQQ ratio 0.36 over the last 30 min; NDX is in control of the other side",
+      direction: sp500 ? "bullish" : "neutral",
+      enterRatio: 0.3,
+      inputs: { denominator: 9_500_000, numerator: 3_990_000, rows: 30 },
+      instrument: primary,
+      label: sp500
+        ? "SPX options: bullish, call buying leads"
+        : "Options mixed: QQQ bullish, NDX bearish",
+      noDataReason: null,
+      primaryTicker: primary,
+      ratio: sp500 ? 0.42 : 0.36,
+      since: sp500 ? "2026-10-30T14:31:00.000Z" : null,
+      state: sp500 ? "buyers" : "mixed",
+      windowEnd: labMinutesAgo(1),
+      windowStart: labMinutesAgo(31),
+    },
+    rules: {
+      enterRatio: 0.3,
+      exitRatio: 0.1,
+      minBuckets: 10,
+      minMinutes: 5,
+      version: "flow-control-rules.v1",
+      windowMinutes: 30,
+    },
+    schemaVersion: "flow-control.v1",
+    session: {
+      date: "2026-10-30",
+      event: sp500 ? null : "fomc",
+      futuresOpen: true,
+      open: true,
+      optionsOpen: true,
+    },
+    study: {
+      agreementDetail:
+        "futures and options agreement is not compared or tested",
+      detail: "Options-side continuation rule (modelled fills): not tested yet",
+      rulesVersion: null,
+      status: "not_tested",
+      strategyId: "flow-control-continuation",
+      testedOn: null,
+    },
   };
 };

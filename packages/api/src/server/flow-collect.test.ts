@@ -12,18 +12,29 @@ import type {
   MarketTicksOutput,
 } from "../contracts/market-data.ts";
 import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
+import { FLOW_GROUPS, FLOW_INSTRUMENTS } from "../flow-features.ts";
+import { netDriftRequest as netDriftRequestFor } from "../flow-net-drift.ts";
 import {
   FLOW_DUE_SECONDS,
   FLOW_OPTION_LOOKBACK_MS,
-  FLOW_SEED_OPTION_LOOKBACK_MS,
   FLOW_OPTION_PAGES_MAX,
   FLOW_OPTION_RUN_PAGES_MAX,
+  FLOW_QUANTDATA_CALLER_RESERVE,
   FLOW_RETENTION_DAYS,
+  FLOW_SEED_OPTION_LOOKBACK_MS,
+  FLOW_TICKS_STAGGER_SECONDS,
   FLOW_TICKS_STARVED_SECONDS,
   type FlowCollectDeps,
+  flowQuantDataRunWorstCase,
+  flowTickTurns,
+  netDriftTurn,
   runFlowCollect,
 } from "./flow-collect.ts";
-import type { QuantDataClient, QuantDataResult } from "./quantdata-client.ts";
+import {
+  DEFAULT_MAX_PER_MINUTE,
+  type QuantDataClient,
+  type QuantDataResult,
+} from "./quantdata-client.ts";
 
 // Monday 2026-11-09 10:00 New York (EST, UTC-5): every source's market is open.
 const OPEN = new Date("2026-11-09T15:00:00.000Z");
@@ -252,29 +263,59 @@ const fakeRepository = (
     insertEvents: vi.fn(count),
     insertGex: vi.fn(count),
     insertOptionPrints: vi.fn(count),
+    insertTickSample: vi.fn<FlowRepository["insertTickSample"]>(
+      async ({ events, trades }) => ({
+        events: events.length,
+        trades: trades.length,
+      })
+    ),
     latestSamples: vi.fn(async (symbol: FlowSymbol) => ({
       latest: latest.filter((row) => row.symbol === symbol),
       latestOk: [],
     })),
     moveOptionGapEnd: gaps.moveOptionGapEnd,
+    netDriftPriceAtOrBefore: vi.fn(async () => null),
     newestDataAt: vi.fn(async () => null),
+    newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
     optionGaps: gaps.optionGaps,
     prune: vi.fn(async () => 42),
+    readLargeTrades: vi.fn(async () => []),
+    readNetDrift: vi.fn(async () => []),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
     upsertMinutes: vi.fn(count),
+    upsertNetDrift: vi.fn<FlowRepository["upsertNetDrift"]>(
+      async (rows) => rows.length
+    ),
   } satisfies FlowRepository;
 };
 
+const netDriftAnswer = (data: unknown = {}): QuantDataResult => ({
+  body: { data },
+  data,
+  ok: true,
+});
+
+/** Net drift requests go to `netDrift`; every other request goes to `pages` (option pages). */
 const fakeQuantData = (results: QuantDataResult[] = [page([optionRow()])]) => {
   const queue = [...results];
+  const pages = vi.fn<QuantDataClient["request"]>(
+    async () => queue.shift() ?? page([])
+  );
+  const netDrift = vi.fn<QuantDataClient["request"]>(async () =>
+    netDriftAnswer()
+  );
   return {
     cooldownSeconds: () => 0,
-    request: vi.fn<QuantDataClient["request"]>(
-      async () => queue.shift() ?? page([])
-    ),
-  } satisfies QuantDataClient;
+    freeStarts: vi.fn(() => 24),
+    netDrift,
+    pages,
+    request: (endpoint, ...rest) =>
+      endpoint === "netDrift"
+        ? netDrift(endpoint, ...rest)
+        : pages(endpoint, ...rest),
+  } satisfies QuantDataClient & Record<string, unknown>;
 };
 
 type Deps = Omit<FlowCollectDeps, "repository" | "quantData"> & {
@@ -285,6 +326,7 @@ type Deps = Omit<FlowCollectDeps, "repository" | "quantData"> & {
 const depsWith = (overrides: Partial<Deps> = {}): Deps => ({
   analytics: vi.fn(async () => analyticsOutput()),
   depth: vi.fn(async () => depthOutput()),
+  elapsedMs: () => 1500,
   now: OPEN,
   pacing: vi.fn(async () => ({ backoffSeconds: 0, recentRequests: 0 })),
   pruneDue: false,
@@ -392,13 +434,18 @@ describe("runFlowCollect seed (operator backfill)", () => {
     });
     const { run } = await collect(deps, { seed: true });
     for (const symbol of ["SPY", "ES"] as const)
-      for (const source of ["depth", "ticks", "options", "gex"] as const)
+      for (const source of ["depth", "ticks", "options"] as const)
         expect(run(symbol, source).status).not.toBe("skipped");
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(run("ES", "gex")).toMatchObject({
+      message: "staggered: GEX ran for another symbol in this run",
+      status: "skipped",
+    });
     expect(run("SPY", "ticks").status).toBe("ok");
     expect(run("ES", "ticks").status).toBe("ok");
     expect(deps.ticks).toHaveBeenCalledTimes(2);
     expect(deps.pacing).toHaveBeenCalledTimes(1);
-    const [, payload] = deps.quantData?.request.mock.calls[0] ?? [];
+    const [, payload] = deps.quantData?.pages.mock.calls[0] ?? [];
     expect(payload).toMatchObject({
       timeRange: {
         startTime: new Date(
@@ -439,15 +486,60 @@ describe("runFlowCollect due and pacing", () => {
     expect(recorded(deps)).not.toContain("ES:depth:skipped");
   });
 
-  it("fetches ticks for one symbol and staggers the other", async () => {
+  it("fetches the SPY turn and staggers ES and NQ", async () => {
     const deps = depsWith();
     const { run } = await collect(deps);
     expect(run("SPY", "ticks").status).toBe("ok");
-    expect(run("ES", "ticks")).toMatchObject({
-      message: "staggered: another tick sample 0 s ago",
-      status: "skipped",
-    });
+    for (const symbol of ["ES", "NQ"] as const)
+      expect(run(symbol, "ticks")).toMatchObject({
+        message: "staggered: another tick sample 0 s ago",
+        status: "skipped",
+      });
     expect(deps.ticks).toHaveBeenCalledTimes(1);
+  });
+
+  it("the turns times the turn length stay inside the starved limit", () => {
+    const turns = flowTickTurns(FLOW_INSTRUMENTS);
+    expect(turns).toEqual([["SPY"], ["ES"], ["NQ"]]);
+    // The 60 s timer starts a turn about every 120 s (the first run after the 110 s stagger).
+    const turnSeconds = Math.ceil(FLOW_TICKS_STAGGER_SECONDS / 60) * 60;
+    expect(turns.length * turnSeconds).toBe(360);
+    expect(turns.length * turnSeconds).toBeLessThanOrEqual(
+      FLOW_TICKS_STARVED_SECONDS
+    );
+    expect(FLOW_DUE_SECONDS.ticks).toBeLessThan(turns.length * turnSeconds);
+    expect(FLOW_DUE_SECONDS.ticks).toBeGreaterThan(
+      (turns.length - 1) * turnSeconds
+    );
+    expect(4 * turnSeconds).toBeGreaterThan(FLOW_TICKS_STARVED_SECONDS);
+  });
+
+  it("the three symbols take turns: SPY, then ES 120 s later, then NQ", async () => {
+    const fetched: FlowSymbol[] = [];
+    const attempts = new Map<FlowSymbol, number>();
+    for (const offset of [0, 60, 120, 180, 240, 300, 360]) {
+      const now = new Date(OPEN.getTime() + offset * 1000);
+      const deps = depsWith({
+        now,
+        repository: fakeRepository(
+          [...attempts].map(([symbol, at]) =>
+            sample(symbol, "ticks", offset - at, now)
+          )
+        ),
+        ticks: vi.fn(async (instrument) => {
+          fetched.push(instrument.symbol);
+          attempts.set(instrument.symbol, offset);
+          return ticksOutput();
+        }),
+      });
+      await collect(deps);
+    }
+    expect(fetched).toEqual(["SPY", "ES", "NQ", "SPY"]);
+    expect([...attempts]).toEqual([
+      ["SPY", 360],
+      ["ES", 120],
+      ["NQ", 240],
+    ]);
   });
 
   it("staggers against a stored tick sample of the other symbol", async () => {
@@ -487,12 +579,14 @@ describe("runFlowCollect due and pacing", () => {
       pacing: vi.fn(async () => ({ backoffSeconds: 0, recentRequests: 3 })),
       repository: fakeRepository([
         sample("ES", "ticks", FLOW_DUE_SECONDS.ticks + 5),
+        sample("NQ", "ticks", FLOW_DUE_SECONDS.ticks + 5),
         sample("SPY", "ticks", FLOW_DUE_SECONDS.ticks + 5),
       ]),
     });
     const { run } = await collect(deps);
     const busy = "IBKR window busy (3/6 in 120 s); /charts has priority";
     expect(run("ES", "ticks").message).toBe(busy);
+    expect(run("NQ", "ticks").message).toBe(busy);
     expect(run("SPY", "ticks").message).toBe(busy);
     expect(deps.pacing).toHaveBeenCalledTimes(1);
     expect(deps.ticks).not.toHaveBeenCalled();
@@ -763,7 +857,7 @@ describe("runFlowCollect options", () => {
       message: `1 prints on 1 page(s) since ${floor.toISOString()}`,
       status: "ok",
     });
-    expect(deps.quantData?.request).toHaveBeenCalledWith(
+    expect(deps.quantData?.pages).toHaveBeenCalledWith(
       "orderFlow",
       {
         filter: { ticker: "SPY" },
@@ -822,7 +916,7 @@ describe("runFlowCollect options", () => {
       status: "ok",
     });
     expect(run("SPY", "options").message).toMatch(/^1 prints on 1 page\(s\)/);
-    expect(quantData.request.mock.calls[1]?.[1]).toMatchObject({
+    expect(quantData.pages.mock.calls[1]?.[1]).toMatchObject({
       searchAfter: [1, "a"],
     });
   });
@@ -842,7 +936,7 @@ describe("runFlowCollect options", () => {
     const floor = new Date(OPEN.getTime() - FLOW_OPTION_LOOKBACK_MS);
     const oldest = new Date(OPEN.getTime() - 60_000);
     const gapPages = FLOW_OPTION_RUN_PAGES_MAX - FLOW_OPTION_PAGES_MAX;
-    expect(quantData.request).toHaveBeenCalledTimes(FLOW_OPTION_RUN_PAGES_MAX);
+    expect(quantData.pages).toHaveBeenCalledTimes(FLOW_OPTION_RUN_PAGES_MAX);
     // The gap ends 1 ms after the oldest print, so prints sharing its millisecond are read again.
     expect(gaps.addOptionGap).toHaveBeenCalledWith({
       createdAt: OPEN,
@@ -851,7 +945,7 @@ describe("runFlowCollect options", () => {
       symbol: "SPY",
     });
     expect(
-      quantData.request.mock.calls[FLOW_OPTION_PAGES_MAX]?.[1]
+      quantData.pages.mock.calls[FLOW_OPTION_PAGES_MAX]?.[1]
     ).toStrictEqual({
       filter: { ticker: "SPY" },
       timeRange: {
@@ -986,7 +1080,16 @@ const flowSource = (times: readonly number[], size = 2) => {
     );
   });
   return {
-    client: { cooldownSeconds: () => 0, request } satisfies QuantDataClient,
+    client: {
+      cooldownSeconds: () => 0,
+      freeStarts: vi.fn(() => 24),
+      netDrift: vi.fn<QuantDataClient["request"]>(async () => netDriftAnswer()),
+      pages: request,
+      request: (endpoint, ...rest) =>
+        endpoint === "netDrift"
+          ? Promise.resolve(netDriftAnswer())
+          : request(endpoint, ...rest),
+    } satisfies QuantDataClient & Record<string, unknown>,
     ids: rows.map((row) => row.id),
     request,
   };
@@ -1225,7 +1328,7 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
     expect(run("SPY", "options").message).toContain(
       "page 2 failed, older prints of this window queued as a gap; gaps not read after a failed page (2 left)"
     );
-    expect(quantData.request).toHaveBeenCalledTimes(2);
+    expect(quantData.pages).toHaveBeenCalledTimes(2);
     expect(gaps.rows()).toHaveLength(2);
   });
 
@@ -1255,9 +1358,11 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
     const repository = fakeRepository([], undefined, gaps);
     repository.insertOptionPrints.mockRejectedValueOnce(new Error("db down"));
     const deps = depsWith({ quantData: source.client, repository });
-    await expect(collect(deps, { symbols: ["SPY"] })).rejects.toThrow(
-      "db down"
-    );
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options")).toMatchObject({
+      message: "storage: write failed (Error)",
+      status: "unavailable",
+    });
     expect(gaps.rows()).toHaveLength(1);
   });
 
@@ -1418,7 +1523,7 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
       message: "relation missing",
       status: "unavailable",
     });
-    expect(open.quantData?.request).not.toHaveBeenCalled();
+    expect(open.quantData?.pages).not.toHaveBeenCalled();
     const closed = depsWith({
       now: CLOSE,
       repository: fakeRepository([], undefined, gaps),
@@ -1465,8 +1570,8 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
     expect(run("SPY", "options").message).toContain(
       "gaps: 0 prints on 1 page(s), 1 closed, 0 left"
     );
-    expect(quantData.request).toHaveBeenCalledTimes(2);
-    expect(quantData.request.mock.calls[1]?.[1]).toMatchObject({
+    expect(quantData.pages).toHaveBeenCalledTimes(2);
+    expect(quantData.pages.mock.calls[1]?.[1]).toMatchObject({
       timeRange: { endTime: floor.toISOString() },
     });
     expect(gaps.rows()).toStrictEqual([]);
@@ -1634,27 +1739,51 @@ describe("runFlowCollect storage", () => {
   it("stores one sample per recorded attempt", async () => {
     const deps = depsWith();
     const { output } = await collect(deps);
-    expect(output.runs).toHaveLength(8);
+    expect(output.runs).toHaveLength(17);
     expect(recorded(deps)).toEqual([
+      "SPY:net_drift:empty",
+      "ES:net_drift:empty",
       "SPY:depth:ok",
       "ES:depth:ok",
+      "QQQ:depth:ok",
+      "NQ:depth:ok",
       "SPY:ticks:ok",
       "SPY:options:ok",
       "ES:options:empty",
       "SPY:gex:ok",
-      "ES:gex:ok",
     ]);
     expect(output.at).toBe(OPEN.toISOString());
   });
 
-  it("prunes only when due, with the retention cutoff", async () => {
+  it("prunes each table with its own cutoff", async () => {
     const off = depsWith();
     expect((await collect(off)).output.pruned).toBe(0);
     expect(off.repository.prune).not.toHaveBeenCalled();
     const due = depsWith({ pruneDue: true });
     expect((await collect(due)).output.pruned).toBe(42);
+    const days14 = new Date(OPEN.getTime() - 14 * 86_400_000);
+    expect(due.repository.prune).toHaveBeenCalledWith({
+      flow_book: days14,
+      flow_events: days14,
+      flow_gex: days14,
+      flow_large_trades: new Date(OPEN.getTime() - 730 * 86_400_000),
+      flow_minutes: days14,
+      flow_net_drift: new Date(OPEN.getTime() - 730 * 86_400_000),
+      flow_option_gaps: days14,
+      flow_option_prints: days14,
+      flow_samples: days14,
+    });
+    expect(FLOW_RETENTION_DAYS.flow_net_drift).toBe(730);
+  });
+
+  it("prunes flow_large_trades with the 730-day cutoff", async () => {
+    const due = depsWith({ pruneDue: true });
+    await collect(due);
+    expect(FLOW_RETENTION_DAYS.flow_large_trades).toBe(730);
     expect(due.repository.prune).toHaveBeenCalledWith(
-      new Date(OPEN.getTime() - FLOW_RETENTION_DAYS * 86_400_000)
+      expect.objectContaining({
+        flow_large_trades: new Date(OPEN.getTime() - 730 * 86_400_000),
+      })
     );
   });
 
@@ -1666,5 +1795,549 @@ describe("runFlowCollect storage", () => {
     );
     expect(deps.repository.latestSamples).toHaveBeenCalledWith("ES");
     expect(deps.repository.latestSamples).toHaveBeenCalledWith("SPY");
+  });
+});
+
+describe("runFlowCollect storage errors and the run budget", () => {
+  it("records a storage error as a sample and continues with the next source", async () => {
+    const deps = depsWith();
+    deps.repository.upsertMinutes.mockRejectedValueOnce(
+      new TypeError("relation missing: secret sql")
+    );
+    const { output, run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks")).toMatchObject({
+      events: 0,
+      items: 0,
+      message: "storage: write failed (TypeError)",
+      status: "unavailable",
+    });
+    expect(JSON.stringify(output)).not.toContain("secret sql");
+    expect(run("SPY", "options").status).toBe("ok");
+    expect(recorded(deps)).toContain("SPY:ticks:unavailable");
+  });
+
+  it("names a thrown value that is not an error by its type", async () => {
+    const deps = depsWith();
+    deps.repository.upsertMinutes.mockRejectedValueOnce("plain text");
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks").message).toBe("storage: write failed (string)");
+  });
+
+  const throwingQuotes = (thrown: unknown): MarketTicksOutput =>
+    Object.defineProperty(ticksOutput(), "quotes", {
+      get: () => {
+        throw thrown;
+      },
+    });
+
+  it("names an error outside the repository as a collector failure, not storage", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () => throwingQuotes(new RangeError("bad tape"))),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks")).toMatchObject({
+      message: "collector failed (RangeError)",
+      status: "unavailable",
+    });
+  });
+
+  it("names a non-error thrown outside the repository by its type", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () => throwingQuotes("plain text")),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks").message).toBe("collector failed (string)");
+  });
+
+  it("returns the run entry when the sample write also fails", async () => {
+    const deps = depsWith();
+    deps.repository.recordSample.mockRejectedValue(new Error("db down"));
+    const { output } = await collect(deps, { symbols: ["SPY"] });
+    expect(output.runs.map((row) => row.source)).toEqual([
+      "net_drift",
+      "depth",
+      "ticks",
+      "options",
+      "gex",
+    ]);
+  });
+
+  it("ends the run when the sample lookup fails", async () => {
+    const deps = depsWith();
+    deps.repository.latestSamples.mockRejectedValueOnce(new Error("db down"));
+    await expect(collect(deps)).rejects.toThrow("db down");
+  });
+
+  it("runs GEX for one symbol per run", async () => {
+    const deps = depsWith();
+    const { run } = await collect(deps);
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(run("ES", "gex")).toMatchObject({
+      message: "staggered: GEX ran for another symbol in this run",
+      status: "skipped",
+    });
+    expect(deps.analytics).toHaveBeenCalledTimes(1);
+    expect(recorded(deps)).not.toContain("ES:gex:skipped");
+  });
+
+  it("skips a source whose worst case does not fit in the free starts and stores no sample for it", async () => {
+    const quantData = fakeQuantData();
+    quantData.freeStarts.mockReturnValue(7);
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options")).toMatchObject({
+      message:
+        "budget: 7 QuantData starts free beyond the reserve of 6, 8 needed",
+      status: "skipped",
+    });
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(quantData.pages).not.toHaveBeenCalled();
+    expect(recorded(deps)).not.toContain("SPY:options:skipped");
+    quantData.freeStarts.mockReturnValue(2);
+    const second = await collect(depsWith({ quantData }), { symbols: ["SPY"] });
+    expect(second.run("SPY", "gex").message).toBe(
+      "budget: 2 QuantData starts free beyond the reserve of 6, 3 needed"
+    );
+  });
+
+  it("applies the free-start check on a seed run", async () => {
+    const quantData = fakeQuantData();
+    quantData.freeStarts.mockReturnValue(0);
+    const deps = depsWith({
+      now: new Date("2026-11-07T15:00:00.000Z"),
+      quantData,
+    });
+    const { run } = await collect(deps, { seed: true, symbols: ["SPY"] });
+    expect(run("SPY", "options").message).toBe(
+      "budget: 0 QuantData starts free beyond the reserve of 6, 8 needed"
+    );
+    expect(run("SPY", "gex").status).toBe("skipped");
+  });
+
+  it("reports the free starts, the reserve, the IBKR window and the run time", async () => {
+    const { output } = await collect(depsWith({ elapsedMs: () => 12_600 }));
+    expect(output.budget).toEqual({
+      ibkrLimit: 6,
+      ibkrRecent: 2,
+      quantDataFree: 24,
+      quantDataReserve: 6,
+      runSeconds: 13,
+    });
+    const closed = await collect(
+      depsWith({ now: new Date("2026-11-08T15:00:00.000Z"), quantData: null })
+    );
+    expect(closed.output.budget).toMatchObject({
+      ibkrRecent: null,
+      quantDataFree: null,
+    });
+  });
+});
+
+describe("runFlowCollect net drift", () => {
+  const ODD = new Date(OPEN.getTime() + 60_000);
+  const BUCKET = {
+    netCallPremium: 1000,
+    netCallVolume: 10,
+    netPutPremium: -200,
+    netPutVolume: -2,
+    stockPrice: 683.4,
+  };
+  const answer = (...starts: Date[]): QuantDataResult =>
+    netDriftAnswer(
+      Object.fromEntries(starts.map((at) => [String(at.getTime()), BUCKET]))
+    );
+  const withNetDrift = (
+    ...results: QuantDataResult[]
+  ): ReturnType<typeof fakeQuantData> => {
+    const quantData = fakeQuantData();
+    for (const result of results)
+      quantData.netDrift.mockResolvedValueOnce(result);
+    return quantData;
+  };
+  const minuteAgo = (minutes: number, now: Date = OPEN) =>
+    new Date(now.getTime() - minutes * 60_000);
+
+  it("runs net drift first", async () => {
+    const { output } = await collect(depsWith(), { symbols: ["SPY"] });
+    expect(output.runs[0]?.source).toBe("net_drift");
+  });
+
+  it("skips a source that the symbol does not list", async () => {
+    const deps = depsWith({ now: ODD });
+    const { output } = await collect(deps, { symbols: ["QQQ", "NQ"] });
+    expect(output.runs.map((row) => `${row.symbol}:${row.source}`)).toEqual([
+      "QQQ:net_drift",
+      "NQ:net_drift",
+      "QQQ:depth",
+      "NQ:depth",
+      "NQ:ticks",
+      "QQQ:gex",
+      "NQ:gex",
+    ]);
+    expect(deps.ticks).toHaveBeenCalledTimes(1);
+    expect(deps.ticks).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: "NQ" })
+    );
+    expect(deps.quantData?.pages).not.toHaveBeenCalled();
+  });
+
+  it("sends the total and the zero_dte request per symbol and stores both parts", async () => {
+    const quantData = withNetDrift(
+      answer(minuteAgo(2), minuteAgo(1)),
+      answer(minuteAgo(1))
+    );
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { symbols: ["ES"] });
+    expect(quantData.netDrift.mock.calls.map((call) => call[1])).toEqual([
+      netDriftRequestFor("2026-11-09", "SPX", "total"),
+      netDriftRequestFor("2026-11-09", "SPX", "zero_dte"),
+    ]);
+    expect(quantData.netDrift.mock.calls[0]?.[2]).toBe(30_000);
+    const written = deps.repository.upsertNetDrift.mock.calls.flatMap(
+      ([rows]) => rows
+    );
+    expect(written.map((row) => `${row.ticker}:${row.part}`)).toEqual([
+      "SPX:total",
+      "SPX:total",
+      "SPX:zero_dte",
+    ]);
+    expect(written[0]).toMatchObject({
+      filterProfile: "otm-clean.v1",
+      minute: minuteAgo(2),
+      netCallPremium: 1000,
+      underlyingPrice: 683.4,
+    });
+    expect(run("ES", "net_drift")).toMatchObject({
+      items: 3,
+      message: "SPX total 2 buckets, zero_dte 1, newest 09:59 NY, 2 requests",
+      status: "ok",
+    });
+  });
+
+  it("runs sp500 on even minutes and nasdaq100 on odd minutes", async () => {
+    expect(netDriftTurn("sp500", OPEN)).toBe(true);
+    expect(netDriftTurn("nasdaq100", OPEN)).toBe(false);
+    expect(netDriftTurn("nasdaq100", ODD)).toBe(true);
+    const even = await collect(depsWith(), { symbols: ["SPY", "QQQ"] });
+    expect(even.run("QQQ", "net_drift")).toMatchObject({
+      message: "staggered: nasdaq100 net drift runs on odd minutes",
+      status: "skipped",
+    });
+    expect(even.run("SPY", "net_drift").status).toBe("empty");
+    const odd = await collect(depsWith({ now: ODD }), {
+      symbols: ["SPY", "QQQ"],
+    });
+    expect(odd.run("SPY", "net_drift").message).toBe(
+      "staggered: sp500 net drift runs on even minutes"
+    );
+    expect(odd.run("QQQ", "net_drift").status).toBe("empty");
+  });
+
+  it("ignores the stagger on a seed run and asks for the newest weekday", async () => {
+    const sunday = new Date("2026-11-08T15:01:00.000Z");
+    const quantData = fakeQuantData();
+    const { run } = await collect(depsWith({ now: sunday, quantData }), {
+      seed: true,
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift").status).toBe("empty");
+    expect(quantData.netDrift.mock.calls[0]?.[1]).toMatchObject({
+      sessionDate: "2026-11-06",
+    });
+  });
+
+  it("records unavailable with the vendor rate limit end time when the total part is refused", async () => {
+    const limited = (retryAfterSeconds: number | null): QuantDataResult => ({
+      message: "QuantData netDrift: HTTP 429.",
+      ok: false,
+      reason: "rate_limited",
+      retryAfterSeconds,
+    });
+    const quantData = withNetDrift(limited(120));
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "rate limited until 10:02 ET",
+      status: "unavailable",
+    });
+    expect(quantData.netDrift).toHaveBeenCalledTimes(1);
+    const cooling = {
+      ...withNetDrift(limited(null)),
+      cooldownSeconds: () => 300,
+    };
+    const second = await collect(depsWith({ quantData: cooling }), {
+      symbols: ["SPY"],
+    });
+    expect(second.run("SPY", "net_drift").message).toBe(
+      "rate limited until 10:05 ET"
+    );
+    const failing = withNetDrift(refused("QuantData netDrift: HTTP 500."));
+    const third = await collect(depsWith({ quantData: failing }), {
+      symbols: ["SPY"],
+    });
+    expect(third.run("SPY", "net_drift")).toMatchObject({
+      message: "QuantData netDrift: HTTP 500.",
+      status: "unavailable",
+    });
+  });
+
+  it("skips net drift and stores no sample when the total part is refused for the caller reserve", async () => {
+    const quantData = withNetDrift({
+      message: "kept free",
+      ok: false,
+      reason: "reserved",
+      retryAfterSeconds: 10,
+    });
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "budget: QuantData starts kept free for other callers",
+      status: "skipped",
+    });
+    expect(quantData.netDrift).toHaveBeenCalledTimes(1);
+    expect(recorded(deps)).not.toContain("SPY:net_drift:skipped");
+  });
+
+  it("stays ok and names the failed zero_dte part", async () => {
+    const quantData = withNetDrift(
+      answer(minuteAgo(1)),
+      refused("QuantData netDrift: HTTP 502.")
+    );
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      items: 1,
+      message:
+        "SPY total 1 buckets, zero_dte 0, newest 09:59 NY, 2 requests; zero_dte failed (QuantData netDrift: HTTP 502.)",
+      status: "ok",
+    });
+    const reserved = withNetDrift(answer(minuteAgo(1)), {
+      message: "QuantData netDrift: 6 kept free.",
+      ok: false,
+      reason: "reserved",
+      retryAfterSeconds: 5,
+    });
+    const second = await collect(depsWith({ quantData: reserved }), {
+      symbols: ["SPY"],
+    });
+    expect(second.run("SPY", "net_drift").message).toContain(
+      "; zero_dte failed (QuantData netDrift: 6 kept free.)"
+    );
+  });
+
+  it("records empty without a newest time for zero buckets", async () => {
+    const quantData = withNetDrift(answer(), answer());
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "SPY total 0 buckets, zero_dte 0, 2 requests",
+      status: "empty",
+    });
+  });
+
+  it("records empty for a newest bucket older than 300 s", async () => {
+    const quantData = withNetDrift(answer(minuteAgo(6)), answer());
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "SPY total 1 buckets, zero_dte 0, newest 09:54 NY, 2 requests",
+      status: "empty",
+    });
+    const exact = withNetDrift(answer(minuteAgo(5)), answer());
+    const second = await collect(depsWith({ quantData: exact }), {
+      symbols: ["SPY"],
+    });
+    expect(second.run("SPY", "net_drift").status).toBe("ok");
+  });
+
+  it("records a total answer of an unexpected shape as unavailable", async () => {
+    const quantData = withNetDrift(netDriftAnswer("not an object"));
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "net drift answer has an unexpected shape: (root)",
+      status: "unavailable",
+    });
+  });
+
+  it("answers not configured without a client", async () => {
+    const { run } = await collect(depsWith({ quantData: null }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "QuantData not configured",
+      status: "skipped",
+    });
+  });
+
+  it("stores nothing on a dry run but counts the buckets", async () => {
+    const quantData = withNetDrift(answer(minuteAgo(1)), answer(minuteAgo(1)));
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { dryRun: true, symbols: ["SPY"] });
+    expect(run("SPY", "net_drift").items).toBe(2);
+    expect(deps.repository.upsertNetDrift).not.toHaveBeenCalled();
+  });
+
+  it("keeps the worst case of one run inside the client window minus the caller reserve", () => {
+    expect(flowQuantDataRunWorstCase(FLOW_INSTRUMENTS, FLOW_GROUPS)).toBe(23);
+    expect(23).toBeLessThanOrEqual(
+      DEFAULT_MAX_PER_MINUTE - FLOW_QUANTDATA_CALLER_RESERVE
+    );
+  });
+
+  it("reads net drift on every run of the group's minute", async () => {
+    const deps = depsWith({
+      repository: fakeRepository([sample("SPY", "net_drift", 1)]),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(FLOW_DUE_SECONDS.net_drift).toBe(0);
+    expect(run("SPY", "net_drift").status).toBe("empty");
+  });
+
+  it("is closed after 16:20 New York", async () => {
+    const { run } = await collect(
+      depsWith({ now: new Date("2026-11-09T21:20:00.000Z") }),
+      { symbols: ["SPY"] }
+    );
+    expect(run("SPY", "net_drift").message).toBe("market closed");
+  });
+});
+
+describe("runFlowCollect deep trades", () => {
+  const T = NOW_S - 60;
+  const futureTape = ticksOutput({
+    quotes: [{ ap: 6870.25, as: 5, bp: 6870, bs: 5, t: T }],
+    trades: [
+      { c: null, p: 6870, s: 1, t: T, x: null },
+      { c: null, p: 6870.25, s: 45, t: T + 10, x: null },
+      { c: null, p: 6870.25, s: 50, t: T + 10, x: null },
+      { c: null, p: 6870.5, s: 2, t: T + 20, x: null },
+    ],
+  });
+  const tickTurn = (symbol: FlowSymbol): FlowSymbol[] => [symbol];
+
+  it("stores the events and the deep trades of a future in one write, and SPY events as before", async () => {
+    const es = depsWith({ ticks: vi.fn(async () => futureTape) });
+    const { run } = await collect(es, { symbols: tickTurn("ES") });
+    expect(es.repository.insertTickSample).toHaveBeenCalledTimes(1);
+    const [[input]] = es.repository.insertTickSample.mock.calls as [
+      [Parameters<FlowRepository["insertTickSample"]>[0]],
+    ];
+    expect(input.trades.map((row) => [row.size, row.seq, row.side])).toEqual([
+      [45, 0, "buy"],
+      [50, 1, "buy"],
+    ]);
+    expect(input.events.map((event) => event.kind)).toContain("large_print");
+    // insertEvents only takes the options events of ES; the tick events went with the trades.
+    for (const [rows] of es.repository.insertEvents.mock.calls)
+      expect(
+        (rows as readonly { kind: string }[]).map((row) => row.kind)
+      ).not.toContain("large_print");
+    expect(run("ES", "ticks").events).toBe(input.events.length);
+
+    const spy = depsWith();
+    await collect(spy, { symbols: tickTurn("SPY") });
+    expect(spy.repository.insertTickSample).not.toHaveBeenCalled();
+    // SPY tick events still go through insertEvents (empty for this tape).
+    expect(spy.repository.insertEvents).toHaveBeenCalledWith([]);
+  });
+
+  it("does not call the deep-trade detector for an empty sample", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () => ticksOutput({ quotes: [], trades: [] })),
+    });
+    const { run } = await collect(deps, { symbols: tickTurn("NQ") });
+    expect(deps.repository.insertTickSample).toHaveBeenCalledWith({
+      events: [],
+      trades: [],
+    });
+    expect(run("NQ", "ticks")).toMatchObject({
+      message:
+        "no prints; 0 deep trades, 0 new, 0 deep prints without a side, 0 with an invalid price",
+      status: "empty",
+    });
+  });
+
+  it("counts new deep trades and deep prints without a side in the message", async () => {
+    const repository = fakeRepository();
+    repository.insertTickSample.mockResolvedValueOnce({ events: 0, trades: 1 });
+    const deps = depsWith({
+      repository,
+      ticks: vi.fn(async () =>
+        ticksOutput({
+          quotes: [],
+          trades: [
+            { c: null, p: 6870, s: 1, t: T, x: null },
+            { c: null, p: 6870.25, s: 45, t: T + 10, x: null },
+            { c: null, p: 6870.25, s: 50, t: T + 10, x: null },
+            { c: null, p: 6870.5, s: 2, t: T + 20, x: null },
+          ],
+        })
+      ),
+    });
+    const { run } = await collect(deps, { symbols: tickTurn("ES") });
+    expect(run("ES", "ticks").message).toMatch(
+      /; 2 deep trades, 1 new, 0 deep prints without a side, 0 with an invalid price$/
+    );
+    const unsigned = depsWith({
+      ticks: vi.fn(async () =>
+        ticksOutput({
+          quotes: [],
+          trades: [
+            { c: null, p: 6870, s: 45, t: T, x: null },
+            { c: null, p: 6870, s: 45, t: T + 10, x: null },
+            { c: null, p: 6870, s: 2, t: T + 20, x: null },
+          ],
+        })
+      ),
+    });
+    const second = await collect(unsigned, { symbols: tickTurn("ES") });
+    expect(second.run("ES", "ticks").message).toMatch(
+      /; 0 deep trades, 0 new, 1 deep prints without a side, 0 with an invalid price$/
+    );
+  });
+
+  it("leaves out a deep print with an invalid price, stores the rest of the sample and counts it", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () =>
+        ticksOutput({
+          quotes: [],
+          trades: [
+            { c: null, p: 6870, s: 1, t: T, x: null },
+            { c: null, p: 6870.25, s: 45, t: T + 10, x: null },
+            { c: null, p: 0, s: 60, t: T + 10, x: null },
+            { c: null, p: 6870.5, s: 2, t: T + 20, x: null },
+          ],
+        })
+      ),
+    });
+    const { run } = await collect(deps, { symbols: tickTurn("ES") });
+    const [[input]] = deps.repository.insertTickSample.mock.calls as [
+      [Parameters<FlowRepository["insertTickSample"]>[0]],
+    ];
+    expect(input.trades.map((row) => [row.size, row.seq, row.price])).toEqual([
+      [45, 0, 6870.25],
+    ]);
+    expect(run("ES", "ticks").message).toMatch(
+      /; 1 deep trades, 1 new, 0 deep prints without a side, 1 with an invalid price$/
+    );
+  });
+
+  it("stores nothing on a dry run and reports the counts", async () => {
+    const deps = depsWith({ ticks: vi.fn(async () => futureTape) });
+    const { run } = await collect(deps, {
+      dryRun: true,
+      symbols: tickTurn("ES"),
+    });
+    expect(deps.repository.insertTickSample).not.toHaveBeenCalled();
+    expect(run("ES", "ticks").message).toMatch(
+      /; 2 deep trades, 2 new, 0 deep prints without a side, 0 with an invalid price$/
+    );
+    expect(run("ES", "ticks").events).toBeGreaterThan(0);
   });
 });

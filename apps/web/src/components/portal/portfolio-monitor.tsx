@@ -618,7 +618,8 @@ export const AccountModeAlert = ({
   );
 };
 
-// Read-only IBKR monitor. It polls portfolioMonitor.snapshot and never sends anything to IBKR.
+// IBKR monitor. It polls portfolioMonitor.snapshot, a read-only feed. With an ordersGateway it also
+// shows Close / Buy / Sell per position; an order is sent only after its confirm dialog.
 // Layout (owner 2026-11-04): status line -> alerts -> collapsible Summary (account KPIs) ->
 // sticky tab bar (sections, then the page's extra views) -> tab content. The tab is in ?tab=.
 export const PortfolioMonitor = ({

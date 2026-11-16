@@ -24,6 +24,8 @@ import {
   type FlowGexRow,
   type FlowSampleRow,
   type FlowSnapshotRows,
+  flowClockText,
+  flowSessionDate,
   flowSessionOpen,
   pct,
   vote,
@@ -626,5 +628,100 @@ describe("buildFlowSnapshot", () => {
     expect(snapshot.confluence.factors[3]?.value).toBe("n/a");
     expect(snapshot.events).toEqual([]);
     expect(snapshot.minutes).toEqual([]);
+  });
+});
+
+describe("net drift sessions and four symbols", () => {
+  it("opens net drift from 09:30 to 16:20 New York on weekdays", () => {
+    expect(flowSessionOpen("net_drift", "QQQ", MON_09_00)).toBe(false);
+    expect(flowSessionOpen("net_drift", "QQQ", MON_10_00)).toBe(true);
+    expect(flowSessionOpen("net_drift", "NQ", MON_16_15)).toBe(true);
+    expect(
+      flowSessionOpen("net_drift", "SPY", new Date("2026-11-09T21:20:00Z"))
+    ).toBe(false);
+    expect(
+      flowSessionOpen("net_drift", "SPY", new Date("2026-11-07T15:00:00Z"))
+    ).toBe(false);
+    expect(
+      flowSessionOpen("net_drift", "SPY", new Date("2026-11-08T15:00:00Z"))
+    ).toBe(false);
+    expect(FLOW_STALE_SECONDS.net_drift).toBe(300);
+  });
+
+  it("gives the newest weekday as the session date", () => {
+    expect(flowSessionDate(MON_10_00)).toBe("2026-11-09");
+    expect(flowSessionDate(new Date("2026-11-07T15:00:00Z"))).toBe(
+      "2026-11-06"
+    );
+    expect(flowSessionDate(new Date("2026-11-08T15:00:00Z"))).toBe(
+      "2026-11-06"
+    );
+    expect(flowSessionDate(MON_20_30)).toBe("2026-11-09");
+    // Before 09:30 New York: the previous weekday (Monday steps back to Friday).
+    expect(flowSessionDate(MON_09_00)).toBe("2026-11-06");
+    expect(flowSessionDate(new Date("2026-11-10T14:29:00Z"))).toBe(
+      "2026-11-09"
+    );
+    expect(flowSessionDate(new Date("2026-11-10T14:30:00Z"))).toBe(
+      "2026-11-10"
+    );
+    expect(flowClockText(MON_10_00)).toBe("10:00");
+    expect(flowClockText(MON_09_00)).toBe("09:00");
+  });
+
+  it("lists freshness only for the sources a symbol collects", () => {
+    expect(
+      buildFreshness(rowsOf({ symbol: "QQQ" })).map((row) => row.source)
+    ).toEqual(["depth", "gex"]);
+  });
+
+  it("keeps the SPY freshness rows unchanged", () => {
+    expect(buildFreshness(rowsOf()).map((row) => row.source)).toEqual([
+      "ticks",
+      "depth",
+      "options",
+      "gex",
+    ]);
+  });
+
+  it("QQQ confluence has no order-flow or options factor with data", () => {
+    const fresh = (["ticks", "depth", "options", "gex"] as const).map(
+      (source) => ({ ...sample(source, ago(30)), symbol: "QQQ" as const })
+    );
+    const snapshot = buildFlowSnapshot(
+      rowsOf({ latest: fresh, latestOk: fresh, symbol: "QQQ" })
+    );
+    expect(FlowSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    const values = Object.fromEntries(
+      snapshot.confluence.factors.map((factor) => [factor.key, factor.vote])
+    );
+    expect(snapshot.freshness.map((row) => row.source)).toEqual([
+      "depth",
+      "gex",
+    ]);
+    expect(values["order_flow"]).toBe("unknown");
+    expect(values["options_flow"]).toBe("unknown");
+  });
+
+  it("gives QQQ and NQ their registry note and no off-exchange share for NQ", () => {
+    const qqq = buildFlowSnapshot(rowsOf({ symbol: "QQQ" }));
+    const nq = buildFlowSnapshot(
+      rowsOf({ minutes: [minuteRow(ago(60))], symbol: "NQ" })
+    );
+    expect(qqq.notes[1]).toMatch(/^QQQ book is IEX depth/);
+    expect(qqq.notes[0]).toBe(
+      "Trades and option prints are not collected for QQQ; this view shows depth and GEX only."
+    );
+    expect(qqq.notes).toHaveLength(3);
+    // NQ samples ticks (pull request 2) but has no option prints.
+    expect(nq.notes[0]).toBe(
+      "Ticks are sampled (up to 1000 prints per symbol about every 6 minutes: three tick turns, SPY, ES, NQ); coveredSeconds says how much of each minute was seen."
+    );
+    expect(nq.notes[1]).toBe(
+      "Trade side: quote rule, then tick rule. Option prints are not collected for NQ."
+    );
+    expect(nq.notes[2]).toMatch(/^NQ options context uses NDX/);
+    expect(nq.notes).toHaveLength(4);
+    expect(nq.orderFlow.offExchangeShare).toBeNull();
   });
 });

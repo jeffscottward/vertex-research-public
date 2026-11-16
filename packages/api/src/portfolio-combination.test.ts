@@ -134,6 +134,30 @@ describe("portfolio combination", () => {
     expect(pearson([1], [1])).toBeNull();
   });
 
+  it("names why a null Sharpe or volatility ratio is null", () => {
+    // A step from 1e-300 to 1e300 overflows the return: the spread is not a number.
+    expect(
+      seriesStats([0, DAY, 2 * DAY], [1e-300, 1e300, 1e300])
+    ).toMatchObject({ sharpe: null, sharpeReason: "out-of-range" });
+    const overflow = combinePortfolio(1000, [
+      slot("a", 1, [1e-300, 1e300, 1e300]),
+    ]);
+    expect(overflow.diversification).toMatchObject({
+      ratio: null,
+      ratioReason: "out-of-range",
+    });
+    // Two points give one return: too short for a volatility.
+    const short = combinePortfolio(1000, [slot("a", 1, [1, 1.1])]);
+    expect(short.diversification).toMatchObject({
+      ratio: null,
+      ratioReason: "short-span",
+    });
+    // A defined ratio carries no reason.
+    const moving = combinePortfolio(1000, [slot("a", 1, [1, 1.1, 1, 1.2])]);
+    expect(moving.diversification.ratio).not.toBeNull();
+    return expect(moving.diversification).not.toHaveProperty("ratioReason");
+  });
+
   it("series stats cover single points and non-positive values", () => {
     expect(seriesStats([0], [1])).toEqual({
       cagr: null,

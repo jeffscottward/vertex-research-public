@@ -167,8 +167,8 @@ describe("PortfolioMonitor", () => {
     await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
     expect(gateway.snapshot).toHaveBeenCalledTimes(1);
     expect(health()).toContain("Live");
-    expect(find("[data-account-mode]").textContent).toContain(
-      "Paper account · read-only"
+    expect(find("[data-account-mode]").textContent).toBe(
+      "Status:Paper account"
     );
     expect(find("[data-freshness]").textContent).toMatch(
       /^Data as of \d{2}:\d{2}:\d{2} \(\d+ s ago\) · fetched \d{2}:\d{2}:\d{2}$/u
@@ -281,8 +281,8 @@ describe("PortfolioMonitor", () => {
         defaultTab="positions"
       />
     );
-    expect(find("[data-account-mode=live]").textContent).toContain(
-      "Live account · read-only"
+    expect(find("[data-account-mode=live]").textContent).toBe(
+      "Status:Live account"
     );
     return expect(document.querySelector("[data-api-messages]")).toBeNull();
   });
@@ -746,7 +746,7 @@ describe("PortfolioMonitor", () => {
     );
     // The account mode is a configured fact: it stays on the badge during the disconnect.
     expect(find("[data-account-mode=paper]").textContent).toBe(
-      "Status:Paper account · read-only"
+      "Status:Paper account"
     );
     expect(find("[data-unknown]").textContent).toContain("Positions unknown");
     expect(text()).not.toContain("No open positions");
@@ -787,7 +787,7 @@ describe("PortfolioMonitor", () => {
     );
     expect(health()).toBe("Status:Gateway connecting · retrying");
     expect(find("[data-account-mode=live]").textContent).toBe(
-      "Status:Live account · read-only"
+      "Status:Live account"
     );
     return expect(find("[data-banner=starting]").textContent).toBe(
       "Gateway connecting · retrying. Live account from the gateway configuration; no session has confirmed it yet. Values may be out of date."
@@ -817,7 +817,7 @@ describe("PortfolioMonitor", () => {
       /^Status:Gateway disconnected since (\w{3} \d{1,2} )?\d\d:\d\d \S+ · retrying$/
     );
     expect(find("[data-account-mode=live]").textContent).toBe(
-      "Status:Live account · read-only"
+      "Status:Live account"
     );
     expect(text()).not.toMatch(/account mode unknown/i);
     return expect(find("[data-banner=disconnected]").textContent).toContain(
@@ -1331,9 +1331,13 @@ describe("DashboardViews", () => {
     expect(
       find("[data-summary-failure]").getAttribute("data-summary-failure")
     ).toBe("timeout");
+    // Reload is a plain link back to this page; it is not one of the destinations.
+    expect(find("[data-summary-reload]").getAttribute("href")).toBe(
+      "/dashboard"
+    );
     const hrefs = [
       ...document.querySelectorAll<HTMLAnchorElement>(
-        "[data-dashboard-view=member] a"
+        "[data-dashboard-view=member] section a"
       ),
     ].map((link) => link.getAttribute("href"));
     expect(hrefs).toEqual(memberDestinations().map((item) => item.href));
@@ -1341,6 +1345,20 @@ describe("DashboardViews", () => {
     expect(hrefs).not.toContain("/dashboard");
     expect(renderToString(<DashboardViews />)).not.toContain(
       "Workspace session summary not loaded"
+    );
+    // A state built before `failure` existed still names a failed request.
+    const legacy = renderToString(
+      <DashboardViews summaryState={{ type: "error" }} />
+    );
+    expect(legacy).toContain('data-summary-failure="request-failed"');
+    expect(legacy).toContain(
+      "Workspace session summary not loaded: the request failed. The pages below still open."
+    );
+    // An unreadable failure time is left out rather than shown as a bad date.
+    expect(
+      summaryFailureText({ kind: "timeout", code: null, at: "not a time" })
+    ).toBe(
+      "Workspace session summary not loaded: the request timed out. The pages below still open."
     );
     expect(summaryFailureText(undefined)).toBe(
       "Workspace session summary not loaded: the request failed. The pages below still open."

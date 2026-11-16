@@ -178,6 +178,7 @@ export {
   type OrderIntentOutcome,
   type OrderIntentRepository,
   type OrderSendState,
+  type OrderSendStateAt,
 } from "./order-intents.ts";
 export {
   boundDriftMessage,
@@ -214,9 +215,14 @@ export {
   type FlowBookRecord,
   type FlowEventRecord,
   type FlowGexRecord,
+  type FlowLargeTradeQuery,
+  type FlowLargeTradeRecord,
   type FlowMinuteRecord,
+  type FlowNetDriftQuery,
+  type FlowNetDriftRecord,
   type FlowOptionGapRecord,
   type FlowOptionPrintRecord,
+  type FlowPruneTable,
   type FlowRepository,
   type FlowSampleRecord,
   type FlowSampleStatusValue,

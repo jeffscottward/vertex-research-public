@@ -302,13 +302,19 @@ describe("watchlist tabs", () => {
     for (const root of roots.splice(0)) await act(async () => root.unmount());
 
     await mount({
-      gateway: listGateway(() => Promise.reject({ code: "STORAGE_ERROR" })),
+      gateway: listGateway(() =>
+        Promise.reject({
+          code: "STORAGE_ERROR",
+          message:
+            "Watchlist data could not be read: the database returned an error at 14:05 UTC. Nothing was changed. Try again.",
+        })
+      ),
       marketData,
       portfolio,
     });
     await open("Exposure");
     expect(panel("Exposure").textContent).toMatch(
-      /^Watchlist storage error \(503\) at \d\d:\d\d\. Reload to check whether the change was saved\. Retry from the Overview tab\.$/
+      /^Watchlist data could not be read: the database returned an error at 14:05 UTC\. Nothing was changed\. Try again\. Retry from the Overview tab\.$/
     );
     expect(portfolio.snapshot).not.toHaveBeenCalled();
   });

@@ -44,8 +44,9 @@
 #   incomplete listing, plan check failed, a kept pair is not on disk), nothing changed; 8 the
 #   restart lock is held, nothing changed; 11 the lock file could not be opened or flock failed,
 #   nothing changed; 13 partial or unknown: the rename, the delete or the check after it did not
-#   complete (run --apply again). Codes 2, 3, 8 and 11 match restart-when-idle.sh; 13 is not used
-#   by it.
+#   complete (run --apply again). After a failed rename step the delete step still runs for the
+#   pairs that were renamed, so exit 13 can follow a run that deleted pairs. Codes 2, 3, 8 and 11
+#   match restart-when-idle.sh; 13 is not used by it.
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR,
 #   VERTEX_RESTART_LOCK. `--plan <file>` is the pure rule used by the tests: it reads a listing
 #   and prints the plan lines; with `--apply` it prints the plan of an apply run.

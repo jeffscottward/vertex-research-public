@@ -34,7 +34,7 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // clicks for a user. The pick-list importer (scripts/vertex-pick-lists.ts) stores snapshots with a
 // write key and research agents read lists, screens and the buy proposal with a read key; pickLists.syncBucket stays
 // session-only, so a key never edits baskets. The flow timer (infra/flow/quantvps) samples with a write
-// key (flow.collect) and research agents read flow.snapshot with a read key.
+// key (flow.collect) and research agents read flow.snapshot and flow.control with a read key.
 // openbb.* is a root: the OpenBB tick (scripts/openbb/tick.ts) writes ingest and recordRun with a
 // write key, and research agents read the other openbb.* procedures with a read key.
 // The breadth-90 rig tick pushes sessions with a write key (breadth90.collect) and research agents
@@ -63,6 +63,7 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "pickLists.screen",
   "flow.collect",
   "flow.snapshot",
+  "flow.control",
   "breadth90.collect",
   "breadth90.get",
   "goLiveDrafts.collect",
@@ -104,7 +105,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review and researchScreen.tick",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review and researchScreen.tick",
       })
     );
   }

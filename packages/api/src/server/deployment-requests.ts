@@ -68,7 +68,13 @@ const requestsFor = (
   errors: unknown
 ): DeploymentRequestsRepository => {
   const repository = context.repositories.deploymentRequests;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  // No repository wired: no database was asked. The text is inline because this module imports only
+  // the contract, the repository and the operator gate (deployment-requests.test.ts).
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message:
+        "Deployment request storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
   return repository;
 };
 
@@ -222,7 +228,8 @@ const refuseAcademyStrategy = async (
   const library = context.repositories.strategyLibrary;
   if (library === undefined)
     throw factories(errors).STORAGE_ERROR({
-      message: "Strategy library unavailable",
+      message:
+        "Strategy library storage is not configured on this server; the request was not saved. Set the database connection, then retry.",
     });
   const record = await procedure(() => library.get(strategyId), errors);
   if (record !== null && isAcademyStrategySlug(record.strategy.slug))

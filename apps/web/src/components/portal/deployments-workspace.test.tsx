@@ -576,12 +576,18 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
       container
         .querySelector("[data-kill-switch]")
         ?.getAttribute("data-kill-switch")
-    ).toBe("unknown");
-    return expect(
+    ).toBe("not-read");
+    expect(container.querySelector("[data-kill-switch]")?.textContent).toBe(
+      "Kill switch state not read: withheld: leak pattern · not treated as clear"
+    );
+    expect(
       container
         .querySelector("[data-session-state]")
         ?.getAttribute("data-session-state")
-    ).toBe("unknown");
+    ).toBe("not-read");
+    return expect(
+      container.querySelector("[data-session-state]")?.textContent
+    ).toBe("Session state not read: withheld: leak pattern");
   });
 
   it("names every missing field instead of showing a dash", async () => {
@@ -720,7 +726,6 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
         "start time not reported",
         "not stopped (kill switch engaged)",
       ],
-      ["unknown", "start time not reported", "container not inspected"],
       ["missing", "no container", "no container"],
       ["unreadable", "Docker not readable", "Docker not readable"],
       [
@@ -753,7 +758,7 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
       expect(field(shown, "stopped")).toBe(stopped);
       expect(field(shown, "heartbeat")).toBe("no heartbeat yet");
     }
-    return expect(cases).toHaveLength(7);
+    return expect(cases).toHaveLength(6);
   });
 
   it("names the session states without a usable container record and an unverified kill switch", async () => {
@@ -832,11 +837,22 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
             source: "file portfolio-ui/data/KILL_SWITCH",
           },
           { as_of: null, engaged: null, source: "watchdog live_flags" },
+          { as_of: since, engaged: null, source: "nautilus health.json" },
         ],
       })
     ).toBe(
       "Kill switch not verified: data/KILL_SWITCH not readable at 11:02 UTC · not treated as clear"
     );
+    expect(
+      [...document.querySelectorAll("[data-kill-indicators] li")].map(
+        (item) => item.textContent
+      )
+    ).toEqual([
+      "file data/KILL_SWITCH: not readable at 11:02 UTC · not treated as clear",
+      "file portfolio-ui/data/KILL_SWITCH: clear",
+      "watchdog live_flags: flag not reported",
+      "nautilus health.json: flag not reported (last written 11:02 UTC)",
+    ]);
     return expect(
       await killText({ kill_switch: "unverified", kill_switch_indicators: [] })
     ).toMatch(/^Kill switch not verified: a kill-switch file not readable/u);
@@ -865,7 +881,13 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
       container
         .querySelector("[data-kill-switch]")
         ?.getAttribute("data-kill-switch")
-    ).toBe("unknown");
+    ).toBe("not-read");
+    expect(container.querySelector("[data-kill-switch]")?.textContent).toMatch(
+      /^Kill switch state not read: .*HTTP 403.* · not treated as clear$/u
+    );
+    expect(
+      container.querySelector("[data-session-state]")?.textContent
+    ).toMatch(/^Session state not read: .*HTTP 403/u);
     const engagedRisk = {
       ...(v2Fixture.risk as object),
       kill_switch: "engaged",

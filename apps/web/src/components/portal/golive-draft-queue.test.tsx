@@ -229,6 +229,15 @@ const plan = (overrides: Partial<GoLivePlanOutput> = {}): GoLivePlanOutput => ({
   ...overrides,
 });
 
+// A queue read without an account value: the server's cause and data time (10:30 EST).
+const NO_ACCOUNT: GoLiveQueueOutput["account"] = {
+  asOf: AT,
+  netLiquidation: null,
+  unavailableReason: "Portfolio monitor is not connected to IBKR",
+};
+const NO_ACCOUNT_TAIL =
+  "(Portfolio monitor is not connected to IBKR, data as of 2026-11-11 10:30 ET) · reload the queue when the portfolio monitor reports a fresh account value";
+
 const queue = (
   overrides: Partial<GoLiveQueueOutput> = {}
 ): GoLiveQueueOutput => ({
@@ -457,7 +466,7 @@ describe("GoLiveDraftQueue", () => {
     );
     expect(texts(container, "[data-golive-status]")).toEqual([
       "Account value not available: portfolio monitor did not answer",
-      `Node state unknown: the node status could not be read or was incomplete (checked 2026-11-11 10:30 ET)${NODE_DISARMED_NOTE}`,
+      `Node state not read: the status call failed, Docker could not read the node container, or the arm CLI gave no arm state (checked 2026-11-11 10:30 ET)${NODE_DISARMED_NOTE}`,
       "The generator has not reported for 2026-11-11: it has not run yet, or its run was refused (the journal of vertex-golive-drafts.service on the rig says which).",
       "Market notes: the feature is not deployed",
     ]);
@@ -647,7 +656,9 @@ describe("GoLiveDraftQueue", () => {
   });
 
   it("lists a late-entry draft with Approve disabled and the reasons next to it", async () => {
-    const container = await mount(gatewayOf(queue({ drafts: [lateDraft()] })));
+    const container = await mount(
+      gatewayOf(queue({ account: NO_ACCOUNT, drafts: [lateDraft()] }))
+    );
     expect(one(container, "#golive-group-entry-signal + p").textContent).toBe(
       "No entry signal for 2026-11-11 under the plan's entry rule: the generator ran at 2026-11-11 10:30 ET and reported no entry draft."
     );
@@ -660,14 +671,14 @@ describe("GoLiveDraftQueue", () => {
     );
     // The quote of this draft is fine: the account value is what is missing.
     expect(row.textContent).toContain(
-      "Limitno limit: the account value is not available"
+      `Limitno limit: no account value from the portfolio monitor ${NO_ACCOUNT_TAIL}`
     );
     expect(row.textContent).not.toContain("no usable quote");
     expect(row.textContent).toContain(
-      "0 spreads (the account value is not available)"
+      `0 spreads (no account value from the portfolio monitor ${NO_ACCOUNT_TAIL})`
     );
     expect(row.textContent).toContain(
-      "not available: the account value is not available"
+      `not available: no account value from the portfolio monitor ${NO_ACCOUNT_TAIL}`
     );
     expect(row.textContent).toContain(
       "Dry pre-check (web final gate): not run, because there is no sized order to check."
@@ -871,6 +882,64 @@ describe("GoLiveDraftQueue", () => {
       // A proposed draft has no send line at all.
       const proposed = await mount(gatewayOf(queue()));
       expect(proposed.querySelector("[data-golive-send-state]")).toBeNull();
+    });
+
+    it("shows the send detail under the state and keeps the button rule of the state alone", async () => {
+      const cases = [
+        {
+          detail: { kind: "pending", since: AT },
+          send: "unknown",
+          text: "Sending: no reply from the order bridge since 2026-11-11 10:30 ET · it may still reach IBKR · the next order preview checks open orders and positions first",
+        },
+        {
+          detail: { at: AT, kind: "read-failed" },
+          send: "unavailable",
+          text: "Order record store read failed at 2026-11-11 10:30 ET · reload the queue; the send button needs a recorded send state",
+        },
+      ] as const;
+      for (const { detail, send, text } of cases) {
+        const container = await mount(
+          gatewayOf(
+            queue({ drafts: [approvedWith(send, { sendDetail: detail })] })
+          )
+        );
+        expect(buttons(container)).toBe(0);
+        expect(one(container, "[data-golive-send-detail]").textContent).toBe(
+          text
+        );
+      }
+      // No order record store: the detail is the whole state; reloading cannot help.
+      const noStore = await mount(
+        gatewayOf(
+          queue({
+            drafts: [
+              approvedWith("unavailable", { sendDetail: { kind: "no-store" } }),
+            ],
+          })
+        )
+      );
+      expect(buttons(noStore)).toBe(0);
+      expect(one(noStore, "[data-golive-send-state]").textContent).toBe(
+        "Order record store not configured on this deployment · this page offers no send"
+      );
+      expect(noStore.querySelector("[data-golive-send-detail]")).toBeNull();
+      // A detail never adds a send button, and never removes one.
+      const sendable = await mount(
+        gatewayOf(
+          queue({
+            drafts: [
+              approvedWith("not_sent", {
+                sendDetail: { at: AT, kind: "read-failed" },
+              }),
+            ],
+          })
+        )
+      );
+      expect(button(sendable, NAME).disabled).toBe(false);
+      const plain = await mount(
+        gatewayOf(queue({ drafts: [approvedWith("not_sent")] }))
+      );
+      expect(plain.querySelector("[data-golive-send-detail]")).toBeNull();
     });
 
     it("confirms the stored order, sends it through the order path, says what it did and reads the queue again", async () => {
@@ -1973,6 +2042,8 @@ describe("GoLiveDraftQueue", () => {
     const container = await mount(
       gatewayOf(
         queue({
+          // The share is null because the account value of this read is missing.
+          account: NO_ACCOUNT,
           drafts: [
             draft(),
             draft({
@@ -2007,7 +2078,7 @@ describe("GoLiveDraftQueue", () => {
         "[data-golive-draft='no-percent'] [data-golive-approved-room]"
       ).textContent
     ).toBe(
-      "Risk room held by this approval: $470.00 max loss (% of account value not available: the account value is not available)"
+      `Risk room held by this approval: $470.00 max loss (% of the account value now not computed: no account value from the portfolio monitor ${NO_ACCOUNT_TAIL})`
     );
   });
 

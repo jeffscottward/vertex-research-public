@@ -10,6 +10,7 @@ import {
   CHART_SLOT_WIDTH,
   coverageText,
   eventRows,
+  FLOW_VIEW_SYMBOLS,
   type FlowFreshness,
   type FlowGex,
   type FlowMinute,
@@ -18,10 +19,12 @@ import {
   gexLevelRows,
   gexMetrics,
   neverCollected,
+  notCollectedLine,
   optionPrintRows,
   optionsMetrics,
   orderFlowMetrics,
   pressureText,
+  shortTermBadge,
   windowLabel,
 } from "./view-model.ts";
 
@@ -312,5 +315,67 @@ describe("flow minute chart", () => {
     ]);
     expect(chart.cvdZeroY).toBeGreaterThan(0);
     expect(chart.cvdZeroY).toBeLessThan(CHART_HEIGHT);
+  });
+});
+
+describe("lab fixture for QQQ and NQ", () => {
+  it("QQQ has no minutes, no prints and depth and GEX freshness only", () => {
+    const snapshot = labFlowSnapshot("QQQ", 60);
+    expect(snapshot.minutes).toEqual([]);
+    expect(snapshot.optionsFlow.topPrints).toEqual([]);
+    expect(snapshot.freshness.map((row) => row.source)).toEqual([
+      "depth",
+      "gex",
+    ]);
+  });
+
+  it("NQ has sampled minutes and ticks freshness but no option prints", () => {
+    const snapshot = labFlowSnapshot("NQ", 60);
+    expect(snapshot.minutes.length).toBeGreaterThan(0);
+    expect(snapshot.optionsFlow.topPrints).toEqual([]);
+    const sources = snapshot.freshness.map((row) => row.source);
+    expect(sources).toContain("ticks");
+    expect(sources).not.toContain("options");
+  });
+});
+
+describe("four symbols and the short-term badge", () => {
+  it("offers SPY, QQQ, ES and NQ", () => {
+    expect(FLOW_VIEW_SYMBOLS).toEqual(["SPY", "QQQ", "ES", "NQ"]);
+  });
+
+  it("counts short-term factors for a bullish, a bearish, a split and an empty reading", () => {
+    const reading = (bullish: number, bearish: number, known: number) => ({
+      ...spy.confluence,
+      bearish,
+      bullish,
+      known,
+    });
+    expect(shortTermBadge(reading(2, 1, 3))).toBe(
+      "2 of 3 short-term factors bullish"
+    );
+    expect(shortTermBadge(reading(0, 2, 3))).toBe(
+      "2 of 3 short-term factors bearish"
+    );
+    expect(shortTermBadge(reading(1, 1, 3))).toBe(
+      "Short-term factors split: 1 bullish, 1 bearish of 3"
+    );
+    expect(shortTermBadge(reading(0, 0, 0))).toBe(
+      "No short-term factor has data yet"
+    );
+    expect(shortTermBadge(reading(0, 0, 2))).toBe(
+      "2 short-term factors neutral"
+    );
+  });
+
+  it("names what is not collected for QQQ and NQ and nothing for SPY and ES", () => {
+    expect(notCollectedLine("SPY")).toBeNull();
+    expect(notCollectedLine("ES")).toBeNull();
+    expect(notCollectedLine("QQQ")).toBe(
+      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+    );
+    expect(notCollectedLine("NQ")).toBe(
+      "Not collected for NQ: option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+    );
   });
 });

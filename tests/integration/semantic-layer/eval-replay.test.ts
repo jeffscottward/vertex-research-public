@@ -16,7 +16,8 @@ import { unexpectedToolFailures } from "./tool-failures.ts";
 // synthetic feeds. Each recorded model reply is returned in order; the semantic-layer tool results the
 // model sees must equal the recorded ones (else the recording is stale: re-record). Every final answer is
 // graded with the fixed rubric in questions.ts. A tool call that fails in a replayed trial fails the
-// test unless tool-failures.ts lists it as an expected input rejection (a server error never is).
+// test unless tool-failures.ts lists it as an expected input rejection (a server error never is). A
+// terms_query answer with status unknown also fails the test; no list allows it (tool-failures.ts).
 // Acceptance (docs/vertex-rebuild/agent-semantic-layer.md): main set >= 58/60 correct, 0 wrong account
 // answers; engine runs with no strategy (U1-U5) >= 13/15 correct and none wrong.
 
@@ -78,12 +79,15 @@ describe("semantic layer eval replay", () => {
       if (question === undefined)
         throw new Error(`unknown question ${recorded.question}`);
       const replayed = await replayTrial(backend, question, recorded);
-      // Null: every model call saw the recorded input and the final answer is the recorded one.
-      expect(replayed.stale).toBeNull();
-      // A grade counts only when the tools worked: a failed call must be a listed input rejection.
-      expect(unexpectedToolFailures(recorded.question, replayed.trace)).toEqual(
-        []
-      );
+      // stale null: every model call saw the recorded input and the final answer is the recorded one.
+      // A grade counts only when the tools worked: a failed call must be a listed input rejection, and
+      // no terms_query answer may have status unknown (the call worked but gave no value). One assertion
+      // shows all three, so a stale trial also shows a term that answers unknown since the recording.
+      expect({
+        failedCalls: unexpectedToolFailures(recorded.question, replayed.trace),
+        stale: replayed.stale,
+        unknownTerms: replayed.unknownTerms,
+      }).toEqual({ failedCalls: [], stale: null, unknownTerms: [] });
       const grade = gradeAnswer(question, recorded.answer);
       expect(grade).toBe(recorded.grade);
       expect(["correct", "wrong", "declined"]).toContain(recorded.audit);

@@ -2,6 +2,7 @@ import type { SemanticEvent } from "@darkfactory/observability/port";
 import { call, implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
+import { ORDER_INTENT_LOOKBACK_MS } from "../contracts/golive-drafts.ts";
 import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
 import type {
   VertexComboInput,
@@ -27,6 +28,7 @@ import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
 import type { VertexOrdersConfig } from "./service-config.ts";
+import { utcClock } from "./status-time.ts";
 import {
   CONFIRM_TTL_MS,
   consumeConfirmToken,
@@ -166,24 +168,42 @@ const comboAction = (
 // transaction), so of two concurrent sends exactly one reaches the bridge. The bridge tail also
 // refuses an orderRef IBKR already has. Process memory covers the mock gateway, which has no
 // intent store.
-const goLiveSentRefs = new Set<string>();
-const DRAFT_ALREADY_SENT =
-  "GO-LIVE DRAFT_ALREADY_SENT: this approved draft was already sent once (or its outcome is still unknown); check open orders and positions";
+// The ref and when this process reserved it for a send.
+const goLiveSentRefs = new Map<string, Date>();
+// Every refusal of an already-sent draft starts with this code (the web and docs name it).
+const DRAFT_ALREADY_SENT = "GO-LIVE DRAFT_ALREADY_SENT";
+
+// What reconciliation found for an earlier unknown order, in words.
+const RECONCILED_WORDS: Readonly<
+  Record<"open" | "position-changed" | "not-found", string>
+> = {
+  "not-found": "not found at IBKR (not in open orders, position unchanged)",
+  open: "in IBKR open orders",
+  "position-changed": "its position changed (filled)",
+};
+
 // A send the order bridge refused before IBKR (engine_refused: engine policy v3 or the node ARM check)
-// sent nothing, so the draft may be sent again; a store read that fails counts as sent.
+// sent nothing, so the draft may be sent again; a store read that fails counts as sent. Returns the
+// refusal text, or null when the draft may be sent.
 const goLiveAlreadySent = async (
   store: IntentStore | undefined,
-  orderRef: string
-): Promise<boolean> => {
-  if (goLiveSentRefs.has(orderRef)) return true;
-  if (store === undefined) return false;
+  orderRef: string,
+  now: Date
+): Promise<string | null> => {
+  const reservedAt = goLiveSentRefs.get(orderRef);
+  if (reservedAt !== undefined)
+    return `${DRAFT_ALREADY_SENT}: a send of draft order ${orderRef} started on this server at ${utcClock(reservedAt, now)} · never sent twice · check open orders and positions`;
+  if (store === undefined) return null;
+  let sent: boolean;
   try {
-    return (
-      (await store.hasIntent(orderRef)) && !(await store.refused(orderRef))
-    );
+    sent =
+      (await store.hasIntent(orderRef)) && !(await store.refused(orderRef));
   } catch {
-    return true;
+    return `${DRAFT_ALREADY_SENT}: order intent store read failed at ${utcClock(now, now)}, so draft order ${orderRef} counts as sent · nothing is sent · retry the preview`;
   }
+  return sent
+    ? `${DRAFT_ALREADY_SENT}: draft order ${orderRef} already sent (the order intent store has its send, checked ${utcClock(now, now)}) · never sent twice · check open orders and positions`
+    : null;
 };
 
 /**
@@ -393,7 +413,7 @@ const guarded = async <T>(
 // IBKR lists an accepted order at once. After this time, an order that is neither open nor visible as
 // a position change is treated as not received.
 const UNKNOWN_SETTLE_MS = 10 * 60_000;
-const INTENT_LOOKBACK_MS = 7 * 24 * 60 * 60_000;
+const INTENT_LOOKBACK_MS = ORDER_INTENT_LOOKBACK_MS;
 
 type IntentStore = NonNullable<ApiContext["repositories"]["orderIntents"]>;
 
@@ -406,7 +426,8 @@ const intentStoreOf = (
   const store = context.repositories.orderIntents;
   if (store === undefined && gateway.mode === "live")
     throw failures.AUDIT_UNAVAILABLE({
-      message: "Order intent store unavailable; nothing was sent",
+      message:
+        "Order intent store is not configured on this deployment: live orders are blocked, nothing was sent · wire the order intent store (database) for this deployment",
     });
   return store;
 };
@@ -425,6 +446,18 @@ const outcomeRecorder =
       })
       .catch(() => undefined);
 
+// The refusal when the intent row cannot be written before the gateway call: nothing was sent.
+const intentWriteFailed = (now: Date): string =>
+  `Order intent could not be recorded at ${utcClock(now, now)} (store write failed): nothing was sent · retry`;
+
+// The error text when the gateway call failed after the intent row was written.
+const outcomeNotConfirmed = (
+  orderRef: string,
+  now: Date,
+  detail: string
+): string =>
+  `Order ${orderRef} sent ${utcClock(now, now)}, outcome not confirmed by IBKR (${detail}) · it may still reach IBKR · the next preview checks open orders and positions first`;
+
 // Writes the intent row before the gateway call. A go-live ref is written only with its claim
 // (recordIntentOnce): another web process that sends the same draft at the same time gets false
 // and sends nothing. With no store (the mock gateway, unwired) nothing is written: true.
@@ -441,9 +474,10 @@ const writeIntent = async (
 
 // The outcome row of a combo submit, from the bridge state. "submitted": placed. "unconfirmed" (IBKR
 // has not acknowledged it yet) and "unknown" (the bridge could not tell): it may still be live, so
-// reconciliation checks it. "engine_refused": the bridge refused it before IBKR, so a go-live draft
-// is free to be sent again. Any other state (for example "aborted") did not place the order but is
-// no proof that nothing reached IBKR: "not-taken", never sent again.
+// it stays an "unknown" outcome that reconciliation checks. "engine_refused":
+// the bridge refused it before IBKR, so a go-live draft is free to be sent again. Any other state
+// (for example "aborted") did not place the order but is no proof that nothing reached IBKR:
+// "not-taken", never sent again.
 const comboOutcome = (
   state: string
 ): "placed" | "unknown" | "refused" | "not-taken" => {
@@ -474,7 +508,7 @@ const reconcileUnknown = async (
     pending = await store.unresolved(new Date(now - INTENT_LOOKBACK_MS));
   } catch {
     return [
-      "Order intent store unavailable: earlier orders cannot be checked, so no new order.",
+      `Order intent store read failed at ${utcClock(now, now)}: earlier orders cannot be checked, so no new order · retry the preview`,
     ];
   }
   const reasons: string[] = [];
@@ -490,9 +524,11 @@ const reconcileUnknown = async (
         heldIn(account, intent) === intent.heldBefore
           ? "not-found"
           : "position-changed";
-    const unknown = `Earlier order ${intent.orderRef} (${intent.contract}) has an unknown outcome and may still reach IBKR. Wait until it shows in open orders or positions.`;
     if (outcome === null) {
-      reasons.push(unknown);
+      // Unsettled: the outcome is still not confirmed (a settled intent always gets one above).
+      reasons.push(
+        `Earlier order ${intent.orderRef} (${intent.contract}) sent ${utcClock(intent.createdAt, now)}, outcome not confirmed by IBKR · it may still reach IBKR · no new order until it shows in open orders, or until positions decide it at ${utcClock(intent.createdAt.getTime() + UNKNOWN_SETTLE_MS, now)} · retry the preview then`
+      );
       continue;
     }
     try {
@@ -504,7 +540,9 @@ const reconcileUnknown = async (
         requestId: context.requestId,
       });
     } catch {
-      reasons.push(unknown);
+      reasons.push(
+        `Earlier order ${intent.orderRef} (${intent.contract}) checked at ${utcClock(now, now)}: ${RECONCILED_WORDS[outcome]}, but that result could not be recorded (store write failed) · no new order · retry the preview`
+      );
       continue;
     }
     await audit(context, "reconcile", "success", {
@@ -762,7 +800,7 @@ const submit = api.vertexOrders.submit
     } catch {
       await auditFailure("intent store unavailable");
       throw failures.AUDIT_UNAVAILABLE({
-        message: "Order intent store unavailable; nothing was sent",
+        message: intentWriteFailed(now),
       });
     }
     // A failed or timed-out place call may still reach IBKR: the intent stays "unknown" and the next
@@ -777,7 +815,7 @@ const submit = api.vertexOrders.submit
       await auditFailure(`outcome unknown: ${detail}`);
       if (error instanceof OrderGatewayError)
         throw failures[error.code]({
-          message: `Outcome unknown (${detail}): the order may still reach IBKR. The next preview checks it first.`,
+          message: outcomeNotConfirmed(orderRef, now, detail),
         });
       throw error;
     }
@@ -815,13 +853,32 @@ const comboPreview = api.vertexOrders.comboPreview
     const account = await guarded(failures, gateway.account);
     const now = deps().now();
     const store = intentStoreOf(context, gateway, failures);
+    // Reconcile first, then the go-live gate, then the already-sent check.
+    const reconciled = await reconcileUnknown(
+      context,
+      store,
+      account,
+      now.getTime()
+    );
+    const goLive = await goLiveRefusals(
+      context,
+      goLiveDraftId,
+      order,
+      account,
+      now
+    );
+    const alreadySent =
+      goLiveDraftId === undefined
+        ? null
+        : await goLiveAlreadySent(
+            store,
+            await goLiveOrderRef(goLiveDraftId),
+            now
+          );
     const review = blockedBy(reviewCombo(order, account, now), [
-      ...(await reconcileUnknown(context, store, account, now.getTime())),
-      ...(await goLiveRefusals(context, goLiveDraftId, order, account, now)),
-      ...(goLiveDraftId !== undefined &&
-      (await goLiveAlreadySent(store, await goLiveOrderRef(goLiveDraftId)))
-        ? [DRAFT_ALREADY_SENT]
-        : []),
+      ...reconciled,
+      ...goLive,
+      ...(alreadySent === null ? [] : [alreadySent]),
     ]);
     const expiresAt = now.getTime() + CONFIRM_TTL_MS;
     const confirmToken = review.accepted
@@ -899,18 +956,28 @@ const comboSubmit = api.vertexOrders.comboSubmit
         ? null
         : await goLiveOrderRef(input.goLiveDraftId);
     const account = await guarded(failures, gateway.account, auditFailure);
+    // Reconcile first, then the go-live gate, then the already-sent check.
+    const reconciled = await reconcileUnknown(
+      context,
+      store,
+      account,
+      now.getTime()
+    );
+    const goLive = await goLiveRefusals(
+      context,
+      input.goLiveDraftId,
+      order,
+      account,
+      now
+    );
+    const alreadySent =
+      goLiveRef === null
+        ? null
+        : await goLiveAlreadySent(store, goLiveRef, now);
     const review = blockedBy(reviewCombo(order, account, now), [
-      ...(await reconcileUnknown(context, store, account, now.getTime())),
-      ...(await goLiveRefusals(
-        context,
-        input.goLiveDraftId,
-        order,
-        account,
-        now
-      )),
-      ...(goLiveRef !== null && (await goLiveAlreadySent(store, goLiveRef))
-        ? [DRAFT_ALREADY_SENT]
-        : []),
+      ...reconciled,
+      ...goLive,
+      ...(alreadySent === null ? [] : [alreadySent]),
     ]);
     if (!review.accepted) {
       await auditFailure(review.reasons.join(" | "));
@@ -919,7 +986,7 @@ const comboSubmit = api.vertexOrders.comboSubmit
     // The review above refused a ref already sent. Reserve it now, with no await since that check
     // (onePlacementAtATime runs one submit at a time in this process), so a later submit of the
     // same draft is refused while this one is in flight.
-    if (goLiveRef !== null) goLiveSentRefs.add(goLiveRef);
+    if (goLiveRef !== null) goLiveSentRefs.set(goLiveRef, now);
     const orderRef = goLiveRef ?? `vertex-${claims.nonce}`;
     // Nothing is sent before the intent row exists: a failure until then frees the reservation.
     const release = () => {
@@ -961,13 +1028,14 @@ const comboSubmit = api.vertexOrders.comboSubmit
       release();
       await auditFailure("intent store unavailable");
       throw failures.AUDIT_UNAVAILABLE({
-        message: "Order intent store unavailable; nothing was sent",
+        message: intentWriteFailed(now),
       });
     }
     if (!claimed) {
       release();
-      await auditFailure(DRAFT_ALREADY_SENT);
-      throw failures.ORDER_REJECTED({ message: DRAFT_ALREADY_SENT });
+      const claimRefused = `${DRAFT_ALREADY_SENT}: draft order ${orderRef} was already sent, or another send of it holds its claim (claim refused at ${utcClock(now, now)}) · nothing was sent now · never sent twice · check open orders and positions`;
+      await auditFailure(claimRefused);
+      throw failures.ORDER_REJECTED({ message: claimRefused });
     }
     const outcomeOf = outcomeRecorder(context, store, orderRef);
     let result: Awaited<ReturnType<OrderGatewayPort["placeCombo"]>>;
@@ -980,7 +1048,7 @@ const comboSubmit = api.vertexOrders.comboSubmit
       await auditFailure(`outcome unknown: ${detail}`);
       if (error instanceof OrderGatewayError)
         throw failures[error.code]({
-          message: `Outcome unknown (${detail}): the order may still reach IBKR. The next preview checks it first.`,
+          message: outcomeNotConfirmed(orderRef, now, detail),
         });
       throw error;
     }

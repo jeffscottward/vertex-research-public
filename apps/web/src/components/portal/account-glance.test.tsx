@@ -153,7 +153,7 @@ describe("AccountGlance", () => {
     );
     const live = find("[data-account-mode]");
     expect(live.getAttribute("data-account-mode")).toBe("live");
-    expect(live.textContent).toContain("Live account · read-only");
+    expect(live.textContent).toBe("Status:Live account");
   });
 
   it("shows a paper account as paper", async () => {
@@ -172,8 +172,8 @@ describe("AccountGlance", () => {
         )}
       />
     );
-    expect(find("[data-account-mode=paper]").textContent).toContain(
-      "Paper account · read-only"
+    expect(find("[data-account-mode=paper]").textContent).toBe(
+      "Status:Paper account"
     );
   });
 
@@ -257,6 +257,17 @@ describe("AccountGlance", () => {
     // The portfolio link stays available.
     expect(find("[data-account-glance] a").getAttribute("href")).toBe(
       "/portfolio"
+    );
+  });
+
+  it("says IBKR sent no data time when the snapshot has none", async () => {
+    await mount(
+      <AccountGlance
+        gateway={gatewayOf(fixtureSnapshot({ status: { dataAsOf: null } }))}
+      />
+    );
+    return expect(find("[data-freshness]").textContent).toBe(
+      "IBKR sent no data time"
     );
   });
 

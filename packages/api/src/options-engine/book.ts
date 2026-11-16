@@ -79,9 +79,10 @@ const STRIKE_SEARCH_MIN_STEPS = 20;
 const STRIKE_SEARCH_MAX_STEPS = 25_000;
 /**
  * Highest IV index level the options model takes, in index points. The highest Cboe IV index close is about
- * 325 (OVX, April 2020); far higher levels (1e300) overflow the option prices (Python book.py too).
+ * 325 (OVX, April 2020); far higher levels (1e300) overflow the option prices. marketOf refuses higher levels up front (Python
+ * portfolio._refuse_market_values too).
  */
-const IV_LEVEL_MAX = 10_000;
+export const IV_LEVEL_MAX = 10_000;
 const OPTION_KEYS = new Set([
   "structure",
   "dte",
@@ -357,15 +358,6 @@ const priceAt = (pricing: Pricing, right: Right, strike: number): number =>
 const grid = (value: number, step: number): number =>
   pyRound(roundHalfEven(value / step) * step, 6);
 
-/** atmIv; a level above IV_LEVEL_MAX is the request's fault. */
-const boundedAtmIv = (indexId: string, level: number): number => {
-  if (level > IV_LEVEL_MAX)
-    throw new Error(
-      `${indexId} level ${formatG(level)} is above ${IV_LEVEL_MAX}: far above real data`
-    );
-  return atmIv(indexId, level);
-};
-
 /** [long strike, short strike, width] on the grid, or null when the far leg would be <= 0. */
 export const chooseStrikes = (
   right: Right,
@@ -594,7 +586,7 @@ const openSpread = (
     t: dte / DAYS_PER_YEAR,
     r: rate,
     q,
-    atm: boundedAtmIv(indexId, level),
+    atm: atmIv(indexId, level),
     slope,
   };
   const strikes = chooseStrikes(
@@ -668,7 +660,7 @@ const priceEvent = (
       t: Math.max(0, daysLeft) / DAYS_PER_YEAR,
       r: rate,
       q,
-      atm: boundedAtmIv(indexId, level),
+      atm: atmIv(indexId, level),
       slope,
     };
     const longMid = priceAt(pricing, right, longStrike);

@@ -68,13 +68,10 @@ const MemberMissionControl = ({
         role="note"
       >
         {summaryFailureText(summaryState.failure)}{" "}
-        <button
-          className="underline"
-          onClick={() => window.location.reload()}
-          type="button"
-        >
+        {/* Plain link: a full page load runs the summary request again. */}
+        <a className="underline" data-summary-reload="" href="/dashboard">
           Reload
-        </button>
+        </a>
       </p>
     ) : null}
     <OperatorAccessRequired feature="mission-control" />
