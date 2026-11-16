@@ -12,7 +12,12 @@ export const NAUTILUS_ARM_STATEMENT =
 export const NAUTILUS_ARM_REASON_MIN = 10;
 export const NAUTILUS_ARM_REASON_MAX = 280;
 
-// Mission control badge: "Running · Disarmed", "Running · Armed", "Down", or unknown (bridge or CLI unreadable).
+// Mission control badge: "Running · Disarmed", "Running · Armed", "Down", or "unknown". The server sends
+// "unknown" exactly when (a) the container is running but the arm CLI did not answer (armError
+// cli-timeout | cli-error | cli-bad-output, arm null), or (b) the container is docker-unreadable
+// (armError docker-error | ambiguous-container; container.since and container.lastKnown set). Source:
+// infra/quant-vps/recovery/vertex_ibkr_recovery.py (status, _arm_status, _container_seen). The value stays
+// on the wire and in stored badges; the web view names the precise state from armError and container.
 export const NAUTILUS_NODE_BADGES = [
   "running-disarmed",
   "running-armed",
@@ -127,7 +132,11 @@ export const NAUTILUS_ARM_ERRORS = {
     status: 503,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
-  UNAVAILABLE: { message: "Nautilus arm service unavailable", status: 503 },
+  UNAVAILABLE: {
+    message:
+      "Nautilus bridge did not answer · nothing confirmed from the node · the status check retries every 15 s",
+    status: 503,
+  },
   UPSTREAM_ERROR: { message: "Nautilus arm request failed", status: 502 },
 } as const;
 
