@@ -35,14 +35,22 @@ const CLI_CAUSE: Readonly<Record<string, string>> = {
   "cli-timeout": "did not answer (timeout)",
 };
 
-const clock = (value: string | null | undefined, nowMs: number): string =>
-  sinceClock(value, nowMs) ?? "time not recorded";
+const localClockText = (
+  value: string | null | undefined,
+  nowMs: number
+): string => sinceClock(value, nowMs) ?? "time not recorded";
 
 // Badge "unknown" (wire value): the arm CLI did not answer while the container runs, or Docker was not
-// readable. Arm stays hidden and Disarm available, as before.
-const unknownView = (
-  status: NautilusArmStatusOutput,
-  confirmed: NautilusConfirmed | null
+// readable. The label and the cause, with the last badge this page confirmed; the caller adds what it
+// holds back (the arm switch: Arm hidden; the go-live queue: sends refused).
+export const unknownView = (
+  status: Pick<NautilusArmStatusOutput, "armError" | "checkedAt" | "container">,
+  confirmed: NautilusConfirmed | null,
+  // How a time reads on the caller's page (the go-live queue shows New York time with the date).
+  clock: (
+    value: string | null | undefined,
+    nowMs: number
+  ) => string = localClockText
 ): Readonly<{ label: string; detail: string }> => {
   const nowMs = Date.parse(status.checkedAt);
   const checked = clock(status.checkedAt, nowMs);
@@ -54,7 +62,9 @@ const unknownView = (
     const cause =
       code === null
         ? "sent no arm state and no error code"
-        : (CLI_CAUSE[code] ?? `failed (code ${code})`);
+        : Object.hasOwn(CLI_CAUSE, code)
+          ? CLI_CAUSE[code]
+          : `failed (code ${code})`;
     parts.push(`The arm command in the node ${cause} at ${checked}`);
   } else {
     label = "Node state not read";
@@ -82,9 +92,6 @@ const unknownView = (
     parts.push(
       `last confirmed on this page: ${BADGE[confirmed.badge].label} at ${clock(confirmed.checkedAt, nowMs)}`
     );
-  parts.push(
-    `Arm hidden, Disarm available · next check in ${NAUTILUS_POLL_MS / 1000} s`
-  );
   return { detail: parts.join(" · "), label };
 };
 
@@ -129,7 +136,7 @@ export const nautilusArmView = (
     return {
       arm: null,
       badge: { ...badge, label: unknown.label },
-      detail: unknown.detail,
+      detail: `${unknown.detail} · Arm hidden, Disarm available · next check in ${NAUTILUS_POLL_MS / 1000} s`,
       disarm: true,
     };
   }

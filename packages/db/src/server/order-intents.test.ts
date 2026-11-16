@@ -306,13 +306,14 @@ describe("order intent repository", () => {
     const states = await createOrderIntentRepository(database, deps).sendStates(
       ["a", "b", "c", "d", "e"]
     );
+    // The states as before; createdAt is the time of the row that decides each.
     expect(Object.fromEntries(states)).toEqual({
-      a: "pending",
-      b: "placed",
+      a: { createdAt: at(0), state: "pending" },
+      b: { createdAt: at(1), state: "placed" },
       // An outcome this code does not know may have reached IBKR.
-      c: "unknown",
-      d: "not-found",
-      e: "none",
+      c: { createdAt: at(1), state: "unknown" },
+      d: { createdAt: at(2), state: "not-found" },
+      e: { createdAt: null, state: "none" },
     });
     // No ref: no query.
     const noQuery = {
@@ -323,6 +324,27 @@ describe("order intent repository", () => {
     expect(
       (await createOrderIntentRepository(noQuery, deps).sendStates([])).size
     ).toBe(0);
+  });
+
+  it("reads each send state with the time of its deciding row", async () => {
+    const { database } = fakeDatabase([
+      row(0, INTENT, undefined, "a"),
+      row(0, INTENT, undefined, "b"),
+      row(1, RESULT, "unknown", "b"),
+      // A resend after a refusal, rows read out of order: the later intent row decides.
+      row(2, INTENT, undefined, "c"),
+      row(0, INTENT, undefined, "c"),
+      row(1, RESULT, "refused", "c"),
+    ]);
+    const states = await createOrderIntentRepository(database, deps).sendStates(
+      ["a", "b", "c", "e"]
+    );
+    expect(Object.fromEntries(states)).toEqual({
+      a: { createdAt: at(0), state: "pending" },
+      b: { createdAt: at(1), state: "unknown" },
+      c: { createdAt: at(2), state: "pending" },
+      e: { createdAt: null, state: "none" },
+    });
   });
 
   // A database whose transaction runs on the same fake; vertex_order_send_claims keeps its

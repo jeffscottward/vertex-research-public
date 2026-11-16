@@ -115709,6 +115709,65 @@
                         }
                       ]
                     },
+                    "sendDetail": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "const": "pending"
+                                },
+                                "since": {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "since"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "const": "no-store"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "at": {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                "kind": {
+                                  "const": "read-failed"
+                                }
+                              },
+                              "required": [
+                                "at",
+                                "kind"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "shortStrike": {
                       "type": "number"
                     },
@@ -117051,6 +117110,65 @@
                             "unavailable"
                           ],
                           "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sendDetail": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "const": "pending"
+                                },
+                                "since": {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "since"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "const": "no-store"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "at": {
+                                  "format": "date-time",
+                                  "type": "string",
+                                  "x-native-type": "date"
+                                },
+                                "kind": {
+                                  "const": "read-failed"
+                                }
+                              },
+                              "required": [
+                                "at",
+                                "kind"
+                              ],
+                              "type": "object"
+                            }
+                          ]
                         },
                         {
                           "type": "null"
@@ -119147,6 +119265,65 @@
                               }
                             ]
                           },
+                          "sendDetail": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "const": "pending"
+                                      },
+                                      "since": {
+                                        "format": "date-time",
+                                        "type": "string",
+                                        "x-native-type": "date"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "since"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "const": "no-store"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "at": {
+                                        "format": "date-time",
+                                        "type": "string",
+                                        "x-native-type": "date"
+                                      },
+                                      "kind": {
+                                        "const": "read-failed"
+                                      }
+                                    },
+                                    "required": [
+                                      "at",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "shortStrike": {
                             "type": "number"
                           },
@@ -119348,6 +119525,17 @@
                             }
                           ]
                         },
+                        "armError": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "badge": {
                           "enum": [
                             "running-disarmed",
@@ -119361,6 +119549,100 @@
                           "format": "date-time",
                           "type": "string",
                           "x-native-type": "date"
+                        },
+                        "container": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "health": {
+                              "anyOf": [
+                                {
+                                  "enum": [
+                                    "healthy",
+                                    "unhealthy",
+                                    "starting"
+                                  ],
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "lastKnown": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "at": {
+                                      "maxLength": 40,
+                                      "type": "string"
+                                    },
+                                    "since": {
+                                      "anyOf": [
+                                        {
+                                          "maxLength": 40,
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "state": {
+                                      "enum": [
+                                        "running",
+                                        "exited",
+                                        "missing",
+                                        "docker-unreadable"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "at",
+                                    "since",
+                                    "state"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "since": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "state": {
+                              "enum": [
+                                "running",
+                                "exited",
+                                "missing",
+                                "docker-unreadable"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "health",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
+                        "readFailure": {
+                          "enum": [
+                            "agent-key-refused",
+                            "call-failed"
+                          ],
+                          "type": "string"
                         }
                       },
                       "required": [

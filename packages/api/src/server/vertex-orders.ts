@@ -2,6 +2,7 @@ import type { SemanticEvent } from "@darkfactory/observability/port";
 import { call, implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
+import { ORDER_INTENT_LOOKBACK_MS } from "../contracts/golive-drafts.ts";
 import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
 import type {
   VertexComboInput,
@@ -412,7 +413,7 @@ const guarded = async <T>(
 // IBKR lists an accepted order at once. After this time, an order that is neither open nor visible as
 // a position change is treated as not received.
 const UNKNOWN_SETTLE_MS = 10 * 60_000;
-const INTENT_LOOKBACK_MS = 7 * 24 * 60 * 60_000;
+const INTENT_LOOKBACK_MS = ORDER_INTENT_LOOKBACK_MS;
 
 type IntentStore = NonNullable<ApiContext["repositories"]["orderIntents"]>;
 
