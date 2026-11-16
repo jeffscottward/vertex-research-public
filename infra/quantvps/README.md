@@ -153,7 +153,7 @@ The run stops with exit 3 and changes nothing while a swap is unfinished (see "R
 
 Exit codes are the same as for `prune-web-backups.sh` (0, 2, 3, 8, 11, 13, above). Log: `${XDG_STATE_HOME:-$HOME/.local/state}/vertex-runtime-prune.log` on QuantVPS, one `<UTC time> delete <TS> <sha|none>` line per renamed backup and one `<UTC time> run renamed=<n> keep=2 rc=<0|1>` line per run that reached the rename step.
 
-Escalation: when the runtime prune ends with exit code 3, 11 or 13 in two deploys in a row, or its summary shows more than 3 backups over the keep count, the agent that runs the deploy opens or updates a card and runs the catch-up loop of the design's "First deletion" (time window, claim, before state, a keep-list check before each run, stop rules). The loop ends when the summary line holds `over_after=0 leftover_folders=0`.
+Escalation: when the runtime prune ends with exit code 3, 11 or 13 in two deploys in a row, or its summary shows more than 3 backups over the keep count, or one delete took more than 120 s (the `deleted <TS> (<n> s)` line), the agent that runs the deploy opens or updates a card and runs the catch-up loop of the design's "First deletion" (time window, claim, before state, a keep-list check before each run, stop rules). The loop ends when the summary line holds `over_after=0 leftover_folders=0`.
 
 ## Change the installed Caddyfile
 
