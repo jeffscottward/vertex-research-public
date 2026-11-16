@@ -93,10 +93,12 @@ const SESSION_STATE_TONE: Readonly<Record<DeploySessionState, Tone>> = {
   missing: "danger",
   unreadable: "warning",
   unrecognised: "warning",
-  unknown: "neutral",
 };
 
-const KILL_SWITCH_TONE: Readonly<Record<DeployKillSwitchState, Tone>> = {
+// "unknown": the web shows it when the risk block is not available; the collector never sends it.
+type KillSwitchView = DeployKillSwitchState | "unknown";
+
+const KILL_SWITCH_TONE: Readonly<Record<KillSwitchView, Tone>> = {
   engaged: "danger",
   clear: "success",
   unverified: "warning",
@@ -373,7 +375,6 @@ const startedMissing = (state: DeploySessionState): string => {
 const stoppedMissing = (state: DeploySessionState): string => {
   const noContainer = NO_CONTAINER_TEXT[state];
   if (noContainer !== undefined) return noContainer;
-  if (state === "unknown") return "container not inspected";
   if (state === "halted") return "not stopped (kill switch engaged)";
   return STOPPED_STATES.has(state) ? "stop time not reported" : "not stopped";
 };
@@ -968,7 +969,7 @@ export const StatusStrip = ({
 // unverified: no file engaged, but a kill-switch file check gave no answer. Name the files that
 // gave none (the state is decided from the file checks; the other indicators only add "engaged").
 const killSwitchText = (
-  kill: DeployKillSwitchState,
+  kill: KillSwitchView,
   risk: DeployRiskBlock | undefined
 ): string => {
   if (kill !== "unverified" || risk === undefined || !risk.available)
@@ -982,9 +983,7 @@ const killSwitchText = (
   return `Kill switch not verified: ${names.length === 0 ? "a kill-switch file" : names.join(", ")} not readable${at === null ? "" : ` at ${at}`} · not treated as clear`;
 };
 
-const killSwitchOf = (
-  risk: DeployRiskBlock | undefined
-): DeployKillSwitchState => {
+const killSwitchOf = (risk: DeployRiskBlock | undefined): KillSwitchView => {
   return risk?.available ? risk.kill_switch : "unknown";
 };
 
