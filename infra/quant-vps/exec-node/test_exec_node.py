@@ -246,7 +246,14 @@ class OwnedRuntimeTests(unittest.TestCase):
         "scripts/load-env-defaults.sh",
         "scripts/healthcheck.sh",
     )
-    path_changed = ("scripts/nautilus-arm.sh", "scripts/nautilus_health_alert.py")
+    path_changed = ("scripts/nautilus-arm.sh",)
+    # Owner rule 2026-11-11 (card vertex-no-unknown-status; card vertex-status-b1-quantvps): the health
+    # alert names each state it cannot decide (no arm state, no Docker healthcheck) with its cause, the
+    # last known arm state and the last healthy check, instead of "unknown". It also changed the root
+    # path like nautilus-arm.sh. Test: test_nautilus_health_alert.py.
+    status_text_fix = {
+        "scripts/nautilus_health_alert.py": "2efc85ccb2045e324be578cd71c9f04a7d405c1b2abc6b6d1ca3b7d22cf0c4e2",
+    }
     # The live tree paired the new snapshot script with an old reader (TypeError on
     # market_values_timeout_seconds), so the 2FA readiness check always failed. The owned reader is
     # vertex-quant commit ef1b38b (merged to its main), a superset of the frozen one. It also
@@ -319,6 +326,11 @@ class OwnedRuntimeTests(unittest.TestCase):
             self.assertEqual(en.sha256_file(RUNTIME / rel), digest, rel)
             self.assertNotEqual(digest, self.manifest[rel], rel)
 
+    def test_status_text_fix_files_are_pinned(self):
+        for rel, digest in self.status_text_fix.items():
+            self.assertEqual(en.sha256_file(RUNTIME / rel), digest, rel)
+            self.assertNotEqual(digest, self.manifest[rel], rel)
+
     def test_safety_fix_files_are_pinned(self):
         for rel, digest in self.safety_fix.items():
             self.assertEqual(en.sha256_file(RUNTIME / rel), digest, rel)
@@ -349,7 +361,8 @@ class OwnedRuntimeTests(unittest.TestCase):
             self.assertEqual(sha(text.replace(NEW, OLD).encode()), self.manifest[rel], rel)
 
     def test_overlay_is_exactly_the_listed_files(self):
-        listed = set(self.unchanged) | set(self.path_changed) | set(self.reader_fix) | set(self.safety_fix) | set(self.signal_removal) | {"watchdog/.gitkeep"}
+        listed = (set(self.unchanged) | set(self.path_changed) | set(self.status_text_fix) | set(self.reader_fix)
+                  | set(self.safety_fix) | set(self.signal_removal) | {"watchdog/.gitkeep"})
         self.assertEqual(set(en.owned_files(RUNTIME)), listed)
 
     def test_compose_keeps_the_project_name(self):

@@ -61,7 +61,16 @@ Parse IBC lines (`IBC: ...`) in order; the last matching event wins:
 - `awaiting-2fa`: last event 2fa-started and less than 240 s old (IBC SecondFactorAuthenticationTimeout 180 s + 60 s). needsLogin=false.
 - `starting`: last event login-started and less than 300 s old, or container started less than 120 s ago with no event yet. needsLogin=false.
 - `logged-out`: last event 2fa-timeout or session-ended; or 2fa-started older than 240 s; or login-started older than 300 s. needsLogin=true.
-- `unknown`: docker unreadable, or container running longer than 120 s with no event. needsLogin=false.
+- `no-login-evidence` (1.2.0): container running longer than 120 s with no login event. `since` = the container start
+  (reason `no-login-event`), or the start of the 48 h log window when only the window was read (reason `log-window`).
+  needsLogin=false.
+- `gateway-unreadable` (1.2.0): docker ps, inspect or logs failed (reason `docker-error`), or more than one gateway
+  container runs (reason `ambiguous-container`). `since` = the first failed read of the current failure run.
+  needsLogin=false.
+- Both carry `lastKnown` `{state, since, at}` or null: for `gateway-unreadable` the last state that decided the login,
+  for `no-login-evidence` the last `logged-in` state. The service keeps both in memory only: after a restart they are
+  null until a read decides the login, and a failure run that began before the restart gets the first read after it as
+  `since`. Services before 1.2.0 wrote `unknown` for both states; readers still accept it.
 
 `feedsMissing` (1.1.0): vertex-portfolio health answered and its account feeds are not live (`state` is not
 `live` or `connected` is not true). No answer counts as false (unknown). A request is also allowed when
@@ -110,7 +119,7 @@ Every response: JSON, `Cache-Control: no-store`, `X-Content-Type-Options: nosnif
 `{"error":"unauthorized"}` (constant-time compare). Unknown path → 404. Wrong method → 405. Body > 4096 bytes → 413.
 
 Request object (`RecoveryRequest`):
-`{"requestId": str, "actorId": str, "requestedAt": ISO, "updatedAt": ISO, "finishedAt": ISO|null, "state": <state>, "detail": str (max 200), "scriptRunning": bool, "recheckAt": ISO|null, "recheck": {"at": ISO, "ok": bool, "detail": str}|null}`
+`{"requestId": str, "actorId": str|null (null: restored from a state file without one), "requestedAt": ISO, "updatedAt": ISO, "finishedAt": ISO|null, "state": <state>, "detail": str (max 200), "scriptRunning": bool, "recheckAt": ISO|null, "recheck": {"at": ISO, "ok": bool, "detail": str}|null}`
 
 Re-check (1.1.0, owner 2026-10-30): at `recheckAt` (request time + 900 s, the IBKR approval window) the monitor
 re-reads the real auth state once the request is terminal: gateway `logged-in` AND account feeds live. Good: the
@@ -163,14 +172,14 @@ only writer of the arm record `/opt/vertex-exec-node/data/nautilus/ARMED` (`/app
 
 The node container is the one with labels `com.docker.compose.service=nautilus-trader` and
 `com.docker.compose.oneoff=False` (one-off `docker compose run` containers do not count). No match: `missing`. More
-than one match: `unknown`, and no exec runs. argv is
+than one match, or docker ps/inspect fails: `docker-unreadable` (1.2.0; `unknown` before), and no exec runs. argv is
 fixed, no shell, fixed environment, timeouts 8 s (status) and 12 s (arm, disarm), stdout max 64 KiB. One arm or
 disarm at a time (409 `busy`). It never starts, stops or restarts the node.
 
 | Method | Path | Body | Replies |
 | --- | --- | --- | --- |
 | GET | `/nautilus/status` | none | 200 status (below) |
-| POST | `/nautilus/arm` | `{requestId, actorId, reason, statement, imageVersion}` (exact keys) | 200 result; 409 `not_running`, `busy` or a CLI refusal code; 400; 502 `cli_failed`; 504 `cli_timeout` |
+| POST | `/nautilus/arm` | `{requestId, actorId, reason, statement, imageVersion}` (exact keys) | 200 result; 409 `not_running`, `node_unreadable`, `busy` or a CLI refusal code; 400; 502 `cli_failed`; 504 `cli_timeout` |
 | POST | `/nautilus/disarm` | `{requestId, actorId, reason}` (exact keys) | same as arm |
 
 Body rules: `requestId` `^[A-Za-z0-9-]{8,64}$`; `actorId` `^[A-Za-z0-9_.@][A-Za-z0-9_.@-]{0,63}$`; `reason` one
@@ -183,14 +192,18 @@ Status (`vertex-nautilus-arm-status-v1`):
 
 ```json
 {"schema":"vertex-nautilus-arm-status-v1","version":"1.0.0","generatedAt":"<ISO>",
- "container":{"state":"running|exited|missing|unknown","health":"healthy|unhealthy|starting|null"},
+ "container":{"state":"running|exited|missing|docker-unreadable","health":"healthy|unhealthy|starting|null"},
  "arm":{"armed":false,"state":"disarmed","detail":"no_arm_record","imageVersion":"<v>","killSwitchActive":false,
         "armedAt":null,"armedBy":null,"reason":null},
  "armError":null}
 ```
 
-`arm` is null when the container is not running (`armError` `not-running`) or the CLI fails (`cli-timeout`,
-`cli-error`, `cli-bad-output`). Result (`vertex-nautilus-arm-result-v1`):
+`arm` is null when the container is not running (`armError` `not-running`), is not readable (`armError`
+`docker-error`, or `ambiguous-container` for more than one node container), or the CLI fails (`cli-timeout`,
+`cli-error`, `cli-bad-output`). A `docker-unreadable` container also carries `since` (the first failed read of the
+current failure run) and `lastKnown` `{state, since, at}` or null (the last state Docker answered; in memory only).
+Arm and disarm refuse it with 409 `node_unreadable` "the node container is not readable (docker error|more than one
+node container)". Result (`vertex-nautilus-arm-result-v1`):
 `{"schema", "action": "arm|disarm", "requestId", "auditId", "arm": {...same as status...}}`.
 
 ## Logging
