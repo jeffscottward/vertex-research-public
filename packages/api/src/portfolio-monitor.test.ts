@@ -696,11 +696,27 @@ describe("portfolioMonitor.snapshot procedure", () => {
         jsonResponse({ error: "unavailable" }, { status: 503 }),
       now: () => at,
     });
-    return await expectCode(
+    await expectCode(
       clientFor(session("operator"), config).portfolioMonitor.snapshot({}),
       "UNAVAILABLE",
       503
     );
+    // The message names the cause and the UTC time of the failure; the missing setting has none.
+    const unavailable = await clientFor(session("operator"), config)
+      .portfolioMonitor.snapshot({})
+      .catch((error: unknown) => error);
+    expect(unavailable).toMatchObject({
+      message: expect.stringMatching(
+        /^Portfolio endpoint returned HTTP 503 at \d{2}:\d{2} UTC$/u
+      ),
+    });
+    const missing = await clientFor(session("operator"), null)
+      .portfolioMonitor.snapshot({})
+      .catch((error: unknown) => error);
+    return expect(missing).toMatchObject({
+      message:
+        "Portfolio monitor endpoint not configured (VERTEX_PORTFOLIO_URL)",
+    });
   });
 
   return it("is not reachable with agent API keys or MCP tools", () => {
@@ -882,5 +898,12 @@ describe("portfolioMonitor edge cases", () => {
       "UPSTREAM_ERROR",
       502
     );
+    await expect(
+      clientFor(session("operator"), config).portfolioMonitor.snapshot({})
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /^Portfolio request failed at \d{2}:\d{2} UTC$/u
+      ),
+    });
   });
 });

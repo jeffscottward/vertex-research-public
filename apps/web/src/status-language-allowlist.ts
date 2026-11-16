@@ -1275,14 +1275,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
   },
   {
-    file: "components/portal/portfolio-combos-workspace.tsx",
-    text: "n/a",
-    count: 2,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'Not computed: run not finished' vs 'Not computed: too few trades/zero variance'. Run status is in scope for the first; the second needs a reason from the backtest API.",
-    open: true,
-  },
-  {
     file: "components/portal/portfolio-monitor-charts.tsx",
     text: "Positions unknown. The IBKR gateway is not live.",
     count: 1,
@@ -1295,22 +1287,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 1,
     reason: "Not displayed: TypeScript discriminant, never rendered.",
-  },
-  {
-    file: "components/portal/portfolio-monitor-dashboard.tsx",
-    text: "Workspace session summary unavailable.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Same as mission-control.tsx:197: no cause. Add the failure class to summaryState (timeout / request failed) and show it with a reload link.",
-    open: true,
-  },
-  {
-    file: "components/portal/portfolio-monitor-model.ts",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split by cause: 'Not sent by IBKR' (field null on a live snapshot) vs 'Withheld: gateway not live since HH:MM' vs 'No status from IBKR' for orders. Formatters need the live/health flag; order status needs a text change.",
-    open: true,
   },
   {
     file: "components/portal/portfolio-monitor-tables.tsx",
@@ -1334,14 +1310,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Audit 2026-11-13: ambiguous. Replace: 'Positions not confirmed: IBKR gateway not live since HH:MM · last confirmed list HH:MM (n rows) · retrying every Ns'. snapshot.status and fetchedAt exist in the parent; pass as props.",
-    open: true,
-  },
-  {
-    file: "components/portal/portfolio-monitor.tsx",
-    text: "Round-number check unavailable. Order prices are not flagged.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: States the consequence but not the cause. Keep the error in the feed state and show 'Round-number check failed at HH:MM: <code: message> · order prices are not flagged · retried on next refresh'.",
     open: true,
   },
   {
@@ -1827,14 +1795,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/experience/portfolio.tsx",
-    text: "Continuity is unavailable. Completeness and current balances are unknown.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: States: 'Continuity record not yet received', 'Continuity read failed (<reason>)', 'Continuity disabled for this source'. No reason or since field is used here; the portfolio API must supply reason and last-known high-water time.",
-    open: true,
-  },
-  {
-    file: "features/experience/portfolio.tsx",
     text: "No balances or holdings have been supplied. Empty collections and unknown values are not zero.",
     count: 1,
     reason:
@@ -1846,14 +1806,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       'Kept: static description of the view; "unknown" names one of the budget states it lists, it is not a status.',
-  },
-  {
-    file: "features/experience/portfolio.tsx",
-    text: "Portfolio source unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Body gives the consequence, not the cause or since-when. Split: 'Portfolio source not configured' / 'Portfolio source not responding since HH:MM' / 'No snapshot received yet'. API must add the reason.",
-    open: true,
   },
   {
     file: "features/experience/portfolio.tsx",
