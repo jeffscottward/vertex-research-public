@@ -15,3 +15,4 @@ tests/test_volspike_study.py
 tests/test_leveraged_etf_study_forms.py
 tests/test_leveraged_etf_study_run.py
 tests/test_trend_trio_nautilus.py
+tests/test_flow_control_nautilus.py

@@ -163,3 +163,5 @@ tests/test_flow_control_rules.py
 tests/test_flow_control_data.py
 tests/test_flow_control_download.py
 tests/test_flow_control_options.py
+tests/test_flow_control_study.py
+tests/test_flow_control_nautilus.py
