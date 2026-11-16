@@ -16,6 +16,9 @@
 // review happened: it makes the review claim explicit and tied to one commit, and the
 // merge review still checks the claim.
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
 /** Paths where a full-diff agent review at the head is required. */
 export const REVIEW_PATH_PREFIXES = [
   ".github/",
@@ -162,6 +165,17 @@ export interface MergeConditionsDeps {
   run: (command: string, args: string[]) => Promise<string>;
   stderr: { write: (text: string) => unknown };
   stdout: { write: (text: string) => unknown };
+}
+
+const execFileAsync = promisify(execFile);
+
+/** Real command runner for the CI entry point (scripts/merge-conditions.ts). */
+export async function runCommand(
+  command: string,
+  args: string[]
+): Promise<string> {
+  return (await execFileAsync(command, args, { maxBuffer: 16 * 1024 * 1024 }))
+    .stdout;
 }
 
 const lines = (text: string): string[] =>

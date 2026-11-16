@@ -4,6 +4,7 @@ import {
   evaluateMergeConditions,
   type MergeConditionInput,
   type MergeConditionsDeps,
+  runCommand,
   runMergeConditionsCli,
 } from "./merge-conditions.ts";
 
@@ -211,5 +212,12 @@ describe("runMergeConditionsCli", () => {
       "git rev-list": "",
     });
     expect(await runMergeConditionsCli(env, a.d)).toBe(0);
+  });
+});
+
+describe("runCommand", () => {
+  it("returns stdout and throws on a nonzero exit", async () => {
+    expect(await runCommand("git", ["--version"])).toContain("git version");
+    await expect(runCommand("git", ["no-such-command"])).rejects.toThrow();
   });
 });
