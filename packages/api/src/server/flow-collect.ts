@@ -761,10 +761,11 @@ const collectOptions = async (
     stored = await repository.optionGaps(instrument.symbol);
     if (open) newest = await repository.newestOptionPrintAt(instrument.symbol);
   } catch (error) {
-    // Closed: nothing to collect without the gap list, so report it without a sample.
+    // Closed: nothing to collect without the gap list, so report it without a sample. Every
+    // repository rejection arrives as a FlowStorageError (storageTagged).
     if (!open)
       return notDue(
-        `market closed; gaps unavailable: ${(error instanceof Error ? error.message : "lookup failed").slice(0, 80)}`
+        `market closed; gaps unavailable: ${(error as FlowStorageError).message.slice(0, 80)}`
       );
     return failed(error);
   }
@@ -1104,27 +1105,32 @@ class FlowStorageError extends Error {
   readonly causeName: string;
 
   constructor(cause: unknown) {
-    super(cause instanceof Error ? cause.message : "lookup failed");
+    super(cause instanceof Error ? cause.message : "lookup failed", { cause });
     this.name = "FlowStorageError";
     this.causeName = cause instanceof Error ? cause.name : typeof cause;
   }
 }
 
-/** Every repository method rethrows its error as a FlowStorageError. */
+type RepositoryMethod = (...args: unknown[]) => Promise<unknown>;
+
+/** Every repository method (all of them return promises) rethrows its error as a FlowStorageError. */
 const storageTagged = (repository: FlowRepository): FlowRepository =>
-  new Proxy(repository, {
-    get: (target, key) => {
-      const value: unknown = Reflect.get(target, key);
-      if (typeof value !== "function") return value;
-      return async (...args: unknown[]): Promise<unknown> => {
+  Object.fromEntries(
+    Object.entries(repository).map(([name, method]) => [
+      name,
+      async (...args: unknown[]): Promise<unknown> => {
         try {
-          return await Reflect.apply(value, target, args);
+          return await Reflect.apply(
+            method as RepositoryMethod,
+            repository,
+            args
+          );
         } catch (error) {
           throw new FlowStorageError(error);
         }
-      };
-    },
-  });
+      },
+    ])
+  ) as FlowRepository;
 
 /** An error of one source becomes its sample; the run goes on with the next source. */
 const isolated = async (
