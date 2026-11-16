@@ -37,16 +37,20 @@ const finite = (value: unknown): value is number =>
 const nullable = (value: number | null | undefined): number | null =>
   finite(value) ? value : null;
 /** Six decimals, like the old APP note (prices of pivots, Fibonacci and the profile). */
-const round = (value: number): number => Math.round(value * 1e6) / 1e6;
+const round = (value: number): number => {
+  const scaled = value * 1e6;
+  // A finite price too large to scale stays as it is (it would otherwise become Infinity).
+  return Number.isFinite(scaled) ? Math.round(scaled) / 1e6 : value;
+};
 const record = (value: unknown): Json | null =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Json)
     : null;
 const numberOrNaN = (value: unknown): number =>
   typeof value === "number" ? value : Number.NaN;
-const textOrNull = (value: unknown): string | null =>
-  typeof value === "string" && value !== "" ? value : null;
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
+const ISO_INSTANT =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/u;
 /** Stored dates pass only as `YYYY-MM-DD`; other text is never passed on. */
 const dateOrNull = (value: unknown): string | null =>
   typeof value === "string" && DATE.test(value) ? value : null;
@@ -222,7 +226,9 @@ export const readStoredTechnicals = (
           },
     rsi14: storedNumber(body, "rsi14"),
     sampleCount:
-      sampleCount !== null && Number.isInteger(sampleCount) && sampleCount >= 0
+      sampleCount !== null &&
+      Number.isSafeInteger(sampleCount) &&
+      sampleCount >= 0
         ? sampleCount
         : null,
     sma20: storedNumber(body, "sma20"),
@@ -450,7 +456,7 @@ export const weinsteinStage = (
     const average = averages[index] as number;
     const earlier = averages[index - slopeWeeks] as number;
     // Continuous futures can trade at or below zero; a percentage slope is then undefined.
-    if (!(earlier > 0)) return null;
+    if (!(earlier > 0 && average > 0)) return null;
     slopePct = 100 * (average / earlier - 1);
     const close = (weeks[index] as WeeklyClose).close;
     if (close > average && slopePct > flatBandPct) decided = 2;
@@ -532,7 +538,11 @@ const valueArea = (
   let bottom = poc;
   let top = poc;
   let inside = volumeAt(poc);
-  while (inside < (total * targetPct) / 100) {
+  // Bounded by the bin count: the area never grows past every bin.
+  while (
+    inside < (total * targetPct) / 100 &&
+    top - bottom + 1 < volumes.length
+  ) {
     if (volumeAt(top + 1) >= volumeAt(bottom - 1)) {
       top += 1;
       inside += volumeAt(top);
@@ -574,7 +584,7 @@ export const volumeProfile = (
   const width = (high - low) / binCount;
   const volumes = spreadVolume(window, low, width, binCount);
   const total = volumes.reduce((sum, volume) => sum + volume, 0);
-  if (!(total > 0)) return null;
+  if (!(total > 0 && Number.isSafeInteger(Math.round(total)))) return null;
   const poc = volumes.indexOf(Math.max(...volumes));
   const area = valueArea(volumes, poc, valueAreaPct);
   const edge = (bin: number): number => round(low + bin * width);
@@ -652,11 +662,16 @@ export const buildResearchReportTechnicals = ({
       weinstein: null,
     };
   }
-  const collectedText = textOrNull(marketBody?.["collectedAt"]);
-  const collectedAt =
-    collectedText !== null && finite(Date.parse(collectedText))
-      ? collectedText
-      : null;
+  // Only a parseable time passes, normalized to ISO 8601 UTC.
+  const collected = marketBody?.["collectedAt"];
+  // ISO 8601 with Z or an explicit offset only: a time without a zone would depend on the host.
+  const collectedMillis =
+    typeof collected === "string" && ISO_INSTANT.test(collected)
+      ? Date.parse(collected)
+      : Number.NaN;
+  const collectedAt = finite(collectedMillis)
+    ? new Date(collectedMillis).toISOString()
+    : null;
   const now = collectedAt ?? `${last.date}T21:00:00Z`;
   const recomputed = recomputeIndicators(bars);
   const check = compareWithStored(stored, recomputed);
@@ -672,7 +687,9 @@ export const buildResearchReportTechnicals = ({
   const profile = volumeProfile(bars, last.close);
   if (weinstein === null)
     warnings.push(
-      `Weinstein stage needs ${WEINSTEIN_RULE.minimumWeeks} complete weeks; this revision has ${weeks.length}.`
+      weeks.length < WEINSTEIN_RULE.minimumWeeks
+        ? `Weinstein stage needs ${WEINSTEIN_RULE.minimumWeeks} complete weeks; this revision has ${weeks.length}.`
+        : "Weinstein stage unavailable: the 30-week SMA is at or below zero inside the classified window."
     );
   if (fibonacci === null)
     warnings.push("Fibonacci levels need at least 20 bars with a price range.");

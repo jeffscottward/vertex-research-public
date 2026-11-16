@@ -254,6 +254,7 @@ describe("readStoredTechnicals", () => {
       sma200Slope: null,
     });
     expect(readStoredTechnicals({ sampleCount: -1 }).sampleCount).toBeNull();
+    expect(readStoredTechnicals({ sampleCount: 1e16 }).sampleCount).toBeNull();
     const empty = readStoredTechnicals("not json object");
     expect(empty.latestClose).toBeNull();
     expect(empty.trendChecks.every((check) => check.passed === null)).toBe(
@@ -517,6 +518,14 @@ describe("weinsteinStage", () => {
     expect(weinsteinStage(weeksOf(toZero))).toBeNull();
   });
 
+  it("is unavailable when the current average is at or below zero", () => {
+    const closes = [
+      ...Array.from({ length: 36 }, () => 2),
+      ...Array.from({ length: 4 }, () => -100),
+    ];
+    expect(weinsteinStage(weeksOf(closes))).toBeNull();
+  });
+
   it("is unresolved while the average was always flat", () => {
     expect(
       weinsteinStage(weeksOf(Array.from({ length: 40 }, () => 100)))
@@ -599,6 +608,26 @@ describe("volumeProfile", () => {
     expect(profile?.valueAreaVolumePct).toBeLessThan(72.1);
   });
 
+  it("is null when the volume total is not a safe integer and keeps huge prices finite", () => {
+    expect(volumeProfile(flatWindow(20, { volume: 5e14 }), 15)).toBeNull();
+    const huge = 2e302;
+    const levels = fibonacciLevels(
+      Array.from({ length: 20 }, (_, index) =>
+        bar({
+          close: huge,
+          date: `2026-03-${String(index + 1).padStart(2, "0")}`,
+          high: index === 5 ? huge * 2 : huge,
+          low: huge,
+        })
+      ),
+      huge
+    );
+    expect(levels?.swingHigh.price).toBe(huge * 2);
+    expect(levels?.levels.every((level) => Number.isFinite(level.price))).toBe(
+      true
+    );
+  });
+
   it("uses only the last 63 sessions of the generated bars", () => {
     const profile = volumeProfile(BARS, LAST_CLOSE);
     expect(profile?.sessions).toBe(63);
@@ -622,7 +651,7 @@ describe("buildResearchReportTechnicals", () => {
     });
     expect(result.check.status).toBe("match");
     expect(result.bars).toEqual({
-      collectedAt: "2026-01-02T21:30:00Z",
+      collectedAt: "2026-01-02T21:30:00.000Z",
       count: 260,
       firstDate: "2025-01-06",
       lastDate: "2026-01-02",
@@ -645,7 +674,12 @@ describe("buildResearchReportTechnicals", () => {
   });
 
   it("falls back to the last bar's date when collectedAt is missing or invalid", () => {
-    for (const collectedAt of [undefined, "not a time"]) {
+    for (const collectedAt of [
+      undefined,
+      "not a time",
+      "secret token 2024",
+      "2026-01-02 21:30",
+    ]) {
       const result = buildResearchReportTechnicals({
         assetType: null,
         market: { collectedAt, history: HISTORY.slice(0, 259) },
@@ -669,6 +703,21 @@ describe("buildResearchReportTechnicals", () => {
         status: "mismatch",
       });
     }
+  });
+
+  it("names a zero average as the reason when enough weeks exist", () => {
+    const history = HISTORY.map((item, index) =>
+      index < 150 ? { ...item, close: 0, high: 0, low: 0, open: 0 } : item
+    );
+    const result = buildResearchReportTechnicals({
+      assetType: "equity",
+      market: { history },
+      technicals: {},
+    });
+    expect(result.weinstein).toBeNull();
+    expect(result.warnings).toContain(
+      "Weinstein stage unavailable: the 30-week SMA is at or below zero inside the classified window."
+    );
   });
 
   it("explains each missing marker and warns about futures", () => {
