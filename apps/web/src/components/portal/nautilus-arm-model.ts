@@ -40,7 +40,7 @@ const clock = (value: string | null | undefined, nowMs: number): string =>
 
 // Badge "unknown" (wire value): the arm CLI did not answer while the container runs, or Docker was not
 // readable. Arm stays hidden and Disarm available, as before.
-const unknownView = (
+export const unknownView = (
   status: NautilusArmStatusOutput,
   confirmed: NautilusConfirmed | null
 ): Readonly<{ label: string; detail: string }> => {

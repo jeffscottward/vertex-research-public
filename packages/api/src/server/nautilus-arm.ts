@@ -143,8 +143,8 @@ const call = async (
       throw new NautilusArmError(
         "UNAVAILABLE",
         controller.signal.aborted
-          ? `Nautilus bridge did not answer within ${timeoutMs / 1000} s (${utcClock(now())})`
-          : `Nautilus bridge could not be reached (${utcClock(now())}): network error`
+          ? `Nautilus bridge did not answer within ${timeoutMs / 1000} s (${utcClock(now(), now())})`
+          : `Nautilus bridge could not be reached (${utcClock(now(), now())}): network error`
       );
     }
     if (
@@ -154,7 +154,7 @@ const call = async (
         [502, 503, 504].includes(response.status)
           ? "UNAVAILABLE"
           : "UPSTREAM_ERROR",
-        `Nautilus bridge answered HTTP ${response.status} at ${utcClock(now())} with an unexpected content type`
+        `Nautilus bridge answered HTTP ${response.status} at ${utcClock(now(), now())} with an unexpected content type`
       );
     let text: string;
     try {
@@ -171,7 +171,7 @@ const call = async (
       if (error instanceof NautilusArmError) throw error;
       throw new NautilusArmError(
         "UNAVAILABLE",
-        `Nautilus bridge answer could not be read (${utcClock(now())})`
+        `Nautilus bridge answer could not be read (${utcClock(now(), now())})`
       );
     }
     try {
@@ -234,7 +234,7 @@ const refusalOf = (reply: Reply): NautilusArmError => {
     return new NautilusArmError("CONFLICT", text);
   return new NautilusArmError(
     [502, 503, 504].includes(reply.status) ? "UNAVAILABLE" : "UPSTREAM_ERROR",
-    `Nautilus bridge answered HTTP ${reply.status} at ${utcClock(now())}`
+    `Nautilus bridge answered HTTP ${reply.status} at ${utcClock(now(), now())}`
   );
 };
 
