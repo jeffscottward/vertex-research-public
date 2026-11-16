@@ -6,7 +6,7 @@ import type { Transaction } from "./client.ts";
 // conversation eligibility -> current original -> debate sources). Without
 // reuse the SQL work grows by about 10x per ordinal. Inside one walk a
 // predecessor is read once and later checks of the same exact pin reuse it, so
-// the work grows linearly with the number of predecessors.
+// one check reads each predecessor once.
 //
 // Boundary (owner decision 2026-11-16, card vertex-debate-approval-sql-load):
 // an owned transaction (withTransactionReadScope) is one walk, so a
@@ -16,9 +16,10 @@ import type { Transaction } from "./client.ts";
 // a walk opens on the outermost withPredecessorWalk call and ends with it.
 // Only completed reads are kept: a failed read is never reused. Every write
 // in the transaction drops every kept read: persistence-core `insert` and each
-// raw SQL write in packages/db/src/server/vertex-*.ts call
-// forgetPredecessorWalkReads first (scripts/ci/predecessor-walk-writes.test.ts
-// checks this), and a read that was running during the write is not kept.
+// raw SQL write in the vertex-*.ts files of packages/db/src/server and
+// packages/api/src/server call forgetPredecessorWalkReads first
+// (scripts/ci/predecessor-walk-writes.test.ts checks this), and a read that
+// was running during the drop is not kept.
 // Each reuse runs the owner's recheck (grants, rights, clock bounds and the
 // checks that are valid only at one moment). Reads are kept per reader
 // function (the `owner` argument), so one reader never reuses another

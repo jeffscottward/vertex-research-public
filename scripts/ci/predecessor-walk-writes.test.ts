@@ -61,7 +61,11 @@ const unguardedWrites = (name: string, source: string): readonly string[] => {
     while (before >= 0 && /[=]\s*\($/.test((lines[before] ?? "").trimEnd()))
       before -= 1;
     const dropped = forget.exec(lines[before] ?? "")?.[1];
-    if (dropped === undefined)
+    if (runner === null)
+      found.push(
+        `${name}:${index + 1} raw write with no statement that runs it`
+      );
+    else if (dropped === undefined)
       found.push(
         `${name}:${index + 1} raw write without forgetPredecessorWalkReads`
       );
@@ -128,6 +132,11 @@ describe("predecessor walk writes", () => {
           "    await tx.execute(sql<{ a: number }>`delete from t returning a`)",
           "  ).rows;",
           "  await trx.delete(table);",
+          "  await tx.execute(sql<{ a: number }>`update t set a = 4`);",
+          "  const d = 4;",
+          "  const e = 5;",
+          "  const g = 6;",
+          "  const query = sql`update t set a = 5`;",
         ].join("\n")
       )
     ).toEqual([
@@ -136,6 +145,8 @@ describe("predecessor walk writes", () => {
       "a.ts:22 Drizzle builder write",
       "a.ts:25 raw write without forgetPredecessorWalkReads",
       "a.ts:30 Drizzle builder write",
+      "a.ts:31 raw write without forgetPredecessorWalkReads",
+      "a.ts:35 raw write with no statement that runs it",
       "a.ts:7 raw write without forgetPredecessorWalkReads",
       "a.ts:9 Drizzle builder write",
     ]);
