@@ -203,9 +203,34 @@ export const dailyBars = async (
 const mostCommon = (counts: ReadonlyMap<string, number>): string | null =>
   [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
-type DatedSecurity = RotationSecurity &
+type BarsRow = Readonly<{ row: ScreenerRow; bars: readonly Bar[] }>;
+type AlignedSecurity = RotationSecurity &
   ScreenerRow &
-  Readonly<{ lastDate: string; barSource: SeriesSource | null }>;
+  Readonly<{ barSource: SeriesSource | null }>;
+
+/**
+ * The names whose series has a bar on `asOf`, cut to end there. A series that ends earlier (stale or
+ * halted) is dropped. A series that runs past `asOf` loses its newer bars: IBKR can already have the
+ * day's close while Yahoo's is still empty for most names, and all periods must end on one day.
+ */
+export const alignToAsOf = (
+  rows: readonly BarsRow[],
+  asOf: string | null
+): AlignedSecurity[] =>
+  rows.flatMap(({ row, bars }) => {
+    const end = bars.findIndex((bar) => bar[0] === asOf);
+    if (end < 0) return [];
+    const kept = bars.slice(0, end + 1);
+    return [
+      {
+        ...row,
+        barSource: seriesSource(
+          kept.map((bar) => ({ source: bar[2] ?? "yahoo" }))
+        ),
+        closes: kept.map((bar) => bar[1]),
+      },
+    ];
+  });
 
 /** One collection run; returns the process exit code (0 on success). */
 export const runRotationMatrix = async (io: LensIo): Promise<number> => {
@@ -243,7 +268,7 @@ const collect = async (io: LensIo): Promise<void> => {
   );
   // One reader for the run: IBKR requests in one queue, one count of failures in a row.
   const history = createHistoryReader(io, ibkrFirst);
-  const securities: DatedSecurity[] = [];
+  const securities: BarsRow[] = [];
   const failed: string[] = [];
   const dateCount = new Map<string, number>();
   await pool(
@@ -258,14 +283,7 @@ const collect = async (io: LensIo): Promise<void> => {
           return;
         }
         dateCount.set(last[0], (dateCount.get(last[0]) ?? 0) + 1);
-        securities.push({
-          ...row,
-          barSource: seriesSource(
-            bars.map((bar) => ({ source: bar[2] ?? "yahoo" }))
-          ),
-          closes: bars.map((bar) => bar[1]),
-          lastDate: last[0],
-        });
+        securities.push({ bars, row });
       } catch {
         failed.push(row.symbol);
       }
@@ -274,9 +292,10 @@ const collect = async (io: LensIo): Promise<void> => {
       if (done % 250 === 0) logLine(io, `bars ${done}/${list.length}`);
     }
   );
-  // asOf = most common last bar date; drop names whose last bar is older (stale/halted) so periods align.
+  // asOf = most common last bar date; names whose bars end earlier (stale/halted) are dropped and
+  // newer bars are cut, so every period ends on asOf.
   const asOf = mostCommon(dateCount);
-  const aligned = securities.filter((security) => security.lastDate === asOf);
+  const aligned = alignToAsOf(securities, asOf);
   const matrix = buildRotationMatrix(aligned, { asOf, now: io.now, ours });
   // The sources of the names in the matrix (cached bars included), not of the names dropped above.
   const barsLabel = sourceLabel(

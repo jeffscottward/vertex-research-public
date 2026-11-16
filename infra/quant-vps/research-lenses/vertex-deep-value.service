@@ -10,7 +10,9 @@ After=network-online.target vertex-rotation-matrix.service
 Type=oneshot
 EnvironmentFile=-%h/.config/vertex/research-lenses.env
 ExecStartPre=%h/.local/bin/vertex-research-lenses-fetch
-ExecStart=%h/.local/share/mise/installs/bun/1.4.2/bin/bun %h/.local/share/vertex-research-lenses/app/scripts/research-lenses/collect-deep-value.ts --out %h/.local/share/vertex-research-lenses/data/deep-value --rotation %h/.local/share/vertex-research-lenses/data/rotation-matrix/latest.json
+# One lens job at a time (flock): two runs would ask IBKR together and pass the 3 of 6 requests
+# per 120 s this job may use. The wait counts against TimeoutStartSec.
+ExecStart=/usr/bin/flock %h/.local/share/vertex-research-lenses/jobs.lock %h/.local/share/mise/installs/bun/1.4.2/bin/bun %h/.local/share/vertex-research-lenses/app/scripts/research-lenses/collect-deep-value.ts --out %h/.local/share/vertex-research-lenses/data/deep-value --rotation %h/.local/share/vertex-research-lenses/data/rotation-matrix/latest.json
 # 75 min IBKR run budget (LENS_IBKR_BUDGET_MINUTES, history-bars.ts) plus 15 min for the SEC and Yahoo work.
 TimeoutStartSec=5400
 Nice=10

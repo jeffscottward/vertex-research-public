@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  alignToAsOf,
   dailyBars,
   getJson,
   readOurs,
@@ -601,5 +602,62 @@ describe("runRotationMatrix", () => {
     );
     expect(requests.some(isHistoryUrl)).toBe(false);
     expect(stderr).toHaveLength(2);
+  });
+});
+
+describe("alignToAsOf", () => {
+  const row = (symbol: string) => ({
+    industry: "Lead",
+    marketCap: 5e9,
+    name: `${symbol} Inc`,
+    price: 25,
+    sector: "Tech",
+    symbol,
+    volume: 500_000,
+  });
+
+  it("cuts an IBKR series that already has the next day and keeps the name", () => {
+    const aligned = alignToAsOf(
+      [
+        {
+          bars: [
+            ["2026-11-12", 10],
+            ["2026-11-13", 11],
+          ],
+          row: row("Y"),
+        },
+        {
+          bars: [
+            ["2026-11-12", 20, "ibkr"],
+            ["2026-11-13", 21, "ibkr"],
+            ["2026-11-16", 22, "ibkr"],
+          ],
+          row: row("I"),
+        },
+      ],
+      "2026-11-13"
+    );
+    expect(
+      aligned.map((security) => [security.symbol, security.closes])
+    ).toEqual([
+      ["Y", [10, 11]],
+      ["I", [20, 21]],
+    ]);
+    expect(aligned.map((security) => security.barSource)).toEqual([
+      "yahoo",
+      "ibkr",
+    ]);
+  });
+
+  it("drops a series that ends before asOf, and every series without asOf", () => {
+    const stale = {
+      bars: [
+        ["2026-11-11", 10],
+        ["2026-11-12", 11],
+      ] as [string, number][],
+      row: row("S"),
+    };
+    expect(alignToAsOf([stale], "2026-11-13")).toEqual([]);
+    expect(alignToAsOf([stale], null)).toEqual([]);
   });
 });

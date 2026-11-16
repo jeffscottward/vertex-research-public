@@ -71,7 +71,7 @@ describe("research-lens rig units", () => {
     );
   });
 
-  it("allow the IBKR run budget plus 15 minutes for the other sources", () => {
+  it("allow the IBKR run budget plus 15 minutes for the other sources and the lock wait", () => {
     for (const unit of [
       "./vertex-rotation-matrix.service",
       "./vertex-deep-value.service",
@@ -85,14 +85,16 @@ describe("research-lens rig units", () => {
     }
   });
 
-  it("use the bun version the repo pins", () => {
+  it("run one job at a time under one lock, with the bun version the repo pins", () => {
     const pinned = JSON.parse(
       readFileSync(join(repoRoot, "package.json"), "utf8")
     ).engines.bun;
     for (const argv of [rotation, deepValue]) {
-      expect(argv[0]).toBe(
-        `%h/.local/share/mise/installs/bun/${pinned}/bin/bun`
-      );
+      expect(argv.slice(0, 3)).toEqual([
+        "/usr/bin/flock",
+        "%h/.local/share/vertex-research-lenses/jobs.lock",
+        `%h/.local/share/mise/installs/bun/${pinned}/bin/bun`,
+      ]);
     }
   });
 
