@@ -319,7 +319,7 @@ describe("nautilusArmView", () => {
     ).toContain("at time not recorded");
   });
 
-  it("offers Arm only for running-disarmed with a disarmed record; Disarm for every other badge", () => {
+  it("offers Arm exactly where it was offered before (running badge, disarmed record); Disarm everywhere else", () => {
     const badges = [
       "running-disarmed",
       "running-armed",
@@ -329,8 +329,11 @@ describe("nautilusArmView", () => {
     for (const key of badges)
       for (const record of [null, armState(), ARMED]) {
         const view = nautilusArmView(status({ arm: record, badge: key }));
+        // The rule before this change: no record, down or unknown -> no Arm; an armed record -> no Arm.
         const armable =
-          key === "running-disarmed" && record !== null && !record.armed;
+          (key === "running-disarmed" || key === "running-armed") &&
+          record !== null &&
+          !record.armed;
         expect(view.arm !== null).toBe(armable);
         expect(view.disarm).toBe(!armable);
       }

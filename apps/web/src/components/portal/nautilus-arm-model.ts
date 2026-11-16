@@ -112,6 +112,13 @@ export type NautilusArmView = Readonly<{
   detail: string | null;
 }>;
 
+const ARMABLE_BADGES: Readonly<Record<NautilusNodeBadge, boolean>> = {
+  down: false,
+  "running-armed": true,
+  "running-disarmed": true,
+  unknown: false,
+};
+
 export const nautilusArmView = (
   status: NautilusArmStatusOutput,
   confirmed: NautilusConfirmed | null = null
@@ -127,9 +134,10 @@ export const nautilusArmView = (
     };
   }
   const arm = status.arm;
-  // Allow list: Arm only for a confirmed running-disarmed node with an arm record that is not armed.
-  // Every other badge or record shows Disarm (safe and idempotent on the node).
-  if (status.badge !== "running-disarmed" || arm === null || arm.armed) {
+  // Allow list with the same result as before this change: Arm only for a running node (armed or
+  // disarmed badge) whose arm record is not armed. Any other or new badge, or no record, shows Disarm
+  // (safe and idempotent on the node).
+  if (!ARMABLE_BADGES[status.badge] || arm === null || arm.armed) {
     if (arm === null || !arm.armed)
       return { arm: null, badge, detail: null, disarm: true };
     return {
