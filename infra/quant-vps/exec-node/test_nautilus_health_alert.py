@@ -179,5 +179,115 @@ class LastKnownTests(unittest.TestCase):
         )
 
 
+class GatewayCheckTests(unittest.TestCase):
+    """Card ibkr-drop-1845: the Sunday IBC auto-restart left the gateway logged out for hours and
+    nobody was told. The watchdog saw it; this alert reads the watchdog's ib_gateway check."""
+
+    def test_reads_the_watchdog_check(self):
+        bad = '{"ok": false, "required": true, "checked_at": "2026-11-15T11:59:30Z", "detail": "RuntimeError: ibapi handshake timeout"}'
+        self.assertEqual(
+            (False, "RuntimeError: ibapi handshake timeout"),
+            alert.gateway_check(NOW, FakeRun((0, "abc\n"), (0, bad))),
+        )
+        good = '{"ok": true, "required": true, "checked_at": "2026-11-15T11:59:30Z", "detail": "socket_open; ibapi_connected"}'
+        self.assertEqual(
+            (True, "socket_open; ibapi_connected"), alert.gateway_check(NOW, FakeRun((0, "abc"), (0, good)))
+        )
+
+    def test_stale_watchdog_check_cannot_verify(self):
+        old = '{"ok": true, "required": true, "checked_at": "2026-11-15T11:50:00Z"}'
+        ok, detail = alert.gateway_check(NOW, FakeRun((0, "a"), (0, old)))
+        self.assertFalse(ok)
+        self.assertIn("stale", detail)
+
+    def test_not_required_is_ok(self):
+        ok, detail = alert.gateway_check(NOW, FakeRun((0, "a"), (0, '{"ok": false, "required": false}')))
+        self.assertTrue(ok)
+        self.assertIn("not required", detail)
+
+    def test_unreadable_watchdog_is_not_ok(self):
+        cases = [
+            FakeRun((1, "")),
+            FakeRun((0, "")),
+            FakeRun((0, "a b")),
+            FakeRun(OSError("no docker")),
+            FakeRun((0, "a"), (1, "")),
+            FakeRun((0, "a"), (0, "not json")),
+            FakeRun((0, "a"), (0, "null")),
+        ]
+        for run in cases:
+            self.assertEqual((False, "cannot verify: watchdog status not readable"), alert.gateway_check(NOW, run))
+
+    def test_one_alert_after_five_failures_then_one_recovery(self):
+        posts: list[str] = []
+
+        def accept(text: str) -> bool:
+            posts.append(text)
+            return True
+
+        state: dict = {"last_ok_at": "2026-11-15T11:50:00Z"}
+        for minute in range(8):
+            now = NOW + timedelta(minutes=minute)
+            state = alert.gateway_step(state, False, "ibapi handshake timeout", now, accept)
+        self.assertEqual(1, len(posts))
+        self.assertIn("not reachable since 2026-11-15T12:00:00Z", posts[0])
+        self.assertIn("5 failed checks", posts[0])
+        self.assertIn("IBKR 2FA request button", posts[0])
+        state = alert.gateway_step(state, True, "ok", NOW + timedelta(minutes=9), accept)
+        self.assertEqual(2, len(posts))
+        self.assertIn("passes again: ok. Failing since 2026-11-15T12:00:00Z", posts[1])
+        self.assertFalse(state["alert_open"])
+
+    def test_cannot_verify_has_no_2fa_step(self):
+        posts: list[str] = []
+
+        def accept(text: str) -> bool:
+            posts.append(text)
+            return True
+
+        detail = "cannot verify: watchdog status not readable"
+        state = alert.gateway_step({"consecutive_failures": 4}, False, detail, NOW, accept)
+        self.assertTrue(state["alert_open"])
+        self.assertIn("cannot be verified", posts[0])
+        self.assertNotIn("2FA", posts[0])
+
+    def test_failed_post_is_retried(self):
+        state = alert.gateway_step({"consecutive_failures": 4}, False, "x", NOW, lambda t: False)
+        self.assertFalse(state.get("alert_open"))
+        sent: list[str] = []
+
+        def post(text: str) -> bool:
+            sent.append(text)
+            return True
+
+        state = alert.gateway_step(state, False, "x", NOW, post)
+        self.assertTrue(state["alert_open"])
+        self.assertEqual(1, len(sent))
+
+
+class MainTests(unittest.TestCase):
+    def test_gateway_error_keeps_the_nautilus_state(self):
+        import json
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            state_file = Path(tmp) / "state.json"
+            for fake in (mock.Mock(side_effect=RuntimeError("boom")), mock.Mock(return_value=(False, "cannot verify: x"))):
+                with (
+                    mock.patch.object(alert, "docker_state", return_value=RUNNING),
+                    mock.patch.object(alert, "read_health", return_value=health("disarmed", beat=datetime.now(timezone.utc))),
+                    mock.patch.object(alert, "gateway_check", fake),
+                    mock.patch.object(alert, "post_message", return_value=True),
+                    mock.patch("builtins.print"),
+                ):
+                    self.assertEqual(0, alert.main(["--state-file", str(state_file), "--health-file", "x"]))
+            saved = json.loads(state_file.read_text())
+            self.assertEqual(0, saved["consecutive_failures"])
+            self.assertIn("last_ok_at", saved)
+            self.assertEqual(2, saved["gateway"]["consecutive_failures"])
+            self.assertTrue(saved["gateway"]["last_detail"].startswith("cannot verify"))
+
+
 if __name__ == "__main__":
     unittest.main()
