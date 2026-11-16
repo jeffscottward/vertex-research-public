@@ -209,3 +209,46 @@ params `[]`, source this spec. Name states the limits: AMT auction rules on SPY 
 modelled options. Tags: `research-only`, `amt`, `intraday`, `spy`, `qqq`, `debit-vertical` and the result tag. No
 `backtest-study` tag: no study document is imported into `research_studies`, and that tag means one exists. The
 migration only inserts (`ON CONFLICT DO NOTHING`); a later result ships as a migration that updates the row by slug.
+
+### Run of 2026-11-16
+
+Commit `6157a8b5` (the freeze commit), spec SHA-256 `1b3f4610ab8bcac6`, data hash `27b180e3244259f5` (bars,
+ex-dividend dates and option-model rows), NautilusTrader 1.227.0, 143 s on the rig. Research only; no trading
+authority.
+
+**Verdict: failed. Rule A: no-edge. Rule C: no-edge.**
+
+- Sessions 2007-10-22 to 2026-11-06 (4,754). Train 2007-10-22 to 2019-03-15 (2,846), validation 2019-03-25 to
+  2023-01-05 (948), test 2023-01-13 to 2026-11-06 (950). Data: SPY 1-minute file 2 days dropped; QQQ 5 incomplete
+  sessions dropped; 0 filled bars.
+- Deflated Sharpe (N = 4, 1,898 out-of-sample sessions): rule A probability 0.000 (per-session Sharpe -0.060), rule C
+  0.000 (-0.102).
+- NautilusTrader replay: 10,975 of 10,975 trades the same (8 runs). Option booking: NautilusTrader and the qc-ports
+  ledger agree to $3e-11.
+
+| Row | Part | Trades | Net USD | Sharpe (annual) | Win rate | Profit factor |
+| --- | --- | --- | --- | --- | --- | --- |
+| U-A | train | 2,755 | -58,507 | -0.84 | 0.585 | 0.80 |
+| U-A | out of sample | 1,839 | -39,296 | -0.96 | 0.580 | 0.80 |
+| U-C | train | 3,792 | -117,898 | -1.41 | 0.434 | 0.76 |
+| U-C | out of sample | 2,564 | -84,218 | -1.61 | 0.438 | 0.73 |
+| 0DTE-A | out of sample (from 2022-11-28) | 933 | -83,950 | -2.11 | 0.36 | |
+| 0DTE-C | out of sample (from 2022-11-28) | 1,218 | -93,007 | -2.66 | 0.27 | |
+
+- Underlying out of sample by symbol: rule A SPY 912 trades $-18,375, QQQ 927 trades $-20,921; rule C SPY 1,298
+  trades $-33,901, QQQ 1,266 trades $-50,317. Stress costs (x2): rule A $-79,472, rule C $-140,195.
+- Rule A exits (whole sample): target 3,144, stop 998, time 460. It wins 58% of trades, but the average loss is
+  larger than the average win (profit factor 0.80 after costs). Rule C exits: target 2,971, stop 3,052, time 350.
+- By hour of the signal (rule A, out of sample): every hour loses; the most loss is in the first hour (09:35-10:00,
+  265 trades, $-12,606). Rule C: 1,908 of 2,564 signals come in the 10:00 hour ($-63,524).
+- 0DTE form: 1,331 rule C spreads were priced, but only 1,226 were booked, because the account fell too low for one
+  contract within the 2% maximum-loss sizing. Spread stress x2: rule A $-92,753, rule C $-94,215 out of sample.
+- Weekly form (report only, from 2010-06-04): both rules lost about 98% of the account within the train part
+  (rule A 1,544 trades $-97,570; rule C 1,585 trades $-98,299) and could not open a position after that.
+- Forward order-flow description (SPY, 2026-11-09 to 2026-11-13; `flow_minutes` export of 2026-11-16): 10 signals
+  (5 SPY, 5 QQQ). For the 5 SPY signals, the 30-minute delta sign agreed with the trade side in 4 of 10 source
+  readings (SPY and ES), with 9% to 16% coverage. Anecdotal; not a gate input.
+
+Reading: the AMT levels alone, traded as two mechanical rules with structural stops, do not cover costs on SPY or
+QQQ over 2007-2026, and the modelled same-day verticals lose more. The order-flow part stays untested
+(`vertex-orderflow-delta-filter`).
