@@ -170114,6 +170114,1330 @@
         ]
       }
     },
+    "/research-reports/{reportId}/technicals": {
+      "get": {
+        "operationId": "researchReports.technicals",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reportId",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z0-9]{1,10}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "revision",
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "bars": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "collectedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "count": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "firstDate": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "lastDate": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "collectedAt",
+                            "count",
+                            "firstDate",
+                            "lastDate"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "check": {
+                      "properties": {
+                        "mismatches": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "maxItems": 9,
+                          "type": "array"
+                        },
+                        "status": {
+                          "enum": [
+                            "match",
+                            "mismatch",
+                            "unavailable"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "mismatches",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "dataRevision": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "fibonacci": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "direction": {
+                              "enum": [
+                                "up",
+                                "down"
+                              ],
+                              "type": "string"
+                            },
+                            "levels": {
+                              "items": {
+                                "properties": {
+                                  "price": {
+                                    "type": "number"
+                                  },
+                                  "ratio": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "price",
+                                  "ratio"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 7,
+                              "type": "array"
+                            },
+                            "nearestAbove": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "price": {
+                                      "type": "number"
+                                    },
+                                    "ratio": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "price",
+                                    "ratio"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nearestBelow": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "price": {
+                                      "type": "number"
+                                    },
+                                    "ratio": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "price",
+                                    "ratio"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "swingHigh": {
+                              "properties": {
+                                "date": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "price": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "date",
+                                "price"
+                              ],
+                              "type": "object"
+                            },
+                            "swingLow": {
+                              "properties": {
+                                "date": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "price": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "date",
+                                "price"
+                              ],
+                              "type": "object"
+                            },
+                            "window": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "direction",
+                            "levels",
+                            "nearestAbove",
+                            "nearestBelow",
+                            "swingHigh",
+                            "swingLow",
+                            "window"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "properties": {
+                        "fibonacciWindowSessions": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "pivotLookbackSessions": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "version": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "volumeProfile": {
+                          "properties": {
+                            "bins": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "minimumSessions": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "sessions": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "valueAreaPct": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "bins",
+                            "minimumSessions",
+                            "sessions",
+                            "valueAreaPct"
+                          ],
+                          "type": "object"
+                        },
+                        "weinstein": {
+                          "properties": {
+                            "flatBandPct": {
+                              "type": "number"
+                            },
+                            "minimumWeeks": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "slopeWeeks": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "smaWeeks": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "flatBandPct",
+                            "minimumWeeks",
+                            "slopeWeeks",
+                            "smaWeeks"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "fibonacciWindowSessions",
+                        "pivotLookbackSessions",
+                        "version",
+                        "volumeProfile",
+                        "weinstein"
+                      ],
+                      "type": "object"
+                    },
+                    "pivots": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "candidateResistance": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "confirmedOn": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "date": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "enum": [
+                                        "support",
+                                        "resistance"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "price": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "confirmedOn",
+                                    "date",
+                                    "kind",
+                                    "price"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "candidateSupport": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "confirmedOn": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "date": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "enum": [
+                                        "support",
+                                        "resistance"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "price": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "confirmedOn",
+                                    "date",
+                                    "kind",
+                                    "price"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "items": {
+                              "items": {
+                                "properties": {
+                                  "confirmedOn": {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  "date": {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "support",
+                                      "resistance"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "price": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "confirmedOn",
+                                  "date",
+                                  "kind",
+                                  "price"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 120,
+                              "type": "array"
+                            },
+                            "lookbackSessions": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "candidateResistance",
+                            "candidateSupport",
+                            "items",
+                            "lookbackSessions"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recomputed": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "asOf": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "atr14": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "latestClose": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "rsi14": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sampleCount": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "sma150": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma20": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma200": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma50": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "asOf",
+                            "atr14",
+                            "latestClose",
+                            "rsi14",
+                            "sampleCount",
+                            "sma20",
+                            "sma50",
+                            "sma150",
+                            "sma200"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reportId": {
+                      "pattern": "^[A-Z0-9]{1,10}$",
+                      "type": "string"
+                    },
+                    "stored": {
+                      "properties": {
+                        "asOf": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "atr14": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "latestClose": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maximumObservedHigh": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "date": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "drawdownPct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "price": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "date",
+                                "drawdownPct",
+                                "price"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "range52Week": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "high": {
+                                  "type": "number"
+                                },
+                                "highDate": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "low": {
+                                  "type": "number"
+                                },
+                                "lowDate": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "sampleCount": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "high",
+                                "highDate",
+                                "low",
+                                "lowDate",
+                                "sampleCount"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "rsi14": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sampleCount": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sma150": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sma20": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sma200": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sma200Slope": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "change": {
+                                  "type": "number"
+                                },
+                                "changePct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "fromDate": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "toDate": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "change",
+                                "changePct",
+                                "fromDate",
+                                "toDate"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sma50": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "trendChecks": {
+                          "items": {
+                            "properties": {
+                              "key": {
+                                "enum": [
+                                  "closeAboveSma20",
+                                  "closeAboveSma50",
+                                  "closeAboveSma150",
+                                  "closeAboveSma200",
+                                  "sma50AboveSma150",
+                                  "sma50AboveSma200",
+                                  "sma150AboveSma200",
+                                  "sma200Rising20Sessions"
+                                ],
+                                "type": "string"
+                              },
+                              "passed": {
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "passed"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 8,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "asOf",
+                        "atr14",
+                        "latestClose",
+                        "rsi14",
+                        "sampleCount",
+                        "sma20",
+                        "sma50",
+                        "sma150",
+                        "sma200",
+                        "maximumObservedHigh",
+                        "range52Week",
+                        "sma200Slope",
+                        "trendChecks"
+                      ],
+                      "type": "object"
+                    },
+                    "volumeProfile": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "bins": {
+                              "items": {
+                                "properties": {
+                                  "high": {
+                                    "type": "number"
+                                  },
+                                  "low": {
+                                    "type": "number"
+                                  },
+                                  "volume": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "high",
+                                  "low",
+                                  "volume"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 50,
+                              "type": "array"
+                            },
+                            "binWidth": {
+                              "type": "number"
+                            },
+                            "closeLocation": {
+                              "enum": [
+                                "above",
+                                "inside",
+                                "below"
+                              ],
+                              "type": "string"
+                            },
+                            "endDate": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "high": {
+                              "type": "number"
+                            },
+                            "low": {
+                              "type": "number"
+                            },
+                            "poc": {
+                              "properties": {
+                                "high": {
+                                  "type": "number"
+                                },
+                                "low": {
+                                  "type": "number"
+                                },
+                                "volume": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "high",
+                                "low",
+                                "volume"
+                              ],
+                              "type": "object"
+                            },
+                            "sessions": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "startDate": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "totalVolume": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "valueAreaHigh": {
+                              "type": "number"
+                            },
+                            "valueAreaLow": {
+                              "type": "number"
+                            },
+                            "valueAreaVolumePct": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "bins",
+                            "binWidth",
+                            "closeLocation",
+                            "endDate",
+                            "high",
+                            "low",
+                            "poc",
+                            "sessions",
+                            "startDate",
+                            "totalVolume",
+                            "valueAreaHigh",
+                            "valueAreaLow",
+                            "valueAreaVolumePct"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 10,
+                      "type": "array"
+                    },
+                    "weinstein": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "completeWeeks": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "sma30": {
+                              "type": "number"
+                            },
+                            "sma30ChangePct": {
+                              "type": "number"
+                            },
+                            "stage": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "const": 1
+                                    },
+                                    {
+                                      "const": 2
+                                    },
+                                    {
+                                      "const": 3
+                                    },
+                                    {
+                                      "const": 4
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "weekEnding": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "weeklyClose": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "completeWeeks",
+                            "label",
+                            "sma30",
+                            "sma30ChangePct",
+                            "stage",
+                            "weekEnding",
+                            "weeklyClose"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "bars",
+                    "check",
+                    "dataRevision",
+                    "fibonacci",
+                    "method",
+                    "pivots",
+                    "recomputed",
+                    "reportId",
+                    "stored",
+                    "volumeProfile",
+                    "warnings",
+                    "weinstein"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Research report not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Research report storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read a research report's stored technicals with pivots, Weinstein stage, Fibonacci levels and volume profile computed from its stored daily bars",
+        "tags": [
+          "Research reports"
+        ]
+      }
+    },
     "/research-screen/status": {
       "get": {
         "operationId": "researchScreen.status",

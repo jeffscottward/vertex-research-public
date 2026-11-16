@@ -10,6 +10,7 @@ import {
   RESEARCH_REPORT_REVISIONS_MAX,
   type ResearchReportSummary,
 } from "../contracts/research-reports.ts";
+import { buildResearchReportTechnicals } from "../research-report-technicals.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 
@@ -152,4 +153,43 @@ const companyResearch = api.researchReports.companyResearch
     })
   );
 
-export const researchReportsRouter = { companyResearch, dataset, list };
+/**
+ * One revision's stored technicals plus the markers computed from the same revision's stored
+ * daily bars. The revision is resolved once, so both datasets always come from it. The bars
+ * stay on the server; only the computed numbers are returned.
+ */
+const technicals = api.researchReports.technicals
+  .use(requireOperator)
+  .handler(({ context, errors, input }) =>
+    withRepository(context, errors, async (repository) => {
+      const report = await repository.getReport(input.reportId);
+      if (report === null) throw errors.NOT_FOUND();
+      const revision = input.revision ?? report.dataRevision;
+      const stored = await repository.getDataset(
+        report.id,
+        revision,
+        "technicals"
+      );
+      if (stored === null || stored.body === null) throw errors.NOT_FOUND();
+      const market = await repository.getDataset(report.id, revision, "market");
+      return {
+        ...buildResearchReportTechnicals({
+          assetType: report.assetType,
+          market:
+            market === null || market.body === null
+              ? null
+              : parseBody(market.body),
+          technicals: parseBody(stored.body),
+        }),
+        dataRevision: revision,
+        reportId: report.id,
+      };
+    })
+  );
+
+export const researchReportsRouter = {
+  companyResearch,
+  dataset,
+  list,
+  technicals,
+};
