@@ -357,7 +357,7 @@ describe("four symbols and the short-term badge", () => {
       "No short-term factor has data yet"
     );
     expect(shortTermBadge(reading(0, 0, 2))).toBe(
-      "No short-term factor has data yet"
+      "2 short-term factors neutral"
     );
   });
 

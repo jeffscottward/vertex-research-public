@@ -169,9 +169,22 @@ describe("FlowControlPanel", () => {
     const { container } = await mount(panel());
     const chart = container.querySelector("[data-flow-net-drift-chart]");
     expect(chart?.getAttribute("aria-label")).toMatch(
-      /^Net drift of SPX: call minus put \$/u
+      /^Net drift of SPX: call \$\S+, put \$\S+, call minus put \$\S+$/u
     );
     expect(chart?.querySelectorAll("polyline")).toHaveLength(3);
+    expect(
+      [...(chart?.querySelectorAll("polyline") ?? [])].map((line) => [
+        line.getAttribute("data-flow-net-drift-line"),
+        line.getAttribute("stroke-dasharray"),
+      ])
+    ).toEqual([
+      ["call", null],
+      ["put", "6 3"],
+      ["difference", "2 2"],
+    ]);
+    expect(
+      container.querySelector("[data-flow-net-drift-legend]")?.textContent
+    ).toBe("CallPutCall minus put");
     const empty = {
       ...sp500,
       netDrift: sp500.netDrift.map((series) => ({
@@ -184,7 +197,7 @@ describe("FlowControlPanel", () => {
       second.container
         .querySelector("[data-flow-net-drift-chart]")
         ?.getAttribute("aria-label")
-    ).toBe("Net drift of SPX: call minus put no bucket yet");
+    ).toBe("Net drift of SPX: call, put and call minus put, no bucket yet");
     await select(
       second.container.querySelector("[data-flow-net-drift-view]"),
       "zero_dte"

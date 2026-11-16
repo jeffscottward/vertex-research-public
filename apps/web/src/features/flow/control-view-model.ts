@@ -136,7 +136,7 @@ export const netDriftSummary = (
     ...(view === "total"
       ? [
           {
-            label: "Slope per minute (15 min)",
+            label: `Slope per minute (${series.slopeWindowMinutes} min)`,
             value: formatMoney(series.slopeUsdPerMinute),
           },
         ]

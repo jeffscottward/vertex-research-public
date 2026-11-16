@@ -103,6 +103,9 @@ describe("control view-model", () => {
       "Call minus put",
       "Slope per minute (15 min)",
     ]);
+    expect(
+      netDriftSummary({ ...series, slopeWindowMinutes: 20 }, "total")[3]?.label
+    ).toBe("Slope per minute (20 min)");
     expect(netDriftSummary(series, "zero_dte")).toHaveLength(3);
     expect(netDriftSummary(series, "longer")[0]?.value).toMatch(/^\$/u);
     const partial = {

@@ -29,6 +29,17 @@ import { formatMoney, formatNyTime } from "../../features/flow/format.ts";
 export const FLOW_SELECT_CLASS =
   "h-11 rounded-md border border-border bg-background px-2 text-sm";
 
+/** Line styles of the net drift chart; the dashes keep the lines apart without colour. */
+const LEGEND: readonly Readonly<{
+  label: string;
+  stroke: string;
+  dash: string | undefined;
+}>[] = [
+  { dash: undefined, label: "Call", stroke: "var(--color-success)" },
+  { dash: "6 3", label: "Put", stroke: "var(--color-destructive)" },
+  { dash: "2 2", label: "Call minus put", stroke: "currentColor" },
+];
+
 const NetDriftBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
   const primary =
     control.netDrift.find((entry) => entry.role === "primary")?.ticker ?? "";
@@ -102,7 +113,11 @@ const NetDriftBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
         ))}
       </dl>
       <svg
-        aria-label={`Net drift of ${series.ticker}: call minus put ${total === null ? "no bucket yet" : formatMoney(total.callMinusPutUsd)}`}
+        aria-label={
+          total === null
+            ? `Net drift of ${series.ticker}: call, put and call minus put, no bucket yet`
+            : `Net drift of ${series.ticker}: call ${formatMoney(total.netCallPremiumUsd)}, put ${formatMoney(total.netPutPremiumUsd)}, call minus put ${formatMoney(total.callMinusPutUsd)}`
+        }
         className="h-24 w-full"
         data-flow-net-drift-chart=""
         preserveAspectRatio="none"
@@ -119,17 +134,47 @@ const NetDriftBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
           y2={chart.zeroY}
         />
         <polyline
+          data-flow-net-drift-line="call"
           fill="none"
           points={chart.call}
           stroke="var(--color-success)"
         />
         <polyline
+          data-flow-net-drift-line="put"
           fill="none"
           points={chart.put}
           stroke="var(--color-destructive)"
+          strokeDasharray="6 3"
         />
-        <polyline fill="none" points={chart.difference} stroke="currentColor" />
+        <polyline
+          data-flow-net-drift-line="difference"
+          fill="none"
+          points={chart.difference}
+          stroke="currentColor"
+          strokeDasharray="2 2"
+        />
       </svg>
+      <ul
+        className="flex flex-wrap gap-4 text-muted-foreground text-xs"
+        data-flow-net-drift-legend=""
+      >
+        {LEGEND.map((entry) => (
+          <li className="flex items-center gap-1" key={entry.label}>
+            <svg aria-hidden="true" height="8" viewBox="0 0 24 8" width="24">
+              <line
+                stroke={entry.stroke}
+                strokeDasharray={entry.dash}
+                strokeWidth={2}
+                x1={0}
+                x2={24}
+                y1={4}
+                y2={4}
+              />
+            </svg>
+            {entry.label}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 };

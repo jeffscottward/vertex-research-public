@@ -540,8 +540,9 @@ export const shortTermBadge = (
   confluence: FlowSnapshot["confluence"]
 ): string => {
   const { bearish, bullish, known } = confluence;
-  if (known === 0 || (bullish === 0 && bearish === 0))
-    return "No short-term factor has data yet";
+  if (known === 0) return "No short-term factor has data yet";
+  if (bullish === 0 && bearish === 0)
+    return `${known} short-term factors neutral`;
   if (bullish > bearish)
     return `${bullish} of ${known} short-term factors bullish`;
   if (bearish > bullish)
