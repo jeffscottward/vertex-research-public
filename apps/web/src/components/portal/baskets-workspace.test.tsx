@@ -745,6 +745,8 @@ describe("basket status states", () => {
     );
     expect(basketFailureCause({ code: "NOT_FOUND" })).toBe("not found");
     expect(basketFailureCause(new Error("x"))).toBe("request failed");
+    expect(basketFailureCause(null)).toBe("request failed");
+    expect(basketFailureCause("down")).toBe("request failed");
   });
 
   it("separates a failed valuation from one with no member prices", () => {
