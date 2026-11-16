@@ -46,7 +46,7 @@ const READ_TOOL_CALLS: Readonly<Record<string, ReadToolCall>> = {
   model_runs_benchmark: ok({ armBy: "model" }),
   model_runs_get: ok({ id: "mr_nvda_1" }),
   model_runs_list: ok(),
-  model_runs_search: ok({ query: "claude" }),
+  model_runs_search: ok({ query: "support" }),
   optimizations_get: ok({ id: "opt_orb_1" }),
   optimizations_list: ok(),
   options_gex_context: {
@@ -175,4 +175,19 @@ describe("read tools on the eval backend", () => {
     }
     expect(failures).toEqual([]);
   });
+  // "ok" proves only that a call did not fail; an empty list passes it too. These calls must return
+  // the model run and the optimizer run that fixture.sql seeds.
+  it.each([
+    ["model_runs_list", {}, "mr_nvda_1"],
+    ["model_runs_search", { query: "support" }, "mr_nvda_1"],
+    ["model_runs_benchmark", { armBy: "model" }, "claude-opus"],
+    ["optimizations_list", {}, "opt_orb_1"],
+  ] as const)(
+    "%s returns the seeded fixture row",
+    async (name, args, expected) => {
+      const { failed, text } = await call(name, args);
+      expect(failed).toBe(false);
+      expect(text).toContain(expected);
+    }
+  );
 });

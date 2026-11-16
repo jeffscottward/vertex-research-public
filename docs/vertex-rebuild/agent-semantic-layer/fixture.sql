@@ -222,11 +222,13 @@ update semantic_sql_attributes set certified = true, certified_at = '2026-11-08T
   certified_by = 'eval fixture (stands in for the owner)', certification_note = 'Synthetic eval database only.'
 where grain = 'run_spec';
 -- One agent model run and one optimizer run, so the read-tool sweep proves a result for model_runs_get
--- and optimizations_get (and a non-empty list) instead of only the "not found" refusal.
+-- and optimizations_get (and a non-empty list and search) instead of only the "not found" refusal.
 insert into agent_tasks(id, kind, agent, title, status, metrics, links) values
   ('t_opt_1', 'optimization', 'research-agent', 'ORB parameter grid', 'succeeded', '{}', '[]');
 insert into agent_model_runs(id, run_key, framework, provider, model, ticker, decision_date, analysts, rating, rating_source, status, input_tokens, output_tokens, llm_calls, cost_usd, duration_ms, purpose, started_at, finished_at, created_at, updated_at) values
   ('mr_nvda_1', 'tradingagents:NVDA:2026-10-01', 'tradingagents', 'anthropic', 'claude-opus', 'NVDA', '2026-10-01', '["market","news"]', 'hold', 'stated', 'succeeded', 12000, 1500, 8, 0.42, 61000, 'backtest', '2026-10-02T10:00Z', '2026-10-02T10:01Z', '2026-10-02T10:00Z', '2026-10-02T10:01Z');
+insert into agent_model_run_events(id, run_id, seq, at, agent, kind, title, body) values
+  ('mre_nvda_1', 'mr_nvda_1', 0, '2026-10-02T10:00Z', 'market_analyst', 'decision', 'Hold NVDA near support', 'Price holds above the 50-day support level.');
 insert into optimization_runs(id, task_id, strategy_id, method, objectives, validation, markets, trial_count, stop_reason, created_at) values
   ('opt_orb_1', 't_opt_1', 's_orb', 'grid', '[{"metric":"sharpe","direction":"maximize"}]', '{"mode":"single","params":{}}', '["SPY"]', 0, 'completed', '2026-10-03T10:00Z');
 commit;
