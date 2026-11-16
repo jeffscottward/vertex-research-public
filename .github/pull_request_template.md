@@ -26,7 +26,7 @@
 
 <!-- Every ready PR needs the review line; owner-decision paths also need the decision line (the "Merge conditions" CI job checks them; rules in scripts/ci/merge-conditions.ts). Write the lines as plain text, outside this comment.
 Agent review: <40-character head SHA that a fresh-context agent reviewed in full>
-Owner decision: <Discord message or GitHub issue/comment link>  (owner-decision paths only; or: not needed (<reason>))
+Owner decision: <Discord message or GitHub issue/PR URL>  (owner-decision paths only; or: not needed (<reason>))
 -->
 
 ## Checklist
