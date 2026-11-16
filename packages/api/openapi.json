@@ -23784,7 +23784,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -27346,7 +27346,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -30557,7 +30557,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -33104,7 +33104,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -34093,7 +34093,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -37546,7 +37546,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -39713,7 +39713,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -40351,7 +40351,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -41080,7 +41080,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -41864,7 +41864,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -42591,7 +42591,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -43363,7 +43363,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -43963,7 +43963,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -44685,7 +44685,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -45391,7 +45391,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -46018,7 +46018,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -47053,7 +47053,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -49508,7 +49508,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -50544,7 +50544,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -51944,7 +51944,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -53918,7 +53918,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -54977,7 +54977,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -61877,7 +61877,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -62956,7 +62956,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -63590,7 +63590,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -94106,7 +94106,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -95249,7 +95249,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -96153,7 +96153,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -97294,7 +97294,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -98222,7 +98222,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -99146,7 +99146,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -100050,7 +100050,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -100954,7 +100954,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -102109,7 +102109,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -102731,7 +102731,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -114544,7 +114544,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -115892,7 +115892,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -116603,7 +116603,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -118326,7 +118326,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -121225,7 +121225,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR recovery service did not answer; no request was sent. Retry in a moment.",
+                          "default": "IBKR recovery service did not answer; the request may not have been processed. Check the status before you retry.",
                           "type": "string"
                         },
                         "status": {
@@ -121910,7 +121910,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR recovery service did not answer; no request was sent. Retry in a moment.",
+                          "default": "IBKR recovery service did not answer; the request may not have been processed. Check the status before you retry.",
                           "type": "string"
                         },
                         "status": {
@@ -125647,7 +125647,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -143832,7 +143832,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -144587,7 +144587,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -145375,7 +145375,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -146092,7 +146092,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -190504,7 +190504,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -191434,7 +191434,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -192621,7 +192621,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -193551,7 +193551,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -194183,7 +194183,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {
@@ -194739,7 +194739,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent operations storage did not answer; nothing was saved. Retry, or apply the agent operations migrations if the tables are missing.",
+                          "default": "Agent operations storage is not configured on this server or did not answer; nothing was saved. Retry; if it repeats, check the database connection and migrations.",
                           "type": "string"
                         },
                         "status": {

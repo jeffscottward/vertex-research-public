@@ -883,9 +883,9 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
     expect(container.querySelector("[data-kill-switch]")?.textContent).toMatch(
       /^Kill switch state not read: .*HTTP 403.* · not treated as clear$/u
     );
-    expect(container.querySelector("[data-session-state]")?.textContent).toBe(
-      "Session state not read: no session block in the snapshot"
-    );
+    expect(
+      container.querySelector("[data-session-state]")?.textContent
+    ).toMatch(/^Session state not read: .*HTTP 403/u);
     const engagedRisk = {
       ...(v2Fixture.risk as object),
       kill_switch: "engaged",

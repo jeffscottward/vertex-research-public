@@ -137,7 +137,7 @@ export const IBKR_RECOVERY_ERRORS = {
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
   UNAVAILABLE: {
     message:
-      "IBKR recovery service did not answer; no request was sent. Retry in a moment.",
+      "IBKR recovery service did not answer; the request may not have been processed. Check the status before you retry.",
     status: 503,
   },
   UPSTREAM_ERROR: { message: "IBKR recovery request failed", status: 502 },

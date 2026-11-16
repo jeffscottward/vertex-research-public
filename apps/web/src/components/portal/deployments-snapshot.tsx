@@ -235,12 +235,14 @@ const rawStateTitle = (
 };
 
 const SessionStateChip = ({
+  data,
   session,
 }: {
+  readonly data: DeploymentStatusOutput;
   readonly session: DeploySessionBlock | undefined;
 }) => {
   if (session === undefined || !session.available) {
-    const reason = session?.reason ?? "no session block in the snapshot";
+    const reason = session?.reason ?? notConfiguredReason(data);
     return (
       <Chip
         data={{ "data-session-state": "not-read" }}
@@ -911,7 +913,7 @@ export const StatusStrip = ({
     >
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         <Field label="Session" name="state">
-          <SessionStateChip session={session} />
+          <SessionStateChip data={data} session={session} />
         </Field>
         <Field label="Strategies" name="strategies">
           {live === null
