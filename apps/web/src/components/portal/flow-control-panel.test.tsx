@@ -272,6 +272,29 @@ describe("FlowControlPanel", () => {
     );
   });
 
+  it("names the deep trades table and its scroll region for assistive technology", async () => {
+    const { container } = await mount(panel());
+    const region = container.querySelector(
+      '[data-flow-deep-trades="ES"] [role="region"]'
+    );
+    expect(region?.getAttribute("aria-label")).toBe(
+      "Deep trades, newest first"
+    );
+    expect(region?.getAttribute("tabindex")).toBe("0");
+    expect(region?.querySelector("caption")?.textContent).toBe(
+      "Deep trades of ES, newest first"
+    );
+    const heads = [...(region?.querySelectorAll("th") ?? [])];
+    expect(heads.map((head) => head.textContent)).toEqual([
+      "Time",
+      "Side",
+      "Size",
+      "Price",
+      "Rule",
+    ]);
+    for (const head of heads) expect(head.getAttribute("scope")).toBe("col");
+  });
+
   it("says that the sampled tape holds no deep trade", async () => {
     const { container } = await mount(
       panel({

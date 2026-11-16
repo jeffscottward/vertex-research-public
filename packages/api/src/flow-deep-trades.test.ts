@@ -69,7 +69,7 @@ describe("deepTradesOf", () => {
   it("returns nothing for no deep print and for a sample of fewer than three seconds", () => {
     expect(
       deepTradesOf(ES, [], { first: T0, last: T0 + 10 }, SAMPLED_AT)
-    ).toEqual({ rows: [], unsigned: 0 });
+    ).toEqual({ invalid: 0, rows: [], unsigned: 0 });
     expect(
       deepTradesOf(
         ES,
@@ -137,12 +137,32 @@ describe("deepTradesOf", () => {
     expect(rows.map((row) => [row.size, row.seq])).toEqual([[42, 2]]);
   });
 
+  it("does not store a deep print with a non-finite or non-positive price, counts it as invalid and still numbers it", () => {
+    const { invalid, rows, unsigned } = deepTradesOf(
+      ES,
+      [
+        print(T0 + 3, 50, { price: 0 }),
+        print(T0 + 3, 41, { price: -1 }),
+        print(T0 + 3, 44, { price: Number.NaN }),
+        print(T0 + 3, 45, { price: Number.POSITIVE_INFINITY }),
+        print(T0 + 3, 42),
+      ],
+      { first: T0, last: T0 + 9 },
+      SAMPLED_AT
+    );
+    expect(invalid).toBe(4);
+    expect(unsigned).toBe(0);
+    expect(rows.map((row) => [row.size, row.seq, row.price])).toEqual([
+      [42, 4, 6870.5],
+    ]);
+  });
+
   it("returns no rows for an instrument without a deep-trade limit", () => {
     const deep = [print(T0 + 3, 20_000)];
     const sample = { first: T0, last: T0 + 9 };
     expect(
       deepTradesOf(FLOW_INSTRUMENTS.SPY, deep, sample, SAMPLED_AT)
-    ).toEqual({ rows: [], unsigned: 0 });
+    ).toEqual({ invalid: 0, rows: [], unsigned: 0 });
     expect(
       deepTradesOf(
         { ...FLOW_INSTRUMENTS.QQQ, deepTradeLimit: 5 },
@@ -150,7 +170,7 @@ describe("deepTradesOf", () => {
         sample,
         SAMPLED_AT
       )
-    ).toEqual({ rows: [], unsigned: 0 });
+    ).toEqual({ invalid: 0, rows: [], unsigned: 0 });
   });
 
   it("two overlapping samples give the same keys for the seconds both hold complete", () => {

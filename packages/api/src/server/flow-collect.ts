@@ -1,8 +1,9 @@
 // What: one flow.collect run. For each symbol and source that is due, sample IBKR ticks and depth
 // (through vertex-history) and QuantData options flow and GEX, derive per-minute features and
 // events, and store them. Sampled ingest inside the IBKR historical budget (6 requests per 120 s,
-// shared with /charts): one tick fetch (two historical requests) per symbol about every 4 minutes,
-// staggered so the two symbols never fetch in the same ~2 minutes, and only while at most 2 of the
+// shared with /charts): one tick fetch (two historical requests) per symbol about every 6 minutes
+// (three tick turns: SPY, ES, NQ), staggered so two symbols never fetch in the same ~2 minutes, and
+// only while at most 2 of the
 // 6 slots are in use, so /charts keeps at least 2 free. Depth uses its own subscription pacer.
 // Research only: nothing here places, changes or cancels orders. Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
@@ -307,7 +308,7 @@ const collectTicks = async (
   if (instrument.kind === "future") {
     const deep =
       first === undefined
-        ? { rows: [], unsigned: 0 }
+        ? { invalid: 0, rows: [], unsigned: 0 }
         : deepTradesOf(
             instrument,
             features.deepPrints,
@@ -321,7 +322,7 @@ const collectTicks = async (
           trades: deep.rows,
         });
     events = stored.events;
-    deepNote = `; ${deep.rows.length} deep trades, ${stored.trades} new, ${deep.unsigned} deep prints without a side`;
+    deepNote = `; ${deep.rows.length} deep trades, ${stored.trades} new, ${deep.unsigned} deep prints without a side, ${deep.invalid} with an invalid price`;
   } else events = await storeEvents(state, features.events);
   const span =
     first === undefined

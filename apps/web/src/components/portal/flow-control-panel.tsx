@@ -8,7 +8,17 @@
 // See: apps/web/src/features/flow/control-view-model.ts; docs/vertex-rebuild/flow-pipeline.md.
 "use client";
 
-import { Panel, StatusBadge } from "@darkfactory/ui";
+import {
+  Panel,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -245,32 +255,49 @@ const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
           No deep trade in the sampled tape since 09:30 ET.
         </p>
       ) : (
-        <div className="max-h-72 max-w-full overflow-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground text-xs">
-                <th className="pr-3 font-normal">Time</th>
-                <th className="pr-3 font-normal">Side</th>
-                <th className="pr-3 font-normal">Size</th>
-                <th className="pr-3 font-normal">Price</th>
-                <th className="font-normal">Rule</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr data-flow-deep-trade="" key={row.key}>
-                  <td className="pr-3 tabular-nums">{row.time}</td>
-                  <td className="pr-3">
-                    <StatusBadge status={row.tone}>{row.side}</StatusBadge>
-                  </td>
-                  <td className="pr-3 tabular-nums">{row.size}</td>
-                  <td className="pr-3 tabular-nums">{row.price}</td>
-                  <td>{row.signing}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          className="text-sm"
+          containerClassName="max-h-72 max-w-full overflow-auto"
+          containerProps={{
+            "aria-label": "Deep trades, newest first",
+            role: "region",
+            tabIndex: 0,
+          }}
+        >
+          <TableCaption className="sr-only">
+            Deep trades of {deep.symbol}, newest first
+          </TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">Time</TableHead>
+              <TableHead scope="col">Side</TableHead>
+              <TableHead className="text-right" scope="col">
+                Size
+              </TableHead>
+              <TableHead className="text-right" scope="col">
+                Price
+              </TableHead>
+              <TableHead scope="col">Rule</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow data-flow-deep-trade="" key={row.key}>
+                <TableCell className="tabular-nums">{row.time}</TableCell>
+                <TableCell>
+                  <StatusBadge status={row.tone}>{row.side}</StatusBadge>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.size}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.price}
+                </TableCell>
+                <TableCell>{row.signing}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
       {more === null ? null : (
         <p className="text-muted-foreground text-xs">{more}</p>

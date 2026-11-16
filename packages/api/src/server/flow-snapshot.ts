@@ -562,7 +562,7 @@ const flowNotes = (symbol: FlowSymbol): string[] => {
           `Trades and option prints are not collected for ${symbol}; this view shows depth and GEX only.`,
         ]
       : [
-          "Ticks are sampled (up to 1000 prints per symbol about every 4 minutes); coveredSeconds says how much of each minute was seen.",
+          "Ticks are sampled (up to 1000 prints per symbol about every 6 minutes: three tick turns, SPY, ES, NQ); coveredSeconds says how much of each minute was seen.",
           instrument.sources.includes("options")
             ? "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData."
             : `Trade side: quote rule, then tick rule. Option prints are not collected for ${symbol}.`,

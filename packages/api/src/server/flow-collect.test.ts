@@ -2231,7 +2231,8 @@ describe("runFlowCollect deep trades", () => {
       trades: [],
     });
     expect(run("NQ", "ticks")).toMatchObject({
-      message: "no prints; 0 deep trades, 0 new, 0 deep prints without a side",
+      message:
+        "no prints; 0 deep trades, 0 new, 0 deep prints without a side, 0 with an invalid price",
       status: "empty",
     });
   });
@@ -2255,7 +2256,7 @@ describe("runFlowCollect deep trades", () => {
     });
     const { run } = await collect(deps, { symbols: tickTurn("ES") });
     expect(run("ES", "ticks").message).toMatch(
-      /; 2 deep trades, 1 new, 0 deep prints without a side$/
+      /; 2 deep trades, 1 new, 0 deep prints without a side, 0 with an invalid price$/
     );
     const unsigned = depsWith({
       ticks: vi.fn(async () =>
@@ -2271,7 +2272,33 @@ describe("runFlowCollect deep trades", () => {
     });
     const second = await collect(unsigned, { symbols: tickTurn("ES") });
     expect(second.run("ES", "ticks").message).toMatch(
-      /; 0 deep trades, 0 new, 1 deep prints without a side$/
+      /; 0 deep trades, 0 new, 1 deep prints without a side, 0 with an invalid price$/
+    );
+  });
+
+  it("leaves out a deep print with an invalid price, stores the rest of the sample and counts it", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () =>
+        ticksOutput({
+          quotes: [],
+          trades: [
+            { c: null, p: 6870, s: 1, t: T, x: null },
+            { c: null, p: 6870.25, s: 45, t: T + 10, x: null },
+            { c: null, p: 0, s: 60, t: T + 10, x: null },
+            { c: null, p: 6870.5, s: 2, t: T + 20, x: null },
+          ],
+        })
+      ),
+    });
+    const { run } = await collect(deps, { symbols: tickTurn("ES") });
+    const [[input]] = deps.repository.insertTickSample.mock.calls as [
+      [Parameters<FlowRepository["insertTickSample"]>[0]],
+    ];
+    expect(input.trades.map((row) => [row.size, row.seq, row.price])).toEqual([
+      [45, 0, 6870.25],
+    ]);
+    expect(run("ES", "ticks").message).toMatch(
+      /; 1 deep trades, 1 new, 0 deep prints without a side, 1 with an invalid price$/
     );
   });
 
@@ -2283,7 +2310,7 @@ describe("runFlowCollect deep trades", () => {
     });
     expect(deps.repository.insertTickSample).not.toHaveBeenCalled();
     expect(run("ES", "ticks").message).toMatch(
-      /; 2 deep trades, 2 new, 0 deep prints without a side$/
+      /; 2 deep trades, 2 new, 0 deep prints without a side, 0 with an invalid price$/
     );
     expect(run("ES", "ticks").events).toBeGreaterThan(0);
   });

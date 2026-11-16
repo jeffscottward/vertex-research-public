@@ -129,8 +129,10 @@ the first minutes after the open.
   (`packages/api/src/flow-deep-trades.ts`) turns them into rows, and the collector stores the
   events and the rows of a futures sample in one transaction (`insertTickSample`).
 - **Edges.** The first and the last sampled second are left out: the sample edge can cut them.
-- **No side.** A deep print that neither rule could sign is not stored; the sample message counts
-  it (`<n> deep trades, <new> new, <u> deep prints without a side`).
+- **No side, bad price.** A deep print that neither rule could sign, or whose price is not a
+  positive number, is not stored (one row that fails the table check would roll back the whole
+  sample); the sample message counts both (`<n> deep trades, <new> new, <u> deep prints without a
+  side, <i> with an invalid price`).
 - **No grouping.** Each row is one print; prints are never added up, because a sampled tape cannot
   tell one order split in parts from several orders.
 - **Signing.** The quote rule where the sampled quotes cover a print, else the tick rule; each row

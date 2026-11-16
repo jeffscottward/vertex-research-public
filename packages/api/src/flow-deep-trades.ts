@@ -23,28 +23,39 @@ export type FlowDeepTradeRow = Readonly<{
  * Deep-trade rows of one sample. sample.first and sample.last are the smallest and largest print
  * time of the whole fetched sample: the sample edge can cut those seconds, so their prints are left
  * out. Within a second, seq counts the deep prints in input (IBKR) order before the side is read,
- * so a key never depends on the signing. A print without a side is numbered but not stored.
+ * so a key never depends on the signing. A print without a side, or with a price that is not a
+ * positive number, is numbered but not stored (the table check needs price > 0, and one bad row
+ * would roll back the whole sample).
  */
 export const deepTradesOf = (
   instrument: FlowInstrument,
   deepPrints: readonly SignedTrade[],
   sample: Readonly<{ first: number; last: number }>,
   sampledAt: Date
-): Readonly<{ rows: readonly FlowDeepTradeRow[]; unsigned: number }> => {
+): Readonly<{
+  rows: readonly FlowDeepTradeRow[];
+  unsigned: number;
+  invalid: number;
+}> => {
   const limitSize = instrument.deepTradeLimit;
   if (
     limitSize === null ||
     (instrument.symbol !== "ES" && instrument.symbol !== "NQ")
   )
-    return { rows: [], unsigned: 0 };
+    return { invalid: 0, rows: [], unsigned: 0 };
   const symbol = instrument.symbol;
   const rows: FlowDeepTradeRow[] = [];
   const seqs = new Map<number, number>();
   let unsigned = 0;
+  let invalid = 0;
   for (const print of deepPrints) {
     if (print.t <= sample.first || print.t >= sample.last) continue;
     const seq = seqs.get(print.t) ?? 0;
     seqs.set(print.t, seq + 1);
+    if (!Number.isFinite(print.price) || print.price <= 0) {
+      invalid += 1;
+      continue;
+    }
     if (print.method === "none" || print.side === "unknown") {
       unsigned += 1;
       continue;
@@ -62,7 +73,7 @@ export const deepTradesOf = (
       symbol,
     });
   }
-  return { rows, unsigned };
+  return { invalid, rows, unsigned };
 };
 
 /** Deep-trade volume of one session minute (minute = whole minutes after the session open). */

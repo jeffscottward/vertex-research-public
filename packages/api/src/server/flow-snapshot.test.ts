@@ -714,7 +714,9 @@ describe("net drift sessions and four symbols", () => {
     );
     expect(qqq.notes).toHaveLength(3);
     // NQ samples ticks (pull request 2) but has no option prints.
-    expect(nq.notes[0]).toMatch(/^Ticks are sampled/u);
+    expect(nq.notes[0]).toBe(
+      "Ticks are sampled (up to 1000 prints per symbol about every 6 minutes: three tick turns, SPY, ES, NQ); coveredSeconds says how much of each minute was seen."
+    );
     expect(nq.notes[1]).toBe(
       "Trade side: quote rule, then tick rule. Option prints are not collected for NQ."
     );
