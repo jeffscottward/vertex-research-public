@@ -416,7 +416,7 @@ describe("portfolio source truthfulness", () => {
       if (observation.sourceKind === "source-unavailable") {
         // Names the state, the environment, when the source said so, and what happens next.
         expect(visible).toContain(
-          `No portfolio source connected for ${observation.environment}`
+          `Portfolio source sent no portfolio data for ${observation.environment}`
         );
         expect(visible).toContain(
           `The source reported this at ${observation.asOfAt} (sequence ${observation.sequence})`
@@ -503,12 +503,16 @@ describe("portfolio source truthfulness", () => {
   });
 
   it("names the no-source continuity state with its time, sequence and next step", () => {
-    expect(continuityStateLabel("unavailable")).toBe("no source connected");
+    expect(continuityStateLabel("unavailable")).toBe(
+      "source sent no portfolio data"
+    );
     expect(continuityStateLabel("gap")).toBe("gap");
-    expect(sourceKindLabel("source-unavailable")).toBe("no source connected");
+    expect(sourceKindLabel("source-unavailable")).toBe(
+      "source sent no portfolio data"
+    );
     expect(sourceKindLabel("broker-observation")).toBe("broker-observation");
     expect(continuityMessage({ ...continuity, state: "unavailable" })).toBe(
-      `No portfolio source connected. The source reported this at ${continuity.lastOccurredAt} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`
+      `Portfolio source sent no portfolio data. The source reported this at ${continuity.lastOccurredAt} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`
     );
     return expect(
       continuityMessage({

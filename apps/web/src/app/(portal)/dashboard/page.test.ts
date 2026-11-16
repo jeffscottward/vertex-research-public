@@ -275,6 +275,8 @@ describe("dashboard summary loader", () => {
       loadDashboardSummaryState(null, fetcher, 0)
     ).resolves.toMatchObject({
       type: "error",
+      // Our own deadline ran out: a timeout, not a cancellation.
+      failure: { kind: "timeout", code: null },
     });
     expect(fetcher).not.toHaveBeenCalled();
     return expect(vi.getTimerCount()).toBe(0);

@@ -247,5 +247,17 @@ describe("portfolio combination", () => {
     ]);
     expect(apart.correlation[0]?.[1]).toBeNull();
     expect(apart.drawdownOverlap[0]?.[1]).toBe(0);
+    // The reason follows the pair's shared span, not the length of the combined axis.
+    expect(apart.points.length).toBeGreaterThan(3);
+    expect(apart.correlationReasons[0]?.[1]).toBe("short-span");
+    // Run a alone has one return of its own: too short even against itself.
+    expect(apart.correlationReasons[0]?.[0]).toBe("short-span");
+    expect(late.correlationReasons[0]?.[1]).toBeNull();
+    const flat = combinePortfolio(1000, [
+      slot("a", 0.5, a),
+      slot("b", 0.5, [1, 1, 1, 1, 1, 1]),
+    ]);
+    expect(flat.correlation[0]?.[1]).toBeNull();
+    expect(flat.correlationReasons[0]?.[1]).toBe("flat");
   });
 });

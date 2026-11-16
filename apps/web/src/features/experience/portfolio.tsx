@@ -46,11 +46,12 @@ const continuityMessages: Record<
     "The projection owner epoch does not match. The native owner must reconcile it. This view cannot repair it.",
 };
 
-// The projection store sets "unavailable" only when the latest snapshot reports no portfolio
-// source, so the cause is known. The time and sequence are those of that last record.
+// The projection store sets "unavailable" only when the latest snapshot is a source-unavailable
+// report, so the page names that report; why the source was unavailable is not in the snapshot. The time and sequence are those of that last record.
 export const continuityStateLabel = (
   state: ProjectionContinuity["state"]
-): string => (state === "unavailable" ? "no source connected" : state);
+): string =>
+  state === "unavailable" ? "source sent no portfolio data" : state;
 
 export const continuityMessage = (continuity: ProjectionContinuity): string => {
   if (continuity.state !== "unavailable")
@@ -59,13 +60,14 @@ export const continuityMessage = (continuity: ProjectionContinuity): string => {
     continuity.lastOccurredAt === null
       ? "The source sent no record time"
       : `The source reported this at ${continuity.lastOccurredAt}`;
-  return `No portfolio source connected. ${reported} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`;
+  return `Portfolio source sent no portfolio data. ${reported} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`;
 };
 
 // "source-unavailable" is a protocol value; the page names the state instead.
 export const sourceKindLabel = (
   kind: PortfolioSnapshot["sourceKind"]
-): string => (kind === "source-unavailable" ? "no source connected" : kind);
+): string =>
+  kind === "source-unavailable" ? "source sent no portfolio data" : kind;
 
 export const PortfolioContinuity = ({
   continuity,
@@ -369,7 +371,7 @@ export const PortfolioObservation = ({
       </p>
       {snapshot.sourceKind === "source-unavailable" ? (
         <ReadNotice
-          title={`No portfolio source connected for ${snapshot.environment}`}
+          title={`Portfolio source sent no portfolio data for ${snapshot.environment}`}
         >
           {`The source reported this at ${snapshot.asOfAt} (sequence ${snapshot.sequence}); this page received it at ${snapshot.receivedAt}. `}
           No balances or holdings have been supplied. Empty collections and

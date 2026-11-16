@@ -38,6 +38,7 @@ import {
   COLUMNS_STORAGE_KEY,
   localDayKey,
   MONITOR_SECTIONS,
+  NO_ORDER_REF,
   NOT_SENT,
 } from "./portfolio-monitor-model.ts";
 import { SORT_STORAGE_KEY } from "./portfolio-monitor-tables.tsx";
@@ -459,7 +460,26 @@ describe("PortfolioMonitor", () => {
     expect(row.textContent).toContain("(10 filled)");
     expect(row.textContent).toContain("GTC · ext hours");
     expect(row.textContent).toContain("ref-test");
-    return expect(row.textContent).toContain(NOT_SENT);
+    expect(row.textContent).toContain("No status from IBKR");
+    return expect(row.textContent).not.toContain(NO_ORDER_REF);
+  });
+
+  it("names an order without a reference instead of showing a dash", async () => {
+    await mount(
+      <PortfolioMonitor
+        gateway={gatewayOf(
+          fixtureSnapshot({
+            orders: [
+              fixtureOrder({ key: "7:21:9021", orderRef: "", ocaGroup: "" }),
+            ],
+          })
+        )}
+        defaultTab="orders-stops"
+      />
+    );
+    return expect(find("[data-order-key='7:21:9021']").textContent).toContain(
+      NO_ORDER_REF
+    );
   });
 
   it("says no open orders only when the gateway is live", async () => {
@@ -485,6 +505,11 @@ describe("PortfolioMonitor", () => {
         fixtureExecution({
           execId: "e-new",
           time: "20261009 10:00:00 US/Eastern",
+        }),
+        fixtureExecution({
+          execId: "e-zero",
+          time: "20261009 09:30:00 US/Eastern",
+          realized: 0,
         }),
       ],
       completed: [
@@ -517,8 +542,12 @@ describe("PortfolioMonitor", () => {
       [...document.querySelectorAll("[data-exec-id]")].map((row) =>
         row.getAttribute("data-exec-id")
       )
-    ).toEqual(["e-new", "e-old"]);
+    ).toEqual(["e-new", "e-zero", "e-old"]);
     expect(find("[data-exec-id=e-old]").textContent).toContain("+$12.50");
+    // A realized P&L of 0 is a value; only a missing one is named.
+    expect(find("[data-exec-id=e-zero]").textContent).toContain("$0.00");
+    expect(find("[data-exec-id=e-zero]").textContent).not.toContain(NOT_SENT);
+    expect(find("[data-exec-id=e-new]").textContent).toContain(NOT_SENT);
     expect(find("[data-exec-id=e-new] td").textContent).toBe(
       "10:00:00 US/Eastern"
     );

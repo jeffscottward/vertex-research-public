@@ -28,7 +28,6 @@ import {
   defaultComboRunIds,
   describeRun,
   equalWeights,
-  correlationNullReason,
   equityPath,
   nullMetricText,
   type PortfolioCombosGateway,
@@ -124,6 +123,10 @@ const comboOf = (overrides: Partial<BacktestCombo> = {}): BacktestCombo => ({
   correlation: [
     [1, null],
     [null, 1],
+  ],
+  correlationReasons: [
+    [null, "short-span"],
+    ["short-span", null],
   ],
   deposit: 100_000,
   diversification: {
@@ -318,8 +321,7 @@ describe("helpers", () => {
     expect(nullMetricText(undefined)).toBe(
       "Not computed: server sent no reason"
     );
-    expect(correlationNullReason(2)).toBe("short-span");
-    return expect(correlationNullReason(3)).toBe("flat");
+    return expect(nullMetricText("flat")).toBe("Not defined: zero variance");
   });
   it("ranks Core 7 symbols and picks the default runs", () => {
     expect([symbolRank("ES=F"), symbolRank("SPY"), symbolRank("TEST")]).toEqual(
@@ -439,7 +441,7 @@ describe("PortfolioCombosWorkspace", () => {
     expect(report()?.textContent).toContain("ok");
     // Null metrics name their cause instead of a bare marker.
     expect(report()?.textContent).toContain("Not defined: zero variance");
-    // Two points give one return per slot: correlation is not computed.
+    // The server says why each null correlation cell is null.
     expect(report()?.textContent).toContain("Not computed: span too short");
     // The default view keeps a clean URL.
     expect(window.location.search).toBe("");
@@ -571,22 +573,21 @@ describe("PortfolioCombosWorkspace", () => {
   });
 
   it("shows combine failures and a retry result", async () => {
+    // A server built before the reason fields: no correlationReasons, no cagrReason.
+    const { correlationReasons: _reasons, ...oldServer } = comboOf({
+      diversification: {
+        combinedDrawdownPct: 0.05,
+        diversified: false,
+        ratio: null,
+        ratioReason: "flat",
+        weightedSlotDrawdownPct: 0.05,
+      },
+      stats: { ...stats, cagr: null },
+    });
     const combine = vi
       .fn()
       .mockRejectedValueOnce({ code: "BAD_REQUEST", message: "pin mismatch" })
-      .mockResolvedValueOnce(
-        comboOf({
-          diversification: {
-            combinedDrawdownPct: 0.05,
-            diversified: false,
-            ratio: null,
-            ratioReason: "flat",
-            weightedSlotDrawdownPct: 0.05,
-          },
-          // A server built before the reason fields: no cagrReason.
-          stats: { ...stats, cagr: null },
-        })
-      )
+      .mockResolvedValueOnce(oldServer)
       .mockRejectedValueOnce({ code: "ERROR", message: "down" });
     await mount(<PortfolioCombosWorkspace gateway={gatewayOf({ combine })} />);
     await wait();
@@ -602,6 +603,8 @@ describe("PortfolioCombosWorkspace", () => {
     expect(document.body.textContent).toContain(
       "Not computed: server sent no reason"
     );
+    // Null correlation cells without a server reason say so, not a guessed cause.
+    expect(report()?.textContent).not.toContain("Not computed: span too short");
     expect(document.querySelector('[role="alert"]')).toBeNull();
     await click(button());
     expect(document.querySelector('[role="alert"]')?.textContent).toBe("down");

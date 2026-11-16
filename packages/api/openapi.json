@@ -76870,6 +76870,28 @@
                       },
                       "type": "array"
                     },
+                    "correlationReasons": {
+                      "items": {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "short-span",
+                                "flat",
+                                "equity-at-zero",
+                                "out-of-range"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    },
                     "deposit": {
                       "type": "number"
                     },

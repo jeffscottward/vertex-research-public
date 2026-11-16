@@ -481,6 +481,11 @@ const ComboStatsSchema = z.object({
 export const BacktestComboSchema = z.object({
   cash: z.number(),
   correlation: z.array(z.array(nullableNumber)),
+  // Why each null correlation cell is null (null where the cell has a value). Optional for old
+  // servers; readers then show that no reason was sent.
+  correlationReasons: z
+    .array(z.array(ComboNullReasonSchema.nullable()))
+    .optional(),
   deposit: z.number(),
   diversification: z.object({
     combinedDrawdownPct: z.number(),

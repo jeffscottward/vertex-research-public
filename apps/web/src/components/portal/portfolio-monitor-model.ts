@@ -16,6 +16,8 @@ export const DASH = NOT_SENT;
 export const NO_TIME = "no time sent by IBKR";
 // Order with an empty status field.
 export const NO_ORDER_STATUS = "No status from IBKR";
+// Order without a reference or OCA group: IBKR sends "" when none was set.
+export const NO_ORDER_REF = "No order ref";
 // Position with an empty security type.
 export const NO_TYPE = "type not sent by IBKR";
 const NO_TYPE_BADGE = "No type";

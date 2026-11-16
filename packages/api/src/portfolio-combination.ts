@@ -62,6 +62,8 @@ export type ComboResult = Readonly<{
   slots: readonly ComboSlotResult[];
   /** correlation[i][j]: Pearson correlation of per-point returns; null when a series is flat. */
   correlation: readonly (readonly (number | null)[])[];
+  /** correlationReasons[i][j]: why correlation[i][j] is null; null where it has a value. */
+  correlationReasons: readonly (readonly (ComboNullReason | null)[])[];
   /** overlap[i][j]: share of points where slots i and j are both below their running peak. */
   drawdownOverlap: readonly (readonly number[])[];
   /** Share of points where two or more slots are below their running peak at the same time. */
@@ -334,6 +336,14 @@ export const combinePortfolio = (
       return pearson(left.slice(start, end), right.slice(start, end));
     })
   );
+  // Same pair span as above: fewer than two shared returns is too short, else a series is flat.
+  const correlationReasons = correlation.map((row, leftIndex) =>
+    row.map((value, rightIndex): ComboNullReason | null => {
+      if (value !== null) return null;
+      const { start, end } = pairSpan(leftIndex, rightIndex);
+      return end - start < 2 ? "short-span" : "flat";
+    })
+  );
   const stats = seriesStats(times, values);
   // The diversification check compares like with like: the invested part only (cash removed).
   const investedValues = values.map((value) => value - cash);
@@ -357,6 +367,7 @@ export const combinePortfolio = (
   return {
     cash,
     correlation,
+    correlationReasons,
     deposit,
     diversification: {
       combinedDrawdownPct: investedDrawdownPct,

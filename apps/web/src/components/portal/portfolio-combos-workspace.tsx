@@ -103,10 +103,6 @@ const percent = (value: number | null, reason?: ComboNullReason): string =>
 const ratio = (value: number | null, reason?: ComboNullReason): string =>
   value === null ? nullMetricText(reason) : value.toFixed(2);
 
-// Return correlation is null when a slot pair has fewer than two returns or a flat series.
-export const correlationNullReason = (pointCount: number): ComboNullReason =>
-  pointCount < 3 ? "short-span" : "flat";
-
 const ruleLabel = (rule: BacktestRunSummary["spec"]["rule"]): string => {
   if (rule.kind === "smaCross") return `SMA ${rule.fast}/${rule.slow}`;
   if (rule.kind === "breakout")
@@ -388,7 +384,8 @@ const ComboReport = ({ combo }: Readonly<{ combo: BacktestCombo }>) => (
                     (combo.correlation[row] as (number | null)[])[column] as
                       | number
                       | null,
-                    correlationNullReason(combo.points.length)
+                    // The server reasons over the dates both runs cover.
+                    combo.correlationReasons?.[row]?.[column] ?? undefined
                   )}{" "}
                   /{" "}
                   {percent(
