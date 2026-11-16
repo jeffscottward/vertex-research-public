@@ -20,6 +20,7 @@ import {
   type VertexOrderResult,
 } from "@darkfactory/api";
 
+import { unknownView } from "./nautilus-arm-model.ts";
 import { pct, price, usd } from "./portfolio-monitor-model.ts";
 
 // Pure wording and derivation for the go-live order draft queue (/drafts). No React, no I/O.
@@ -443,21 +444,6 @@ export const accountText = (account: GoLiveQueueOutput["account"]): string => {
     : `Account value: ${value} as of ${etDayClock(account.asOf)}`;
 };
 
-// The arm CLI causes of a running container with no arm state (the wording of the arm switch,
-// nautilus-arm-model.ts unknownView; one copy after ws/b1-order-arm merges).
-const CLI_CAUSE: Readonly<Record<string, string>> = {
-  "cli-bad-output":
-    "returned a failing exit or output the VPS service could not read",
-  "cli-error": "failed (error)",
-  "cli-timeout": "did not answer (timeout)",
-};
-
-/** An ISO time from the status answer in ET, or "time not recorded". */
-const statusClock = (value: string): string => {
-  const ms = Date.parse(value);
-  return Number.isFinite(ms) ? etDayClock(new Date(ms)) : "time not recorded";
-};
-
 const NODE_NOT_READ_NEXT =
   "go-live sends stay refused until the node reads running, armed; reload the queue to check again";
 
@@ -473,33 +459,16 @@ const nodeNotReadText = (node: GoLiveQueueOutput["node"]): string | null => {
     return `Node state not read · the status call to the node bridge failed at ${checked} · ${NODE_NOT_READ_NEXT}`;
   const container = node.container;
   if (container === undefined) return null;
-  const code = node.armError ?? null;
-  if (container.state === "running") {
-    const cause =
-      code === null
-        ? "sent no arm state and no error code"
-        : Object.hasOwn(CLI_CAUSE, code)
-          ? CLI_CAUSE[code]
-          : `failed (code ${code})`;
-    return `Running · arm state not read · The arm command in the node ${cause} at ${checked} · ${NODE_NOT_READ_NEXT}`;
-  }
-  // No fallback to the check time: a check time is not the start of the failure.
-  const since =
-    container.since === null || container.since === undefined
-      ? `· start time not recorded (checked ${checked})`
-      : `since ${statusClock(container.since)}`;
-  const docker =
-    code === "ambiguous-container"
-      ? `More than one node container matches ${since}`
-      : code === "docker-error"
-        ? `Docker did not answer ${since} (docker error)`
-        : `Docker could not be read ${since} (code ${code ?? "not sent"})`;
-  const last = container.lastKnown;
-  const lastRead =
-    last === null || last === undefined
-      ? "no container read recorded since the VPS service started"
-      : `last read: ${last.state} at ${statusClock(last.at)}`;
-  return `Node state not read · ${docker} · ${lastRead} · ${NODE_NOT_READ_NEXT}`;
+  // The cause in the words of the arm switch; no badge was confirmed on this page.
+  const unknown = unknownView(
+    {
+      armError: node.armError ?? null,
+      checkedAt: node.checkedAt.toISOString(),
+      container,
+    },
+    null
+  );
+  return `${unknown.label} · ${unknown.detail} · ${NODE_NOT_READ_NEXT}`;
 };
 
 /** The node badge with the time of the check; an "unknown" badge names its cause. */
