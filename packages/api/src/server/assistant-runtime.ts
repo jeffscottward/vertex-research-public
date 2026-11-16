@@ -126,8 +126,13 @@ export type AssistantToolDefinition = Readonly<{
   }>;
 }>;
 
+// The in-app assistant does not see notes meant for external MCP clients: "Needs a write key"
+// and the QuantData "Budget:" sentence (the app paces its own calls and reports rateLimited).
 const modelDescription = (description: string): string => {
-  return description.replace(/\s*Needs a write key\.?/gu, "").trim();
+  return description
+    .replace(/\s*Needs a write key\.?/gu, "")
+    .replace(/\s*Budget: [^.]*\./gu, "")
+    .trim();
 };
 
 // OpenAI-compatible function tools built from the MCP catalogue (same JSON Schema as tools/list),
