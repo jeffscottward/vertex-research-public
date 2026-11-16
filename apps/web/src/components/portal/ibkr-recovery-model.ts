@@ -13,7 +13,7 @@ import {
 // View model for the "Send IBKR 2FA request" control (Mission control account card).
 // The button appears when the VPS reports a logged-out or stopped gateway (needsLogin), or a
 // logged-in gateway whose account feeds are missing (feedsMissing).
-// "starting", "awaiting-2fa", "no-login-evidence", "gateway-unreadable", "unknown" and reader errors
+// "starting", "awaiting-2fa", "no-login-evidence", "gateway-unreadable" and reader errors
 // never show it.
 
 // A finished request stays visible for this long so the operator can read the result.
@@ -28,7 +28,6 @@ const LOGIN_LABEL: Readonly<Record<IbkrRecoveryLoginState, string | null>> = {
   "no-login-evidence": null,
   starting: null,
   stopped: "IBKR login: gateway stopped",
-  unknown: null,
 };
 
 const LOGIN_NAME: Readonly<Record<IbkrRecoveryLoginState, string>> = {
@@ -39,7 +38,6 @@ const LOGIN_NAME: Readonly<Record<IbkrRecoveryLoginState, string>> = {
   "no-login-evidence": "no login line in the log",
   starting: "gateway starting",
   stopped: "gateway stopped",
-  unknown: "not decided by the VPS",
 };
 
 // The two states in which the VPS cannot decide the login (card vertex-status-b1-quantvps). The VPS

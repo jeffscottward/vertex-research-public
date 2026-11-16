@@ -432,11 +432,16 @@ describe("portal route leaf composition", () => {
     ];
 
     for (const boundary of boundaries) {
-      const retry = runtimeElements(boundary).find(
-        (element) => element.props.onClick === reset
-      );
+      // A boundary wires reset to a button (onClick) or hands it to the shared
+      // RouteErrorState, which renders the Try again button (route-error-state.test.tsx).
+      const retry = runtimeElements(boundary)
+        .map((element): Readonly<Record<string, unknown>> => element.props)
+        .find(
+          (props) => props["onClick"] === reset || props["reset"] === reset
+        );
       expect(retry).toBeDefined();
-      retry?.props.onClick?.();
+      const action = retry?.["onClick"] ?? retry?.["reset"];
+      if (typeof action === "function") action();
     }
     return expect(reset).toHaveBeenCalledTimes(boundaries.length);
   });

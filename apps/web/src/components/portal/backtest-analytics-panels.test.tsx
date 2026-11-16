@@ -97,6 +97,7 @@ describe("placebo panel", () => {
   it("explains each unavailable reason with the research-only notice", () => {
     const messages = {
       no_bars: "No stored daily bars for this symbol",
+      not_configured: "bar store is not configured",
       outside_history: "outside the stored price history",
       too_few_decisions: "at least two decisions",
       storage_error: "could not be read",

@@ -1,24 +1,23 @@
 "use client";
 
-import { Button, EmptyState } from "@darkfactory/ui";
-import { RotateCcw } from "lucide-react";
+import {
+  type RouteError,
+  RouteErrorState,
+} from "../../../components/route-error-state.tsx";
 
 export default function WatchlistError({
+  error,
   reset,
 }: {
+  readonly error?: RouteError;
   readonly reset: () => void;
 }) {
   return (
-    <EmptyState
-      action={
-        <Button onClick={reset} variant="secondary">
-          <RotateCcw aria-hidden="true" className="size-4" />
-          Try again
-        </Button>
-      }
-      description="The watchlist page failed to render. Unsaved edits were not submitted."
-      icon={<RotateCcw />}
-      title="Watchlist unavailable"
+    <RouteErrorState
+      error={error}
+      page="Watchlist"
+      reset={reset}
+      safety="Unsaved edits were not submitted."
     />
   );
 }

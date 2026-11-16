@@ -292,9 +292,11 @@ class OwnedRuntimeTests(unittest.TestCase):
     # CHARAN_LIVE_TRANSMIT_ENABLED term of live_broker_enabled (safety_fix digest above).
     # docker-compose.yml also passes the order policy v3 switch and the total open-risk cap (with its
     # source) to nautilus-trader; all three are empty by default (card vertex-golive-spread-gate).
+    # It also passes TWS_COLD_RESTART to ib-gateway (IBC weekly cold restart; owner 2026-11-16, card
+    # ibkr-weekly-cold-restart); empty by default.
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "16480d28b43aa65eb40d8e804c7479194f6df8f1eb305c341f6e54eadc8f2c37",
+        "docker-compose.yml": "f4689d8665fd3186e0837043ffbed0c2e079e61548c56759d7c116625b6e6051",
         # Card move-close-off-charan-scripts: /api/position-close runs scripts/position_close.py; the
         # rescan request write for the retired intake (nothing reads it) is gone.
         "portfolio-ui/server.mjs": "2639b8126c88c2fd5fe896a01968832ad51ed97e83e07484ebece20cb3f73110",

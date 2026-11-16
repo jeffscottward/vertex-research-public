@@ -158,7 +158,8 @@ describe("operator access required state", () => {
     const gateway: PapersGateway = {
       ...deniedPapersGateway(),
       list: vi.fn(async () => {
-        throw Object.assign(new Error("x"), { code: "STORAGE_ERROR" });
+        // No message from the server: the client falls back to its own text.
+        throw Object.assign(new Error(""), { code: "STORAGE_ERROR" });
       }),
     };
     const container = await mount(<PapersWorkspace gateway={gateway} />);
