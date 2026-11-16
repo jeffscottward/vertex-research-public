@@ -430,7 +430,7 @@ describe("portfolio monitor health rule", () => {
     ).toMatch(
       /^The IBKR gateway has been connecting since (\S.* )?\d\d:\d\d \S+, so/
     );
-    // No start time from the reader: the sentence stays correct without it.
+    // No start time from the reader: the sentence says so instead of leaving the time out.
     return expect(
       accountDataWithheld(
         fixtureSnapshot(
@@ -440,7 +440,7 @@ describe("portfolio monitor health rule", () => {
         NOW
       )
     ).toBe(
-      "The IBKR gateway has been disconnected, so account data is withheld until it reconnects. The reader retries on its own."
+      "The IBKR gateway has been disconnected (start time not reported by the reader), so account data is withheld until it reconnects. The reader retries on its own."
     );
   });
 });

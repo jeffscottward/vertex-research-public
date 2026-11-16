@@ -712,7 +712,9 @@ export const OrdersTable = ({
       {orders.length === 0 ? (
         <EmptyOrWithheld
           empty={empty}
-          note="Do not assume that no orders are working."
+          note={
+            completed ? undefined : "Do not assume that no orders are working."
+          }
           what="Orders"
           withheld={withheld}
         />

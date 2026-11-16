@@ -751,7 +751,7 @@ describe("PortfolioMonitor", () => {
       "Status:Paper account"
     );
     expect(find("[data-withheld]").textContent).toBe(
-      "Positions withheld. The IBKR gateway has been disconnected, so account data is withheld until it reconnects. The reader retries on its own."
+      "Positions withheld. The IBKR gateway has been disconnected (start time not reported by the reader), so account data is withheld until it reconnects. The reader retries on its own."
     );
     expect(text()).not.toContain("No open positions");
     expect(text()).not.toMatch(/unknown/i);

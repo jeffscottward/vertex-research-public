@@ -1016,7 +1016,13 @@ export const accountDataWithheld = (
     return "The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert on the Portfolio page shows the fix.";
   const since =
     nowMs === undefined ? null : sinceClock(snapshot.status.since, nowMs);
-  const sinceText = since === null ? "" : ` since ${since}`;
+  // With nowMs but no start time from the reader, say so instead of leaving the time out.
+  const sinceText =
+    since === null
+      ? nowMs === undefined
+        ? ""
+        : " (start time not reported by the reader)"
+      : ` since ${since}`;
   if (snapshot.status.gateway === "starting")
     return `The IBKR gateway has been connecting${sinceText}, so account data is not received yet. The reader retries on its own.`;
   if (snapshot.status.gateway !== "live" || !snapshot.status.connected)
