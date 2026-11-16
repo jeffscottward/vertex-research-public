@@ -9,7 +9,15 @@ import {
   type SecFactRow,
   secUserAgent,
 } from "./deep-value-sources.ts";
-import { jsonResponse, NOW, testIo, yahooChart } from "./lens.test-support.ts";
+import {
+  HISTORY_ENV,
+  historyAnswer,
+  isHistoryUrl,
+  jsonResponse,
+  NOW,
+  testIo,
+  yahooChart,
+} from "./lens.test-support.ts";
 import type { LensFetch } from "./lens-io.ts";
 
 const fy = (end: string, val: number): SecFactRow => ({
@@ -452,8 +460,8 @@ describe("price facts", () => {
     expect(chart.asOf).toBe("2026-11-09");
     expect(chart.name).toBe("Long");
     expect(chart.bars).toEqual([
-      { adj: 1, close: 1, volume: 1_000_000 },
-      { adj: 3, close: 3, volume: 1_000_000 },
+      { adj: 1, close: 1, date: "2026-11-07", volume: 1_000_000 },
+      { adj: 3, close: 3, date: "2026-11-09", volume: 1_000_000 },
     ]);
     expect(
       parseYahooChart(
@@ -461,7 +469,9 @@ describe("price facts", () => {
       )
     ).toEqual({
       asOf: "2026-11-09",
-      bars: [{ adj: undefined, close: 2, volume: 1_000_000 }],
+      bars: [
+        { adj: undefined, close: 2, date: "2026-11-09", volume: 1_000_000 },
+      ],
       name: "Short",
     });
     expect(parseYahooChart({})).toEqual({ asOf: null, bars: [], name: null });
@@ -611,5 +621,146 @@ describe("createDeepValueSources", () => {
     expect(requests).toEqual([
       "https://query1.finance.yahoo.com/v8/finance/chart/BRK-B?range=1y&interval=1d",
     ]);
+  });
+});
+
+/** IBKR history answers from `history`; everything else from the scripted SEC and Yahoo responses. */
+const withHistory =
+  (
+    history: (url: string) => Response,
+    rest: LensFetch = scriptedFetch()
+  ): LensFetch =>
+  async (url, init) =>
+    isHistoryUrl(url) ? history(url) : rest(url, init);
+
+const MERGED_PRICES =
+  "IBKR history (ADJUSTED_LAST) first, Yahoo Finance chart API for gaps (1y daily)";
+
+describe("createDeepValueSources with IBKR history", () => {
+  it("reads Yahoo only, with the Yahoo label, when IBKR is not configured", async () => {
+    const { io, requests } = testIo({ fetch: scriptedFetch() });
+    const sources = createDeepValueSources(io);
+    expect(sources.pricesLabel()).toBe("Yahoo Finance chart API (1y daily)");
+    await sources.gatherFacts("AAPL");
+    expect(sources.pricesLabel()).toBe("Yahoo Finance chart API (1y daily)");
+    expect(requests.some(isHistoryUrl)).toBe(false);
+  });
+
+  it("takes the price facts from IBKR bars when IBKR covers the year", async () => {
+    // 370 daily bars ending 2026-11-09: the first is older than the year the score needs.
+    const closes = Array.from({ length: 370 }, (_, i) => 100 + i);
+    const { io, requests, stderr } = testIo({
+      env: HISTORY_ENV,
+      fetch: withHistory((url) => jsonResponse(historyAnswer(url, closes))),
+    });
+    const sources = createDeepValueSources(io, ["AAPL", "BRK.B"]);
+    const facts = await sources.gatherFacts("AAPL");
+    expect(facts).toMatchObject({
+      asOf: "2026-11-09",
+      // Volume arrives in lots of 100 shares.
+      avgVolume: 1_000_000,
+      errors: [],
+      high52: 469,
+      low52: 218,
+      // No Yahoo read: the SEC title names the company (never IBKR's contract name).
+      name: "Apple Inc.",
+      price: 469,
+      priceAdjusted: 469,
+      sma50: 444.5,
+    });
+    expect(requests).toEqual([
+      "https://history.test/bars?barSize=1+day&currency=USD&duration=1+Y&secType=STK&symbol=AAPL&useRTH=1&whatToShow=ADJUSTED_LAST",
+      "https://www.sec.gov/files/company_tickers.json",
+      "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+    ]);
+    expect(stderr).toEqual([]);
+    expect(sources.pricesLabel()).toBe(
+      `${MERGED_PRICES}; names: 1 IBKR, 0 IBKR with older days from Yahoo, 0 Yahoo`
+    );
+    await sources.gatherFacts("BRK.B");
+    expect(new URL(requests.at(-2) ?? "").searchParams.get("symbol")).toBe(
+      "BRK B"
+    );
+  });
+
+  it("fills the days before IBKR's first bar from Yahoo and keeps Yahoo's name", async () => {
+    const { io, requests } = testIo({
+      env: HISTORY_ENV,
+      fetch: withHistory((url) =>
+        jsonResponse(historyAnswer(url, [20, 21], { endDay: "2026-11-10" }))
+      ),
+    });
+    const sources = createDeepValueSources(io, ["AAPL"]);
+    // Yahoo: 10, 11, 12 on 2026-11-07..09. IBKR: 20, 21 on 2026-11-09..10. Yahoo serves 11-07 and 11-08 only.
+    expect(await sources.gatherFacts("AAPL")).toMatchObject({
+      asOf: "2026-11-10",
+      errors: [],
+      high52: 21,
+      low52: 10,
+      name: "From Yahoo",
+      price: 21,
+    });
+    expect(requests.slice(0, 2).map((url) => new URL(url).hostname)).toEqual([
+      "history.test",
+      "query1.finance.yahoo.com",
+    ]);
+    expect(sources.pricesLabel()).toBe(
+      `${MERGED_PRICES}; names: 0 IBKR, 1 IBKR with older days from Yahoo, 0 Yahoo`
+    );
+  });
+
+  it("reads the whole year from Yahoo when IBKR fails, without the token in the log", async () => {
+    const { io, stderr } = testIo({
+      env: HISTORY_ENV,
+      fetch: withHistory(() =>
+        jsonResponse({ error: "paced", retry_after_seconds: 71 }, 429)
+      ),
+    });
+    const sources = createDeepValueSources(io, ["AAPL"]);
+    expect(await sources.gatherFacts("AAPL")).toMatchObject({
+      asOf: "2026-11-09",
+      errors: [],
+      name: "From Yahoo",
+      price: 12,
+    });
+    expect(stderr).toEqual([
+      "2026-11-10T12:00:00.000Z AAPL: IBKR history HTTP 429 (paced), retry in 71 s; 3 answers to wait; Yahoo serves this symbol\n",
+    ]);
+    expect(stderr.join("")).not.toContain(
+      HISTORY_ENV.VERTEX_DEPLOY_STATUS_TOKEN
+    );
+    expect(sources.pricesLabel()).toBe(
+      `${MERGED_PRICES}; names: 0 IBKR, 0 IBKR with older days from Yahoo, 1 Yahoo`
+    );
+  });
+
+  it("records the Yahoo error and counts no source when both fail", async () => {
+    const { io } = testIo({
+      env: HISTORY_ENV,
+      fetch: withHistory(
+        () => jsonResponse({}, 500),
+        scriptedFetch({ "finance.yahoo.com": () => jsonResponse({}, 503) })
+      ),
+    });
+    const sources = createDeepValueSources(io, ["AAPL"]);
+    const facts = await sources.gatherFacts("AAPL");
+    expect(facts.errors).toEqual(["prices: Yahoo HTTP 503"]);
+    expect(facts.price).toBeUndefined();
+    expect(sources.pricesLabel()).toBe(
+      `${MERGED_PRICES}; names: 0 IBKR, 0 IBKR with older days from Yahoo, 0 Yahoo`
+    );
+  });
+
+  it("reads Yahoo for a name that is not one of our names", async () => {
+    const { io, requests } = testIo({
+      env: HISTORY_ENV,
+      fetch: withHistory((url) => jsonResponse(historyAnswer(url, [10, 11]))),
+    });
+    const sources = createDeepValueSources(io, ["MSFT"]);
+    await sources.gatherFacts("AAPL");
+    expect(requests.some(isHistoryUrl)).toBe(false);
+    expect(sources.pricesLabel()).toBe(
+      `${MERGED_PRICES}; names: 0 IBKR, 0 IBKR with older days from Yahoo, 1 Yahoo`
+    );
   });
 });

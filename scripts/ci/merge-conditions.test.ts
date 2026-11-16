@@ -31,6 +31,8 @@ describe("classifyPath", () => {
     ["services/x/kill-switch.py", "owner-decision"],
     ["services/x/live_orders.py", "owner-decision"],
     ["scripts/vertex-owner-caps.ts", "owner-decision"],
+    ["scripts/go-live/plan.ts", "owner-decision"],
+    ["apps/web/src/goLive.ts", "owner-decision"],
     ["services/execution-kernel/vendor/x.rs", "owner-decision"],
     [".github/workflows/ci.yml", "none"],
     ["AGENTS.md", "none"],
@@ -64,8 +66,8 @@ describe("evaluateMergeConditions", () => {
   const run = (files: string[], body: string, coveredShas = [HEAD]) =>
     evaluateMergeConditions({ body, coveredShas, files });
 
-  it("passes an empty change with no lines", () => {
-    expect(run([], "").ok).toBe(true);
+  it("requires the review line even for an empty change", () => {
+    expect(run([], "").ok).toBe(false);
   });
 
   it("requires an agent review line for any change", () => {
@@ -157,7 +159,7 @@ describe("runMergeConditionsCli", () => {
       "git diff": "",
       "git rev-list": "",
     });
-    expect(await runMergeConditionsCli({ ...env, GITHUB_OUTPUT }, b.d)).toBe(0);
+    expect(await runMergeConditionsCli({ ...env, GITHUB_OUTPUT }, b.d)).toBe(1);
     expect(await readFile(GITHUB_OUTPUT, "utf8")).toBe(
       "enforced=false\nenforced=false\nenforced=true\n"
     );

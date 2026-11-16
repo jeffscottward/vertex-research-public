@@ -421,15 +421,17 @@ export const createVertexExperienceReads = (
   const readPortfolio = async (actor: VertexPrincipal, scope: VertexScope) => {
     await authorizeVertex(dependencies, actor, scope, "portfolio");
     const raw = await call(() =>
-      vertexPorts(dependencies).store.getPortfolioSnapshot(actor, scope)
+      vertexPorts(dependencies).store.getPortfolioRead(actor, scope)
     );
-    if (raw === null)
+    if (raw.snapshot === null)
+      // No projection stream means no native source publishes for this scope;
+      // a stream without a snapshot means none has been sent yet.
       return vertexSource(VertexPortfolioReadSchema, {
         status: "unavailable",
-        reason: "not-found",
+        reason: raw.streamRegistered ? "not-found" : "not-configured",
         executionAuthorized: false,
       });
-    const snapshot = vertexSource(PortfolioSnapshotSchema, raw);
+    const snapshot = vertexSource(PortfolioSnapshotSchema, raw.snapshot);
     requireSourceScope(scope, snapshot);
     return vertexSource(VertexPortfolioReadSchema, {
       status: "available",
