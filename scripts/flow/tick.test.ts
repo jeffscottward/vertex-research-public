@@ -58,7 +58,49 @@ const env = {
   VERTEX_ORIGIN: "https://vertex.test/path",
 };
 
+const BUDGET = {
+  ibkrLimit: 6,
+  ibkrRecent: 2,
+  quantDataFree: 17,
+  quantDataReserve: 6,
+  runSeconds: 41,
+};
+
 describe("runFlowTick", () => {
+  it("prints one budget line after the run lines", async () => {
+    const harness = harnessFor(
+      env,
+      Response.json({ json: { ...RESULT, budget: BUDGET } })
+    );
+    await expect(runFlowTick(harness.io)).resolves.toBe(0);
+    expect(harness.out.slice(-2)).toEqual([
+      "ES depth ok items=1 events=0\n",
+      "budget quantdata_free=17 reserve=6 ibkr=2/6 run=41s\n",
+    ]);
+  });
+
+  it("prints unread for an IBKR window that was not read", async () => {
+    const harness = harnessFor(
+      env,
+      Response.json({
+        json: {
+          ...RESULT,
+          budget: { ...BUDGET, ibkrRecent: null, quantDataFree: null },
+        },
+      })
+    );
+    await runFlowTick(harness.io);
+    expect(harness.out.at(-1)).toBe(
+      "budget quantdata_free=unread reserve=6 ibkr=unread/6 run=41s\n"
+    );
+  });
+
+  it("prints no budget line for an answer without a budget", async () => {
+    const harness = harnessFor(env);
+    await runFlowTick(harness.io);
+    expect(harness.out.some((line) => line.startsWith("budget"))).toBe(false);
+  });
+
   it("posts flow.collect with the key and prints one line per run, hiding closed-market skips", async () => {
     const harness = harnessFor(env);
     await expect(runFlowTick(harness.io)).resolves.toBe(0);

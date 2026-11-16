@@ -104,9 +104,11 @@ const fakeClient = (
   responses: Readonly<Record<"termStructure" | "orderFlow", QuantDataResult>>
 ) => {
   const request = vi.fn<QuantDataClient["request"]>(async (endpoint) =>
-    endpoint === "openInterest" ? ok({ data: {} }) : responses[endpoint]
+    endpoint === "termStructure" || endpoint === "orderFlow"
+      ? responses[endpoint]
+      : ok({ data: {} })
   );
-  return { cooldownSeconds: () => 0, request };
+  return { cooldownSeconds: () => 0, freeStarts: () => 30, request };
 };
 
 // The rows of EXPIRY.
