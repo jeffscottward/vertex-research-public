@@ -389,7 +389,7 @@ describe("callMcpTool", () => {
         maxPain: 100,
         message: null,
         status: "ok",
-        strikeCount: 2,
+        displayedStrikeCount: 2,
         totalGex: 1_000_000,
       },
       flowStatus: "empty",

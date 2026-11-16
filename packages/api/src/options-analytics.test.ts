@@ -19,6 +19,7 @@ import {
   daysUntil,
   displayStrikes,
   exposure,
+  inRangeStrikes,
   ivDecimal,
   ivSurface,
   maxPain,
@@ -173,7 +174,7 @@ describe("quantdata client", () => {
       sleep,
     });
     const first = await client.request("termStructure", { a: 1 }, 5000);
-    expect(first).toMatchObject({ data: { ok: 1 }, ok: true });
+    expect(first).toMatchObject({ data: { ok: 1 }, fetchedAt: 1000, ok: true });
     const [url, init] = doFetch.mock.calls[0] ?? [];
     expect(url).toBe(
       "https://quantdata.domain.test/v1/options/tool/term-structure"
@@ -188,6 +189,11 @@ describe("quantdata client", () => {
     expect(doFetch).toHaveBeenCalledTimes(1);
     await client.request("openInterest", { a: 1 }, 5000);
     expect(sleep).toHaveBeenCalledWith(1000);
+    // A cache hit keeps the time QuantData answered, not the time of the hit.
+    expect(clock).toBe(2000);
+    expect(await client.request("termStructure", { a: 1 }, 5000)).toMatchObject(
+      { fetchedAt: 1000, ok: true }
+    );
     clock += 10_000;
     await client.request("termStructure", { a: 1 }, 5000);
     expect(doFetch).toHaveBeenCalledTimes(3);
@@ -852,21 +858,21 @@ describe("options analytics engine", () => {
   it("estimates GEX from front-expiry IV with an ATM fallback", () => {
     expect(blackScholesGamma(100, 100, 0.2, 1)).toBeCloseTo(0.0198, 3);
     const oi = parseOpenInterest(oiData);
-    const result = exposure(oi, chain.rows, 100, TODAY);
+    const result = exposure(oi, chain.rows, 100, TODAY).section;
     expect(result.gexExpiry).toBe("2026-10-23");
     expect(result.maxPain).toBe(100);
     expect(result.strikes).toHaveLength(3);
     expect(result.strikes.every((row) => row.gex !== null)).toBe(true);
     expect(result.totalGex).not.toBeNull();
     expect(exposure(oi, chain.rows, null, TODAY)).toMatchObject({
-      gexExpiry: null,
-      totalGex: null,
+      section: { gexExpiry: null, totalGex: null },
+      strikes: oi.map((row) => ({ ...row, gex: null })),
     });
-    expect(exposure(oi, [], 100, TODAY).strikes[0]?.gex).toBeNull();
+    expect(exposure(oi, [], 100, TODAY).section.strikes[0]?.gex).toBeNull();
     const sameDay: ChainRow[] = [
       { delta: 0.5, expiry: TODAY, iv: 0.2, right: "call", strike: 100 },
     ];
-    expect(exposure(oi, sameDay, 100, TODAY).gexExpiry).toBe(TODAY);
+    expect(exposure(oi, sameDay, 100, TODAY).section.gexExpiry).toBe(TODAY);
     const noIv: ChainRow[] = [
       {
         delta: 0.5,
@@ -876,9 +882,38 @@ describe("options analytics engine", () => {
         strike: 100,
       },
     ];
-    return expect(exposure(oi, noIv, 100, TODAY)).toMatchObject({
+    return expect(exposure(oi, noIv, 100, TODAY).section).toMatchObject({
       totalGex: null,
     });
+  });
+
+  it("totals GEX over every strike within 50-150% of spot, not only the ones shown", () => {
+    // 200 strikes 1..200 around spot 100: 101 are in range, 78 are displayed (55 nearest
+    // plus the 25 largest OI, two of them in both sets).
+    const wide = Array.from({ length: 200 }, (_, index) => ({
+      callOpenInterest: 1000 + index,
+      putOpenInterest: 900,
+      strike: index + 1,
+    }));
+    const front: ChainRow[] = wide.flatMap(({ strike }) => [
+      { delta: 0.5, expiry: "2027-10-22", iv: 0.4, right: "call", strike },
+      { delta: -0.5, expiry: "2027-10-22", iv: 0.45, right: "put", strike },
+    ]);
+    const { section, strikes } = exposure(wide, front, 100, TODAY);
+    expect(strikes).toHaveLength(101);
+    expect(strikes[0]?.strike).toBe(50);
+    expect(section.strikes).toHaveLength(78);
+    const sum = (rows: readonly { gex: number | null }[]): number =>
+      rows.reduce((total, row) => total + (row.gex ?? 0), 0);
+    expect(section.totalGex).toBeCloseTo(sum(strikes), 6);
+    expect(Math.abs(sum(strikes) - sum(section.strikes))).toBeGreaterThan(0);
+    // Displayed rows keep the GEX of the same strike in the full set.
+    const byStrike = new Map(strikes.map((row) => [row.strike, row.gex]));
+    expect(
+      section.strikes.every((row) => byStrike.get(row.strike) === row.gex)
+    ).toBe(true);
+    // No strike in range: every strike counts.
+    return expect(inRangeStrikes(wide, 1000)).toHaveLength(200);
   });
 
   it("parses and summarizes option flow", () => {
@@ -1004,6 +1039,15 @@ describe("buildOptionsAnalytics", () => {
       session: "morning",
     });
     expect(output.context.factors).toHaveLength(11);
+    // The paged flow response marks the flow chip; a fake client gives no fetch times.
+    const contextFactor = (key: string) =>
+      output.context.factors.find((item) => item.key === key);
+    expect(contextFactor("flow")?.value).toContain(
+      "· first page only, 3 trades"
+    );
+    expect(contextFactor("freshness")?.detail).toContain(
+      "Chain and OI are cached up to 5 min."
+    );
     expect(client.calls[2]).toEqual([
       "orderFlow",
       {
@@ -1194,6 +1238,10 @@ describe("optionsAnalytics.snapshot procedure", () => {
     const output = await api.optionsAnalytics.snapshot({ symbol: "SPY" });
     expect(output.volatility.status).toBe("ok");
     expect(output.flow.hours).toBe(24);
+    // The real client stamps each answer, so the context states the fetch age.
+    expect(
+      output.context.factors.find((item) => item.key === "freshness")?.detail
+    ).toContain("Chain and OI fetched 0 min ago");
     expect(JSON.stringify(output)).not.toContain(KEY);
     await api.optionsAnalytics.snapshot({ symbol: "SPY" });
     expect(doFetch).toHaveBeenCalledTimes(3);

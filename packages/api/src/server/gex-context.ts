@@ -5,7 +5,12 @@ import type {
   GexContextFactor,
   OptionsAnalyticsOutput,
 } from "../contracts/options-analytics.ts";
-import { normalCdf, normalPdf } from "../options-chain-greeks.ts";
+import {
+  expiryCloseMs,
+  normalCdf,
+  normalPdf,
+} from "../options-chain-greeks.ts";
+import { nyseSession } from "../strategy-dsl-compile.ts";
 import {
   type ChainRow,
   daysUntil,
@@ -29,6 +34,7 @@ const IV_BACK_MIN_DTE = 25;
 // Flip search: spot x (1 +/- FLIP_RANGE) in FLIP_STEPS steps.
 const FLIP_RANGE = 0.3;
 const FLIP_STEPS = 120;
+const DAY_MS = 86_400_000;
 
 type StrikeOi = ExposureSection["strikes"][number];
 
@@ -66,24 +72,36 @@ type DealerTotals = Readonly<{
   charm: number;
 }>;
 
-// Dealer totals at a hypothetical spot over the given strikes; null when no strike has IV.
-export const dealerTotals = (
+type PricedStrike = Readonly<{
+  row: StrikeOi;
+  callIv: number;
+  putIv: number;
+}>;
+
+// Strikes with an IV on both sides; the IVs do not depend on spot, so the flip search
+// looks them up once instead of once per trial spot.
+const pricedStrikes = (
   strikes: readonly StrikeOi[],
-  model: GammaModel,
+  model: GammaModel
+): PricedStrike[] =>
+  strikes.flatMap((row) => {
+    const callIv = model.ivAt(row.strike, "call");
+    const putIv = model.ivAt(row.strike, "put");
+    return callIv === null || putIv === null ? [] : [{ callIv, putIv, row }];
+  });
+
+const totalsAt = (
+  priced: readonly PricedStrike[],
+  years: number,
   spot: number
 ): DealerTotals | null => {
   let gex = 0;
   let dex = 0;
   let vanna = 0;
   let charm = 0;
-  let any = false;
-  for (const row of strikes) {
-    const callIv = model.ivAt(row.strike, "call");
-    const putIv = model.ivAt(row.strike, "put");
-    if (callIv === null || putIv === null) continue;
-    any = true;
-    const call = callGreeks(spot, row.strike, callIv, model.years);
-    const put = callGreeks(spot, row.strike, putIv, model.years);
+  for (const { row, callIv, putIv } of priced) {
+    const call = callGreeks(spot, row.strike, callIv, years);
+    const put = callGreeks(spot, row.strike, putIv, years);
     const calls = row.callOpenInterest * 100;
     const puts = row.putOpenInterest * 100;
     gex += (calls * call.gamma - puts * put.gamma) * spot * spot * 0.01;
@@ -94,8 +112,16 @@ export const dealerTotals = (
     vanna += (calls * call.vanna - puts * put.vanna) * spot * 0.01;
     charm += ((calls * call.charm - puts * put.charm) * spot) / DAYS_PER_YEAR;
   }
-  return any ? { charm, dex, gex, vanna } : null;
+  return priced.length === 0 ? null : { charm, dex, gex, vanna };
 };
+
+// Dealer totals at a hypothetical spot over the given strikes; null when no strike has IV.
+export const dealerTotals = (
+  strikes: readonly StrikeOi[],
+  model: GammaModel,
+  spot: number
+): DealerTotals | null =>
+  totalsAt(pricedStrikes(strikes, model), model.years, spot);
 
 // Spot where the GEX profile changes sign, nearest to spot (linear interpolation).
 export const gexFlip = (
@@ -103,13 +129,14 @@ export const gexFlip = (
   model: GammaModel,
   spot: number
 ): number | null => {
+  const priced = pricedStrikes(strikes, model);
   const low = spot * (1 - FLIP_RANGE);
   const step = (spot * 2 * FLIP_RANGE) / FLIP_STEPS;
   let best: number | null = null;
   let previous: Readonly<{ at: number; gex: number }> | null = null;
   for (let index = 0; index <= FLIP_STEPS; index += 1) {
     const at = low + step * index;
-    const gex = dealerTotals(strikes, model, at)?.gex ?? null;
+    const gex = totalsAt(priced, model.years, at)?.gex ?? null;
     if (gex === null) return null;
     if (previous !== null && Math.sign(previous.gex) !== Math.sign(gex)) {
       const crossing =
@@ -286,17 +313,25 @@ const moves = (value: number): string =>
 
 const percent = (value: number): string => `${(value * 100).toFixed(0)}%`;
 
-const hedge = (value: number): string =>
-  value > 0 ? "hedge selling" : value < 0 ? "hedge buying" : "flat";
+// Dealers hedge against a change of their delta: a rise is hedged by selling, a fall by buying.
+const hedgeSide = (deltaChange: number): string =>
+  deltaChange > 0 ? "dealers sell" : "dealers buy";
 
 export type GexContextInput = Readonly<{
   exposure: ExposureSection;
+  // Every strike within 50-150 % of spot with its estimated GEX; the display list in
+  // `exposure.strikes` is a subset of at most 80 of them.
+  strikes: readonly StrikeOi[];
   chain: readonly ChainRow[];
   spot: number | null;
   term: OptionsAnalyticsOutput["volatility"]["termStructure"];
   events: readonly FlowEvent[];
   flowHours: number;
   flowOk: boolean;
+  // QuantData had more flow pages (nextSearchAfter); totals cover the first page only.
+  flowPartial: boolean;
+  // Epoch ms of the oldest chain or OI fetch behind these numbers; null when unknown.
+  fetchedAt: number | null;
   now: Date;
 }>;
 
@@ -318,8 +353,7 @@ const dealerContext = (
   input: GexContextInput,
   today: string
 ): Readonly<{ levels: Levels; greeks: Greeks }> => {
-  const { spot } = input;
-  const strikes = input.exposure.strikes;
+  const { spot, strikes } = input;
   const model =
     spot === null || spot <= 0 || strikes.length === 0
       ? null
@@ -370,7 +404,7 @@ const levelFactor = (levels: Levels): GexContextFactor => {
   const near = known.some(({ value }) => Math.abs(value) <= 1);
   return {
     detail:
-      "Distance from spot in one-day implied moves (spot x front ATM IV / sqrt 252); beyond one day-move a level rarely matters today. Estimate: fixed IV per strike, one front-expiry time for all OI. Hedging zones, not reversal signals.",
+      "Distance from spot in one-day implied moves (spot x front ATM IV / sqrt 252); beyond one day-move a level rarely matters today. Uses every strike within 50-150% of spot. Estimate: fixed IV per strike, one front-expiry time for all OI. Hedging zones, not reversal signals.",
     key: "levels",
     label: "Spot vs levels",
     tone: near ? "caution" : "neutral",
@@ -397,12 +431,15 @@ const flowFactor = (
   const fights =
     (regime === "positive" && flow.bias === "bearish") ||
     (regime === "negative" && flow.bias === "bullish");
+  const partial = input.flowPartial
+    ? ` · first page only, ${input.events.length} trades`
+    : "";
   return {
-    detail: `Bullish premium (calls bought, puts sold) minus bearish premium, ${window}. Follow the flow instead of fading into a GEX level; a level against strong flow can break.`,
+    detail: `Bullish premium (calls bought, puts sold) minus bearish premium, ${window}.${input.flowPartial ? " QuantData had more trades: totals cover its first page only." : ""} Follow the flow instead of fading into a GEX level; a level against strong flow can break.`,
     key: "flow",
     label: "Flow (who is paying)",
-    tone: fights ? "caution" : "neutral",
-    value: `${flow.bias === "balanced" ? "Balanced" : flow.bias === "bullish" ? "Bulls" : "Bears"} ${compactMoney(net)} net`,
+    tone: fights || input.flowPartial ? "caution" : "neutral",
+    value: `${flow.bias === "balanced" ? "Balanced" : flow.bias === "bullish" ? "Bulls" : "Bears"} ${compactMoney(net)} net${partial}`,
   };
 };
 
@@ -432,22 +469,25 @@ const regimeFactor = (regime: GexContext["regime"]): GexContextFactor => ({
 
 const freshnessFactor = (
   flow: GexContext["flow"],
-  now: Date
+  input: GexContextInput
 ): GexContextFactor => {
-  const minutes =
+  const now = input.now.getTime();
+  const minutesAgo = (ms: number): number =>
+    Math.max(0, Math.round((now - ms) / 60_000));
+  const tradeMinutes =
     flow.newestTradeAt === null
       ? null
-      : Math.max(
-          0,
-          Math.round((now.getTime() - Date.parse(flow.newestTradeAt)) / 60_000)
-        );
+      : minutesAgo(Date.parse(flow.newestTradeAt));
+  const fetched =
+    input.fetchedAt === null
+      ? "Chain and OI are cached up to 5 min."
+      : `Chain and OI fetched ${minutesAgo(input.fetchedAt)} min ago (cached up to 5 min).`;
   return {
-    detail:
-      "Open interest is QuantData's previous-session snapshot (it updates overnight), so new positions from today are missing. Chain and OI are cached up to 5 min.",
+    detail: `Open interest is QuantData's previous-session snapshot (it updates overnight), so new positions from today are missing. ${fetched}`,
     key: "freshness",
     label: "Freshness",
     tone: "caution",
-    value: `OI prior session · ${minutes === null ? "no recent trades" : `newest trade ${minutes} min ago`}`,
+    value: `OI prior session · ${tradeMinutes === null ? "no recent trades" : `newest trade ${tradeMinutes} min ago`}`,
   };
 };
 
@@ -457,20 +497,24 @@ const shareText = (value: number | null): string =>
 const expiryFactor = (
   expiry: GexContext["expiry"],
   flow: GexContext["flow"],
-  flowHours: number
+  input: GexContextInput,
+  // An expiry of today closed already; prior-session OI still holds its contracts.
+  closedToday: boolean
 ): GexContextFactor => {
   const zeroDteToday = expiry.nextExpiryDte === 0;
   return {
-    detail: `OI is aggregated across all expiries, so the 0DTE vs monthly split of these levels is unknown. Levels from the front expiry roll off at its close. Flow share in the ${flowHours} h window: ${shareText(flow.zeroDteShare)} 0DTE, ${shareText(flow.weekShare)} within 7 days.`,
+    detail: `OI is aggregated across all expiries, so the 0DTE vs monthly split of these levels is unknown. Levels from the front expiry roll off at its close. Flow share in the ${input.flowHours} h window${input.flowPartial ? " (first flow page only)" : ""}: ${shareText(flow.zeroDteShare)} 0DTE, ${shareText(flow.weekShare)} within 7 days.`,
     key: "expiryMix",
     label: "Expiry mix",
-    tone: zeroDteToday ? "caution" : "neutral",
+    tone: zeroDteToday || closedToday ? "caution" : "neutral",
     value:
       expiry.nextExpiry === null
         ? "No listed expiry"
         : zeroDteToday
           ? "0DTE today: levels roll off at close"
-          : `Next expiry in ${expiry.nextExpiryDte}d`,
+          : closedToday
+            ? `Today's expiry closed; OI still counts it · next in ${expiry.nextExpiryDte}d`
+            : `Next expiry in ${expiry.nextExpiryDte}d`,
   };
 };
 
@@ -481,7 +525,7 @@ const greekFactors = (
 ): GexContextFactor[] => [
   {
     detail:
-      "Net delta of all open options in dollars, holders' side (calls +, puts -; same OI and IV as GEX). Positioning sets the delta dealers must hedge; GEX is only how fast it changes.",
+      "Net delta of open options in dollars, holders' side (calls +, puts -; same OI, IV and strikes within 50-150% of spot as GEX). Positioning sets the delta dealers must hedge; GEX is only how fast it changes.",
     key: "dex",
     label: "Open-interest delta (DEX)",
     tone: "neutral",
@@ -498,18 +542,22 @@ const greekFactors = (
     value:
       greeks.netCharm === null
         ? "n/a"
-        : `${compactMoney(greeks.netCharm)}/day, ${hedge(greeks.netCharm)}`,
+        : greeks.netCharm === 0
+          ? `${compactMoney(0)}/day, flat`
+          : `${compactMoney(greeks.netCharm)}/day as time passes: ${hedgeSide(greeks.netCharm)}`,
   },
   {
     detail:
-      "Estimated change of dealer delta if IV rises 1 point; dealers hedge against it (an IV drop reverses it). Vanna matters most when IV is elevated.",
+      "Estimated change of dealer delta if IV rises 1 point; dealers hedge against it, and an IV drop reverses the hedge. Vanna matters most when IV is elevated.",
     key: "vanna",
     label: "Vanna",
     tone: ivHigh && greeks.netVanna !== null ? "caution" : "neutral",
     value:
       greeks.netVanna === null
         ? "n/a"
-        : `${compactMoney(greeks.netVanna)} per IV pt, ${hedge(greeks.netVanna)}`,
+        : greeks.netVanna === 0
+          ? `${compactMoney(0)} per IV pt, flat`
+          : `${compactMoney(greeks.netVanna)} per IV pt · IV up: ${hedgeSide(greeks.netVanna)}, IV down: ${hedgeSide(-greeks.netVanna)}`,
   },
 ];
 
@@ -552,13 +600,14 @@ const eventsFactor = (expiry: GexContext["expiry"]): GexContextFactor => ({
 
 const buildFactors = (
   parts: FactorParts,
-  input: GexContextInput
+  input: GexContextInput,
+  closedToday: boolean
 ): GexContextFactor[] =>
   [
     DEALER_SIGN_FACTOR,
     regimeFactor(parts.regime),
-    freshnessFactor(parts.flow, input.now),
-    expiryFactor(parts.expiry, parts.flow, input.flowHours),
+    freshnessFactor(parts.flow, input),
+    expiryFactor(parts.expiry, parts.flow, input, closedToday),
     levelFactor(parts.levels),
     flowFactor(parts.flow, parts.regime, input),
     ...greekFactors(
@@ -581,11 +630,22 @@ export const buildGexContext = (input: GexContextInput): GexContext => {
       : total > 0
         ? "positive"
         : "negative";
-  const nextExpiry =
-    [...new Set(input.chain.map((row) => row.expiry))]
-      .filter((expiry) => expiry >= today)
-      .sort()[0] ?? null;
-  const opex = nextMonthlyOpex(today);
+  // An expiry counts until its NYSE close (13:00 New York on an early-close day), not until
+  // the end of its date. A date without a session falls back to 16:00 New York.
+  const open = (expiry: string): boolean =>
+    (nyseSession(Date.parse(`${expiry}T00:00:00Z`) / DAY_MS)?.close.getTime() ??
+      expiryCloseMs(expiry)) > input.now.getTime();
+  const expiries = [...new Set(input.chain.map((row) => row.expiry))];
+  const nextExpiry = expiries.filter(open).sort()[0] ?? null;
+  const closedToday = expiries.includes(today) && !open(today);
+  const thisOpex = nextMonthlyOpex(today);
+  const opex = open(thisOpex)
+    ? thisOpex
+    : nextMonthlyOpex(
+        new Date(Date.parse(`${today}T00:00:00Z`) + DAY_MS)
+          .toISOString()
+          .slice(0, 10)
+      );
   const parts: FactorParts = {
     expiry: {
       monthlyOpexDays: daysUntil(opex, today),
@@ -603,6 +663,6 @@ export const buildGexContext = (input: GexContextInput): GexContext => {
   return {
     ...parts,
     dealerSignAssumption: "dealers long calls, short puts",
-    factors: buildFactors(parts, input),
+    factors: buildFactors(parts, input, closedToday),
   };
 };
