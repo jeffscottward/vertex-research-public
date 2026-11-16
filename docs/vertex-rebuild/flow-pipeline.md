@@ -274,6 +274,17 @@ shared with `/charts` and the market-watch bot; the shared client keeps its own 
 (`packages/api/src/server/quantdata-client.ts`), and the collector's caller reserve keeps 6 of the
 client's 30 starts per 60 s free for `/charts`. No new paid provider was added.
 
+## Continuation study
+
+The options-side continuation study tests the options side of the flow control signals with modelled fills
+(research only): code in `services/research/strategies/flow_control/`, spec in
+[flow-control-continuation.md](../specs/strategies/flow-control-continuation.md), operator guide in
+[the study README](../../research/backtests/flow-control-continuation/README.md). Futures results are modelled from
+index prices and option prices from Black-Scholes; the futures and options agreement is not tested. The panel's study
+line reads the stored study `flow-control-continuation`. Store it with
+`bun run vertex:research-studies:import < <out>/study.json` after the dry run. The download and the study run on the
+research machine and never on the trading server.
+
 ## Deploy
 
 1. Merge, then deploy the app as in `infra/quantvps/README.md` (build on the rig, rsync `dist`,

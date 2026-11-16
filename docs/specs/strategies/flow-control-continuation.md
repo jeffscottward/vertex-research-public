@@ -111,3 +111,43 @@ options side alone, with modelled fills.
 
 - Code: `services/research/strategies/flow_control/`.
 - Tests: `services/research/tests/test_flow_control_*.py`.
+
+## Results
+
+Run 2026-11-16 (UTC) on the research machine at commit `fd13ff6c`, data hash
+`sha256:a2767576433671f51928129018bdd8b54b823e83748e54c9e74c2dc34a604810`. First session with data: 2025-01-02
+(earlier vendor files exist from 2024-12-23 and are not read). 463 usable sessions from 2025-01-02 to 2026-11-13; 3
+days skipped (`missing_price` on all four tickers), 3 early-close days left out; every usable session has a derived
+total (the download holds `zero_dte` plus `longer`). 15 usable sessions are FOMC decision days.
+
+**Verdict: `no-edge` (tested, failed).** No edge: 273 out-of-sample trades, net $-25,923 at 1 tick per side, deflated
+Sharpe 0.000 (bar 0.95, N = 10). Options-side rule with modelled fills.
+
+| Check | Pass | Result |
+| --- | --- | --- |
+| Out-of-sample trades at least 100 | yes | 273 trades in 169 sessions (2026-02-18 to 2026-10-27) |
+| Net above 0 at 1 tick per side | no | $-25,923 (0 ticks $-21,123; 2 ticks $-30,723) |
+| Deflated Sharpe at least 0.95 | no | 0.000; per-session Sharpe -0.115, expected maximum 0.339 |
+| NautilusTrader fill check | yes | same entry and exit bars and fills on 1,432 of 1,432 trades; option ledger gap below $0.01 |
+
+C0-F (1 ES and 1 NQ, modelled, $200,000) at 1 tick per side by part:
+
+| Part | Sessions | Trades | Net | Sharpe (ann.) |
+| --- | --- | --- | --- | --- |
+| Train | 271 | 412 | $-16,680 | -0.74 |
+| Validation | 90 | 146 | $-10,590 | -1.40 |
+| Test | 79 | 127 | $-15,333 | -2.31 |
+| Window choice (not in the verdict) | 13 | 15 | $24,676 | 5.73 |
+| Whole period | 463 | 716 | $-5,555 | -0.12 |
+
+Instruments, C0, whole period (out-of-sample): ES $-9,168 on 356 trades ($-7,291 on 138); NQ $3,613 on 360
+($-18,632 on 135). Option form (debit verticals, modelled, 2% maximum loss per trade): SPY $-18,322 on 356 trades,
+QQQ $-27,084 on 360; both $-45,405 (out-of-sample $-19,366 on 273); at twice the spread cost $-73,054. No trade was
+skipped by the option model.
+
+Variants, futures, whole period: V1 (window 15) $13,912 on 826 trades (out-of-sample $10,925, Sharpe 0.76); V2
+(window 60) $-7,398; V3 (entry until 15:30) $-11,585; V4 (FOMC days included) $-7,504. None is a pass: the verdict
+is decided on C0 only and the deflated Sharpe ratio counts all 10 trials.
+
+Report: `~/Documents/reports/web/vertex-flow-control/index.html` (copy of the run folder page); run folder
+`~/Documents/reports/web/vertex-flow-control-continuation/run` (both outside the repository).
