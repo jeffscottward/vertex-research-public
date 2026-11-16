@@ -163,7 +163,7 @@ describe("JournalReport", () => {
     expect(first?.textContent).toContain("Buy");
     expect(
       container.querySelector('[data-exec-id="m1"]')?.textContent
-    ).toContain("—");
+    ).toContain("Not reported by IBKR yet");
     expect(
       container
         .querySelector('a[data-slot="ticker-link"]')
@@ -224,7 +224,7 @@ describe("JournalReport status and contracts", () => {
       <JournalReport executions={[]} status={status({ dataAsOf: null })} />
     );
     expect(noTime.querySelector("[data-journal-connected]")?.textContent).toBe(
-      "Gateway connected · IBKR has sent no data time yet"
+      "Gateway connected · IBKR sent no data timestamp; the next snapshot may include one"
     );
     const online = await render(
       <JournalReport executions={[]} status={status()} />
@@ -322,11 +322,16 @@ describe("TradeJournal", () => {
   });
 
   it.each([
-    ["NOT_CONFIGURED", "not-configured", "Not configured"],
-    ["UNAVAILABLE", "unavailable", "did not answer"],
-    ["UNAUTHORIZED", "unauthorized", "Session expired"],
-    ["BOOM", "error", "could not load"],
-  ])("explains a %s failure", async (code, kind, copy) => {
+    ["NOT_CONFIGURED", "not-configured", "Not configured", "Not configured"],
+    [
+      "UNAVAILABLE",
+      "unavailable",
+      "IBKR snapshot service did not answer",
+      "Try again shortly",
+    ],
+    ["UNAUTHORIZED", "unauthorized", "Session expired", "Sign in again"],
+    ["BOOM", "error", "Journal request failed", "could not load"],
+  ])("explains a %s failure", async (code, kind, title, copy) => {
     const container = await render(
       <TradeJournal
         load={() => Promise.reject({ code, message: "upstream says no" })}
@@ -336,6 +341,10 @@ describe("TradeJournal", () => {
     expect(
       container.querySelector(`[data-journal-failure="${kind}"]`)
     ).not.toBeNull();
+    expect(
+      container.querySelector(`[data-journal-failure="${kind}"] p`)?.textContent
+    ).toBe(title);
+    expect(text(container)).not.toContain("Journal unavailable");
     expect(text(container)).toContain(copy);
     expect(text(container)).toContain(`${code}: upstream says no`);
   });
