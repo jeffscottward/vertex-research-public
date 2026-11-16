@@ -207,7 +207,13 @@ describe("portfolio monitor health rule", () => {
   });
 
   it("says since when the gateway is not live", () => {
-    const since = new Date(NOW - 47 * 60_000).toISOString();
+    // 47 minutes back, but never before local midnight: NOW is midnight in UTC+9 zones, and the
+    // time-only form needs the same local day in every zone.
+    const dayStart = new Date(NOW);
+    dayStart.setHours(0, 0, 0, 0);
+    const since = new Date(
+      Math.max(dayStart.getTime(), NOW - 47 * 60_000)
+    ).toISOString();
     const at = sinceClock(since, NOW);
     expect(at).toMatch(/^\d\d:\d\d \S+$/);
     expect(
@@ -476,12 +482,8 @@ describe("portfolio monitor summary", () => {
       { ...nulls, status: { connected: false, since } },
       NOW
     );
-    const sinceText = `since ${new Date(since).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      hourCycle: "h23",
-      minute: "2-digit",
-      timeZoneName: "short",
-    })}`;
+    // Same helper as the code: in UTC+9 the start is on the previous local day and carries a date.
+    const sinceText = `since ${sinceClock(since, NOW) ?? ""}`;
     expect(missingValue(down, NOW)).toBe(
       `withheld: gateway not live ${sinceText}`
     );
