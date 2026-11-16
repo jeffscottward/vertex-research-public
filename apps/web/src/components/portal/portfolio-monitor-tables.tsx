@@ -3,11 +3,12 @@
 import type {
   PortfolioMonitorExecution,
   PortfolioMonitorOrder,
-  RoundHandleFlag,
   PortfolioMonitorPosition,
+  RoundHandleFlag,
 } from "@darkfactory/api";
 import {
   Button,
+  cn,
   StatusBadge,
   Table,
   TableBody,
@@ -17,7 +18,6 @@ import {
   TableHeader,
   TableRow,
   TableScrollText,
-  cn,
 } from "@darkfactory/ui";
 import {
   ArrowDown,
@@ -26,27 +26,31 @@ import {
   CornerDownRight,
   RotateCcw,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { useStoredState } from "./portfolio-monitor-controls.tsx";
 import {
   COLUMN_BY_ID,
   COLUMNS_STORAGE_KEY,
-  DEFAULT_COLUMN_CONFIG,
-  NO_ORDER_REF,
   completedClock,
   completedReason,
+  DEFAULT_COLUMN_CONFIG,
   executionClock,
   executionsNewestFirst,
   groupOrders,
   holdingBadge,
   moveColumn,
+  NO_ORDER_REF,
   nextSort,
   normalizeColumnConfig,
   normalizeSort,
   orderStatusLabel,
   orderStatusTitle,
   orderStatusTone,
+  POSITION_COLUMNS,
+  type PositionColumn,
+  type PositionColumnId,
+  type PositionTotals,
   pct,
   pnlClass,
   positionName,
@@ -58,10 +62,6 @@ import {
   toggleColumn,
   usd,
   visibleColumns,
-  POSITION_COLUMNS,
-  type PositionColumn,
-  type PositionColumnId,
-  type PositionTotals,
 } from "./portfolio-monitor-model.ts";
 
 export const SORT_STORAGE_KEY = "vertex.monitor.sort.v1";
@@ -123,10 +123,13 @@ const countedTitle = (
 // notice says what is withheld and why (accountDataWithheld: cause, since when, what happens next).
 export const EmptyOrWithheld = ({
   empty,
+  note,
   what,
   withheld,
 }: {
   readonly empty: string;
+  /** Extra sentence after the cause, e.g. what not to assume from the missing rows. */
+  readonly note?: string;
   /** Plural name of the rows, e.g. "Positions". */
   readonly what: string;
   /** Why the rows are not shown, or null when the book is live. */
@@ -144,7 +147,7 @@ export const EmptyOrWithheld = ({
       data-withheld="true"
       role="status"
     >
-      {`${what} withheld. ${withheld}`}
+      {`${what} withheld. ${withheld}${note === undefined ? "" : ` ${note}`}`}
     </p>
   );
 };
@@ -404,7 +407,7 @@ export const PositionsPanel = ({
         <EmptyOrWithheld empty={empty} what="Positions" withheld={withheld} />
       ) : (
         <ScrollRegion label="Positions table">
-          <Table containerClassName="overflow-visible" className={TABLE}>
+          <Table className={TABLE} containerClassName="overflow-visible">
             <TableCaption className="sr-only">
               Positions. Sorted by{" "}
               {POSITION_COLUMNS.find((column) => column.id === sort.id)?.label},{" "}
@@ -652,7 +655,7 @@ const OrderTableRow = ({
       data-column="limit"
     >
       {price(order.limitPrice)}
-      <HandleFlag flag={handles?.limit} current={order.limitPrice} />
+      <HandleFlag current={order.limitPrice} flag={handles?.limit} />
     </TableCell>
     <TableCell
       className={cn("whitespace-normal", CELL, "text-right")}
@@ -660,7 +663,7 @@ const OrderTableRow = ({
     >
       {price(order.stopPrice)}
       {order.trailPct ? <Muted text={` (trail ${order.trailPct}%)`} /> : null}
-      <HandleFlag flag={handles?.stop} current={order.stopPrice} />
+      <HandleFlag current={order.stopPrice} flag={handles?.stop} />
     </TableCell>
     <TableCell className={cn("whitespace-normal", CELL)}>
       {order.tif}
@@ -681,13 +684,13 @@ const OrderTableRow = ({
 );
 
 export interface OrdersTableProps {
+  readonly completed?: boolean;
+  readonly empty: string;
+  readonly handles?: RoundHandleFlags | undefined;
   readonly orders: readonly PortfolioMonitorOrder[];
   readonly title: string;
   readonly titleId: string;
-  readonly empty: string;
   readonly withheld: string | null;
-  readonly completed?: boolean;
-  readonly handles?: RoundHandleFlags | undefined;
 }
 
 export const OrdersTable = ({
@@ -707,10 +710,15 @@ export const OrdersTable = ({
       </PanelTitle>
       {completed ? null : <OrdersExplanation />}
       {orders.length === 0 ? (
-        <EmptyOrWithheld empty={empty} what="Orders" withheld={withheld} />
+        <EmptyOrWithheld
+          empty={empty}
+          note="Do not assume that no orders are working."
+          what="Orders"
+          withheld={withheld}
+        />
       ) : (
         <ScrollRegion label={`${title} table`}>
-          <Table containerClassName="overflow-visible" className={TABLE}>
+          <Table className={TABLE} containerClassName="overflow-visible">
             <TableCaption className="sr-only">
               {title}, grouped by symbol. Child orders follow their parent.
             </TableCaption>
@@ -817,7 +825,7 @@ export const ExecutionsTable = ({
         />
       ) : (
         <ScrollRegion label="Executions table">
-          <Table containerClassName="overflow-visible" className={TABLE}>
+          <Table className={TABLE} containerClassName="overflow-visible">
             <TableCaption className="sr-only">
               Executions today, newest first.
             </TableCaption>
