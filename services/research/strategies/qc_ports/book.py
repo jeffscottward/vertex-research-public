@@ -112,7 +112,8 @@ STRIKE_SEARCH_MIN_STEPS = 20
 # Most grid strikes one strike search prices. The SPY high (about 700) at the VIX closing high (82.69) with 15 months
 # to expiry needs about 4,600; a close or an IV level far above real data needs millions (a search of minutes).
 STRIKE_SEARCH_MAX_STEPS = 25_000
-# Highest IV index level the options model takes, in index points. The highest Cboe IV index close is about 325
+# Highest IV index level the options model takes, in index points (portfolio._refuse_market_values refuses higher
+# levels up front). The highest Cboe IV index close is about 325
 # (OVX, April 2020); far higher levels (1e300) overflow the option prices and the total variance of an IV term.
 IV_LEVEL_MAX = 10_000
 OPTION_KEYS = {"structure", "dte", "longDelta", "shortDelta", "widthSigma", "profitTakePct", "exitDte", "maxLossPct"}
@@ -284,13 +285,6 @@ def _grid(value: float, step: float) -> float:
     return round(round(value / step) * step, 6)
 
 
-def _atm_iv(index_id: str, level: float) -> float:
-    """options.atm_iv; a level above IV_LEVEL_MAX is the request's fault."""
-    if level > IV_LEVEL_MAX:
-        raise InputError(f"{index_id} level {level:g} is above {IV_LEVEL_MAX}: far above real data")
-    return om.atm_iv(index_id, level)
-
-
 def _anchor_strike(pricing: _Pricing, right: str, target: float) -> float:
     """The grid strike whose |delta| is nearest `target` (ties -> nearer the spot, then lower). Needs t > 0.
     A search range of more than STRIKE_SEARCH_MAX_STEPS grid steps is the request's fault (a close or an IV level
@@ -386,7 +380,7 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
     q = om.DIVIDEND_YIELD.get(market.symbol, 0.0)
     slope = om.SKEW[market.symbol]
     right, kind = spec.right, spec.kind
-    pricing = _Pricing(market.close[entry], dte / DAYS_PER_YEAR, rate, q, _atm_iv(index_id, level), slope)
+    pricing = _Pricing(market.close[entry], dte / DAYS_PER_YEAR, rate, q, om.atm_iv(index_id, level), slope)
     strikes = choose_strikes(right, kind, pricing.spot, pricing.t, rate, q, pricing.atm, slope, spec)
     if strikes is None:
         return "no strikes"
@@ -408,7 +402,7 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
         rate = market.rate[bar] if market.rate[bar] is not None else rate
         stale += market.iv_index[bar] is None or market.rate[bar] is None
         days_left = (expiry - day).days + day_left(market.dates[bar])
-        pricing = _Pricing(market.close[bar], max(0, days_left) / DAYS_PER_YEAR, rate, q, _atm_iv(index_id, level), slope)
+        pricing = _Pricing(market.close[bar], max(0, days_left) / DAYS_PER_YEAR, rate, q, om.atm_iv(index_id, level), slope)
         long_mid, short_mid = spread_legs(pricing, right, long_strike, short_strike)
         value = instrument_value(kind, long_mid, short_mid, width)
         marks.append((market.dates[bar], value))
@@ -504,8 +498,8 @@ def full_term(market: Market) -> bool:
 def _term_points(market: Market, level: float, terms: Sequence[float]) -> list[tuple[int, float]]:
     """(tenor days, ATM IV) of the 30-day IV index and of every term index of `market` at the given levels."""
     tenors = IV_TERM[market.symbol]
-    return [(INDEX_TENOR_DAYS, _atm_iv(IV_INDEX[market.symbol], level)),
-            *((tenors[index_id], _atm_iv(index_id, value)) for (index_id, _), value in zip(market.iv_term, terms))]
+    return [(INDEX_TENOR_DAYS, om.atm_iv(IV_INDEX[market.symbol], level)),
+            *((tenors[index_id], om.atm_iv(index_id, value)) for (index_id, _), value in zip(market.iv_term, terms))]
 
 
 def _leg(spot: float, days: float, rate: float, q: float, slope: float, points: Sequence[tuple[int, float]]) -> _Pricing:
