@@ -12,7 +12,7 @@ does not confirm them. Design and reasons: [trend-trio-design.md](trend-trio-des
 ## Source
 
 - Instagram reel <https://www.instagram.com/reel/DfuMtdWKDB7/> by Technical Trading, 2026-11-14, 60 s, sent by the owner on
-  2026-11-14 (<https://discord.com/channels/1511468532876185770/1559295973912477737/1571329416657633432>).
+  2026-11-14 (owner Discord message (private)).
 - The reel names SuperTrend, Ultimate MA and AlphaTrend, plus Slingshot as a filter and Chandelier Exit to exit. The
   full Pine code and the test report are on the author's Patreon (paid; not used).
 

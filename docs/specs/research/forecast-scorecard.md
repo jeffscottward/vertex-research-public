@@ -24,7 +24,7 @@ The method is adapted from the MIT project [calibrain-harness](https://github.co
 
 JEV returns three probabilities for the price direction of one stock over "the next 1 to 4 weeks". The chart page shows this verdict. The final order gate (`packages/api/src/server/final-order-gate.ts`) also reads it: a new position is refused when the verdict is missing, stale or against the direction of the order. No code compares a verdict with the later price, and the repository holds no measurement of whether the verdict carries information.
 
-Two things are missing: a record of past verdicts, and a scorer whose arithmetic has been checked. Two scorer errors are hard to see in a result: an index error that reads one bar too far changes every label a little, and a prior that reads a bar after the decision shows false skill. The owner decided to build and check the scorer first and to add the verdict log next ([decision record](https://discord.com/channels/1511468532876185770/1571140642405490758/1571147513338138829), "Path A").
+Two things are missing: a record of past verdicts, and a scorer whose arithmetic has been checked. Two scorer errors are hard to see in a result: an index error that reads one bar too far changes every label a little, and a prior that reads a bar after the decision shows false skill. The owner decided to build and check the scorer first and to add the verdict log next (decision record (owner Discord message, private), "Path A").
 
 Proposed solution: a pure TypeScript module that scores direction forecasts and gives every input forecast a status, plus one research command. The command builds control forecasts from daily bar files, scores them, and compares each score with a value that the controls compute on their own from the prices.
 
@@ -82,7 +82,7 @@ Proposed solution: a pure TypeScript module that scores direction forecasts and 
 
 ### Parts and placement
 
-The owner chose this placement ([decision record](https://discord.com/channels/1511468532876185770/1571140642405490758/1571210071025918053)): the pure core is in the product package, so that the verdict-log change can call it from a server procedure or a page without a move. The cost is accepted: research-only code under the product package rules, and a boundary test that the verdict-log change must relax when it adds the first consumer.
+The owner chose this placement (decision record (owner Discord message, private)): the pure core is in the product package, so that the verdict-log change can call it from a server procedure or a page without a move. The cost is accepted: research-only code under the product package rules, and a boundary test that the verdict-log change must relax when it adds the first consumer.
 
 | Part | File |
 | --- | --- |
@@ -231,13 +231,13 @@ Random streams, all from `createRandom(seedFrom(text))` of `packages/api/src/bac
 
 * **Pros**: real JEV forecasts accrue from the deploy day; the first run scores the real source.
 * **Cons**: one table, one migration and a write next to the verdict path that the final order gate reads; a rollback of the migration loses forward data unless it is exported first.
-* **Reason for Rejection**: Rejected by author: a write beside the order-gate path and a migration are a larger risk than a pure module, and the scorer must be checked before its results on real data mean anything. The cost of this order is stated: verdicts made before the log exists are lost (the server keeps them in memory only), and a first real result needs about 14 months of logged dates after the log starts, so every week of delay moves that date. The log does not depend on the scorer once the record shape here is approved, so the verdict-log change can start as soon as this document is approved. The owner chose this order in the [decision record](https://discord.com/channels/1511468532876185770/1571140642405490758/1571147513338138829).
+* **Reason for Rejection**: Rejected by author: a write beside the order-gate path and a migration are a larger risk than a pure module, and the scorer must be checked before its results on real data mean anything. The cost of this order is stated: verdicts made before the log exists are lost (the server keeps them in memory only), and a first real result needs about 14 months of logged dates after the log starts, so every week of delay moves that date. The log does not depend on the scorer once the record shape here is approved, so the verdict-log change can start as soon as this document is approved. The owner chose this order in the decision record (owner Discord message, private).
 
 ### Alternative C: Record verdicts as agent model runs (Path C)
 
 * **Pros**: no new table and no new scorer; the existing benchmark and placebo score the stance.
 * **Cons**: the `agent_model_runs` table has a rating and no probability column; the benchmark horizon is fixed at 5 days.
-* **Reason for Rejection**: Rejected by author: without a probability column the probabilities cannot be scored, and the fixed 5-day horizon is at the short end of what JEV is asked. Same [decision record](https://discord.com/channels/1511468532876185770/1571140642405490758/1571147513338138829).
+* **Reason for Rejection**: Rejected by author: without a probability column the probabilities cannot be scored, and the fixed 5-day horizon is at the short end of what JEV is asked. Same decision record (owner Discord message, private).
 
 ### Alternative D: Score the stored agent model runs as the first real forecast set
 
@@ -285,7 +285,7 @@ Random streams, all from `createRandom(seedFrom(text))` of `packages/api/src/bac
 
 * **Pros**: the smallest footprint; no research code under the product package rules; no boundary test.
 * **Cons**: product code cannot import from `scripts/`, so the verdict-log change would start with a move of the module and its tests.
-* **Reason for Rejection**: Rejected by author: the verdict-log change is planned as the next work item and needs the scorer on the server side. The owner chose the placement in the [decision record](https://discord.com/channels/1511468532876185770/1571140642405490758/1571210071025918053).
+* **Reason for Rejection**: Rejected by author: the verdict-log change is planned as the next work item and needs the scorer on the server side. The owner chose the placement in the decision record (owner Discord message, private).
 
 ### Alternative L: Status-only control expectations
 
