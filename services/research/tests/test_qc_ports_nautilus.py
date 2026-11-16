@@ -437,12 +437,28 @@ def _no_portfolio(spec, rows):
     del spec["rule"]["definition"]["portfolio"]
 
 
-# One request per `raise InputError` statement of the options runner that a batch case can reach.
+# One request per `raise InputError` statement of the options runner that a batch case can reach. Two statements
+# are left out: a batch case cannot reach them, as _run_args and _rows_view refuse such a request first
+# (ledger.run_ledger "capital must be above 0"; ledger.timeline "The run days must be all days or all bar times").
+# "The series rows must be an object" (_rows_view) is test_series_rows_that_are_not_an_object_are_an_input_error.
+_SUBNORMAL = 5e-324
 REQUEST_FAULTS = [
+    ("portfolio._rows_view row", lambda s, r: r.__setitem__("VIX", [1]), "VIX: the row must be an object"),
+    ("portfolio._rows_view dates", lambda s, r: r["VIX"].pop("dates"), "VIX: dates must be a list of texts"),
+    ("portfolio._rows_view close", lambda s, r: r["VIX"].pop("close"), "VIX: close must be a list"),
     ("portfolio._rows_view length", lambda s, r: r["VIX"]["close"].pop(), "VIX: close and dates differ in length"),
+    ("portfolio._rows_view ETF column", lambda s, r: r["SPY"].pop("open"), "SPY: open misses dates"),
+    ("portfolio._refuse_row_dates", lambda s, r: r["VIX"]["dates"].__setitem__(5, r["VIX"]["dates"][5] + "T00"),
+     "Series VIX has a date that is not YYYY-MM-DD: 2024-01-09T00"),
     ("portfolio._rows_view order", lambda s, r: r["SPY"]["dates"].__setitem__(10, r["SPY"]["dates"][9]),
      "SPY: dates must be strictly increasing"),
     ("portfolio.dataset_from_rows", _both(_trade("QQQ"), lambda s, r: r.pop("SPY")), "The market calendar needs SPY bars"),
+    ("portfolio._bars_of", _trade("DIA"), "No bars for DIA"),
+    ("portfolio._series_of", lambda s, r: r.pop("IRX"), "Series data is not available for IRX"),
+    ("portfolio._run_args day", lambda s, r: s.__setitem__("to", 5), "to must be a calendar day (YYYY-MM-DD)"),
+    ("portfolio._run_args symbol", lambda s, r: s.pop("symbol"), "symbol must be a string or null"),
+    ("portfolio._run_args capital", lambda s, r: s.__setitem__("initialCapital", -5),
+     "initialCapital must be from 1 to 1000000000"),
     ("portfolio._portfolio", _no_portfolio, "A definition without a portfolio block needs the run symbol"),
     ("book._int_in", lambda s, r: _options(s).__setitem__("dte", {"target": 60.5, "min": 45}),
      "target must be an integer in 7..400"),
@@ -463,10 +479,9 @@ REQUEST_FAULTS = [
      "Market rates must be None or finite and not negative"),
     ("portfolio._refuse_market_values iv term", lambda s, r: r["VIX3M"]["close"].__setitem__(20, 0),
      "Market IV term VIX3M values must be None or finite and above 0"),
-    ("ledger.timeline forms", _both(_trade("QQQ"), lambda s, r: r["SPY"]["dates"].__setitem__(5, r["SPY"]["dates"][5] + "T16:00")),
-     "The run days must be all days or all bar times"),
+    ("portfolio._refuse_market_values floor", lambda s, r: r["VIX"]["close"].__setitem__(20, 0.005),
+     "Market IV index values must be at least 0.01"),
     ("ledger.timeline marks", _both(_trade("QQQ"), _drop_spy_day), "Mark dates outside the run dates: 2024-02-29"),
-    ("ledger.run_ledger", lambda s, r: s.__setitem__("initialCapital", -5), "capital must be above 0"),
     ("metrics.summarize", lambda s, r: s.__setitem__("from", r["SPY"]["dates"][-1]), "Need at least two run days"),
     ("nautilus_runner.run_nautilus", lambda s, r: s.__setitem__("from", "2030-01-01"), "Nothing to run: no dates"),
 ]
@@ -498,6 +513,170 @@ def test_an_options_request_fault_is_the_input_error_of_the_case(change, text):
     entry = _batch_entry(change)
     assert entry.get("error") == text and "crash" not in entry and "result" not in entry
 
+_DROP = object()
+_ETF_KEYS = ("open", "high", "low", "close", "adjClose")
+_CAPITAL_TEXT = "initialCapital must be from 1 to 1000000000"
+
+
+def _spec(key, value):
+    def change(spec, rows):
+        if value is _DROP:
+            spec.pop(key)
+        else:
+            spec[key] = value
+    return change
+
+
+def _column_of(series_id, key, value):
+    def change(spec, rows):
+        rows[series_id][key] = [value] * len(rows[series_id]["dates"])
+    return change
+
+
+def _day_of(series_id, value):
+    def change(spec, rows):
+        rows[series_id]["dates"][5] = value(rows[series_id]["dates"][5])
+    return change
+
+
+# Malformed requests that were a case crash (KeyError, TypeError, IndexError, ValueError) or ran with a value
+# that BacktestRunSubmitInputSchema refuses, before card vertex-options-route-request-shape-crash.
+MALFORMED_REQUESTS = [
+    ("no from", _spec("from", _DROP), "from must be a calendar day (YYYY-MM-DD)"),
+    ("from null", _spec("from", None), "from must be a calendar day (YYYY-MM-DD)"),
+    ("from is not a date", _spec("from", "garbage"), "from must be a calendar day (YYYY-MM-DD)"),
+    ("from in the basic ISO form", _spec("from", "20240102"), "from must be a calendar day (YYYY-MM-DD)"),
+    ("from with non-ASCII digits", _spec("from", "\u0662\u0660\u0662\u0664-01-02"), "from must be a calendar day (YYYY-MM-DD)"),
+    ("no to", _spec("to", _DROP), "to must be a calendar day (YYYY-MM-DD)"),
+    ("to is not a calendar day", _spec("to", "2024-13-45"), "to must be a calendar day (YYYY-MM-DD)"),
+    ("symbol is a number", _spec("symbol", 5), "symbol must be a string or null"),
+    ("initialCapital is a text", _spec("initialCapital", "abc"), _CAPITAL_TEXT),
+    ("initialCapital is a list", _spec("initialCapital", [1]), _CAPITAL_TEXT),
+    ("initialCapital is a boolean", _spec("initialCapital", True), _CAPITAL_TEXT),
+    ("initialCapital Infinity", _spec("initialCapital", float("inf")), _CAPITAL_TEXT),
+    ("initialCapital NaN", _spec("initialCapital", float("nan")), _CAPITAL_TEXT),
+    ("initialCapital 0", _spec("initialCapital", 0), _CAPITAL_TEXT),
+    ("initialCapital 1e-300", _spec("initialCapital", 1e-300), _CAPITAL_TEXT),
+    ("initialCapital above the bound", _spec("initialCapital", 1_000_000_001), _CAPITAL_TEXT),
+    ("initialCapital 1e300", _spec("initialCapital", 1e300), _CAPITAL_TEXT),
+    ("initialCapital beyond the float range", _spec("initialCapital", 10**400), _CAPITAL_TEXT),
+    ("no IV index rows", lambda s, r: r.pop("VIX"), "Series data is not available for VIX"),
+    ("a row without close", lambda s, r: r["VIX"].pop("close"), "VIX: close must be a list"),
+    ("close is a text", lambda s, r: r["IRX"].__setitem__("close", "4.0"), "IRX: close must be a list"),
+    ("an ETF row without adjClose", lambda s, r: r["SPY"].pop("adjClose"), "SPY: adjClose misses dates"),
+    ("a row without dates", lambda s, r: r["SPY"].pop("dates"), "SPY: dates must be a list of texts"),
+    ("dates is a text", lambda s, r: r["VIX"].__setitem__("dates", "2024-01-02"), "VIX: dates must be a list of texts"),
+    ("an ETF column shorter than dates", lambda s, r: r["SPY"]["high"].pop(), "SPY: high misses dates"),
+    ("a traded symbol's date is not a day", _day_of("SPY", lambda day: day + "T00"),
+     "Series SPY has a date that is not YYYY-MM-DD: 2024-01-09T00"),
+    ("a calendar date with a bar time", _both(_trade("QQQ"), _day_of("SPY", lambda day: day + "T16:00")),
+     "Series SPY has a date that is not YYYY-MM-DD: 2024-01-09T16:00"),
+    ("a row date in the basic ISO form", _day_of("IRX", lambda day: day.replace("-", "")),
+     "Series IRX has a date that is not YYYY-MM-DD: 20240109"),
+    ("a row date that is not a calendar day", lambda s, r: r["VIX6M"]["dates"].__setitem__(-1, "2024-13-45"),
+     "Series VIX6M has a date that is not YYYY-MM-DD: 2024-13-45"),
+    ("a row date is a number", _day_of("VIX", lambda day: 5), "VIX: dates must be a list of texts"),
+    ("SPY columns of 5e-324", _both(*(_column_of("SPY", key, _SUBNORMAL) for key in _ETF_KEYS)),
+     "Market closes must be at least 0.01"),
+    ("a VIX close of 5e-324 for every day", _column_of("VIX", "close", _SUBNORMAL), "Market IV index values must be at least 0.01"),
+    ("an IV term close of 5e-324 with a calendar block", _both(_calendar(), _column_of("VIX3M", "close", _SUBNORMAL)),
+     "Market IV term VIX3M values must be at least 0.01"),
+    ("IV levels of 1e-200 with a calendar block",
+     _both(_calendar(), *(_column_of(series_id, "close", 1e-200) for series_id in ("VIX", "VIX3M", "VIX6M"))),
+     "Market IV index values must be at least 0.01"),
+    ("an IV term level of 1e-50 between the legs of a long calendar",
+     _both(_calendar(dte={"target": 100, "min": 95}, farDte={"target": 400, "min": 300}),
+           _column_of("VIX3M", "close", 1e-50)),
+     "Market IV term VIX3M values must be at least 0.01"),
+]
+
+
+@needs_nautilus
+@pytest.mark.parametrize(("change", "text"), [pytest.param(change, text, id=name) for name, change, text in MALFORMED_REQUESTS])
+def test_a_malformed_options_request_is_the_input_error_of_the_case(change, text):
+    entry = _batch_entry(change)
+    assert entry.get("error") == text and "crash" not in entry and "result" not in entry
+
+
+def test_series_rows_that_are_not_an_object_are_an_input_error():
+    from nautilus_backtest import __main__ as cli
+    from nautilus_backtest.bars import Bars
+
+    spec, _rows = _options_case()
+    entry = cli._batch_case(Bars.from_columns(_BARS), {"id": "case", "spec": spec}, [_rows["SPY"]])
+    assert entry.get("error") == "The series rows must be an object" and "crash" not in entry
+
+
+def _result_of(change=None):
+    entry = _batch_entry(change)
+    assert "result" in entry, entry
+    return entry["result"]
+
+
+@needs_nautilus
+def test_a_definition_without_a_name_runs_as_with_its_name():
+    """signals._check_labels: a Python caller may leave out the name; the run legs then have none."""
+    assert _result_of(lambda s, r: s["rule"]["definition"].pop("name")) == _result_of()
+
+
+@needs_nautilus
+@pytest.mark.parametrize("change", [
+    pytest.param(_column_of("VIX", "close", 0.01), id="VIX at the floor"),
+    pytest.param(_both(_calendar(), *(_column_of(series_id, "close", 0.01) for series_id in ("VIX", "VIX3M", "VIX6M"))),
+                 id="IV levels at the floor with a calendar block"),
+    pytest.param(_both(_calendar(dte={"target": 100, "min": 95}, farDte={"target": 400, "min": 300}),
+                       _column_of("VIX3M", "close", 0.01)), id="IV term at the floor between the legs of a long calendar"),
+    pytest.param(_both(*(_column_of("SPY", key, 0.01) for key in _ETF_KEYS)), id="SPY at the floor"),
+    pytest.param(_column_of("IRX", "close", _SUBNORMAL), id="IRX of 5e-324 (a rate of 0 is valid)"),
+    pytest.param(lambda s, r: r["SPY"]["open"].append(1.0), id="an ETF column longer than dates"),
+    pytest.param(lambda s, r: r["VIX"]["close"].__setitem__(20, 10**400), id="a close beyond the float range is left out"),
+])
+def test_a_request_inside_the_limits_runs(change):
+    _result_of(change)
+
+
+@needs_nautilus
+@pytest.mark.parametrize(("change", "capital"), [
+    pytest.param(_spec("initialCapital", 1), 1.0, id="1"),
+    pytest.param(_spec("initialCapital", 1_000_000_000), 1e9, id="1000000000"),
+    pytest.param(_spec("initialCapital", None), 100_000.0, id="null"),
+    pytest.param(_spec("initialCapital", _DROP), 100_000.0, id="missing"),
+])
+def test_initial_capital_runs_inside_the_api_bounds_and_defaults_when_missing(change, capital):
+    assert _result_of(change)["capital"] == capital
+
+
+_WRONG_VALUES = (_DROP, None, "x", 5, True, [1], {})
+
+
+def _shape_mutations():
+    """(name, change): every spec field that the options runner reads, every row, and every row column, dropped
+    or replaced by a value of each JSON type."""
+    rows = _route_rows()
+    places = [("spec", key) for key in ("from", "to", "symbol", "initialCapital")]
+    places += [("rows", series_id) for series_id in rows]
+    places += [("row", series_id, key) for series_id, row in rows.items() for key in row]
+    mutations = []
+    for place in places:
+        for value in _WRONG_VALUES:
+            def change(spec, rows, place=place, value=value):
+                target = spec if place[0] == "spec" else rows if place[0] == "rows" else rows[place[1]]
+                if value is _DROP:
+                    target.pop(place[-1])
+                else:
+                    target[place[-1]] = value
+            mutations.append((f"{'.'.join(place)} = {'(dropped)' if value is _DROP else repr(value)}", change))
+    return mutations
+
+
+@needs_nautilus
+def test_no_shape_mutation_of_an_options_request_is_a_case_crash():
+    """Card vertex-options-route-request-shape-crash: a request of a wrong shape is an input error (or still runs,
+    as a dropped initialCapital or a null symbol with a portfolio block do), never a case crash."""
+    crashes = [f"{name}: {entry['crash']}" for name, change in _shape_mutations()
+               if "crash" in (entry := _batch_entry(change))]
+    assert crashes == []
+
 
 def test_a_rows_fault_of_an_equity_case_that_reads_series_is_its_input_error():
     """The equity route reads the rows with the same function as the options runner (portfolio._rows_view)."""
@@ -520,7 +699,8 @@ INPUT_ERROR_RAISES = {
     "ledger.py": {"run_ledger": 1, "timeline": 2},
     "metrics.py": {"summarize": 1},
     "nautilus_runner.py": {"run_nautilus": 1},
-    "portfolio.py": {"_portfolio": 1, "_refuse_market_values": 3, "_rows_view": 2, "dataset_from_rows": 1},
+    "portfolio.py": {"_bars_of": 1, "_portfolio": 1, "_refuse_market_values": 4, "_refuse_row_dates": 1, "_rows_view": 7,
+                     "_run_args": 3, "_series_of": 1, "dataset_from_rows": 1},
 }
 
 
@@ -561,7 +741,7 @@ def test_only_the_listed_statements_of_the_options_runner_raise_input_error():
     folder = Path(__file__).resolve().parents[1] / "strategies" / "qc_ports"
     found = {path.name: _input_error_raises(path.read_text()) for path in sorted(folder.glob("*.py"))}
     assert {name: raises for name, raises in found.items() if raises} == INPUT_ERROR_RAISES
-    assert sum(sum(raises.values()) for raises in INPUT_ERROR_RAISES.values()) == 23
+    assert sum(sum(raises.values()) for raises in INPUT_ERROR_RAISES.values()) == 35
     sample = "def outer():\n    def inner():\n        raise bars.InputError('x')\n    raise InputError\nraise InputError('y')\n"
     assert _input_error_raises(sample) == {"outer": 2, "<module>": 1}
     for hidden in ("from bars import InputError as Refusal\n", "def f():\n    error = InputError('x')\n    raise error\n",
