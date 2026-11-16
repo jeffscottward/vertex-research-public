@@ -69,6 +69,8 @@ export type TestIo = Readonly<{
 }>;
 
 export const NOW = new Date("2026-11-10T12:00:00.000Z");
+/** 17:00 New York on the same day: after the close, so the IBKR day cache takes bars. */
+export const EVENING = new Date("2026-11-10T22:00:00.000Z");
 
 /** A LensIo over memory files and a scripted fetch; records stderr, sleeps and request URLs. */
 export const testIo = (
@@ -79,6 +81,8 @@ export const testIo = (
     env?: Record<string, string | undefined>;
     fetch?: LensFetch;
     files?: Record<string, string>;
+    /** The run's start time (default NOW, 07:00 New York). */
+    start?: Date;
   }> = {}
 ): TestIo => {
   const memory = memoryFs(options.files);
@@ -96,9 +100,10 @@ export const testIo = (
     fs: memory.fs,
     homeDir: "/home/test",
     now: () =>
-      options.clock === true
-        ? new Date(NOW.getTime() + sleeps.reduce((sum, ms) => sum + ms, 0))
-        : NOW,
+      new Date(
+        (options.start ?? NOW).getTime() +
+          (options.clock === true ? sleeps.reduce((sum, ms) => sum + ms, 0) : 0)
+      ),
     rootDir: "/repo",
     sleep: async (ms) => {
       sleeps.push(ms);

@@ -10,6 +10,7 @@ import {
 } from "./collect-rotation-matrix.ts";
 import { createHistoryReader } from "./history-bars.ts";
 import {
+  EVENING,
   HISTORY_ENV,
   historyAnswer,
   isHistoryUrl,
@@ -589,6 +590,7 @@ describe("runRotationMatrix", () => {
         "/state/reentry_watch.json": JSON.stringify({ candidates: ["LDB"] }),
         "/state/wishlist_watch.json": JSON.stringify({ symbols: ["MB", "MA"] }),
       },
+      start: EVENING,
     });
     expect(await runRotationMatrix(io)).toBe(0);
     expect(

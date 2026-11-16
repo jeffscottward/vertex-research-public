@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  afterClose,
   cacheName,
   createHistoryReader,
   fillBeforeDay,
@@ -25,6 +26,7 @@ import {
   sourceLabel,
 } from "./history-bars.ts";
 import {
+  EVENING,
   HISTORY_ENV,
   historyAnswer,
   isHistoryUrl,
@@ -571,6 +573,16 @@ describe("lensDay", () => {
   });
 });
 
+describe("afterClose", () => {
+  it("is true from 16:15 New York time to midnight", () => {
+    expect(afterClose(new Date("2026-11-16T21:14:00Z"))).toBe(false);
+    expect(afterClose(new Date("2026-11-16T21:15:00Z"))).toBe(true);
+    expect(afterClose(new Date("2026-11-17T04:59:00Z"))).toBe(true);
+    expect(afterClose(new Date("2026-11-17T05:00:00Z"))).toBe(false);
+    expect(afterClose(new Date("2026-07-01T20:15:00Z"))).toBe(true);
+  });
+});
+
 describe("ibkrBudgetMinutes", () => {
   it("reads a whole number of minutes from 0 to 75, else the default when unset", () => {
     expect(IBKR_BUDGET_MINUTES).toBe(75);
@@ -957,6 +969,7 @@ describe("createHistoryReader", () => {
       env: HISTORY_ENV,
       fetch: historyFetch({ MSFT: [10, 11] }),
       files: { "/day/AAPL.7M.json": JSON.stringify(stored) },
+      start: EVENING,
     });
     const reader = createHistoryReader(io, ["AAPL", "MSFT"], "/day");
     const { plan, yahooCalls } = planFor("AAPL");
@@ -977,6 +990,7 @@ describe("createHistoryReader", () => {
     const { io, stderr } = testIo({
       env: HISTORY_ENV,
       fetch: historyFetch({ AAPL: [10, 11] }),
+      start: EVENING,
     });
     const failing = {
       ...io,
@@ -990,8 +1004,29 @@ describe("createHistoryReader", () => {
     const reader = createHistoryReader(failing, ["AAPL"], "/day");
     expect(seriesSource(await reader.load(planFor("AAPL").plan))).toBe("ibkr");
     expect(stderr).toEqual([
-      "2026-11-10T12:00:00.000Z AAPL: IBKR day cache not written\n",
+      "2026-11-10T22:00:00.000Z AAPL: IBKR day cache not written\n",
     ]);
+  });
+
+  it("stores nothing in the day cache before the close", async () => {
+    const { io, files } = testIo({
+      env: HISTORY_ENV,
+      fetch: historyFetch({ AAPL: [10, 11] }),
+    });
+    const reader = createHistoryReader(io, ["AAPL"], "/day");
+    expect(seriesSource(await reader.load(planFor("AAPL").plan))).toBe("ibkr");
+    expect(files.has("/day/AAPL.7M.json")).toBe(false);
+  });
+
+  it("counts a proxy 404 as a failure, and an answer without bars does not reset the count", async () => {
+    const symbols = ["A", "B", "C", "D", "E"];
+    const { io, requests } = testIo({
+      env: HISTORY_ENV,
+      fetch: historyFetch({ A: 404, B: [], C: 404, D: 404, E: [10, 11] }),
+    });
+    const reader = createHistoryReader(io, symbols);
+    for (const symbol of symbols) await reader.load(planFor(symbol).plan);
+    expect(asked(requests)).toEqual(["A", "B", "C", "D"]);
   });
 
   it("asks IBKR when the cached file is not usable, and stores nothing without bars", async () => {
@@ -1017,6 +1052,7 @@ describe("createHistoryReader", () => {
     const { io, files } = testIo({
       env: HISTORY_ENV,
       fetch: historyFetch({ AAPL: 500 }),
+      start: EVENING,
     });
     await createHistoryReader(io, ["AAPL"], "/day").load(planFor("AAPL").plan);
     expect(files.has("/day/AAPL.7M.json")).toBe(false);

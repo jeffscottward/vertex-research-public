@@ -229,12 +229,9 @@ const failure = async (
   }`.replaceAll(token, "[redacted]");
   if (response.status === 401 || response.status === 403)
     return { kind: "stop", message };
-  // Any other 4xx answers for this symbol only (no_contract, bad_request).
-  if (
-    response.status >= 400 &&
-    response.status < 500 &&
-    response.status !== 429
-  )
+  // The service's answers about this symbol only (bad_request, no_contract). Any other status, a
+  // proxy 404 included, is a failure and counts toward the stop.
+  if (response.status === 400 || response.status === 422)
     return { kind: "reject", message };
   if (response.status !== 429) return { kind: "fail", message };
   if (
@@ -373,6 +370,26 @@ export const lensDay = (now: Date): string =>
     year: "numeric",
   }).format(now);
 
+// 16:15 New York: the day's close is final at the service by then.
+const CLOSE_SETTLED_MINUTE = 16 * 60 + 15;
+
+/**
+ * True from 16:15 New York time to midnight. Only then does the day cache take IBKR bars: a run
+ * before the close would store an unfinished or previous day's bar, and the evening runs would
+ * reuse it.
+ */
+export const afterClose = (now: Date): boolean => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  }).formatToParts(now);
+  const part = (type: string): number =>
+    Number(parts.find((p) => p.type === type)?.value);
+  return part("hour") * 60 + part("minute") >= CLOSE_SETTLED_MINUTE;
+};
+
 /** The day-cache file of one IBKR request: "BRK B" + "1 Y" -> "BRK_B.1Y.json". */
 export const cacheName = (symbol: string, duration: string): string =>
   `${symbol.replaceAll(" ", "_")}.${duration.replaceAll(" ", "")}.json`;
@@ -481,7 +498,7 @@ export const createHistoryReader = (
     waits: number
   ): readonly HistoryBar[] | null => {
     if (answer.kind === "bars") {
-      failures = 0;
+      if (answer.bars.length > 0) failures = 0;
       nextAt = answer.cached ? 0 : clock() + IBKR_GAP_MS;
       return answer.bars;
     }
@@ -522,6 +539,28 @@ export const createHistoryReader = (
     }
   };
 
+  // Today's cached bars, else one queued request (stored in the day cache after the close).
+  const ibkrBars = async (
+    label: string,
+    symbol: string,
+    duration: string
+  ): Promise<readonly HistoryBar[]> => {
+    const file =
+      cacheDir === null ? null : join(cacheDir, cacheName(symbol, duration));
+    const cached = file === null ? null : await readCachedBars(io.fs, file);
+    if (cached !== null) return cached;
+    // One request at a time, in the order the job asked.
+    const turn = queue.then(() => ask(label, symbol, duration));
+    queue = turn;
+    const answer = await turn;
+    // The bars are used even when the day cache cannot be written.
+    if (file !== null && answer.length > 0 && afterClose(io.now()))
+      await writeAtomic(io.fs, file, JSON.stringify(answer)).catch(() =>
+        logLine(io, `${label}: IBKR day cache not written`)
+      );
+    return answer;
+  };
+
   return {
     configured: true,
     load: async (plan) => {
@@ -529,26 +568,8 @@ export const createHistoryReader = (
         ? ibkrSymbol(plan.symbol)
         : null;
       let answer: readonly HistoryBar[] = [];
-      if (symbol !== null) {
-        const file =
-          cacheDir === null
-            ? null
-            : join(cacheDir, cacheName(symbol, plan.duration));
-        const cached = file === null ? null : await readCachedBars(io.fs, file);
-        if (cached === null) {
-          // One request at a time, in the order the job asked.
-          const turn = queue.then(() =>
-            ask(plan.symbol, symbol, plan.duration)
-          );
-          queue = turn;
-          answer = await turn;
-          // The bars are used even when the day cache cannot be written.
-          if (file !== null && answer.length > 0)
-            await writeAtomic(io.fs, file, JSON.stringify(answer)).catch(() =>
-              logLine(io, `${plan.symbol}: IBKR day cache not written`)
-            );
-        } else answer = cached;
-      }
+      if (symbol !== null)
+        answer = await ibkrBars(plan.symbol, symbol, plan.duration);
       const ibkr = answer.map((bar) => plan.fromIbkr(bar));
       const oldest = ibkr[0];
       if (oldest === undefined) return mergeBars(ibkr, await plan.yahoo());

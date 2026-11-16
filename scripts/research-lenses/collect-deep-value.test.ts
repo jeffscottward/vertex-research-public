@@ -12,6 +12,7 @@ import {
   UNIVERSE_CUTOFFS,
 } from "./deep-value.ts";
 import {
+  EVENING,
   HISTORY_ENV,
   historyAnswer,
   isHistoryUrl,
@@ -433,6 +434,7 @@ describe("runDeepValue", () => {
       files: {
         "/rm/cache/2026-11-10/_ibkr-bars/UA.1Y.json": JSON.stringify(bars),
       },
+      start: EVENING,
     });
     expect(await runDeepValue(io)).toBe(0);
     expect(
