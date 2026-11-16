@@ -165,3 +165,8 @@ tests/test_flow_control_download.py
 tests/test_flow_control_options.py
 tests/test_flow_control_study.py
 tests/test_flow_control_nautilus.py
+tests/test_order_flow_amt_rules.py
+tests/test_order_flow_amt_options.py
+tests/test_order_flow_amt_study.py
+tests/test_order_flow_amt_data.py
+tests/test_order_flow_amt_nautilus.py
