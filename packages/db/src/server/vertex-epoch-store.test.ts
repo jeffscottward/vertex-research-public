@@ -246,7 +246,11 @@ const harness = async () => {
       );
       let found: Row[] = [];
       if (from === "vertex_projection_heads") {
-        found = records.filter((row) => row["stream_id"] === p[2]);
+        // Without a stream parameter the query asks whether any head exists.
+        found =
+          p.length > 2
+            ? records.filter((row) => row["stream_id"] === p[2])
+            : records;
       } else if (from === "vertex_portfolio_epoch_transitions") {
         found = records.filter(
           (row) =>
@@ -902,6 +906,29 @@ describe("explicit native owner epoch observation", () => {
         )
       )
     ).toBe(true);
+  });
+
+  it("tells a missing projection stream apart from a stream without a current snapshot", async () => {
+    const test = await harness();
+    await test.operations.transitionPortfolioEpoch(
+      principal,
+      scope,
+      test.transition
+    );
+    const projections = createProjectionOperations(test.ctx);
+    expect(await projections.getPortfolioRead(principal, scope)).toMatchObject({
+      snapshot: { snapshotId: "restored-2" },
+      streamRegistered: true,
+    });
+    test.table("vertex_portfolio_snapshots").splice(1, 1);
+    expect(await projections.getPortfolioRead(principal, scope)).toEqual({
+      snapshot: null,
+      streamRegistered: true,
+    });
+    test.table("vertex_projection_heads").splice(0);
+    return expect(await projections.getPortfolioRead(principal, scope)).toEqual(
+      { snapshot: null, streamRegistered: false }
+    );
   });
 
   it.each(["order", "native-fact"] as const)(

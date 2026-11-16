@@ -526,9 +526,10 @@ const harness = () => {
   const listExecutionProjections = vi.fn<
     VertexStore["listExecutionProjections"]
   >(async () => ({ items: [], nextCursor: null }));
-  const getPortfolioSnapshot = vi.fn<VertexStore["getPortfolioSnapshot"]>(
-    async () => null
-  );
+  const getPortfolioRead = vi.fn<VertexStore["getPortfolioRead"]>(async () => ({
+    snapshot: null,
+    streamRegistered: true,
+  }));
   const getContinuity = vi.fn<VertexStore["getContinuity"]>(async () => null);
   const getManifest = vi.fn<VertexArtifactStorage["getManifest"]>(
     async (input) => {
@@ -559,7 +560,7 @@ const harness = () => {
     listScopeReviews,
     listPaperAdmissions,
     listExecutionProjections,
-    getPortfolioSnapshot,
+    getPortfolioRead,
     getContinuity,
     recordImmutable: mutate,
     recordReview: mutate,
@@ -586,7 +587,7 @@ const harness = () => {
     listScopeReviews,
     listPaperAdmissions,
     listExecutionProjections,
-    getPortfolioSnapshot,
+    getPortfolioRead,
     getContinuity,
     getManifest,
     storage,
@@ -684,7 +685,7 @@ describe("experience read capability and authorization gates", () => {
         h.listScopeReviews,
         h.listPaperAdmissions,
         h.listExecutionProjections,
-        h.getPortfolioSnapshot,
+        h.getPortfolioRead,
         h.getContinuity,
         h.getManifest,
         h.readStatus,
@@ -723,9 +724,9 @@ describe("experience read capability and authorization gates", () => {
       message: "Vertex capability unavailable",
     });
     const controller = new AbortController();
-    h.getPortfolioSnapshot.mockImplementationOnce(async () => {
+    h.getPortfolioRead.mockImplementationOnce(async () => {
       controller.abort();
-      return null;
+      return { snapshot: null, streamRegistered: true };
     });
     return await expect(
       createVertexExperienceReads({
@@ -835,7 +836,22 @@ describe("authorized scopes and non-authoritative observations", () => {
       reason: "not-found",
       executionAuthorized: false,
     });
-    h.getPortfolioSnapshot.mockResolvedValueOnce(portfolio);
+    // No projection stream at all is a different state from a stream that
+    // has not sent a snapshot yet.
+    h.getPortfolioRead.mockResolvedValueOnce({
+      snapshot: null,
+      streamRegistered: false,
+    });
+    expect(await h.service.portfolio(principal, scope)).toEqual({
+      status: "unavailable",
+      reason: "not-configured",
+      executionAuthorized: false,
+    });
+    expect(h.getPortfolioRead.mock.lastCall?.[1]).toEqual(scope);
+    h.getPortfolioRead.mockResolvedValueOnce({
+      snapshot: portfolio,
+      streamRegistered: true,
+    });
     expect(await h.service.portfolio(principal, scope)).toEqual({
       status: "available",
       snapshot: portfolio,
@@ -847,10 +863,13 @@ describe("authorized scopes and non-authoritative observations", () => {
   });
   it("rejects cross-scope snapshots and mismatched stream identities", async () => {
     const h = harness();
-    h.getPortfolioSnapshot.mockResolvedValueOnce({
-      ...portfolio,
-      accountAlias: "foreign",
-      continuity: { ...continuity, accountAlias: "foreign" },
+    h.getPortfolioRead.mockResolvedValueOnce({
+      snapshot: {
+        ...portfolio,
+        accountAlias: "foreign",
+        continuity: { ...continuity, accountAlias: "foreign" },
+      },
+      streamRegistered: true,
     });
     await expect(h.service.portfolio(principal, scope)).rejects.toMatchObject({
       code: "INVALID_SOURCE",
