@@ -3,6 +3,7 @@
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowRepository,
+  OpenbbRepository,
   ResearchStudyRepository,
 } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
@@ -15,17 +16,8 @@ import type {
   FlowSnapshotParsedInput,
   FlowSymbol,
 } from "../contracts/flow.ts";
-import type { ApiContext } from "./context.ts";
-import {
-  FLOW_DEPTH_ROWS,
-  FLOW_PRUNE_INTERVAL_MS,
-  FLOW_QUANTDATA_CALLER_RESERVE,
-  FLOW_TICKS_COUNT,
-  runFlowCollect,
-} from "./flow-collect.ts";
 import { ResearchStudyDocumentSchema } from "../contracts/research-studies.ts";
 import {
-  FLOW_CONTROL_RULES,
   FLOW_CONTROL_STUDY_ID,
   FLOW_CONTROL_STUDY_RULES_ITEM,
 } from "../flow-control-rules.ts";
@@ -35,10 +27,20 @@ import {
   flowSymbolForTicker,
 } from "../flow-features.ts";
 import { newYorkClock } from "../signal-alerts.ts";
+import type { ApiContext } from "./context.ts";
+import {
+  FLOW_DEPTH_ROWS,
+  FLOW_PRUNE_INTERVAL_MS,
+  FLOW_QUANTDATA_CALLER_RESERVE,
+  FLOW_TICKS_COUNT,
+  runFlowCollect,
+} from "./flow-collect.ts";
 import {
   buildFlowControl,
   type FlowControlRows,
+  type FlowSessionEventRead,
   type FlowStudyRead,
+  futuresSessionRange,
   optionsSessionRange,
 } from "./flow-control.ts";
 import { buildFlowSnapshot, flowSessionOpen } from "./flow-snapshot.ts";
@@ -47,6 +49,7 @@ import {
   fetchMarketHistoryPacing,
   fetchMarketTicks,
 } from "./market-data.ts";
+import { newYorkTime } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   buildOptionsAnalytics,
@@ -237,16 +240,76 @@ const readFlowStudy = async (
   };
 };
 
+const DAY_MS = 86_400_000;
+/** 15:59 New York: the last one-minute bucket of the regular session. */
+const LAST_BUCKET_MINUTE = 959;
+
+/** The weekday before a New York date (YYYY-MM-DD). */
+const weekdayBefore = (date: string): string => {
+  let at = Date.parse(`${date}T12:00:00Z`) - DAY_MS;
+  while ([0, 6].includes(new Date(at).getUTCDay())) at -= DAY_MS;
+  return new Date(at).toISOString().slice(0, 10);
+};
+
+/**
+ * The last one-minute close of the primary ticker before the session date: the bucket at or before
+ * 15:59 New York of the weekday before; after a holiday one more read at 15:59 of the row's day.
+ * Holidays and half days are not modelled (on a half day this is not the official close).
+ */
+const readPreviousClose = async (
+  flow: FlowRepository,
+  ticker: FlowControlRows["netDrift"][number]["ticker"],
+  sessionDate: string
+): Promise<number | null> => {
+  const prevDay = weekdayBefore(sessionDate);
+  let row = await flow.netDriftPriceAtOrBefore(
+    ticker,
+    newYorkTime(prevDay, LAST_BUCKET_MINUTE)
+  );
+  if (row === null) return null;
+  const day = newYorkClock(row.minute).day;
+  if (day < prevDay) {
+    row = await flow.netDriftPriceAtOrBefore(
+      ticker,
+      newYorkTime(day, LAST_BUCKET_MINUTE)
+    );
+    if (row === null) return null;
+  }
+  return newYorkClock(row.minute).minute < 570 ? null : row.price;
+};
+
+/** The FOMC mark of the session date; a missing repository or a failed read never fails the document. */
+const readSessionEvent = async (
+  openbb: OpenbbRepository | undefined,
+  sessionDate: string
+): Promise<FlowSessionEventRead> => {
+  if (openbb === undefined) return { calendar: "not_read", event: null };
+  try {
+    const rows = await openbb.events(sessionDate, sessionDate, [
+      "fomc_meeting",
+    ]);
+    return {
+      calendar: "read",
+      event: rows.some((row) => row.source === "federal_reserve")
+        ? "fomc"
+        : null,
+    };
+  } catch {
+    return { calendar: "not_read", event: null };
+  }
+};
+
 /** Reads one index group's stored rows and assembles flow-control.v1. */
 export const readFlowControl = async (
   repositories: Readonly<{
     flow: FlowRepository;
     researchStudies: ResearchStudyRepository | undefined;
+    openbb: OpenbbRepository | undefined;
   }>,
   input: FlowControlInput,
   now: Date
 ): Promise<FlowControl> => {
-  const { flow, researchStudies } = repositories;
+  const { flow, researchStudies, openbb } = repositories;
   const group = FLOW_GROUPS[input.group];
   const optionsOpen = flowSessionOpen("options", group.future, now);
   const sessionDate = newYorkClock(
@@ -263,36 +326,43 @@ export const readFlowControl = async (
   const samples: Partial<
     Record<FlowSymbol, Awaited<ReturnType<FlowRepository["latestSamples"]>>>
   > = {};
-  for (const ticker of [group.primaryTicker, group.checkTicker]) {
-    const symbol = flowSymbolForTicker(ticker);
+  for (const symbol of new Set([
+    ...[group.primaryTicker, group.checkTicker].map(flowSymbolForTicker),
+    group.future,
+  ]))
     samples[symbol] = await flow.latestSamples(symbol);
-  }
-  let crossPrints: FlowControlRows["crossPrints"] = null;
-  let crossGaps: FlowControlRows["crossGaps"] = null;
-  if (input.group === "sp500") {
-    const end = optionsOpen ? now : to;
-    // 10 minutes more than the window: the fold window ends before now; the assembly cuts it
-    // exactly and answers not_comparable when the window falls outside this range.
-    const start = new Date(
-      end.getTime() - (FLOW_CONTROL_RULES.windowMinutes + 10) * 60_000
-    );
-    const { prints } = await flow.readWindow({
-      from: start,
-      symbol: "ES",
-      to: end,
-    });
-    crossPrints = { from: start, prints, to: end };
-    crossGaps = await flow.optionGaps("ES");
-  }
+  // The future's minutes and events over the options session (books and GEX are not used).
+  const window = await flow.readWindow({ from, symbol: group.future, to });
+  const futures = futuresSessionRange(sessionDate);
+  const largeTrades = await flow.readLargeTrades({
+    from: futures.from,
+    // Every group's future is ES or NQ (the flow registry test pins it).
+    symbol: group.future as "ES" | "NQ",
+    to: futures.to,
+  });
   return buildFlowControl({
-    crossGaps,
-    crossPrints,
+    crossGaps: input.group === "sp500" ? await flow.optionGaps("ES") : null,
+    // The prints were read over the options session up to now (to its end after the close); the
+    // assembly answers not_comparable when the fold window falls outside that range.
+    crossPrints:
+      input.group === "sp500"
+        ? { from, prints: window.prints, to: optionsOpen ? now : to }
+        : null,
     group: input.group,
+    largeTrades,
     netDrift,
     now,
+    previousClose: await readPreviousClose(
+      flow,
+      group.primaryTicker,
+      sessionDate
+    ),
     samples,
     sessionDate,
+    sessionEvent: await readSessionEvent(openbb, sessionDate),
     study: await readFlowStudy(researchStudies),
+    tape: window.minutes,
+    tapeEvents: window.events,
   });
 };
 
@@ -303,7 +373,11 @@ const control = api.flow.control
     const flow = repositoryFor(context, failures);
     try {
       return await readFlowControl(
-        { flow, researchStudies: context.repositories.researchStudies },
+        {
+          flow,
+          openbb: context.repositories.openbb,
+          researchStudies: context.repositories.researchStudies,
+        },
         input,
         clock()
       );

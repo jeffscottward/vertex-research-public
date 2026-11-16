@@ -1,5 +1,9 @@
 import type { SafeAuthSession } from "@darkfactory/auth/server";
-import type { FlowRepository, Repositories } from "@darkfactory/db/server";
+import type {
+  FlowRepository,
+  OpenbbRepository,
+  Repositories,
+} from "@darkfactory/db/server";
 import { createRouterClient } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -72,13 +76,16 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     insertEvents: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertGex: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertOptionPrints: vi.fn(async (rows: readonly unknown[]) => rows.length),
+    insertTickSample: vi.fn(async () => ({ events: 0, trades: 0 })),
     latestSamples: vi.fn(async () => ({ latest: [], latestOk: [] })),
     moveOptionGapEnd: vi.fn(async () => undefined),
+    netDriftPriceAtOrBefore: vi.fn(async () => null),
     newestDataAt: vi.fn(async () => null),
     newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(async () => null),
     optionGaps: vi.fn(async () => []),
     prune: vi.fn(async () => 0),
+    readLargeTrades: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),
@@ -310,6 +317,19 @@ describe("flow.collect", () => {
       quantDataReserve: 6,
       runSeconds: 0,
     });
+    // NQ takes its tick turn with trades and quotes, like SPY and ES.
+    urls.length = 0;
+    await clientFor(fakeRepository(), {
+      marketHistory: {
+        token: "h".repeat(43),
+        url: "https://history.test/vertex-history/v1",
+      },
+      quantData: { apiKey: "q".repeat(32), baseUrl: "https://qd.test" },
+    }).collect({ dryRun: true, symbols: ["NQ"] });
+    const nqTicks = urls.filter((url) => url.includes("/ticks"));
+    expect(nqTicks).toHaveLength(1);
+    expect(nqTicks[0]).toContain("symbol=NQ");
+    expect(nqTicks[0]).toContain("quotes=1");
   });
 });
 
@@ -527,6 +547,7 @@ describe("flow.control", () => {
       await readFlowControl(
         {
           flow: fakeRepository(),
+          openbb: undefined,
           researchStudies: studyRepo(summary) as never,
         },
         { group: "sp500" },
@@ -568,7 +589,7 @@ describe("flow.control", () => {
       newestNetDriftMinute: vi.fn(async () => new Date("2026-11-06T21:14:00Z")),
     });
     const closed = await readFlowControl(
-      { flow: stored, researchStudies: undefined },
+      { flow: stored, openbb: undefined, researchStudies: undefined },
       { group: "sp500" },
       saturday
     );
@@ -579,13 +600,13 @@ describe("flow.control", () => {
       to: new Date("2026-11-06T21:15:00.000Z"),
     });
     const empty = await readFlowControl(
-      { flow: fakeRepository(), researchStudies: undefined },
+      { flow: fakeRepository(), openbb: undefined, researchStudies: undefined },
       { group: "sp500" },
       saturday
     );
     expect(empty.session.date).toBe("2026-11-07");
     const open = await readFlowControl(
-      { flow: fakeRepository(), researchStudies: undefined },
+      { flow: fakeRepository(), openbb: undefined, researchStudies: undefined },
       { group: "sp500" },
       MON_10_00
     );
@@ -599,7 +620,7 @@ describe("flow.control", () => {
       testedOn: null,
     };
     const none = await readFlowControl(
-      { flow: fakeRepository(), researchStudies: undefined },
+      { flow: fakeRepository(), openbb: undefined, researchStudies: undefined },
       { group: "sp500" },
       MON_10_00
     );
@@ -636,7 +657,7 @@ describe("flow.control", () => {
     expect((await studyOf(STUDY)).rulesVersion).toBeNull();
   });
 
-  it("answers not_comparable when the fold window is outside the range the prints were read for", async () => {
+  it("reads the prints of the whole options session, so the fold window is inside the read range open and closed", async () => {
     const open = new Date("2026-11-09T14:30:00.000Z");
     const buckets = Array.from({ length: 31 }, (_, index) => ({
       filterProfile: "otm-clean.v1",
@@ -664,21 +685,25 @@ describe("flow.control", () => {
         prints: prints as never,
       })),
     });
-    // After the close the prints are read for the 40 minutes before 16:15; the fold window ends at
-    // 10:01, so the stored prints cannot be compared.
+    // After the close the prints of 09:30 to 16:15 are read; the fold window ends at 10:01 and is
+    // inside that range, so the stored prints are compared.
     const closed = await readFlowControl(
-      { flow, researchStudies: undefined },
+      { flow, openbb: undefined, researchStudies: undefined },
       { group: "sp500" },
       new Date("2026-11-09T22:00:00.000Z")
     );
     expect(closed.options.windowEnd).toBe("2026-11-09T15:01:00.000Z");
     expect(closed.crossCheck).toMatchObject({
-      result: "not_comparable",
-      storedPrints: 0,
+      result: "same_direction",
+      storedPrints: 20,
     });
-    // While open the read range covers the window, so the same prints are compared.
+    expect(flow.readWindow).toHaveBeenCalledWith({
+      from: open,
+      symbol: "ES",
+      to: new Date("2026-11-09T21:15:00.000Z"),
+    });
     const live = await readFlowControl(
-      { flow, researchStudies: undefined },
+      { flow, openbb: undefined, researchStudies: undefined },
       { group: "sp500" },
       new Date("2026-11-09T15:02:00.000Z")
     );
@@ -688,37 +713,171 @@ describe("flow.control", () => {
     });
   });
 
-  it("reads prints and gaps only for sp500, for the window plus 10 minutes", async () => {
+  it("reads the future's window for both groups and gaps only for sp500", async () => {
     const flow = fakeRepository();
     await readFlowControl(
-      { flow, researchStudies: undefined },
+      { flow, openbb: undefined, researchStudies: undefined },
       { group: "sp500" },
       MON_10_00
     );
-    expect(flow.readWindow).toHaveBeenCalledWith({
-      from: new Date(MON_10_00.getTime() - 40 * 60_000),
-      symbol: "ES",
-      to: MON_10_00,
-    });
+    const session = {
+      from: new Date("2026-11-09T14:30:00.000Z"),
+      to: new Date("2026-11-09T21:15:00.000Z"),
+    };
+    expect(flow.readWindow).toHaveBeenCalledWith({ ...session, symbol: "ES" });
     expect(flow.optionGaps).toHaveBeenCalledWith("ES");
-    const closed = fakeRepository();
-    await readFlowControl(
-      { flow: closed, researchStudies: undefined },
-      { group: "sp500" },
-      new Date("2026-11-09T22:00:00.000Z")
-    );
-    expect(closed.readWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ to: new Date("2026-11-09T21:15:00.000Z") })
-    );
+    expect(flow.latestSamples).toHaveBeenCalledWith("ES");
     const nasdaq = fakeRepository();
     await readFlowControl(
-      { flow: nasdaq, researchStudies: undefined },
+      { flow: nasdaq, openbb: undefined, researchStudies: undefined },
       { group: "nasdaq100" },
       MON_10_00
     );
-    expect(nasdaq.readWindow).not.toHaveBeenCalled();
+    expect(nasdaq.readWindow).toHaveBeenCalledWith({
+      ...session,
+      symbol: "NQ",
+    });
     expect(nasdaq.optionGaps).not.toHaveBeenCalled();
     expect(nasdaq.latestSamples).toHaveBeenCalledWith("QQQ");
     expect(nasdaq.latestSamples).toHaveBeenCalledWith("NQ");
+    expect(nasdaq.latestSamples).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads the deep trades of the group's future for the futures session", async () => {
+    const flow = fakeRepository();
+    const document = await readFlowControl(
+      { flow, openbb: undefined, researchStudies: undefined },
+      { group: "nasdaq100" },
+      MON_10_00
+    );
+    expect(flow.readLargeTrades).toHaveBeenCalledWith({
+      from: new Date("2026-11-09T14:30:00.000Z"),
+      symbol: "NQ",
+      to: new Date("2026-11-09T21:00:00.000Z"),
+    });
+    expect(document.deepTrades).toMatchObject({ limitSize: 10, symbol: "NQ" });
+  });
+
+  it("previous close: the last bucket of the day before, one more read after a holiday, null without a row and for a pre-market row", async () => {
+    const previousClose = async (
+      answers: ({ minute: string; price: number } | null)[]
+    ) => {
+      const queue = [...answers];
+      const read = vi.fn(async () => {
+        const next = queue.shift() ?? null;
+        return next === null
+          ? null
+          : { minute: new Date(next.minute), price: next.price };
+      });
+      const flow = fakeRepository({ netDriftPriceAtOrBefore: read });
+      const document = await readFlowControl(
+        { flow, openbb: undefined, researchStudies: undefined },
+        { group: "sp500" },
+        MON_10_00
+      );
+      return { calls: read.mock.calls as unknown[], document };
+    };
+    // Monday 2026-11-09: the weekday before is Friday 2026-11-06; 15:59 New York = 20:59Z.
+    const friday = await previousClose([
+      { minute: "2026-11-06T20:59:00.000Z", price: 6848.3 },
+    ]);
+    expect(friday.calls).toEqual([
+      ["SPX", new Date("2026-11-06T20:59:00.000Z")],
+    ]);
+    expect(friday.document.levels?.previousClose).toBe(6848.3);
+    // A holiday on Friday: the newest row is Thursday after 15:59; read again at Thursday 15:59.
+    const holiday = await previousClose([
+      { minute: "2026-11-05T21:10:00.000Z", price: 1 },
+      { minute: "2026-11-05T20:59:00.000Z", price: 6840 },
+    ]);
+    expect(holiday.calls[1]).toEqual([
+      "SPX",
+      new Date("2026-11-05T20:59:00.000Z"),
+    ]);
+    expect(holiday.document.levels?.previousClose).toBe(6840);
+    expect(
+      (
+        await previousClose([
+          { minute: "2026-11-05T21:10:00.000Z", price: 1 },
+          null,
+        ])
+      ).document.levels?.previousClose ?? null
+    ).toBeNull();
+    expect(
+      (await previousClose([])).document.levels?.previousClose ?? null
+    ).toBeNull();
+    expect(
+      (
+        await previousClose([
+          { minute: "2026-11-06T14:00:00.000Z", price: 6800 },
+        ])
+      ).document.levels?.previousClose ?? null
+    ).toBeNull();
+    // After the close the stored session (Monday) is used, so the read goes back to Friday.
+    const evening = fakeRepository({
+      newestNetDriftMinute: vi.fn(async () => new Date("2026-11-09T21:14:00Z")),
+    });
+    await readFlowControl(
+      { flow: evening, openbb: undefined, researchStudies: undefined },
+      { group: "sp500" },
+      new Date("2026-11-10T03:00:00.000Z")
+    );
+    expect(evening.netDriftPriceAtOrBefore).toHaveBeenCalledWith(
+      "SPX",
+      new Date("2026-11-06T20:59:00.000Z")
+    );
+  });
+
+  const eventsRepo = (events: () => Promise<readonly { source: string }[]>) =>
+    ({ events: vi.fn(events) }) as unknown as OpenbbRepository;
+
+  it("session event: fomc for a federal_reserve fomc_meeting row of the session date, null without a row, null for a row of another source, each with calendar read", async () => {
+    const eventOf = async (rows: readonly { source: string }[]) => {
+      const openbb = eventsRepo(async () => rows);
+      const document = await readFlowControl(
+        { flow: fakeRepository(), openbb, researchStudies: undefined },
+        { group: "sp500" },
+        MON_10_00
+      );
+      expect(openbb.events).toHaveBeenCalledWith("2026-11-09", "2026-11-09", [
+        "fomc_meeting",
+      ]);
+      return document;
+    };
+    const fomc = await eventOf([{ source: "federal_reserve" }]);
+    expect(fomc.session.event).toBe("fomc");
+    expect(fomc.notes).toContain(
+      "FOMC meeting day (Federal Reserve calendar)."
+    );
+    for (const rows of [[], [{ source: "other" }]]) {
+      const document = await eventOf(rows);
+      expect(document.session.event).toBeNull();
+      expect(document.notes.join(" ")).not.toContain("not read");
+    }
+  });
+
+  it("session event is not_read without the repository and when the read throws, and the document is still returned", async () => {
+    const note =
+      "The event calendar was not read; no FOMC mark for this session.";
+    const missing = await readFlowControl(
+      { flow: fakeRepository(), openbb: undefined, researchStudies: undefined },
+      { group: "sp500" },
+      MON_10_00
+    );
+    expect(missing.session.event).toBeNull();
+    expect(missing.notes).toContain(note);
+    const failing = await readFlowControl(
+      {
+        flow: fakeRepository(),
+        openbb: eventsRepo(async () => {
+          throw new Error("db down");
+        }),
+        researchStudies: undefined,
+      },
+      { group: "sp500" },
+      MON_10_00
+    );
+    expect(failing.schemaVersion).toBe("flow-control.v1");
+    expect(failing.notes).toContain(note);
   });
 });

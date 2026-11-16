@@ -18,9 +18,9 @@ import {
   FLOW_STORAGE_FAILURE_PREFIX,
   FLOW_SYMBOLS,
   type FlowCollectOutput,
+  type FlowCollectParsedInput,
   type FlowExpiryPart,
   type FlowGroupId,
-  type FlowCollectParsedInput,
   type FlowOptionTicker,
   type FlowSampleStatus,
   type FlowSource,
@@ -31,6 +31,7 @@ import type {
   MarketTicksOutput,
 } from "../contracts/market-data.ts";
 import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
+import { deepTradesOf } from "../flow-deep-trades.ts";
 import {
   buildBook,
   buildMinuteFeatures,
@@ -52,7 +53,7 @@ import {
   optionEvents,
   parseOptionPrints,
 } from "../flow-options.ts";
-import { signTrades } from "../flow-trade-signing.ts";
+import { type SignedTrade, signTrades } from "../flow-trade-signing.ts";
 import {
   flowClockText,
   flowSessionDate,
@@ -68,10 +69,14 @@ export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
   /** Due on every run; netDriftTurn alone sets the cadence, each group on alternate minutes. */
   net_drift: 0,
   options: 110,
-  ticks: 230,
+  /**
+   * Three tick turns (SPY, ES, NQ) take about 360 s with the 60 s timer; 350 s keeps a symbol from
+   * taking a second turn before the other two had theirs, and stays below the starved limit (410 s).
+   */
+  ticks: 350,
 };
 /** No tick fetch (any symbol) within this many seconds of another one. */
-const FLOW_TICKS_STAGGER_SECONDS = 110;
+export const FLOW_TICKS_STAGGER_SECONDS = 110;
 /**
  * Fetch ticks only while the IBKR 120 s window holds at most this many requests (of 6). A starved
  * symbol (FLOW_TICKS_STARVED_SECONDS) has a higher limit.
@@ -81,11 +86,13 @@ const FLOW_IBKR_MAX_RECENT = 2;
  * A symbol whose newest tick attempt (ok, empty or unavailable) is older than this is starved and
  * stops yielding to /charts: it fetches as soon as the window has room for its two requests. Without
  * this limit a steady client (a bar backfill at 3 to 4 requests per 120 s) kept every tick sample
- * out for hours. 350 s is the sixth 60 s timer run after the attempt, so both staggered symbols get
- * a sample before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s). A failed starved fetch
- * is an attempt too: the symbol then yields again for 350 s and does not retry every minute.
+ * out for hours. The 60 s timer starts a turn about every 120 s; three turns (360 s) fit below
+ * 410 s, so a symbol is starved only when its normal turn was missed, and it still gets a sample
+ * before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s). The turn guard test of
+ * flow-collect.test.ts (turns × 120 s ≤ 410 s) fails when a fourth turn is added. A failed starved
+ * fetch is an attempt too: the symbol then yields again for 410 s and does not retry every minute.
  */
-export const FLOW_TICKS_STARVED_SECONDS = 350;
+export const FLOW_TICKS_STARVED_SECONDS = 410;
 /** The vertex-history limit (6 per 120 s) minus the two requests of one tick fetch. */
 const FLOW_IBKR_MAX_RECENT_STARVED = 4;
 export const FLOW_TICKS_COUNT = 1000;
@@ -105,6 +112,7 @@ export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
   flow_book: 14,
   flow_events: 14,
   flow_gex: 14,
+  flow_large_trades: 730,
   flow_minutes: 14,
   flow_net_drift: 730,
   flow_option_gaps: 14,
@@ -162,6 +170,8 @@ type Attempt = Readonly<{
 interface RunState {
   readonly deps: FlowCollectDeps;
   readonly dryRun: boolean;
+  /** true once one symbol ran its GEX estimate in this run. */
+  gexDone: boolean;
   /** Newest attempt per symbol and source (stored samples). */
   readonly last: Map<string, Date>;
   pacing: MarketHistoryPacing | null | undefined;
@@ -169,8 +179,6 @@ interface RunState {
   readonly prices: Map<FlowSymbol, number>;
   /** Operator backfill: no session or due checks, longer options look-back. */
   readonly seed: boolean;
-  /** true once one symbol ran its GEX estimate in this run. */
-  gexDone: boolean;
 }
 
 const sampleKey = (symbol: FlowSymbol, source: FlowSource) =>
@@ -205,6 +213,17 @@ const store = async <T>(
   rows: readonly T[],
   write: (rows: readonly T[]) => Promise<number>
 ): Promise<number> => (state.dryRun ? rows.length : await write(rows));
+
+/**
+ * Tick turns: one turn per symbol that fetches trades and quotes (two IBKR requests each), in
+ * FLOW_SYMBOLS order. The stagger lets one turn go per FLOW_TICKS_STAGGER_SECONDS.
+ */
+export const flowTickTurns = (
+  instruments: Readonly<Record<FlowSymbol, FlowInstrument>>
+): readonly (readonly FlowSymbol[])[] =>
+  FLOW_SYMBOLS.filter(
+    (symbol) => instruments[symbol].ticks === "trades_and_quotes"
+  ).map((symbol) => [symbol]);
 
 const storeEvents = (state: RunState, events: readonly FlowEventRow[]) =>
   store(state, events, (rows) => state.deps.repository.insertEvents(rows));
@@ -282,8 +301,28 @@ const collectTicks = async (
   const items = await store(state, features.minutes, (rows) =>
     state.deps.repository.upsertMinutes(rows)
   );
-  const events = await storeEvents(state, features.events);
   const first = signed[0];
+  let events: number;
+  let deepNote = "";
+  if (instrument.kind === "future") {
+    const deep =
+      first === undefined
+        ? { rows: [], unsigned: 0 }
+        : deepTradesOf(
+            instrument,
+            features.deepPrints,
+            { first: first.t, last: (signed.at(-1) as SignedTrade).t },
+            state.deps.now
+          );
+    const stored = state.dryRun
+      ? { events: features.events.length, trades: deep.rows.length }
+      : await state.deps.repository.insertTickSample({
+          events: features.events,
+          trades: deep.rows,
+        });
+    events = stored.events;
+    deepNote = `; ${deep.rows.length} deep trades, ${stored.trades} new, ${deep.unsigned} deep prints without a side`;
+  } else events = await storeEvents(state, features.events);
   const span =
     first === undefined
       ? "no prints"
@@ -291,7 +330,7 @@ const collectTicks = async (
   return {
     events,
     items,
-    message: `${span}${output.cache.hit ? " (cache)" : ""}`,
+    message: `${span}${deepNote}${output.cache.hit ? " (cache)" : ""}`,
     record: true,
     status: signed.length > 0 ? "ok" : "empty",
   };
@@ -1087,6 +1126,7 @@ const pruneIfDue = async (state: RunState): Promise<number> => {
     flow_book: cutoff("flow_book"),
     flow_events: cutoff("flow_events"),
     flow_gex: cutoff("flow_gex"),
+    flow_large_trades: cutoff("flow_large_trades"),
     flow_minutes: cutoff("flow_minutes"),
     flow_net_drift: cutoff("flow_net_drift"),
     flow_option_gaps: cutoff("flow_option_gaps"),
@@ -1103,9 +1143,9 @@ export const runFlowCollect = async (
   const state: RunState = {
     deps,
     dryRun: input.dryRun,
+    gexDone: false,
     last: await lastAttempts(deps.repository, FLOW_SYMBOLS),
     pacing: undefined,
-    gexDone: false,
     prices: new Map(),
     seed: input.seed,
   };

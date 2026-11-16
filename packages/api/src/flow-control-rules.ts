@@ -13,12 +13,12 @@ import type {
 } from "./contracts/flow.ts";
 
 export const FLOW_CONTROL_RULES: FlowControlRules = Object.freeze({
-  version: "flow-control-rules.v1",
-  windowMinutes: 30,
   enterRatio: 0.3,
   exitRatio: 0.1,
-  minMinutes: 5,
   minBuckets: 10,
+  minMinutes: 5,
+  version: "flow-control-rules.v1",
+  windowMinutes: 30,
 });
 /** The item name of the rules version in a stored strategy-backtest study. */
 export const FLOW_CONTROL_STUDY_RULES_ITEM = "Rules version";
@@ -89,10 +89,10 @@ export type FlowControlStep = Readonly<{
 type Carried = "buyers" | "sellers" | "balanced";
 
 interface FoldState {
-  carried: Carried;
-  since: number | null;
   buyRun: number;
+  carried: Carried;
   sellRun: number;
+  since: number | null;
 }
 
 const countRuns = (
@@ -341,6 +341,51 @@ export const describeSide = (
         return describeReason(facts, facts.reason ?? "session_start", rules);
     }
   })();
+  return { detail: cut(text.detail), label: text.label };
+};
+
+/** Facts of the futures side; it has no state on a sampled tape. */
+export type FlowFuturesSideFacts = Readonly<{
+  instrument: string;
+  reason: "market_closed" | "source_unavailable" | "stale" | "sampled_tape";
+  cause: string | null;
+  newestSampleEt: string | null;
+  staleMinutes: number;
+  sessionDate: string;
+}>;
+
+const futuresText = (facts: FlowFuturesSideFacts): FlowText => {
+  const f = facts.instrument;
+  switch (facts.reason) {
+    case "sampled_tape":
+      return {
+        detail: `${f} deep trades are listed below; a futures state needs the full tape`,
+        label: "Futures: deep trades only (sampled tape, no state)",
+      };
+    case "market_closed":
+      return {
+        detail: `The ${f} deep-trade window is 09:30 to 16:00 ET; the last window was ${facts.sessionDate}`,
+        label: "Market closed",
+      };
+    case "source_unavailable":
+      return {
+        detail: facts.cause ?? "the last request failed",
+        label: "No answer from IBKR ticks",
+      };
+    case "stale":
+      return {
+        detail:
+          facts.newestSampleEt === null
+            ? `No ${f} tick sample since 09:30 ET; stale after ${facts.staleMinutes} min`
+            : `Newest ${f} tick sample is ${facts.newestSampleEt}; stale after ${facts.staleMinutes} min`,
+        label: "Futures ticks are stale",
+      };
+  }
+};
+
+/** Label and detail of the futures side (no_data); the detail is cut to 300 characters. */
+export const describeFuturesSide = (facts: FlowFuturesSideFacts): FlowText => {
+  const text = futuresText(facts);
   return { detail: cut(text.detail), label: text.label };
 };
 

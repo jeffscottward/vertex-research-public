@@ -1,5 +1,3 @@
-import { describe, expect, it } from "vitest";
-
 import {
   FLOW_NET_DRIFT_PART_VALUES,
   FLOW_NET_DRIFT_TICKER_VALUES,
@@ -7,6 +5,7 @@ import {
   FLOW_SOURCE_VALUES,
   FLOW_SYMBOL_VALUES,
 } from "@darkfactory/db/schema";
+import { describe, expect, it } from "vitest";
 
 import {
   FLOW_EXPIRY_PARTS,
@@ -58,11 +57,40 @@ describe("FLOW_INSTRUMENTS", () => {
       secType: "STK",
     });
     expect(FLOW_INSTRUMENTS.ES).toMatchObject({
+      deepTradeLimit: 40,
       exchange: "CME",
       largePrint: 50,
       optionsTicker: "SPX",
       secType: "CONTFUT",
     });
+  });
+
+  it("ES and NQ carry the measurement date of their deep-trade limit; SPY and QQQ have none", () => {
+    expect(FLOW_INSTRUMENTS.ES).toMatchObject({
+      deepTradeLimit: 40,
+      deepTradeLimitMeasuredOn: "2026-11-13",
+      largePrint: 50,
+    });
+    expect(FLOW_INSTRUMENTS.NQ).toMatchObject({
+      deepTradeLimit: 10,
+      deepTradeLimitMeasuredOn: "2026-11-13",
+      largePrint: 10,
+    });
+    for (const symbol of ["SPY", "QQQ"] as const)
+      expect(FLOW_INSTRUMENTS[symbol]).toMatchObject({
+        deepTradeLimit: null,
+        deepTradeLimitMeasuredOn: null,
+      });
+  });
+
+  it("NQ lists the ticks source and fetches trades and quotes", () => {
+    expect(FLOW_INSTRUMENTS.NQ.sources).toEqual([
+      "ticks",
+      "depth",
+      "gex",
+      "net_drift",
+    ]);
+    expect(FLOW_INSTRUMENTS.NQ.ticks).toBe("trades_and_quotes");
   });
 });
 
@@ -178,9 +206,24 @@ describe("absorptionOf", () => {
 describe("buildMinuteFeatures", () => {
   it("returns nothing for no trades", () => {
     expect(buildMinuteFeatures(FLOW_INSTRUMENTS.SPY, [], 0.01)).toEqual({
+      deepPrints: [],
       events: [],
       minutes: [],
     });
+  });
+
+  it("buildMinuteFeatures returns the deep prints at or above the deep-trade limit, and none without a limit", () => {
+    const trades = [
+      signed(T0 + 70, 6870, 40),
+      signed(T0 + 5, 6869, 39),
+      signed(T0 + 10, 6869.25, 41, "sell"),
+    ];
+    expect(
+      buildMinuteFeatures(FLOW_INSTRUMENTS.ES, trades, 0.25).deepPrints
+    ).toEqual([trades[2], trades[0]]);
+    expect(
+      buildMinuteFeatures(FLOW_INSTRUMENTS.SPY, trades, 0.01).deepPrints
+    ).toEqual([]);
   });
 
   it("aggregates a minute with large, off-exchange and unlabelled prints", () => {

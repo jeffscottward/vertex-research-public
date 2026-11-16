@@ -10,11 +10,12 @@ into time-aligned per-minute features and events in Postgres. The `/flow` page a
 
 | Source | Provider (already paid) | Stored as | Cadence |
 | --- | --- | --- | --- |
-| Ticks (time & sales) | IBKR historical ticks through `vertex-history` | `flow_minutes` (delta, buy/sell volume, VWAP, OHLC, covered seconds, large and off-exchange prints, stacked imbalances, absorption) and `flow_events` | one fetch of the newest 1000 prints per symbol about every 4 minutes |
+| Ticks (time & sales) | IBKR historical ticks through `vertex-history` | `flow_minutes` (delta, buy/sell volume, VWAP, OHLC, covered seconds, large and off-exchange prints, stacked imbalances, absorption) and `flow_events` | one fetch of the newest 1000 prints per symbol about every 6 minutes (SPY, ES and NQ take turns) |
 | Depth (L2) | IBKR market depth through `vertex-history` | `flow_book` (best bid/ask, top-10 bid and ask size, book pressure) | about every minute |
 | Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
 | Net drift | QuantData `net-drift` (SPY, SPX, QQQ, NDX; parts `total` and `zero_dte`) | `flow_net_drift` (per-minute signed net call and put premium and volume, price) | every 120 s per ticker: sp500 symbols on even minutes, nasdaq100 symbols on odd minutes |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
+| Deep trades (ES, NQ) | the same tick sample as the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each futures tick sample |
 
 Instrument registry (`FLOW_INSTRUMENTS` in `packages/api/src/flow-features.ts`):
 
@@ -23,7 +24,7 @@ Instrument registry (`FLOW_INSTRUMENTS` in `packages/api/src/flow-features.ts`):
 | SPY | ETF | sp500 | SPY | ticks, depth, options, gex, net_drift |
 | ES | future | sp500 | SPX | ticks, depth, options, gex, net_drift |
 | QQQ | ETF | nasdaq100 | QQQ | depth, gex, net_drift |
-| NQ | future | nasdaq100 | NDX | depth, gex, net_drift |
+| NQ | future | nasdaq100 | NDX | ticks, depth, gex, net_drift |
 
 Groups (`FLOW_GROUPS`): sp500 (S&P 500: future ES, primary ticker SPX, check ticker SPY) and
 nasdaq100 (Nasdaq 100: future NQ, primary ticker QQQ, check ticker NDX). A symbol is read only for
@@ -58,19 +59,26 @@ Code:
 share that budget, and `/charts` keeps priority, except for a starved symbol (below):
 
 - One tick fetch costs two historical requests (TRADES, then BID_ASK).
-- The collector fetches ticks for one symbol at a time, at most once every ~2 minutes across both
-  symbols (so each symbol about every 4 minutes): 2 of the 6 slots per 120 s at most.
+- Every tick symbol fetches trades and quotes (two requests). The collector fetches ticks for one
+  symbol per turn, at most one turn every ~2 minutes (the 110 s stagger with the 60 s timer). The
+  turns go round SPY, ES and NQ (`flowTickTurns`), so each symbol is fetched once per three turns:
+  about every 360 s (it was about 240 s for SPY and ES). A symbol is due again 350 s after its
+  last attempt (`FLOW_DUE_SECONDS.ticks`), just below one round, so it cannot take a second turn
+  before the other two had theirs. 2 of the 6 slots per 120 s at most.
 - Before each tick fetch it reads the pacer through `GET /vertex-history/v1/health`
   (`pacing.recent_requests`, `pacing.backoff_seconds`). It normally fetches only when at most 2
   requests are in the current window and no back-off is running, so at least 2 slots stay free for
   `/charts`. If the health read fails, it does not fetch.
 - The wait behind a busy window has a limit. A symbol whose newest tick attempt (ok, empty or
-  unavailable) is older than 350 s, or that has none, is starved: it fetches as soon as the window
+  unavailable) is older than 410 s (the seventh 60 s timer run after the attempt, so only a missed
+  normal turn makes a symbol starved), or that has none, is starved: it fetches as soon as the window
   has room for its two requests (at most 4 in the window). A steady client such as a long bar
   backfill then cannot keep ticks stale (stale on `/flow` means older than 600 s). A starved fetch
   can fill the window to 6 of 6, so a new bar request may be paced (or get a cached copy) for up to
-  about 70 s. A failed starved fetch counts as an attempt: the symbol yields again for 350 s. A
+  about 70 s. A failed starved fetch counts as an attempt: the symbol yields again for 410 s. A
   back-off still stops every tick fetch. The operator seed (`seed: true`) always keeps the limit of 2.
+- The turn guard test of `packages/api/src/server/flow-collect.test.ts` checks turns × 120 s ≤ 410 s;
+  a fourth turn (480 s) fails it and must be reviewed.
 - A tick answer marked `cache.stale` (the previous payload, served because a request was paced out)
   is recorded as `unavailable` and not stored, so `/flow` never shows old ticks as a fresh sample.
 - Depth uses its own subscription pacer (one at a time, at least 3 s apart) and does not count
@@ -86,13 +94,16 @@ Sampling means coverage gaps: 1000 SPY prints can cover only seconds of a busy r
 Each minute records `coveredSeconds` (how much of it a sample saw), and the page shows coverage.
 Full-session tape needs streaming tick-by-tick data (a later owner decision).
 
-QQQ and NQ send no tick request in this pull request, so the IBKR share of ES and SPY does not
-change.
+QQQ sends no tick request. NQ takes the third turn, so the IBKR share stays the same, but each
+symbol is sampled less often: expected coverage is lower than before for SPY and ES, and lowest in
+the first minutes after the open.
 
 ## Features and events
 
 - **Delta / CVD:** signed volume per minute (quote rule, then tick rule); CVD over the window.
-- **Large prints:** SPY at least 10,000 shares, ES at least 50 contracts (`large_print`).
+- **Large prints:** SPY at least 10,000 shares, ES at least 50 contracts (`large_print`). The
+  `large_print` limits do not change (ES 50, NQ 10); deep trades have their own limit (ES 40, NQ
+  10 contracts, measured 2026-11-13; `deepTradeLimit`).
 - **Off-exchange prints (SPY):** prints on the FINRA TRF venue; share of volume per minute
   (`off_exchange_print` for large ones).
 - **Stacked imbalances:** diagonal buy vs sell volume of at least 3:1 on 3 or more adjacent price
@@ -110,6 +121,29 @@ change.
   $1M (SPX), and every golden sweep.
 - **GEX:** estimate (dealers assumed long calls, short puts). ES uses SPX levels shifted by the
   ES − SPX basis (ES book mid or last price minus the SPX spot at the snapshot).
+
+## Deep trades
+
+- **One pass, one write.** `buildMinuteFeatures` finds the events and the prints at or above the
+  deep-trade limit (`deepPrints`) in the same pass; `deepTradesOf`
+  (`packages/api/src/flow-deep-trades.ts`) turns them into rows, and the collector stores the
+  events and the rows of a futures sample in one transaction (`insertTickSample`).
+- **Edges.** The first and the last sampled second are left out: the sample edge can cut them.
+- **No side.** A deep print that neither rule could sign is not stored; the sample message counts
+  it (`<n> deep trades, <new> new, <u> deep prints without a side`).
+- **No grouping.** Each row is one print; prints are never added up, because a sampled tape cannot
+  tell one order split in parts from several orders.
+- **Signing.** The quote rule where the sampled quotes cover a print, else the tick rule; each row
+  stores its method.
+- **Table and key.** `flow_large_trades`, key (`symbol`, `second`, `seq`): `seq` counts the deep
+  prints of a second in IBKR order before the side is read. Insert-once: the first sample that saw a
+  second wins. One capture mode, `sampled`.
+- **Coverage.** Approximate: from `flow_minutes.covered_seconds`, which counts the edge seconds that
+  detection leaves out. Busy periods are seen least, because each fetch holds the newest 1000
+  prints. No sums are stored; `flow.control` adds up the rows on read.
+- **Retention.** 730 days.
+- **Counts can differ.** Two equal prints in one second are one `large_print` event (same event
+  key) but two deep-trade rows (`seq` 0 and 1).
 
 ## Net drift
 
@@ -178,11 +212,23 @@ A side without a state is `no_data` with the first reason that applies: `market_
 drift series has a parts status: `complete`, `partial` (the same-day part is missing or more than 5
 minutes behind; the totals stay complete) or `no_data`. Points after the newest same-day bucket
 have no `zeroDte` and `longer` values, and the part totals are taken at the last minute that has both
-parts. The agreement is `not_comparable` only. The
-futures side is `no_data` with `not_collected` until the futures trades are collected. The
-cross-check compares stored SPX option prints with the vendor ratio (sp500 only; it never changes a
+parts. The agreement is `not_comparable` only.
+
+The futures side is `no_data` with the reason `sampled_tape` (or `market_closed`,
+`source_unavailable` or `stale` of the future's `ticks` samples), and the agreement is
+`not_comparable`, until a streamed tape with quote-rule sides exists (owner decision; the futures
+fold, its minimum trade count, a coverage floor, price progress and start precision come then). The
+`deepTrades` block lists the deep trades of the group's future from 09:30 to 16:00 New York: the
+limit, the signing method, sums, the newest 60 trades with the total count, the sampled minutes with
+their covered seconds, absorption marks, and the coverage of the trailing rule window (seconds seen
+of the window, from `flow_minutes.covered_seconds`). `levels` gives the session open, high and low
+of the primary ticker from one-minute closes and the previous close (the last bucket at or before
+15:59 of the weekday before). `session.event` is `fomc` when `openbb_event_calendar` holds a row of
+kind `fomc_meeting` and source `federal_reserve` for the session date (job `fed-events`); when that
+read fails, the notes say the calendar was not read and there is no FOMC mark. The cross-check compares stored SPX option prints with the vendor ratio (sp500 only; it never changes a
 state). It is `not_comparable` when the fold window lies outside the range the prints were read for
-(after the close the prints of the last 40 minutes before 16:15 are read). The study line reads the stored study `flow-control-continuation`.
+(the prints of the options session up to now are read). The study line reads the stored study
+`flow-control-continuation`.
 
 Measured time of one `flow.control` call after the deploy: not measured yet (target under 300 ms).
 
@@ -198,7 +244,7 @@ Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 ## Retention
 
 The collector prunes each table with its own cutoff, at most once an hour (`FLOW_RETENTION_DAYS` in
-`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, 14 days for every other
+`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift` and `flow_large_trades`, 14 days for every other
 flow table, `flow_minutes` included. The previous app does not prune `flow_net_drift`, so a rollback
 deletes no row.
 
@@ -307,6 +353,18 @@ Net drift (migration 0077), in this order:
 7. Rollback: deploy the previous app; it runs on the migrated database. The down script
    `packages/db/rollback/0077_flow_net_drift.down.sql` is not the rollback path: before it runs, a
    person must delete the QQQ, NQ and `net_drift` rows, and it drops the stored net drift series.
+
+Deep trades (migration 0078; 0076 is already applied on the base):
+
+1. Apply `packages/db/migrations/0078_flow_large_trades.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container.
+2. Check that `flow_large_trades` exists and that `vertex_research` has SELECT, INSERT, UPDATE and
+   DELETE on it.
+3. Check the calendar: `select count(*) from openbb_event_calendar where kind = 'fomc_meeting' and
+   date >= current_date` (0 means no FOMC mark until the job `fed-events` runs).
+4. Deploy the app; `vertex-history` does not change.
+5. Rollback: deploy the previous app. `packages/db/rollback/0078_flow_large_trades.down.sql` is not
+   the rollback path.
 
 ## Agent semantic layer
 

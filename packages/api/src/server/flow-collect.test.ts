@@ -12,17 +12,21 @@ import type {
   MarketTicksOutput,
 } from "../contracts/market-data.ts";
 import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
+import { FLOW_GROUPS, FLOW_INSTRUMENTS } from "../flow-features.ts";
+import { netDriftRequest as netDriftRequestFor } from "../flow-net-drift.ts";
 import {
   FLOW_DUE_SECONDS,
   FLOW_OPTION_LOOKBACK_MS,
   FLOW_OPTION_PAGES_MAX,
   FLOW_OPTION_RUN_PAGES_MAX,
+  FLOW_QUANTDATA_CALLER_RESERVE,
   FLOW_RETENTION_DAYS,
   FLOW_SEED_OPTION_LOOKBACK_MS,
-  FLOW_QUANTDATA_CALLER_RESERVE,
+  FLOW_TICKS_STAGGER_SECONDS,
   FLOW_TICKS_STARVED_SECONDS,
   type FlowCollectDeps,
   flowQuantDataRunWorstCase,
+  flowTickTurns,
   netDriftTurn,
   runFlowCollect,
 } from "./flow-collect.ts";
@@ -31,8 +35,6 @@ import {
   type QuantDataClient,
   type QuantDataResult,
 } from "./quantdata-client.ts";
-import { FLOW_GROUPS, FLOW_INSTRUMENTS } from "../flow-features.ts";
-import { netDriftRequest as netDriftRequestFor } from "../flow-net-drift.ts";
 
 // Monday 2026-11-09 10:00 New York (EST, UTC-5): every source's market is open.
 const OPEN = new Date("2026-11-09T15:00:00.000Z");
@@ -261,16 +263,24 @@ const fakeRepository = (
     insertEvents: vi.fn(count),
     insertGex: vi.fn(count),
     insertOptionPrints: vi.fn(count),
+    insertTickSample: vi.fn<FlowRepository["insertTickSample"]>(
+      async ({ events, trades }) => ({
+        events: events.length,
+        trades: trades.length,
+      })
+    ),
     latestSamples: vi.fn(async (symbol: FlowSymbol) => ({
       latest: latest.filter((row) => row.symbol === symbol),
       latestOk: [],
     })),
     moveOptionGapEnd: gaps.moveOptionGapEnd,
+    netDriftPriceAtOrBefore: vi.fn(async () => null),
     newestDataAt: vi.fn(async () => null),
     newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
     optionGaps: gaps.optionGaps,
     prune: vi.fn(async () => 42),
+    readLargeTrades: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
@@ -476,15 +486,60 @@ describe("runFlowCollect due and pacing", () => {
     expect(recorded(deps)).not.toContain("ES:depth:skipped");
   });
 
-  it("fetches ticks for one symbol and staggers the other", async () => {
+  it("fetches the SPY turn and staggers ES and NQ", async () => {
     const deps = depsWith();
     const { run } = await collect(deps);
     expect(run("SPY", "ticks").status).toBe("ok");
-    expect(run("ES", "ticks")).toMatchObject({
-      message: "staggered: another tick sample 0 s ago",
-      status: "skipped",
-    });
+    for (const symbol of ["ES", "NQ"] as const)
+      expect(run(symbol, "ticks")).toMatchObject({
+        message: "staggered: another tick sample 0 s ago",
+        status: "skipped",
+      });
     expect(deps.ticks).toHaveBeenCalledTimes(1);
+  });
+
+  it("the turns times the turn length stay inside the starved limit", () => {
+    const turns = flowTickTurns(FLOW_INSTRUMENTS);
+    expect(turns).toEqual([["SPY"], ["ES"], ["NQ"]]);
+    // The 60 s timer starts a turn about every 120 s (the first run after the 110 s stagger).
+    const turnSeconds = Math.ceil(FLOW_TICKS_STAGGER_SECONDS / 60) * 60;
+    expect(turns.length * turnSeconds).toBe(360);
+    expect(turns.length * turnSeconds).toBeLessThanOrEqual(
+      FLOW_TICKS_STARVED_SECONDS
+    );
+    expect(FLOW_DUE_SECONDS.ticks).toBeLessThan(turns.length * turnSeconds);
+    expect(FLOW_DUE_SECONDS.ticks).toBeGreaterThan(
+      (turns.length - 1) * turnSeconds
+    );
+    expect(4 * turnSeconds).toBeGreaterThan(FLOW_TICKS_STARVED_SECONDS);
+  });
+
+  it("the three symbols take turns: SPY, then ES 120 s later, then NQ", async () => {
+    const fetched: FlowSymbol[] = [];
+    const attempts = new Map<FlowSymbol, number>();
+    for (const offset of [0, 60, 120, 180, 240, 300, 360]) {
+      const now = new Date(OPEN.getTime() + offset * 1000);
+      const deps = depsWith({
+        now,
+        repository: fakeRepository(
+          [...attempts].map(([symbol, at]) =>
+            sample(symbol, "ticks", offset - at, now)
+          )
+        ),
+        ticks: vi.fn(async (instrument) => {
+          fetched.push(instrument.symbol);
+          attempts.set(instrument.symbol, offset);
+          return ticksOutput();
+        }),
+      });
+      await collect(deps);
+    }
+    expect(fetched).toEqual(["SPY", "ES", "NQ", "SPY"]);
+    expect([...attempts]).toEqual([
+      ["SPY", 360],
+      ["ES", 120],
+      ["NQ", 240],
+    ]);
   });
 
   it("staggers against a stored tick sample of the other symbol", async () => {
@@ -524,12 +579,14 @@ describe("runFlowCollect due and pacing", () => {
       pacing: vi.fn(async () => ({ backoffSeconds: 0, recentRequests: 3 })),
       repository: fakeRepository([
         sample("ES", "ticks", FLOW_DUE_SECONDS.ticks + 5),
+        sample("NQ", "ticks", FLOW_DUE_SECONDS.ticks + 5),
         sample("SPY", "ticks", FLOW_DUE_SECONDS.ticks + 5),
       ]),
     });
     const { run } = await collect(deps);
     const busy = "IBKR window busy (3/6 in 120 s); /charts has priority";
     expect(run("ES", "ticks").message).toBe(busy);
+    expect(run("NQ", "ticks").message).toBe(busy);
     expect(run("SPY", "ticks").message).toBe(busy);
     expect(deps.pacing).toHaveBeenCalledTimes(1);
     expect(deps.ticks).not.toHaveBeenCalled();
@@ -1682,7 +1739,7 @@ describe("runFlowCollect storage", () => {
   it("stores one sample per recorded attempt", async () => {
     const deps = depsWith();
     const { output } = await collect(deps);
-    expect(output.runs).toHaveLength(16);
+    expect(output.runs).toHaveLength(17);
     expect(recorded(deps)).toEqual([
       "SPY:net_drift:empty",
       "ES:net_drift:empty",
@@ -1709,6 +1766,7 @@ describe("runFlowCollect storage", () => {
       flow_book: days14,
       flow_events: days14,
       flow_gex: days14,
+      flow_large_trades: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_minutes: days14,
       flow_net_drift: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_option_gaps: days14,
@@ -1716,6 +1774,17 @@ describe("runFlowCollect storage", () => {
       flow_samples: days14,
     });
     expect(FLOW_RETENTION_DAYS.flow_net_drift).toBe(730);
+  });
+
+  it("prunes flow_large_trades with the 730-day cutoff", async () => {
+    const due = depsWith({ pruneDue: true });
+    await collect(due);
+    expect(FLOW_RETENTION_DAYS.flow_large_trades).toBe(730);
+    expect(due.repository.prune).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow_large_trades: new Date(OPEN.getTime() - 730 * 86_400_000),
+      })
+    );
   });
 
   it("collects only the requested symbols but reads every symbol's samples", async () => {
@@ -1875,10 +1944,14 @@ describe("runFlowCollect net drift", () => {
       "NQ:net_drift",
       "QQQ:depth",
       "NQ:depth",
+      "NQ:ticks",
       "QQQ:gex",
       "NQ:gex",
     ]);
-    expect(deps.ticks).not.toHaveBeenCalled();
+    expect(deps.ticks).toHaveBeenCalledTimes(1);
+    expect(deps.ticks).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: "NQ" })
+    );
     expect(deps.quantData?.pages).not.toHaveBeenCalled();
   });
 
@@ -2106,5 +2179,112 @@ describe("runFlowCollect net drift", () => {
       { symbols: ["SPY"] }
     );
     expect(run("SPY", "net_drift").message).toBe("market closed");
+  });
+});
+
+describe("runFlowCollect deep trades", () => {
+  const T = NOW_S - 60;
+  const futureTape = ticksOutput({
+    quotes: [{ ap: 6870.25, as: 5, bp: 6870, bs: 5, t: T }],
+    trades: [
+      { c: null, p: 6870, s: 1, t: T, x: null },
+      { c: null, p: 6870.25, s: 45, t: T + 10, x: null },
+      { c: null, p: 6870.25, s: 50, t: T + 10, x: null },
+      { c: null, p: 6870.5, s: 2, t: T + 20, x: null },
+    ],
+  });
+  const tickTurn = (symbol: FlowSymbol): FlowSymbol[] => [symbol];
+
+  it("stores the events and the deep trades of a future in one write, and SPY events as before", async () => {
+    const es = depsWith({ ticks: vi.fn(async () => futureTape) });
+    const { run } = await collect(es, { symbols: tickTurn("ES") });
+    expect(es.repository.insertTickSample).toHaveBeenCalledTimes(1);
+    const [[input]] = es.repository.insertTickSample.mock.calls as [
+      [Parameters<FlowRepository["insertTickSample"]>[0]],
+    ];
+    expect(input.trades.map((row) => [row.size, row.seq, row.side])).toEqual([
+      [45, 0, "buy"],
+      [50, 1, "buy"],
+    ]);
+    expect(input.events.map((event) => event.kind)).toContain("large_print");
+    // insertEvents only takes the options events of ES; the tick events went with the trades.
+    for (const [rows] of es.repository.insertEvents.mock.calls)
+      expect(
+        (rows as readonly { kind: string }[]).map((row) => row.kind)
+      ).not.toContain("large_print");
+    expect(run("ES", "ticks").events).toBe(input.events.length);
+
+    const spy = depsWith();
+    await collect(spy, { symbols: tickTurn("SPY") });
+    expect(spy.repository.insertTickSample).not.toHaveBeenCalled();
+    // SPY tick events still go through insertEvents (empty for this tape).
+    expect(spy.repository.insertEvents).toHaveBeenCalledWith([]);
+  });
+
+  it("does not call the deep-trade detector for an empty sample", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () => ticksOutput({ quotes: [], trades: [] })),
+    });
+    const { run } = await collect(deps, { symbols: tickTurn("NQ") });
+    expect(deps.repository.insertTickSample).toHaveBeenCalledWith({
+      events: [],
+      trades: [],
+    });
+    expect(run("NQ", "ticks")).toMatchObject({
+      message: "no prints; 0 deep trades, 0 new, 0 deep prints without a side",
+      status: "empty",
+    });
+  });
+
+  it("counts new deep trades and deep prints without a side in the message", async () => {
+    const repository = fakeRepository();
+    repository.insertTickSample.mockResolvedValueOnce({ events: 0, trades: 1 });
+    const deps = depsWith({
+      repository,
+      ticks: vi.fn(async () =>
+        ticksOutput({
+          quotes: [],
+          trades: [
+            { c: null, p: 6870, s: 1, t: T, x: null },
+            { c: null, p: 6870.25, s: 45, t: T + 10, x: null },
+            { c: null, p: 6870.25, s: 50, t: T + 10, x: null },
+            { c: null, p: 6870.5, s: 2, t: T + 20, x: null },
+          ],
+        })
+      ),
+    });
+    const { run } = await collect(deps, { symbols: tickTurn("ES") });
+    expect(run("ES", "ticks").message).toMatch(
+      /; 2 deep trades, 1 new, 0 deep prints without a side$/
+    );
+    const unsigned = depsWith({
+      ticks: vi.fn(async () =>
+        ticksOutput({
+          quotes: [],
+          trades: [
+            { c: null, p: 6870, s: 45, t: T, x: null },
+            { c: null, p: 6870, s: 45, t: T + 10, x: null },
+            { c: null, p: 6870, s: 2, t: T + 20, x: null },
+          ],
+        })
+      ),
+    });
+    const second = await collect(unsigned, { symbols: tickTurn("ES") });
+    expect(second.run("ES", "ticks").message).toMatch(
+      /; 0 deep trades, 0 new, 1 deep prints without a side$/
+    );
+  });
+
+  it("stores nothing on a dry run and reports the counts", async () => {
+    const deps = depsWith({ ticks: vi.fn(async () => futureTape) });
+    const { run } = await collect(deps, {
+      dryRun: true,
+      symbols: tickTurn("ES"),
+    });
+    expect(deps.repository.insertTickSample).not.toHaveBeenCalled();
+    expect(run("ES", "ticks").message).toMatch(
+      /; 2 deep trades, 2 new, 0 deep prints without a side$/
+    );
+    expect(run("ES", "ticks").events).toBeGreaterThan(0);
   });
 });

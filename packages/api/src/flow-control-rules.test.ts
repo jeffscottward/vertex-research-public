@@ -4,25 +4,27 @@ import {
   FLOW_FILTER_PROFILE,
   type FlowControlRules,
 } from "./contracts/flow.ts";
+import golden from "./fixtures/flow-control-golden.fixture.json" with {
+  type: "json",
+};
 import {
   crossCheckResult,
   describeAgreement,
   describeCrossCheck,
+  describeFuturesSide,
   describeParts,
   describeSide,
   describeStudy,
   FLOW_CONTROL_RULES,
   FLOW_CONTROL_STUDY_RULES_ITEM,
   type FlowDriftMinute,
+  type FlowFuturesSideFacts,
   type FlowSideFacts,
   foldControlState,
   groupOptionsState,
   optionsRatio,
   windowTotals,
 } from "./flow-control-rules.ts";
-import golden from "./fixtures/flow-control-golden.fixture.json" with {
-  type: "json",
-};
 
 const rulesWith = (overrides: Partial<FlowControlRules>): FlowControlRules => ({
   ...FLOW_CONTROL_RULES,
@@ -507,5 +509,97 @@ describe("describeAgreement, describeParts, describeCrossCheck, describeStudy", 
     ],
   ] as const)("study %s", (status, testedOn, text) => {
     expect(describeStudy({ status, testedOn })).toBe(text);
+  });
+});
+
+describe("describeFuturesSide", () => {
+  const facts = (
+    overrides: Partial<FlowFuturesSideFacts> = {}
+  ): FlowFuturesSideFacts => ({
+    cause: null,
+    instrument: "ES",
+    newestSampleEt: null,
+    reason: "sampled_tape",
+    sessionDate: "2026-11-13",
+    staleMinutes: 10,
+    ...overrides,
+  });
+
+  it("sampled_tape: deep trades only, no state", () => {
+    expect(describeFuturesSide(facts())).toEqual({
+      detail:
+        "ES deep trades are listed below; a futures state needs the full tape",
+      label: "Futures: deep trades only (sampled tape, no state)",
+    });
+  });
+
+  it("market_closed names the window and the last session", () => {
+    expect(describeFuturesSide(facts({ reason: "market_closed" }))).toEqual({
+      detail:
+        "The ES deep-trade window is 09:30 to 16:00 ET; the last window was 2026-11-13",
+      label: "Market closed",
+    });
+  });
+
+  it("source_unavailable gives the cause, or a default", () => {
+    expect(
+      describeFuturesSide(
+        facts({ cause: "gateway timeout", reason: "source_unavailable" })
+      )
+    ).toEqual({
+      detail: "gateway timeout",
+      label: "No answer from IBKR ticks",
+    });
+    expect(
+      describeFuturesSide(facts({ reason: "source_unavailable" })).detail
+    ).toBe("the last request failed");
+  });
+
+  it("stale with an ok sample", () => {
+    expect(
+      describeFuturesSide(
+        facts({ newestSampleEt: "10:42 ET", reason: "stale" })
+      )
+    ).toEqual({
+      detail: "Newest ES tick sample is 10:42 ET; stale after 10 min",
+      label: "Futures ticks are stale",
+    });
+  });
+
+  it("stale without an ok sample", () => {
+    expect(describeFuturesSide(facts({ reason: "stale" })).detail).toBe(
+      "No ES tick sample since 09:30 ET; stale after 10 min"
+    );
+  });
+
+  it("cuts a futures detail at 300 characters", () => {
+    const detail = describeFuturesSide(
+      facts({ cause: "x".repeat(400), reason: "source_unavailable" })
+    ).detail;
+    expect(detail).toHaveLength(300);
+  });
+
+  it("the futures texts take the instrument, time, stale minutes and date from the facts", () => {
+    expect(
+      describeFuturesSide(
+        facts({
+          instrument: "NQ",
+          newestSampleEt: "11:05 ET",
+          reason: "stale",
+          staleMinutes: 15,
+        })
+      ).detail
+    ).toBe("Newest NQ tick sample is 11:05 ET; stale after 15 min");
+    expect(
+      describeFuturesSide(
+        facts({
+          instrument: "NQ",
+          reason: "market_closed",
+          sessionDate: "2026-11-16",
+        })
+      ).detail
+    ).toBe(
+      "The NQ deep-trade window is 09:30 to 16:00 ET; the last window was 2026-11-16"
+    );
   });
 });

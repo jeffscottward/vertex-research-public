@@ -709,14 +709,17 @@ describe("net drift sessions and four symbols", () => {
       rowsOf({ minutes: [minuteRow(ago(60))], symbol: "NQ" })
     );
     expect(qqq.notes[1]).toMatch(/^QQQ book is IEX depth/);
-    expect(nq.notes[1]).toMatch(/^NQ options context uses NDX/);
-    for (const notes of [qqq.notes, nq.notes]) {
-      expect(notes[0]).toMatch(
-        /^Trades and option prints are not collected for (QQQ|NQ); this view shows depth and GEX only\.$/u
-      );
-      expect(notes.join(" ")).not.toContain("Ticks are sampled");
-      expect(notes).toHaveLength(3);
-    }
+    expect(qqq.notes[0]).toBe(
+      "Trades and option prints are not collected for QQQ; this view shows depth and GEX only."
+    );
+    expect(qqq.notes).toHaveLength(3);
+    // NQ samples ticks (pull request 2) but has no option prints.
+    expect(nq.notes[0]).toMatch(/^Ticks are sampled/u);
+    expect(nq.notes[1]).toBe(
+      "Trade side: quote rule, then tick rule. Option prints are not collected for NQ."
+    );
+    expect(nq.notes[2]).toMatch(/^NQ options context uses NDX/);
+    expect(nq.notes).toHaveLength(4);
     expect(nq.orderFlow.offExchangeShare).toBeNull();
   });
 });

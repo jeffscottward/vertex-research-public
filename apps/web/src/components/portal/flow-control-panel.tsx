@@ -1,6 +1,8 @@
 // What: the /flow control panel: who is in control of the selected symbol's index group
 // (flow.control): the options line and the one futures line, the age notice, the study and
-// cross-check lines, net drift (ticker and expiry selects, metrics, chart), freshness and notes.
+// cross-check lines, the event and levels lines, net drift (ticker and expiry selects, metrics,
+// chart), the deep trades of the future (limit, coverage, sum, chart, list, absorption marks),
+// freshness and notes.
 // Research only: a state describes recent flow, never a trade signal.
 // Used by: apps/web/src/components/portal/flow-workspace.tsx.
 // See: apps/web/src/features/flow/control-view-model.ts; docs/vertex-rebuild/flow-pipeline.md.
@@ -10,17 +12,26 @@ import { Panel, StatusBadge } from "@darkfactory/ui";
 import { useEffect, useState } from "react";
 
 import {
+  absorptionMarks,
+  buildDeepTradesChart,
   buildNetDriftChart,
   controlAgeNotice,
   controlFreshnessRows,
   controlLines,
   controlTitle,
   crossCheckLine,
+  deepTradeRows,
+  deepTradesCoverageLine,
+  deepTradesLimitLine,
+  deepTradesMoreLine,
+  deepTradesSum,
   type FlowControl,
   type FlowControlFailure,
+  levelsLine,
   NET_DRIFT_VIEWS,
   type NetDriftView,
   netDriftSummary,
+  sessionEventLine,
   studyLine,
 } from "../../features/flow/control-view-model.ts";
 import { formatMoney, formatNyTime } from "../../features/flow/format.ts";
@@ -182,12 +193,109 @@ const NetDriftBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
   );
 };
 
+const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
+  const deep = control.deepTrades;
+  const limit = deepTradesLimitLine(deep);
+  const sum = deepTradesSum(deep);
+  const chart = buildDeepTradesChart(deep);
+  const rows = deepTradeRows(deep);
+  const more = deepTradesMoreLine(deep);
+  const marks = absorptionMarks(deep);
+  return (
+    <section className="min-w-0 space-y-3" data-flow-deep-trades={deep.symbol}>
+      <h3 className="font-medium text-sm">Deep trades: {deep.symbol}</h3>
+      {limit === null ? null : <p className="text-sm">{limit}</p>}
+      <p className="text-muted-foreground text-sm" data-flow-deep-coverage="">
+        {deepTradesCoverageLine(deep)}
+      </p>
+      <dl>
+        <div className="min-w-0" data-metric={sum.label}>
+          <dt className="text-muted-foreground text-xs">{sum.label}</dt>
+          <dd className="font-medium text-sm tabular-nums">{sum.value}</dd>
+        </div>
+      </dl>
+      <svg
+        aria-label={`Sum of sampled deep trades: ${sum.value}`}
+        className="h-24 w-full"
+        data-flow-deep-chart=""
+        preserveAspectRatio="none"
+        role="img"
+        viewBox="0 0 320 96"
+        width="100%"
+      >
+        <line
+          stroke="currentColor"
+          strokeOpacity={0.3}
+          x1={0}
+          x2={320}
+          y1={chart.zeroY}
+          y2={chart.zeroY}
+        />
+        {chart.segments.map((points) => (
+          <polyline
+            fill="none"
+            key={points}
+            points={points}
+            stroke="currentColor"
+          />
+        ))}
+      </svg>
+      {rows.length === 0 ? (
+        <p className="text-sm" data-flow-deep-empty="" role="status">
+          No deep trade in the sampled tape since 09:30 ET.
+        </p>
+      ) : (
+        <div className="max-h-72 max-w-full overflow-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-muted-foreground text-xs">
+                <th className="pr-3 font-normal">Time</th>
+                <th className="pr-3 font-normal">Side</th>
+                <th className="pr-3 font-normal">Size</th>
+                <th className="pr-3 font-normal">Price</th>
+                <th className="font-normal">Rule</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr data-flow-deep-trade="" key={row.key}>
+                  <td className="pr-3 tabular-nums">{row.time}</td>
+                  <td className="pr-3">
+                    <StatusBadge status={row.tone}>{row.side}</StatusBadge>
+                  </td>
+                  <td className="pr-3 tabular-nums">{row.size}</td>
+                  <td className="pr-3 tabular-nums">{row.price}</td>
+                  <td>{row.signing}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {more === null ? null : (
+        <p className="text-muted-foreground text-xs">{more}</p>
+      )}
+      {marks.length === 0 ? null : (
+        <ul className="space-y-1 text-sm">
+          {marks.map((mark) => (
+            <li data-flow-absorption="" key={mark.key}>
+              {mark.time}: {mark.text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+};
+
 const ControlDocument = ({
   control,
   now,
   refreshMs,
 }: Readonly<{ control: FlowControl; now: Date; refreshMs: number }>) => {
   const notice = controlAgeNotice(control, now, refreshMs);
+  const event = sessionEventLine(control);
+  const levels = levelsLine(control);
   return (
     <div className="space-y-4">
       <ul className="space-y-2">
@@ -217,6 +325,16 @@ const ControlDocument = ({
           </li>
         ))}
       </ul>
+      {event === null ? null : (
+        <p className="font-medium text-sm" data-flow-session-event="">
+          {event}
+        </p>
+      )}
+      {levels === null ? null : (
+        <p className="text-sm" data-flow-levels="">
+          {levels}
+        </p>
+      )}
       {notice === null ? null : (
         <p className="text-sm" data-flow-control-age="" role="status">
           {notice}
@@ -229,6 +347,7 @@ const ControlDocument = ({
         {crossCheckLine(control)}
       </p>
       <NetDriftBlock control={control} />
+      <DeepTradesBlock control={control} />
       <ul className="space-y-1">
         {controlFreshnessRows(control).map((row) => (
           <li className="flex items-center gap-2" key={row.key}>
