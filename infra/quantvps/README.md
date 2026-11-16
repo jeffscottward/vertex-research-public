@@ -115,7 +115,7 @@ infra/quantvps/prune-web-backups.sh           # preview: keep/delete lines and a
 infra/quantvps/prune-web-backups.sh --apply   # rename and delete up to 3 pairs of the plan
 ```
 
-How a pair is deleted: under the restart lock (one remote call, no wait) the script renames both folders to `dist.prune-<TS>` and `.wrangler.prune-<TS>`. Then it releases the lock and deletes the renamed folders, oldest first. The restart script selects its rollback source with the glob `dist.bak-<TS>`, so a renamed folder is never a rollback source, and `restart-when-idle.sh --backup <TS>` reaches only kept pairs. A run that stops is finished by a later `--apply` run: renamed folders count toward the limit of 3 and are deleted first.
+How a pair is deleted: under the restart lock (one remote call, no wait) the script renames both folders to `dist.prune-<TS>` and `.wrangler.prune-<TS>`. Then it releases the lock and deletes the renamed folders, oldest first. The restart script selects its rollback source with the glob `dist.bak-<TS>`, so a renamed folder is never a rollback source, and `restart-when-idle.sh --backup <TS>` never reaches a renamed pair. Pairs over the keep count stay reachable until a run renames them. A run that stops is finished by a later `--apply` run: renamed folders count toward the limit of 3 and are deleted first.
 
 Never touched: names with characters other than `A-Z a-z 0-9 . _ -`, half pairs (except the second half of an interrupted rename, which is finished and deleted), symlinks or files in place of a folder, names of another form, and the `dist.failed-*`, `.wrangler.failed-*`, `dist.undeployed-*` and `.wrangler.undeployed-*` folders. The plan output lists or counts them as skip and "not managed" lines.
 
@@ -123,7 +123,7 @@ Exit codes and their effect:
 
 - 0: preview printed, or the run did its work. The last line says when more pairs remain.
 - 2: usage error. 3: a precondition failed (no SSH answer, folder not found, no live build, incomplete listing, plan check failed, a kept pair is missing). Nothing changed.
-- 8: the restart lock is held by a restart, a stage or another prune. Nothing changed; do not wait, the next deploy prunes.
+- 8: the restart lock is held by a restart, a stage or another prune. Nothing changed. In a deploy, do not wait: the next deploy prunes. In the catch-up loop, follow its stop rules.
 - 11: the lock file could not be opened or `flock` failed. Nothing changed.
 - 13: partial or unknown: the rename, the delete or the check after it did not complete. Run `--apply` again. After a failed rename step the delete step still runs for renamed pairs.
 
