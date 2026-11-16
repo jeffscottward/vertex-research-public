@@ -21,7 +21,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 /** Paths where a full-diff agent review at the head is required. */
-export const REVIEW_PATH_PREFIXES = [
+const REVIEW_PATH_PREFIXES = [
   ".github/",
   ".agents/",
   ".claude/",
@@ -47,7 +47,7 @@ export const REVIEW_PATH_PREFIXES = [
 ] as const;
 
 /** Paths where a change can alter an owner-decision item (arming, orders, risk, sizing, live units). */
-export const OWNER_DECISION_PATH_PREFIXES = [
+const OWNER_DECISION_PATH_PREFIXES = [
   "services/execution-kernel/",
   "infra/quant-vps/exec-node/",
   "infra/golive-drafts/",
