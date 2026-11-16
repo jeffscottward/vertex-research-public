@@ -138,16 +138,6 @@ def test_choose_strikes_refuses_a_strike_search_far_above_real_data():
             bk.choose_strikes("call", "debit", spot, t, 0, 0, atm, 0, spec)
 
 
-def test_an_iv_index_level_above_the_bound_is_refused_at_entry_and_while_the_trade_is_open():
-    def levels(start, value):
-        return [VIX_FOR_20] * start + [value] * (45 - start)
-
-    assert len(run([100.0] * 45, DEBIT, ivs=levels(10, bk.IV_LEVEL_MAX)).trades) == 1
-    for ivs, shown in ((levels(10, 1e300), "1e+300"), (levels(0, 10_001), "10001")):
-        with pytest.raises(InputError, match=re.escape(f"VIX level {shown} is above 10000: far above real data")):
-            run([100.0] * 45, DEBIT, ivs=ivs)
-
-
 def test_the_typescript_engine_has_the_same_market_limits():
     source = (Path(__file__).resolve().parents[3] / "packages/api/src/options-engine/book.ts").read_text()
     for name in ("STRIKE_SEARCH_SIGMAS", "STRIKE_SEARCH_MIN_STEPS", "STRIKE_SEARCH_MAX_STEPS", "IV_LEVEL_MAX"):

@@ -357,15 +357,6 @@ const priceAt = (pricing: Pricing, right: Right, strike: number): number =>
 const grid = (value: number, step: number): number =>
   pyRound(roundHalfEven(value / step) * step, 6);
 
-/** atmIv; a level above IV_LEVEL_MAX is the request's fault. */
-const boundedAtmIv = (indexId: string, level: number): number => {
-  if (level > IV_LEVEL_MAX)
-    throw new Error(
-      `${indexId} level ${formatG(level)} is above ${IV_LEVEL_MAX}: far above real data`
-    );
-  return atmIv(indexId, level);
-};
-
 /** [long strike, short strike, width] on the grid, or null when the far leg would be <= 0. */
 export const chooseStrikes = (
   right: Right,
@@ -485,6 +476,8 @@ export const validateMarket = (market: Market): void => {
     )
   )
     throw new Error("Market rates must be None or finite and not negative");
+  if (market.ivIndex.some((value) => value !== null && value > IV_LEVEL_MAX))
+    throw new Error(`Market IV index values must be at most ${IV_LEVEL_MAX}`);
 };
 
 /** The event's exit signal index (null without one); throws on indexes outside the bars. */
@@ -594,7 +587,7 @@ const openSpread = (
     t: dte / DAYS_PER_YEAR,
     r: rate,
     q,
-    atm: boundedAtmIv(indexId, level),
+    atm: atmIv(indexId, level),
     slope,
   };
   const strikes = chooseStrikes(
@@ -668,7 +661,7 @@ const priceEvent = (
       t: Math.max(0, daysLeft) / DAYS_PER_YEAR,
       r: rate,
       q,
-      atm: boundedAtmIv(indexId, level),
+      atm: atmIv(indexId, level),
       slope,
     };
     const longMid = priceAt(pricing, right, longStrike);

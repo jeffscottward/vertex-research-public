@@ -100,7 +100,7 @@ def test_run_end_cuts_the_data():
     (1e9, VIX_FOR_20, "more than 25000 grid strikes"),
     (1e300, VIX_FOR_20, "more than 25000 grid strikes"),
     (1e5, 5000.0, "more than 25000 grid strikes"),
-    (100.0, 1e6, "VIX level 1e\\+06 is above 10000"),
+    (100.0, 1e6, "Market IV index values must be at most 10000"),
 ])
 def test_a_close_or_iv_level_far_above_real_data_is_an_input_error_not_a_hang(close, vix, message):
     data = _data([close] * 70, ivs={"SPY": [vix] * 70})
