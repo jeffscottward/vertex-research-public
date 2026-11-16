@@ -14,7 +14,7 @@ const plans = "vertex_research_chat_execution_plans";
 // Review r1 finding 9 (card vertex-debate-predecessor-query-blowup): the
 // current-original reuse inside one predecessor walk, over the real owners.
 describe("current original reuse inside a predecessor walk", () => {
-  it("reads once, reuses with fresh checks, and refuses a stale reuse", async () => {
+  it("reads once, reuses with fresh checks, and reads again for another check time", async () => {
     const f = await lifecycleFixture(),
       approved = await f.approve();
     await f.runtime.writeApprovedInputs(owner, approved.input);

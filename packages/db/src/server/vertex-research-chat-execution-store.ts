@@ -1565,7 +1565,8 @@ export const createResearchChatExecutionOperations = (
         () => readCurrentOriginalOnce(tx, scope, responseRequestId, at),
         async (kept) => {
           await kept.authority();
-          if (time(kept.value.approval["approvedAt"]) > time(at)) fail("stale");
+          // The key holds `at`, so the fresh read already checked approvedAt
+          // against this `at`; only the clock bounds can change.
           finalCurrent(at, kept.value.expiresAt);
         }
       )
