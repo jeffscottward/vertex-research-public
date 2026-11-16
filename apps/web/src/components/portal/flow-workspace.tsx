@@ -1,7 +1,8 @@
-// What: /flow page body: one symbol's order flow, options flow, GEX levels, events and confluence
-// from flow.snapshot, with per-source freshness and an "as of" stamp. SPY/ES toggle, window
-// select, auto refresh every 60 s and manual refresh. Research only: nothing here places,
-// changes or cancels orders, and confluence describes recent flow, never a trade signal.
+// What: /flow page body: the control panel of the selected symbol's index group (flow.control), then
+// one symbol's order flow, options flow, GEX levels, events and short-term factors from
+// flow.snapshot, with per-source freshness and an "as of" stamp. Symbol select (SPY, QQQ, ES, NQ),
+// window select, auto refresh every 60 s and manual refresh. Research only: nothing here places,
+// changes or cancels orders, and a state describes recent flow, never a trade signal.
 // Used by: apps/web/src/app/(portal)/flow/page.tsx, apps/web/src/lab/entries/research.tsx.
 // See: apps/web/src/features/flow/view-model.ts; docs/vertex-rebuild/flow-pipeline.md.
 "use client";
@@ -9,6 +10,8 @@
 import {
   type ApiClient,
   createApiClient,
+  type FlowControl,
+  type FlowControlInput,
   type FlowSnapshot,
 } from "@darkfactory/api";
 import {
@@ -33,6 +36,10 @@ import {
   formatSigned,
 } from "../../features/flow/format.ts";
 import {
+  type FlowControlFailure,
+  groupOfSymbol,
+} from "../../features/flow/control-view-model.ts";
+import {
   basisNote,
   bookMetrics,
   buildFlowChart,
@@ -51,34 +58,38 @@ import {
   gexMetrics,
   type Metric,
   neverCollected,
+  notCollectedLine,
   optionPrintRows,
   optionsMetrics,
   orderFlowMetrics,
   SUMMARY_TONE,
+  shortTermBadge,
   VOTE_TONE,
   windowLabel,
 } from "../../features/flow/view-model.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
+import { FLOW_SELECT_CLASS, FlowControlPanel } from "./flow-control-panel.tsx";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 export interface FlowGateway {
   readonly snapshot: (input: FlowRequest) => Promise<FlowSnapshot>;
+  readonly control: (input: FlowControlInput) => Promise<FlowControl>;
 }
 
 export const createBrowserFlowGateway = (): FlowGateway => {
   let client: ApiClient | undefined;
+  const api = (): ApiClient => {
+    client ??= createApiClient({ baseUrl: window.location.origin });
+    return client;
+  };
   return Object.freeze({
-    snapshot: (input: FlowRequest) => {
-      client ??= createApiClient({ baseUrl: window.location.origin });
-      return client.flow.snapshot(input);
-    },
+    control: (input: FlowControlInput) => api().flow.control(input),
+    snapshot: (input: FlowRequest) => api().flow.snapshot(input),
   });
 };
 
 const BUY_FILL = "var(--color-success)";
 const SELL_FILL = "var(--color-destructive)";
-const selectClass =
-  "h-11 rounded-md border border-border bg-background px-2 text-sm";
 
 type Failure =
   | Readonly<{ kind: "forbidden" }>
@@ -110,69 +121,93 @@ const Empty = ({
   </p>
 );
 
-const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => (
-  <Panel
-    description={
-      <span data-flow-as-of="">
-        As of{" "}
-        <time dateTime={snapshot.windowEnd}>
-          {formatNyDateTime(snapshot.windowEnd)}
-        </time>
-        {" · window "}
-        {formatNyTime(snapshot.windowStart)}–{formatNyTime(snapshot.windowEnd)}
-        {" · generated "}
-        <time dateTime={snapshot.generatedAt}>
-          {formatNyDateTime(snapshot.generatedAt)}
-        </time>
-      </span>
-    }
-    title="Data freshness"
-  >
-    {neverCollected(snapshot.freshness) ? (
-      <p className="mb-3 text-sm" data-flow-never="" role="note">
-        Nothing has been collected for {snapshot.symbol} yet. The flow collector
-        fills this page while it runs during market hours.
-      </p>
-    ) : null}
-    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {freshnessRows(snapshot.freshness).map((row) => (
-        <li
-          className="space-y-1 rounded-md border border-border p-3"
-          data-flow-source={row.source}
-          key={row.source}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-medium text-sm">{row.label}</span>
-            <StatusBadge data-freshness={row.state} status={row.tone}>
-              {row.state}
-            </StatusBadge>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Updated {row.age} · last stored {row.lastOk}
+const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
+  const allFresh = snapshot.freshness.every(
+    (row) => row.state !== "stale" && row.state !== "never"
+  );
+  const [open, setOpen] = useState(!allFresh);
+  return (
+    <Panel
+      description={
+        <span data-flow-as-of="">
+          As of{" "}
+          <time dateTime={snapshot.windowEnd}>
+            {formatNyDateTime(snapshot.windowEnd)}
+          </time>
+          {" · window "}
+          {formatNyTime(snapshot.windowStart)}–
+          {formatNyTime(snapshot.windowEnd)}
+          {" · generated "}
+          <time dateTime={snapshot.generatedAt}>
+            {formatNyDateTime(snapshot.generatedAt)}
+          </time>
+        </span>
+      }
+      title="Data freshness"
+    >
+      {neverCollected(snapshot.freshness) ? (
+        <p className="mb-3 text-sm" data-flow-never="" role="note">
+          Nothing has been collected for {snapshot.symbol} yet. The flow
+          collector fills this page while it runs during market hours.
+        </p>
+      ) : null}
+      {allFresh ? (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <p className="text-sm" data-flow-all-fresh="">
+            All sources fresh as of {formatNyTime(snapshot.windowEnd)}
           </p>
-          <p className="text-muted-foreground text-xs">
-            Last sample: {row.lastStatus}
-            {row.message === null ? null : ` — ${row.message}`}
-          </p>
-        </li>
-      ))}
-    </ul>
-  </Panel>
-);
+          <Button
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+            size="sm"
+            variant="outline"
+          >
+            {open ? "Hide sources" : "Show sources"}
+          </Button>
+        </div>
+      ) : null}
+      {open ? (
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {freshnessRows(snapshot.freshness).map((row) => (
+            <li
+              className="space-y-1 rounded-md border border-border p-3"
+              data-flow-source={row.source}
+              key={row.source}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-sm">{row.label}</span>
+                <StatusBadge data-freshness={row.state} status={row.tone}>
+                  {row.state}
+                </StatusBadge>
+              </div>
+              <p className="text-muted-foreground text-xs">
+                Updated {row.age} · last stored {row.lastOk}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Last sample: {row.lastStatus}
+                {row.message === null ? null : ` — ${row.message}`}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Panel>
+  );
+};
 
 const ConfluencePanel = ({
   confluence,
 }: Readonly<{ confluence: FlowSnapshot["confluence"] }>) => (
   <Panel
     description={<span role="note">{FLOW_DISCLAIMER}</span>}
-    title="Confluence"
+    title="Short-term factors (last 15 to 30 min)"
   >
     <div className="mb-3 flex flex-wrap items-center gap-3">
       <StatusBadge
         data-flow-confluence={confluence.summary}
         status={SUMMARY_TONE[confluence.summary]}
       >
-        {confluence.label}
+        {shortTermBadge(confluence)}
       </StatusBadge>
       <span className="text-muted-foreground text-xs">
         {confluence.bullish} bullish · {confluence.bearish} bearish of{" "}
@@ -501,12 +536,12 @@ const EventsPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => (
 
 const SnapshotView = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => (
   <div className="space-y-6" data-flow-snapshot={snapshot.symbol}>
-    <FreshnessPanel snapshot={snapshot} />
     <ConfluencePanel confluence={snapshot.confluence} />
     <OrderFlowPanel snapshot={snapshot} />
     <OptionsFlowPanel snapshot={snapshot} />
     <GexPanel snapshot={snapshot} />
     <EventsPanel snapshot={snapshot} />
+    <FreshnessPanel snapshot={snapshot} />
   </div>
 );
 
@@ -520,6 +555,10 @@ export const FlowWorkspace = ({
     useState<FlowWindowMinutes>(FLOW_DEFAULT_WINDOW);
   const [snapshot, setSnapshot] = useState<FlowSnapshot | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
+  const [control, setControl] = useState<FlowControl | null>(null);
+  const [controlFailure, setControlFailure] =
+    useState<FlowControlFailure | null>(null);
+  const [loadedAt, setLoadedAt] = useState(() => new Date());
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
   const latest = useRef(0);
@@ -528,14 +567,17 @@ export const FlowWorkspace = ({
     latest.current += 1;
     const request = latest.current;
     setPending(true);
-    try {
-      const next = await gateway.snapshot({ minutes, symbol });
-      if (request !== latest.current) return;
-      setSnapshot(next);
+    const [snapshotResult, controlResult] = await Promise.allSettled([
+      gateway.snapshot({ minutes, symbol }),
+      gateway.control({ group: groupOfSymbol(symbol) }),
+    ]);
+    if (request !== latest.current) return;
+    setLoadedAt(new Date());
+    if (snapshotResult.status === "fulfilled") {
+      setSnapshot(snapshotResult.value);
       setFailure(null);
-    } catch (error) {
-      if (request !== latest.current) return;
-      const described = describePortfolioMonitorFailure(error);
+    } else {
+      const described = describePortfolioMonitorFailure(snapshotResult.reason);
       setFailure(
         described.kind === "forbidden"
           ? { kind: "forbidden" }
@@ -544,9 +586,17 @@ export const FlowWorkspace = ({
               message: `${described.code}: ${described.message}`,
             }
       );
-    } finally {
-      if (request === latest.current) setPending(false);
     }
+    if (controlResult.status === "fulfilled") {
+      setControl(controlResult.value);
+      setControlFailure(null);
+    } else {
+      const described = describePortfolioMonitorFailure(controlResult.reason);
+      if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+      else
+        setControlFailure({ code: described.code, message: described.message });
+    }
+    setPending(false);
   }, [gateway, minutes, symbol]);
 
   useEffect(() => {
@@ -560,6 +610,7 @@ export const FlowWorkspace = ({
 
   if (failure?.kind === "forbidden")
     return <OperatorAccessRequired feature="flow" />;
+  const notCollected = notCollectedLine(symbol);
 
   return (
     <div className="space-y-6" data-flow-state={pending ? "loading" : "idle"}>
@@ -574,6 +625,10 @@ export const FlowWorkspace = ({
                 onClick={() => {
                   if (option === symbol) return;
                   setSnapshot(null);
+                  if (groupOfSymbol(option) !== groupOfSymbol(symbol)) {
+                    setControl(null);
+                    setControlFailure(null);
+                  }
                   setSymbol(option);
                 }}
                 size="sm"
@@ -587,7 +642,7 @@ export const FlowWorkspace = ({
         <label className="space-y-1">
           <span className="block text-muted-foreground text-xs">Window</span>
           <select
-            className={selectClass}
+            className={FLOW_SELECT_CLASS}
             data-flow-window=""
             onChange={(event) => {
               setSnapshot(null);
@@ -626,6 +681,17 @@ export const FlowWorkspace = ({
           {snapshot === null
             ? `Flow snapshot unavailable. ${failure.message}`
             : `Refresh failed (${failure.message}). Showing the last snapshot, as of ${formatNyDateTime(snapshot.windowEnd)}.`}
+        </p>
+      )}
+      <FlowControlPanel
+        control={control}
+        failure={controlFailure}
+        now={loadedAt}
+        refreshMs={refreshMs}
+      />
+      {notCollected === null ? null : (
+        <p className="text-muted-foreground text-sm" data-flow-not-collected="">
+          {notCollected}
         </p>
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}

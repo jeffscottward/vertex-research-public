@@ -1,0 +1,895 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1600"
+  height="970"
+  viewBox="0 0 1600 970"
+>
+  <title>
+    Request budgets: IBKR stays at 2 of 6 history requests with NQ added, and
+    QuantData goes from 22 to 23 request starts per run, leaving the caller
+    reserve of 6 of the 30-start window free for /charts.
+  </title>
+  <rect width="1600" height="970" fill="#0f1115" />
+  <defs>
+    <marker
+      id="head-8b9099"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#8b9099" />
+    </marker>
+    <marker
+      id="head-d4a72c"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#d4a72c" />
+    </marker>
+    <marker
+      id="head-3fb950"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#3fb950" />
+    </marker>
+    <marker
+      id="head-f85149"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#f85149" />
+    </marker>
+    <marker
+      id="head-58a6ff"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#58a6ff" />
+    </marker>
+    <pattern
+      id="hatch"
+      width="12"
+      height="12"
+      patternUnits="userSpaceOnUse"
+      patternTransform="rotate(45)"
+    >
+      <rect width="12" height="12" fill="#1d3a25" />
+      <rect width="5" height="12" fill="#3fb950" />
+    </pattern>
+  </defs>
+  <line
+    x1="44"
+    y1="24"
+    x2="44"
+    y2="62"
+    stroke="#3fb950"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+  <rect x="37" y="32" width="14" height="20" rx="2" fill="#3fb950" />
+  <line
+    x1="66"
+    y1="30"
+    x2="66"
+    y2="76"
+    stroke="#f85149"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+  <rect x="59" y="40" width="14" height="28" rx="2" fill="#f85149" />
+  <line
+    x1="88"
+    y1="44"
+    x2="88"
+    y2="82"
+    stroke="#f85149"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+  <rect x="81" y="52" width="14" height="22" rx="2" fill="#f85149" />
+  <text
+    x="112"
+    y="62"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="28"
+    fill="#e8e6e3"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    IBKR history requests per 120 s (limit 6)
+  </text>
+  <text
+    x="300"
+    y="114"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#58a6ff"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    2 used by the flow collector
+  </text>
+  <text
+    x="276"
+    y="166"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="end"
+    font-weight="normal"
+  >
+    today
+  </text>
+  <rect x="303" y="128" width="144" height="60" rx="8" fill="#58a6ff" />
+  <rect x="453" y="128" width="144" height="60" rx="8" fill="#58a6ff" />
+  <rect
+    x="603"
+    y="128"
+    width="594"
+    height="60"
+    rx="8"
+    fill="none"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-dasharray="6 6"
+  />
+  <line
+    x1="750"
+    y1="130"
+    x2="750"
+    y2="141"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="750"
+    y1="175"
+    x2="750"
+    y2="186"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="900"
+    y1="130"
+    x2="900"
+    y2="141"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="900"
+    y1="175"
+    x2="900"
+    y2="186"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="1050"
+    y1="130"
+    x2="1050"
+    y2="141"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="1050"
+    y1="175"
+    x2="1050"
+    y2="186"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <text
+    x="900"
+    y="166"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#3fb950"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    4 left for charts
+  </text>
+  <text
+    x="276"
+    y="260"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="end"
+    font-weight="normal"
+  >
+    after, SPY turn
+  </text>
+  <rect x="303" y="222" width="144" height="60" rx="8" fill="#58a6ff" />
+  <text
+    x="375.0"
+    y="260"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    SPY trades
+  </text>
+  <rect x="453" y="222" width="144" height="60" rx="8" fill="#58a6ff" />
+  <text
+    x="525.0"
+    y="260"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    SPY quotes
+  </text>
+  <rect
+    x="603"
+    y="222"
+    width="594"
+    height="60"
+    rx="8"
+    fill="none"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-dasharray="6 6"
+  />
+  <line
+    x1="750"
+    y1="224"
+    x2="750"
+    y2="235"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="750"
+    y1="269"
+    x2="750"
+    y2="280"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="900"
+    y1="224"
+    x2="900"
+    y2="235"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="900"
+    y1="269"
+    x2="900"
+    y2="280"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="1050"
+    y1="224"
+    x2="1050"
+    y2="235"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="1050"
+    y1="269"
+    x2="1050"
+    y2="280"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <text
+    x="900"
+    y="260"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#3fb950"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    4 left for charts
+  </text>
+  <text
+    x="276"
+    y="340"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="end"
+    font-weight="normal"
+  >
+    after, futures turn
+  </text>
+  <rect x="303" y="302" width="144" height="60" rx="8" fill="#58a6ff" />
+  <text
+    x="375.0"
+    y="340"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    ES trades
+  </text>
+  <rect x="453" y="302" width="144" height="60" rx="8" fill="#d4a72c" />
+  <text
+    x="525.0"
+    y="340"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    NQ trades
+  </text>
+  <rect
+    x="603"
+    y="302"
+    width="594"
+    height="60"
+    rx="8"
+    fill="none"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-dasharray="6 6"
+  />
+  <line
+    x1="750"
+    y1="304"
+    x2="750"
+    y2="315"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="750"
+    y1="349"
+    x2="750"
+    y2="360"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="900"
+    y1="304"
+    x2="900"
+    y2="315"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="900"
+    y1="349"
+    x2="900"
+    y2="360"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="1050"
+    y1="304"
+    x2="1050"
+    y2="315"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="1050"
+    y1="349"
+    x2="1050"
+    y2="360"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="butt"
+  />
+  <text
+    x="900"
+    y="340"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#3fb950"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    4 left for charts
+  </text>
+  <line
+    x1="1208"
+    y1="104"
+    x2="1208"
+    y2="374"
+    stroke="#f85149"
+    stroke-width="4"
+    stroke-linecap="round"
+  />
+  <text
+    x="1224"
+    y="166"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#f85149"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    limit 6
+  </text>
+  <path
+    d="M525 408V372"
+    fill="none"
+    stroke="#d4a72c"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M514 382L525 370L536 382"
+    fill="none"
+    stroke="#d4a72c"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <text
+    x="550"
+    y="406"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#d4a72c"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    NQ added, no extra request
+  </text>
+  <line
+    x1="30"
+    y1="446"
+    x2="1570"
+    y2="446"
+    stroke="#30363d"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <g transform="translate(58 492) scale(0.8)">
+    <path
+      d="M-38 18a20 20 0 0 1 4 -39a28 28 0 0 1 53 -6a22 22 0 0 1 17 45z"
+      fill="none"
+      stroke="#58a6ff"
+      stroke-width="3"
+    />
+    <path
+      d="M-24 -12l14 6l12 4l20 12"
+      fill="none"
+      stroke="#3fb950"
+      stroke-width="3"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M-24 10l14 -4l12 -8l20 -8"
+      fill="none"
+      stroke="#f85149"
+      stroke-width="3"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+  <text
+    x="112"
+    y="502"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="28"
+    fill="#e8e6e3"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    QuantData client window: 30 request starts in any 60 s (shared)
+  </text>
+  <text
+    x="200"
+    y="626"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="end"
+    font-weight="normal"
+  >
+    today
+  </text>
+  <text
+    x="276"
+    y="628"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="30"
+    fill="#e8e6e3"
+    text-anchor="end"
+    font-weight="bold"
+  >
+    22
+  </text>
+  <text
+    x="748"
+    y="576"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    2 GEX estimates, 3 each
+  </text>
+  <rect x="302" y="590" width="444" height="56" rx="6" fill="#58a6ff" />
+  <text
+    x="524.0"
+    y="627"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    16 option pages
+  </text>
+  <rect x="750" y="590" width="80" height="56" rx="6" fill="#30363d" />
+  <text
+    x="790.0"
+    y="627"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#e8e6e3"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    3
+  </text>
+  <rect x="834" y="590" width="80" height="56" rx="6" fill="#30363d" />
+  <text
+    x="874.0"
+    y="627"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#e8e6e3"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    3
+  </text>
+  <text
+    x="200"
+    y="738"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="end"
+    font-weight="normal"
+  >
+    after
+  </text>
+  <text
+    x="276"
+    y="740"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="30"
+    fill="#e8e6e3"
+    text-anchor="end"
+    font-weight="bold"
+  >
+    23
+  </text>
+  <text
+    x="300"
+    y="688"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#d4a72c"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    4 net drift (new)
+  </text>
+  <text
+    x="860"
+    y="688"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    1 GEX estimate
+  </text>
+  <rect x="302" y="702" width="108" height="56" rx="6" fill="#d4a72c" />
+  <text
+    x="356.0"
+    y="739"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    4
+  </text>
+  <rect x="414" y="702" width="444" height="56" rx="6" fill="#58a6ff" />
+  <text
+    x="636.0"
+    y="739"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    16 option pages
+  </text>
+  <rect x="862" y="702" width="80" height="56" rx="6" fill="#30363d" />
+  <text
+    x="902.0"
+    y="739"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#e8e6e3"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    3
+  </text>
+  <rect
+    x="974"
+    y="702"
+    width="164"
+    height="56"
+    rx="6"
+    fill="none"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-dasharray="6 6"
+  />
+  <text
+    x="1056"
+    y="737"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#3fb950"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    6
+  </text>
+  <text
+    x="1128.8000000000002"
+    y="790"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#3fb950"
+    text-anchor="end"
+    font-weight="normal"
+  >
+    reserve kept free for /charts
+  </text>
+  <text
+    x="276"
+    y="864"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#f85149"
+    text-anchor="end"
+    font-weight="normal"
+  >
+    What was rejected
+  </text>
+  <rect x="302" y="828" width="1116" height="56" rx="6" fill="#f85149" />
+  <rect
+    x="1424"
+    y="828"
+    width="34"
+    height="56"
+    rx="6"
+    fill="#f85149"
+    opacity="0.6"
+  />
+  <rect
+    x="1464"
+    y="828"
+    width="34"
+    height="56"
+    rx="6"
+    fill="#f85149"
+    opacity="0.35"
+  />
+  <rect
+    x="1504"
+    y="828"
+    width="34"
+    height="56"
+    rx="6"
+    fill="#f85149"
+    opacity="0.15"
+  />
+  <text
+    x="318"
+    y="865"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    4 full symbols = 40 or more requests in one run
+  </text>
+  <line
+    x1="1140"
+    y1="560"
+    x2="1140"
+    y2="904"
+    stroke="#f85149"
+    stroke-width="4"
+    stroke-linecap="round"
+  />
+  <text
+    x="1140"
+    y="548"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#f85149"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    window 30
+  </text>
+  <line
+    x1="300"
+    y1="904"
+    x2="1570"
+    y2="904"
+    stroke="#30363d"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <line
+    x1="300"
+    y1="904"
+    x2="300"
+    y2="914"
+    stroke="#8b9099"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <text
+    x="300"
+    y="942"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    0
+  </text>
+  <line
+    x1="580"
+    y1="904"
+    x2="580"
+    y2="914"
+    stroke="#8b9099"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <text
+    x="580"
+    y="942"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    10
+  </text>
+  <line
+    x1="860"
+    y1="904"
+    x2="860"
+    y2="914"
+    stroke="#8b9099"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <text
+    x="860"
+    y="942"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    20
+  </text>
+  <line
+    x1="1140"
+    y1="904"
+    x2="1140"
+    y2="914"
+    stroke="#8b9099"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <text
+    x="1140"
+    y="942"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    30
+  </text>
+  <line
+    x1="1420"
+    y1="904"
+    x2="1420"
+    y2="914"
+    stroke="#8b9099"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <text
+    x="1420"
+    y="942"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    40
+  </text>
+</svg>

@@ -6383,7 +6383,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -6971,7 +6971,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -7454,7 +7454,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -8049,7 +8049,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -8602,7 +8602,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -9208,7 +9208,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -9947,7 +9947,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -106131,11 +106131,13 @@
                     "items": {
                       "enum": [
                         "SPY",
-                        "ES"
+                        "ES",
+                        "QQQ",
+                        "NQ"
                       ],
                       "type": "string"
                     },
-                    "maxItems": 2,
+                    "maxItems": 4,
                     "minItems": 1,
                     "type": "array"
                   }
@@ -106156,6 +106158,58 @@
                     "at": {
                       "maxLength": 40,
                       "type": "string"
+                    },
+                    "budget": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ibkrLimit": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "ibkrRecent": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantDataFree": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantDataReserve": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "runSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "quantDataFree",
+                        "quantDataReserve",
+                        "ibkrRecent",
+                        "ibkrLimit",
+                        "runSeconds"
+                      ],
+                      "type": "object"
                     },
                     "busy": {
                       "type": "boolean"
@@ -106198,7 +106252,8 @@
                               "ticks",
                               "depth",
                               "options",
-                              "gex"
+                              "gex",
+                              "net_drift"
                             ],
                             "type": "string"
                           },
@@ -106214,7 +106269,9 @@
                           "symbol": {
                             "enum": [
                               "SPY",
-                              "ES"
+                              "ES",
+                              "QQQ",
+                              "NQ"
                             ],
                             "type": "string"
                           }
@@ -106237,6 +106294,7 @@
                     "busy",
                     "dryRun",
                     "runs",
+                    "budget",
                     "pruned"
                   ],
                   "type": "object"
@@ -106486,7 +106544,1625 @@
             "description": "503"
           }
         },
-        "summary": "Scheduler: sample ticks, depth, options flow and GEX for SPY and ES, store features and events",
+        "summary": "Scheduler: sample ticks, depth, options flow, GEX and net drift for SPY, ES, QQQ and NQ, store features and events",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
+    "/flow/control": {
+      "get": {
+        "operationId": "flow.control",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "group",
+            "required": true,
+            "schema": {
+              "enum": [
+                "sp500",
+                "nasdaq100"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "agreement": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "detail": {
+                          "maxLength": 300,
+                          "type": "string"
+                        },
+                        "direction": {
+                          "enum": [
+                            "bullish",
+                            "bearish",
+                            "neutral"
+                          ],
+                          "type": "string"
+                        },
+                        "label": {
+                          "maxLength": 120,
+                          "type": "string"
+                        },
+                        "since": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "state": {
+                          "enum": [
+                            "not_comparable"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "direction",
+                        "label",
+                        "detail",
+                        "since"
+                      ],
+                      "type": "object"
+                    },
+                    "crossCheck": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "detail": {
+                          "maxLength": 300,
+                          "type": "string"
+                        },
+                        "oldestUnreadAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "result": {
+                          "enum": [
+                            "same_direction",
+                            "opposite_direction",
+                            "not_comparable",
+                            "not_collected"
+                          ],
+                          "type": "string"
+                        },
+                        "storedPrints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "ticker": {
+                          "enum": [
+                            "SPY",
+                            "SPX",
+                            "QQQ",
+                            "NDX"
+                          ],
+                          "type": "string"
+                        },
+                        "unreadRanges": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "ticker",
+                        "result",
+                        "storedPrints",
+                        "unreadRanges",
+                        "oldestUnreadAt",
+                        "detail"
+                      ],
+                      "type": "object"
+                    },
+                    "deepTrades": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "absorptions": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "at": {
+                                "maxLength": 40,
+                                "type": "string"
+                              },
+                              "detail": {
+                                "maxLength": 200,
+                                "type": "string"
+                              },
+                              "direction": {
+                                "enum": [
+                                  "bullish",
+                                  "bearish",
+                                  "neutral"
+                                ],
+                                "type": "string"
+                              },
+                              "price": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "at",
+                              "direction",
+                              "price",
+                              "detail"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
+                        "capture": {
+                          "enum": [
+                            "sampled"
+                          ],
+                          "type": "string"
+                        },
+                        "coverage": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "seenSeconds": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "share": {
+                              "anyOf": [
+                                {
+                                  "maximum": 1,
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "windowSeconds": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "seenSeconds",
+                            "windowSeconds",
+                            "share"
+                          ],
+                          "type": "object"
+                        },
+                        "limitSize": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "minutes": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "buyVolume": {
+                                "type": "number"
+                              },
+                              "coveredSeconds": {
+                                "maximum": 60,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "minute": {
+                                "maxLength": 40,
+                                "type": "string"
+                              },
+                              "sellVolume": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "minute",
+                              "buyVolume",
+                              "sellVolume",
+                              "coveredSeconds"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 420,
+                          "type": "array"
+                        },
+                        "signing": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "quote",
+                                "tick"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sums": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "buyVolume": {
+                              "type": "number"
+                            },
+                            "cumulativeFrom": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "netVolume": {
+                              "type": "number"
+                            },
+                            "sellVolume": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "buyVolume",
+                            "sellVolume",
+                            "netVolume",
+                            "cumulativeFrom"
+                          ],
+                          "type": "object"
+                        },
+                        "symbol": {
+                          "enum": [
+                            "SPY",
+                            "ES",
+                            "QQQ",
+                            "NQ"
+                          ],
+                          "type": "string"
+                        },
+                        "totalTrades": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "trades": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "at": {
+                                "maxLength": 40,
+                                "type": "string"
+                              },
+                              "price": {
+                                "type": "number"
+                              },
+                              "side": {
+                                "enum": [
+                                  "buy",
+                                  "sell"
+                                ],
+                                "type": "string"
+                              },
+                              "signing": {
+                                "enum": [
+                                  "quote",
+                                  "tick"
+                                ],
+                                "type": "string"
+                              },
+                              "size": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "at",
+                              "side",
+                              "size",
+                              "price",
+                              "signing"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 60,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "symbol",
+                        "limitSize",
+                        "signing",
+                        "capture",
+                        "coverage",
+                        "sums",
+                        "trades",
+                        "totalTrades",
+                        "minutes",
+                        "absorptions"
+                      ],
+                      "type": "object"
+                    },
+                    "freshness": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "ageSeconds": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "instrument": {
+                            "maxLength": 12,
+                            "type": "string"
+                          },
+                          "lastOkAt": {
+                            "anyOf": [
+                              {
+                                "maxLength": 40,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "message": {
+                            "anyOf": [
+                              {
+                                "maxLength": 300,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "source": {
+                            "enum": [
+                              "ticks",
+                              "depth",
+                              "options",
+                              "gex",
+                              "net_drift"
+                            ],
+                            "type": "string"
+                          },
+                          "state": {
+                            "enum": [
+                              "fresh",
+                              "stale",
+                              "closed",
+                              "never"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "source",
+                          "instrument",
+                          "state",
+                          "lastOkAt",
+                          "ageSeconds",
+                          "message"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 12,
+                      "type": "array"
+                    },
+                    "futures": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "asOf": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "detail": {
+                          "maxLength": 300,
+                          "type": "string"
+                        },
+                        "direction": {
+                          "enum": [
+                            "bullish",
+                            "bearish",
+                            "neutral"
+                          ],
+                          "type": "string"
+                        },
+                        "enterRatio": {
+                          "maximum": 1,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "inputs": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "denominator": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "numerator": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "rows": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "numerator",
+                            "denominator",
+                            "rows"
+                          ],
+                          "type": "object"
+                        },
+                        "instrument": {
+                          "maxLength": 12,
+                          "type": "string"
+                        },
+                        "label": {
+                          "maxLength": 120,
+                          "type": "string"
+                        },
+                        "noDataReason": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "market_closed",
+                                "source_unavailable",
+                                "storage_failed",
+                                "stale",
+                                "gap",
+                                "session_start",
+                                "sampled_tape",
+                                "not_collected"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "ratio": {
+                          "anyOf": [
+                            {
+                              "maximum": 1,
+                              "minimum": -1,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "since": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "state": {
+                          "enum": [
+                            "buyers",
+                            "sellers",
+                            "balanced",
+                            "mixed",
+                            "no_data"
+                          ],
+                          "type": "string"
+                        },
+                        "windowEnd": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "windowStart": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "instrument",
+                        "state",
+                        "noDataReason",
+                        "direction",
+                        "label",
+                        "detail",
+                        "since",
+                        "asOf",
+                        "ratio",
+                        "enterRatio",
+                        "windowStart",
+                        "windowEnd",
+                        "inputs"
+                      ],
+                      "type": "object"
+                    },
+                    "generatedAt": {
+                      "maxLength": 40,
+                      "type": "string"
+                    },
+                    "group": {
+                      "enum": [
+                        "sp500",
+                        "nasdaq100"
+                      ],
+                      "type": "string"
+                    },
+                    "levels": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "previousClose": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sessionHigh": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sessionLow": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sessionOpen": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "one_minute_closes"
+                            },
+                            "ticker": {
+                              "enum": [
+                                "SPY",
+                                "SPX",
+                                "QQQ",
+                                "NDX"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "ticker",
+                            "sessionOpen",
+                            "sessionHigh",
+                            "sessionLow",
+                            "previousClose",
+                            "source"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "netDrift": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "asOf": {
+                            "anyOf": [
+                              {
+                                "maxLength": 40,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "filterProfile": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "partsDetail": {
+                            "anyOf": [
+                              {
+                                "maxLength": 300,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "partsStatus": {
+                            "enum": [
+                              "complete",
+                              "partial",
+                              "no_data"
+                            ],
+                            "type": "string"
+                          },
+                          "points": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "longer": {
+                                  "anyOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "netCallPremiumUsd": {
+                                          "type": "number"
+                                        },
+                                        "netPutPremiumUsd": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "netCallPremiumUsd",
+                                        "netPutPremiumUsd"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "minute": {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                "total": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "netCallPremiumUsd": {
+                                      "type": "number"
+                                    },
+                                    "netPutPremiumUsd": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "netCallPremiumUsd",
+                                    "netPutPremiumUsd"
+                                  ],
+                                  "type": "object"
+                                },
+                                "underlyingPrice": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "zeroDte": {
+                                  "anyOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "netCallPremiumUsd": {
+                                          "type": "number"
+                                        },
+                                        "netPutPremiumUsd": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "netCallPremiumUsd",
+                                        "netPutPremiumUsd"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "minute",
+                                "total",
+                                "zeroDte",
+                                "longer",
+                                "underlyingPrice"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 420,
+                            "type": "array"
+                          },
+                          "role": {
+                            "enum": [
+                              "primary",
+                              "check"
+                            ],
+                            "type": "string"
+                          },
+                          "slopeUsdPerMinute": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "slopeWindowMinutes": {
+                            "maximum": 390,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "ticker": {
+                            "enum": [
+                              "SPY",
+                              "SPX",
+                              "QQQ",
+                              "NDX"
+                            ],
+                            "type": "string"
+                          },
+                          "totals": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "cumulativeFrom": {
+                                "maxLength": 40,
+                                "type": "string"
+                              },
+                              "longer": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "callMinusPutUsd": {
+                                        "type": "number"
+                                      },
+                                      "netCallPremiumUsd": {
+                                        "type": "number"
+                                      },
+                                      "netCallVolume": {
+                                        "type": "number"
+                                      },
+                                      "netPutPremiumUsd": {
+                                        "type": "number"
+                                      },
+                                      "netPutVolume": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "netCallPremiumUsd",
+                                      "netPutPremiumUsd",
+                                      "callMinusPutUsd",
+                                      "netCallVolume",
+                                      "netPutVolume"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "total": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "callMinusPutUsd": {
+                                        "type": "number"
+                                      },
+                                      "netCallPremiumUsd": {
+                                        "type": "number"
+                                      },
+                                      "netCallVolume": {
+                                        "type": "number"
+                                      },
+                                      "netPutPremiumUsd": {
+                                        "type": "number"
+                                      },
+                                      "netPutVolume": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "netCallPremiumUsd",
+                                      "netPutPremiumUsd",
+                                      "callMinusPutUsd",
+                                      "netCallVolume",
+                                      "netPutVolume"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "zeroDte": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "callMinusPutUsd": {
+                                        "type": "number"
+                                      },
+                                      "netCallPremiumUsd": {
+                                        "type": "number"
+                                      },
+                                      "netCallVolume": {
+                                        "type": "number"
+                                      },
+                                      "netPutPremiumUsd": {
+                                        "type": "number"
+                                      },
+                                      "netPutVolume": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "netCallPremiumUsd",
+                                      "netPutPremiumUsd",
+                                      "callMinusPutUsd",
+                                      "netCallVolume",
+                                      "netPutVolume"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "cumulativeFrom",
+                              "total",
+                              "zeroDte",
+                              "longer"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "ticker",
+                          "role",
+                          "asOf",
+                          "filterProfile",
+                          "totals",
+                          "partsStatus",
+                          "partsDetail",
+                          "slopeUsdPerMinute",
+                          "slopeWindowMinutes",
+                          "points"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 2,
+                      "type": "array"
+                    },
+                    "notes": {
+                      "items": {
+                        "maxLength": 300,
+                        "type": "string"
+                      },
+                      "maxItems": 12,
+                      "type": "array"
+                    },
+                    "options": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "asOf": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "checkState": {
+                          "enum": [
+                            "buyers",
+                            "sellers",
+                            "balanced",
+                            "mixed",
+                            "no_data"
+                          ],
+                          "type": "string"
+                        },
+                        "checkTicker": {
+                          "enum": [
+                            "SPY",
+                            "SPX",
+                            "QQQ",
+                            "NDX"
+                          ],
+                          "type": "string"
+                        },
+                        "detail": {
+                          "maxLength": 300,
+                          "type": "string"
+                        },
+                        "direction": {
+                          "enum": [
+                            "bullish",
+                            "bearish",
+                            "neutral"
+                          ],
+                          "type": "string"
+                        },
+                        "enterRatio": {
+                          "maximum": 1,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "inputs": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "denominator": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "numerator": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "rows": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "numerator",
+                            "denominator",
+                            "rows"
+                          ],
+                          "type": "object"
+                        },
+                        "instrument": {
+                          "maxLength": 12,
+                          "type": "string"
+                        },
+                        "label": {
+                          "maxLength": 120,
+                          "type": "string"
+                        },
+                        "noDataReason": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "market_closed",
+                                "source_unavailable",
+                                "storage_failed",
+                                "stale",
+                                "gap",
+                                "session_start",
+                                "sampled_tape",
+                                "not_collected"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "primaryTicker": {
+                          "enum": [
+                            "SPY",
+                            "SPX",
+                            "QQQ",
+                            "NDX"
+                          ],
+                          "type": "string"
+                        },
+                        "ratio": {
+                          "anyOf": [
+                            {
+                              "maximum": 1,
+                              "minimum": -1,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "since": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "state": {
+                          "enum": [
+                            "buyers",
+                            "sellers",
+                            "balanced",
+                            "mixed",
+                            "no_data"
+                          ],
+                          "type": "string"
+                        },
+                        "windowEnd": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "windowStart": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "instrument",
+                        "state",
+                        "noDataReason",
+                        "direction",
+                        "label",
+                        "detail",
+                        "since",
+                        "asOf",
+                        "ratio",
+                        "enterRatio",
+                        "windowStart",
+                        "windowEnd",
+                        "inputs",
+                        "primaryTicker",
+                        "checkTicker",
+                        "checkState"
+                      ],
+                      "type": "object"
+                    },
+                    "rules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "enterRatio": {
+                          "maximum": 1,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "exitRatio": {
+                          "maximum": 1,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "minBuckets": {
+                          "maximum": 390,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "minMinutes": {
+                          "maximum": 60,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "version": {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        "windowMinutes": {
+                          "maximum": 390,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "windowMinutes",
+                        "enterRatio",
+                        "exitRatio",
+                        "minMinutes",
+                        "minBuckets"
+                      ],
+                      "type": "object"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-control.v1"
+                    },
+                    "session": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "date": {
+                          "maxLength": 10,
+                          "type": "string"
+                        },
+                        "event": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "fomc"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "futuresOpen": {
+                          "type": "boolean"
+                        },
+                        "open": {
+                          "type": "boolean"
+                        },
+                        "optionsOpen": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "date",
+                        "open",
+                        "optionsOpen",
+                        "futuresOpen",
+                        "event"
+                      ],
+                      "type": "object"
+                    },
+                    "study": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "agreementDetail": {
+                          "maxLength": 120,
+                          "type": "string"
+                        },
+                        "detail": {
+                          "maxLength": 300,
+                          "type": "string"
+                        },
+                        "rulesVersion": {
+                          "anyOf": [
+                            {
+                              "maxLength": 400,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "enum": [
+                            "edge",
+                            "no-edge",
+                            "needs-more-data",
+                            "not_tested"
+                          ],
+                          "type": "string"
+                        },
+                        "strategyId": {
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "testedOn": {
+                          "anyOf": [
+                            {
+                              "maxLength": 10,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "strategyId",
+                        "testedOn",
+                        "rulesVersion",
+                        "detail",
+                        "agreementDetail"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "group",
+                    "generatedAt",
+                    "session",
+                    "levels",
+                    "rules",
+                    "futures",
+                    "options",
+                    "agreement",
+                    "netDrift",
+                    "deepTrades",
+                    "crossCheck",
+                    "study",
+                    "freshness",
+                    "notes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "One index group: who is in control on the futures side and the options side, net drift and study status (research input)",
         "tags": [
           "Flow"
         ]
@@ -106505,7 +108181,9 @@
             "schema": {
               "enum": [
                 "SPY",
-                "ES"
+                "ES",
+                "QQQ",
+                "NQ"
               ],
               "type": "string"
             }
@@ -106964,7 +108642,9 @@
                             "ticker": {
                               "enum": [
                                 "SPY",
-                                "SPX"
+                                "SPX",
+                                "QQQ",
+                                "NDX"
                               ],
                               "type": "string"
                             },
@@ -107204,7 +108884,9 @@
                         "ticker": {
                           "enum": [
                             "SPY",
-                            "SPX"
+                            "SPX",
+                            "QQQ",
+                            "NDX"
                           ],
                           "type": "string"
                         },
@@ -107530,7 +109212,9 @@
                     "symbol": {
                       "enum": [
                         "SPY",
-                        "ES"
+                        "ES",
+                        "QQQ",
+                        "NQ"
                       ],
                       "type": "string"
                     },
@@ -151181,7 +152865,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -151757,7 +153441,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage unavailable",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {

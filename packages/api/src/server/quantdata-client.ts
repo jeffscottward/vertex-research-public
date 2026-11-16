@@ -13,6 +13,10 @@
 //   "remaining 19, reset 55" on every response (2026-11-03 UTC), which must not stop all
 //   calls. Accepted gap: the first reading of a process has no baseline, so a fresh process
 //   can make one more request before it waits; the 429 cooldown still applies.
+// - Caller reserve: a caller may pass `keepFree` (held to 0 to maxRequestsPerMinute − 1); its start is
+//   refused with the reason "reserved" when fewer than `keepFree` starts of the window would stay free.
+//   The flow collector uses `withCallerReserve(client, 6)`, so /charts option reads (keepFree 0) always
+//   find 6 starts free; `freeStarts()` reports the starts left in the current 60 s window.
 // - HTTP 429 starts a cooldown (Retry-After seconds, else 60 s); requests during it fail fast.
 // - Successful bodies are cached per endpoint+payload (or endpoint+cacheKey) for `ttlMs`.
 // - Timeout, 2 MiB body cap, redirects never followed.
@@ -22,6 +26,7 @@ export const QUANTDATA_ENDPOINTS = {
   termStructure: "/v1/options/tool/term-structure",
   openInterest: "/v1/options/tool/open-interest-by-strike",
   orderFlow: "/v1/options/tool/order-flow/consolidated",
+  netDrift: "/v1/options/tool/net-drift",
 } as const;
 export type QuantDataEndpoint = keyof typeof QUANTDATA_ENDPOINTS;
 
@@ -30,7 +35,7 @@ const MAX_COOLDOWN_S = 3600;
 const MAX_CACHE_ENTRIES = 200;
 const WINDOW_S = 60;
 const WINDOW_MS = WINDOW_S * 1000;
-const DEFAULT_MAX_PER_MINUTE = 30;
+export const DEFAULT_MAX_PER_MINUTE = 30;
 const DEFAULT_QUOTA_RESERVE = 120;
 const WHOLE_NUMBER = /^\d+$/u;
 
@@ -38,6 +43,7 @@ export type QuantDataConfig = Readonly<{ baseUrl: string; apiKey: string }>;
 
 export type QuantDataFailureReason =
   | "rate_limited"
+  | "reserved"
   | "http"
   | "timeout"
   | "invalid";
@@ -76,9 +82,12 @@ export interface QuantDataClient {
     endpoint: QuantDataEndpoint,
     payload: Readonly<Record<string, unknown>>,
     ttlMs: number,
-    cacheKey?: string
+    cacheKey?: string,
+    keepFree?: number
   ) => Promise<QuantDataResult>;
   readonly cooldownSeconds: () => number;
+  /** maxRequestsPerMinute minus the request starts of the last 60 s. */
+  readonly freeStarts: () => number;
 }
 
 // Accepts only https URLs without credentials; returns null otherwise or when no key.
@@ -210,9 +219,17 @@ export const createQuantDataClient = (
     yieldUntil = Math.max(yieldUntil, now() + seconds * 1000);
   };
 
+  const freeStarts = (): number => {
+    const at = now();
+    return (
+      maxPerMinute - starts.filter((start) => start > at - WINDOW_MS).length
+    );
+  };
+
   const send = async (
     endpoint: QuantDataEndpoint,
-    payload: Readonly<Record<string, unknown>>
+    payload: Readonly<Record<string, unknown>>,
+    keepFree: number
   ): Promise<QuantDataResult> => {
     const held = blocked(endpoint);
     if (held !== null) return held;
@@ -227,6 +244,17 @@ export const createQuantDataClient = (
       starts.shift();
     }
     const oldest = starts[0];
+    if (
+      oldest !== undefined &&
+      keepFree > 0 &&
+      starts.length >= maxPerMinute - keepFree &&
+      starts.length < maxPerMinute
+    )
+      return failure(
+        "reserved",
+        `QuantData ${endpoint}: ${keepFree} request starts per minute are kept free for other callers.`,
+        (oldest + WINDOW_MS - startAt) / 1000
+      );
     if (oldest !== undefined && starts.length >= maxPerMinute)
       return failure(
         "rate_limited",
@@ -314,7 +342,8 @@ export const createQuantDataClient = (
     endpoint,
     payload,
     ttlMs,
-    cacheKey
+    cacheKey,
+    keepFree = 0
   ) => {
     const key = `${endpoint} ${cacheKey === undefined ? JSON.stringify(payload) : `key ${cacheKey}`}`;
     const hit = cache.get(key);
@@ -322,7 +351,8 @@ export const createQuantDataClient = (
       return { body: hit.body, data: hit.body["data"], ok: true };
     const held = blocked(endpoint);
     if (held !== null) return held;
-    const run = queue.then(() => send(endpoint, payload));
+    const kept = Math.min(Math.max(0, keepFree), maxPerMinute - 1);
+    const run = queue.then(() => send(endpoint, payload, kept));
     // Keep the queue alive even if `send` throws unexpectedly (for example an injected clock).
     queue = run.catch(() => undefined);
     const result = await run;
@@ -337,5 +367,19 @@ export const createQuantDataClient = (
     return result;
   };
 
-  return Object.freeze({ cooldownSeconds, request });
+  return Object.freeze({ cooldownSeconds, freeStarts, request });
 };
+
+/**
+ * A view of a shared client that keeps `keepFree` starts per minute free for other callers. It
+ * shares the one window of the client; `freeStarts()` leaves out the reserve.
+ */
+export const withCallerReserve = (
+  client: QuantDataClient,
+  keepFree: number
+): QuantDataClient => ({
+  cooldownSeconds: client.cooldownSeconds,
+  freeStarts: () => Math.max(0, client.freeStarts() - keepFree),
+  request: (endpoint, payload, ttlMs, cacheKey) =>
+    client.request(endpoint, payload, ttlMs, cacheKey, keepFree),
+});

@@ -24,6 +24,31 @@ type ProfileState =
   | Readonly<{ type: "error"; kind: AccountFailureKind }>
   | Readonly<{ type: "ready"; account: AccountProfileOutput; version: number }>;
 
+const PROFILE_FAILED = {
+  title: "Profile failed to load",
+  message:
+    "The profile request failed. No fields were changed. Select Try again.",
+} as const;
+
+const PROFILE_LOAD_FAILURE: Readonly<
+  Record<AccountFailureKind, Readonly<{ title: string; message: string }>>
+> = {
+  unauthorized: {
+    title: "Session expired",
+    message: "Sign in again to load your profile.",
+  },
+  forbidden: {
+    title: "No access to this profile",
+    message: "This account cannot open that profile.",
+  },
+  "not-found": {
+    title: "Profile not found",
+    message: "No profile exists for this account. Go back to account.",
+  },
+  conflict: PROFILE_FAILED,
+  retryable: PROFILE_FAILED,
+};
+
 /** `gateway` replaces the browser API client (UI lab, tests); omitted in the portal. */
 export const ProfilePageClient = ({
   gateway: injected,
@@ -97,16 +122,8 @@ export const ProfilePageClient = ({
       <div aria-live="assertive" role="alert">
         <InlineNotice
           action={action}
-          message={
-            state.kind === "unauthorized"
-              ? "Sign in again to load your profile."
-              : state.kind === "forbidden"
-                ? "This account cannot open that profile."
-                : state.kind === "not-found"
-                  ? "The profile is no longer available."
-                  : "Your profile could not be loaded. No fields were changed."
-          }
-          title="Profile unavailable"
+          message={PROFILE_LOAD_FAILURE[state.kind].message}
+          title={PROFILE_LOAD_FAILURE[state.kind].title}
         />
       </div>
     );
