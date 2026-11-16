@@ -263,19 +263,26 @@ export const runTrial = async (
   return { answer: result.content, completions, trace: result.trace };
 };
 
+/** One recorded trial replayed against the built layer. */
+export type TrialReplay = Readonly<{
+  /** Null when the trial replays unchanged; else the first difference (the trial is stale). */
+  stale: string | null;
+  /** The tool calls of the replayed turn; empty when the turn threw. */
+  trace: readonly AssistantTraceEntry[];
+}>;
+
 /**
  * Replays one recorded trial against the built layer, with the recorded model replies in order.
- * Null when the trial replays unchanged; else the first difference (the trial is stale: record it again).
- * The replay test and the recorder's `stale` selection both use this one definition.
+ * `stale` is null when the trial replays unchanged; else the first difference (record the trial again).
  */
-export const staleReason = async (
+export const replayTrial = async (
   backend: EvalBackend,
   question: EvalQuestion,
   recorded: Readonly<{
     answer: string;
     completions: readonly RecordedCompletion[];
   }>
-): Promise<string | null> => {
+): Promise<TrialReplay> => {
   let call = 0;
   let reason: string | null = null;
   const replay = async (
@@ -293,18 +300,41 @@ export const staleReason = async (
     call += 1;
     return toCompletion(next);
   };
-  let answer: string;
+  let result: TrialResult;
   try {
-    answer = (await runTrial(backend, question, replay)).answer;
+    result = await runTrial(backend, question, replay);
   } catch (error) {
     if (reason === null) throw error;
-    return reason;
+    return { stale: reason, trace: [] };
   }
-  if (reason !== null) return reason;
+  const { answer, trace } = result;
+  if (reason !== null) return { stale: reason, trace };
   if (call !== recorded.completions.length) {
-    return `the turn made ${call} of the ${recorded.completions.length} recorded model calls`;
+    return {
+      stale: `the turn made ${call} of the ${recorded.completions.length} recorded model calls`,
+      trace,
+    };
   }
-  return answer === recorded.answer
-    ? null
-    : "the final answer differs from the recorded answer";
+  return {
+    stale:
+      answer === recorded.answer
+        ? null
+        : "the final answer differs from the recorded answer",
+    trace,
+  };
 };
+
+/**
+ * Null when the recorded trial replays unchanged; else the first difference (the trial is stale: record
+ * it again). The replay test (through `replayTrial`) and the recorder's `stale` selection share this one
+ * definition.
+ */
+export const staleReason = async (
+  backend: EvalBackend,
+  question: EvalQuestion,
+  recorded: Readonly<{
+    answer: string;
+    completions: readonly RecordedCompletion[];
+  }>
+): Promise<string | null> =>
+  (await replayTrial(backend, question, recorded)).stale;
