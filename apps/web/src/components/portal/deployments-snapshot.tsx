@@ -991,10 +991,17 @@ const killSwitchText = (
   return `Kill switch not verified: ${names.length === 0 ? "a kill-switch file" : names.join(", ")} not readable${at === null ? "" : ` at ${at}`} · not treated as clear`;
 };
 
-// " at 14:02 UTC" after "not readable", or nothing when the collector sent no time.
-const indicatorTime = (asOf: string | null): string => {
-  const at = utcClock(asOf);
-  return at === null ? "" : ` at ${at}`;
+// An indicator with no answer. Only the kill-switch files decide the state, so only an unread file
+// keeps the state from reading as clear. A watchdog or health flag counts only when it is engaged:
+// null there means the file has no flag, and as_of is when that file was written.
+const unreadIndicatorText = (indicator: {
+  readonly source: string;
+  readonly as_of: string | null;
+}): string => {
+  const at = utcClock(indicator.as_of);
+  if (indicator.source.startsWith("file "))
+    return `not readable${at === null ? "" : ` at ${at}`} · not treated as clear`;
+  return `flag not reported${at === null ? "" : ` (last written ${at})`}`;
 };
 
 const killSwitchOf = (risk: DeployRiskBlock | undefined): KillSwitchView => {
@@ -1051,7 +1058,7 @@ export const RiskPanel = ({
                 >
                   {indicator.source}:{" "}
                   {indicator.engaged === null
-                    ? `not readable${indicatorTime(indicator.as_of)} · not treated as clear`
+                    ? unreadIndicatorText(indicator)
                     : indicator.engaged
                       ? "engaged"
                       : "clear"}

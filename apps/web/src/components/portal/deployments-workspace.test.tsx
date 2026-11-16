@@ -837,6 +837,7 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
             source: "file portfolio-ui/data/KILL_SWITCH",
           },
           { as_of: null, engaged: null, source: "watchdog live_flags" },
+          { as_of: since, engaged: null, source: "nautilus health.json" },
         ],
       })
     ).toBe(
@@ -849,7 +850,8 @@ describe("DeploymentsWorkspace v2 snapshot", () => {
     ).toEqual([
       "file data/KILL_SWITCH: not readable at 11:02 UTC · not treated as clear",
       "file portfolio-ui/data/KILL_SWITCH: clear",
-      "watchdog live_flags: not readable · not treated as clear",
+      "watchdog live_flags: flag not reported",
+      "nautilus health.json: flag not reported (last written 11:02 UTC)",
     ]);
     return expect(
       await killText({ kill_switch: "unverified", kill_switch_indicators: [] })
