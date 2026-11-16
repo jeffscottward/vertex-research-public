@@ -139,6 +139,13 @@ Fewer than two known votes: "Not enough fresh data". Bullish and bearish votes t
 "Flows disagree". Two or more on one side and none on the other: "Flows agree". A source counts
 only while it is fresh (or its market is closed, so the last session is shown).
 
+On `/flow` this block is titled "Short-term factors (last 15 to 30 min)", and its badge counts the
+factors ("2 of 3 short-term factors bullish", "Short-term factors split: 1 bullish, 1 bearish of 3",
+"No short-term factor has data yet"). The page uses the word "agree" only for futures against options
+(the control panel). The page shows the control panel of the selected symbol's group first
+(symbols SPY, QQQ, ES, NQ), then a line that names what is not collected for QQQ and NQ, then the
+snapshot; the freshness list is folded behind "Show sources" while every source is fresh.
+
 ## Control document
 
 `flow.control` (`GET /flow/control`, input `group`: `sp500` or `nasdaq100`) returns

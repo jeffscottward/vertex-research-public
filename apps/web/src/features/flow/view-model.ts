@@ -45,7 +45,9 @@ export type Metric = Readonly<{ label: string; value: string }>;
 
 export const FLOW_VIEW_SYMBOLS: readonly FlowSymbol[] = Object.freeze([
   "SPY",
+  "QQQ",
   "ES",
+  "NQ",
 ]);
 export const FLOW_WINDOW_MINUTES = Object.freeze([60, 120, 240, 390] as const);
 export type FlowWindowMinutes = (typeof FLOW_WINDOW_MINUTES)[number];
@@ -83,7 +85,7 @@ const SOURCE_LABELS: Readonly<Record<FlowSource, string>> = {
   ticks: "Ticks",
 };
 
-const FRESHNESS_TONE: Readonly<Record<FlowFreshnessState, Tone>> = {
+export const FRESHNESS_TONE: Readonly<Record<FlowFreshnessState, Tone>> = {
   closed: "info",
   fresh: "success",
   never: "neutral",
@@ -531,4 +533,34 @@ export const buildFlowChart = (
     width: count * CHART_SLOT_WIDTH,
     zeroY,
   };
+};
+
+/** The badge of the short-term factors block: counts, never a trade signal. */
+export const shortTermBadge = (
+  confluence: FlowSnapshot["confluence"]
+): string => {
+  const { bearish, bullish, known } = confluence;
+  if (known === 0 || (bullish === 0 && bearish === 0))
+    return "No short-term factor has data yet";
+  if (bullish > bearish)
+    return `${bullish} of ${known} short-term factors bullish`;
+  if (bearish > bullish)
+    return `${bearish} of ${known} short-term factors bearish`;
+  return `Short-term factors split: ${bullish} bullish, ${bearish} bearish of ${known}`;
+};
+
+/** What the collector does not read for a symbol, or null when it reads trades and option prints. */
+export const notCollectedLine = (symbol: FlowSymbol): string | null => {
+  const { sources } = FLOW_INSTRUMENTS[symbol];
+  const missing = [
+    ...(sources.includes("ticks") ? [] : ["trades"]),
+    ...(sources.includes("options") ? [] : ["option prints"]),
+  ];
+  if (missing.length === 0) return null;
+  const holders = Object.values(FLOW_INSTRUMENTS)
+    .filter((instrument) => instrument.sources.includes("ticks"))
+    .map((instrument) => instrument.symbol)
+    .sort();
+  const names = `${holders.slice(0, -1).join(", ")} and ${holders.at(-1)}`;
+  return `Not collected for ${symbol}: ${missing.join(" and ")}. The IBKR and vendor budgets go to ${names}.`;
 };

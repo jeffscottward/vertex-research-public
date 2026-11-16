@@ -2,7 +2,7 @@
 // sampled minutes (and unsampled gaps), a book, options flow, GEX levels, events and confluence.
 // Every value is fictional.
 // Used by: apps/web/src/lab/entries/research.tsx.
-import type { FlowSnapshot } from "@darkfactory/api";
+import type { FlowControl, FlowGroupId, FlowSnapshot } from "@darkfactory/api";
 
 import { formatSigned } from "../../features/flow/format.ts";
 import {
@@ -320,5 +320,179 @@ export const labFlowSnapshot = (
     ),
     minutes: [],
     optionsFlow: { ...snapshot.optionsFlow, topPrints: [] },
+  };
+};
+
+const LAB_SESSION_OPEN = Date.parse("2026-10-30T13:30:00.000Z"); // 09:30 New York
+
+const labSeries = (
+  ticker: FlowControl["netDrift"][number]["ticker"],
+  role: "primary" | "check",
+  drift: number
+): FlowControl["netDrift"][number] => {
+  const points = Array.from({ length: 120 }, (_, index) => {
+    const call = roundTo((index + 1) * 40_000 * drift, 0);
+    const put = roundTo((index + 1) * 25_000, 0);
+    return {
+      longer: { netCallPremiumUsd: call * 0.6, netPutPremiumUsd: put * 0.7 },
+      minute: new Date(LAB_SESSION_OPEN + index * 60_000).toISOString(),
+      total: { netCallPremiumUsd: call, netPutPremiumUsd: put },
+      underlyingPrice: null,
+      zeroDte: { netCallPremiumUsd: call * 0.4, netPutPremiumUsd: put * 0.3 },
+    };
+  });
+  const call = roundTo(points.length * 40_000 * drift, 0);
+  const put = points.length * 25_000;
+  const totals = (share: number, putShare: number) => ({
+    callMinusPutUsd: call * share - put * putShare,
+    netCallPremiumUsd: call * share,
+    netCallVolume: 12_000 * share,
+    netPutPremiumUsd: put * putShare,
+    netPutVolume: 9000 * putShare,
+  });
+  return {
+    asOf: labMinutesAgo(1),
+    filterProfile: "otm-clean.v1",
+    partsDetail: null,
+    partsStatus: "complete",
+    points,
+    role,
+    slopeUsdPerMinute: roundTo(40_000 * drift - 25_000, 0),
+    slopeWindowMinutes: 15,
+    ticker,
+    totals: {
+      cumulativeFrom: new Date(LAB_SESSION_OPEN).toISOString(),
+      longer: totals(0.6, 0.7),
+      total: totals(1, 1),
+      zeroDte: totals(0.4, 0.3),
+    },
+  };
+};
+
+/** A fictional flow-control.v1 document: sp500 buyers since 10:31, nasdaq100 mixed. */
+export const labFlowControl = (group: FlowGroupId): FlowControl => {
+  const sp500 = group === "sp500";
+  const primary = sp500 ? "SPX" : "QQQ";
+  const check = sp500 ? "SPY" : "NDX";
+  const future = sp500 ? "ES" : "NQ";
+  return {
+    agreement: {
+      detail: `Futures: deep trades not collected yet: ${future} deep trades are not collected yet`,
+      direction: "neutral",
+      label: "Cannot compare",
+      since: null,
+      state: "not_comparable",
+    },
+    crossCheck: sp500
+      ? {
+          detail:
+            "Stored SPX option prints point the same way as the vendor net drift (48 prints, 0 unread time ranges)",
+          oldestUnreadAt: null,
+          result: "same_direction",
+          storedPrints: 48,
+          ticker: "SPX",
+          unreadRanges: 0,
+        }
+      : {
+          detail: "Option prints are not collected for QQQ",
+          oldestUnreadAt: null,
+          result: "not_collected",
+          storedPrints: 0,
+          ticker: "QQQ",
+          unreadRanges: 0,
+        },
+    deepTrades: {
+      absorptions: [],
+      capture: "sampled",
+      coverage: { seenSeconds: 0, share: null, windowSeconds: 1800 },
+      limitSize: null,
+      minutes: [],
+      signing: null,
+      sums: { buyVolume: 0, cumulativeFrom: null, netVolume: 0, sellVolume: 0 },
+      symbol: future,
+      totalTrades: 0,
+      trades: [],
+    },
+    freshness: [primary, check].map((instrument) => ({
+      ageSeconds: 60,
+      instrument,
+      lastOkAt: labMinutesAgo(1),
+      message: null,
+      source: "net_drift" as const,
+      state: "fresh" as const,
+    })),
+    futures: {
+      asOf: null,
+      detail: `${future} deep trades are not collected yet`,
+      direction: "neutral",
+      enterRatio: 0.3,
+      inputs: { denominator: null, numerator: null, rows: 0 },
+      instrument: future,
+      label: "Futures: deep trades not collected yet",
+      noDataReason: "not_collected",
+      ratio: null,
+      since: null,
+      state: "no_data",
+      windowEnd: null,
+      windowStart: null,
+    },
+    generatedAt: LAB_NOW_ISO,
+    group,
+    levels: null,
+    netDrift: [
+      labSeries(primary, "primary", sp500 ? 1.4 : 1.2),
+      labSeries(check, "check", sp500 ? 1.1 : 0.4),
+    ],
+    notes: [
+      "Fictional lab data.",
+      "Research only; a state describes recent flow and is not a trade signal.",
+    ],
+    options: {
+      asOf: labMinutesAgo(1),
+      checkState: sp500 ? "buyers" : "sellers",
+      checkTicker: check,
+      detail: sp500
+        ? "Ratio 0.42 over the last 30 min; enter ratio 0.30"
+        : "QQQ ratio 0.36 over the last 30 min; NDX is in control of the other side",
+      direction: sp500 ? "bullish" : "neutral",
+      enterRatio: 0.3,
+      inputs: { denominator: 9_500_000, numerator: 3_990_000, rows: 30 },
+      instrument: primary,
+      label: sp500
+        ? "SPX options: bullish, call buying leads"
+        : "Options mixed: QQQ bullish, NDX bearish",
+      noDataReason: null,
+      primaryTicker: primary,
+      ratio: sp500 ? 0.42 : 0.36,
+      since: sp500 ? "2026-10-30T14:31:00.000Z" : null,
+      state: sp500 ? "buyers" : "mixed",
+      windowEnd: labMinutesAgo(1),
+      windowStart: labMinutesAgo(31),
+    },
+    rules: {
+      enterRatio: 0.3,
+      exitRatio: 0.1,
+      minBuckets: 10,
+      minMinutes: 5,
+      version: "flow-control-rules.v1",
+      windowMinutes: 30,
+    },
+    schemaVersion: "flow-control.v1",
+    session: {
+      date: "2026-10-30",
+      event: null,
+      futuresOpen: true,
+      open: true,
+      optionsOpen: true,
+    },
+    study: {
+      agreementDetail:
+        "futures and options agreement is not compared or tested",
+      detail: "Options-side continuation rule (modelled fills): not tested yet",
+      rulesVersion: null,
+      status: "not_tested",
+      strategyId: "flow-control-continuation",
+      testedOn: null,
+    },
   };
 };
