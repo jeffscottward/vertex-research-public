@@ -179,5 +179,72 @@ class LastKnownTests(unittest.TestCase):
         )
 
 
+class GatewayCheckTests(unittest.TestCase):
+    """Card ibkr-drop-1845: the Sunday IBC auto-restart left the gateway logged out for hours and
+    nobody was told. The watchdog saw it; this alert reads the watchdog's ib_gateway check."""
+
+    def test_reads_the_watchdog_check(self):
+        bad = '{"ok": false, "required": true, "detail": "RuntimeError: ibapi handshake timeout"}'
+        self.assertEqual(
+            (False, "RuntimeError: ibapi handshake timeout"),
+            alert.gateway_check(FakeRun((0, "abc\n"), (0, bad))),
+        )
+        good = '{"ok": true, "required": true, "detail": "socket_open; ibapi_connected"}'
+        self.assertEqual(
+            (True, "socket_open; ibapi_connected"), alert.gateway_check(FakeRun((0, "abc"), (0, good)))
+        )
+
+    def test_not_required_is_ok(self):
+        ok, detail = alert.gateway_check(FakeRun((0, "a"), (0, '{"ok": false, "required": false}')))
+        self.assertTrue(ok)
+        self.assertIn("not required", detail)
+
+    def test_unreadable_watchdog_is_not_ok(self):
+        cases = [
+            FakeRun((1, "")),
+            FakeRun((0, "")),
+            FakeRun((0, "a b")),
+            FakeRun(OSError("no docker")),
+            FakeRun((0, "a"), (1, "")),
+            FakeRun((0, "a"), (0, "not json")),
+            FakeRun((0, "a"), (0, "null")),
+        ]
+        for run in cases:
+            self.assertEqual((False, "cannot verify: watchdog status not readable"), alert.gateway_check(run))
+
+    def test_one_alert_after_five_failures_then_one_recovery(self):
+        posts: list[str] = []
+
+        def accept(text: str) -> bool:
+            posts.append(text)
+            return True
+
+        state: dict = {"last_ok_at": "2026-11-15T23:44:00Z"}
+        for minute in range(8):
+            now = NOW + timedelta(minutes=minute)
+            state = alert.gateway_step(state, False, "ibapi handshake timeout", now, accept)
+        self.assertEqual(1, len(posts))
+        self.assertIn("not reachable since 2026-11-15T12:00:00Z", posts[0])
+        self.assertIn("5 failed checks", posts[0])
+        self.assertIn("Send IBKR 2FA request", posts[0])
+        state = alert.gateway_step(state, True, "ok", NOW + timedelta(minutes=9), accept)
+        self.assertEqual(2, len(posts))
+        self.assertIn("reachable again. Unreachable since 2026-11-15T12:00:00Z", posts[1])
+        self.assertFalse(state["alert_open"])
+
+    def test_failed_post_is_retried(self):
+        state = alert.gateway_step({"consecutive_failures": 4}, False, "x", NOW, lambda t: False)
+        self.assertFalse(state.get("alert_open"))
+        sent: list[str] = []
+
+        def post(text: str) -> bool:
+            sent.append(text)
+            return True
+
+        state = alert.gateway_step(state, False, "x", NOW, post)
+        self.assertTrue(state["alert_open"])
+        self.assertEqual(1, len(sent))
+
+
 if __name__ == "__main__":
     unittest.main()

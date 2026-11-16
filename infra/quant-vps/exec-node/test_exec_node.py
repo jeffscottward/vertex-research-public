@@ -250,9 +250,11 @@ class OwnedRuntimeTests(unittest.TestCase):
     # Owner rule 2026-11-11 (card vertex-no-unknown-status; card vertex-status-b1-quantvps): the health
     # alert names each state it cannot decide (no arm state, no Docker healthcheck) with its cause, the
     # last known arm state and the last healthy check, instead of "unknown". It also changed the root
-    # path like nautilus-arm.sh. Test: test_nautilus_health_alert.py.
+    # path like nautilus-arm.sh. Card ibkr-drop-1845 (2026-11-15): it also alerts once when the
+    # watchdog's IB Gateway API check fails 5 minutes in a row (the Sunday IBC auto-restart needs a
+    # 2FA login) and once on recovery; read-only. Test: test_nautilus_health_alert.py.
     status_text_fix = {
-        "scripts/nautilus_health_alert.py": "2efc85ccb2045e324be578cd71c9f04a7d405c1b2abc6b6d1ca3b7d22cf0c4e2",
+        "scripts/nautilus_health_alert.py": "692cbd9e6cc92e0e230ff2de90163fbbd7b99688ed500c44aeed559c2bc61bbc",
     }
     # The live tree paired the new snapshot script with an old reader (TypeError on
     # market_values_timeout_seconds), so the 2FA readiness check always failed. The owned reader is
