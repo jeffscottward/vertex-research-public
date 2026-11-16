@@ -87,6 +87,8 @@ const renamed = (): string[] =>
   names().filter((name) => name.startsWith(".runtime-prune-"));
 
 const sandboxEnv = (): Record<string, string> => ({
+  // A Saturday noon in New York: outside US trading hours.
+  VERTEX_PRUNE_NY_TIME: "6 1200",
   VERTEX_RESTART_LOCK: join(dir, "lock"),
   VERTEX_WEB_DIR: join(root(), "apps", "web"),
   VERTEX_WEB_SSH: "bash -c",
@@ -409,6 +411,16 @@ describe("--apply", { timeout: 30_000 }, () => {
     expect(backupStamps()).toEqual([...stamps(1, 2), stamp(5)]);
   });
 
+  it("does not count a backup without a PATHS list as one of the 2", () => {
+    sandbox(3);
+    rmSync(join(root(), `.runtime-bak-${stamp(2)}`, "PATHS"));
+    const result = run();
+    expect(result.lines).toContain(
+      `not managed: .runtime-bak-${stamp(2)} (empty: its tree went back live in a rollback)`
+    );
+    expect(result.lines).toContain(`keep ${stamp(0)} ${sha(0)}`);
+  });
+
   it("stops with exit 3 on an unfinished swap and changes nothing", () => {
     sandbox(5);
     for (const name of [
@@ -430,6 +442,29 @@ describe("--apply", { timeout: 30_000 }, () => {
     expect(run(["--apply"]).last).toContain(
       "PRUNED: 1 backup(s); more remain (2"
     );
+  });
+
+  it("renames and deletes nothing during US trading hours or with an unknown time", () => {
+    sandbox(5);
+    const before = names();
+    for (const now of ["1 0915", "5 1604", "3 1200", "x 1200", "2 9999", "2"]) {
+      const result = run(["--apply"], { VERTEX_PRUNE_NY_TIME: now });
+      expect(result.status).toBe(0);
+      expect(result.last).toMatch(
+        /^NOT PRUNED: US trading hours or unknown time /
+      );
+      expect(names()).toEqual(before);
+    }
+    expect(existsSync(join(dir, "lock"))).toBe(false);
+    expect(run([], { VERTEX_PRUNE_NY_TIME: "1 1000" }).last).toBe(
+      "PREVIEW: nothing deleted"
+    );
+    for (const now of ["1 0914", "5 1605", "7 1000"]) {
+      expect(run(["--apply"], { VERTEX_PRUNE_NY_TIME: now }).last).toContain(
+        "PRUNED: 1 backup(s)"
+      );
+    }
+    expect(backupStamps()).toEqual(stamps(3, 2));
   });
 
   it("skips with exit 8 while another process holds the restart lock", () => {
@@ -518,17 +553,17 @@ exec bash -c "$cmd"
     });
   };
 
-  it("plans again on the host, so a backup that a deploy adds before the rename counts", () => {
+  it("plans again on the host, so a rollback before the rename keeps the oldest backup", () => {
     sandbox(3);
-    const ts = stamp(3);
-    const b = join(root(), `.runtime-bak-${ts}`);
-    const add = `mkdir -p "${b}/node_modules" && printf 'node_modules\\n' >"${b}/PATHS" && : >"${b}/COMPLETE"`;
-    const result = runWithFailure("none", { BEFORE_RENAME: add });
+    // The first listing plans to delete the oldest of 3 backups. Before the rename, a rollback
+    // empties the newest one: the host plan then has 2 backups and renames nothing.
+    const newest = join(root(), `.runtime-bak-${stamp(2)}`);
+    const empty = `rm -rf "${newest}/node_modules" "${newest}/package.json" "${newest}/RUNTIME_SHA"`;
+    const result = runWithFailure("none", { BEFORE_RENAME: empty });
     expect(result.status).toBe(0);
-    expect(deletedIn(result.lines)).toContain(`${stamp(0)}`);
-    expect(backupStamps()).toEqual(stamps(1, 3));
-    expect(run(["--apply"]).last).toBe("PRUNED: 1 backup(s)");
-    expect(backupStamps()).toEqual(stamps(2, 2));
+    expect(result.last).toBe("PRUNED: 0 backup(s)");
+    expect(backupStamps()).toEqual(stamps(0, 3));
+    expect(renamed()).toEqual([]);
   });
 
   it("refuses the rename when a swap became unfinished after the first listing", () => {

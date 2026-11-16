@@ -42,13 +42,15 @@
 #   (no flag)  preview: print the plan; change nothing. `--dry-run` means the same.
 #   --apply    rename and delete up to LIMIT backups of the plan.
 # Exit codes (the same as prune-web-backups.sh): 0 preview printed, or the run did its work (the
-#   last line says when more backups remain); 2 usage; 3 precondition failed (no answer over ssh,
+#   last line says when more backups remain), or --apply skipped during US trading hours (weekdays
+#   09:15-16:05 New York time; nothing changed); 2 usage; 3 precondition failed (no answer over ssh,
 #   checkout or RUNTIME_SHA not found, incomplete listing, unfinished swap, plan check failed, a
 #   kept backup is not on disk), nothing changed; 8 the restart lock is held, nothing changed;
 #   11 the lock file could not be opened or flock failed, nothing changed; 13 partial or unknown:
 #   the rename, the delete or the check after it did not complete (run --apply again).
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR
-#   (apps/web of the checkout; the checkout root is two folders up), VERTEX_RESTART_LOCK.
+#   (apps/web of the checkout; the checkout root is two folders up), VERTEX_RESTART_LOCK,
+#   VERTEX_PRUNE_NY_TIME ("<weekday 1-7> <HHMM>" in New York, replaces the clock).
 #   `--plan <file>` is the pure rule used by the tests: it reads a listing and prints the plan.
 # Text formats:
 #   Listing (from QuantVPS): `@@DIR <folder>` (a user name in /home/<user>/ is printed as *),
@@ -195,7 +197,7 @@ NAMES="for d in .runtime-bak-* .runtime-failed-* .runtime-prune-*; do
   s=-; if [ -d \"\$d\" ]; then
     if [ -f \"\$d/COMPLETE\" ]; then if [ -f \"\$d/UNDONE\" ]; then s=X; else s=C; fi;
     elif [ -f \"\$d/UNDONE\" ]; then s=U; else s=I; fi; fi;
-  case \"\$d\" in .runtime-bak-*) if [ \"\$s\" = C ] && [ -s \"\$d/PATHS\" ]; then s=E;
+  case \"\$d\" in .runtime-bak-*) if [ \"\$s\" = C ]; then s=E; [ -s \"\$d/PATHS\" ] &&
     while IFS= read -r p; do if [ -e \"\$d/\$p\" ] || [ -L \"\$d/\$p\" ]; then s=C; break; fi; done <\"\$d/PATHS\"; fi ;; esac;
   case \"\$d\" in *[!A-Za-z0-9._-]*) echo \"B \$s\"; continue ;; esac;
   if [ -L \"\$d\" ]; then y=l; elif [ -d \"\$d\" ]; then y=d; else y=f; fi; echo \"N \$y \$s \$d\"; done"
@@ -236,11 +238,11 @@ while read -r kind t rest; do
   [ ! -e \".runtime-prune-\$t\" ] && [ ! -L \".runtime-prune-\$t\" ] || { rc=1; break; };
   sha=\$($SHA_OF); mv -T -- \"\$d\" \".runtime-prune-\$t\" || { rc=1; break; };
   n=\$((n + 1)); echo \"renamed \$t \${sha:-none}\";
-  echo \"\$(date -u +%Y-%m-%dT%H:%M:%SZ) delete \$t \${sha:-none}\" >>\"\$log\" 2>/dev/null;
+  { echo \"\$(date -u +%Y-%m-%dT%H:%M:%SZ) delete \$t \${sha:-none}\" >>\"\$log\"; } 2>/dev/null;
 done <<EOF
 \$plan
 EOF
-echo \"\$(date -u +%Y-%m-%dT%H:%M:%SZ) run renamed=\$n keep=$KEEP rc=\$rc\" >>\"\$log\" 2>/dev/null;
+{ echo \"\$(date -u +%Y-%m-%dT%H:%M:%SZ) run renamed=\$n keep=$KEEP rc=\$rc\" >>\"\$log\"; } 2>/dev/null;
 echo \"@@END \$rc\""
 
 # Runs after the lock is released. Deletes renamed folders, oldest first (the glob sorts by name).
@@ -288,7 +290,7 @@ print_plan() {
   local kind name rest live
   while read -r kind name rest; do
     case "$kind" in
-      blocked) echo "blocked $name (a renamed name with this timestamp exists; remove one of them by hand)" ;;
+      blocked) echo "blocked $name (a .runtime-prune-$name name exists; a renamed folder is deleted by the next run, any other kind of name needs a person)" ;;
       strange) echo "skip: $name name(s) with a blank or another unusual character (never touched)" ;;
       keep | delete)
         live=""
@@ -331,13 +333,26 @@ if [ "$APPLY" = 0 ]; then
   exit 0
 fi
 
+# US trading hours: no rename and no delete on the trading host during the regular session,
+# Monday to Friday 09:15 to 16:05 New York time (15 minutes before the open, as one delete call may
+# run up to 15 minutes, and 5 after the close; market holidays count as trading days). A time that cannot be read counts as trading hours. The next deploy prunes.
+read -r NY_DOW NY_HM _ <<<"${VERTEX_PRUNE_NY_TIME:-$(TZ=America/New_York date +'%u %H%M' 2>/dev/null)}"
+in_hours=1
+if [[ "${NY_DOW:-}" =~ ^[1-7]$ ]] && [[ "${NY_HM:-}" =~ ^[0-2][0-9][0-5][0-9]$ ]]; then
+  if [ "$NY_DOW" -gt 5 ] || [ $((10#$NY_HM)) -lt 915 ] || [ $((10#$NY_HM)) -ge 1605 ]; then in_hours=0; fi
+fi
+if [ "$in_hours" = 1 ]; then
+  echo "NOT PRUNED: US trading hours or unknown time (New York day ${NY_DOW:-?} time ${NY_HM:-?}); nothing deleted; a run outside 09:15-16:05 New York time on weekdays prunes"
+  exit 0
+fi
+
 # The last line of a run that completed: what was deleted and what still waits.
 finish_line() { # <deleted> <over> <blocked> <waiting>
   local line="PRUNED: $1 backup(s)"
   if [ $(( $2 - $3 )) -gt 0 ] || [ "$4" -gt 0 ]; then
     line="$line; more remain ($(( $2 - $3 )) over the keep count, $4 renamed folder(s) wait); the next run continues"
   fi
-  [ "$3" -gt 0 ] && line="$line; $3 blocked backup(s) need a person (see the blocked lines)"
+  [ "$3" -gt 0 ] && line="$line; $3 blocked backup(s) (see the blocked lines)"
   echo "$line"
 }
 

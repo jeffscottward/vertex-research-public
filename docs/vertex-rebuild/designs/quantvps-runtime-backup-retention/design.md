@@ -62,6 +62,7 @@ The oldest backup holds the packages of 2026-10-21. A read-only search of `node_
 5. **The prune never renames the backup that a running restart needs.** The keep rule protects it: the backup of the last swap is the newest. The restart lock is a second layer: `restart-when-idle.sh` holds `${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock` on the rig from before its swap until after its rollback, and the prune renames only while it holds the same lock (`flock -n`; held = exit 8). The lock orders runs from one rig and one user only; all deploy scripts run there.
 6. **Rename, then delete.** Under the lock, one remote command plans again on the host and renames each folder to delete to `.runtime-prune-<TS>`. The reason: a half-deleted `.runtime-bak-*` would lose `COMPLETE` first or last in any order, and the unfinished-swap check of the restart and stage scripts would then stop every deploy. A renamed folder is invisible to those checks. The delete runs after the lock is released.
 7. **One deletion per run.** A runtime tree holds about 88,600 entries (README, measured 2026-11-15), mostly hard links. Each removal is a metadata write on the disk of the trading host, which has online discard. One tree is about 10 times the 8,700 entries of the 3 build-backup pairs that one `prune-web-backups.sh` run may delete. The delete runs with `nice -n 19` and `ionice -c3` and prints the seconds it took. A routine deploy adds at most 1 backup, so 1 per run keeps up.
+8. **No delete during US trading hours.** `--apply` renames and deletes nothing from Monday to Friday, 09:15 to 16:05 New York time (market holidays count as trading days), or when the time cannot be read; it ends with exit 0 and a `NOT PRUNED: US trading hours ...` line. A deploy in that window leaves its backup to the next deploy outside it. The rule uses New York time, so it follows daylight saving time.
 
 ## Critical User Journeys (CUJs)
 
@@ -112,7 +113,7 @@ The script looks only at names that start with `.runtime-bak-`, `.runtime-failed
 | `.runtime-bak-*` or `.runtime-failed-*`, a directory (symlink followed), neither `COMPLETE` nor `UNDONE` | unfinished swap | the run stops (exit 3) |
 | a name with a character other than `A-Z a-z 0-9 . _ -` | not made by a script | `skip` (counted, never touched) |
 | `.runtime-bak-<TS>`, directory, `COMPLETE`, no `UNDONE`, at least one unit of `PATHS` | backup | `keep` the newest 2, `delete` older |
-| `.runtime-bak-<TS>`, directory, `COMPLETE`, no unit of `PATHS` left | emptied by a rollback | `not managed` |
+| `.runtime-bak-<TS>`, directory, `COMPLETE`, no unit of `PATHS` left (or no `PATHS`) | emptied by a rollback | `not managed` |
 | `.runtime-bak-<TS>`, directory, `UNDONE` only | refused swap, put back | `not managed` |
 | `.runtime-failed-*` | the failed tree of a rollback | `not managed` (with its `du` size) |
 | `.runtime-prune-<TS>`, directory | renamed by an earlier run | `leftover`: deleted first |
@@ -135,7 +136,7 @@ The text formats are in the header of the script. Exit codes and their action in
 
 | Code | Meaning | Action |
 | --- | --- | --- |
-| 0 | preview printed, or the run did its work | none; the last line says when more backups remain |
+| 0 | preview printed, the run did its work, or `--apply` skipped during US trading hours | none; the last line says when more backups remain |
 | 2 | usage error | fix the command |
 | 3 | precondition failed (no SSH answer, checkout or live `RUNTIME_SHA` not found, incomplete listing, unfinished swap, plan check failed, a kept backup missing); nothing changed | read the message; an unfinished swap needs the README repair |
 | 8 | the restart lock is held; nothing changed | none in a deploy; the next deploy prunes |
@@ -152,7 +153,7 @@ Escalation, as for the build backups: when the runtime prune ends with exit 3, 1
 | --- | --- |
 | A deleted backup is lost. | Only backups older than the newest 2 that hold a tree are deleted (owner rule A). A backup with a `RUNTIME_SHA` can be rebuilt by staging that commit with `stage-runtime.sh`; only the tree of 2026-10-21 cannot, and its removal is a goal. |
 | A delete during a restart. | The keep rule keeps the backup of the last swap; the rename runs only under the restart lock; the delete touches only renamed folders, which no other script reads. |
-| Load of a delete on the trading host. | 1 backup per run, `nice` and `ionice -c3`, the time of each delete printed; the first deletion runs outside US trading hours with stop rules. |
+| Load of a delete on the trading host. | 1 backup per run, `nice` and `ionice -c3`, the time of each delete printed, and no delete during US trading hours (Decision 8); the first deletion has stop rules. |
 | A cut connection or a failed `rm`. | The renamed folder stays and the next run deletes it (exit 13 says to run again). |
 | Unmanaged folders grow (`.runtime-failed-*`, emptied backups). | Each is listed; a failed tree is listed with its size. A rule for them needs an owner decision. |
 | Disk accounting. | `du` of a backup counts its hard-linked files, which the delete does not free. The summary reports `df` used space before and after, which measures the freed space. |
@@ -181,7 +182,7 @@ One PR. Deploy step 8 goes live with the merge. The first deploy after the merge
 
 ### Target Files to Create/Modify
 
-1. `infra/quantvps/prune-runtime-backups.sh` (create): implements "Run sequence". `KEEP=2`, `LIMIT=1`. `--plan <file>` reads a listing file and prints the plan without remote calls (for tests). Test hooks: `VERTEX_WEB_SSH` (the remote runner), `VERTEX_WEB_DIR` (`apps/web` of the checkout, as in `prune-web-backups.sh`; the checkout root is two folders up), `VERTEX_RESTART_LOCK`, `XDG_STATE_HOME` (the log).
+1. `infra/quantvps/prune-runtime-backups.sh` (create): implements "Run sequence". `KEEP=2`, `LIMIT=1`. `--plan <file>` reads a listing file and prints the plan without remote calls (for tests). Test hooks: `VERTEX_PRUNE_NY_TIME` (replaces the New York clock), `VERTEX_WEB_SSH` (the remote runner), `VERTEX_WEB_DIR` (`apps/web` of the checkout, as in `prune-web-backups.sh`; the checkout root is two folders up), `VERTEX_RESTART_LOCK`, `XDG_STATE_HOME` (the log).
 2. `infra/quantvps/prune-runtime-backups.test.ts` (create): vitest tests with the remote runner `bash -c` against a temporary checkout (real renames and deletes). Cases:
    - the rule: keep the newest 2, order by the timestamp in the name, 1 per apply run, renamed folders that wait, `blocked`, `not managed` (UNDONE, emptied, failed), `skip`, an unfinished swap stops the plan;
    - preview changes nothing; `--apply` deletes and logs; a backlog over several runs;
