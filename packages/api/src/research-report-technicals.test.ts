@@ -409,6 +409,19 @@ describe("fibonacciLevels", () => {
     expect(fibonacciLevels(falling, 1)?.nearestBelow).toBeNull();
   });
 
+  it("skips bars without a high or a low", () => {
+    const bars = [
+      { ...(BARS.at(-252) as DossierBar), high: Number.NaN, low: Number.NaN },
+      ...BARS.slice(-251),
+    ];
+    const levels = fibonacciLevels(bars, LAST_CLOSE);
+    expect(levels?.window).toBe(251);
+    expect(levels?.swingHigh).toEqual({
+      date: "2025-11-24",
+      price: 134.916_163,
+    });
+  });
+
   it("is null for fewer than 20 bars, no close or no range", () => {
     expect(fibonacciLevels(BARS.slice(0, 19), 100)).toBeNull();
     expect(fibonacciLevels(BARS, Number.NaN)).toBeNull();
@@ -530,6 +543,14 @@ describe("weinsteinStage", () => {
     expect(
       weinsteinStage(weeksOf(Array.from({ length: 40 }, () => 1e307)))
     ).toBeNull();
+  });
+
+  it("is unavailable when the slope overflows", () => {
+    const closes = [
+      ...Array.from({ length: 30 }, () => 1e-300),
+      ...Array.from({ length: 10 }, () => 1e10),
+    ];
+    expect(weinsteinStage(weeksOf(closes))).toBeNull();
   });
 
   it("is unresolved while the average was always flat", () => {
@@ -731,7 +752,7 @@ describe("buildResearchReportTechnicals", () => {
     });
     expect(result.weinstein).toBeNull();
     expect(result.warnings).toContain(
-      "Weinstein stage unavailable: the 30-week SMA is at or below zero inside the classified window."
+      "Weinstein stage unavailable: the 30-week SMA or its slope is not a finite positive value inside the classified window."
     );
   });
 

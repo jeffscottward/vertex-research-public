@@ -354,7 +354,10 @@ export const fibonacciLevels = (
   close: number,
   window = FIBONACCI_WINDOW
 ): ResearchReportFibonacci | null => {
-  const slice = bars.slice(-window);
+  // Bars without a high and a low (kept for the close) cannot set the swing.
+  const slice = bars
+    .slice(-window)
+    .filter((bar) => finite(bar.high) && finite(bar.low));
   const first = slice[0];
   if (first === undefined || slice.length < 20 || !finite(close)) return null;
   let high = first;
@@ -455,10 +458,19 @@ export const weinsteinStage = (
   ) {
     const average = averages[index] as number;
     const earlier = averages[index - slopeWeeks] as number;
-    // Continuous futures can trade at or below zero; a percentage slope is then undefined.
-    if (!(finite(earlier) && finite(average) && earlier > 0 && average > 0))
-      return null;
     slopePct = 100 * (average / earlier - 1);
+    // Continuous futures can trade at or below zero, and extreme values can overflow; a
+    // percentage slope is then undefined.
+    if (
+      !(
+        finite(average) &&
+        finite(earlier) &&
+        earlier > 0 &&
+        average > 0 &&
+        finite(slopePct)
+      )
+    )
+      return null;
     const close = (weeks[index] as WeeklyClose).close;
     if (close > average && slopePct > flatBandPct) decided = 2;
     else if (close < average && slopePct < -flatBandPct) decided = 4;
@@ -690,7 +702,7 @@ export const buildResearchReportTechnicals = ({
     warnings.push(
       weeks.length < WEINSTEIN_RULE.minimumWeeks
         ? `Weinstein stage needs ${WEINSTEIN_RULE.minimumWeeks} complete weeks; this revision has ${weeks.length}.`
-        : "Weinstein stage unavailable: the 30-week SMA is at or below zero inside the classified window."
+        : "Weinstein stage unavailable: the 30-week SMA or its slope is not a finite positive value inside the classified window."
     );
   if (fibonacci === null)
     warnings.push("Fibonacci levels need at least 20 bars with a price range.");
