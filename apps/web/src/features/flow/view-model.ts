@@ -4,7 +4,7 @@
 // recent flow, never an instruction to trade.
 // Used by: apps/web/src/components/portal/flow-workspace.tsx.
 // See: packages/api/src/contracts/flow.ts; docs/vertex-rebuild/flow-pipeline.md.
-import type { FlowSnapshot } from "@darkfactory/api";
+import { FLOW_INSTRUMENTS, type FlowSnapshot } from "@darkfactory/api";
 
 import {
   formatAge,
@@ -171,7 +171,7 @@ export const orderFlowMetrics = (
   { label: "VWAP", value: formatPrice(orderFlow.vwap) },
   { label: "Last price", value: formatPrice(orderFlow.lastPrice) },
   { label: "Large prints", value: String(orderFlow.largePrints) },
-  ...(symbol === "SPY"
+  ...(FLOW_INSTRUMENTS[symbol].offExchange
     ? [
         {
           label: "Off-exchange share",

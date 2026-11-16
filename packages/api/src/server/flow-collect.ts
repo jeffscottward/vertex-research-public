@@ -84,11 +84,6 @@ export const FLOW_RETENTION_DAYS = 14;
 /** The caller prunes at most once per this interval (deps.pruneDue). */
 export const FLOW_PRUNE_INTERVAL_MS = 3_600_000;
 
-const DEFAULT_MIN_TICK: Readonly<Record<FlowSymbol, number>> = {
-  ES: 0.25,
-  SPY: 0.01,
-};
-
 export type FlowCollectDeps = Readonly<{
   now: Date;
   repository: FlowRepository;
@@ -117,13 +112,13 @@ type Attempt = Readonly<{
 interface RunState {
   readonly deps: FlowCollectDeps;
   readonly dryRun: boolean;
-  /** Operator backfill: no session or due checks, longer options look-back. */
-  readonly seed: boolean;
   /** Newest attempt per symbol and source (stored samples). */
   readonly last: Map<string, Date>;
   pacing: MarketHistoryPacing | null | undefined;
   /** Symbol price from this run's depth or ticks (for the ES − SPX basis). */
   readonly prices: Map<FlowSymbol, number>;
+  /** Operator backfill: no session or due checks, longer options look-back. */
+  readonly seed: boolean;
 }
 
 const sampleKey = (symbol: FlowSymbol, source: FlowSource) =>
@@ -228,7 +223,7 @@ const collectTicks = async (
       status: "unavailable",
     };
   const signed = signTrades(output.trades, output.quotes);
-  const minTick = output.minTick ?? DEFAULT_MIN_TICK[instrument.symbol];
+  const minTick = output.minTick ?? instrument.minTick;
   const features = buildMinuteFeatures(instrument, signed, minTick);
   const last = features.minutes.at(-1);
   if (last) state.prices.set(instrument.symbol, last.close);
@@ -710,7 +705,7 @@ const gexBasis = (
   instrument: FlowInstrument,
   spot: number | null
 ) => {
-  if (instrument.symbol === "SPY") return 0;
+  if (instrument.kind === "etf") return 0;
   const price = state.prices.get(instrument.symbol);
   return price === undefined || spot === null ? null : price - spot;
 };

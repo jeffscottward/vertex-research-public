@@ -9,6 +9,7 @@ import {
   type FlowConfluence,
   type FlowFactor,
   type FlowFreshness,
+  type FlowOptionTicker,
   type FlowSampleStatus,
   type FlowSnapshot,
   type FlowSource,
@@ -41,7 +42,8 @@ export const flowSessionOpen = (
       minutes >= 9 * 60 + 30 &&
       minutes < 16 * 60 + 15
     );
-  if (symbol === "SPY") return marketSession(now) !== "closed";
+  if (FLOW_INSTRUMENTS[symbol].session === "stock")
+    return marketSession(now) !== "closed";
   // CME Globex equity futures: Sunday 18:00 to Friday 17:00, daily break 17:00-18:00.
   if (day === "Sat") return false;
   if (day === "Sun") return minutes >= 18 * 60;
@@ -69,7 +71,7 @@ export type FlowSampleRow = Readonly<{
 export type FlowGexRow = Readonly<{
   symbol: FlowSymbol;
   at: Date;
-  ticker: "SPY" | "SPX";
+  ticker: FlowOptionTicker;
   spot: number | null;
   basis: number | null;
   regime: GexContext["regime"];
@@ -250,11 +252,11 @@ const byTime =
     pick(a).getTime() - pick(b).getTime();
 
 interface OptionMinute {
-  trades: number;
+  bearishPremium: number;
+  bullishPremium: number;
   callPremium: number;
   putPremium: number;
-  bullishPremium: number;
-  bearishPremium: number;
+  trades: number;
 }
 
 const optionMinutes = (
@@ -461,7 +463,9 @@ const buildOrderFlow = (
     deltaRatio: ratio(delta, volume),
     largePrints: sumOf(minutes, (row) => row.largePrints),
     lastPrice: minutes.at(-1)?.close ?? null,
-    offExchangeShare: rows.symbol === "SPY" ? ratio(offExchange, volume) : null,
+    offExchangeShare: FLOW_INSTRUMENTS[rows.symbol].offExchange
+      ? ratio(offExchange, volume)
+      : null,
     volume,
     vwap: ratio(
       sumOf(minutes, (row) => row.vwap * row.volume),
@@ -508,9 +512,7 @@ const recentInputs = (
 const flowNotes = (symbol: FlowSymbol): string[] => [
   "Ticks are sampled (up to 1000 prints per symbol about every 4 minutes); coveredSeconds says how much of each minute was seen.",
   "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData.",
-  symbol === "ES"
-    ? "ES options context uses SPX options; SPX levels are shifted by the ES − SPX basis."
-    : "SPY book is IEX depth plus top of book from other venues (no paid venue books).",
+  FLOW_INSTRUMENTS[symbol].note,
   "GEX is an estimate (dealers assumed long calls, short puts). Research only; not a trade signal.",
 ];
 
