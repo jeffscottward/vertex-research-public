@@ -30,7 +30,7 @@ import {
   OptimizationListInputSchema,
   OptimizationRecordInputSchema,
 } from "../contracts/optimizations.ts";
-import { FlowSnapshotInputSchema } from "../contracts/flow.ts";
+import { FlowSnapshotToolInputSchema } from "../contracts/flow.ts";
 import {
   OpenbbCotInputSchema,
   OpenbbEventsInputSchema,
@@ -524,7 +524,10 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     description:
       "Read-only flow pipeline view for SPY or ES (minutes 15-390, default 120): per-minute sampled order flow (delta, CVD, VWAP, covered seconds), book pressure, QuantData options flow (call/put, bullish/bearish, ask/bid-side, sweep/block, OTM, 0DTE, opening, vol > OI premium and the largest prints), the newest GEX snapshot (ES uses SPX levels shifted by the ES - SPX basis), derived events (large and off-exchange prints, absorption, stacked imbalances, option sweeps/blocks), a confluence reading (agree/disagree) and per-source freshness. Ticks are sampled, not streamed. Research only; not a trade signal.",
     procedure: "flow/snapshot",
-    input: FlowSnapshotInputSchema,
+    // Pinned to the recorded semantic-layer eval (SPY and ES). Pull request 2 restores
+    // FlowSnapshotInputSchema, updates the description to four symbols, adds flow_control and
+    // records the eval again once.
+    input: FlowSnapshotToolInputSchema,
     readOnly: true,
   },
   {

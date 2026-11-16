@@ -1,0 +1,1053 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1600"
+  height="1100"
+  viewBox="0 0 1600 1100"
+>
+  <title>
+    Mock of the /flow page before and after: the new panel shows the options
+    state and the sampled deep trades for the Nasdaq 100, and says that the two
+    sides cannot be compared yet.
+  </title>
+  <rect width="1600" height="1100" fill="#0f1115" />
+  <defs>
+    <marker
+      id="head-8b9099"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#8b9099" />
+    </marker>
+    <marker
+      id="head-d4a72c"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#d4a72c" />
+    </marker>
+    <marker
+      id="head-3fb950"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#3fb950" />
+    </marker>
+    <marker
+      id="head-f85149"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#f85149" />
+    </marker>
+    <marker
+      id="head-58a6ff"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0L10 5L0 10z" fill="#58a6ff" />
+    </marker>
+    <pattern
+      id="hatch"
+      width="12"
+      height="12"
+      patternUnits="userSpaceOnUse"
+      patternTransform="rotate(45)"
+    >
+      <rect width="12" height="12" fill="#1d3a25" />
+      <rect width="5" height="12" fill="#3fb950" />
+    </pattern>
+  </defs>
+  <text
+    x="400"
+    y="64"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="36"
+    fill="#8b9099"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    Before
+  </text>
+  <text
+    x="400"
+    y="100"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="middle"
+    font-weight="normal"
+  >
+    the /flow page today
+  </text>
+  <text
+    x="1200"
+    y="64"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="36"
+    fill="#d4a72c"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    After
+  </text>
+  <rect x="1132" y="82" width="20" height="20" rx="4" fill="#d4a72c" />
+  <text
+    x="1162"
+    y="100"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    = new
+  </text>
+  <rect
+    x="1436"
+    y="18"
+    width="144"
+    height="56"
+    rx="8"
+    fill="none"
+    stroke="#d4a72c"
+    stroke-width="4"
+  />
+  <text
+    x="1508"
+    y="59"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="32"
+    fill="#d4a72c"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    MOCK
+  </text>
+  <text
+    x="1580"
+    y="104"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="end"
+    font-weight="normal"
+  >
+    example values
+  </text>
+  <path
+    d="M744 584h70v-26l52 42l-52 42v-26h-70z"
+    fill="#d4a72c"
+    stroke="#d4a72c"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <rect
+    x="80"
+    y="118"
+    width="640"
+    height="964"
+    rx="46"
+    fill="#12141a"
+    stroke="#8b9099"
+    stroke-width="4"
+  />
+  <rect x="356.0" y="130" width="88" height="8" rx="4" fill="#30363d" />
+  <rect
+    x="104"
+    y="148"
+    width="592"
+    height="44"
+    rx="22"
+    fill="#0f1115"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="128"
+    y="178"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    /flow
+  </text>
+  <rect
+    x="104"
+    y="208"
+    width="130"
+    height="50"
+    rx="25"
+    fill="#58a6ff"
+    stroke="#58a6ff"
+    stroke-width="3"
+  />
+  <text
+    x="169.0"
+    y="241"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    SPY
+  </text>
+  <rect
+    x="258"
+    y="208"
+    width="130"
+    height="50"
+    rx="25"
+    fill="none"
+    stroke="#30363d"
+    stroke-width="3"
+  />
+  <text
+    x="323.0"
+    y="241"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#e8e6e3"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    ES
+  </text>
+  <rect
+    x="104"
+    y="276"
+    width="592"
+    height="60"
+    rx="10"
+    fill="#161a22"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <circle
+    cx="138"
+    cy="306"
+    r="15"
+    fill="none"
+    stroke="#8b9099"
+    stroke-width="3"
+  />
+  <path
+    d="M138 296.7V306L145.5 310.5"
+    fill="none"
+    stroke="#8b9099"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <text
+    x="166"
+    y="314"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    Freshness
+  </text>
+  <circle cx="666" cy="306" r="9" fill="#3fb950" />
+  <circle cx="636" cy="306" r="9" fill="#d4a72c" />
+  <circle cx="606" cy="306" r="9" fill="#3fb950" />
+  <circle cx="576" cy="306" r="9" fill="#3fb950" />
+  <circle cx="546" cy="306" r="9" fill="#3fb950" />
+  <rect
+    x="104"
+    y="352"
+    width="592"
+    height="76"
+    rx="10"
+    fill="#161a22"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <path
+    d="M124 397L134 381L144 397z"
+    fill="#3fb950"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M152 397L162 381L172 397z"
+    fill="#3fb950"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M180 397L190 381L200 397z"
+    fill="#3fb950"
+    stroke="#3fb950"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <text
+    x="214"
+    y="398"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="24"
+    fill="#e8e6e3"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    Confluence: Flows agree
+  </text>
+  <rect
+    x="104"
+    y="444"
+    width="592"
+    height="180"
+    rx="10"
+    fill="#161a22"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <path
+    d="M124 464V604H676"
+    fill="none"
+    stroke="#30363d"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <polyline
+    points="134,560 194,540 254,548 314,520 374,528 434,500 494,512 554,488 614,494 664,476"
+    fill="none"
+    stroke="#58a6ff"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <rect
+    x="104"
+    y="640"
+    width="592"
+    height="180"
+    rx="10"
+    fill="#161a22"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <line
+    x1="124"
+    y1="734"
+    x2="676"
+    y2="734"
+    stroke="#30363d"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <rect x="138" y="692.0" width="28" height="42.0" rx="3" fill="#3fb950" />
+  <rect
+    x="182"
+    y="666.8"
+    width="28"
+    height="67.19999999999999"
+    rx="3"
+    fill="#3fb950"
+  />
+  <rect
+    x="226"
+    y="734.0"
+    width="28"
+    height="30.799999999999997"
+    rx="3"
+    fill="#f85149"
+  />
+  <rect x="270" y="683.6" width="28" height="50.4" rx="3" fill="#3fb950" />
+  <rect x="314" y="658.4" width="28" height="75.6" rx="3" fill="#3fb950" />
+  <rect x="358" y="734.0" width="28" height="42.0" rx="3" fill="#f85149" />
+  <rect
+    x="402"
+    y="734.0"
+    width="28"
+    height="19.599999999999998"
+    rx="3"
+    fill="#f85149"
+  />
+  <rect x="446" y="678.0" width="28" height="56.0" rx="3" fill="#3fb950" />
+  <rect x="490" y="697.6" width="28" height="36.4" rx="3" fill="#3fb950" />
+  <rect x="534" y="734.0" width="28" height="50.4" rx="3" fill="#f85149" />
+  <rect
+    x="578"
+    y="672.4"
+    width="28"
+    height="61.599999999999994"
+    rx="3"
+    fill="#3fb950"
+  />
+  <rect x="622" y="706.0" width="28" height="28.0" rx="3" fill="#3fb950" />
+  <rect
+    x="104"
+    y="836"
+    width="592"
+    height="200"
+    rx="10"
+    fill="#161a22"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <circle cx="138" cy="868" r="8" fill="#3fb950" />
+  <rect x="160" y="861" width="250" height="14" rx="7" fill="#30363d" />
+  <rect x="484" y="861" width="150" height="14" rx="7" fill="#30363d" />
+  <circle cx="138" cy="913" r="8" fill="#f85149" />
+  <rect x="160" y="906" width="200" height="14" rx="7" fill="#30363d" />
+  <rect x="484" y="906" width="180" height="14" rx="7" fill="#30363d" />
+  <circle cx="138" cy="958" r="8" fill="#3fb950" />
+  <rect x="160" y="951" width="270" height="14" rx="7" fill="#30363d" />
+  <rect x="484" y="951" width="120" height="14" rx="7" fill="#30363d" />
+  <circle cx="138" cy="1003" r="8" fill="#8b9099" />
+  <rect x="160" y="996" width="220" height="14" rx="7" fill="#30363d" />
+  <rect x="484" y="996" width="160" height="14" rx="7" fill="#30363d" />
+  <rect
+    x="880"
+    y="118"
+    width="640"
+    height="964"
+    rx="46"
+    fill="#12141a"
+    stroke="#8b9099"
+    stroke-width="4"
+  />
+  <rect x="1156.0" y="130" width="88" height="8" rx="4" fill="#30363d" />
+  <rect
+    x="904"
+    y="148"
+    width="592"
+    height="44"
+    rx="22"
+    fill="#0f1115"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="928"
+    y="178"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    /flow
+  </text>
+  <rect
+    x="904"
+    y="208"
+    width="130"
+    height="50"
+    rx="25"
+    fill="none"
+    stroke="#30363d"
+    stroke-width="3"
+  />
+  <text
+    x="969.0"
+    y="241"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#e8e6e3"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    SPY
+  </text>
+  <rect
+    x="1058"
+    y="208"
+    width="130"
+    height="50"
+    rx="25"
+    fill="none"
+    stroke="#d4a72c"
+    stroke-width="3"
+  />
+  <text
+    x="1123.0"
+    y="241"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#d4a72c"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    QQQ
+  </text>
+  <rect
+    x="1212"
+    y="208"
+    width="130"
+    height="50"
+    rx="25"
+    fill="none"
+    stroke="#30363d"
+    stroke-width="3"
+  />
+  <text
+    x="1277.0"
+    y="241"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#e8e6e3"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    ES
+  </text>
+  <rect
+    x="1366"
+    y="208"
+    width="130"
+    height="50"
+    rx="25"
+    fill="#d4a72c"
+    stroke="#d4a72c"
+    stroke-width="3"
+  />
+  <text
+    x="1431.0"
+    y="241"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#0f1115"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    NQ
+  </text>
+  <rect
+    x="904"
+    y="272"
+    width="592"
+    height="396"
+    rx="14"
+    fill="#1c1a12"
+    stroke="#d4a72c"
+    stroke-width="3"
+  />
+  <text
+    x="926"
+    y="312"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="26"
+    fill="#e8e6e3"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    Who is in control: Nasdaq 100
+  </text>
+  <rect
+    x="916"
+    y="328"
+    width="568"
+    height="114"
+    rx="10"
+    fill="#0f1115"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <circle
+    cx="946"
+    cy="385"
+    r="18"
+    fill="#161a22"
+    stroke="#3fb950"
+    stroke-width="3"
+  />
+  <text
+    x="946"
+    y="393"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#3fb950"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    C
+  </text>
+  <circle
+    cx="986"
+    cy="385"
+    r="18"
+    fill="#161a22"
+    stroke="#f85149"
+    stroke-width="3"
+  />
+  <text
+    x="986"
+    y="393"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#f85149"
+    text-anchor="middle"
+    font-weight="bold"
+  >
+    P
+  </text>
+  <text
+    x="1020"
+    y="362"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    QQQ options:
+  </text>
+  <text
+    x="1020"
+    y="394"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#f85149"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    bearish, put buying leads,
+  </text>
+  <text
+    x="1020"
+    y="426"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#f85149"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    since 10:31 ET
+  </text>
+  <rect
+    x="916"
+    y="450"
+    width="568"
+    height="206"
+    rx="10"
+    fill="#0f1115"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <rect
+    x="930"
+    y="488"
+    width="72"
+    height="44"
+    rx="5"
+    fill="#0f1115"
+    stroke="#8b9099"
+    stroke-width="2"
+  />
+  <line
+    x1="938"
+    y1="525"
+    x2="938"
+    y2="511"
+    stroke="#3fb950"
+    stroke-width="3"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="945"
+    y1="525"
+    x2="945"
+    y2="501"
+    stroke="#f85149"
+    stroke-width="3"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="952"
+    y1="525"
+    x2="952"
+    y2="515"
+    stroke="#f85149"
+    stroke-width="3"
+    stroke-linecap="butt"
+  />
+  <circle cx="959" cy="523" r="1.8" fill="#8b9099" />
+  <circle cx="966" cy="523" r="1.8" fill="#8b9099" />
+  <circle cx="973" cy="523" r="1.8" fill="#8b9099" />
+  <line
+    x1="980"
+    y1="525"
+    x2="980"
+    y2="505"
+    stroke="#f85149"
+    stroke-width="3"
+    stroke-linecap="butt"
+  />
+  <line
+    x1="987"
+    y1="525"
+    x2="987"
+    y2="513"
+    stroke="#3fb950"
+    stroke-width="3"
+    stroke-linecap="butt"
+  />
+  <circle cx="994" cy="523" r="1.8" fill="#8b9099" />
+  <text
+    x="1020"
+    y="484"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    Futures: deep trades only
+  </text>
+  <text
+    x="1020"
+    y="516"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#e8e6e3"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    NQ: 7 seen, net 120 sold
+  </text>
+  <text
+    x="1020"
+    y="548"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    Sampled tape, no state
+  </text>
+  <line
+    x1="1020"
+    y1="568"
+    x2="1468"
+    y2="568"
+    stroke="#30363d"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-dasharray="6 6"
+  />
+  <g transform="rotate(-35 966 610)">
+    <rect
+      x="922"
+      y="598"
+      width="34"
+      height="24"
+      rx="12"
+      fill="none"
+      stroke="#8b9099"
+      stroke-width="5"
+    />
+    <rect
+      x="976"
+      y="598"
+      width="34"
+      height="24"
+      rx="12"
+      fill="none"
+      stroke="#8b9099"
+      stroke-width="5"
+    />
+    <line
+      x1="961"
+      y1="627"
+      x2="971"
+      y2="593"
+      stroke="#8b9099"
+      stroke-width="3"
+      stroke-linecap="round"
+    />
+  </g>
+  <text
+    x="1020"
+    y="600"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="bold"
+  >
+    Agreement with options:
+  </text>
+  <text
+    x="1020"
+    y="632"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    not compared, not tested
+  </text>
+  <path
+    d="M924 682H940L924 706H940z"
+    fill="none"
+    stroke="#d4a72c"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <line
+    x1="921"
+    y1="682"
+    x2="943"
+    y2="682"
+    stroke="#d4a72c"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+  <line
+    x1="921"
+    y1="706"
+    x2="943"
+    y2="706"
+    stroke="#d4a72c"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+  <text
+    x="956"
+    y="702"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    Options-side rule: not tested yet
+  </text>
+  <rect
+    x="904"
+    y="718"
+    width="592"
+    height="148"
+    rx="10"
+    fill="#161a22"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="920"
+    y="750"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    Net drift
+  </text>
+  <line
+    x1="920"
+    y1="808.5"
+    x2="1380"
+    y2="808.5"
+    stroke="#30363d"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-dasharray="6 6"
+  />
+  <polyline
+    points="924,771.7 984,777.2 1044,788.2 1104,786.4 1164,804.8 1224,821.4 1284,826.9 1334,841.6 1374,849.0"
+    fill="none"
+    stroke="#3fb950"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <polyline
+    points="924,845.3 984,839.8 1044,843.4 1104,825.0 1164,812.2 1224,797.4 1284,786.4 1334,777.2 1374,768.0"
+    fill="none"
+    stroke="#f85149"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <text
+    x="1390"
+    y="778"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#f85149"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    puts
+  </text>
+  <text
+    x="1390"
+    y="854"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    calls
+  </text>
+  <rect
+    x="904"
+    y="880"
+    width="592"
+    height="172"
+    rx="10"
+    fill="#161a22"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <text
+    x="920"
+    y="912"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    Deep trades
+  </text>
+  <circle cx="1276" cy="904" r="8" fill="#f85149" />
+  <text
+    x="1292"
+    y="912"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#f85149"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    sell
+  </text>
+  <circle cx="1384" cy="904" r="8" fill="#3fb950" />
+  <text
+    x="1400"
+    y="912"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    buy
+  </text>
+  <polyline
+    points="924,936.0 994,941.1 1054,934.3 1124,951.3 1194,961.5 1254,956.4 1324,975.1 1394,981.9 1476,993.8"
+    fill="none"
+    stroke="#8b9099"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle
+    cx="994"
+    cy="941.1"
+    r="9"
+    fill="#f85149"
+    stroke="#0f1115"
+    stroke-width="2"
+  />
+  <circle
+    cx="1054"
+    cy="934.3"
+    r="8"
+    fill="#3fb950"
+    stroke="#0f1115"
+    stroke-width="2"
+  />
+  <circle
+    cx="1124"
+    cy="951.3"
+    r="11"
+    fill="#f85149"
+    stroke="#0f1115"
+    stroke-width="2"
+  />
+  <circle
+    cx="1194"
+    cy="961.5"
+    r="8"
+    fill="#f85149"
+    stroke="#0f1115"
+    stroke-width="2"
+  />
+  <circle
+    cx="1254"
+    cy="956.4"
+    r="8"
+    fill="#3fb950"
+    stroke="#0f1115"
+    stroke-width="2"
+  />
+  <circle
+    cx="1324"
+    cy="975.1"
+    r="12"
+    fill="#f85149"
+    stroke="#0f1115"
+    stroke-width="2"
+  />
+  <circle
+    cx="1394"
+    cy="981.9"
+    r="9"
+    fill="#f85149"
+    stroke="#0f1115"
+    stroke-width="2"
+  />
+  <text
+    x="920"
+    y="1036"
+    font-family="DejaVu Sans, sans-serif"
+    font-size="22"
+    fill="#8b9099"
+    text-anchor="start"
+    font-weight="normal"
+  >
+    Seen: 31% of the last 30 min
+  </text>
+  <rect
+    x="1304"
+    y="1019"
+    width="176"
+    height="16"
+    rx="8"
+    fill="#0f1115"
+    stroke="#30363d"
+    stroke-width="2"
+  />
+  <rect x="1304" y="1019" width="55" height="16" rx="8" fill="#58a6ff" />
+</svg>

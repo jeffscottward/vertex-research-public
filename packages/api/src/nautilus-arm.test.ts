@@ -340,12 +340,9 @@ describe("nautilusArm access", () => {
     expect(nodeBadge(running, null)).toBe("unknown");
     expect(nodeBadge({ health: null, state: "exited" }, null)).toBe("down");
     expect(nodeBadge({ health: null, state: "missing" }, null)).toBe("down");
-    expect(nodeBadge({ health: null, state: "docker-unreadable" }, null)).toBe(
-      "unknown"
-    );
-    return expect(nodeBadge({ health: null, state: "unknown" }, null)).toBe(
-      "unknown"
-    );
+    return expect(
+      nodeBadge({ health: null, state: "docker-unreadable" }, null)
+    ).toBe("unknown");
   });
 });
 
@@ -396,6 +393,7 @@ describe("nautilusArm.status", () => {
     expect(status.container).toEqual(container);
     expect(status.armError).toBe("docker-error");
     expect(status.badge).toBe("unknown");
+    // Only a VPS service before 1.2.0 sent the container state "unknown".
     routes.status = () =>
       json(
         upstreamStatus({
@@ -404,8 +402,11 @@ describe("nautilusArm.status", () => {
           container: { health: null, state: "unknown" },
         })
       );
-    const old = await clientFor().nautilusArm.status({});
-    return expect(old.badge).toBe("unknown");
+    return expectCode(
+      clientFor().nautilusArm.status({}),
+      "UPSTREAM_ERROR",
+      502
+    );
   });
 
   it("reports configuration, transport and schema failures", async () => {

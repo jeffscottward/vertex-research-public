@@ -1050,14 +1050,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Not displayed: Discriminator value; text comes from sendOutcomeText.",
   },
   {
-    file: "components/portal/ibkr-recovery-control.tsx",
-    text: "IBKR login state unavailable (${}: ${}).",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Lead with the definite state: "IBKR login state not read (<code>: <message>) since HH:MM · last known: <state>"; needs last-known state kept in the model.',
-    open: true,
-  },
-  {
     file: "components/portal/instant-backtest-workspace.tsx",
     text: "n/a",
     count: 2,
@@ -2461,14 +2453,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Audit 2026-11-13: ambiguous. Replace: NOT_COLLECTED already covers the never-collected state. For null fields use 'Not reported by source' instead of a bare dash.",
-    open: true,
-  },
-  {
-    file: "features/order-flow/order-flow-client.ts",
-    text: "The IBKR history service (QuantVPS IB Gateway) is unavailable right now, so ${} could not be fetched. Nothing shown here is estimated.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Names the service but not since-when or the next step. Use 'IBKR history service not responding since HH:MM · last data HH:MM · retry in a minute'. The API must return the since/last-ok time.",
     open: true,
   },
   {
