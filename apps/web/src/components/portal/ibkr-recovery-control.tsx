@@ -10,7 +10,11 @@ import {
   createBrowserIbkrRecoveryGateway,
   type IbkrRecoveryGateway,
 } from "./ibkr-recovery-client.ts";
-import { pollIntervalMs, recoveryView } from "./ibkr-recovery-model.ts";
+import {
+  loginStateNotReadText,
+  pollIntervalMs,
+  recoveryView,
+} from "./ibkr-recovery-model.ts";
 import {
   describePortfolioMonitorFailure,
   type PortfolioMonitorFailure,
@@ -34,9 +38,18 @@ const SILENT_FAILURES: Readonly<Partial<Record<string, true>>> = {
   unauthorized: true,
 };
 
+// Added to the badge and the 2FA progress label while the login state cannot be read: they show
+// the state of the last successful poll.
+const LAST_KNOWN_SUFFIX = " (last known)";
+
+// The latest failed poll, with the browser-clock time of the first failed poll of the current run
+// of failures. A successful poll ends the run.
+export type IbkrRecoveryFailure = PortfolioMonitorFailure &
+  Readonly<{ sinceMs: number }>;
+
 export type IbkrRecoveryModel = Readonly<{
   status: IbkrRecoveryStatusOutput | null;
-  failure: PortfolioMonitorFailure | null;
+  failure: IbkrRecoveryFailure | null;
   hidden: boolean;
   confirming: boolean;
   sending: boolean;
@@ -56,7 +69,7 @@ export const useIbkrRecovery = ({
     () => suppliedGateway ?? createBrowserIbkrRecoveryGateway()
   );
   const [status, setStatus] = useState<IbkrRecoveryStatusOutput | null>(null);
-  const [failure, setFailure] = useState<PortfolioMonitorFailure | null>(null);
+  const [failure, setFailure] = useState<IbkrRecoveryFailure | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -79,7 +92,11 @@ export const useIbkrRecovery = ({
       } catch (error) {
         if (!alive) return;
         const described = describePortfolioMonitorFailure(error);
-        setFailure(described);
+        const at = Date.now();
+        setFailure((current) => ({
+          ...described,
+          sinceMs: current?.sinceMs ?? at,
+        }));
         if (SILENT_FAILURES[described.kind]) return;
       }
       timer = window.setTimeout(() => void load(), pollIntervalMs(next));
@@ -147,6 +164,7 @@ export const IbkrRecoveryButton = ({
 }) => {
   if (model.hidden || model.status === null) return null;
   const view = recoveryView(model.status, nowMs);
+  const stale = model.failure === null ? "" : LAST_KNOWN_SUFFIX;
   return (
     <>
       {view.badge === null ? null : (
@@ -154,15 +172,15 @@ export const IbkrRecoveryButton = ({
           data-ibkr-login={model.status.gateway.loginState}
           status={view.badge.tone}
         >
-          {view.badge.label}
+          {`${view.badge.label}${stale}`}
         </StatusBadge>
       )}
       {view.button === null ? null : (
         <Button
+          aria-controls="ibkr-recovery-confirm"
           aria-describedby={
             view.button.hint === null ? undefined : "ibkr-recovery-hint"
           }
-          aria-controls="ibkr-recovery-confirm"
           aria-expanded={model.confirming}
           data-ibkr-recovery-button="true"
           disabled={!view.button.enabled}
@@ -199,20 +217,26 @@ export const IbkrRecoveryPanel = ({
     if (model.confirming) confirmRef.current?.focus();
   }, [model.confirming]);
   if (model.hidden) return null;
-  if (model.status === null) {
-    if (model.failure === null) return null;
-    return (
+  // A failed poll that is not hidden: since when, the cause, the last known state, the next try.
+  const notRead =
+    model.failure === null ? null : (
       <p
         className="text-muted-foreground text-xs"
         data-ibkr-recovery-failure={model.failure.code}
       >
-        {`IBKR login state unavailable (${model.failure.code}: ${model.failure.message}).`}
+        {loginStateNotReadText({
+          failure: model.failure,
+          nowMs,
+          status: model.status,
+        })}
       </p>
     );
-  }
+  if (model.status === null) return notRead;
   const view = recoveryView(model.status, nowMs);
+  const stale = model.failure === null ? "" : LAST_KNOWN_SUFFIX;
   return (
     <div className="space-y-2" data-ibkr-recovery="true">
+      {notRead}
       {view.button?.hint === null || view.button === null ? null : (
         <p className="text-muted-foreground text-xs" id="ibkr-recovery-hint">
           {view.button.hint}
@@ -295,7 +319,7 @@ export const IbkrRecoveryPanel = ({
             className={`rounded-md border px-3 py-2 text-sm ${PROGRESS_CLASS[view.progress.tone]}`}
             data-ibkr-recovery-state={view.progress.state}
           >
-            <p className="font-medium">{view.progress.label}</p>
+            <p className="font-medium">{`${view.progress.label}${stale}`}</p>
             {view.progress.detail === null ? null : (
               <p className="text-sm">{view.progress.detail}</p>
             )}
