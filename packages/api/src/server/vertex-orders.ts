@@ -176,7 +176,7 @@ const DRAFT_ALREADY_SENT = "GO-LIVE DRAFT_ALREADY_SENT";
 const RECONCILED_WORDS: Readonly<
   Record<"open" | "position-changed" | "not-found", string>
 > = {
-  "not-found": "not at IBKR (not in open orders, position unchanged)",
+  "not-found": "not found at IBKR (not in open orders, position unchanged)",
   open: "in IBKR open orders",
   "position-changed": "its position changed (filled)",
 };
@@ -426,7 +426,7 @@ const intentStoreOf = (
   if (store === undefined && gateway.mode === "live")
     throw failures.AUDIT_UNAVAILABLE({
       message:
-        "Order intent store is not configured on this deployment: live orders are blocked, nothing was sent · contact the operator",
+        "Order intent store is not configured on this deployment: live orders are blocked, nothing was sent · wire the order intent store (database) for this deployment",
     });
   return store;
 };

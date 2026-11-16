@@ -1570,7 +1570,7 @@ describe("vertexOrders procedures", () => {
     ).rejects.toMatchObject({
       code: "AUDIT_UNAVAILABLE",
       message:
-        "Order intent store is not configured on this deployment: live orders are blocked, nothing was sent · contact the operator",
+        "Order intent store is not configured on this deployment: live orders are blocked, nothing was sent · wire the order intent store (database) for this deployment",
       status: 503,
     });
     const { store, rows } = intentStore();
@@ -2021,9 +2021,70 @@ describe("vertexOrders procedures", () => {
     }).vertexOrders.preview(order());
     expect(stuck.review.accepted).toBe(false);
     return expect(stuck.review.reasons.at(-1)).toBe(
-      "Earlier order leaps-vertex-y (OTHER) checked at 15:00 UTC: not at IBKR (not in open orders, position unchanged), but that result could not be recorded (store write failed) · no new order · retry the preview"
+      "Earlier order leaps-vertex-y (OTHER) checked at 15:00 UTC: not found at IBKR (not in open orders, position unchanged), but that result could not be recorded (store write failed) · no new order · retry the preview"
     );
   });
+
+  it.each([
+    ["open", "in IBKR open orders"],
+    ["position-changed", "its position changed (filled)"],
+    ["not-found", "not found at IBKR (not in open orders, position unchanged)"],
+  ] as const)(
+    "a reconcile result %s that cannot be recorded refuses the preview and names what was found",
+    async (found, words) => {
+      const base = await mock.account();
+      const [held] = base.positions;
+      setVertexOrdersDependenciesForTesting({
+        mock: {
+          ...mock,
+          account: async () => ({
+            ...base,
+            openOrders: base.openOrders.map((o, i) =>
+              i === 0 && found === "open" ? { ...o, orderRef: "vertex-r" } : o
+            ),
+          }),
+        },
+        now: () => at,
+      });
+      const { store, intents } = intentStore();
+      // position-changed: the held contract, held 0 before; otherwise a contract never held.
+      intents.push(
+        found === "position-changed"
+          ? {
+              contract: "HELD",
+              createdAt: new Date(at.getTime() - 60 * 60_000),
+              expiry: held?.expiry ?? "",
+              heldBefore: 0,
+              orderRef: "vertex-r",
+              right: held?.right ?? "",
+              strike: held?.strike ?? 0,
+              symbol: held?.symbol ?? "",
+            }
+          : {
+              contract: "HELD",
+              createdAt: new Date(at.getTime() - 60 * 60_000),
+              expiry: "20280121",
+              heldBefore: 0,
+              orderRef: "vertex-r",
+              right: "C",
+              strike: 5,
+              symbol: "OTHER",
+            }
+      );
+      const review = (
+        await clientFor({
+          intents: {
+            ...store,
+            recordOutcome: () => Promise.reject(new Error("db down")),
+          },
+        }).vertexOrders.preview(order())
+      ).review;
+      expect(review.accepted).toBe(false);
+      expect(review.reasons).toContain(
+        `Earlier order vertex-r (HELD) checked at 15:00 UTC: ${words}, but that result could not be recorded (store write failed) · no new order · retry the preview`
+      );
+    }
+  );
 
   it("audits a cancel for an order that is gone", async () => {
     const events: SemanticEvent[] = [];

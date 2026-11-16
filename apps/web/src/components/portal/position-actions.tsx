@@ -7,7 +7,7 @@ import type {
 import { Button, Input, Label, StatusBadge } from "@darkfactory/ui";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { sinceClock } from "./portfolio-monitor-model.ts";
+import { localClock } from "./portfolio-monitor-model.ts";
 import { ComboOrderDialog } from "./position-combo-dialog.tsx";
 import {
   type ComboDraft,
@@ -287,7 +287,7 @@ const SPREAD_REASON = "Part of a spread: use Close (one combo order)";
 type GateLoad =
   | Readonly<{ state: "loading" }>
   | Readonly<{ state: "loaded"; killSwitch: boolean }>
-  | Readonly<{ state: "failed"; at: number; message: string }>;
+  | Readonly<{ state: "failed"; at: string; message: string }>;
 
 const GATE_RETRY_MS = 30_000;
 
@@ -296,7 +296,7 @@ const gateDisabledReason = (gates: GateLoad): string | null => {
   if (gates.state === "loading")
     return "Order rules loading · Buy and Sell wait";
   if (gates.state === "failed")
-    return `Order rules not loaded (request failed at ${sinceClock(gates.at, gates.at) ?? "time not recorded"}: ${gates.message}) · Buy and Sell disabled · retrying in 30 s`;
+    return `Order rules not loaded (request failed at ${gates.at}: ${gates.message}) · Buy and Sell disabled · retrying in 30 s`;
   return gates.killSwitch ? "Kill switch on: Close only" : null;
 };
 
@@ -400,7 +400,7 @@ export const usePositionActions = (
         .catch((error: unknown) => {
           if (!active) return;
           setGates({
-            at: Date.now(),
+            at: localClock(new Date()),
             message: orderErrorMessage(error),
             state: "failed",
           });
