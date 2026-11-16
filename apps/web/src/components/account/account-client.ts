@@ -143,11 +143,11 @@ export const safeAccountFeedback = (error: unknown): string => {
     case "BAD_REQUEST":
       return "Check the highlighted fields and try again.";
     case "NOT_FOUND":
-      return "That account record is no longer available. Reload and try again.";
+      return "That account record was not found. Reload and try again.";
     case "CONFLICT":
       return "This account changed elsewhere. Reload before trying again.";
     case "STORAGE_ERROR":
-      return "Account storage is temporarily unavailable. Try again.";
+      return "Account storage error (503). Reload to check whether your change was saved, then try again.";
     default:
       return "The request could not be completed. Try again.";
   }

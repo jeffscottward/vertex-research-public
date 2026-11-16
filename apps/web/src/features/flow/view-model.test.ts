@@ -4,6 +4,9 @@ import { labFlowSnapshot } from "../../lab/fixtures/flow.ts";
 import { MISSING } from "./format.ts";
 import {
   basisNote,
+  FLOW_VIEW_SYMBOLS,
+  notCollectedLine,
+  shortTermBadge,
   bookMetrics,
   buildFlowChart,
   CHART_HEIGHT,
@@ -312,5 +315,58 @@ describe("flow minute chart", () => {
     ]);
     expect(chart.cvdZeroY).toBeGreaterThan(0);
     expect(chart.cvdZeroY).toBeLessThan(CHART_HEIGHT);
+  });
+});
+
+describe("lab fixture for QQQ and NQ", () => {
+  it("has no minutes, no prints and depth and GEX freshness only", () => {
+    for (const symbol of ["QQQ", "NQ"] as const) {
+      const snapshot = labFlowSnapshot(symbol, 60);
+      expect(snapshot.minutes).toEqual([]);
+      expect(snapshot.optionsFlow.topPrints).toEqual([]);
+      expect(snapshot.freshness.map((row) => row.source)).toEqual([
+        "depth",
+        "gex",
+      ]);
+    }
+  });
+});
+
+describe("four symbols and the short-term badge", () => {
+  it("offers SPY, QQQ, ES and NQ", () => {
+    expect(FLOW_VIEW_SYMBOLS).toEqual(["SPY", "QQQ", "ES", "NQ"]);
+  });
+
+  it("counts short-term factors for a bullish, a bearish, a split and an empty reading", () => {
+    const reading = (bullish: number, bearish: number, known: number) => ({
+      ...spy.confluence,
+      bearish,
+      bullish,
+      known,
+    });
+    expect(shortTermBadge(reading(2, 1, 3))).toBe(
+      "2 of 3 short-term factors bullish"
+    );
+    expect(shortTermBadge(reading(0, 2, 3))).toBe(
+      "2 of 3 short-term factors bearish"
+    );
+    expect(shortTermBadge(reading(1, 1, 3))).toBe(
+      "Short-term factors split: 1 bullish, 1 bearish of 3"
+    );
+    expect(shortTermBadge(reading(0, 0, 0))).toBe(
+      "No short-term factor has data yet"
+    );
+    expect(shortTermBadge(reading(0, 0, 2))).toBe(
+      "2 short-term factors neutral"
+    );
+  });
+
+  it("names what is not collected for QQQ and NQ and nothing for SPY and ES", () => {
+    expect(notCollectedLine("SPY")).toBeNull();
+    expect(notCollectedLine("ES")).toBeNull();
+    expect(notCollectedLine("QQQ")).toBe(
+      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES and SPY."
+    );
+    expect(notCollectedLine("NQ")).toContain("Not collected for NQ");
   });
 });

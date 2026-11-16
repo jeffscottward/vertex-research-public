@@ -70,14 +70,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/baskets/error.tsx",
-    text: "Baskets unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/calendar/error.tsx",
     text: "Calendar unavailable",
     count: 1,
@@ -173,14 +165,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/journal/error.tsx",
-    text: "Trade journal unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/knowledge/error.tsx",
     text: "Knowledge chat unavailable",
     count: 1,
@@ -245,14 +229,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/portfolio-combos/error.tsx",
-    text: "Portfolio combos unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/price-alerts/error.tsx",
     text: "Price alerts unavailable",
     count: 1,
@@ -293,14 +269,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/settings/account/error.tsx",
-    text: "Account settings unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/settings/administration/error.tsx",
     text: "Administration unavailable",
     count: 1,
@@ -335,14 +303,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "app/(portal)/todos/error.tsx",
     text: "Todos unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/watchlist/error.tsx",
-    text: "Watchlist unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -433,34 +393,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Not displayed: Internal telemetry consent enum passed to the oRPC analytics context; treated as no consent, never rendered. Note: three causes (malformed, conflict, absent) share one value; only matters for logs.",
   },
   {
-    file: "components/account/account-client.ts",
-    text: "Account storage is temporarily unavailable. Try again.",
-    count: 1,
-    reason:
-      "Kept: Names the cause (account storage) and the next step (try again). Transient request error, not a persistent status.",
-  },
-  {
     file: "components/account/address-page-client.tsx",
     text: "The address creation outcome is unknown. Reload the address list before creating another.",
     count: 1,
     reason:
       "Kept: A real unknown outcome, named precisely with its resolution path (reload the list before creating another).",
-  },
-  {
-    file: "components/account/preferences-page-client.tsx",
-    text: "Preferences unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: One vague title covers two states. Split by state.kind (already in scope): "No saved preferences" for not-found, "Preferences failed to load" for the load error. The descriptions are already specific.',
-    open: true,
-  },
-  {
-    file: "components/account/profile-page-client.tsx",
-    text: "Profile unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: One vague title covers four states. Derive the title from state.kind (in scope): "Session expired", "No access to this profile", "Profile not found", "Profile failed to load". Messages below are already specific.',
-    open: true,
   },
   {
     file: "components/admin/admin-users-client.ts",
@@ -1306,38 +1243,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Audit 2026-11-13: ambiguous. Replace: summaryState carries only `type`. dashboard/page.tsx already classifies the failure (timeout / abort / other) for the log; pass it as a field and show 'Session summary timed out after N s' vs 'Session summary request failed (<code>)', with a reload link.",
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-control.tsx",
-    text: "unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "image version not reported by node".',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: the arm detail prints "unknown" for a missing armedBy. Say "operator not recorded in the arm record" (and "time not recorded" for armedAt).',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "Unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "State not read" plus reason and last confirmed badge; the API must send the reason and last confirmed state/time.',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "unknown time",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'arm time not recorded by the node'. Same for armedBy null ('unknown' on the same line): 'arming user not recorded'. Text change in this template.",
     open: true,
   },
   {
