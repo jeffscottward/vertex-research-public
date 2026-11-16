@@ -80,10 +80,13 @@ export type OrderIntentRepository = Readonly<{
       intent: Omit<OrderIntent, "createdAt">;
     }>
   ) => Promise<boolean>;
-  /** What the last row of each orderRef says (refs with no row: "none"). */
+  /**
+   * What the last row of each orderRef says (refs with no row: "none"), with the time that row was
+   * written (the intent row of a "pending" send; null for "none").
+   */
   sendStates: (
     orderRefs: readonly string[]
-  ) => Promise<ReadonlyMap<string, OrderSendState>>;
+  ) => Promise<ReadonlyMap<string, OrderSendStateAt>>;
 }>;
 
 /**
@@ -91,6 +94,10 @@ export type OrderIntentRepository = Readonly<{
  * flight, or the process stopped before its outcome), or the outcome written last.
  */
 export type OrderSendState = "none" | "pending" | OrderIntentOutcome;
+export type OrderSendStateAt = Readonly<{
+  createdAt: Date | null;
+  state: OrderSendState;
+}>;
 
 type RefRow = Readonly<{
   action: string;
@@ -122,6 +129,17 @@ const stateOf = (rows: readonly RefRow[]): OrderSendState => {
   );
   return outcome ?? "unknown";
 };
+
+// When the row that decides stateOf was written (the same order: the latest row, an intent last on a
+// tie, so on a tie both times are equal); null with no row.
+const decidedAtOf = (rows: readonly RefRow[]): Date | null =>
+  rows.reduce<Date | null>(
+    (latest, row) =>
+      latest === null || row.createdAt.getTime() > latest.getTime()
+        ? row.createdAt
+        : latest,
+    null
+  );
 
 export const createOrderIntentRepository = (
   database: DatabaseExecutor,
@@ -249,10 +267,10 @@ export const createOrderIntentRepository = (
       const rows =
         orderRefs.length === 0 ? [] : await rowsOf(database, orderRefs);
       return new Map(
-        orderRefs.map((ref) => [
-          ref,
-          stateOf(rows.filter((row) => row.entityId === ref)),
-        ])
+        orderRefs.map((ref) => {
+          const own = rows.filter((row) => row.entityId === ref);
+          return [ref, { createdAt: decidedAtOf(own), state: stateOf(own) }];
+        })
       );
     },
     unresolved: async (since) => {

@@ -23,7 +23,6 @@ export const WatchlistResearch = ({ items }: WatchlistResearchProps) => (
     {items.map((item) => {
       const symbol = item.symbol.trim().toUpperCase();
       const headingId = `watchlist-research-${item.id}`;
-      const hasZone = item.buyZoneLow !== null || item.buyZoneHigh !== null;
       const note = item.note?.trim() ?? "";
       return (
         <li
@@ -37,9 +36,7 @@ export const WatchlistResearch = ({ items }: WatchlistResearchProps) => (
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
             <dt className="text-muted-foreground">Buy zone</dt>
             <dd className="font-mono">
-              {hasZone
-                ? `${item.buyZoneLow ?? "—"} – ${item.buyZoneHigh ?? "—"}`
-                : "Not set"}
+              {buyZoneText(item.buyZoneLow, item.buyZoneHigh)}
             </dd>
             <dt className="text-muted-foreground">Note</dt>
             <dd
@@ -87,3 +84,14 @@ export const WatchlistResearch = ({ items }: WatchlistResearchProps) => (
     })}
   </ul>
 );
+
+// Buy zone in words; a missing side is named, never shown as a dash.
+export const buyZoneText = (
+  low: string | null,
+  high: string | null
+): string => {
+  if (low !== null && high !== null) return `${low} – ${high}`;
+  if (low !== null) return `from ${low} (no upper bound set)`;
+  if (high !== null) return `up to ${high} (no lower bound set)`;
+  return "Not set";
+};

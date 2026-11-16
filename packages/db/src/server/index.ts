@@ -178,6 +178,7 @@ export {
   type OrderIntentOutcome,
   type OrderIntentRepository,
   type OrderSendState,
+  type OrderSendStateAt,
 } from "./order-intents.ts";
 export {
   boundDriftMessage,

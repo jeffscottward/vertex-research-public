@@ -225,8 +225,10 @@ describe("watchlist tabs", () => {
       panel("Research").querySelector(`li[data-symbol="${symbol}"] dl`)
         ?.textContent;
     expect(text("AAA")).toBe("Buy zone10 – 12NoteLeader");
-    expect(text("BF-B")).toBe("Buy zone— – 20NoteNo note");
-    expect(text("CCC")).toBe("Buy zone5 – —NoteNo note");
+    expect(text("BF-B")).toBe(
+      "Buy zoneup to 20 (no lower bound set)NoteNo note"
+    );
+    expect(text("CCC")).toBe("Buy zonefrom 5 (no upper bound set)NoteNo note");
     expect(text("DDD")).toBe("Buy zoneNot setNoteNo note");
     const links = [
       ...panel("Research").querySelectorAll<HTMLAnchorElement>(
@@ -300,13 +302,19 @@ describe("watchlist tabs", () => {
     for (const root of roots.splice(0)) await act(async () => root.unmount());
 
     await mount({
-      gateway: listGateway(() => Promise.reject({ code: "STORAGE_ERROR" })),
+      gateway: listGateway(() =>
+        Promise.reject({
+          code: "STORAGE_ERROR",
+          message:
+            "Watchlist data could not be read: the database returned an error at 14:05 UTC. Nothing was changed. Try again.",
+        })
+      ),
       marketData,
       portfolio,
     });
     await open("Exposure");
-    expect(panel("Exposure").textContent).toBe(
-      "Watchlist storage unavailable (503). Retry from the Overview tab."
+    expect(panel("Exposure").textContent).toMatch(
+      /^Watchlist data could not be read: the database returned an error at 14:05 UTC\. Nothing was changed\. Try again\. Retry from the Overview tab\.$/
     );
     expect(portfolio.snapshot).not.toHaveBeenCalled();
   });

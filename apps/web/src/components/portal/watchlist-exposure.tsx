@@ -23,6 +23,7 @@ import {
   linearScale,
   maxDrawdown,
   type SunburstArc,
+  toExposurePosition,
   totalReturn,
 } from "./watchlist-analytics.ts";
 import { accountDataWithheld } from "./portfolio-monitor-model.ts";
@@ -79,7 +80,10 @@ const PositionsSunburst = ({
   positions: readonly PortfolioMonitorPosition[];
   watchlistSymbols: ReadonlySet<string>;
 }>) => {
-  const sunburst = buildSunburst(positions, watchlistSymbols);
+  const sunburst = buildSunburst(
+    positions.map(toExposurePosition),
+    watchlistSymbols
+  );
   const typeArcs = sunburst.arcs.filter((arc) => arc.ring === "secType");
   const symbolArcs = sunburst.arcs.filter((arc) => arc.ring === "symbol");
   const types = typeArcs.map((arc) => arc.secType);
