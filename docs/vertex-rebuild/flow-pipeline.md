@@ -217,7 +217,7 @@ have no `zeroDte` and `longer` values, and the part totals are taken at the last
 parts. The agreement is `not_comparable` only.
 
 The futures side is `no_data` with the reason `sampled_tape` (or `market_closed`,
-`source_unavailable` or `stale` of the future's `ticks` samples), and the agreement is
+`source_unavailable`, `storage_failed` or `stale` of the future's `ticks` samples), and the agreement is
 `not_comparable`, until a streamed tape with quote-rule sides exists (owner decision; the futures
 fold, its minimum trade count, a coverage floor, price progress and start precision come then). The
 `deepTrades` block lists the deep trades of the group's future from 09:30 to 16:00 New York: the
