@@ -25,11 +25,14 @@ import { TickerLink } from "../ticker-link.tsx";
 import { BasketChart } from "./basket-chart.tsx";
 import {
   type BasketGateway,
+  basketFailureCause,
   createBrowserBasketGateway,
   describeBasketFailure,
   equalWeights,
   formatIndex,
   formatPct,
+  lastCloseText,
+  memberMissingText,
 } from "./baskets-client.ts";
 
 export interface BasketsWorkspaceProps {
@@ -139,7 +142,7 @@ const BasketKpis = ({ data }: { readonly data: BasketValuationOutput }) => {
         value={formatPct(latest.changePct)}
       />
       <KpiCard
-        hint={`${data.benchmarkSymbol} ${formatIndex(latest.benchmark)}`}
+        hint={`${data.benchmarkSymbol} ${formatIndex(latest.benchmark, "no close")}`}
         label="Day change"
         value={formatPct(latest.dayChangePct)}
       />
@@ -154,8 +157,8 @@ const BasketNotes = ({ data }: { readonly data: BasketValuationOutput }) => (
       {data.baseDate === null
         ? ""
         : ` Base date ${data.baseDate}, value ${data.basket.baseValue}.`}{" "}
-      Last close {data.latest?.date ?? "—"}. Daily closes only (IBKR history);
-      no intraday quotes.
+      {lastCloseText(data)} Daily closes only (IBKR history); no intraday
+      quotes.
     </p>
     {data.staleSymbols.length > 0 && (
       <p className="text-amber-600 text-sm dark:text-amber-400" role="status">
@@ -226,17 +229,17 @@ const BasketConstituents = ({
                 {(member.weight * 100).toFixed(2)}%
               </TableCell>
               <TableCell className="text-right font-mono">
-                {formatIndex(member.basePrice)}
+                {formatIndex(member.basePrice, "no base close")}
               </TableCell>
               <TableCell className="text-right font-mono">
-                {formatIndex(member.lastPrice)}
+                {formatIndex(member.lastPrice, memberMissingText(member))}
               </TableCell>
               <TableCell className="text-right font-mono">
-                {formatPct(member.returnPct)}
+                {formatPct(member.returnPct, memberMissingText(member))}
               </TableCell>
               <TableCell className="text-right font-mono">
                 {member.contribution === null
-                  ? "—"
+                  ? memberMissingText(member)
                   : `${member.contribution >= 0 ? "+" : ""}${member.contribution.toFixed(2)}`}
               </TableCell>
             </TableRow>
@@ -289,6 +292,7 @@ export const BasketsWorkspace = ({
   );
   const [items, setItems] = useState<BasketOutput[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [listErrorCause, setListErrorCause] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [valuation, setValuation] = useState<ValuationState>({ type: "idle" });
   const [draft, setDraft] = useState<FormDraft | null>(null);
@@ -307,6 +311,7 @@ export const BasketsWorkspace = ({
       return next;
     } catch (error) {
       setListError(describeBasketFailure(error));
+      setListErrorCause(basketFailureCause(error));
       return null;
     }
   }, [gateway]);
@@ -431,7 +436,7 @@ export const BasketsWorkspace = ({
             {items === null
               ? listError === null
                 ? "Loading"
-                : "Unavailable"
+                : `List not loaded: ${listErrorCause ?? "request failed"}`
               : `${items.length} ${items.length === 1 ? "basket" : "baskets"}`}
           </StatusBadge>
         }

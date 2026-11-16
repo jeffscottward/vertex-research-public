@@ -104,7 +104,10 @@ export const WATCHLIST_API_ERRORS = {
     status: 422,
     message: "Watchlist item validation failed",
   },
-  STORAGE_ERROR: { status: 503, message: "Watchlist storage unavailable" },
+  STORAGE_ERROR: {
+    status: 503,
+    message: "Watchlist storage did not respond. Nothing was saved. Retry.",
+  },
 } as const;
 
 const watchlist = oc.errors(WATCHLIST_API_ERRORS);

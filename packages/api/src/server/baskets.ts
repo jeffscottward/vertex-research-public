@@ -48,6 +48,9 @@ type BasketErrorFactories = Readonly<
   Record<BasketErrorCode, (options?: { message?: string }) => Error>
 >;
 
+// "14:05 UTC" for storage error messages.
+const utcClock = (): string => `${new Date().toISOString().slice(11, 16)} UTC`;
+
 const factories = (errors: unknown): BasketErrorFactories => {
   return errors as BasketErrorFactories;
 };
@@ -57,7 +60,10 @@ const repositoryFor = (
   errors: unknown
 ): BasketRepository => {
   const repository = context.repositories.baskets;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: `Basket data could not be read or saved: no database is connected to this server (checked at ${utcClock()}). Nothing was changed. Try again later.`,
+    });
   return repository;
 };
 
@@ -67,7 +73,10 @@ const mapBasketError = (error: unknown, errors: unknown): never => {
     throw failures.VALIDATION_ERROR({ message: error.message });
   }
   if (error instanceof DatabaseConflictError) throw failures.CONFLICT();
-  if (error instanceof DatabasePersistenceError) throw failures.STORAGE_ERROR();
+  if (error instanceof DatabasePersistenceError)
+    throw failures.STORAGE_ERROR({
+      message: `Basket data could not be read or saved: the database did not answer at ${utcClock()}. Nothing was changed. Try again.`,
+    });
   throw error;
 };
 

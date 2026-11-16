@@ -341,7 +341,7 @@ describe("watchlist workspace", () => {
     };
     const container = await mount(gateway);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "Watchlist storage unavailable"
+      "Watchlist database did not answer at"
     );
     await clickButton("Retry");
     return expect(

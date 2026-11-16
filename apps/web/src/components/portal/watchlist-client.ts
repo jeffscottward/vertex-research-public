@@ -7,6 +7,8 @@ import {
   type WatchlistItemOutput,
 } from "@darkfactory/api";
 
+import { clockTime } from "./baskets-client.ts";
+
 export type WatchlistBuyZoneInput = Readonly<{
   low: string | null;
   high: string | null;
@@ -66,7 +68,10 @@ const errorMessage = (error: unknown): string | null => {
   return typeof message === "string" && message.length > 0 ? message : null;
 };
 
-export const describeWatchlistFailure = (error: unknown): string => {
+export const describeWatchlistFailure = (
+  error: unknown,
+  nowMs: number = Date.now()
+): string => {
   switch (errorCode(error)) {
     case "UNAUTHORIZED": {
       return "Session expired. Sign in again.";
@@ -82,7 +87,7 @@ export const describeWatchlistFailure = (error: unknown): string => {
       return `Rejected: ${errorMessage(error) ?? "invalid input"}`;
     }
     case "STORAGE_ERROR": {
-      return "Watchlist storage unavailable (503).";
+      return `Watchlist database did not answer at ${clockTime(nowMs)} (503). Nothing was saved.`;
     }
     default: {
       return "Request failed. Retry.";

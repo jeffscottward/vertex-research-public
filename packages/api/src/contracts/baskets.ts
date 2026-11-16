@@ -98,7 +98,10 @@ export const BASKET_API_ERRORS = {
   NOT_FOUND: { status: 404, message: "Basket not found" },
   CONFLICT: { status: 409, message: "A basket with this symbol exists" },
   VALIDATION_ERROR: { status: 422, message: "Basket validation failed" },
-  STORAGE_ERROR: { status: 503, message: "Basket storage unavailable" },
+  STORAGE_ERROR: {
+    status: 503,
+    message: "Basket storage did not respond. Nothing was saved. Retry.",
+  },
 } as const;
 
 const basketsBase = oc.errors(BASKET_API_ERRORS);

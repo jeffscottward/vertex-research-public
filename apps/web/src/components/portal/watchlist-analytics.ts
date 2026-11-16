@@ -153,9 +153,19 @@ export const maxDrawdown = (closes: readonly DailyClose[]): number | null => {
   return worst;
 };
 
-/** "+12.3%" style text for a fraction; "—" for null. */
-export const formatPercent = (value: number | null, digits = 1): string => {
-  if (value === null) return "—";
+// Return and drawdown need two daily closes; say how many there are instead of a dash.
+export const closesNeededText = (closeCount: number | null): string =>
+  closeCount === null
+    ? "bars not loaded"
+    : `needs 2+ daily closes (have ${closeCount})`;
+
+/** "+12.3%" style text for a fraction; `missing` (the cause) for null. */
+export const formatPercent = (
+  value: number | null,
+  digits = 1,
+  missing = "needs 2+ daily closes"
+): string => {
+  if (value === null) return missing;
   const text = (value * 100).toFixed(digits);
   return value > 0 && Number(text) !== 0 ? `+${text}%` : `${text}%`;
 };
@@ -172,7 +182,15 @@ export type ExposurePosition = Readonly<{
   secType: string;
   symbol: string;
   marketValue: number | null;
+  /** IBKR contract id; names a position that arrived without a symbol. */
+  conId?: string | null;
 }>;
+
+// Label for a position IBKR sent without a symbol.
+export const missingSymbolLabel = (conId: string | null | undefined): string =>
+  conId === null || conId === undefined || conId.trim() === ""
+    ? "No symbol from IBKR"
+    : `No symbol from IBKR (conId ${conId.trim()})`;
 
 export type SunburstArc = Readonly<{
   key: string;
@@ -231,7 +249,8 @@ export const buildSunburst = (
       continue;
     }
     const secType = position.secType.trim().toUpperCase() || "OTHER";
-    const symbol = normalizeSymbol(position.symbol) || "—";
+    const symbol =
+      normalizeSymbol(position.symbol) || missingSymbolLabel(position.conId);
     const group = groups.get(secType) ?? { gross: 0, symbols: new Map() };
     groups.set(secType, group);
     const bucket = group.symbols.get(symbol) ?? { gross: 0, net: 0 };

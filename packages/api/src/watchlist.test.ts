@@ -3,10 +3,11 @@ import {
   AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
-import type {
-  Repositories,
-  UpdateWatchlistItemInput,
-  WatchlistRepository,
+import {
+  DatabasePersistenceError,
+  type Repositories,
+  type UpdateWatchlistItemInput,
+  type WatchlistRepository,
 } from "@darkfactory/db/server";
 import type { WatchlistItem } from "@darkfactory/db/schema";
 import { ORPCError } from "@orpc/client";
@@ -159,7 +160,8 @@ const clientFor = (
 const expectCode = async (
   promise: Promise<unknown>,
   code: string,
-  status: number
+  status: number,
+  message?: RegExp
 ): Promise<void> => {
   try {
     await promise;
@@ -167,6 +169,8 @@ const expectCode = async (
   } catch (error) {
     expect(error).toBeInstanceOf(ORPCError);
     expect(error).toMatchObject({ code, status });
+    if (message !== undefined)
+      expect(error).toMatchObject({ message: expect.stringMatching(message) });
   }
 };
 
@@ -354,6 +358,33 @@ describe("watchlist RPC", () => {
     await expectCode(
       clientFor(session("user-a")).watchlist.list({}),
       "STORAGE_ERROR",
-      503
+      503,
+      /^Watchlist data could not be read or saved: no database is connected to this server \(checked at \d\d:\d\d UTC\)\. Nothing was changed\./
     ));
+
+  it("names a database timeout with the UTC time; code faults stay 500", async () => {
+    const timeout = {
+      ...memoryRepository(),
+      listByUser: vi.fn(async () => {
+        throw new DatabasePersistenceError("watchlist list");
+      }),
+    };
+    await expectCode(
+      clientFor(session("user-a"), timeout).watchlist.list({}),
+      "STORAGE_ERROR",
+      503,
+      /^Watchlist data could not be read or saved: the database did not answer at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/
+    );
+    const fault = {
+      ...memoryRepository(),
+      listByUser: vi.fn(async () => {
+        throw new Error("boom");
+      }),
+    };
+    await expectCode(
+      clientFor(session("user-a"), fault).watchlist.list({}),
+      "INTERNAL_SERVER_ERROR",
+      500
+    );
+  });
 });

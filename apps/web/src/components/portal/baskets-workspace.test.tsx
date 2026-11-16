@@ -10,15 +10,23 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { BasketChart, linePath } from "./basket-chart.tsx";
-import { BasketWatchlistSection } from "./basket-watchlist-section.tsx";
+import {
+  BasketWatchlistSection,
+  VALUATION_SLOW_MS,
+} from "./basket-watchlist-section.tsx";
 import {
   type BasketGateway,
+  basketFailureCause,
+  basketValueText,
+  clockTime,
   createBasketGateway,
   createBrowserBasketGateway,
   describeBasketFailure,
   equalWeights,
   formatIndex,
   formatPct,
+  lastCloseText,
+  memberMissingText,
 } from "./baskets-client.ts";
 import { BasketsWorkspace, findBasket } from "./baskets-workspace.tsx";
 
@@ -196,9 +204,9 @@ describe("basket client helpers", () => {
   it("formats values and builds equal weights that sum to exactly 1", () => {
     expect(equalWeights(3)).toEqual(["0.33333333", "0.33333333", "0.33333334"]);
     expect(equalWeights(0)).toEqual([]);
-    expect(formatIndex(null)).toBe("—");
+    expect(formatIndex(null)).toBe("no value");
     expect(formatIndex(104.256)).toBe("104.26");
-    expect(formatPct(null)).toBe("—");
+    expect(formatPct(null)).toBe("no previous close");
     expect(formatPct(4)).toBe("+4.00%");
     expect(formatPct(-1.5)).toBe("-1.50%");
   });
@@ -374,7 +382,7 @@ describe("BasketsWorkspace", () => {
     expect(findBasket([named], null)).toBeUndefined();
   });
 
-  it("shows Loading and Unavailable in the status chip", async () => {
+  it("shows Loading and List not loaded in the status chip", async () => {
     const gateway = fakeGateway([]);
     gateway.list.mockReturnValueOnce(new Promise(() => undefined));
     const loading = await render(<BasketsWorkspace gateway={gateway} />);
@@ -385,7 +393,7 @@ describe("BasketsWorkspace", () => {
     const failed = await render(<BasketsWorkspace gateway={gateway} />);
     expect(
       failed.querySelector('[data-testid="baskets-status"]')?.textContent
-    ).toContain("Unavailable");
+    ).toContain("List not loaded: storage did not respond (503)");
     const one = await render(
       <BasketsWorkspace gateway={fakeGateway([basket("ONE")])} />
     );
@@ -420,9 +428,11 @@ describe("BasketsWorkspace", () => {
     );
     const container = await render(<BasketsWorkspace gateway={gateway} />);
     expect(container.textContent).toContain("Provisional base");
-    expect(container.textContent).toContain("Last close —");
+    expect(container.textContent).toContain("No daily close received yet.");
     expect(container.querySelector('[data-slot="kpi-row"]')).toBeNull();
-    expect(container.querySelector("tbody tr")?.textContent).toContain("—");
+    expect(container.querySelector("tbody tr")?.textContent).toContain(
+      "no close"
+    );
     gateway.valuation.mockResolvedValueOnce(
       valuation(item, { baseDate: null, baseState: "pending" })
     );
@@ -596,7 +606,7 @@ describe("BasketWatchlistSection", () => {
     );
     expect(items[0]).toContain("104.00 (+4.00%)");
     expect(items[0]).toContain("stale");
-    expect(items[1]).toContain("— (—)");
+    expect(items[1]).toContain("valuation failed · reload to retry");
     expect(container.querySelector("a")?.getAttribute("href")).toBe(
       "/baskets?symbol=TITY"
     );
@@ -628,7 +638,9 @@ describe("BasketWatchlistSection", () => {
     const failing = fakeGateway([]);
     failing.list.mockRejectedValue({ code: "STORAGE_ERROR" });
     const failed = await render(<BasketWatchlistSection gateway={failing} />);
-    expect(failed.textContent).toContain("Baskets: Basket storage unavailable");
+    expect(failed.textContent).toContain(
+      "Baskets: Basket storage did not respond at"
+    );
   });
 
   it("stops updating after unmount", async () => {
@@ -675,5 +687,105 @@ describe("default browser gateway", () => {
     expect(workspace.textContent).toContain("Request failed");
     expect(section.textContent).toContain("Baskets: Request failed");
     fetchSpy.mockRestore();
+  });
+});
+
+describe("basket status states", () => {
+  const noon = new Date(2026, 10, 15, 12, 5).getTime();
+  const member: BasketValuationOutput["members"][number] = {
+    basePrice: 10,
+    contribution: null,
+    lastDate: null,
+    lastPrice: null,
+    returnPct: null,
+    stale: false,
+    symbol: "AAA",
+    weight: 1,
+  };
+
+  it("names the storage outage, its time and the next step", () => {
+    expect(describeBasketFailure({ code: "STORAGE_ERROR" }, noon)).toBe(
+      "Basket storage did not respond at 12:05 (503). Nothing was saved. Retry."
+    );
+    expect(clockTime(noon)).toBe("12:05");
+  });
+
+  it("gives a short cause for the list badge", () => {
+    expect(basketFailureCause({ code: "STORAGE_ERROR" })).toBe(
+      "storage did not respond (503)"
+    );
+    expect(basketFailureCause({ code: "UNAUTHORIZED" })).toBe(
+      "session expired"
+    );
+    expect(basketFailureCause({ code: "NOT_FOUND" })).toBe("not found");
+    expect(basketFailureCause(new Error("x"))).toBe("request failed");
+  });
+
+  it("separates a failed valuation from one with no member prices", () => {
+    expect(basketValueText(null, true)).toBe(
+      "valuation failed · reload to retry"
+    );
+    expect(basketValueText(null, false)).toBe(
+      "no value · no prices for members yet"
+    );
+    expect(basketValueText(valuation(basket("TITY")).latest, false)).toBe(
+      "104.00 (+4.00%)"
+    );
+  });
+
+  it("says why a member has no close", () => {
+    expect(memberMissingText(member)).toBe("no close");
+    expect(
+      memberMissingText({ ...member, lastDate: "2026-11-12", stale: true })
+    ).toBe("stale since 2026-11-12");
+    expect(memberMissingText({ ...member, lastDate: "2026-11-13" })).toBe(
+      "no base close"
+    );
+  });
+
+  it("says why there is no last close", () => {
+    const item = basket("TITY");
+    expect(lastCloseText(valuation(item))).toMatch(/^Last close \d{4}-/);
+    expect(
+      lastCloseText(
+        valuation(item, { latest: null, staleSymbols: [], unavailable: [] })
+      )
+    ).toBe("No daily close received yet.");
+    expect(
+      lastCloseText(
+        valuation(item, {
+          latest: null,
+          staleSymbols: [],
+          unavailable: [{ reason: "pacing", symbol: "AAA" }],
+        })
+      )
+    ).toBe("No daily close: history request failed for AAA. Reload to retry.");
+    expect(
+      lastCloseText(
+        valuation(item, {
+          latest: null,
+          staleSymbols: ["BBB"],
+          unavailable: [],
+        })
+      )
+    ).toBe("No daily close: no close yet for BBB.");
+  });
+
+  it("shows loading, then a slow-reply notice with its start time", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const gate = fakeGateway([basket("TITY")]);
+      gate.valuation.mockReturnValue(deferred<BasketValuationOutput>().promise);
+      const container = await render(<BasketWatchlistSection gateway={gate} />);
+      expect(container.textContent).toContain("loading value…");
+      await act(async () => {
+        vi.advanceTimersByTime(VALUATION_SLOW_MS + 10);
+      });
+      expect(container.textContent).toMatch(
+        /value not received since \d\d:\d\d · still waiting/
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

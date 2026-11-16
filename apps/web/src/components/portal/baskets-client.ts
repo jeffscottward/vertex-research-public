@@ -45,7 +45,10 @@ export const createBrowserBasketGateway = (): BasketGateway => {
   });
 };
 
-export const describeBasketFailure = (error: unknown): string => {
+export const describeBasketFailure = (
+  error: unknown,
+  nowMs: number = Date.now()
+): string => {
   const code =
     typeof error === "object" && error !== null
       ? Reflect.get(error, "code")
@@ -72,7 +75,7 @@ export const describeBasketFailure = (error: unknown): string => {
       return `Rejected: ${typeof message === "string" && message !== "" ? message : "invalid input"}`;
     }
     case "STORAGE_ERROR": {
-      return "Basket storage unavailable (503).";
+      return `Basket storage did not respond at ${clockTime(nowMs)} (503). Nothing was saved. Retry.`;
     }
     default: {
       return "Request failed. Retry.";
@@ -90,11 +93,75 @@ export const equalWeights = (count: number): string[] => {
   );
 };
 
-export const formatIndex = (value: number | null): string => {
-  return value === null ? "—" : value.toFixed(2);
+// Missing values name their cause; callers pass it because only they know why the value is null.
+export const formatIndex = (
+  value: number | null,
+  missing = "no value"
+): string => {
+  return value === null ? missing : value.toFixed(2);
 };
 
-export const formatPct = (value: number | null): string => {
-  if (value === null) return "—";
+export const formatPct = (
+  value: number | null,
+  missing = "no previous close"
+): string => {
+  if (value === null) return missing;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+};
+
+// "14:05" local clock time for status lines.
+export const clockTime = (ms: number): string =>
+  new Date(ms).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+  });
+
+// Index cell text for a basket valuation. latest null: failed request, or no member prices yet.
+export const basketValueText = (
+  latest: BasketValuationOutput["latest"],
+  failed: boolean
+): string => {
+  if (latest === null)
+    return failed
+      ? "valuation failed · reload to retry"
+      : "no value · no prices for members yet";
+  return `${formatIndex(latest.value)} (${formatPct(latest.changePct)})`;
+};
+
+const FAILURE_CAUSE: Readonly<Record<string, string>> = {
+  FORBIDDEN: "operator access required",
+  STORAGE_ERROR: "storage did not respond (503)",
+  UNAUTHORIZED: "session expired",
+};
+
+// Short cause for a status badge; the full sentence comes from describeBasketFailure.
+export const basketFailureCause = (error: unknown): string => {
+  const code =
+    typeof error === "object" && error !== null
+      ? Reflect.get(error, "code")
+      : null;
+  if (typeof code !== "string") return "request failed";
+  return FAILURE_CAUSE[code] ?? code.toLowerCase().replaceAll("_", " ");
+};
+
+type ValuationMember = BasketValuationOutput["members"][number];
+
+// Why a member has no last close, return or contribution.
+export const memberMissingText = (member: ValuationMember): string => {
+  if (member.lastDate === null) return "no close";
+  if (member.stale) return `stale since ${member.lastDate}`;
+  return "no base close";
+};
+
+// "Last close 2026-11-13." or why there is none yet.
+export const lastCloseText = (data: BasketValuationOutput): string => {
+  if (data.latest !== null) return `Last close ${data.latest.date}.`;
+  if (data.unavailable.length > 0)
+    return `No daily close: history request failed for ${data.unavailable
+      .map((entry) => entry.symbol)
+      .join(", ")}. Reload to retry.`;
+  if (data.staleSymbols.length > 0)
+    return `No daily close: no close yet for ${data.staleSymbols.join(", ")}.`;
+  return "No daily close received yet.";
 };

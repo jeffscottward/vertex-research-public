@@ -225,8 +225,10 @@ describe("watchlist tabs", () => {
       panel("Research").querySelector(`li[data-symbol="${symbol}"] dl`)
         ?.textContent;
     expect(text("AAA")).toBe("Buy zone10 – 12NoteLeader");
-    expect(text("BF-B")).toBe("Buy zone— – 20NoteNo note");
-    expect(text("CCC")).toBe("Buy zone5 – —NoteNo note");
+    expect(text("BF-B")).toBe(
+      "Buy zoneup to 20 (no lower bound set)NoteNo note"
+    );
+    expect(text("CCC")).toBe("Buy zonefrom 5 (no upper bound set)NoteNo note");
     expect(text("DDD")).toBe("Buy zoneNot setNoteNo note");
     const links = [
       ...panel("Research").querySelectorAll<HTMLAnchorElement>(
@@ -305,8 +307,8 @@ describe("watchlist tabs", () => {
       portfolio,
     });
     await open("Exposure");
-    expect(panel("Exposure").textContent).toBe(
-      "Watchlist storage unavailable (503). Retry from the Overview tab."
+    expect(panel("Exposure").textContent).toMatch(
+      /^Watchlist database did not answer at \d\d:\d\d \(503\)\. Nothing was saved\. Retry from the Overview tab\.$/
     );
     expect(portfolio.snapshot).not.toHaveBeenCalled();
   });

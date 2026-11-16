@@ -6,16 +6,20 @@ import { useEffect, useState } from "react";
 
 import {
   type BasketGateway,
+  basketValueText,
+  clockTime,
   createBrowserBasketGateway,
   describeBasketFailure,
-  formatIndex,
-  formatPct,
 } from "./baskets-client.ts";
+
+// After this long without a valuation reply the cell says so instead of loading forever.
+export const VALUATION_SLOW_MS = 15_000;
 
 type Row = Readonly<{
   basket: BasketOutput;
   latest: BasketValuationOutput["latest"] | undefined;
   stale: boolean;
+  failed: boolean;
 }>;
 
 const valuedRow = async (
@@ -26,11 +30,12 @@ const valuedRow = async (
     const valuation = await gateway.valuation(basket.id);
     return {
       basket,
+      failed: false,
       latest: valuation.latest,
       stale: valuation.staleSymbols.length > 0,
     };
   } catch {
-    return { basket, latest: null, stale: true };
+    return { basket, failed: true, latest: null, stale: true };
   }
 };
 
@@ -45,6 +50,8 @@ export const BasketWatchlistSection = ({
   );
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -62,8 +69,14 @@ export const BasketWatchlistSection = ({
         return;
       }
       if (!active) return;
+      setStartedAt(Date.now());
       setRows(
-        baskets.map((basket) => ({ basket, latest: undefined, stale: false }))
+        baskets.map((basket) => ({
+          basket,
+          failed: false,
+          latest: undefined,
+          stale: false,
+        }))
       );
       for (const basket of baskets) {
         const next = await valuedRow(gateway, basket);
@@ -77,6 +90,16 @@ export const BasketWatchlistSection = ({
       active = false;
     };
   }, [gateway]);
+
+  const waiting = rows.some((row) => row.latest === undefined);
+  useEffect(() => {
+    if (!waiting || startedAt === null) return;
+    const timer = setTimeout(
+      () => setSlow(true),
+      Math.max(0, startedAt + VALUATION_SLOW_MS - Date.now())
+    );
+    return () => clearTimeout(timer);
+  }, [waiting, startedAt]);
 
   if (error !== null) {
     return (
@@ -106,9 +129,11 @@ export const BasketWatchlistSection = ({
             </a>
             <span className="font-mono">
               {row.latest === undefined
-                ? "…"
-                : `${formatIndex(row.latest?.value ?? null)} (${formatPct(row.latest?.changePct ?? null)})`}
-              {row.stale && (
+                ? slow && startedAt !== null
+                  ? `value not received since ${clockTime(startedAt)} · still waiting`
+                  : "loading value…"
+                : basketValueText(row.latest, row.failed)}
+              {row.stale && !row.failed && (
                 <span className="ml-2 font-sans text-amber-600 text-xs dark:text-amber-400">
                   stale
                 </span>
