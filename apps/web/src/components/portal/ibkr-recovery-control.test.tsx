@@ -178,7 +178,6 @@ describe("recoveryView", () => {
       "logged-in",
       "awaiting-2fa",
       "starting",
-      "unknown",
     ] as const) {
       const view = recoveryView(
         status({
@@ -497,7 +496,6 @@ describe("loginStateNotReadText", () => {
       ["awaiting-2fa", "waiting for 2FA approval"],
       ["logged-in", "logged in"],
       ["starting", "gateway starting"],
-      ["unknown", "not decided by the VPS"],
     ] as const)
       expect(
         loginStateNotReadText({ failure, nowMs, status: withLogin(loginState) })

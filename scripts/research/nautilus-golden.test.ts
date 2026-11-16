@@ -218,6 +218,12 @@ describe("buildDefinitionRefusals", () => {
       "StrategyDefinitionSchema has 16 refinements, not 15"
     );
   });
+
+  it("stops when the options schema has another number of refinements", () => {
+    expect(() => buildDefinitionRefusals(15, "3+1")).toThrow(
+      "StrategyOptionsSchema has 3+1 refinements (block+dte), not 2+1"
+    );
+  });
 });
 
 describe("requireIntradaySessions", () => {

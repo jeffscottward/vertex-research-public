@@ -31617,8 +31617,7 @@
                               "enum": [
                                 "engaged",
                                 "clear",
-                                "unverified",
-                                "unknown"
+                                "unverified"
                               ],
                               "type": "string"
                             },
@@ -32473,8 +32472,7 @@
                                 "error",
                                 "missing",
                                 "unreadable",
-                                "unrecognised",
-                                "unknown"
+                                "unrecognised"
                               ],
                               "type": "string"
                             },
@@ -123024,8 +123022,7 @@
                                     "logged-out",
                                     "stopped",
                                     "no-login-evidence",
-                                    "gateway-unreadable",
-                                    "unknown"
+                                    "gateway-unreadable"
                                   ],
                                   "type": "string"
                                 }
@@ -123050,8 +123047,7 @@
                             "logged-out",
                             "stopped",
                             "no-login-evidence",
-                            "gateway-unreadable",
-                            "unknown"
+                            "gateway-unreadable"
                           ],
                           "type": "string"
                         },
@@ -135838,8 +135834,7 @@
                                     "running",
                                     "exited",
                                     "missing",
-                                    "docker-unreadable",
-                                    "unknown"
+                                    "docker-unreadable"
                                   ],
                                   "type": "string"
                                 }
@@ -135872,8 +135867,7 @@
                             "running",
                             "exited",
                             "missing",
-                            "docker-unreadable",
-                            "unknown"
+                            "docker-unreadable"
                           ],
                           "type": "string"
                         }

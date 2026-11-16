@@ -36,6 +36,7 @@ import {
   type StrategyExprInput,
   StrategyExprSchema,
   type StrategyIndicatorExpr,
+  StrategyOptionsSchema,
   type StrategyIntraday,
   type StrategyServerSupport,
   type StrategySessionIndicatorExpr,
@@ -2323,9 +2324,206 @@ const nullFieldRefusals: typeof fieldRefusals = [
     "portfolio leg exit.any must be a list",
   ],
 ];
+const DEBIT_OPTIONS_BLOCK = {
+  dte: { min: 21, target: 45 },
+  longDelta: 0.5,
+  maxLossPct: 2,
+  structure: "callDebitVertical",
+  widthSigma: 0.5,
+};
+const optionsOf = (
+  edit: Record<string, Json>,
+  block: Json = OPTIONS_BLOCK
+) => ({
+  options: { ...(block as Record<string, Json>), ...edit },
+});
+const optionsWithout = (key: string) => ({
+  options: Object.fromEntries(
+    Object.entries(OPTIONS_BLOCK).filter(([name]) => name !== key)
+  ),
+});
+const legOptions = (edit: Record<string, Json>) =>
+  legOf({ entry: { all: [always] }, options: { ...OPTIONS_BLOCK, ...edit } });
+/** The options block: StrategyOptionsSchema / _check_options_block (no text: the schema text). */
+const optionsFieldRefusals: typeof fieldRefusals = [
+  ["optionsDteType", optionsOf({ dte: 5 }), "options.dte must be an object"],
+  ["optionsDteNull", optionsOf({ dte: null }), "options.dte must be an object"],
+  ["optionsDteAbsent", optionsWithout("dte"), "options.dte must be an object"],
+  [
+    "optionsDteMinLow",
+    optionsOf({ dte: { min: 0, target: 45 } }),
+    "dte.min must be a whole number from 1 to 400",
+  ],
+  [
+    "optionsDteMinFraction",
+    optionsOf({ dte: { min: 21.5, target: 45 } }),
+    "dte.min must be a whole number from 1 to 400",
+  ],
+  [
+    "optionsDteMinType",
+    optionsOf({ dte: { min: "21", target: 45 } }),
+    "dte.min must be a whole number from 1 to 400",
+  ],
+  [
+    "optionsDteMinHigh",
+    optionsOf({ dte: { min: 401, target: 400 } }),
+    "dte.min must be a whole number from 1 to 400",
+  ],
+  [
+    "optionsDteTargetLow",
+    optionsOf({ dte: { min: 1, target: 6 } }),
+    "dte.target must be a whole number from 7 to 400",
+  ],
+  [
+    "optionsDteTargetHigh",
+    optionsOf({ dte: { min: 21, target: 401 } }),
+    "dte.target must be a whole number from 7 to 400",
+  ],
+  [
+    "optionsDteTargetAbsent",
+    optionsOf({ dte: { min: 21 } }),
+    "dte.target must be a whole number from 7 to 400",
+  ],
+  [
+    "optionsDteKey",
+    optionsOf({ dte: { min: 21, target: 45, x: 1 } }),
+    "Unknown key in options.dte: x",
+  ],
+  ["optionsDteOrder", optionsOf({ dte: { min: 46, target: 45 } })],
+  [
+    "optionsExitDteLow",
+    optionsOf({ exitDte: -1 }),
+    "exitDte must be a whole number from 0 to 400",
+  ],
+  [
+    "optionsExitDteHigh",
+    optionsOf({ exitDte: 401 }),
+    "exitDte must be a whole number from 0 to 400",
+  ],
+  [
+    "optionsExitDteFraction",
+    optionsOf({ exitDte: 7.5 }),
+    "exitDte must be a whole number from 0 to 400",
+  ],
+  [
+    "optionsExitDteNull",
+    optionsOf({ exitDte: null }),
+    "exitDte must be a whole number from 0 to 400",
+  ],
+  [
+    "optionsLongDeltaLow",
+    optionsOf({ longDelta: 0.04 }, DEBIT_OPTIONS_BLOCK),
+    "longDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsLongDeltaHigh",
+    optionsOf({ longDelta: 0.96 }, DEBIT_OPTIONS_BLOCK),
+    "longDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsMaxLossZero",
+    optionsOf({ maxLossPct: 0 }),
+    "maxLossPct must be above 0 and at most 2",
+  ],
+  [
+    "optionsMaxLossType",
+    optionsOf({ maxLossPct: "2" }),
+    "maxLossPct must be above 0 and at most 2",
+  ],
+  [
+    "optionsMaxLossAbsent",
+    optionsWithout("maxLossPct"),
+    "maxLossPct must be above 0 and at most 2",
+  ],
+  [
+    "optionsMaxLossCap",
+    optionsOf({ maxLossPct: 2.01 }),
+    "maxLossPct must be at most 2 (percent of equity per trade)",
+  ],
+  [
+    "optionsProfitTakeLow",
+    optionsOf({ profitTakePct: 0.99 }),
+    "profitTakePct must be from 1 to 100",
+  ],
+  [
+    "optionsProfitTakeHigh",
+    optionsOf({ profitTakePct: 100.01 }),
+    "profitTakePct must be from 1 to 100",
+  ],
+  [
+    "optionsProfitTakeNull",
+    optionsOf({ profitTakePct: null }),
+    "profitTakePct must be from 1 to 100",
+  ],
+  [
+    "optionsShortDeltaLow",
+    optionsOf({ shortDelta: 0.04 }),
+    "shortDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsShortDeltaHigh",
+    optionsOf({ shortDelta: 0.96 }),
+    "shortDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsShortDeltaType",
+    optionsOf({ shortDelta: "0.2" }),
+    "shortDelta must be from 0.05 to 0.95",
+  ],
+  [
+    "optionsStructure",
+    optionsOf({ structure: "ironCondor" }),
+    "Unknown options structure: ironCondor",
+  ],
+  [
+    "optionsStructureCalendar",
+    optionsOf({ structure: "callCalendar" }),
+    "Unknown options structure: callCalendar",
+  ],
+  [
+    "optionsStructureType",
+    optionsOf({ structure: ["putCreditVertical"] }),
+    "Unknown options structure: ['putCreditVertical']",
+  ],
+  [
+    "optionsStructureAbsent",
+    optionsWithout("structure"),
+    "Unknown options structure: None",
+  ],
+  [
+    "optionsWidthSigmaLow",
+    optionsOf({ widthSigma: 0.09 }),
+    "widthSigma must be from 0.1 to 3",
+  ],
+  [
+    "optionsWidthSigmaHigh",
+    optionsOf({ widthSigma: 3.01 }),
+    "widthSigma must be from 0.1 to 3",
+  ],
+  [
+    "optionsWidthSigmaAbsent",
+    optionsWithout("widthSigma"),
+    "widthSigma must be from 0.1 to 3",
+  ],
+  ["optionsKey", optionsOf({ x: 1 }), "Unknown key in options: x"],
+  ["optionsDebitShortDelta", optionsOf({ structure: "putDebitVertical" })],
+  ["optionsCreditLongDelta", optionsOf({ longDelta: 0.5 })],
+  ["optionsExitDteAtMin", optionsOf({ exitDte: 21 })],
+  [
+    "legOptionsKey",
+    legOptions({ x: 1 }),
+    "Unknown key in portfolio leg options: x",
+  ],
+  [
+    "legOptionsDte",
+    legOptions({ dte: 5 }),
+    "portfolio leg options.dte must be an object",
+  ],
+];
 const fieldRefusalCases: readonly DefinitionRefusalCase[] = [
   ...fieldRefusals,
   ...nullFieldRefusals,
+  ...optionsFieldRefusals,
 ].map(([id, edit, python]) => ({
   definition: { ...plainDefinition, ...edit },
   id: `field:${id}`,
@@ -3072,6 +3270,14 @@ const buildServerRefusals = (): Json[] =>
 const DEFINITION_REFINEMENT_COUNT = 15;
 
 /**
+ * Number of refinements of StrategyOptionsSchema, then of its dte object. Each one has a
+ * field:options* case; buildDefinitionRefusals compares the counts only.
+ */
+const OPTIONS_REFINEMENT_COUNTS = "2+1";
+const optionsRefinementCounts = () =>
+  `${StrategyOptionsSchema._zod.def.checks?.length}+${StrategyOptionsSchema.shape.dte._zod.def.checks?.length}`;
+
+/**
  * One definitionRefusals entry: the definition and the message that normalize_definition raises.
  * Without `python` that is the message of the first TypeScript issue, which must be one written
  * in strategy-dsl.ts (zod code "custom"). With `python`: zod wrote the first issue (a field
@@ -3108,6 +3314,14 @@ export const definitionRefusalJson = ({
  * refusal cases just outside the bounds, a changed bound of the schema stops the generator.
  */
 const filtersOf = (...filters: Json[]) => ({ ...plainDefinition, filters });
+const OPTIONS_BOUND_HIGH = {
+  ...OPTIONS_BLOCK,
+  maxLossPct: 2,
+  profitTakePct: 100,
+  shortDelta: 0.95,
+  structure: "callCreditVertical",
+  widthSigma: 3,
+};
 const definitionAcceptanceCases: readonly Readonly<{
   definition: Json;
   id: string;
@@ -3221,6 +3435,73 @@ const definitionAcceptanceCases: readonly Readonly<{
     ),
     id: "bound:calendarAndSectorFilters",
   },
+  {
+    definition: {
+      ...plainDefinition,
+      options: { ...OPTIONS_BLOCK, dte: { min: 1, target: 7 } },
+    },
+    id: "bound:optionsDteLow",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: {
+        ...OPTIONS_BLOCK,
+        dte: { min: 400, target: 400 },
+        exitDte: 399,
+      },
+    },
+    id: "bound:optionsDteHigh",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: { ...OPTIONS_BLOCK, exitDte: 0 },
+    },
+    id: "bound:optionsExitDteZero",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: {
+        ...OPTIONS_BLOCK,
+        maxLossPct: 0.01,
+        profitTakePct: 1,
+        shortDelta: 0.05,
+        widthSigma: 0.1,
+      },
+    },
+    id: "bound:optionsCreditLow",
+  },
+  {
+    definition: { ...plainDefinition, options: OPTIONS_BOUND_HIGH },
+    id: "bound:optionsCreditHigh",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: { ...DEBIT_OPTIONS_BLOCK, longDelta: 0.05 },
+    },
+    id: "bound:optionsDebitLow",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      options: {
+        ...DEBIT_OPTIONS_BLOCK,
+        longDelta: 0.95,
+        structure: "putDebitVertical",
+      },
+    },
+    id: "bound:optionsDebitHigh",
+  },
+  {
+    definition: {
+      ...plainDefinition,
+      ...legOf({ entry: { all: [always] }, options: OPTIONS_BOUND_HIGH }),
+    },
+    id: "bound:optionsLeg",
+  },
 ];
 
 /** One definitionAcceptances entry; throws when the schema refuses the definition. */
@@ -3235,11 +3516,16 @@ export const definitionAcceptanceJson = ({
 
 /** 2d. Definition refusals (StrategyDefinitionSchema / normalize_definition). */
 export const buildDefinitionRefusals = (
-  refinements = StrategyDefinitionSchema._zod.def.checks?.length
+  refinements = StrategyDefinitionSchema._zod.def.checks?.length,
+  optionsRefinements = optionsRefinementCounts()
 ): Json[] => {
   if (refinements !== DEFINITION_REFINEMENT_COUNT)
     throw new Error(
       `StrategyDefinitionSchema has ${refinements} refinements, not ${DEFINITION_REFINEMENT_COUNT}: add a definitionRefusalCases entry for each new one, port it to normalize_definition, then update DEFINITION_REFINEMENT_COUNT`
+    );
+  if (optionsRefinements !== OPTIONS_REFINEMENT_COUNTS)
+    throw new Error(
+      `StrategyOptionsSchema has ${optionsRefinements} refinements (block+dte), not ${OPTIONS_REFINEMENT_COUNTS}: add a field:options* case for each new one, port it to _check_options_block in services/research/nautilus_backtest/signals.py, then update OPTIONS_REFINEMENT_COUNTS`
     );
   return definitionRefusalCases.map(definitionRefusalJson);
 };

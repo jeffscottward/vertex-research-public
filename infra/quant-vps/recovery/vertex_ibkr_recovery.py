@@ -128,8 +128,8 @@ RECHECK_REPEAT_SECONDS = 60
 TERMINAL = frozenset({"logged-in", "timed-out", "failed"})
 STATES = ("requested", "waiting-for-approval", "verifying", "logged-in", "timed-out", "failed")
 # no-login-evidence: the container runs past the startup grace and the IBC log has no login line.
-# gateway-unreadable: docker ps, inspect or logs failed. Neither starts a 2FA request (as "unknown" did
-# before card vertex-status-b1-quantvps; readers still accept "unknown" from an older service).
+# gateway-unreadable: docker ps, inspect or logs failed. Neither starts a 2FA request. Readers reject the
+# old "unknown" state (card vertex-status-remove-unknown-enums).
 LOGIN_STATES = ("stopped", "logged-in", "awaiting-2fa", "starting", "logged-out", "no-login-evidence",
                 "gateway-unreadable")
 NEEDS_LOGIN = {"stopped": True, "logged-in": False, "awaiting-2fa": False, "starting": False,

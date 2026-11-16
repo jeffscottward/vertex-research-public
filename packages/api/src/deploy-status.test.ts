@@ -487,7 +487,17 @@ describe("deploy status v2 schema", () => {
     expect(v2Document().session).not.toHaveProperty("state_since");
     const withSession = (patch: Record<string, unknown>) =>
       v2Document({ session: { ...v2Document().session, ...patch } });
-    for (const state of ["missing", "unreadable", "unrecognised", "unknown"]) {
+    // Only a collector before 2.2.0 sent "unknown"; it no longer parses.
+    expect(
+      DeployUpstreamStatusV2Schema.safeParse(withSession({ state: "unknown" }))
+        .success
+    ).toBe(false);
+    expect(
+      DeployUpstreamStatusV2Schema.safeParse(
+        v2Document({ risk: { ...v2Document().risk, kill_switch: "unknown" } })
+      ).success
+    ).toBe(false);
+    for (const state of ["missing", "unreadable", "unrecognised"]) {
       const doc = withSession({ state, state_since: "2026-10-03T11:00:00Z" });
       expect(DeployUpstreamStatusV2Schema.safeParse(doc).success, state).toBe(
         true
