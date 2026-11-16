@@ -649,9 +649,9 @@ describe("bash version guard", () => {
     });
   };
 
-  // 5.2 and 4.4: too old. 5.02, 5, x.y, 5.3.1 and 1234.1: not <major>.<minor> with 1-3 digits each,
-  // so they count as too old (fail closed).
-  it.each(["5.2", "4.4", "5.02", "5", "x.y", "5.3.1", "1234.1"])(
+  // 5.2, 5.02 (minor 02 reads as 2) and 4.4: too old. 5, .3, x.y, 5.3.1 and 1234.1: not
+  // <major>.<minor> with 1-3 digits each, so they count as too old (fail closed).
+  it.each(["5.2", "5.02", "4.4", "5", ".3", "x.y", "5.3.1", "1234.1"])(
     "refuses a real run on bash %s: no lock, no pause file, no remote call",
     (version) => {
       setup({});
