@@ -36,7 +36,7 @@ const NO_WORD_MATCH =
   /(^|\/)vendor\/|^(docs\/|packages\/academy\/|scripts\/academy\/)|\.md$/;
 // A path segment (or a word inside one) that names an owner-decision item.
 const OWNER_DECISION_WORD =
-  /(^|[/_.-])(risk|arming|arm|kill[-_]?switch|live[-_]?orders?|caps?|sizing|golive|position[-_]actions)([/_.-]|$)/i;
+  /(^|[/_.-])(risk|arming|arm|kill[-_]?switch|live[-_]?orders?|caps?|sizing|go[-_]?live|position[-_]actions)([/_.-]|$)/i;
 
 export type PathClass = "owner-decision" | "none";
 
@@ -92,7 +92,7 @@ export function evaluateMergeConditions(
     (f) => classifyPath(f) === "owner-decision"
   );
   const problems: string[] = [];
-  if (input.files.length > 0) {
+  {
     const reviewed = [...body.matchAll(REVIEW_LINE)].map((m) =>
       String(m[1]).toLowerCase()
     );
@@ -112,7 +112,7 @@ export function evaluateMergeConditions(
     !DECISION_NOT_NEEDED.test(body)
   ) {
     problems.push(
-      "Add 'Owner decision: <Discord message or GitHub issue/comment link>' to the PR body, or 'Owner decision: not needed (<reason of 20+ characters>)' when the change does not alter what an owner-decision item allows."
+      "Add 'Owner decision: <Discord message or GitHub issue/PR URL>' to the PR body, or 'Owner decision: not needed (<reason of 20+ characters>)' when the change does not alter what an owner-decision item allows."
     );
   }
   return { ok: problems.length === 0, ownerDecision, problems };
