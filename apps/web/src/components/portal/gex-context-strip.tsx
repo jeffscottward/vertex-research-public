@@ -1,5 +1,5 @@
 import type { GexContext, GexContextFactor } from "@darkfactory/api";
-import { cn } from "@darkfactory/ui";
+import { cn, StatusBadge } from "@darkfactory/ui";
 import { useId } from "react";
 
 // "Read this before trusting the number": one chip per GEX caveat (dealer sign, freshness,
@@ -12,11 +12,12 @@ const TONE_CLASS: Readonly<Record<GexContextFactor["tone"], string>> = {
   neutral: "border-border",
 };
 
-const TONE_TEXT: Readonly<Record<GexContextFactor["tone"], string>> = {
-  alert: "Check",
-  caution: "Caution",
-  neutral: "Info",
-};
+// Tone is also shown as a word, so it does not depend on colour (WCAG 1.4.1).
+// Neutral chips carry no badge.
+const TONE_BADGE = {
+  alert: { status: "destructive", text: "Check" },
+  caution: { status: "warning", text: "Caution" },
+} as const;
 
 export const GexContextStrip = ({
   context,
@@ -46,9 +47,16 @@ export const GexContextStrip = ({
             data-tone={factor.tone}
             key={factor.key}
           >
-            <p className="text-muted-foreground">
-              <span className="sr-only">{TONE_TEXT[factor.tone]}: </span>
-              {factor.label}
+            <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground">
+              {factor.tone === "neutral" ? null : (
+                <StatusBadge
+                  data-tone-badge=""
+                  status={TONE_BADGE[factor.tone].status}
+                >
+                  {TONE_BADGE[factor.tone].text}
+                </StatusBadge>
+              )}
+              <span>{factor.label}</span>
             </p>
             <p className="break-words font-medium">{factor.value}</p>
           </li>

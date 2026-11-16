@@ -53,6 +53,8 @@ export type QuantDataResult =
       ok: true;
       data: unknown;
       body: Readonly<Record<string, unknown>>;
+      // Epoch ms when QuantData answered (kept on cache hits); test fakes may omit it.
+      fetchedAt?: number;
     }>
   | Readonly<{
       ok: false;
@@ -170,7 +172,7 @@ export const createQuantDataClient = (
   const reserve = options.quotaReserve ?? DEFAULT_QUOTA_RESERVE;
   const cache = new Map<
     string,
-    { expires: number; body: Record<string, unknown> }
+    { expires: number; fetchedAt: number; body: Record<string, unknown> }
   >();
   let cooldownUntil = 0;
   let yieldUntil = 0;
@@ -332,7 +334,7 @@ export const createQuantDataClient = (
           "invalid",
           `QuantData ${endpoint}: unsupported response format.`
         );
-      return { body: parsed, data: parsed["data"], ok: true };
+      return { body: parsed, data: parsed["data"], fetchedAt: now(), ok: true };
     } finally {
       clearTimeout(timer);
     }
@@ -348,7 +350,12 @@ export const createQuantDataClient = (
     const key = `${endpoint} ${cacheKey === undefined ? JSON.stringify(payload) : `key ${cacheKey}`}`;
     const hit = cache.get(key);
     if (hit !== undefined && hit.expires > now())
-      return { body: hit.body, data: hit.body["data"], ok: true };
+      return {
+        body: hit.body,
+        data: hit.body["data"],
+        fetchedAt: hit.fetchedAt,
+        ok: true,
+      };
     const held = blocked(endpoint);
     if (held !== null) return held;
     const kept = Math.min(Math.max(0, keepFree), maxPerMinute - 1);
@@ -358,7 +365,11 @@ export const createQuantDataClient = (
     const result = await run;
     if (result.ok) {
       cache.delete(key);
-      cache.set(key, { body: result.body, expires: now() + ttlMs });
+      cache.set(key, {
+        body: result.body,
+        expires: now() + ttlMs,
+        fetchedAt: now(),
+      });
       for (const oldest of cache.keys()) {
         if (cache.size <= MAX_CACHE_ENTRIES) break;
         cache.delete(oldest);

@@ -255,7 +255,21 @@ describe("OptionsAnalyticsPanel", () => {
     expect(
       chips.map((chip) => chip.getAttribute("data-tone")).slice(0, 3)
     ).toEqual(["neutral", "caution", "alert"]);
-    expect(chips[1]?.textContent).toBe("Caution: Label regimeValue regime");
+    // Tone is a visible word as well as a colour (WCAG 1.4.1); neutral chips have no badge.
+    const badge = (index: number) =>
+      chips[index]?.querySelector("[data-tone-badge]") ?? null;
+    const visibleText = (element: Element | null) =>
+      [...(element?.querySelectorAll("span:not(.sr-only)") ?? [])]
+        .map((span) => span.textContent)
+        .join("");
+    expect(badge(0)).toBeNull();
+    expect(visibleText(badge(1))).toBe("Caution");
+    expect(badge(1)?.getAttribute("data-status")).toBe("warning");
+    expect(visibleText(badge(2))).toBe("Check");
+    expect(badge(2)?.getAttribute("data-status")).toBe("destructive");
+    expect(chips[1]?.textContent).toBe(
+      "Status:CautionLabel regimeValue regime"
+    );
     expect(chips[1]?.className).toContain("border-warning-border");
     expect(chips[2]?.className).toContain("border-destructive-border");
     expect(
