@@ -310,6 +310,7 @@ export const BasketsWorkspace = ({
       const next = await gateway.list();
       setItems(next);
       setListError(null);
+      setListErrorCause(null);
       return next;
     } catch (error) {
       setListError(describeBasketFailure(error));
@@ -436,9 +437,9 @@ export const BasketsWorkspace = ({
         status={
           <StatusBadge data-testid="baskets-status" status="neutral">
             {items === null
-              ? listError === null
+              ? listErrorCause === null
                 ? "Loading"
-                : `List not loaded: ${listErrorCause ?? "request failed"}`
+                : `List not loaded: ${listErrorCause}`
               : `${items.length} ${items.length === 1 ? "basket" : "baskets"}`}
           </StatusBadge>
         }
