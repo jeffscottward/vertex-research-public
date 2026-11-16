@@ -181,6 +181,25 @@ describe("sizing, expiry, strikes and values", () => {
     ).toBeNull();
   });
 
+  it("refuses a strike search far above real data (more than 25000 grid strikes)", () => {
+    const spec = parseOptions(DEBIT);
+    const t = 44 / 365;
+    // The ATM IV at which the search range around spot 100 is 25000 grid steps of 1 (4 sigmas each side).
+    const edge = 25_000 / (2 * 4 * Math.sqrt(t) * 100);
+    expect(
+      chooseStrikes("call", "debit", 100, t, 0, 0, edge * 0.999, 0, spec)
+    ).not.toBeNull();
+    for (const [spot, atm] of [
+      [100, edge * 1.001],
+      [1e9, 0.2],
+      [100, 9000],
+      [1e308, 9000],
+    ] as const)
+      expect(() =>
+        chooseStrikes("call", "debit", spot, t, 0, 0, atm, 0, spec)
+      ).toThrow("more than 25000 grid strikes");
+  });
+
   it("values the spread and its worst exit in cents", () => {
     expect([
       instrumentValue("credit", 1.2, 2.5, 5),
@@ -262,6 +281,21 @@ describe("markets and the book", () => {
         XYZ: market("XYZ"),
       })
     ).toThrow("No IV index for XYZ");
+  });
+
+  it("refuses an IV index level above 10000 at entry and while the trade is open", () => {
+    const spec = parseOptions(DEBIT);
+    const levels = (from: number, value: number) =>
+      market("SPY").dates.map((_, index) => (index >= from ? value : 20));
+    const run = (ivIndex: number[]) =>
+      buildBook([["SPY", 0]], spec, { SPY: market("SPY", 40, { ivIndex }) });
+    expect(run(levels(10, 10_000)).trades).toHaveLength(1);
+    expect(() => run(levels(10, 1e300))).toThrow(
+      "VIX level 1e+300 is above 10000: far above real data"
+    );
+    expect(() => run(levels(0, 10_001))).toThrow(
+      "VIX level 10001 is above 10000: far above real data"
+    );
   });
 
   it("skips an event without a reachable expiry", () => {
