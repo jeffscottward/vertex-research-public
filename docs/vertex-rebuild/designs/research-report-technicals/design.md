@@ -136,6 +136,7 @@ The stored dossier numbers were not visible. The old APP technical note computed
 | Modify | Reviewed reads | `packages/api/src/agent-viewer.test.ts` | Adds `researchReports.technicals`. |
 | Create | View-model | `apps/web/src/features/research-reports/technicals-view-model.ts` | `toTechnicalsViewModel`: rows, labels and text for each panel. |
 | Modify | Page | `apps/web/src/components/portal/research-reports.tsx` | Gateway method `technicals(reportId)`; `TechnicalsPanels` (load key `<reportId>/technicals`) rendered by `DatasetTab` for the technicals tab. |
+| Modify | Dataset view-model | `apps/web/src/features/research-reports/view-model.ts` | Drops the private `entry` section of the flat APP technicals. |
 | Modify | UI lab | `apps/web/src/lab/fixtures/research.ts`, `apps/web/src/lab/entries/research.tsx` | Fictional technicals for `/lab/research-report`. |
 | Modify | Docs | `docs/vertex-rebuild/research-reports.md` | API row for `researchReports.technicals`; the Technicals tab in Pages; P1-4 removed from the remaining work. |
 
@@ -181,7 +182,7 @@ The largest measured market body is 784 KB (AAPL, 2,513 bars, with options data)
 | A one-week dip below a rising SMA reads as Stage 3. | Documented in D5; the slope and weekly close are shown next to the stage. |
 | Daily bars hide where volume traded inside the day. | The page notes call the profile a daily-bar approximation. |
 | Futures roll gaps distort markers. | Warning line for reports whose `assetType` is `future`. |
-| The stored APP body may hold account-related text. | Only the read list passes; text fields pass only as `YYYY-MM-DD` dates. |
+| The stored APP technicals hold order and exposure text (section `entry`: a pending share order, the position's exposure). | `researchReports.technicals` passes only the read list, with text fields only as `YYYY-MM-DD` dates. The dataset panels never show a section with id `entry` (`PRIVATE_SECTION_IDS` in `apps/web/src/features/research-reports/view-model.ts`). |
 
 ## Alternatives Considered
 
