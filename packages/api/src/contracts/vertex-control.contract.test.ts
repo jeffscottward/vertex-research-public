@@ -711,6 +711,22 @@ describe("Vertex additive control contracts", () => {
         }).success
       ).toBe(true);
     }
+    // Only the portfolio read can say no projection stream exists for the scope;
+    // a continuity read always names one stream.
+    expect(
+      VertexPortfolioReadSchema.safeParse({
+        status: "unavailable",
+        reason: "not-configured",
+        executionAuthorized: false,
+      }).success
+    ).toBe(true);
+    expect(
+      VertexContinuityReadSchema.safeParse({
+        status: "unavailable",
+        reason: "not-configured",
+        executionAuthorized: false,
+      }).success
+    ).toBe(false);
     expect(
       VertexPortfolioGetInputSchema.parse({
         accountAlias: scope.accountAlias,

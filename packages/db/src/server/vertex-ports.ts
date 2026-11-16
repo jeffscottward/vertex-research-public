@@ -176,6 +176,13 @@ export type VertexProjectionResult = Readonly<{
   highWaterSequence: string;
   highWaterEventHash: string | null;
 }>;
+// `streamRegistered` is true when any projection head exists for the scope.
+// Portfolio snapshots are checkpoints of that same stream, so no head means
+// no native source has started publishing for this account and environment.
+export type VertexPortfolioRecordRead = Readonly<{
+  snapshot: VertexRecord | null;
+  streamRegistered: boolean;
+}>;
 export type VertexOutboxLease = Readonly<{
   eventId: string;
   scope: VertexScope;
@@ -369,6 +376,12 @@ export type VertexStore = VertexResearchChatCopyOperations &
       principal: VertexPrincipal,
       scope: VertexScope
     ) => Promise<VertexRecord | null>;
+    // The portfolio page's read: the current snapshot plus whether any
+    // projection stream exists for the scope, from one transaction.
+    getPortfolioRead: (
+      principal: VertexPrincipal,
+      scope: VertexScope
+    ) => Promise<VertexPortfolioRecordRead>;
     getContinuity: (
       principal: VertexPrincipal,
       scope: VertexScope,
