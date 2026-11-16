@@ -246,7 +246,8 @@ dates and option-model rows), NautilusTrader 1.227.0, 131 s on the rig. Research
 - 0DTE form: 1,331 rule C spreads were priced, but only 1,226 were booked, because the account fell too low for one
   contract within the 2% maximum-loss sizing. Spread stress x2: rule A $-92,753, rule C $-94,215 out of sample.
 - Weekly form (report only, from 2010-06-04): both rules lost about 98% of the account within the train part
-  (rule A 1,544 trades $-97,570; rule C 1,585 trades $-98,299) and could not open a position after that.
+  (whole sample: rule A 1,544 trades $-97,570, of them 1,542 in train and 1 in validation; rule C 1,585 trades
+  $-98,299) and opened almost no position after that.
 - Forward order-flow description (SPY, 2026-11-09 to 2026-11-13; `flow_minutes` export of 2026-11-16): 10 signals
   (5 SPY, 5 QQQ). For the 5 SPY signals, the 30-minute delta sign agreed with the trade side in 4 of 10 source
   readings (SPY and ES), with 9% to 16% coverage. Anecdotal; not a gate input.
