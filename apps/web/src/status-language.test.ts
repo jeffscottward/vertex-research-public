@@ -33,7 +33,7 @@ import {
 // listed text, gets "REASON REQUIRED" and the test fails until the reason is written.
 
 // Open (known ambiguous) entries on 2026-11-13. Lower it with each replacement; never raise it.
-const MAX_OPEN = 190;
+const MAX_OPEN = 182;
 
 const ROOT = join(import.meta.dirname);
 const LIST_FILE = "status-language-allowlist.ts";

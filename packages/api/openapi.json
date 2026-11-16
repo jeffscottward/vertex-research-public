@@ -87285,7 +87285,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage unavailable",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -87861,7 +87861,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage unavailable",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -88326,7 +88326,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage unavailable",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -88905,7 +88905,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage unavailable",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -89682,7 +89682,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage unavailable",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -263608,7 +263608,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage unavailable",
+                          "default": "Watchlist storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -264164,7 +264164,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage unavailable",
+                          "default": "Watchlist storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -264630,7 +264630,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage unavailable",
+                          "default": "Watchlist storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -265211,7 +265211,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage unavailable",
+                          "default": "Watchlist storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {

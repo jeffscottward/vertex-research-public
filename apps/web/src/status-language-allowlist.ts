@@ -636,51 +636,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: Names the cause: no date has a close for every member. The per-symbol causes are listed next to it by baskets-workspace.tsx:160-172 (stale symbols, unavailable symbols with reason).",
   },
   {
-    file: "components/portal/basket-watchlist-section.tsx",
-    text: "…",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Loading marker with no timeout: if the request hangs it stays forever. Show "loading value…" and after N seconds "value not received since HH:MM · retrying"; needs a request start time in component state. A failed load is already shown separately as stale.',
-    open: true,
-  },
-  {
-    file: "components/portal/baskets-client.ts",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "no value" plus the cause: "valuation failed" when the row is stale with latest null, "no prices for members" otherwise; row.stale and staleSymbols are in scope at the call site.',
-    open: true,
-  },
-  {
-    file: "components/portal/baskets-client.ts",
-    text: "Basket storage unavailable (503).",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Cause is named but not the outcome or next step. Replace with "Basket storage did not respond (503). Nothing was saved. Retry."',
-    open: true,
-  },
-  {
-    file: "components/portal/baskets-workspace.tsx",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "No daily close received yet" or, on failure, the fetch cause; baseState and staleSymbols already in scope give the cause.',
-    open: true,
-  },
-  {
     file: "components/portal/baskets-workspace.tsx",
     text: "History unavailable:",
     count: 1,
     reason:
       "Kept: The following expression `entry.symbol (entry.reason)` carries the cause per symbol; reason is the non-null API field of each unavailable entry.",
-  },
-  {
-    file: "components/portal/baskets-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Badge "Load failed" plus the cause; listError is in scope and is shown below, so name it in the badge (e.g. "List not loaded: <code>").',
-    open: true,
   },
   {
     file: "components/portal/breadth-90-card.tsx",
@@ -1710,22 +1670,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: Static prose that states the limits of the ticket (which order types exist). Not a runtime state.",
   },
   {
-    file: "components/portal/watchlist-analytics.ts",
-    text: "—",
-    count: 2,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Needs 2+ daily closes (have n)' or 'Bars not loaded'. Callers know the close count and load state.",
-    open: true,
-  },
-  {
-    file: "components/portal/watchlist-client.ts",
-    text: "Watchlist storage unavailable (503).",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Watchlist database did not answer at HH:MM (503). Change not saved. Retry.'",
-    open: true,
-  },
-  {
     file: "components/portal/watchlist-exposure.tsx",
     text: "—",
     count: 1,
@@ -1752,14 +1696,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: Cell title states the cause and the threshold (overlap vs MIN_CORRELATION_OVERLAP). Hover only: consider visible legend.",
-  },
-  {
-    file: "components/portal/watchlist-research.tsx",
-    text: "—",
-    count: 2,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace the dash side with words: 'from 100' (no upper bound set) or 'up to 120' (no lower bound set). Both values are in scope.",
-    open: true,
   },
   {
     file: "components/portal/watchlist-research.tsx",

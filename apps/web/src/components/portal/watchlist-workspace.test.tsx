@@ -332,7 +332,12 @@ describe("watchlist workspace", () => {
       list: vi
         .fn()
         .mockRejectedValueOnce(
-          Object.assign(new Error("down"), { code: "STORAGE_ERROR" })
+          Object.assign(
+            new Error(
+              "Watchlist data could not be read: the database returned an error at 14:05 UTC. Nothing was changed. Try again."
+            ),
+            { code: "STORAGE_ERROR" }
+          )
         )
         .mockResolvedValueOnce([item("AAA")]),
       add: vi.fn(),
@@ -341,7 +346,7 @@ describe("watchlist workspace", () => {
     };
     const container = await mount(gateway);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "Watchlist storage unavailable"
+      "Watchlist data could not be read: the database returned an error at 14:05 UTC. Nothing was changed. Try again."
     );
     await clickButton("Retry");
     return expect(

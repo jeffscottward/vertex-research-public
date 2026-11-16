@@ -203,7 +203,8 @@ const clientFor = (
 const expectCode = async (
   promise: Promise<unknown>,
   code: string,
-  status: number
+  status: number,
+  message?: RegExp
 ): Promise<void> => {
   try {
     await promise;
@@ -211,6 +212,8 @@ const expectCode = async (
   } catch (error) {
     expect(error).toBeInstanceOf(ORPCError);
     expect(error).toMatchObject({ code, status });
+    if (message !== undefined)
+      expect(error).toMatchObject({ message: expect.stringMatching(message) });
   }
 };
 
@@ -327,7 +330,19 @@ describe("baskets procedures", () => {
     await expectCode(
       clientFor(session("operator"), repository).baskets.list({}),
       "STORAGE_ERROR",
-      503
+      503,
+      /^Basket data could not be read: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/
+    );
+    repository.get = vi.fn(async () => {
+      throw new DatabasePersistenceError("basket get");
+    });
+    await expectCode(
+      clientFor(session("operator"), repository).baskets.valuation({
+        id: "operator-TITY",
+      }),
+      "STORAGE_ERROR",
+      503,
+      /^Basket value could not be computed: the database returned an error at \d\d:\d\d UTC\. Reload to see the current value\.$/
     );
   });
 
@@ -335,7 +350,8 @@ describe("baskets procedures", () => {
     await expectCode(
       clientFor(session("operator")).baskets.list({}),
       "STORAGE_ERROR",
-      503
+      503,
+      /^Basket data could not be read or saved: no database is connected to this server \(checked at \d\d:\d\d UTC\)\. Nothing was changed\./
     );
   });
 
@@ -404,7 +420,8 @@ describe("baskets procedures", () => {
     await expectCode(
       client.baskets.create({ symbol: "DOWN", name: "x", members }),
       "STORAGE_ERROR",
-      503
+      503,
+      /^Basket change failed: the database returned an error at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/
     );
     await expectCode(
       client.baskets.create({ symbol: "BOOM", name: "x", members }),
