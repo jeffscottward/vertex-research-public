@@ -128,7 +128,7 @@ space="$(remote "$SPACE" 2>&1)" || {
 free_kb="$(sed -n 's/^free //p' <<<"$space" | head -n 1)"
 [[ "$free_kb" =~ ^[0-9]+$ ]] || refuse "no free-space answer from QuantVPS: ${space:-none}"
 [ "$free_kb" -ge "$MIN_FREE_KB" ] ||
-  refuse "only $((free_kb / 1024)) MiB free on QuantVPS (minimum $((MIN_FREE_KB / 1024)) MiB). Old dist.bak-*, .runtime-bak-* and .runtime-failed-* directories need an owner decision before removal."
+  refuse "only $((free_kb / 1024)) MiB free on QuantVPS (minimum $((MIN_FREE_KB / 1024)) MiB). Run infra/quantvps/prune-web-backups.sh --apply for old dist.bak-* build backups; old .runtime-bak-* and .runtime-failed-* directories need an owner decision before removal."
 
 # From here the earlier stage is gone. It loses its completeness marker first, then it is removed.
 PREPARE=": prepare; cd '$CHECKOUT' && rm -f .runtime-next/RUNTIME_SHA && rm -rf .runtime-next && mkdir .runtime-next"
