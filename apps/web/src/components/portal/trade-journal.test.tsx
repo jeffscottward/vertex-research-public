@@ -200,7 +200,7 @@ describe("JournalReport status and contracts", () => {
     const note = offline.querySelector("[data-journal-connected]");
     expect(note?.getAttribute("data-journal-connected")).toBe("false");
     expect(note?.textContent).toContain(
-      "The IBKR gateway is disconnected, so account data is withheld until it reconnects."
+      "The IBKR gateway has been disconnected, so account data is withheld until it reconnects."
     );
     expect(text(offline)).not.toMatch(/unknown/i);
     // The API shape of an account mode mismatch: gateway live, lists emptied, not connected.
