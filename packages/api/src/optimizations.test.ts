@@ -548,7 +548,8 @@ describe("agentOps.optimizations procedures", () => {
     return await expectCode(
       clientFor({}).agentOps.optimizations.list({}),
       "STORAGE_ERROR",
-      503
+      503,
+      "Optimization run storage is not configured on this server; nothing was saved. Set the database connection, then retry."
     );
   });
 

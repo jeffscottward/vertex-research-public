@@ -228,7 +228,8 @@ const refuseAcademyStrategy = async (
   const library = context.repositories.strategyLibrary;
   if (library === undefined)
     throw factories(errors).STORAGE_ERROR({
-      message: "Strategy library unavailable",
+      message:
+        "Strategy library storage is not configured on this server; the request was not saved. Set the database connection, then retry.",
     });
   const record = await procedure(() => library.get(strategyId), errors);
   if (record !== null && isAcademyStrategySlug(record.strategy.slug))

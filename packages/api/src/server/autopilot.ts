@@ -316,13 +316,18 @@ const sendToPaper = api.autopilot.candidates.sendToPaper
     const repository = repositoryFor(context, failures);
     const { deploymentRequests, strategyDefinitions, strategyLibrary } =
       context.repositories;
-    if (
-      deploymentRequests === undefined ||
-      strategyDefinitions === undefined ||
-      strategyLibrary === undefined
-    )
+    // Name the one store that is missing, so the cause is exact.
+    if (deploymentRequests === undefined)
       throw failures.STORAGE_ERROR({
-        message: storageNotConfiguredMessage("Deployment request or strategy"),
+        message: storageNotConfiguredMessage("Deployment request"),
+      });
+    if (strategyDefinitions === undefined)
+      throw failures.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Strategy definition"),
+      });
+    if (strategyLibrary === undefined)
+      throw failures.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Strategy library"),
       });
     const row = await repository.getCandidate(input.id);
     if (row === null)

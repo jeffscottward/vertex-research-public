@@ -1074,7 +1074,8 @@ describe("autopilot procedures", () => {
       clientFor({
         autopilot: memory.repository,
       }).autopilot.candidates.sendToPaper({ id: verified.id, limits }),
-      "STORAGE_ERROR"
+      "STORAGE_ERROR",
+      "Deployment request storage is not configured on this server"
     );
 
     const sent = await client.autopilot.candidates.sendToPaper({
