@@ -13,7 +13,7 @@ from pathlib import Path
 
 from strategies.imom.data import is_closed
 
-from .data import PARTS, TICKERS, DataError, bucket_path, parse_part
+from .data import FALLBACK_PARTS, PARTS, TICKERS, DataError, bucket_path, parse_part
 
 BASE_URL = "https://api.quantdata.us"
 ENDPOINT = "/v1/options/tool/net-drift"
@@ -78,12 +78,19 @@ def trading_days(first_day: str, last_day: str) -> list[str]:
 
 
 def plan(root: Path, last_day: str, first_day: str = FIRST_DAY) -> list[tuple[str, str, str, str]]:
-    """(ticker, part, day, status) per ticker, part and trading day, newest day first."""
+    """(ticker, part, day, status) per ticker, part and trading day, newest day first. A `total` without its file
+    counts as present when both FALLBACK_PARTS files are present (the loader derives the total)."""
     out = []
     for day in reversed(trading_days(first_day, last_day)):
         for ticker in TICKERS:
             for part in PARTS:
-                out.append((ticker, part, day, _status(bucket_path(root, ticker, part, day))))
+                status = _status(bucket_path(root, ticker, part, day))
+                if status == "pending" and part == "total":
+                    # A first download holds the layout zero_dte plus longer; the loader derives the total from it.
+                    fallback = [_status(bucket_path(root, ticker, other, day)) for other in FALLBACK_PARTS]
+                    if "pending" not in fallback:
+                        status = "data" if "data" in fallback else "empty"
+                out.append((ticker, part, day, status))
     return out
 
 

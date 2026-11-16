@@ -218,3 +218,13 @@ def test_dry_run_sends_nothing_and_prints_the_estimate(tmp_path, capsys):
                        environ={}) == 0
     out = capsys.readouterr().out
     assert out.startswith("8 pending files of 8") and "hours" in out
+
+
+def test_plan_counts_a_total_derived_from_zero_dte_and_longer(tmp_path):
+    for part in ("zero_dte", "longer"):
+        path = data.bucket_path(tmp_path, "SPY", part, DAY)
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(body_with_data()["data"]))
+    status = {(t, p): s for t, p, d, s in download.plan(tmp_path, DAY, DAY)}
+    assert status[("SPY", "total")] == "data" and status[("SPY", "zero_dte")] == "data"
+    assert status[("SPX", "total")] == "pending"
