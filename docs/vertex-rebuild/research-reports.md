@@ -46,14 +46,15 @@ Read-only and operator-only (the same gate as `quantLab.list`). Agent API keys a
 | `researchReports.list` | `GET /research-reports` | Catalog summaries and categories. |
 | `researchReports.dataset` | `GET /research-reports/{reportId}/datasets/{dataset}` | One parsed dataset of the current revision, or of `revision`, plus the report's revision list. `portfolio` is not a valid dataset name. |
 | `researchReports.companyResearch` | `GET /research-reports/{reportId}/company-research` | The accepted company-research dossier. |
+| `researchReports.technicals` | `GET /research-reports/{reportId}/technicals` | The stored technicals of the current revision (or of `revision`), a recompute check of 9 stored values from the revision's stored daily bars, and swing pivots, Weinstein stage, Fibonacci levels and a volume profile computed from those bars. Design: [research-report-technicals](designs/research-report-technicals/design.md). |
 
 ## Pages
 
 - `/research/reports`: the catalog, one table per category in catalog order; reports in no category form a last "Other reports" group. Linked from the Research page.
-- `/research/reports/<ID>`: one report's datasets (fundamentals first; technicals, options analysis, committee, news, market) with summary, warnings, metrics, news items, collapsible sections and sources, and the revision in use.
+- `/research/reports/<ID>`: one report's datasets (fundamentals first; technicals, options analysis, committee, news, market) with summary, warnings, metrics, news items, collapsible sections and sources, and the revision in use. The Technicals tab also loads `researchReports.technicals` (its own load state): the stored indicator values, the recompute check, trend checks, Weinstein stage, swing pivots, Fibonacci levels, the volume profile and the method notes. These are context markers, not signals.
 
 Both pages load through the operator-only API; other users see "Research reports are limited to operators." Dataset JSON is read defensively in `apps/web/src/features/research-reports/view-model.ts`: fields with an unexpected shape are left out, and only `http(s)` links are rendered.
 
 ## Remaining P1 work
 
-The research refresh scheduler, the technicals port (including Fibonacci and the volume profile check), market health and the Crown checklist, knowledge search and the payoff lab are later P1 slices. See the merge plan at `~/Documents/reports/web/vertex-merge-plan/` on the rig.
+The research refresh scheduler, market health and the Crown checklist, knowledge search and the payoff lab are later P1 slices. See the merge plan at `~/Documents/reports/web/vertex-merge-plan/` on the rig.
