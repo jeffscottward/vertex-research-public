@@ -334,7 +334,7 @@ wait_for_checks() {
     while IFS=$'\t' read -r context app; do
       result=$(check_state "$context" "$app")
       case "$result" in
-        fail) die "required check $context failed on $head; fix it, push, then rerun scripts/merge-pr" ;;
+        fail) die "required check $context failed on $head; fix it, push, then rerun scripts/merge-pr (a failed Merge conditions job needs a PR body edit and a rerun of the failed jobs, not a push)" ;;
         skipped) die "required check $context was skipped on $head; GitHub counts that as passing, this script does not" ;;
         pending) waiting="$waiting $context" ;;
       esac
