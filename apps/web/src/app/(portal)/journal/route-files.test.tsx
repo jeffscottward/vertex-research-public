@@ -65,6 +65,8 @@ describe("trade journal route files", () => {
     const container = await render(<JournalError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Trade journal unavailable");
+    expect(container.textContent).toContain(
+      "Trade journal failed to render at"
+    );
   });
 });

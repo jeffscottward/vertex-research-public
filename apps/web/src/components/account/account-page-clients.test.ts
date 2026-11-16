@@ -435,12 +435,23 @@ describe("profile page client", () => {
       "unauthorized",
       "/sign-in?callbackURL=%2Fsettings%2Faccount%2Fprofile",
       "Sign in again to load your profile.",
+      "Session expired",
     ],
-    ["forbidden", "/dashboard", "This account cannot open that profile."],
-    ["not-found", "/settings/account", "The profile is no longer available."],
+    [
+      "forbidden",
+      "/dashboard",
+      "This account cannot open that profile.",
+      "No access to this profile",
+    ],
+    [
+      "not-found",
+      "/settings/account",
+      "No profile exists for this account. Go back to account.",
+      "Profile not found",
+    ],
   ] as const)(
     "renders the owner-safe %s load recovery",
-    async (code, href, description) => {
+    async (code, href, description, title) => {
       gatewayRuntime.current = gatewayWith({
         getProfile: vi.fn(async () =>
           Promise.reject({
@@ -454,7 +465,7 @@ describe("profile page client", () => {
       const tree = mounted.render();
       const emptyState = findElement(
         tree,
-        (element) => element.props["title"] === "Profile unavailable"
+        (element) => element.props["title"] === title
       );
       expect(emptyState?.props["message"]).toBe(description);
       return expect(
@@ -478,7 +489,7 @@ describe("profile page client", () => {
         tree,
         (element) =>
           element.props["message"] ===
-          "Your profile could not be loaded. No fields were changed."
+          "The profile request failed. No fields were changed. Select Try again."
       )
     ).toBeDefined();
 
@@ -634,7 +645,7 @@ describe("profile page client", () => {
     expect(
       findElement(
         tree,
-        (element) => element.props["title"] === "Profile unavailable"
+        (element) => element.props["title"] === "Profile failed to load"
       )
     ).toBeDefined();
     return expect(
@@ -689,7 +700,7 @@ describe("profile page client", () => {
     expect(
       findElement(
         tree,
-        (element) => element.props["title"] === "Profile unavailable"
+        (element) => element.props["title"] === "Profile failed to load"
       )
     ).toBeDefined();
     return expect(
@@ -738,21 +749,24 @@ describe("preferences page client", () => {
     [
       "UNAUTHORIZED",
       "/sign-in?callbackURL=%2Fsettings%2Faccount%2Fpreferences",
-      "Your preferences could not be loaded. Existing settings remain unchanged.",
+      "Your session ended. Sign in again to load your preferences.",
+      "Session expired",
     ],
     [
       "FORBIDDEN",
       "/settings/account",
-      "Your preferences could not be loaded. Existing settings remain unchanged.",
+      "This account cannot open these preferences.",
+      "No access to these preferences",
     ],
     [
       "NOT_FOUND",
       "/settings/account",
-      "No saved preferences were found for this account.",
+      "No saved preferences were found for this account. Go back to account to set them up.",
+      "No saved preferences",
     ],
   ] as const)(
     "renders the accessible %s preferences recovery",
-    async (code, href, description) => {
+    async (code, href, description, title) => {
       gatewayRuntime.current = gatewayWith({
         getPreferences: vi.fn(async () => Promise.reject({ code })),
       });
@@ -763,7 +777,7 @@ describe("preferences page client", () => {
       const tree = mounted.render();
       const emptyState = findElement(
         tree,
-        (element) => element.props["title"] === "Preferences unavailable"
+        (element) => element.props["title"] === title
       );
       expect(emptyState?.props["description"]).toBe(description);
       return expect(
@@ -952,7 +966,7 @@ describe("preferences page client", () => {
     expect(
       findElement(
         tree,
-        (element) => element.props["title"] === "Preferences unavailable"
+        (element) => element.props["title"] === "Preferences failed to load"
       )
     ).toBeDefined();
     return expect(
@@ -1007,7 +1021,7 @@ describe("preferences page client", () => {
     expect(
       findElement(
         tree,
-        (element) => element.props["title"] === "Preferences unavailable"
+        (element) => element.props["title"] === "Preferences failed to load"
       )
     ).toBeDefined();
     return expect(
@@ -2207,7 +2221,8 @@ describe("account page mutation recovery", () => {
     tree = mounted.render();
     form = component(tree, PreferencesForm);
     expect(form.props["feedback"]).toEqual({
-      message: "Account storage is temporarily unavailable. Try again.",
+      message:
+        "Account data could not be read or saved: the account server did not answer. Nothing was changed. Try again.",
       tone: "error",
     });
 

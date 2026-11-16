@@ -6,6 +6,7 @@ import type { Address, Profile, UserPreferences } from "@darkfactory/db/schema";
 import {
   type AddressRepository,
   DatabaseConflictError,
+  DatabasePersistenceError,
   InvalidRepositoryInputError,
   type ProfileRepository,
   type UserPreferencesRepository,
@@ -109,9 +110,12 @@ const mapAccountRepositoryError = (error: unknown): never => {
   if (error instanceof DatabaseConflictError) {
     throw new AccountServiceError("CONFLICT", "Account resource conflict");
   }
+  const at = `${new Date().toISOString().slice(11, 16)} UTC`;
   throw new AccountServiceError(
     "STORAGE_ERROR",
-    "Account storage is unavailable"
+    error instanceof DatabasePersistenceError
+      ? `Account data could not be read or saved: the database did not answer at ${at}. Nothing was changed. Try again.`
+      : `Account data could not be read or saved: unexpected server error at ${at}. Nothing was changed. Try again.`
   );
 };
 const runRepository = async <T>(operation: () => Promise<T>): Promise<T> => {

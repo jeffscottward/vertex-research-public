@@ -65,6 +65,6 @@ describe("baskets route files", () => {
     const container = await render(<BasketsError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Baskets unavailable");
+    expect(container.textContent).toContain("Baskets failed to render at");
   });
 });

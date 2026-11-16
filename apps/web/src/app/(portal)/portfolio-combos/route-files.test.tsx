@@ -51,6 +51,8 @@ describe("portfolio combos route files", () => {
     const container = await render(<InstantBacktestError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Portfolio combos unavailable");
+    expect(container.textContent).toContain(
+      "Portfolio combos failed to render at"
+    );
   });
 });

@@ -7,6 +7,7 @@ import {
   DashboardPersistenceError,
   type DashboardRepository,
   DatabaseConflictError,
+  DatabasePersistenceError,
   InvalidAdminUsersCursorError,
   InvalidRepositoryInputError,
   type ProfileRepository,
@@ -497,7 +498,16 @@ describe("account service", () => {
     {
       failure: new Error("private account adapter details"),
       code: "STORAGE_ERROR",
-      message: "Account storage is unavailable",
+      message: expect.stringMatching(
+        /^Account data could not be read or saved: unexpected server error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
+      ),
+    },
+    {
+      failure: new DatabasePersistenceError("load profile"),
+      code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Account data could not be read or saved: the database did not answer at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
+      ),
     },
   ] as const)(
     "maps repository failures to the stable $code contract",

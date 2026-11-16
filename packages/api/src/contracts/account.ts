@@ -207,7 +207,10 @@ export const ACCOUNT_ERRORS = {
   NOT_FOUND: { status: 404, message: "Account resource not found" },
   CONFLICT: { status: 409, message: "Account resource conflict" },
   VALIDATION_ERROR: { status: 422, message: "Account validation failed" },
-  STORAGE_ERROR: { status: 503, message: "Account storage unavailable" },
+  STORAGE_ERROR: {
+    status: 503,
+    message: "Account storage request failed. Nothing was saved. Try again.",
+  },
 } as const;
 
 const account = oc.errors(ACCOUNT_ERRORS);
