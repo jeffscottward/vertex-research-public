@@ -788,7 +788,12 @@ describe("goLiveDrafts.queue", () => {
       "UNAUTHORIZED",
       401
     );
-    await expectCode(clientFor().goLiveDrafts.queue({}), "STORAGE_ERROR", 503);
+    await expectCode(
+      clientFor().goLiveDrafts.queue({}),
+      "STORAGE_ERROR",
+      503,
+      "Go-live draft storage is not configured on this server; nothing was saved. Set the database connection, then retry."
+    );
   });
 
   it("shows the stored approved order of an approved draft next to today's sizing", async () => {
