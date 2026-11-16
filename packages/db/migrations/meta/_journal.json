@@ -554,6 +554,13 @@
       "when": 1794804228051,
       "tag": "0078_flow_large_trades",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1794824452507,
+      "tag": "0079_strategy_catalog_flow_control_continuation",
+      "breakpoints": true
     }
   ]
 }
