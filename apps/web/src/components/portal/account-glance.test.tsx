@@ -153,7 +153,7 @@ describe("AccountGlance", () => {
     );
     const live = find("[data-account-mode]");
     expect(live.getAttribute("data-account-mode")).toBe("live");
-    expect(live.textContent).toContain("Live account · read-only");
+    expect(live.textContent).toBe("Status:Live account");
   });
 
   it("shows a paper account as paper", async () => {
@@ -172,8 +172,8 @@ describe("AccountGlance", () => {
         )}
       />
     );
-    expect(find("[data-account-mode=paper]").textContent).toContain(
-      "Paper account · read-only"
+    expect(find("[data-account-mode=paper]").textContent).toBe(
+      "Status:Paper account"
     );
   });
 

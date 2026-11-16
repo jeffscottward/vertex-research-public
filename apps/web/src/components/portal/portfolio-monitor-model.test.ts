@@ -232,13 +232,13 @@ describe("portfolio monitor health rule", () => {
     ) => ({ ...fixtureSnapshot({}, NOW).account, ...over });
     expect(accountBadge(account({ mode: "live" }))).toEqual({
       key: "live",
-      label: "Live account · read-only",
+      label: "Live account",
       tone: "info",
       next: null,
     });
     expect(accountBadge(account({ mode: "paper" }))).toEqual({
       key: "paper",
-      label: "Paper account · read-only",
+      label: "Paper account",
       tone: "neutral",
       next: null,
     });
@@ -251,7 +251,11 @@ describe("portfolio monitor health rule", () => {
           modeConfirmedAt: null,
         })
       ).label
-    ).toBe("Live account · read-only");
+    ).toBe("Live account");
+    // The badge names the account mode only. The page can hold order and arm controls, and
+    // the IBKR gateway API is not read-only, so the badge must not claim "read-only".
+    for (const mode of ["live", "paper"] as const)
+      expect(accountBadge(account({ mode })).label).not.toMatch(/read-only/i);
     const errors = (
       [
         ["mismatch", "Account mode mismatch · data withheld"],
