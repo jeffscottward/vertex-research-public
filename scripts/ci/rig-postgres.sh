@@ -112,7 +112,7 @@ start_on_port() {
   rm -f "${pwfile}"
   if [[ -f "${log}" ]]; then offset="$(stat -c %s "${log}")"; fi
   if "${BIN}/pg_ctl" --pgdata="${DATA}" --log="${log}" --wait start \
-    -o "-c listen_addresses=127.0.0.1 -c port=${PORT} -c unix_socket_directories=${BASE} -c max_prepared_transactions=10 ${CI_DURABILITY_OFF}"; then
+    -o "-c listen_addresses=127.0.0.1 -c port=${PORT} -c unix_socket_directories=${BASE} -c max_prepared_transactions=10 -c max_locks_per_transaction=256 ${CI_DURABILITY_OFF}"; then
     return 0
   fi
   if tail -c "+$((offset + 1))" "${log}" | grep -q "Address already in use"; then
