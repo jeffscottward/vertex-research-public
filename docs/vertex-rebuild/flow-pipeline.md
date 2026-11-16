@@ -5,18 +5,32 @@ orders, and a confluence reading describes recent flow; it is never an instructi
 
 ## What it does
 
-One pipeline turns the order-flow and options-flow inputs for **SPY** and **ES** into time-aligned
-per-minute features and events in Postgres. The `/flow` page and the agent read the same data.
+One pipeline turns the order-flow and options-flow inputs for **SPY**, **ES**, **QQQ** and **NQ**
+into time-aligned per-minute features and events in Postgres. The `/flow` page and the agent read the same data.
 
 | Source | Provider (already paid) | Stored as | Cadence |
 | --- | --- | --- | --- |
 | Ticks (time & sales) | IBKR historical ticks through `vertex-history` | `flow_minutes` (delta, buy/sell volume, VWAP, OHLC, covered seconds, large and off-exchange prints, stacked imbalances, absorption) and `flow_events` | one fetch of the newest 1000 prints per symbol about every 4 minutes |
 | Depth (L2) | IBKR market depth through `vertex-history` | `flow_book` (best bid/ask, top-10 bid and ask size, book pressure) | about every minute |
 | Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
+| Net drift | QuantData `net-drift` (SPY, SPX, QQQ, NDX; parts `total` and `zero_dte`) | `flow_net_drift` (per-minute signed net call and put premium and volume, price) | every 120 s per ticker: sp500 symbols on even minutes, nasdaq100 symbols on odd minutes |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 
+Instrument registry (`FLOW_INSTRUMENTS` in `packages/api/src/flow-features.ts`):
+
+| Symbol | Kind | Group | Options ticker | Sources |
+| --- | --- | --- | --- | --- |
+| SPY | ETF | sp500 | SPY | ticks, depth, options, gex, net_drift |
+| ES | future | sp500 | SPX | ticks, depth, options, gex, net_drift |
+| QQQ | ETF | nasdaq100 | QQQ | depth, gex, net_drift |
+| NQ | future | nasdaq100 | NDX | depth, gex, net_drift |
+
+Groups (`FLOW_GROUPS`): sp500 (S&P 500: future ES, primary ticker SPX, check ticker SPY) and
+nasdaq100 (Nasdaq 100: future NQ, primary ticker QQQ, check ticker NDX). A symbol is read only for
+the sources its registry entry lists.
+
 Every attempt writes one `flow_samples` row (status `ok`, `empty`, `unavailable` or `skipped`, with
-a message), which drives the freshness strip. Rows older than 14 days are pruned at most once an
+a message), which drives the freshness strip. Rows older than their table's retention are pruned at most once an
 hour. The server runs one collect at a time; an overlapping call (a manual or seed run during a timer
 run) answers `busy: true` and does nothing, so the IBKR budget is never spent twice. A run older
 than 180 s (past the timer's 170 s limit) counts as abandoned, so a cancelled request cannot stop
@@ -72,6 +86,9 @@ Sampling means coverage gaps: 1000 SPY prints can cover only seconds of a busy r
 Each minute records `coveredSeconds` (how much of it a sample saw), and the page shows coverage.
 Full-session tape needs streaming tick-by-tick data (a later owner decision).
 
+QQQ and NQ send no tick request in this pull request, so the IBKR share of ES and SPY does not
+change.
+
 ## Features and events
 
 - **Delta / CVD:** signed volume per minute (quote rule, then tick rule); CVD over the window.
@@ -94,6 +111,20 @@ Full-session tape needs streaming tick-by-tick data (a later owner decision).
 - **GEX:** estimate (dealers assumed long calls, short puts). ES uses SPX levels shifted by the
   ES − SPX basis (ES book mid or last price minus the SPX spot at the snapshot).
 
+## Net drift
+
+Per symbol and turn the collector sends two requests to QuantData `net-drift` for the options
+ticker and the session date (the newest weekday; before 09:30 the previous weekday): `total` (all expiries) and `zero_dte` (same day).
+Both use the filter profile `otm-clean.v1`: out-of-the-money options only, without complex, floor,
+tied and cancelled trades. Each answered bucket is upserted into `flow_net_drift` by ticker, part and
+minute; a row is rewritten only when a value or the filter profile changed. No sums are stored;
+`longer` is total minus `zero_dte` on read. The sample is `ok` when the newest `total` bucket started
+at most 300 s ago, `empty` for no bucket or an older one, `unavailable` when `total` failed (a vendor
+rate limit names its end time in ET). A failed `zero_dte` part is named in the message. A `total`
+request refused for the caller reserve is `skipped` and stores no sample. Net drift is stale after
+300 s (09:30 to 16:20 New York). The worst case of one run is 23 QuantData requests (4 net drift, 16
+option pages, 3 GEX) against 30 minus the caller reserve of 6.
+
 ## Confluence
 
 Three directional votes plus GEX as context:
@@ -108,12 +139,68 @@ Fewer than two known votes: "Not enough fresh data". Bullish and bearish votes t
 "Flows disagree". Two or more on one side and none on the other: "Flows agree". A source counts
 only while it is fresh (or its market is closed, so the last session is shown).
 
+On `/flow` this block is titled "Short-term factors (last 15 to 30 min)", and its badge counts the
+factors ("2 of 3 short-term factors bullish", "Short-term factors split: 1 bullish, 1 bearish of 3",
+"No short-term factor has data yet"). The page uses the word "agree" only for futures against options
+(the control panel). The page shows the control panel of the selected symbol's group first
+(symbols SPY, QQQ, ES, NQ), then a line that names what is not collected for QQQ and NQ, then the
+snapshot; the freshness list is folded behind "Show sources" while every source is fresh.
+
+## Control document
+
+`flow.control` (`GET /flow/control`, input `group`: `sp500` or `nasdaq100`) returns
+`flow-control.v1`: who is in control of one index group on the options side and the futures side,
+the net drift series of the primary and the check ticker, a cross-check, the study status and net
+drift freshness. Assembly: `packages/api/src/server/flow-control.ts`; rules and texts:
+`packages/api/src/flow-control-rules.ts`. It is readable with an agent read key and by the viewer
+role.
+
+Rules (`flow-control-rules.v1`):
+
+| Rule | Value |
+| --- | --- |
+| Window | 30 min |
+| Enter ratio | 0.30 |
+| Exit ratio | 0.10 |
+| Minutes in a row to enter | 5 |
+| Buckets needed in the window | 10 |
+
+Ratio = Σ(call − put) / Σ(abs(call) + abs(put)) over the window of settled `total` buckets (0 for a
+zero denominator). While the net drift session is open the newest bucket is left out, because its
+minute may still be in progress. From `balanced`, 5 minutes in a row at or above the enter ratio give
+`buyers` (at or below the negative enter ratio: `sellers`), dated at the first of them; a ratio below
+the exit ratio ends `buyers` (above the negative exit ratio ends `sellers`). The group state is the
+primary ticker's state; opposite control of the check ticker gives `mixed`.
+
+A side without a state is `no_data` with the first reason that applies: `market_closed`,
+`source_unavailable`, `storage_failed` (the answer came but could not be stored), `stale`, `gap`,
+`session_start`, `sampled_tape`, `not_collected`. Each net
+drift series has a parts status: `complete`, `partial` (the same-day part is missing or more than 5
+minutes behind; the totals stay complete) or `no_data`. Points after the newest same-day bucket
+have no `zeroDte` and `longer` values, and the part totals are taken at the last minute that has both
+parts. The agreement is `not_comparable` only. The
+futures side is `no_data` with `not_collected` until the futures trades are collected. The
+cross-check compares stored SPX option prints with the vendor ratio (sp500 only; it never changes a
+state). It is `not_comparable` when the fold window lies outside the range the prints were read for
+(after the close the prints of the last 40 minutes before 16:15 are read). The study line reads the stored study `flow-control-continuation`.
+
+Measured time of one `flow.control` call after the deploy: not measured yet (target under 300 ms).
+
 ## Freshness
 
 Per source: `fresh`, `stale` (older than 10 min for ticks, 3 min for depth, 5 min for options,
 30 min for GEX while its market is open), `closed` (market closed; last session shown) or `never`.
+Net drift is stale after 5 min (session 9:30-16:20 New York); its freshness is in `flow.control`
+only. Snapshot freshness lists only the sources a symbol collects (QQQ and NQ: depth and GEX).
 Sessions: options and GEX 9:30-16:15 New York; SPY extended hours; ES Globex (Sunday 18:00 to
 Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
+
+## Retention
+
+The collector prunes each table with its own cutoff, at most once an hour (`FLOW_RETENTION_DAYS` in
+`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, 14 days for every other
+flow table, `flow_minutes` included. The previous app does not prune `flow_net_drift`, so a rollback
+deletes no row.
 
 ## Options paging and gaps
 
@@ -148,6 +235,26 @@ limit of 240 per 60 s. A refused request stops the run's paging; the gap stays f
 If the gap list cannot be read (for example before 0053 is applied), the options sample is
 `unavailable` while the session is open; after the close the run is skipped ("gaps unavailable").
 
+Caller reserve: the collector uses a view of the shared QuantData client
+(`withCallerReserve`, `FLOW_QUANTDATA_CALLER_RESERVE = 6`). Its requests (option pages, GEX) are
+refused with the reason `reserved` once only 6 of the 30 starts per 60 s are left, so two `/charts`
+option reads of 3 requests each always fit, across runs. Before each QuantData source the run
+compares the free starts beyond the reserve with the source's worst case (8 for options, 3 for GEX);
+when they do not fit, the run entry is `skipped` with "budget: <free> QuantData starts free beyond
+the reserve of 6, <n> needed" and no sample is stored, so the source stays due. Seed runs keep this
+check. One GEX estimate runs per run: after one symbol ran it, the others are `skipped` ("staggered:
+GEX ran for another symbol in this run") and stay due.
+
+Storage errors: a repository error inside one source becomes that source's sample (`unavailable`,
+"storage: write failed (<error class>)", no SQL text), and the run goes on with the next source. When
+the sample write fails too, the run entry is still returned. An error while reading the last samples
+or while pruning ends the run.
+
+Budget line: the collect output carries `budget` (free QuantData starts beyond the reserve at the
+end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6, the run time), and
+`vertex:flow:tick` prints it after the run lines:
+`budget quantdata_free=17 reserve=6 ibkr=2/6 run=41s` (`unread` when a value was not read).
+
 ## Known gaps
 
 - Options totals cover the stored prints. A busy window that is still in `flow_option_gaps` (see
@@ -164,7 +271,8 @@ If the gap list cannot be read (for example before 0053 is applied), the options
 QuantData terms (quantdata.us/legal/terms): personal use, no redistribution. `/flow` is operator-only
 on the tailnet and nothing is redistributed. QuantData allows 240 requests per 60 s per account,
 shared with `/charts` and the market-watch bot; the shared client keeps its own limits
-(`packages/api/src/server/quantdata-client.ts`). No new paid provider was added.
+(`packages/api/src/server/quantdata-client.ts`), and the collector's caller reserve keeps 6 of the
+client's 30 starts per 60 s free for `/charts`. No new paid provider was added.
 
 ## Deploy
 
@@ -186,8 +294,24 @@ shared with `/charts` and the market-watch bot; the shared client keeps its own 
    the 0052 row from `drizzle.__drizzle_migrations` first. `flow_option_gaps` alone:
    `packages/db/rollback/0053_flow_option_gaps.down.sql`, after the previous collector is deployed.
 
+Net drift (migration 0077), in this order:
+
+1. Pause the timer: `systemctl stop vertex-flow.timer`.
+2. Apply `packages/db/migrations/0077_flow_net_drift.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container.
+3. Check that `flow_net_drift` exists, that `vertex_research` has SELECT, INSERT, UPDATE and DELETE on
+   it, and that one replaced check (for example `flow_samples_check`) lists QQQ, NQ and `net_drift`.
+4. Deploy the app.
+5. Re-run `infra/flow/quantvps/install.sh` (it installs the new tick script).
+6. Run `bun run vertex:flow:tick --dry-run`, then start the timer: `systemctl start vertex-flow.timer`.
+7. Rollback: deploy the previous app; it runs on the migrated database. The down script
+   `packages/db/rollback/0077_flow_net_drift.down.sql` is not the rollback path: before it runs, a
+   person must delete the QQQ, NQ and `net_drift` rows, and it drops the stored net drift series.
+
 ## Agent semantic layer
 
 Until the certified term catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) is built, agents
 read these features through the read-only MCP tool `flow_snapshot`, which returns the same
 `flow-snapshot.v1` document as the page. When the catalog lands, flow terms map to `flow.snapshot`.
+The tool input stays pinned to SPY and ES (the recorded semantic-layer eval); pull request 2 widens
+it to four symbols and records the eval again.

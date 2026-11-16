@@ -1,23 +1,47 @@
 // What: the flow.* procedures. flow.collect (scheduler, agent API key) runs one sampled collection;
 // flow.snapshot reads one symbol's window for the /flow page and the agent. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
-import type { FlowRepository } from "@darkfactory/db/server";
+import type {
+  FlowRepository,
+  ResearchStudyRepository,
+} from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import type {
+  FlowControl,
+  FlowControlInput,
   FlowSnapshot,
   FlowSnapshotParsedInput,
+  FlowSymbol,
 } from "../contracts/flow.ts";
-import type { FlowInstrument } from "../flow-features.ts";
 import type { ApiContext } from "./context.ts";
 import {
   FLOW_DEPTH_ROWS,
   FLOW_PRUNE_INTERVAL_MS,
+  FLOW_QUANTDATA_CALLER_RESERVE,
   FLOW_TICKS_COUNT,
   runFlowCollect,
 } from "./flow-collect.ts";
-import { buildFlowSnapshot } from "./flow-snapshot.ts";
+import { ResearchStudyDocumentSchema } from "../contracts/research-studies.ts";
+import {
+  FLOW_CONTROL_RULES,
+  FLOW_CONTROL_STUDY_ID,
+  FLOW_CONTROL_STUDY_RULES_ITEM,
+} from "../flow-control-rules.ts";
+import {
+  FLOW_GROUPS,
+  type FlowInstrument,
+  flowSymbolForTicker,
+} from "../flow-features.ts";
+import { newYorkClock } from "../signal-alerts.ts";
+import {
+  buildFlowControl,
+  type FlowControlRows,
+  type FlowStudyRead,
+  optionsSessionRange,
+} from "./flow-control.ts";
+import { buildFlowSnapshot, flowSessionOpen } from "./flow-snapshot.ts";
 import {
   fetchMarketDepth,
   fetchMarketHistoryPacing,
@@ -28,6 +52,7 @@ import {
   buildOptionsAnalytics,
   quantDataClientFor,
 } from "./options-analytics.ts";
+import { withCallerReserve } from "./quantdata-client.ts";
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -81,7 +106,15 @@ const collect = api.flow.collect
     const repository = repositoryFor(context, failures);
     const history = context.marketHistory ?? null;
     const quantData = context.quantData ?? null;
-    const client = quantData === null ? null : quantDataClientFor(quantData);
+    // The collector's view keeps FLOW_QUANTDATA_CALLER_RESERVE starts free in the shared client, so
+    // /charts option reads (the shared client without the view) always find room.
+    const client =
+      quantData === null
+        ? null
+        : withCallerReserve(
+            quantDataClientFor(quantData),
+            FLOW_QUANTDATA_CALLER_RESERVE
+          );
     const now = clock();
     if (
       collectingSince !== null &&
@@ -89,6 +122,13 @@ const collect = api.flow.collect
     )
       return {
         at: now.toISOString(),
+        budget: {
+          ibkrLimit: 6,
+          ibkrRecent: null,
+          quantDataFree: null,
+          quantDataReserve: FLOW_QUANTDATA_CALLER_RESERVE,
+          runSeconds: 0,
+        },
         busy: true,
         dryRun: input.dryRun,
         pruned: 0,
@@ -113,6 +153,7 @@ const collect = api.flow.collect
             ...instrumentInput(instrument),
             rows: FLOW_DEPTH_ROWS,
           }),
+        elapsedMs: () => clock().getTime() - started,
         now,
         pacing: () => fetchMarketHistoryPacing(history),
         pruneDue,
@@ -172,4 +213,103 @@ const snapshot = api.flow.snapshot
     }
   });
 
-export const flowRouter = { collect, snapshot };
+/** The stored study of the options-side rule, or not_tested. */
+const readFlowStudy = async (
+  researchStudies: ResearchStudyRepository | undefined
+): Promise<FlowStudyRead> => {
+  const notTested = {
+    rulesVersion: null,
+    status: "not_tested",
+    testedOn: null,
+  } as const;
+  const record = await researchStudies?.get(FLOW_CONTROL_STUDY_ID);
+  if (record === undefined || record === null) return notTested;
+  const parsed = ResearchStudyDocumentSchema.safeParse(record.summary);
+  if (!parsed.success || parsed.data.kind !== "strategy-backtest")
+    return notTested;
+  const study = parsed.data;
+  return {
+    rulesVersion:
+      study.rules.find((entry) => entry.item === FLOW_CONTROL_STUDY_RULES_ITEM)
+        ?.rule ?? null,
+    status: study.verdict,
+    testedOn: study.ran,
+  };
+};
+
+/** Reads one index group's stored rows and assembles flow-control.v1. */
+export const readFlowControl = async (
+  repositories: Readonly<{
+    flow: FlowRepository;
+    researchStudies: ResearchStudyRepository | undefined;
+  }>,
+  input: FlowControlInput,
+  now: Date
+): Promise<FlowControl> => {
+  const { flow, researchStudies } = repositories;
+  const group = FLOW_GROUPS[input.group];
+  const optionsOpen = flowSessionOpen("options", group.future, now);
+  const sessionDate = newYorkClock(
+    optionsOpen
+      ? now
+      : ((await flow.newestNetDriftMinute(group.primaryTicker)) ?? now)
+  ).day;
+  const { from, to } = optionsSessionRange(sessionDate);
+  const netDrift = await flow.readNetDrift({
+    from,
+    tickers: [group.primaryTicker, group.checkTicker],
+    to,
+  });
+  const samples: Partial<
+    Record<FlowSymbol, Awaited<ReturnType<FlowRepository["latestSamples"]>>>
+  > = {};
+  for (const ticker of [group.primaryTicker, group.checkTicker]) {
+    const symbol = flowSymbolForTicker(ticker);
+    samples[symbol] = await flow.latestSamples(symbol);
+  }
+  let crossPrints: FlowControlRows["crossPrints"] = null;
+  let crossGaps: FlowControlRows["crossGaps"] = null;
+  if (input.group === "sp500") {
+    const end = optionsOpen ? now : to;
+    // 10 minutes more than the window: the fold window ends before now; the assembly cuts it
+    // exactly and answers not_comparable when the window falls outside this range.
+    const start = new Date(
+      end.getTime() - (FLOW_CONTROL_RULES.windowMinutes + 10) * 60_000
+    );
+    const { prints } = await flow.readWindow({
+      from: start,
+      symbol: "ES",
+      to: end,
+    });
+    crossPrints = { from: start, prints, to: end };
+    crossGaps = await flow.optionGaps("ES");
+  }
+  return buildFlowControl({
+    crossGaps,
+    crossPrints,
+    group: input.group,
+    netDrift,
+    now,
+    samples,
+    sessionDate,
+    study: await readFlowStudy(researchStudies),
+  });
+};
+
+const control = api.flow.control
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const flow = repositoryFor(context, failures);
+    try {
+      return await readFlowControl(
+        { flow, researchStudies: context.repositories.researchStudies },
+        input,
+        clock()
+      );
+    } catch {
+      throw failures.STORAGE_ERROR();
+    }
+  });
+
+export const flowRouter = { collect, control, snapshot };

@@ -251,6 +251,7 @@ describe("research lab entries", () => {
       )
     );
     expect(host.querySelectorAll("[data-flow-source]")).toHaveLength(4);
+    expect(host.querySelectorAll("[data-flow-control-side]")).toHaveLength(2);
     expect(host.querySelector("[data-flow-chart]")).not.toBeNull();
     expect(host.textContent).toContain("Fictional lab data");
   });

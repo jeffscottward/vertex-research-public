@@ -15,15 +15,24 @@ import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
 import {
   FLOW_DUE_SECONDS,
   FLOW_OPTION_LOOKBACK_MS,
-  FLOW_SEED_OPTION_LOOKBACK_MS,
   FLOW_OPTION_PAGES_MAX,
   FLOW_OPTION_RUN_PAGES_MAX,
   FLOW_RETENTION_DAYS,
+  FLOW_SEED_OPTION_LOOKBACK_MS,
+  FLOW_QUANTDATA_CALLER_RESERVE,
   FLOW_TICKS_STARVED_SECONDS,
   type FlowCollectDeps,
+  flowQuantDataRunWorstCase,
+  netDriftTurn,
   runFlowCollect,
 } from "./flow-collect.ts";
-import type { QuantDataClient, QuantDataResult } from "./quantdata-client.ts";
+import {
+  DEFAULT_MAX_PER_MINUTE,
+  type QuantDataClient,
+  type QuantDataResult,
+} from "./quantdata-client.ts";
+import { FLOW_GROUPS, FLOW_INSTRUMENTS } from "../flow-features.ts";
+import { netDriftRequest as netDriftRequestFor } from "../flow-net-drift.ts";
 
 // Monday 2026-11-09 10:00 New York (EST, UTC-5): every source's market is open.
 const OPEN = new Date("2026-11-09T15:00:00.000Z");
@@ -258,23 +267,45 @@ const fakeRepository = (
     })),
     moveOptionGapEnd: gaps.moveOptionGapEnd,
     newestDataAt: vi.fn(async () => null),
+    newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
     optionGaps: gaps.optionGaps,
     prune: vi.fn(async () => 42),
+    readNetDrift: vi.fn(async () => []),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
     upsertMinutes: vi.fn(count),
+    upsertNetDrift: vi.fn<FlowRepository["upsertNetDrift"]>(
+      async (rows) => rows.length
+    ),
   } satisfies FlowRepository;
 };
 
+const netDriftAnswer = (data: unknown = {}): QuantDataResult => ({
+  body: { data },
+  data,
+  ok: true,
+});
+
+/** Net drift requests go to `netDrift`; every other request goes to `pages` (option pages). */
 const fakeQuantData = (results: QuantDataResult[] = [page([optionRow()])]) => {
   const queue = [...results];
+  const pages = vi.fn<QuantDataClient["request"]>(
+    async () => queue.shift() ?? page([])
+  );
+  const netDrift = vi.fn<QuantDataClient["request"]>(async () =>
+    netDriftAnswer()
+  );
   return {
     cooldownSeconds: () => 0,
-    request: vi.fn<QuantDataClient["request"]>(
-      async () => queue.shift() ?? page([])
-    ),
-  } satisfies QuantDataClient;
+    freeStarts: vi.fn(() => 24),
+    netDrift,
+    pages,
+    request: (endpoint, ...rest) =>
+      endpoint === "netDrift"
+        ? netDrift(endpoint, ...rest)
+        : pages(endpoint, ...rest),
+  } satisfies QuantDataClient & Record<string, unknown>;
 };
 
 type Deps = Omit<FlowCollectDeps, "repository" | "quantData"> & {
@@ -285,6 +316,7 @@ type Deps = Omit<FlowCollectDeps, "repository" | "quantData"> & {
 const depsWith = (overrides: Partial<Deps> = {}): Deps => ({
   analytics: vi.fn(async () => analyticsOutput()),
   depth: vi.fn(async () => depthOutput()),
+  elapsedMs: () => 1500,
   now: OPEN,
   pacing: vi.fn(async () => ({ backoffSeconds: 0, recentRequests: 0 })),
   pruneDue: false,
@@ -392,13 +424,18 @@ describe("runFlowCollect seed (operator backfill)", () => {
     });
     const { run } = await collect(deps, { seed: true });
     for (const symbol of ["SPY", "ES"] as const)
-      for (const source of ["depth", "ticks", "options", "gex"] as const)
+      for (const source of ["depth", "ticks", "options"] as const)
         expect(run(symbol, source).status).not.toBe("skipped");
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(run("ES", "gex")).toMatchObject({
+      message: "staggered: GEX ran for another symbol in this run",
+      status: "skipped",
+    });
     expect(run("SPY", "ticks").status).toBe("ok");
     expect(run("ES", "ticks").status).toBe("ok");
     expect(deps.ticks).toHaveBeenCalledTimes(2);
     expect(deps.pacing).toHaveBeenCalledTimes(1);
-    const [, payload] = deps.quantData?.request.mock.calls[0] ?? [];
+    const [, payload] = deps.quantData?.pages.mock.calls[0] ?? [];
     expect(payload).toMatchObject({
       timeRange: {
         startTime: new Date(
@@ -763,7 +800,7 @@ describe("runFlowCollect options", () => {
       message: `1 prints on 1 page(s) since ${floor.toISOString()}`,
       status: "ok",
     });
-    expect(deps.quantData?.request).toHaveBeenCalledWith(
+    expect(deps.quantData?.pages).toHaveBeenCalledWith(
       "orderFlow",
       {
         filter: { ticker: "SPY" },
@@ -822,7 +859,7 @@ describe("runFlowCollect options", () => {
       status: "ok",
     });
     expect(run("SPY", "options").message).toMatch(/^1 prints on 1 page\(s\)/);
-    expect(quantData.request.mock.calls[1]?.[1]).toMatchObject({
+    expect(quantData.pages.mock.calls[1]?.[1]).toMatchObject({
       searchAfter: [1, "a"],
     });
   });
@@ -842,7 +879,7 @@ describe("runFlowCollect options", () => {
     const floor = new Date(OPEN.getTime() - FLOW_OPTION_LOOKBACK_MS);
     const oldest = new Date(OPEN.getTime() - 60_000);
     const gapPages = FLOW_OPTION_RUN_PAGES_MAX - FLOW_OPTION_PAGES_MAX;
-    expect(quantData.request).toHaveBeenCalledTimes(FLOW_OPTION_RUN_PAGES_MAX);
+    expect(quantData.pages).toHaveBeenCalledTimes(FLOW_OPTION_RUN_PAGES_MAX);
     // The gap ends 1 ms after the oldest print, so prints sharing its millisecond are read again.
     expect(gaps.addOptionGap).toHaveBeenCalledWith({
       createdAt: OPEN,
@@ -851,7 +888,7 @@ describe("runFlowCollect options", () => {
       symbol: "SPY",
     });
     expect(
-      quantData.request.mock.calls[FLOW_OPTION_PAGES_MAX]?.[1]
+      quantData.pages.mock.calls[FLOW_OPTION_PAGES_MAX]?.[1]
     ).toStrictEqual({
       filter: { ticker: "SPY" },
       timeRange: {
@@ -986,7 +1023,16 @@ const flowSource = (times: readonly number[], size = 2) => {
     );
   });
   return {
-    client: { cooldownSeconds: () => 0, request } satisfies QuantDataClient,
+    client: {
+      cooldownSeconds: () => 0,
+      freeStarts: vi.fn(() => 24),
+      netDrift: vi.fn<QuantDataClient["request"]>(async () => netDriftAnswer()),
+      pages: request,
+      request: (endpoint, ...rest) =>
+        endpoint === "netDrift"
+          ? Promise.resolve(netDriftAnswer())
+          : request(endpoint, ...rest),
+    } satisfies QuantDataClient & Record<string, unknown>,
     ids: rows.map((row) => row.id),
     request,
   };
@@ -1225,7 +1271,7 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
     expect(run("SPY", "options").message).toContain(
       "page 2 failed, older prints of this window queued as a gap; gaps not read after a failed page (2 left)"
     );
-    expect(quantData.request).toHaveBeenCalledTimes(2);
+    expect(quantData.pages).toHaveBeenCalledTimes(2);
     expect(gaps.rows()).toHaveLength(2);
   });
 
@@ -1255,9 +1301,11 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
     const repository = fakeRepository([], undefined, gaps);
     repository.insertOptionPrints.mockRejectedValueOnce(new Error("db down"));
     const deps = depsWith({ quantData: source.client, repository });
-    await expect(collect(deps, { symbols: ["SPY"] })).rejects.toThrow(
-      "db down"
-    );
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options")).toMatchObject({
+      message: "storage: write failed (Error)",
+      status: "unavailable",
+    });
     expect(gaps.rows()).toHaveLength(1);
   });
 
@@ -1418,7 +1466,7 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
       message: "relation missing",
       status: "unavailable",
     });
-    expect(open.quantData?.request).not.toHaveBeenCalled();
+    expect(open.quantData?.pages).not.toHaveBeenCalled();
     const closed = depsWith({
       now: CLOSE,
       repository: fakeRepository([], undefined, gaps),
@@ -1465,8 +1513,8 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
     expect(run("SPY", "options").message).toContain(
       "gaps: 0 prints on 1 page(s), 1 closed, 0 left"
     );
-    expect(quantData.request).toHaveBeenCalledTimes(2);
-    expect(quantData.request.mock.calls[1]?.[1]).toMatchObject({
+    expect(quantData.pages).toHaveBeenCalledTimes(2);
+    expect(quantData.pages.mock.calls[1]?.[1]).toMatchObject({
       timeRange: { endTime: floor.toISOString() },
     });
     expect(gaps.rows()).toStrictEqual([]);
@@ -1634,28 +1682,40 @@ describe("runFlowCollect storage", () => {
   it("stores one sample per recorded attempt", async () => {
     const deps = depsWith();
     const { output } = await collect(deps);
-    expect(output.runs).toHaveLength(8);
+    expect(output.runs).toHaveLength(16);
     expect(recorded(deps)).toEqual([
+      "SPY:net_drift:empty",
+      "ES:net_drift:empty",
       "SPY:depth:ok",
       "ES:depth:ok",
+      "QQQ:depth:ok",
+      "NQ:depth:ok",
       "SPY:ticks:ok",
       "SPY:options:ok",
       "ES:options:empty",
       "SPY:gex:ok",
-      "ES:gex:ok",
     ]);
     expect(output.at).toBe(OPEN.toISOString());
   });
 
-  it("prunes only when due, with the retention cutoff", async () => {
+  it("prunes each table with its own cutoff", async () => {
     const off = depsWith();
     expect((await collect(off)).output.pruned).toBe(0);
     expect(off.repository.prune).not.toHaveBeenCalled();
     const due = depsWith({ pruneDue: true });
     expect((await collect(due)).output.pruned).toBe(42);
-    expect(due.repository.prune).toHaveBeenCalledWith(
-      new Date(OPEN.getTime() - FLOW_RETENTION_DAYS * 86_400_000)
-    );
+    const days14 = new Date(OPEN.getTime() - 14 * 86_400_000);
+    expect(due.repository.prune).toHaveBeenCalledWith({
+      flow_book: days14,
+      flow_events: days14,
+      flow_gex: days14,
+      flow_minutes: days14,
+      flow_net_drift: new Date(OPEN.getTime() - 730 * 86_400_000),
+      flow_option_gaps: days14,
+      flow_option_prints: days14,
+      flow_samples: days14,
+    });
+    expect(FLOW_RETENTION_DAYS.flow_net_drift).toBe(730);
   });
 
   it("collects only the requested symbols but reads every symbol's samples", async () => {
@@ -1666,5 +1726,385 @@ describe("runFlowCollect storage", () => {
     );
     expect(deps.repository.latestSamples).toHaveBeenCalledWith("ES");
     expect(deps.repository.latestSamples).toHaveBeenCalledWith("SPY");
+  });
+});
+
+describe("runFlowCollect storage errors and the run budget", () => {
+  it("records a storage error as a sample and continues with the next source", async () => {
+    const deps = depsWith();
+    deps.repository.upsertMinutes.mockRejectedValueOnce(
+      new TypeError("relation missing: secret sql")
+    );
+    const { output, run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks")).toMatchObject({
+      events: 0,
+      items: 0,
+      message: "storage: write failed (TypeError)",
+      status: "unavailable",
+    });
+    expect(JSON.stringify(output)).not.toContain("secret sql");
+    expect(run("SPY", "options").status).toBe("ok");
+    expect(recorded(deps)).toContain("SPY:ticks:unavailable");
+  });
+
+  it("names a thrown value that is not an error by its type", async () => {
+    const deps = depsWith();
+    deps.repository.upsertMinutes.mockRejectedValueOnce("plain text");
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks").message).toBe("storage: write failed (string)");
+  });
+
+  it("returns the run entry when the sample write also fails", async () => {
+    const deps = depsWith();
+    deps.repository.recordSample.mockRejectedValue(new Error("db down"));
+    const { output } = await collect(deps, { symbols: ["SPY"] });
+    expect(output.runs.map((row) => row.source)).toEqual([
+      "net_drift",
+      "depth",
+      "ticks",
+      "options",
+      "gex",
+    ]);
+  });
+
+  it("ends the run when the sample lookup fails", async () => {
+    const deps = depsWith();
+    deps.repository.latestSamples.mockRejectedValueOnce(new Error("db down"));
+    await expect(collect(deps)).rejects.toThrow("db down");
+  });
+
+  it("runs GEX for one symbol per run", async () => {
+    const deps = depsWith();
+    const { run } = await collect(deps);
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(run("ES", "gex")).toMatchObject({
+      message: "staggered: GEX ran for another symbol in this run",
+      status: "skipped",
+    });
+    expect(deps.analytics).toHaveBeenCalledTimes(1);
+    expect(recorded(deps)).not.toContain("ES:gex:skipped");
+  });
+
+  it("skips a source whose worst case does not fit in the free starts and stores no sample for it", async () => {
+    const quantData = fakeQuantData();
+    quantData.freeStarts.mockReturnValue(7);
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options")).toMatchObject({
+      message:
+        "budget: 7 QuantData starts free beyond the reserve of 6, 8 needed",
+      status: "skipped",
+    });
+    expect(run("SPY", "gex").status).toBe("ok");
+    expect(quantData.pages).not.toHaveBeenCalled();
+    expect(recorded(deps)).not.toContain("SPY:options:skipped");
+    quantData.freeStarts.mockReturnValue(2);
+    const second = await collect(depsWith({ quantData }), { symbols: ["SPY"] });
+    expect(second.run("SPY", "gex").message).toBe(
+      "budget: 2 QuantData starts free beyond the reserve of 6, 3 needed"
+    );
+  });
+
+  it("applies the free-start check on a seed run", async () => {
+    const quantData = fakeQuantData();
+    quantData.freeStarts.mockReturnValue(0);
+    const deps = depsWith({
+      now: new Date("2026-11-07T15:00:00.000Z"),
+      quantData,
+    });
+    const { run } = await collect(deps, { seed: true, symbols: ["SPY"] });
+    expect(run("SPY", "options").message).toBe(
+      "budget: 0 QuantData starts free beyond the reserve of 6, 8 needed"
+    );
+    expect(run("SPY", "gex").status).toBe("skipped");
+  });
+
+  it("reports the free starts, the reserve, the IBKR window and the run time", async () => {
+    const { output } = await collect(depsWith({ elapsedMs: () => 12_600 }));
+    expect(output.budget).toEqual({
+      ibkrLimit: 6,
+      ibkrRecent: 2,
+      quantDataFree: 24,
+      quantDataReserve: 6,
+      runSeconds: 13,
+    });
+    const closed = await collect(
+      depsWith({ now: new Date("2026-11-08T15:00:00.000Z"), quantData: null })
+    );
+    expect(closed.output.budget).toMatchObject({
+      ibkrRecent: null,
+      quantDataFree: null,
+    });
+  });
+});
+
+describe("runFlowCollect net drift", () => {
+  const ODD = new Date(OPEN.getTime() + 60_000);
+  const BUCKET = {
+    netCallPremium: 1000,
+    netCallVolume: 10,
+    netPutPremium: -200,
+    netPutVolume: -2,
+    stockPrice: 683.4,
+  };
+  const answer = (...starts: Date[]): QuantDataResult =>
+    netDriftAnswer(
+      Object.fromEntries(starts.map((at) => [String(at.getTime()), BUCKET]))
+    );
+  const withNetDrift = (
+    ...results: QuantDataResult[]
+  ): ReturnType<typeof fakeQuantData> => {
+    const quantData = fakeQuantData();
+    for (const result of results)
+      quantData.netDrift.mockResolvedValueOnce(result);
+    return quantData;
+  };
+  const minuteAgo = (minutes: number, now: Date = OPEN) =>
+    new Date(now.getTime() - minutes * 60_000);
+
+  it("runs net drift first", async () => {
+    const { output } = await collect(depsWith(), { symbols: ["SPY"] });
+    expect(output.runs[0]?.source).toBe("net_drift");
+  });
+
+  it("skips a source that the symbol does not list", async () => {
+    const deps = depsWith({ now: ODD });
+    const { output } = await collect(deps, { symbols: ["QQQ", "NQ"] });
+    expect(output.runs.map((row) => `${row.symbol}:${row.source}`)).toEqual([
+      "QQQ:net_drift",
+      "NQ:net_drift",
+      "QQQ:depth",
+      "NQ:depth",
+      "QQQ:gex",
+      "NQ:gex",
+    ]);
+    expect(deps.ticks).not.toHaveBeenCalled();
+    expect(deps.quantData?.pages).not.toHaveBeenCalled();
+  });
+
+  it("sends the total and the zero_dte request per symbol and stores both parts", async () => {
+    const quantData = withNetDrift(
+      answer(minuteAgo(2), minuteAgo(1)),
+      answer(minuteAgo(1))
+    );
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { symbols: ["ES"] });
+    expect(quantData.netDrift.mock.calls.map((call) => call[1])).toEqual([
+      netDriftRequestFor("2026-11-09", "SPX", "total"),
+      netDriftRequestFor("2026-11-09", "SPX", "zero_dte"),
+    ]);
+    expect(quantData.netDrift.mock.calls[0]?.[2]).toBe(30_000);
+    const written = deps.repository.upsertNetDrift.mock.calls.flatMap(
+      ([rows]) => rows
+    );
+    expect(written.map((row) => `${row.ticker}:${row.part}`)).toEqual([
+      "SPX:total",
+      "SPX:total",
+      "SPX:zero_dte",
+    ]);
+    expect(written[0]).toMatchObject({
+      filterProfile: "otm-clean.v1",
+      minute: minuteAgo(2),
+      netCallPremium: 1000,
+      underlyingPrice: 683.4,
+    });
+    expect(run("ES", "net_drift")).toMatchObject({
+      items: 3,
+      message: "SPX total 2 buckets, zero_dte 1, newest 09:59 NY, 2 requests",
+      status: "ok",
+    });
+  });
+
+  it("runs sp500 on even minutes and nasdaq100 on odd minutes", async () => {
+    expect(netDriftTurn("sp500", OPEN)).toBe(true);
+    expect(netDriftTurn("nasdaq100", OPEN)).toBe(false);
+    expect(netDriftTurn("nasdaq100", ODD)).toBe(true);
+    const even = await collect(depsWith(), { symbols: ["SPY", "QQQ"] });
+    expect(even.run("QQQ", "net_drift")).toMatchObject({
+      message: "staggered: nasdaq100 net drift runs on odd minutes",
+      status: "skipped",
+    });
+    expect(even.run("SPY", "net_drift").status).toBe("empty");
+    const odd = await collect(depsWith({ now: ODD }), {
+      symbols: ["SPY", "QQQ"],
+    });
+    expect(odd.run("SPY", "net_drift").message).toBe(
+      "staggered: sp500 net drift runs on even minutes"
+    );
+    expect(odd.run("QQQ", "net_drift").status).toBe("empty");
+  });
+
+  it("ignores the stagger on a seed run and asks for the newest weekday", async () => {
+    const sunday = new Date("2026-11-08T15:01:00.000Z");
+    const quantData = fakeQuantData();
+    const { run } = await collect(depsWith({ now: sunday, quantData }), {
+      seed: true,
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift").status).toBe("empty");
+    expect(quantData.netDrift.mock.calls[0]?.[1]).toMatchObject({
+      sessionDate: "2026-11-06",
+    });
+  });
+
+  it("records unavailable with the vendor rate limit end time when the total part is refused", async () => {
+    const limited = (retryAfterSeconds: number | null): QuantDataResult => ({
+      message: "QuantData netDrift: HTTP 429.",
+      ok: false,
+      reason: "rate_limited",
+      retryAfterSeconds,
+    });
+    const quantData = withNetDrift(limited(120));
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "rate limited by the vendor until 10:02 ET",
+      status: "unavailable",
+    });
+    expect(quantData.netDrift).toHaveBeenCalledTimes(1);
+    const cooling = {
+      ...withNetDrift(limited(null)),
+      cooldownSeconds: () => 300,
+    };
+    const second = await collect(depsWith({ quantData: cooling }), {
+      symbols: ["SPY"],
+    });
+    expect(second.run("SPY", "net_drift").message).toBe(
+      "rate limited by the vendor until 10:05 ET"
+    );
+    const failing = withNetDrift(refused("QuantData netDrift: HTTP 500."));
+    const third = await collect(depsWith({ quantData: failing }), {
+      symbols: ["SPY"],
+    });
+    expect(third.run("SPY", "net_drift")).toMatchObject({
+      message: "QuantData netDrift: HTTP 500.",
+      status: "unavailable",
+    });
+  });
+
+  it("skips net drift and stores no sample when the total part is refused for the caller reserve", async () => {
+    const quantData = withNetDrift({
+      message: "kept free",
+      ok: false,
+      reason: "reserved",
+      retryAfterSeconds: 10,
+    });
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "budget: QuantData starts kept free for other callers",
+      status: "skipped",
+    });
+    expect(quantData.netDrift).toHaveBeenCalledTimes(1);
+    expect(recorded(deps)).not.toContain("SPY:net_drift:skipped");
+  });
+
+  it("stays ok and names the failed zero_dte part", async () => {
+    const quantData = withNetDrift(
+      answer(minuteAgo(1)),
+      refused("QuantData netDrift: HTTP 502.")
+    );
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      items: 1,
+      message:
+        "SPY total 1 buckets, zero_dte 0, newest 09:59 NY, 2 requests; zero_dte failed (QuantData netDrift: HTTP 502.)",
+      status: "ok",
+    });
+    const reserved = withNetDrift(answer(minuteAgo(1)), {
+      message: "QuantData netDrift: 6 kept free.",
+      ok: false,
+      reason: "reserved",
+      retryAfterSeconds: 5,
+    });
+    const second = await collect(depsWith({ quantData: reserved }), {
+      symbols: ["SPY"],
+    });
+    expect(second.run("SPY", "net_drift").message).toContain(
+      "; zero_dte failed (QuantData netDrift: 6 kept free.)"
+    );
+  });
+
+  it("records empty without a newest time for zero buckets", async () => {
+    const quantData = withNetDrift(answer(), answer());
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "SPY total 0 buckets, zero_dte 0, 2 requests",
+      status: "empty",
+    });
+  });
+
+  it("records empty for a newest bucket older than 300 s", async () => {
+    const quantData = withNetDrift(answer(minuteAgo(6)), answer());
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "SPY total 1 buckets, zero_dte 0, newest 09:54 NY, 2 requests",
+      status: "empty",
+    });
+    const exact = withNetDrift(answer(minuteAgo(5)), answer());
+    const second = await collect(depsWith({ quantData: exact }), {
+      symbols: ["SPY"],
+    });
+    expect(second.run("SPY", "net_drift").status).toBe("ok");
+  });
+
+  it("records a total answer of an unexpected shape as unavailable", async () => {
+    const quantData = withNetDrift(netDriftAnswer("not an object"));
+    const { run } = await collect(depsWith({ quantData }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "net drift answer has an unexpected shape: (root)",
+      status: "unavailable",
+    });
+  });
+
+  it("answers not configured without a client", async () => {
+    const { run } = await collect(depsWith({ quantData: null }), {
+      symbols: ["SPY"],
+    });
+    expect(run("SPY", "net_drift")).toMatchObject({
+      message: "QuantData not configured",
+      status: "skipped",
+    });
+  });
+
+  it("stores nothing on a dry run but counts the buckets", async () => {
+    const quantData = withNetDrift(answer(minuteAgo(1)), answer(minuteAgo(1)));
+    const deps = depsWith({ quantData });
+    const { run } = await collect(deps, { dryRun: true, symbols: ["SPY"] });
+    expect(run("SPY", "net_drift").items).toBe(2);
+    expect(deps.repository.upsertNetDrift).not.toHaveBeenCalled();
+  });
+
+  it("keeps the worst case of one run inside the client window minus the caller reserve", () => {
+    expect(flowQuantDataRunWorstCase(FLOW_INSTRUMENTS, FLOW_GROUPS)).toBe(23);
+    expect(23).toBeLessThanOrEqual(
+      DEFAULT_MAX_PER_MINUTE - FLOW_QUANTDATA_CALLER_RESERVE
+    );
+  });
+
+  it("reads net drift on every run of the group's minute", async () => {
+    const deps = depsWith({
+      repository: fakeRepository([sample("SPY", "net_drift", 1)]),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(FLOW_DUE_SECONDS.net_drift).toBe(0);
+    expect(run("SPY", "net_drift").status).toBe("empty");
+  });
+
+  it("is closed after 16:20 New York", async () => {
+    const { run } = await collect(
+      depsWith({ now: new Date("2026-11-09T21:20:00.000Z") }),
+      { symbols: ["SPY"] }
+    );
+    expect(run("SPY", "net_drift").message).toBe("market closed");
   });
 });
