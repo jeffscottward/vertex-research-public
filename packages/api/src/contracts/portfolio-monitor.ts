@@ -226,7 +226,12 @@ export const PORTFOLIO_MONITOR_ERRORS = {
   UNAUTHORIZED: { status: 401, message: "Authentication required" },
   FORBIDDEN: { status: 403, message: "Forbidden" },
   UPSTREAM_ERROR: { status: 502, message: "Portfolio snapshot request failed" },
-  UNAVAILABLE: { status: 503, message: "IBKR portfolio service unavailable" },
+  // Default only: the handler sends the cause (timeout, HTTP status, network) and the UTC time.
+  UNAVAILABLE: {
+    status: 503,
+    message:
+      "IBKR portfolio service did not answer. Read-only: nothing was changed. Retry on the next refresh.",
+  },
   NOT_CONFIGURED: {
     status: 503,
     message: "Portfolio monitor endpoint not configured",

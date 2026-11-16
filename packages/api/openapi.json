@@ -76870,6 +76870,28 @@
                       },
                       "type": "array"
                     },
+                    "correlationReasons": {
+                      "items": {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "short-span",
+                                "flat",
+                                "equity-at-zero",
+                                "out-of-range"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    },
                     "deposit": {
                       "type": "number"
                     },
@@ -76890,6 +76912,15 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "ratioReason": {
+                          "enum": [
+                            "short-span",
+                            "flat",
+                            "equity-at-zero",
+                            "out-of-range"
+                          ],
+                          "type": "string"
                         },
                         "weightedSlotDrawdownPct": {
                           "type": "number"
@@ -76964,6 +76995,15 @@
                                   }
                                 ]
                               },
+                              "cagrReason": {
+                                "enum": [
+                                  "short-span",
+                                  "flat",
+                                  "equity-at-zero",
+                                  "out-of-range"
+                                ],
+                                "type": "string"
+                              },
                               "maxDrawdownPct": {
                                 "type": "number"
                               },
@@ -76976,6 +77016,15 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "sharpeReason": {
+                                "enum": [
+                                  "short-span",
+                                  "flat",
+                                  "equity-at-zero",
+                                  "out-of-range"
+                                ],
+                                "type": "string"
                               },
                               "totalReturn": {
                                 "type": "number"
@@ -77007,6 +77056,15 @@
                                   }
                                 ]
                               },
+                              "cagrReason": {
+                                "enum": [
+                                  "short-span",
+                                  "flat",
+                                  "equity-at-zero",
+                                  "out-of-range"
+                                ],
+                                "type": "string"
+                              },
                               "maxDrawdownPct": {
                                 "type": "number"
                               },
@@ -77019,6 +77077,15 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "sharpeReason": {
+                                "enum": [
+                                  "short-span",
+                                  "flat",
+                                  "equity-at-zero",
+                                  "out-of-range"
+                                ],
+                                "type": "string"
                               },
                               "totalReturn": {
                                 "type": "number"
@@ -77093,6 +77160,15 @@
                             }
                           ]
                         },
+                        "cagrReason": {
+                          "enum": [
+                            "short-span",
+                            "flat",
+                            "equity-at-zero",
+                            "out-of-range"
+                          ],
+                          "type": "string"
+                        },
                         "maxDrawdownPct": {
                           "type": "number"
                         },
@@ -77105,6 +77181,15 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "sharpeReason": {
+                          "enum": [
+                            "short-span",
+                            "flat",
+                            "equity-at-zero",
+                            "out-of-range"
+                          ],
+                          "type": "string"
                         },
                         "totalReturn": {
                           "type": "number"
@@ -152591,7 +152676,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR portfolio service unavailable",
+                          "default": "IBKR portfolio service did not answer. Read-only: nothing was changed. Retry on the next refresh.",
                           "type": "string"
                         },
                         "status": {

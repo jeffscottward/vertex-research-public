@@ -7,8 +7,20 @@ export type DashboardSummary = Awaited<
   ReturnType<ApiClient["dashboard"]["summary"]>
 >;
 
+/**
+ * Why `dashboard.summary` failed and when. `code` is the server's error code and HTTP status
+ * ("STORAGE_ERROR 503"), or null when the request never got an answer.
+ */
+export type DashboardSummaryFailure = Readonly<{
+  kind: "timeout" | "cancelled" | "request-failed";
+  code: string | null;
+  /** ISO time of the failure. */
+  at: string;
+}>;
+
 /** What the page loader resolved for this request. */
 export type DashboardSummaryState =
   | Readonly<{ type: "ready"; summary: DashboardSummary }>
   | Readonly<{ type: "unauthorized" }>
-  | Readonly<{ type: "error" }>;
+  // `failure` is optional so states built before it existed (fixtures, lab) still type-check.
+  | Readonly<{ type: "error"; failure?: DashboardSummaryFailure }>;

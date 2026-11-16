@@ -32,8 +32,8 @@ import { useStoredState } from "./portfolio-monitor-controls.tsx";
 import {
   COLUMN_BY_ID,
   COLUMNS_STORAGE_KEY,
-  DASH,
   DEFAULT_COLUMN_CONFIG,
+  NO_ORDER_REF,
   completedClock,
   completedReason,
   executionClock,
@@ -669,7 +669,7 @@ const OrderTableRow = ({
     >
       <span className="inline-flex flex-wrap items-center gap-1">
         {order.ocaGroup ? <OcaBadge group={order.ocaGroup} /> : null}
-        {order.orderRef || (order.ocaGroup ? "" : DASH)}
+        {order.orderRef || (order.ocaGroup ? "" : NO_ORDER_REF)}
       </span>
     </TableCell>
   </TableRow>
@@ -917,9 +917,8 @@ export const ExecutionsTable = ({
                         pnlClass(execution.realized)
                       )}
                     >
-                      {execution.realized
-                        ? signed(execution.realized, 2)
-                        : DASH}
+                      {/* 0 is a real realized P&L; only a missing value is named. */}
+                      {signed(execution.realized, 2)}
                     </TableCell>
                   </TableRow>
                 );

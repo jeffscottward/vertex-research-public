@@ -252,6 +252,10 @@ describe("research lab entries", () => {
     );
     expect(host.querySelectorAll("[data-flow-source]")).toHaveLength(4);
     expect(host.querySelectorAll("[data-flow-control-side]")).toHaveLength(2);
+    expect(host.querySelectorAll("[data-flow-deep-trades]")).toHaveLength(1);
+    expect(host.querySelector('[data-flow-deep-trades="ES"]')).not.toBeNull();
+    expect(host.querySelectorAll("[data-flow-deep-trade]")).toHaveLength(14);
+    expect(host.querySelectorAll("[data-flow-absorption]")).toHaveLength(2);
     expect(host.querySelector("[data-flow-chart]")).not.toBeNull();
     expect(host.textContent).toContain("Fictional lab data");
   });
