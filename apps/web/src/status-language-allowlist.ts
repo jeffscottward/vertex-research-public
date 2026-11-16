@@ -1575,22 +1575,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/trade-journal-model.ts",
-    text: "—",
-    count: 4,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'Open (no realized P&L yet)' vs 'Not reported by IBKR'. Trade open/closed state is in the row; pass it.",
-    open: true,
-  },
-  {
-    file: "components/portal/trade-journal.tsx",
-    text: "Journal unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Title per kind: 'Session expired', 'IBKR snapshot service did not answer at HH:MM', 'Journal request failed'. FAILURE_COPY has the detail; the title should not be one word for three states.",
-    open: true,
-  },
-  {
     file: "components/portal/vertex-orders.tsx",
     text: "Calls or puts, limit order, day order. Share orders and naked short options are not available.",
     count: 1,

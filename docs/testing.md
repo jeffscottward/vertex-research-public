@@ -137,3 +137,4 @@ Pre-push never runs the four native-evidence files at the same time as the `unit
 - Keep one behavior per test and name the test after it.
 - Do not add sleeps in E2E. Wait on locators and responses.
 - Never add `.only` or `.skip` to get green. `forbidOnly` fails CI.
+- Run web tests that show browser-local time (`sinceClock`, `localClock`, `toLocaleTimeString`, `toLocaleDateString`) under `TZ=UTC` before you push. GitHub runners use UTC and CI does not set `TZ`, so a test that passes in the rig's zone (America/New_York) can fail in CI (PR #305). Run the changed files once with `TZ=UTC` and once with another zone, for example `TZ=UTC pnpm exec vitest run apps/web/src/components/portal/nautilus-arm-control.test.tsx` and the same command with `TZ=Asia/Tokyo`. Build the expected strings with the same helper and the same zone as the code, or give the page model a fixed zone; never hard-code a local hour.

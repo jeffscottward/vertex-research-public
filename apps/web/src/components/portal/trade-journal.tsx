@@ -47,6 +47,7 @@ import {
 import {
   chronologicalFills,
   cumulativeRealized,
+  formatExecutionRealized,
   formatMoney,
   formatNumber,
   formatPercent,
@@ -55,6 +56,8 @@ import {
   latestExecutions,
   journalSymbolRows,
   journalTime,
+  NO_LOSING_TRADES,
+  NO_WINNING_TRADES,
   pnlTextClass,
   sideLabel,
 } from "./trade-journal-model.ts";
@@ -73,6 +76,15 @@ const FAILURE_COPY: Readonly<
     "The IBKR snapshot service or IB Gateway did not answer. Try again shortly.",
 });
 
+const FAILURE_TITLE: Readonly<
+  Record<Exclude<PortfolioMonitorFailureKind, "forbidden">, string>
+> = Object.freeze({
+  error: "Journal request failed",
+  "not-configured": "Not configured",
+  unauthorized: "Session expired",
+  unavailable: "IBKR snapshot service or IB Gateway did not return data",
+});
+
 const JournalFailure = ({
   kind,
   detail,
@@ -85,9 +97,7 @@ const JournalFailure = ({
     data-journal-failure={kind}
     role="status"
   >
-    <p className="font-medium text-sm">
-      {kind === "not-configured" ? "Not configured" : "Journal unavailable"}
-    </p>
+    <p className="font-medium text-sm">{FAILURE_TITLE[kind]}</p>
     <p className="text-muted-foreground text-sm">{FAILURE_COPY[kind]}</p>
     {detail === null ? null : (
       <p className="font-mono text-muted-foreground text-xs">{detail}</p>
@@ -129,7 +139,7 @@ const JournalKpiRow = ({
         label="Avg win"
         value={
           <span className={pnlTextClass(kpis.avgWin)}>
-            {formatSignedMoney(kpis.avgWin)}
+            {formatSignedMoney(kpis.avgWin, NO_WINNING_TRADES)}
           </span>
         }
       />
@@ -137,7 +147,7 @@ const JournalKpiRow = ({
         label="Avg loss"
         value={
           <span className={pnlTextClass(kpis.avgLoss)}>
-            {formatSignedMoney(kpis.avgLoss)}
+            {formatSignedMoney(kpis.avgLoss, NO_LOSING_TRADES)}
           </span>
         }
       />
@@ -231,7 +241,7 @@ const FillTable = ({
             <TableCell numeric>{formatMoney(execution.price)}</TableCell>
             <TableCell numeric>{formatMoney(execution.commission)}</TableCell>
             <TableCell className={pnlTextClass(execution.realized)} numeric>
-              {formatSignedMoney(execution.realized)}
+              {formatExecutionRealized(execution)}
             </TableCell>
             <TableCell>{execution.exchange}</TableCell>
           </TableRow>
@@ -254,7 +264,7 @@ const JournalStatusLine = ({
     {withheld ??
       `Gateway connected · ${
         status.dataAsOf === null
-          ? "IBKR has sent no data time yet"
+          ? "No IBKR data received since the gateway connected"
           : `data as of ${status.dataAsOf}`
       }`}
   </p>

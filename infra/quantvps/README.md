@@ -10,6 +10,7 @@ This folder runs the production build of the web app on QuantVPS:
 - `restart-when-idle.sh`: **the only restart route for `vertex-web`**. Do not run `systemctl restart vertex-web` directly.
 - `stage-runtime.sh`: copies the runtime tree of a build commit (tracked files and `node_modules`) next to the live one on QuantVPS. The restart script moves it into place (see "Runtime tree").
 - `prune-web-backups.sh`: keeps the newest 10 web build backup pairs in `apps/web` on QuantVPS and deletes older ones (see "Backup retention").
+- `prune-runtime-backups.sh`: keeps the newest 2 runtime tree backups (`.runtime-bak-<TS>/`) in the checkout on QuantVPS and deletes older ones (see "Backup retention").
 
 ## Restart route
 
@@ -61,7 +62,7 @@ Nautilus backtests never run on QuantVPS (owner decision 2026-11-05): `vertex-we
 5. Run `infra/quantvps/restart-when-idle.sh` from an up-to-date rig checkout (`git fetch` first). Its rollback source is the backup from step 2. It swaps the staged runtime tree in with the restart. Exit 12 means that step 4 is missing for this build.
 6. Run `infra/quantvps/recreate-tailnet-proxies.sh --caddyfile-only` from the same checkout. It installs the committed `Caddyfile` with a reload and no proxy outage, and when the installed proxy file already equals the committed one it changes nothing and only repeats the reload (see "Change the installed Caddyfile"). The web deploy itself does not copy the proxy file.
 7. After the restart, check one page response through the proxy: `content-security-policy` must contain `script-src 'self' 'nonce-`.
-8. When the restart of step 5 ended with exit code 0 and step 7 passed, run `infra/quantvps/prune-web-backups.sh --apply` from the same checkout (see "Backup retention"). The prune never fails the deploy. Report its exit code and last line with the deploy. On exit code 8 do not wait; the next deploy prunes.
+8. When the restart of step 5 ended with exit code 0 and step 7 passed, run `infra/quantvps/prune-web-backups.sh --apply` and then `infra/quantvps/prune-runtime-backups.sh --apply` from the same checkout (see "Backup retention"). Run the second one whatever the first one returns. A prune never fails the deploy. Report the exit code and last line of each with the deploy. On exit code 8 do not wait; the next deploy prunes.
 
 Host values (2026-11-05, public repository): the committed tree names no real host. The real values are server-side config on QuantVPS and never committed: `run-preview.mjs` takes the tailnet origin from `APP_URL` in `private/basic-app-named/.prod.vars`, and the research fetch User-Agent takes its contact from `VERTEX_RESEARCH_CONTACT_EMAIL`. The proxy and install scripts read `/etc/vertex/hosts.env` (see "Host config"). Copy by hand only `apps/web/dist/` and `.wrangler/deploy/config.json`. Do not copy the committed unit over the installed one (`/etc/systemd/system/vertex-web.service`; the copy in the checkout is not the installed file), and install the committed Caddyfile only with `recreate-tailnet-proxies.sh` (step 6). The runner `run-preview.mjs` is part of the runtime tree since 2026-11-15: `stage-runtime.sh` brings the committed runner with every build, so a server-side edit of it does not survive the next deploy.
 
@@ -80,7 +81,7 @@ The checkout on QuantVPS is a plain copy of the repository tree, without `.git` 
 - **Swap:** one remote command moves each path in `PATHS` from the checkout to `.runtime-bak-<TS>/`, moves the staged path into its place and restarts the unit. A failed move puts the finished paths back and the directory gets an `UNDONE` file; the restart command is then not sent, the old process keeps serving, and the run ends with exit 3.
 - **Rollback:** when the health check fails after a swap, the rollback command first moves the new tree to `.runtime-failed-<now>/` and the saved tree back, and then restores the build output as before. With no health answer over ssh (exit 6) nothing is rolled back; the alert names the swapped tree and its backup. The runtime rollback pairs with the build backup of the same deploy (step 2). With an older `--backup <TS>` the web app runs an older build on the previous runtime tree until the next run, whose guard reports the difference.
 - **Override:** `--allow-stale-runtime <reason>` restarts although the runtime tree is at another commit, for an urgent restart while a stage is refused (for example by the free-space gate). It sends the reason to `#omp-alerts`. It does not skip the "no answer" and "unfinished swap" refusals.
-- **Disk:** `.runtime-bak-<TS>/` and `.runtime-failed-<now>/` are never deleted by a script. Unchanged files share their data with the live tree through hard links, so a stage and the backup it leaves cost about the size of the changed files. Measured on 2026-11-15, for the first stage against the packages of 2026-10-21: 36,580 of 88,555 files linked, 1.1 GB of new data. Do not edit a file of the runtime tree in place on the server: the edit would also change the backup, and the next swap replaces the file anyway. When the free-space gate refuses a stage, web deploys stop until old backups are removed; removal needs an owner decision.
+- **Disk:** `prune-runtime-backups.sh` (deploy step 8) keeps the newest 2 `.runtime-bak-<TS>/` that hold a tree and deletes older ones (see "Backup retention"). `.runtime-failed-<now>/` folders are never deleted by a script. Unchanged files share their data with the live tree through hard links, so a stage and the backup it leaves cost about the size of the changed files. Measured on 2026-11-15, for the first stage against the packages of 2026-10-21: 36,580 of 88,555 files linked, 1.1 GB of new data. Do not edit a file of the runtime tree in place on the server: the edit would also change the backup, and the next swap replaces the file anyway. When the free-space gate refuses a stage, web deploys stop until old backups are removed: run both prune scripts with `--apply`; removing anything they keep needs an owner decision.
 
 ### Repair an unfinished runtime swap
 
@@ -136,6 +137,23 @@ Log: a run that reaches the rename step appends to `${XDG_STATE_HOME:-$HOME/.loc
 ```
 
 Escalation: when the prune ends with exit code 3, 11 or 13 in two deploys in a row, or its summary shows more than 10 pairs over the keep count, the agent that runs the deploy opens or updates a card and says so in its deploy report. Then a person or an agent runs the catch-up loop: the design's "First deletion" steps 3 to 5 (before state, a keep-list check before each `--apply` run, the stop rules for exit 8, 13, 2, 3 and 11), inside the time window and with the deploy claim `deploy:quantvps-web` of steps 1 and 2. The loop ends when the summary line holds `over_after=0 leftover_folders=0`.
+
+### Runtime tree backups
+
+Every restart that swaps a new runtime tree in leaves one `.runtime-bak-<TS>/` in the checkout root on QuantVPS (see "Runtime tree"). `prune-runtime-backups.sh` keeps the newest 2 backups that hold a tree and deletes older ones, 1 per run (owner decision 2026-11-15, rule A; deletion approved 2026-11-16). Design: `docs/vertex-rebuild/designs/quantvps-runtime-backup-retention/design.md`.
+
+```sh
+infra/quantvps/prune-runtime-backups.sh           # preview: keep/delete lines and a summary; changes nothing
+infra/quantvps/prune-runtime-backups.sh --apply   # rename and delete 1 backup of the plan
+```
+
+A backup is a directory `.runtime-bak-<TS>` with `COMPLETE`, without `UNDONE`, that still holds at least one unit of its `PATHS`. It is deleted in two steps, as for the build backups: under the restart lock (no wait) one remote call renames it to `.runtime-prune-<TS>`, which the unfinished-swap checks of the restart and stage scripts never look at; after the lock is released a second call deletes it with `nice` and `ionice -c3` and prints the seconds it took. A renamed folder of an interrupted run is deleted first and counts toward the limit of 1.
+
+`--apply` renames and deletes nothing during US trading hours (Monday to Friday, 09:15 to 16:05 New York time; market holidays count as trading days) and when the time cannot be read or the New York zone data is missing: it prints `NOT PRUNED: US trading hours ...` and ends with exit 0, and the next deploy outside these hours prunes. The run stops with exit 3 and changes nothing while a swap is unfinished (see "Repair an unfinished runtime swap"). Never touched and listed as "not managed": `.runtime-failed-<now>/` folders (with their `du` size, which includes files shared by hard link), backups with `UNDONE`, and backups that a rollback emptied (every unit of `PATHS` moved back live). `.runtime-next/` is never listed. Names of another form, symlinks and files are listed as skip.
+
+Exit codes are the same as for `prune-web-backups.sh` (0, 2, 3, 8, 11, 13, above). Log: `${XDG_STATE_HOME:-$HOME/.local/state}/vertex-runtime-prune.log` on QuantVPS, one `<UTC time> delete <TS> <sha|none>` line per renamed backup and one `<UTC time> run renamed=<n> keep=2 rc=<0|1>` line per run that reached the rename step.
+
+Escalation: when the runtime prune ends with exit code 3, 11 or 13 in two deploys in a row, or its summary shows more than 3 backups over the keep count, or one delete took more than 120 s (the `deleted <TS> (<n> s)` line; a run skipped in trading hours also prints the summary line), the agent that runs the deploy opens or updates a card and runs the catch-up loop of the design's "First deletion" (time window, claim, before state, a keep-list check before each run, stop rules). The loop ends when the summary line holds `over_after=0 leftover_folders=0`.
 
 ## Change the installed Caddyfile
 
