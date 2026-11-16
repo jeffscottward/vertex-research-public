@@ -488,7 +488,7 @@ describe("FlowWorkspace control panel", () => {
     expect(
       container.querySelector("[data-flow-not-collected]")?.textContent
     ).toBe(
-      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES and SPY."
+      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
     );
     await click(button(container, "NQ"));
     await idle(container);

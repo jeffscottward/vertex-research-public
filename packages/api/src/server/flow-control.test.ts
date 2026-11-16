@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { FlowControlSchema, type FlowOptionTicker } from "../contracts/flow.ts";
+import type { FlowDeepTradeRow } from "../flow-deep-trades.ts";
+import type { FlowEventRow, FlowMinuteRow } from "../flow-features.ts";
 import type { FlowNetDriftRow } from "../flow-net-drift.ts";
 import type { FlowOptionPrintRow } from "../flow-options.ts";
 import {
   buildFlowControl,
   etClock,
   type FlowControlRows,
+  futuresSessionRange,
   optionsSessionRange,
 } from "./flow-control.ts";
 import type { FlowSampleRow } from "./flow-snapshot.ts";
@@ -72,19 +75,33 @@ const readFor = (
   prints: readonly FlowOptionPrintRow[]
 ): FlowControlRows["crossPrints"] => ({ from: at(-19), prints, to: NOW });
 
+const ticks = (
+  when: Date,
+  status: FlowSampleRow["status"] = "ok",
+  message: string | null = null
+): FlowSampleRow => ({
+  ...sample("ES", when, status, message),
+  source: "ticks",
+});
+
 const rowsOf = (overrides: Partial<FlowControlRows> = {}): FlowControlRows => ({
   crossGaps: [],
   crossPrints: readFor([]),
   group: "sp500",
+  largeTrades: [],
   netDrift: [
     ...run("SPX", 0, 21, 1000, 0),
     ...run("SPY", 0, 21, 500, 500),
     ...run("SPX", 0, 21, 100, 0, { part: "zero_dte" }),
   ],
   now: NOW,
+  previousClose: null,
   samples: freshSamples(),
   sessionDate: DATE,
+  sessionEvent: { calendar: "read", event: null },
   study: { rulesVersion: null, status: "not_tested", testedOn: null },
+  tape: [],
+  tapeEvents: [],
   ...overrides,
 });
 
@@ -416,28 +433,110 @@ describe("buildFlowControl", () => {
     expect(short.netDrift[0]?.slopeUsdPerMinute).toBeNull();
   });
 
-  it("returns the futures side as no_data not_collected and an empty deep trades block", () => {
-    const control = buildFlowControl(rowsOf());
-    expect(control.futures).toMatchObject({
-      detail: "ES deep trades are not collected yet",
-      instrument: "ES",
-      label: "Futures: deep trades not collected yet",
-      noDataReason: "not_collected",
-      state: "no_data",
+  it("futures side is no_data in the stated order: market_closed, source_unavailable, stale, sampled_tape; no ratio is computed", () => {
+    const withTicks = (
+      latest: FlowSampleRow[],
+      latestOk: FlowSampleRow[],
+      now: Date = NOW
+    ) =>
+      buildFlowControl(
+        rowsOf({
+          now,
+          samples: { ...freshSamples(now), ES: { latest, latestOk } },
+        })
+      ).futures;
+    const fresh = ticks(at(19));
+    // 1 market_closed: before 09:30, at 16:00 and on a weekend.
+    for (const now of [at(-1), at(390), new Date("2026-11-07T16:00:00.000Z")])
+      expect(withTicks([fresh], [fresh], now)).toMatchObject({
+        detail:
+          "The ES deep-trade window is 09:30 to 16:00 ET; the last window was 2026-11-09",
+        label: "Market closed",
+        noDataReason: "market_closed",
+      });
+    // 2 source_unavailable: newest unavailable, no ok sample within 10 min.
+    const failed = ticks(at(20), "unavailable", "gateway timeout");
+    expect(withTicks([failed], [ticks(at(5))])).toMatchObject({
+      detail: "gateway timeout",
+      noDataReason: "source_unavailable",
     });
-    expect(control.deepTrades).toMatchObject({
-      capture: "sampled",
-      coverage: { seenSeconds: 0, share: null, windowSeconds: 1800 },
-      symbol: "ES",
-      totalTrades: 0,
-      trades: [],
+    expect(withTicks([failed], [])).toMatchObject({
+      noDataReason: "source_unavailable",
+    });
+    // A storage failure of the newest sample names storage, not the source.
+    const unstored = ticks(
+      at(20),
+      "unavailable",
+      "storage: write failed (Error)"
+    );
+    expect(withTicks([unstored], [ticks(at(5))])).toMatchObject({
+      label: "Futures ticks were not stored",
+      noDataReason: "storage_failed",
+    });
+    // An ok sample at most 10 min old: not source_unavailable.
+    expect(withTicks([failed], [fresh]).noDataReason).toBe("sampled_tape");
+    // 3 stale.
+    expect(withTicks([ticks(at(5))], [ticks(at(5))])).toMatchObject({
+      asOf: at(5).toISOString(),
+      detail: `Newest ES tick sample is ${etClock(at(5))}; stale after 10 min`,
+      noDataReason: "stale",
+    });
+    // 4 sampled_tape.
+    expect(withTicks([fresh], [fresh])).toEqual({
+      asOf: at(19).toISOString(),
+      detail:
+        "ES deep trades are listed below; a futures state needs the full tape",
+      direction: "neutral",
+      enterRatio: 0.3,
+      inputs: { denominator: null, numerator: null, rows: 0 },
+      instrument: "ES",
+      label: "Futures: deep trades only (sampled tape, no state)",
+      noDataReason: "sampled_tape",
+      ratio: null,
+      since: null,
+      state: "no_data",
+      windowEnd: null,
+      windowStart: null,
     });
   });
 
+  it("stale without any ok tick sample", () => {
+    expect(buildFlowControl(rowsOf()).futures).toMatchObject({
+      asOf: null,
+      detail: "No ES tick sample since 09:30 ET; stale after 10 min",
+      noDataReason: "stale",
+    });
+    // Within 10 min of the open without a sample: not stale yet.
+    expect(buildFlowControl(rowsOf({ now: at(5) })).futures.noDataReason).toBe(
+      "sampled_tape"
+    );
+  });
+
+  it("stale when the newest samples are empty or skipped", () => {
+    for (const status of ["empty", "skipped"] as const) {
+      const control = buildFlowControl(
+        rowsOf({
+          samples: {
+            ...freshSamples(),
+            ES: { latest: [ticks(at(20), status)], latestOk: [] },
+          },
+        })
+      );
+      expect(control.futures.noDataReason).toBe("stale");
+    }
+  });
+
   it("agreement is not_comparable with the futures cause", () => {
-    expect(buildFlowControl(rowsOf()).agreement).toEqual({
+    const ok = ticks(at(20));
+    expect(
+      buildFlowControl(
+        rowsOf({
+          samples: { ...freshSamples(), ES: { latest: [ok], latestOk: [ok] } },
+        })
+      ).agreement
+    ).toEqual({
       detail:
-        "Futures: deep trades not collected yet: ES deep trades are not collected yet",
+        "Futures: deep trades only (sampled tape, no state): ES deep trades are listed below; a futures state needs the full tape",
       direction: "neutral",
       label: "Cannot compare",
       since: null,
@@ -563,11 +662,14 @@ describe("buildFlowControl", () => {
     expect(closed.freshness[0]?.state).toBe("closed");
   });
 
-  it("returns the five notes and null for session.event and levels", () => {
+  it("returns the notes and null for session.event", () => {
     const control = buildFlowControl(rowsOf());
-    expect(control.notes).toHaveLength(5);
+    expect(control.notes).toHaveLength(8);
     expect(control.notes[0]).toContain("otm-clean.v1");
-    expect(control.levels).toBeNull();
+    expect(control.notes).toContain(
+      "Deep trades are single prints of at least 40 contracts on ES, from a sampled tape; sums are lower bounds."
+    );
+    expect(control.notes.join(" ")).not.toContain("not collected");
     expect(control.session).toEqual({
       date: DATE,
       event: null,
@@ -606,6 +708,257 @@ describe("buildFlowControl", () => {
       direction: "bearish",
       since: at(9).toISOString(),
       state: "sellers",
+    });
+  });
+
+  describe("buildFlowControl deep trades, levels and event", () => {
+    const trade = (
+      minute: number,
+      side: "buy" | "sell",
+      size: number,
+      signing: "quote" | "tick" = "quote",
+      second = 7
+    ): FlowDeepTradeRow => ({
+      capture: "sampled",
+      limitSize: 40,
+      price: 6870.5,
+      sampledAt: NOW,
+      second: new Date(at(minute).getTime() + second * 1000),
+      seq: 0,
+      side,
+      signing,
+      size,
+      symbol: "ES",
+    });
+    const tapeRow = (minute: number, coveredSeconds = 60): FlowMinuteRow =>
+      ({
+        coveredSeconds,
+        minute: at(minute),
+        symbol: "ES",
+      }) as FlowMinuteRow;
+    const absorption = (
+      minute: number,
+      price: number | null,
+      kind: FlowEventRow["kind"] = "absorption"
+    ): FlowEventRow =>
+      ({
+        at: at(minute),
+        detail: `Buy absorption ${minute}`,
+        direction: "bearish",
+        kind,
+        price,
+        symbol: "ES",
+      }) as FlowEventRow;
+
+    it("deep trades block: limit, session sums, newest 60 of the total, sampled minutes only with their covered seconds, absorption marks", () => {
+      const trades = [
+        trade(-1, "buy", 99),
+        ...Array.from({ length: 70 }, (_, index) =>
+          trade(index % 20, index % 3 === 0 ? "sell" : "buy", 40 + (index % 5))
+        ),
+        trade(390, "buy", 99),
+      ].sort((a, b) => a.second.getTime() - b.second.getTime());
+      const control = buildFlowControl(
+        rowsOf({
+          largeTrades: trades,
+          tape: [tapeRow(2, 30), tapeRow(0), tapeRow(1), tapeRow(400)],
+          tapeEvents: [
+            absorption(1, 6870.5),
+            absorption(3, null),
+            absorption(4, 1, "large_print"),
+            absorption(-5, 1),
+          ],
+        })
+      );
+      const deep = control.deepTrades;
+      const inSession = trades.slice(1, -1);
+      const buy = inSession
+        .filter((row) => row.side === "buy")
+        .reduce((sum, row) => sum + row.size, 0);
+      const sell = inSession
+        .filter((row) => row.side === "sell")
+        .reduce((sum, row) => sum + row.size, 0);
+      expect(deep).toMatchObject({
+        limitSize: 40,
+        signing: "quote",
+        sums: {
+          buyVolume: buy,
+          cumulativeFrom: FROM.toISOString(),
+          netVolume: buy - sell,
+          sellVolume: sell,
+        },
+        symbol: "ES",
+        totalTrades: 70,
+      });
+      expect(deep.trades).toHaveLength(60);
+      expect(deep.trades[0]?.at).toBe(inSession.at(-1)?.second.toISOString());
+      expect(
+        deep.minutes.map((row) => [row.minute, row.coveredSeconds])
+      ).toEqual([
+        [at(0).toISOString(), 60],
+        [at(1).toISOString(), 60],
+        [at(2).toISOString(), 30],
+      ]);
+      const minuteZero = inSession.filter(
+        (row) => row.second.getTime() < at(1).getTime()
+      );
+      expect(deep.minutes[0]).toMatchObject({
+        buyVolume: minuteZero
+          .filter((row) => row.side === "buy")
+          .reduce((sum, row) => sum + row.size, 0),
+      });
+      expect(
+        buildFlowControl(rowsOf({ tape: [tapeRow(25)] })).deepTrades.minutes[0]
+      ).toMatchObject({ buyVolume: 0, sellVolume: 0 });
+      expect(deep.absorptions).toEqual([
+        {
+          at: at(3).toISOString(),
+          detail: "Buy absorption 3",
+          direction: "bearish",
+          price: null,
+        },
+        {
+          at: at(1).toISOString(),
+          detail: "Buy absorption 1",
+          direction: "bearish",
+          price: 6870.5,
+        },
+      ]);
+      expect(control.futures.inputs.rows).toBe(70);
+      expect(FlowControlSchema.parse(control)).toEqual(control);
+      const empty = buildFlowControl(rowsOf()).deepTrades;
+      expect(empty.sums).toEqual({
+        buyVolume: 0,
+        cumulativeFrom: null,
+        netVolume: 0,
+        sellVolume: 0,
+      });
+    });
+
+    it("signing is the one method of the rows, null for mixed rows and for no row", () => {
+      const signing = (largeTrades: FlowDeepTradeRow[]) =>
+        buildFlowControl(rowsOf({ largeTrades })).deepTrades.signing;
+      expect(signing([trade(1, "buy", 40, "tick")])).toBe("tick");
+      expect(
+        signing([trade(1, "buy", 40, "tick"), trade(2, "buy", 40, "quote")])
+      ).toBeNull();
+      expect(signing([])).toBeNull();
+    });
+
+    it("coverage: share of the trailing window, shorter window at the open, null without a tape minute, last stored minute after 16:00, empty before 09:30", () => {
+      const coverage = (now: Date, tape: FlowMinuteRow[]) =>
+        buildFlowControl(rowsOf({ now, tape })).deepTrades.coverage;
+      // At 10:30 (m = 60): the window holds minutes 31..60.
+      expect(
+        coverage(at(60), [tapeRow(30), tapeRow(31, 20), tapeRow(60, 40)])
+      ).toEqual({ seenSeconds: 60, share: 60 / 1800, windowSeconds: 1800 });
+      // At 09:51 (m = 21): 22 minutes.
+      expect(coverage(NOW, [tapeRow(0)])).toEqual({
+        seenSeconds: 60,
+        share: 60 / 1320,
+        windowSeconds: 1320,
+      });
+      expect(coverage(NOW, [])).toEqual({
+        seenSeconds: 0,
+        share: null,
+        windowSeconds: 1320,
+      });
+      // After 16:00: the last stored minute is 15:59 (m = 389).
+      expect(coverage(at(500), [tapeRow(389, 30), tapeRow(359)])).toEqual({
+        seenSeconds: 30,
+        share: 30 / 1800,
+        windowSeconds: 1800,
+      });
+      expect(coverage(at(-10), [tapeRow(0)])).toEqual({
+        seenSeconds: 0,
+        share: null,
+        windowSeconds: 1800,
+      });
+    });
+
+    it("levels from one-minute closes with the previous close, null parts and a null block", () => {
+      const priced = (minute: number, price: number | null, part = "total") =>
+        bucket("SPX", minute, 0, 0, {
+          part: part as FlowNetDriftRow["part"],
+          underlyingPrice: price,
+        });
+      const levels = buildFlowControl(
+        rowsOf({
+          netDrift: [
+            priced(0, 6852.1),
+            priced(1, null),
+            priced(1, 6880.4, "zero_dte"),
+            priced(2, 6841),
+            priced(2, 1, "zero_dte"),
+            priced(390, 1),
+            bucket("SPY", 3, 0, 0, { underlyingPrice: 1 }),
+          ],
+          previousClose: 6848.3,
+        })
+      ).levels;
+      expect(levels).toEqual({
+        previousClose: 6848.3,
+        sessionHigh: 6880.4,
+        sessionLow: 6841,
+        sessionOpen: 6852.1,
+        source: "one_minute_closes",
+        ticker: "SPX",
+      });
+      expect(
+        buildFlowControl(rowsOf({ netDrift: [], previousClose: 6848.3 })).levels
+      ).toEqual({
+        previousClose: 6848.3,
+        sessionHigh: null,
+        sessionLow: null,
+        sessionOpen: null,
+        source: "one_minute_closes",
+        ticker: "SPX",
+      });
+      expect(buildFlowControl(rowsOf({ netDrift: [] })).levels).toBeNull();
+    });
+
+    it("session.event is fomc on a meeting day and null on another, with its note", () => {
+      const fomc = buildFlowControl(
+        rowsOf({ sessionEvent: { calendar: "read", event: "fomc" } })
+      );
+      expect(fomc.session.event).toBe("fomc");
+      expect(fomc.notes).toContain(
+        "FOMC meeting day (Federal Reserve calendar)."
+      );
+      const plain = buildFlowControl(rowsOf());
+      expect(plain.session.event).toBeNull();
+      expect(plain.notes.join(" ")).not.toContain("FOMC");
+    });
+
+    it("adds the note when the calendar was not read", () => {
+      const control = buildFlowControl(
+        rowsOf({ sessionEvent: { calendar: "not_read", event: null } })
+      );
+      expect(control.notes).toContain(
+        "The event calendar was not read; no FOMC mark for this session."
+      );
+      expect(control.notes.length).toBeLessThanOrEqual(12);
+    });
+
+    it("both groups still pass the contract schema", () => {
+      for (const group of ["sp500", "nasdaq100"] as const) {
+        const control = buildFlowControl(
+          rowsOf({
+            group,
+            largeTrades: [trade(1, "buy", 40)],
+            sessionEvent: { calendar: "not_read", event: "fomc" },
+            tape: [tapeRow(1)],
+          })
+        );
+        expect(FlowControlSchema.parse(control)).toEqual(control);
+      }
+    });
+
+    it("the futures session runs from 09:30 to 16:00 New York", () => {
+      expect(futuresSessionRange(DATE)).toEqual({
+        from: FROM,
+        to: at(390),
+      });
     });
   });
 });
